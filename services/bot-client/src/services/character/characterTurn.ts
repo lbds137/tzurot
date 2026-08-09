@@ -358,6 +358,14 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
   });
 }
 
+/** The random-pick pool filters, as `resolveCharacterSlug` consumes them. */
+export interface RandomPickFilters {
+  excludePrivate: boolean;
+  onlyMine: boolean;
+  /** Discovery-tag filter, or null when the user gave no `tag`. */
+  tag?: string | null;
+}
+
 /**
  * Read the random-pick filter flags out of the typed slash options.
  *
@@ -366,13 +374,11 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
  * lives here where it's the function's only concern. Each filter is
  * independent — see `ResolveCharacterSlugOptions` for the AND-composition.
  */
-function readRandomPickFilters(options: ReturnType<typeof randomOptions>): {
-  excludePrivate: boolean;
-  onlyMine: boolean;
-} {
+function readRandomPickFilters(options: ReturnType<typeof randomOptions>): RandomPickFilters {
   return {
     excludePrivate: options['exclude-private']() ?? false,
     onlyMine: options['only-mine']() ?? false,
+    tag: options.tag(),
   };
 }
 
@@ -431,7 +437,16 @@ async function resolveTurnPrereqs(
   };
 }
 
-async function runCharacterTurn(
+/**
+ * Run ONE character turn end to end.
+ *
+ * Exported for the tag fan-out (`chimeInTag.ts`), which runs several of these
+ * against a SINGLE interaction. Such a caller passes a context whose
+ * `editReply`/`deleteReply` have been redirected (see `sharedReplyContext`)
+ * so a per-character failure can't overwrite or delete the fan-out notice that
+ * already occupies the deferred reply.
+ */
+export async function runCharacterTurn(
   context: DeferredCommandContext,
   params: {
     /** Provided character slug, or null to force a random pick. */
@@ -439,7 +454,7 @@ async function runCharacterTurn(
     /** User message, or null/empty for weigh-in mode. */
     message: string | null;
     /** Random-pick filters — only meaningful when characterArg is null. */
-    filters: { excludePrivate: boolean; onlyMine: boolean };
+    filters: RandomPickFilters;
     /**
      * The `incognito` option from chime-in/random (null when unset). null →
      * default to weigh-in mode (no-message summons are anonymous, with-message
@@ -599,14 +614,22 @@ export async function handleRandom(context: DeferredCommandContext): Promise<voi
 }
 
 /**
- * `/chime-in` — have a named character react to the recent
+ * `/chime-in character:` — have a named character react to the recent
  * conversation with no message from the invoker (weigh-in semantics: anonymous,
  * no persona attachment, no LTM read/write, no STM-reset epoch).
+ *
+ * The slug is a PARAMETER rather than read from the options here: `character`
+ * is optional at the Discord layer now (the alternative is `tag`), so the
+ * command surface owns the XOR and hands the resolved slug down. Reading a
+ * nullable option here instead would silently fall through to a random pick.
  */
-export async function handleChimeIn(context: DeferredCommandContext): Promise<void> {
+export async function handleChimeIn(
+  context: DeferredCommandContext,
+  characterSlug: string
+): Promise<void> {
   const options = chimeInOptions(context.interaction);
   await runCharacterTurn(context, {
-    characterArg: options.character(),
+    characterArg: characterSlug,
     message: null, // no message → weigh-in mode
     filters: { excludePrivate: false, onlyMine: false },
     incognitoOption: options.incognito(),

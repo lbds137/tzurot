@@ -713,7 +713,14 @@
             "type": 3,
             "name": "character",
             "description": "Which character",
-            "required": true
+            "required": false
+          },
+          {
+            "autocomplete": true,
+            "type": 3,
+            "name": "tag",
+            "description": "Have every character carrying this tag chime in instead",
+            "required": false
           },
           {
             "name": "incognito",
@@ -2091,7 +2098,7 @@
       "description": "Chat with a random character — or, with no message, have them read the room",
       "handlers": {
         "execute": true,
-        "autocomplete": false,
+        "autocomplete": true,
         "selectMenu": false,
         "button": false,
         "modal": false
@@ -2123,6 +2130,13 @@
             "description": "Only consider characters you own (composable with exclude-private)",
             "required": false,
             "type": 5
+          },
+          {
+            "autocomplete": true,
+            "type": 3,
+            "name": "tag",
+            "description": "Only consider characters carrying this tag",
+            "required": false
           }
         ],
         "name": "random",

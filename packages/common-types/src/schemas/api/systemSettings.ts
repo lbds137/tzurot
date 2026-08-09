@@ -353,7 +353,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     key: 'multiTagMaxCharacters',
     label: 'Multi-Character Cap',
     description:
-      'How many characters may respond to a single message: the multi-tag fan-out cap (extra tagged characters are dropped with a notice). Once tag-filtered chime-in ships, also the size of its random character sample.',
+      'How many characters may respond to a single message: the multi-tag fan-out cap (extra tagged characters are dropped with a notice), and the size of the random character sample when a `/chime-in tag:` pool exceeds it. Does not affect `/random`, which always picks one.',
     group: GROUP_LIMITS,
     control: 'integer',
     liveness: 'live',

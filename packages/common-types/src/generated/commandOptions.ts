@@ -216,10 +216,11 @@ export const chatOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /chime-in <character, incognito>
+ * /chime-in <character, tag, incognito>
  */
 export const chimeInOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
+  character: { type: 'string', required: false },
+  tag: { type: 'string', required: false },
   incognito: { type: 'boolean', required: false },
 });
 
@@ -592,13 +593,14 @@ export const presetImportOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /random <message, incognito, exclude-private, only-mine>
+ * /random <message, incognito, exclude-private, only-mine, tag>
  */
 export const randomOptions = defineTypedOptions({
   message: { type: 'string', required: false },
   incognito: { type: 'boolean', required: false },
   'exclude-private': { type: 'boolean', required: false },
   'only-mine': { type: 'boolean', required: false },
+  tag: { type: 'string', required: false },
 });
 
 // =============================================================================
