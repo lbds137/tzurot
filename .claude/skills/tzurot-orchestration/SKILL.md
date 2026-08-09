@@ -29,8 +29,11 @@ quality — fresh context plus an independent diff review — not budget.
 | **Bulk reading/exploration** | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table). |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
-the main-loop model, so an unpinned spawn bills the scarcest budget, while
-every file read inline re-bills as main-loop input on all later turns.
+the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
+the agent definition's model, or inherits from the parent" — inference from
+that schema line, not a live probe), so an unpinned spawn bills the scarcest
+budget, while every file read inline re-bills as main-loop input on all later
+turns.
 Per-call `model` is the verified mechanism; a frontmatter override file was
 ruled out — TASK-438's probes showed the harness ignores subagent
 TOOL-restriction frontmatter (`tools:`/`disallowedTools:`), so an override's
@@ -46,7 +49,9 @@ need Opus-tier judgment to execute, and the spec template produces
 exactly that. This is a pilot against the Opus-worker record observed so far
 (no repo-citable measurement — the baseline lives in session history): record
 each Sonnet unit's diff-review findings and CI cycles in the pilot's tracker
-task (`pnpm tracker task list --search 'Sonnet worker-tier pilot'`), and drop
+task (`pnpm tracker task list --search 'Sonnet worker-tier pilot'` to find it;
+append by editing the task file's notes section directly — the CLI's `--notes`
+flag REPLACES the whole section and has destroyed notes before), and drop
 the tier back to Opus if defects appear. Semantic-class units (design judgment
 inside the diff) stay on Opus.
 
@@ -76,6 +81,16 @@ a gap the worker will fill by guessing.
    survivor-grep results.
 
 ## Worktree spawns
+
+**Any worker that MUTATES files runs with `isolation: "worktree"` on the Agent
+call — no exceptions.** A same-tree file-mutating worker and an orchestrator
+that keeps using `git checkout` are fighting over one working tree: the
+orchestrator's branch hop silently carries the worker's uncommitted edits onto
+another branch (observed live — the first Sonnet-pilot unit had its branch
+yanked mid-edit). Same-tree spawns are for read-only analysis only. Should the
+rule nonetheless be violated and a file-mutating worker found sharing the tree,
+the damage-control posture is: the orchestrator FREEZES its own git operations
+(checkout, pull, rebase, merge) until the worker reports.
 
 Before trusting any code-grounded output from a worktree-isolated worker,
 verify the worktree's base against the intended SHA:

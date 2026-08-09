@@ -85,7 +85,7 @@ pnpm ops mutation:gate                      # CI skip gate: run=false when the d
 pnpm ops mutation:update-baseline           # sanctioned refresh (needs a fresh LOCAL report for EVERY tracked package)
 ```
 
-Tracked set: `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). On a genuine score drop, close the test gaps — never hand-edit the baseline. `ignoreStatic` stays OFF. Services are not per-PR viable (30-70min); don't re-attempt without new data. Adding a package: copy config-resolver's `stryker.config.mjs` + `logger-calls` ignorer (NOT cache-invalidation's).
+Tracked set: `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). On a genuine score drop, close the test gaps — never hand-edit the baseline. `ignoreStatic` stays OFF. Services are not per-PR viable (30-70min); don't re-attempt without new data. Adding a package: 4-step checklist in `packages/tooling/src/test/mutation-check.WHY.md` § Onboarding.
 
 ### Secret Rotation
 
@@ -276,6 +276,8 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 | `CI_GATE_TIMEOUT`         | the gate gave up at 25 min; CI never reached a releasable state     | re-arm; do NOT assume CI passed      |
 | `CI_GATE_STARTUP_FAILURE` | a run died before dispatch (zero jobs, invisible in `gh pr checks`) | `gh run rerun <run-id>`, then re-arm |
 | _none of them_            | the Monitor's own 30-min `timeout_ms` killed the process            | re-arm                               |
+
+After a session restart, a re-fetch may re-surface already-reported comments once (the dedup timestamp lives in conversation state) — expected, not a dedup bug.
 
 ### Release Notes Format
 
