@@ -582,12 +582,17 @@ describe('formatRepoSettingsReport', () => {
     });
 
     expect(text).toContain('✓ No deletion-safety findings');
-    // The clean report must describe observed CONFIGURATION, never promise an
-    // outcome: that a bypass-actor-free deletion rule actually stops GitHub's
-    // admin-privileged auto-delete is an unverified premise, so the wording
-    // must not read as a settled guarantee.
-    expect(text).toContain('not a proven guarantee');
+    // The clean report must describe observed CONFIGURATION and never promise
+    // an outcome. The premise underneath it — that a bypass-actor-free deletion
+    // rule stops GitHub's admin-privileged auto-delete — is now probe-verified,
+    // so the wording may say so; what it still must NOT do is claim the ruleset
+    // is SUFFICIENT. One branch on one repo is not a guarantee, and
+    // `delete_branch_on_merge: false` remains the protection that assumes
+    // nothing. These two assertions pin both halves of that: the verified claim
+    // is present, the sufficiency claim is absent.
+    expect(text).toContain('not a proof of sufficiency');
     expect(text).not.toContain('deletion is unreachable');
+    expect(text).not.toContain('deletion is impossible');
     expect(text).toContain('delete_branch_on_merge: false');
     expect(text).toContain('main: deletion rule present, not bypassable');
     expect(text).toContain('develop: deletion rule present but fully bypassable');
