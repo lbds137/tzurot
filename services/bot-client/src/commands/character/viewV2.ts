@@ -35,6 +35,7 @@ import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import type { CharacterData } from './characterTypes.js';
+import { tagsBlockText } from './tagsRendering.js';
 import {
   VIEW_TOTAL_PAGES,
   VIEW_PAGE_TITLES,
@@ -92,7 +93,7 @@ function identityBlock(character: CharacterData): string {
       ? escapeMarkdown(character.displayName)
       : UX_SENTINELS.NOT_SET;
   return (
-    `**🏷️ Identity**\n` +
+    `**🪪 Identity**\n` +
     `**Name:** ${escapeMarkdown(character.name)}\n` +
     `**Display Name:** ${displayName}\n` +
     `**Slug:** \`${character.slug}\``
@@ -124,9 +125,12 @@ function overviewBlocks(character: CharacterData): ViewBlock[] {
   const tone = `**🎨 Tone**\n${character.personalityTone ?? UX_SENTINELS.NOT_SET}`;
   const age = `**📅 Age**\n${character.personalityAge ?? UX_SENTINELS.NOT_SET}`;
 
+  const tags = tagsBlockText(character.tags);
+
   return [
     { text: overviewDescription(character) },
     { text: identityBlock(character) },
+    ...(tags !== null ? [{ text: tags }] : []),
     { text: settings },
     fieldBlock(character, 'personalityTraits', CHARACTER_VIEW_LIMITS.MEDIUM),
     { text: tone },
@@ -252,10 +256,16 @@ function buildRedactedV2(character: CharacterData): ViewV2Result {
       )
     )
     .addSeparatorComponents(new SeparatorBuilder())
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(identityBlock(character)),
-      new TextDisplayBuilder().setContent(footerText(character))
-    );
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(identityBlock(character)));
+
+  // Tags survive redaction gateway-side, so the private-definition view still
+  // shows them — they are how a non-owner finds the character at all.
+  const tags = tagsBlockText(character.tags);
+  if (tags !== null) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(tags));
+  }
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText(character)));
   return { components: [container] };
 }
 

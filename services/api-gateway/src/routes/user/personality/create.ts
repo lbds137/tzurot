@@ -62,6 +62,8 @@ function buildCreateData(
     errorMessage: body.errorMessage ?? null,
     isPublic: body.isPublic ?? false,
     definitionPublic: body.definitionPublic ?? false,
+    // Already normalized/deduped/capped by PersonalityTagsInputSchema.
+    tags: body.tags ?? [],
     ownerId,
     systemPromptId,
     avatarData: media.avatarBuffer !== undefined ? new Uint8Array(media.avatarBuffer) : null,

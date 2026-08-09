@@ -192,6 +192,45 @@ describe('Character Export', () => {
       expect(json.customFields).toEqual({ lore: 'deep' });
     });
 
+    it('round-trips a populated tags array in the exported JSON', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: {
+          personality: { ...mockCharacterData, tags: ['fantasy', 'sci-fi'] },
+          canEdit: true,
+        },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: AttachmentBuilder[];
+      };
+      const json = JSON.parse(
+        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
+      ) as Record<string, unknown>;
+      expect(json.tags).toEqual(['fantasy', 'sci-fi']);
+    });
+
+    it('omits tags entirely for an untagged character (empty array is the list-valued "")', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: { personality: { ...mockCharacterData, tags: [] }, canEdit: true },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: AttachmentBuilder[];
+      };
+      const json = JSON.parse(
+        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
+      ) as Record<string, unknown>;
+      expect('tags' in json).toBe(false);
+    });
+
     it('exports definitionPublic: false explicitly (boolean false survives the non-null filter)', async () => {
       stub.getPersonality.mockResolvedValue({
         ok: true,
@@ -283,6 +322,25 @@ describe('Character Export', () => {
         data: { personality: { ...mockCharacterData, hasAvatar: true }, canEdit: true },
       });
       mockFetch.mockResolvedValue({ ok: false, status: 404 });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Avatar could not be exported'),
+        })
+      );
+    });
+
+    it('should show warning when the avatar endpoint returns a non-404 error status', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: { personality: { ...mockCharacterData, hasAvatar: true }, canEdit: true },
+      });
+      // 500 takes the throw arm (not the 404 early return); fetchAvatarData
+      // catches it and degrades to the same "could not be exported" notice.
+      mockFetch.mockResolvedValue({ ok: false, status: 500 });
 
       const mockContext = createMockContext();
       await handleExport(mockContext, mockConfig);

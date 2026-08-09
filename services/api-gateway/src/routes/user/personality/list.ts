@@ -29,6 +29,7 @@ interface RawPersonality {
   slug: string;
   ownerId: string;
   isPublic: boolean;
+  tags: string[];
   owner: { discordId: string };
 }
 
@@ -56,6 +57,7 @@ function toSummary(
     isPublic: p.isPublic,
     ownerId: p.ownerId,
     ownerDiscordId: p.owner.discordId,
+    tags: p.tags,
     permissions: computePersonalityPermissions(p.ownerId, requestingUserId, discordUserId),
   };
 }

@@ -71,6 +71,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     isPublic: false,
     definitionPublic: false,
     definitionRedacted: false,
+    tags: [],
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,
@@ -199,6 +200,23 @@ describe('buildCharacterViewPage', () => {
       expect(json.title).toContain('Luna the Wise');
     });
 
+    it('shows a Tags field on the overview when the character has tags', () => {
+      const character = createTestCharacter({ tags: ['fantasy', 'sci-fi'] });
+      const { embed } = buildCharacterViewPage(character, 0);
+      const json = embed.toJSON();
+
+      const tagsField = json.fields?.find(f => f.name.includes('Tags'));
+      expect(tagsField?.value).toBe('fantasy, sci-fi');
+    });
+
+    it('omits the Tags field entirely when the character has none', () => {
+      const character = createTestCharacter({ tags: [] });
+      const { embed } = buildCharacterViewPage(character, 0);
+      const json = embed.toJSON();
+
+      expect(json.fields?.some(f => f.name.includes('Tags'))).toBe(false);
+    });
+
     it('should show settings (visibility, voice, images)', () => {
       const character = createTestCharacter({
         isPublic: true,
@@ -240,6 +258,29 @@ describe('buildCharacterViewPage', () => {
       const { truncatedFields } = buildCharacterViewPage(character, 0);
 
       expect(truncatedFields).toContain('personalityTraits');
+    });
+  });
+
+  describe('Redacted page (embed renderer)', () => {
+    it('still shows Tags — they survive redaction gateway-side', () => {
+      const character = createTestCharacter({
+        definitionRedacted: true,
+        tags: ['fantasy', 'sci-fi'],
+      });
+      const { embed } = buildCharacterViewPage(character, 0);
+      const json = embed.toJSON();
+
+      expect(json.description).toContain('definition is private');
+      const tagsField = json.fields?.find(f => f.name.includes('Tags'));
+      expect(tagsField?.value).toBe('fantasy, sci-fi');
+    });
+
+    it('omits the Tags field on the redacted page when the character has none', () => {
+      const character = createTestCharacter({ definitionRedacted: true, tags: [] });
+      const { embed } = buildCharacterViewPage(character, 0);
+      const json = embed.toJSON();
+
+      expect(json.fields?.some(f => f.name.includes('Tags'))).toBe(false);
     });
   });
 

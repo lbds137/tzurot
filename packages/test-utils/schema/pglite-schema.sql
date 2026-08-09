@@ -237,6 +237,7 @@ CREATE TABLE "personalities" (
     "voice_reference_type" VARCHAR(50),
     "config_defaults" JSONB,
     "original_owner_discord_id" VARCHAR(20),
+    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

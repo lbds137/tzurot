@@ -671,6 +671,80 @@ describe('POST /api/admin/personality', () => {
     });
   });
 
+  describe('tags field', () => {
+    it('persists normalized tags on create', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-tags',
+        name: 'Tag Bot',
+        slug: 'tag-bot',
+        displayName: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app)
+        .post('/admin/personality')
+        .send({
+          name: 'Tag Bot',
+          slug: 'tag-bot',
+          characterInfo: 'Tagged',
+          personalityTraits: 'Organized',
+          tags: ['Fantasy', 'sci-fi'],
+        });
+
+      expect(response.status).toBe(201);
+      // Normalization (lowercase) happens in PersonalityTagsInputSchema; the
+      // route must forward the validated array instead of dropping it.
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ tags: ['fantasy', 'sci-fi'] }),
+      });
+    });
+
+    it('rejects an over-cap tag list with a 400 and never writes', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+
+      const response = await request(app)
+        .post('/admin/personality')
+        .send({
+          name: 'Overtagged Bot',
+          slug: 'overtagged-bot',
+          characterInfo: 'Too many',
+          personalityTraits: 'Excessive',
+          tags: Array.from({ length: 11 }, (_, i) => `tag-${i}`),
+        });
+
+      expect(response.status).toBe(400);
+      expect(prisma.personality.create).not.toHaveBeenCalled();
+    });
+
+    it('defaults tags to an empty array when not provided', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-no-tags',
+        name: 'Untagged Bot',
+        slug: 'untagged-bot',
+        displayName: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Untagged Bot',
+        slug: 'untagged-bot',
+        characterInfo: 'Plain',
+        personalityTraits: 'Simple',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ tags: [] }),
+      });
+    });
+  });
+
   describe('cache invalidation', () => {
     it('should invalidate cache when creating public personality', async () => {
       const mockCacheService = {

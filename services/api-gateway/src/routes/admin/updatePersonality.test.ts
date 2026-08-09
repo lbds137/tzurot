@@ -430,6 +430,73 @@ describe('PATCH /api/admin/personality/:slug', () => {
     });
   });
 
+  describe('tags field', () => {
+    it('persists normalized tags on update', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      const response = await request(app)
+        .patch('/admin/personality/test-bot')
+        .send({ tags: ['Fantasy', 'sci-fi'] });
+
+      expect(response.status).toBe(200);
+      // Exact data match: the update must carry the validated tags and
+      // nothing else for a tags-only PATCH.
+      expect(prisma.personality.update).toHaveBeenCalledWith({
+        where: { slug: 'test-bot' },
+        data: { tags: ['fantasy', 'sci-fi'] },
+      });
+    });
+
+    it('rejects an over-cap tag list with a 400 and never writes', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+
+      const response = await request(app)
+        .patch('/admin/personality/test-bot')
+        .send({ tags: Array.from({ length: 11 }, (_, i) => `tag-${i}`) });
+
+      expect(response.status).toBe(400);
+      expect(prisma.personality.update).not.toHaveBeenCalled();
+    });
+
+    it('clears tags with an empty array', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      const response = await request(app).patch('/admin/personality/test-bot').send({ tags: [] });
+
+      expect(response.status).toBe(200);
+      expect(prisma.personality.update).toHaveBeenCalledWith({
+        where: { slug: 'test-bot' },
+        data: { tags: [] },
+      });
+    });
+  });
+
   describe('cache invalidation', () => {
     let mockCacheService: CacheInvalidationService;
     let appWithCache: Express;

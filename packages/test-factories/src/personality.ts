@@ -52,6 +52,7 @@ function createBasePersonality(overrides?: Partial<PersonalityFull>): Personalit
     avatarUrl: null,
     hasVoiceReference: false,
     customFields: null,
+    tags: [],
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -95,6 +96,7 @@ interface PersonalitySummaryOverrides {
   isOwned?: boolean;
   ownerId?: string;
   ownerDiscordId?: string;
+  tags?: string[];
   permissions?: { canEdit: boolean; canDelete: boolean };
 }
 
@@ -115,6 +117,7 @@ export function mockListPersonalitiesResponse(
       isOwned: true,
       ownerId: DEFAULT_OWNER_ID,
       ownerDiscordId: '123456789012345678',
+      tags: [],
       permissions: { canEdit: true, canDelete: true },
     },
   ];
@@ -140,6 +143,7 @@ export function mockListPersonalitiesResponse(
         isOwned: p.isOwned ?? true,
         ownerId: p.ownerId ?? DEFAULT_OWNER_ID,
         ownerDiscordId: p.ownerDiscordId ?? '123456789012345678',
+        tags: p.tags ?? [],
         permissions: p.permissions ?? { canEdit: true, canDelete: true },
       })) ?? defaultList,
   });

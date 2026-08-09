@@ -15,6 +15,164 @@ import { DISCORD_LIMITS } from '../../constants/discord.js';
 import { EntityPermissionsSchema, nullableString } from './shared.js';
 
 // ============================================================================
+// Character tags
+// ============================================================================
+
+/** Bounds for owner-authored discovery tags (single global namespace). */
+export const TAG_LIMITS = {
+  /** Max tags stored on one character. */
+  MAX_PER_CHARACTER: 10,
+  /** Minimum length of a single normalized tag. */
+  MIN_LENGTH: 2,
+  /** Maximum length of a single normalized tag. */
+  MAX_LENGTH: 32,
+} as const;
+
+/**
+ * Length of the longest legitimate comma-joined tag list: every tag at its
+ * maximum length, separated by `, `. Exported so the Discord modal field can
+ * size itself from the same arithmetic instead of restating it.
+ */
+export const MAX_JOINED_TAGS_LENGTH =
+  TAG_LIMITS.MAX_PER_CHARACTER * TAG_LIMITS.MAX_LENGTH + (TAG_LIMITS.MAX_PER_CHARACTER - 1) * 2;
+
+/**
+ * Slack multiplier between the longest legitimate input and the raw-size
+ * ceilings below. Generous on purpose: the ceilings exist to bound WORK, not
+ * to enforce the tag rules (the per-tag and per-character limits do that), so
+ * a user who pastes a sloppy over-long list should still get the specific
+ * "too many tags" error rather than a blunt size rejection.
+ */
+const RAW_INPUT_SLACK = 8;
+
+/**
+ * Ceilings applied to the RAW input before any per-token work happens. The
+ * gateway's JSON body limit is measured in megabytes, so without these a
+ * single request could hand the normalize/dedupe loop an arbitrary number of
+ * tokens and only be rejected by the 10-tag cap afterwards. Bounding the raw
+ * shape first means Zod rejects at the schema edge and the loop never runs.
+ */
+export const TAG_INPUT_LIMITS = {
+  /** Longest accepted comma-separated string (the dashboard modal arm). */
+  MAX_RAW_STRING_LENGTH: MAX_JOINED_TAGS_LENGTH * RAW_INPUT_SLACK,
+  /** Most elements accepted in the array arm before per-element checks. */
+  MAX_RAW_ARRAY_LENGTH: TAG_LIMITS.MAX_PER_CHARACTER * RAW_INPUT_SLACK,
+  /** Longest accepted single raw array element. */
+  MAX_RAW_ELEMENT_LENGTH: TAG_LIMITS.MAX_LENGTH * RAW_INPUT_SLACK,
+} as const;
+
+/**
+ * Shape of a normalized tag: lowercase alphanumerics and hyphens, starting
+ * with an alphanumeric. Exported so a UI layer can pre-validate against the
+ * same shape the gateway enforces rather than surfacing a raw 400; nothing
+ * currently consumes it that way.
+ */
+export const TAG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * Normalize one raw tag token: trim, lowercase, collapse whitespace runs to a
+ * single hyphen, then apply separator hygiene — collapse hyphen runs and trim
+ * leading/trailing hyphens.
+ *
+ * The hyphen steps are deliberate and differ from how content characters are
+ * treated: the hyphen is the separator WE introduce for whitespace, so
+ * `sci -- fi` and `sci fi` are the same authored intent and must normalize to
+ * one stored tag. A CONTENT character carries meaning the author typed, so it
+ * is validated rather than rewritten — `Sci Fi!` normalizes to `sci-fi!` and
+ * is then REJECTED, because silently dropping the `!` would store a tag the
+ * author never typed.
+ */
+export function normalizeTag(raw: string): string {
+  const hyphenated = raw.trim().toLowerCase().replace(/\s+/g, '-');
+  // Splitting on the separator and dropping empty segments collapses hyphen
+  // RUNS and trims EDGE hyphens in one linear pass. The equivalent `/-+/g`
+  // replace is rejected by regexp/no-super-linear-move (quadratic scan).
+  return hyphenated
+    .split('-')
+    .filter(segment => segment.length > 0)
+    .join('-');
+}
+
+/** One tag: normalized first, then bounds- and shape-checked. */
+export const PersonalityTagSchema = z
+  .string()
+  .transform(normalizeTag)
+  .pipe(
+    z
+      .string()
+      .min(TAG_LIMITS.MIN_LENGTH, `tags must be at least ${TAG_LIMITS.MIN_LENGTH} characters`)
+      .max(TAG_LIMITS.MAX_LENGTH, `tags must be ${TAG_LIMITS.MAX_LENGTH} characters or less`)
+      .regex(
+        TAG_PATTERN,
+        'tags may contain only lowercase letters, numbers, and hyphens, and must start with a letter or number'
+      )
+  );
+
+/** Split a comma-separated tag string into raw tokens. */
+function splitTagString(value: string): string[] {
+  return value.split(',');
+}
+
+/**
+ * Tag input accepted on create/update: either a comma-separated string (the
+ * Discord dashboard's modal value, which arrives as one text field) or an
+ * array (JSON import / API clients). Both arms normalize, drop empties, and
+ * dedupe preserving first-seen order before the per-tag rules and the
+ * per-character cap apply. The string arm exists so the dashboard round-trip
+ * needs zero client-side parsing.
+ *
+ * The `.max()` bounds on the union arms run BEFORE the transform, so an
+ * oversized body is rejected at the schema edge instead of being tokenized
+ * first (see TAG_INPUT_LIMITS).
+ */
+export const PersonalityTagsInputSchema = z
+  .union([
+    z
+      .string()
+      .max(
+        TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH,
+        `tags input must be ${TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH} characters or less`
+      ),
+    z
+      .array(
+        z
+          .string()
+          .max(
+            TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH,
+            `each tag must be ${TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH} characters or less`
+          )
+      )
+      .max(
+        TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH,
+        `tags input must contain at most ${TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH} entries`
+      ),
+  ])
+  .transform(value => {
+    const rawTokens = typeof value === 'string' ? splitTagString(value) : value;
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const token of rawTokens) {
+      const normalized = normalizeTag(token);
+      // Empty-after-normalize tokens drop SILENTLY here, while the single-tag
+      // schema rejects the same input (e.g. '---'). Intentional asymmetry: in
+      // a list, an empty token is usually a comma artifact ('a,,b,'), and a
+      // separator-only token loses no authored content when dropped — unlike
+      // stripping a content character, which the reject-don't-strip rule bans.
+      if (normalized === '' || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(normalized);
+    }
+    return out;
+  })
+  .pipe(
+    z
+      .array(PersonalityTagSchema)
+      .max(TAG_LIMITS.MAX_PER_CHARACTER, `at most ${TAG_LIMITS.MAX_PER_CHARACTER} tags are allowed`)
+  );
+
+// ============================================================================
 // Shared Sub-schemas
 // ============================================================================
 
@@ -34,6 +192,12 @@ export const PersonalitySummarySchema = z.object({
   ownerId: z.string().nullable(),
   /** Owner's Discord user ID (for fetching display name) */
   ownerDiscordId: z.string().nullable(),
+  /**
+   * Owner-authored discovery tags (normalized lowercase kebab tokens).
+   * `.default([])` keeps a new client parsing an older gateway's tagless
+   * response during a rolling deploy instead of failing the whole row.
+   */
+  tags: z.array(z.string()).default([]),
   /** Computed permissions for the requesting user */
   permissions: EntityPermissionsSchema,
 });
@@ -88,6 +252,14 @@ export const PersonalityFullSchema = z.object({
   // undeclared key never reaches bot-client (export round-trip depends on it).
   // Null when the character has none OR when redacted (see definitionRedacted).
   customFields: z.record(z.string(), z.unknown()).nullable(),
+  /**
+   * Owner-authored discovery tags. Declared here for the same strip-mode
+   * reason as customFields above — an undeclared key never reaches
+   * bot-client. NOT redacted for a definition-private character: tags are
+   * discovery metadata like the name. `.default([])` keeps a new client
+   * parsing an older gateway's tagless response during a rolling deploy.
+   */
+  tags: z.array(z.string()).default([]),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -277,6 +449,10 @@ export const PersonalityCreateSchema = z.object({
   // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
   customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 
+  // Discovery tags — comma-separated string (dashboard modal) or array (JSON
+  // import). Absent = no tags on the new character.
+  tags: PersonalityTagsInputSchema.optional(),
+
   // Avatar data (base64 encoded, processed separately).
   // null = no avatar — the bot-client dashboard only fetches `hasAvatar`, never
   // the base64, so it round-trips `avatarData: null` on every save. Accepting
@@ -319,6 +495,11 @@ export const PersonalityUpdateSchema = z.object({
 
   // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
   customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+
+  // Discovery tags — comma-separated string (dashboard modal) or array (the
+  // fetched character's own `tags`, replayed on every section save). Absent =
+  // leave the stored tags untouched; an empty string or [] clears them.
+  tags: PersonalityTagsInputSchema.optional(),
 
   // Avatar data (base64 encoded, processed separately).
   // null = the dashboard round-trips a no-avatar character (it only fetches
@@ -384,6 +565,7 @@ export const PERSONALITY_LIST_SELECT = {
   slug: true,
   ownerId: true,
   isPublic: true,
+  tags: true,
   owner: {
     select: {
       discordId: true,
@@ -421,6 +603,7 @@ export const PERSONALITY_DETAIL_SELECT = {
   avatarData: true,
   voiceReferenceType: true,
   customFields: true,
+  tags: true,
   systemPromptId: true,
   voiceSettings: true,
   imageSettings: true,

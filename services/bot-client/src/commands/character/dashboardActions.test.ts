@@ -83,6 +83,7 @@ function createMockCharacter(overrides: Partial<FetchedCharacter> = {}): Fetched
     isPublic: false,
     definitionPublic: false,
     definitionRedacted: false,
+    tags: [],
     ownerId: 'user-123',
     characterInfo: '',
     personalityTraits: '',

@@ -96,7 +96,7 @@ const { SectionStatus } = await import('../../utils/dashboard/index.js');
 // explicit maxLength values.
 const identitySectionStub = {
   id: 'identity',
-  label: '🏷️ Identity & Basics',
+  label: '🪪 Identity & Basics',
   description: 'test',
   fieldIds: ['personalityAge', 'personalityTraits'],
   fields: [

@@ -29,6 +29,29 @@ import {
 /** Discord caps modals at five top-level components. */
 const MAX_MODAL_FIELDS = 5;
 
+/**
+ * Render one stored field value as modal text, or null when the field has no
+ * text representation. A string-array value (character tags) renders as its
+ * comma-joined form so a list-valued field survives the edit round-trip; the
+ * matching gateway input schema splits the comma string back apart.
+ *
+ * The join applies to ANY `string[]`-valued dashboard field, not just tags —
+ * it is keyed on the value's shape, not the field id. Half the round-trip
+ * lives elsewhere, though: the modal submits the joined string back, so a new
+ * array-valued field only round-trips if ITS OWN gateway input schema accepts
+ * a comma-separated string and splits it (as `PersonalityTagsInputSchema`
+ * does). Without that, the prefill will render fine and the save will 400.
+ */
+function toModalText(currentValue: unknown): string | null {
+  if (typeof currentValue === 'string') {
+    return currentValue;
+  }
+  if (Array.isArray(currentValue) && currentValue.every(item => typeof item === 'string')) {
+    return currentValue.join(', ');
+  }
+  return null;
+}
+
 /** Collect string prefills for the given fields from an entity record. */
 function collectInitialValues<T extends Record<string, unknown>>(
   fields: FieldDefinition[],
@@ -36,9 +59,9 @@ function collectInitialValues<T extends Record<string, unknown>>(
 ): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of fields) {
-    const currentValue = currentData[field.id];
-    if (currentValue !== undefined && currentValue !== null && typeof currentValue === 'string') {
-      values[field.id] = truncateByCodePoints(currentValue, field.maxLength);
+    const text = toModalText(currentData[field.id]);
+    if (text !== null) {
+      values[field.id] = truncateByCodePoints(text, field.maxLength);
     }
   }
   return values;

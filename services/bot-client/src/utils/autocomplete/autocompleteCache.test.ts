@@ -74,6 +74,7 @@ describe('autocompleteCache', () => {
         isOwned: true,
         ownerId: 'owner-1',
         ownerDiscordId: 'discord-123',
+        tags: [],
         permissions: { canEdit: true, canDelete: true },
       },
       {
@@ -85,6 +86,7 @@ describe('autocompleteCache', () => {
         isOwned: true,
         ownerId: 'owner-1',
         ownerDiscordId: 'discord-123',
+        tags: [],
         permissions: { canEdit: true, canDelete: true },
       },
     ];
@@ -292,6 +294,7 @@ describe('autocompleteCache', () => {
               isOwned: true,
               ownerId: 'owner-1',
               ownerDiscordId: 'discord-123',
+              tags: [],
               permissions: { canEdit: true, canDelete: true },
             },
           ],
@@ -335,6 +338,7 @@ describe('autocompleteCache', () => {
           isOwned: true,
           ownerId: 'owner-1',
           ownerDiscordId: 'discord-123',
+          tags: [],
           permissions: { canEdit: true, canDelete: true },
         },
       ];
@@ -371,6 +375,7 @@ describe('autocompleteCache', () => {
           isOwned: true,
           ownerId: 'owner-1',
           ownerDiscordId: 'discord-123',
+          tags: [],
           permissions: { canEdit: true, canDelete: true },
         },
       ];
@@ -405,6 +410,7 @@ describe('autocompleteCache', () => {
         isOwned: true,
         ownerId: 'owner-1',
         ownerDiscordId: 'discord-123',
+        tags: [],
         permissions: { canEdit: true, canDelete: true },
       },
     ];
