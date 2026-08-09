@@ -14,6 +14,8 @@ Diagnostic tools that are user-invoked for inspection (`inspect:queue`, `inspect
 
 `memory:analyze` is a borderline case: it has a measurement (duplicate memories) but is one-shot remediation, not a periodic audit. It's intentionally **not** registered in `AUDIT_TOOL_REGISTRY` even though it has a `WHY.md`.
 
+Likewise `guard:duplicate-exports`, `guard:dockerfile-dist`, `guard:hook-probes`, and `guard:gate-parity`: all four are CI gates but deliberately unregistered (no WHY.md, no canary, no `--summary`) because they are binary "is this in sync?" checks, not measurements with thresholds — the answer to "why doesn't `guard:gate-parity` have a WHY.md like the others."
+
 ## The registered audit tools (16)
 
 Single source of truth: [`packages/tooling/src/audits/audit-tool-registry.ts`](../../packages/tooling/src/audits/audit-tool-registry.ts).

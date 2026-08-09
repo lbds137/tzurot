@@ -47,3 +47,18 @@ packages) — changing what the score measures without refreshing the baseline
 hard-fails. Bump `MUTATION_IMPL_VERSION` when the arithmetic or bucketing
 changes. (3) **Silent skips**: a tracked package with no report is a
 failure, never a pass — the gate cannot be discharged by not running Stryker.
+
+## Onboarding a new package into the ratchet
+
+Four steps, all in one PR (relocated here from `05-tooling.md` — this is the
+only written copy):
+
+1. Copy config-resolver's `stryker.config.mjs` + its `logger-calls` ignorer —
+   NOT cache-invalidation's copy, whose `observability-options` rule is
+   package-specific.
+2. Add a `test:mutation` script and the `@stryker-mutator/*` devDeps to the
+   package.
+3. Add the package to `MUTATED_PACKAGES` (`mutation-check.ts`) — the
+   fingerprint drift this causes forces the explicit baseline refresh.
+4. Add the package's CI step before `mutation:check`; the gate's
+   tracked-set intersection picks the new package up automatically.
