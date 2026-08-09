@@ -212,6 +212,64 @@ run 2 "apostrophe only AFTER the commit"          'git commit -m "won'"'"'t"'   
 # breaking this one.
 run 2 "double quote inside single-quoted arg"     "echo 'say \"hi\"' && git commit -m x"                    'services/probe.ts'
 
+# --- command substitutions nested inside quotes -----------------------------
+# A BYPASS of this blocking hook, measured in all three forms: bash executes the
+# inner command in every one, but the quote strip erases a substitution nested
+# inside a quoted argument, so the first two stripped to `echo S` and the guard
+# exited 0. Wrapping a captured commit result in a status echo needs no
+# adversarial intent — it is an ordinary shape.
+run 2 "quoted \$( ) substitution around a commit"  'echo "$(git commit -m x)"'                              'services/probe.ts'
+run 2 "quoted backtick substitution around a commit" 'echo "`git commit -m x`"'                             'services/probe.ts'
+# The control: unquoted was always detected, because the strip leaves it intact.
+# Without this row a regression that broke only the quoted forms would look like
+# a whole-feature failure rather than the narrower thing it is.
+run 2 "unquoted substitution was already detected"  'echo $(git commit -m x)'                               'services/probe.ts'
+
+# The other half of the substitution scan, and the reason it strips heredoc
+# bodies first: a commit MESSAGE discussing git commit habits is data. Without
+# the strip this span reads as a commit invocation and an innocent `echo`
+# blocks. The escape token is exact-case and this body carries none, so the
+# verdict here comes from the strip and nothing else.
+SPAN_HEREDOC_PROSE='echo "$(cat <<'\''EOF'\''
+notes about git commit habits on this repo
+EOF
+)"'
+run 0 "heredoc BODY inside a span is not a commit"  "$SPAN_HEREDOC_PROSE"                                   'services/probe.ts'
+
+# THE ACCEPTED OVER-ARM, pinned as behaviour rather than left in a comment. A
+# span inside SINGLE quotes is inert prose to bash, and the extraction reads it
+# anyway, so this blocks an `echo`. Over-arming is the recoverable direction for
+# a blocking guard and the escape hatch covers it; the row exists so the next
+# reader who hits the false positive finds it named instead of hunting a bug.
+run 2 "a span in SINGLE quotes blocks too (accepted)"  "echo 'run \$(git commit)'"                          'services/probe.ts'
+
+# A non-heredoc quoted argument INSIDE a span that merely mentions the target
+# is prose, not an invocation — the span scan strip_quoteds each span exactly as
+# the top level does. Capturing the output of a command whose --body text says
+# "git commit" is an ordinary shape; without the per-span strip it would falsely
+# block a command that runs no git at all.
+run 0 "quoted prose in a span is not a commit"      'RESULT=$(gh pr comment 5 --body "reminder: git commit early and often")' 'services/probe.ts'
+
+# A BARE heredoc (not inside a substitution) whose body mentions $(git commit)
+# as prose — the exact shape this repo's own hook-dev commit messages produce.
+# The helper strips heredoc bodies from the WHOLE raw command before extracting
+# spans, so the $(git commit) sitting in inert data is gone before it can be
+# pulled out as a span. A per-span strip could not see it (the extracted span
+# carries no heredoc marker).
+BARE_HEREDOC_SUBST='cat <<'\''EOF'\'' > docs/notes.md
+We fixed the $(git commit -m x) bypass.
+EOF'
+run 0 "a bare heredoc body mentioning a commit substitution is data" "$BARE_HEREDOC_SUBST" 'services/probe.ts'
+
+# BYPASS REGRESSION: an UNTERMINATED `<<WORD`-shaped string in earlier quoted
+# prose must not truncate the real commit substitution that follows. The whole-
+# command heredoc strip keeps the tail on an unterminated opener, so the real
+# $(git commit) span survives and blocks. (Dropping the tail was a measured
+# bypass — the guard exited 0 on a live commit.)
+UNTERM_HEREDOC_BYPASS='echo "notes: <<EOF"
+echo "$(git commit -m x)"'
+run 2 "unterminated heredoc opener does not truncate a later commit span" "$UNTERM_HEREDOC_BYPASS" 'services/probe.ts'
+
 # --- line continuations -----------------------------------------------------
 # Breaking a long invocation across lines with `\` is an ordinary style choice,
 # not obfuscation — and it defeated detection outright: the scanner emitted a

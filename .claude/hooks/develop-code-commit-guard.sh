@@ -18,6 +18,11 @@
 #   was a two-pass strip, and it was a measured bypass (see the note at the
 #   call site). The heredoc half stays local: each hook strips the heredoc
 #   forms its own matching cares about.
+# - A command SUBSTITUTION is scanned as its own command, from the raw text.
+#   The quote strip erases a `$(…)`/backtick span nested inside a quoted
+#   argument while bash still executes it, so the detection above would miss
+#   `echo "$(git commit -m x)"` entirely. See the call site for the two
+#   accepted imprecisions.
 # - COMMIT DETECTION is case-insensitive on BOTH sides — the bash pre-filters
 #   and the python regex. Either one left case-sensitive re-opens the hole on
 #   its own, because the pre-filter short-circuits before python runs. The
@@ -114,12 +119,17 @@ import sys
 # exits non-zero, which the caller treats as allow (fail-open); the probe,
 # not runtime, is what catches a missing lib.
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted
+from shell_quotes import strip_quoted, substitution_spans_matching
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
     print("ok")
     raise SystemExit
+
+# The command before ANY stripping. The substitution scan below reads from it,
+# because every strip step here is destructive by design and the nested-
+# substitution shape is destroyed by the quote strip specifically.
+raw_cmd = cmd
 
 # Strip $(cat <<'EOF' … EOF) commit-message substitutions, bare heredoc
 # bodies, and quoted strings — each scoped to its own terminator — so
@@ -180,7 +190,34 @@ if scanned is not None:
 # flag narrows \s in the same pattern too, so a non-breaking space between
 # `git` and `commit` would stop matching and the guard would MISS a real
 # commit — failing open on a pasteable input to close a hypothetical one.
-if not re.search(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+commit(?![-\w])", cmd):
+#
+# THE PARAMETER IS NAMED `cmd` ON PURPOSE. gitCommitPatternAgreement.test.ts
+# pulls this pattern out of the source TEXT: it looks for a raw-string
+# `re.search` call whose second argument is spelled `cmd`, and it requires
+# EXACTLY ONE such line in the whole file. Wrapping the call in a function is
+# what keeps the pattern written once while two call sites — top level, and
+# each substitution span — share it. Renaming the parameter disarms that
+# guard, and so does a second line of the same shape anywhere in this file,
+# including inside a comment (measured while writing this one).
+def is_commit_invocation(cmd):
+    """True when `cmd` contains a `git commit` invocation."""
+    return re.search(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+commit(?![-\w])", cmd) is not None
+
+
+detected = is_commit_invocation(cmd)
+
+# Command substitutions, scanned from the RAW text. A `$(…)` or backtick span
+# nested inside a QUOTED argument is erased by the quote strip above while bash
+# still runs it, so `echo "$(git commit -m x)"` stripped to `echo S` and this
+# guard exited 0 on a real commit (measured, all three forms). Each span gets
+# the SAME cleaning the top-level scan applies to the command — heredoc bodies
+# off the WHOLE raw command first, then strip_quoted per span — inside the
+# shared helper (see substitution_spans_matching in lib/shell_quotes.py for the
+# accepted over-arm/under-arm boundaries it documents).
+if not detected and substitution_spans_matching(raw_cmd, is_commit_invocation):
+    detected = True
+
+if not detected:
     print("ok")
     raise SystemExit
 
