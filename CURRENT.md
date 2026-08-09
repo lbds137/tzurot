@@ -4,16 +4,16 @@
 
 ---
 
-## ⏭️ NEXT SESSION STARTS HERE
+## 🔄 SESSION IN PROGRESS (2026-08-09 evening, Fable 5 driving)
 
-**The 192-hour session was closed deliberately after this release; the owner planned a Claude Code harness update before the next session.** Expect a fresh environment — state the env-reported driver model in the first reply per standing memory.
+**Resume-sequence items ①–③ are DONE; doc-60 build is IN FLIGHT.**
 
-**RESUME SEQUENCE (owner-approved 2026-08-09, supersedes the shook-out order):**
+- ① **TASK-490 shipped** (PR #2030 merged: 8 memory promotions + AskUserQuestion allowlist rider + TASK-470's mutate-and-confirm-red clause as Core Principle 9; the 8 memory files + MEMORY.md lines deleted, store at 24 memories). **TASK-488 shipped** (PR #2031 merged after 3 review rounds: rule § A Blocking Question Goes Through a Formal Channel + `blocking-question-channel-check.sh` Stop-hook, 19-case probe; round-3 leftovers rode onto TASK-494 as riders). Both Done in tracker.
+- ② **doc-64 Phase 0 DONE**: portability inventory shipped as **doc-69** (278 rows, 5 classifier agents, 12 borderline adjudications); doc-64's Phase 0 bullet updated. Next for doc-64: council pass consumes doc-69.
+- ③ **doc-60 owner decisions locked via AskUserQuestion** (recorded in the doc): owner-authored tags · global namespace · over-cap `/chime-in` samples cap-many with a notice · **the multi-character cap becomes admin-configurable** (owner addition). Plan approved (plan file `~/.claude/plans/eventual-enchanting-lynx.md`): 3 PRs — ① tags schema+gateway+dashboard, ② admin cap via `SYSTEM_SETTINGS_REGISTRY` (`multiTagMaxCharacters`, fallback 5, threading not per-site reads), ③ command flows + tag autocomplete (component tier required). **PR 1 worker running in a worktree** (branch `feat/character-tags-schema`) at last update — if this session died, check `git worktree list` + `gh pr list` for where it landed.
+- Also this session: **doc-68** filed (backlog-surface consistency pass, from owner musing), **TASK-493** (stale `ops context` doc filenames), **TASK-494** (Stop-hook sidechain filtering + 3 round-3 riders).
 
-1. **TASK-490** (memory-migration PR — 8 sweep-flagged memories into rules/skills, `state:ready`, riders: tracked-settings `AskUserQuestion` entry + weigh TASK-470's one-line candidate) and **TASK-488** (owner-priority: blocking questions must surface via AskUserQuestion/PushNotification — rule + Stop-hook + probe). Both theme-closers, both worker-delegable with the main loop reviewing diffs. ~1hr combined.
-2. **doc-64 Phase 0 — the delegation flagship**: the portable / Tzurot-bound / parameterizable inventory over every rule section, hook, skill, and ops command. Parallel subagents classify slices and emit tables; main loop adjudicates borderline rows only — the best protected-context-to-output ratio on the board, and the artifact the council pass needs. **doc-63 Phase 1 is DEMOTED and folds into this** (owner-approved): the ratchets may move into the plugin package, so auditing their slack standalone risks doing the work twice.
-3. **doc-60's three owner questions** (whose tags · global vs per-server namespace · chime-in >5 behavior) in one AskUserQuestion batch → then product work: **doc-60 (tags, ELEVATED — now the substrate for doc-67's pantheon idea; 2–3 PRs, user-facing, ends the tooling-only beta streak)**, with doc-66 (coalescing) as the sibling product pick needing no substrate.
-4. Fill-in between review cycles: the `state:ready` + `size:S` drain pool, delegated in batches.
+Next after PR 1 lands: PR 2 (cap), PR 3 (flows), dev migration `pnpm ops db:migrate --env dev` promptly after PR 1's push to develop (additive; prod rides the next release's premigrate). Then doc-64 council pass or drain fill-in.
 
 **The voice-consistency sitting (~15 min) is at the owner's leisure — do NOT nag or re-surface it as a recommendation.** No calendar pressure exists (probes backed up, retention deadline defused); it unblocks the prompt-assembly cluster + caching Phase 2 whenever it happens, and it costs nothing by waiting.
 
