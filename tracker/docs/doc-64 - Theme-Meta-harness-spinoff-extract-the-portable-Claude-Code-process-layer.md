@@ -28,6 +28,8 @@ The hard middle: `packages/tooling`'s audit/ratchet infrastructure (lines:check,
 
 **Brain-management mechanisms ride the plugin** (owner directive 2026-08-09: "the brain itself stays private but the mechanisms for setting it up and managing it would belong in the plug-in"). The plugin ships the doc-65 scaffolding — a brain-setup skill (create private repo, move the memory dir, symlink from the harness path), the session-end auto-commit hook, and any status/management commands — while the brain repo holds only data. Clean content/mechanism split, and it makes versioned memory a capability every plugin adopter gets rather than a Tzurot-local hack.
 
+**Settings-management guidance rides the plugin too** (owner, same day): a skill/doc on managing `settings.json` layers — what belongs in the tracked project file (team-wide permissions, hook wiring) vs `.claude/settings.local.json` (per-machine allowlist accretion, e.g. WebFetch domains) vs user-level `~/.claude/settings.json` (cross-project permissions like the AskUserQuestion allow entry) — plus hygiene like periodically promoting local-file entries that every contributor needs into the tracked file. Nothing owns this split today; it is learned by tripping over it.
+
 ### Phase sketch
 
 - **Phase 0 — inventory (decides everything)**: classify every rule section, hook, skill, and ops command as portable / Tzurot-bound / parameterizable-with-effort. Output: the classification table; it picks the split shape empirically.
