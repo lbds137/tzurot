@@ -36,4 +36,38 @@ Fix shape: tokenize the command with shlex (punctuation_chars=True, posix=True, 
 Why not ridden into 2015: that PR is at round 8 and is already a strict improvement on what it replaces. A tokenizer rewrite changes how EVERY case is decided, so it needs its own review against the full 60-case probe rather than being bolted on. Ship in bounded units.
 
 Acceptance: the existing probe and unit suites pass unchanged against the tokenizer implementation, plus cases for the shapes regex handling never reached. The known gaps recorded in the hook header get re-evaluated — the awk NR one may become reachable once the script is a token rather than a stripped S.
+
+## RE-SCOPED 2026-08-09 — quote handling is already a scanner; what is left is structural
+
+PR 2015 round 9 found the sharpest instance of this class yet: an ordinary
+apostrophe in a double-quoted argument paired with one in a later argument,
+erasing the pipe between them. `git commit -m "it's" | grep "isn't"` exited 0.
+
+No ordering of the two regex passes fixes that — swap them and a literal double
+quote inside single-quoted arguments fails identically — so the strategy needed
+STATE, not a reordering.
+
+The quote half of this task is therefore DONE, in 2015. A left-to-right scanner
+now tracks which quote is open, treats the other quote character as literal
+while inside it, and derives the escape rules from that context (a backslash
+escapes inside double quotes and outside them, and means nothing inside single
+quotes). It replaced both backslash-neutralization hacks as a side effect. An
+unterminated quote strips nothing, matching the strip_heredocs choice to
+over-arm rather than risk a bypass.
+
+What remains for a tokenizer is narrower than this task assumed at filing:
+
+- Pipeline structure is still split on a mangled string after quoted spans have
+  become placeholders. shlex with punctuation_chars would give real operator
+  tokens instead — that is what let the merge gate treat `&&(` as one token
+  rather than guessing at it.
+- The heredoc pre-pass stays either way; shlex has no concept of heredocs.
+- The `awk "NR<=5"` KNOWN GAP may become closable: under a tokenizer the awk
+  script is an inspectable token, where today it is an opaque placeholder.
+
+Whether that is worth a rewrite is now a real question rather than an obvious
+yes. The scanner closed the bug class that motivated filing this; the remaining
+argument is uniformity with pr-merge-review-check plus the awk gap. Decide on
+merits, and re-read the hook first — the target has already moved once.
+
 <!-- SECTION:DESCRIPTION:END -->
