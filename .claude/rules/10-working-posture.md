@@ -86,6 +86,18 @@ needed the command's RESULT, which exists only post-hoc, and non-blocking
 post-hoc hook output never reaches the agent. No channel can carry it, so for
 everything the guard does not name, the rule is the mechanism.
 
+That tell only fires on a result that LOOKS wrong, and the costlier half of
+this class produces a plausible one: a window that hides the section deciding
+the question, or an aggregate summed from the visible rows and reported as the
+total — a subtotal is a well-formed number, so nothing looks off. Neither has a
+tell, so this half triggers at CLAIM time rather than at result time. Before
+stating what a file says or does not say, read it whole or state the window you
+read. Before stating a count, sum, or ranking as complete, derive it from the
+whole result set rather than the part on screen. An exit code read through a
+pipeline is the same seam: `PIPESTATUS` is indexed per stage, so `[0]` is the
+FIRST command's status, not the one whose result you want — index the stage you
+mean, or do not pipe.
+
 ## Reviews are collaborators, not gates to survive
 
 Procedure in `/tzurot-review-response`; two postures on top. When a reviewer
