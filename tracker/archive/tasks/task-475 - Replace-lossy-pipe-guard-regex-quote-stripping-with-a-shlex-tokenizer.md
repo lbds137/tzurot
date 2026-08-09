@@ -4,7 +4,7 @@ title: Replace lossy-pipe-guard regex quote-stripping with a shlex tokenizer
 status: To Do
 assignee: []
 created_date: '2026-08-09 03:49'
-updated_date: '2026-08-09 03:49'
+updated_date: '2026-08-09 06:51'
 labels:
   - 'area:process'
   - 'area:tooling'
@@ -69,5 +69,44 @@ Whether that is worth a rewrite is now a real question rather than an obvious
 yes. The scanner closed the bug class that motivated filing this; the remaining
 argument is uniformity with pr-merge-review-check plus the awk gap. Decide on
 merits, and re-read the hook first — the target has already moved once.
+
+
+## RULED OUT 2026-08-09 — both remaining arguments fail a direct probe
+
+Decided on merits after re-reading the hook, as the re-scope above asked. The
+bug class that motivated filing — six bypasses, every one in hand-rolled quote
+handling — was closed by the stateful scanner in #2015, and that scanner is now
+shared by all three hooks (#2019). What the re-scope left was two claims. Both
+were tested by running shlex over the exact shapes, rather than reasoned about:
+
+1. "A tokenizer fixes the documented unquoted-subshell over-block." It does
+   not. `git commit -m $(echo x | head -1) | cat` tokenizes to
+   `['git','commit','-m','$','(','echo','x','|','head','-1',')','|','cat']` —
+   the inner pipe is still a bare `|` indistinguishable from a real pipeline
+   operator. shlex does not track paren nesting. The fix is subshell-depth
+   tracking, which can be added to the existing splitter just as easily; none
+   of the value comes from the tokenizer.
+
+2. "The awk gap becomes closable once the script is a token." The script does
+   become inspectable (`NR<=5` rather than an opaque `S`), but DECIDING it
+   requires determining whether an arbitrary awk program truncates — `NR<=5`
+   does, `$2 != "pass"` does not, and `{print; if (NR>5) exit}` does. That is a
+   parser for awk semantics living in a PreToolUse hook, where a wrong verdict
+   either blocks the query this rule RECOMMENDS or misses a truncation. Worse
+   than the named gap it replaces.
+
+The probe also surfaced two costs the filing did not know about. `2>&1`
+tokenizes to three tokens (`'2'`, `'>&'`, `'1'`), so the REDIRECT_PREFIX
+handling — which exists to stop a leading redirect from hiding a filter stage —
+would have to be rebuilt against a shattered form. And an unterminated quote
+raises ValueError, so the scanner would survive as the fallback anyway: the
+rewrite removes nothing.
+
+That leaves uniformity with pr-merge-review-check as the only surviving
+argument, which is not a reason to rewrite working code.
+
+Not deferred, not obsolete — ruled out. If the subshell over-block ever becomes
+real friction (it fails toward blocking, and is named in the hook header), the
+fix is depth tracking in the current splitter, not a tokenizer.
 
 <!-- SECTION:DESCRIPTION:END -->
