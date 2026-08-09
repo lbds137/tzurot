@@ -183,7 +183,12 @@ run 2 "mirror: quotes inside single-quoted"   "git commit -m 'say \"hi\"' | grep
 # minutes. PreToolUse on every Bash call makes that a session hang, not a slow
 # command. Pinned with a wall-clock bound rather than a verdict, because the
 # verdict was always correct — it just took forever to reach.
-long_flags=$(python3 -c "print(' '.join(f'-x{i}' for i in range(60)))")
+# DOUBLE dash, and each flag carries a value. Both details are load-bearing and
+# neither was here before: `-x0 -x1 …` gives `-{1,2}` exactly one parse, so the
+# re-partitioning that actually blows this pattern up is never reached, and the
+# case passed in ~2ms while the real shape ran for minutes. A timing case that
+# cannot reach the ambiguity measures nothing.
+long_flags=$(python3 -c "print(' '.join(f'--flag{i} val{i}' for i in range(60)))")
 # GIT_TARGET and GH_READ_TARGET are separately compiled, so each needs its OWN
 # timed window. The git-side call originally sat outside the gh timer: its label
 # promised a 2s bound it never asserted, and an independent regression there
@@ -217,7 +222,16 @@ bounded_run() { # <label> <command>
   fi
 }
 
-bounded_run "60 dummy flags, gh side"  "gh pr $long_flags nomatch | tail -5"
+# Flags sit BETWEEN `gh` and its subcommand — the only place GH_FLAGS can
+# consume them. The previous spelling was `gh pr $long_flags`, which fails the
+# match immediately and timed a path the flag group never entered.
+#
+# The trailing `pr` is not decoration: without a pr/run/api token the BASH
+# pre-filter exits before python and the case times a process that never
+# compiled the regex. Caught by canary — the reverted pattern still "passed"
+# this case in 12ms. `pr nomatch` clears the pre-filter and still fails the
+# match at `(checks|view)`, which is what forces the full backtrack.
+bounded_run "60 dummy flags, gh side"  "gh $long_flags pr nomatch | tail -5"
 bounded_run "60 dummy flags, git side" "git $long_flags nocommit | tail -5"
 
 # Every `pnpm ops gh:*` wrapper is a read command. Enumerating just two of them

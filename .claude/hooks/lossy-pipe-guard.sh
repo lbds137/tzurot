@@ -65,6 +65,13 @@ set -uo pipefail
 # The pre-filters below are the fast path, and a case-sensitive one is a hole in
 # its own right: `GIT COMMIT … | tail` would exit here before the tokenizer ever
 # ran, so making only the python regexes case-insensitive would fix nothing.
+# FILE-GLOBAL, and there is no reset below — every `case` and `[[ ]]` in the
+# rest of this script inherits case-insensitive matching. Nothing downstream
+# relies on case today (the checks past this point use `grep -E` and `[ ]`
+# string equality, neither affected), but a later contributor adding a `case`
+# on a filename, branch, or extension would silently get case-insensitive
+# behaviour without anything at the new site saying so. If you add one and want
+# exact matching, `shopt -u nocasematch` around it — do not assume the default.
 shopt -s nocasematch
 
 INPUT=$(cat)
@@ -123,9 +130,26 @@ case "$GUARD_CMD" in
   *) exit 0 ;;
 esac
 
-VERDICT=$(GUARD_CMD="$GUARD_CMD" python3 << 'PYEOF'
+# Absolute path to the shared hook lib, resolved before the python spawn (and
+# before any cd) so the import cannot depend on the caller's cwd.
+HOOK_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
+
+# PYTHONDONTWRITEBYTECODE: importing the shared lib otherwise drops a
+# __pycache__ into .claude/hooks/lib on every guarded command. It is gitignored,
+# but a stale .pyc can also mask a broken edit to the module — the import
+# succeeds against yesterday's bytecode. Cheaper to never write it.
+VERDICT=$(GUARD_CMD="$GUARD_CMD" HOOK_LIB="$HOOK_LIB" PYTHONDONTWRITEBYTECODE=1 python3 << 'PYEOF'
 import os
 import re
+import sys
+
+# The quote scanner is shared with develop-code-commit-guard.sh and
+# cwd-drift-guard.sh; see the module docstring for why it is one
+# implementation rather than three copies. An import failure exits
+# non-zero, which the caller treats as allow (fail-open) — the probe is
+# what catches a missing lib, not runtime.
+sys.path.insert(0, os.environ["HOOK_LIB"])
+from shell_quotes import strip_quoted
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -148,80 +172,11 @@ raw_cmd = cmd
 # false-block.
 cmd = re.sub(r"\$\(cat <<-?'?\"?(\w+)'?\"?.*?\n\s*\1\s*\)", "MSG", cmd, flags=re.S)
 
-# Quote stripping is a single left-to-right SCAN, not a pair of regex passes.
-#
-# The two-pass version (strip every single-quoted span, then every double-quoted
-# span) paired raw quote characters with no notion of which quote type was
-# already open. That is not a corner case — it failed on ordinary English:
-#
-#     git commit -m "it's" | grep "isn't"          MEASURED: exited 0
-#
-# The single-quote pass paired the apostrophe in `it's` with the one in `isn't`,
-# erasing the closing double quote, the real pipe and `grep` sitting between
-# them. Rule 1's exact protected shape, allowed, because someone used a
-# contraction in a commit message.
-#
-# Swapping the pass order only mirrors the bug — a literal `"` inside a
-# single-quoted argument then pairs the same naive way — so the strategy has no
-# correct ordering. It needs STATE. The scanner tracks which quote is open and
-# treats the other quote character as ordinary text while inside it, which also
-# subsumes the two backslash-neutralization passes this replaces:
-#
-#   * outside quotes, and inside "..." , a backslash escapes the next character
-#   * inside '...' , bash gives backslash NO meaning at all
-#
-# An UNTERMINATED quote strips NOTHING, for the same reason strip_heredocs
-# leaves an unterminated heredoc alone: dropping to end-of-text would delete a
-# real invocation and produce a bypass, where keeping the text merely over-arms.
-def strip_quoted(text):
-    """Replace each quoted span with `S`. Returns None if a quote is unclosed."""
-    out = []
-    quote = None
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if quote is None:
-            if ch == "\\" and i + 1 < len(text):
-                # Outside quotes bash lets a backslash escape ANY character, and
-                # the escaped character keeps its own value — `t\\ail` runs tail.
-                # Collapsing every escape to a placeholder therefore HID command
-                # names from the scan: measured, a commit piped into that
-                # spelling of tail exited 0 while bash ran it as tail exactly as
-                # written. Emit the real character instead; only an escaped
-                # QUOTE needs a placeholder, so it cannot open a span.
-                nxt = text[i + 1]
-                # Re-emit the escaped character — EXCEPT the ones that are
-                # syntax to the splitters below. An escaped `|` is a literal
-                # pipe character in an argument, not a pipeline operator, but
-                # once the backslash is gone `segment.split("|")` cannot tell
-                # the difference: measured, `git commit -m x\\|tail` blocked as
-                # though the commit were piped into tail, when bash runs no
-                # pipeline at all. Same reasoning for the chain separators.
-                # A placeholder keeps the character from acting as syntax while
-                # preserving the token boundary.
-                out.append("Q" if nxt in "\"'|&;\n" else nxt)
-                i += 2
-                continue
-            if ch in "\"'":
-                quote = ch
-                out.append("S")
-            else:
-                out.append(ch)
-        elif quote == '"':
-            if ch == "\\" and i + 1 < len(text):
-                i += 2
-                continue
-            if ch == quote:
-                quote = None
-        else:
-            # Inside single quotes there are no escapes; only the closing
-            # quote ends the span.
-            if ch == quote:
-                quote = None
-        i += 1
-    return None if quote is not None else "".join(out)
-
-
+# Quote stripping is a single left-to-right SCAN, not a pair of regex passes:
+# the two-pass version failed on ordinary English (an apostrophe in one
+# argument pairing with one in a later argument, erasing the real pipe
+# between them). Rationale, the measured repros, and the unterminated-quote
+# failure direction all live in .claude/hooks/lib/shell_quotes.py.
 scanned = strip_quoted(cmd)
 if scanned is not None:
     cmd = scanned
@@ -308,25 +263,57 @@ TRUNCATORS = re.compile(r"(?i)^\s*(head|tail|sed)\b")
 # flag narrows \s in the same pattern too, so a non-breaking space between
 # `git` and `commit` would stop matching and the guard would MISS a real
 # commit — failing open on a pasteable input to close a hypothetical one.
-GIT_TARGET = re.compile(r"(?i)\bgit(\s+-{1,2}\S+(\s+[^-\s]\S*)?)*\s+(commit|push)(?![-\w])")
+GIT_TARGET = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+(commit|push)(?![-\w])")
 
 # Rule 2's targets: gh READ commands whose output has to be seen whole.
 # Global flags may sit between `gh` and its subcommand, exactly as GIT_TARGET
 # already tolerates for git. Without this, `gh --repo owner/name pr checks |
 # tail` slipped past the whole rule — and `--repo`/`-R` is gh's standard way to
 # target another repo, not an exotic spelling.
-# A flag's VALUE may not itself start with `-`. That restriction is not
-# cosmetic — it removes an ambiguity that made this pattern backtrack
-# CATASTROPHICALLY. With a bare `\S+` value, every token in a run of flags can
-# be read either as the previous flag's value or as a new flag, so a failing
-# match explores exponentially many partitions. Measured on `gh` plus N dummy
-# flags that never reach a subcommand: 18 flags 4.9ms, 22 flags 34ms, 26 flags
-# 231ms — doubling every two. Roughly 34 flags would hang for minutes.
+# `-+[^-\s]\S*` — any run of dashes followed by a MANDATORY non-dash — is what
+# keeps this pattern from backtracking catastrophically.
 #
-# This hook is PreToolUse on EVERY Bash call, so that is a session hang, not a
-# slow command. After the fix: 200 flags in 0.17ms, with every verdict
-# unchanged.
-GH_FLAGS = r"(?:\s+-{1,2}\S+(?:\s+[^-\s]\S*)?)*"
+# The blowup came from `-{1,2}`: `--flag` reads as `--`+`flag` or `-`+`-flag`,
+# so a FAILING match re-partitioned every flag in the run, 2^n ways. Measured on
+# `git` plus N double-dash flags that never reach a subcommand: 20 flags 2.7s,
+# 60 flags did not finish inside 20 seconds. On a PreToolUse hook that is a
+# session hang, not a slow command. Requiring a non-dash after the dashes forces
+# the dash count, so there is nothing left to re-partition: 200 flags in 0.24ms,
+# 1000 in 1.3ms, every verdict unchanged.
+#
+# It was NOT the optional VALUE, checked by measuring the shapes separately:
+# single-dash flags WITH values run 0.6ms at 60. The earlier "a value may not
+# start with `-`" restriction was never the fix it was documented as.
+#
+# WHY NOT AN ATOMIC GROUP `(?>...)`, which is the obvious fix and was written
+# first: it needs Python 3.11. On anything older `re.compile` raises, python
+# exits non-zero, and the caller's `|| exit 0` silently ALLOWS the command —
+# a blocking guard disabled by interpreter version, which is this hook's own
+# bug class wearing a different hat. Ubuntu 22.04 still ships 3.10, and CI
+# (3.12) would never have caught it. The deterministic spelling needs no
+# version floor.
+#
+# A negative lookahead forbidding the flag VALUE from being the subcommand sat
+# here too and was REMOVED, because it was inert: it was required only to keep
+# the ATOMIC version from swallowing `commit` as `--no-pager`'s value, and with
+# ordinary backtracking restored it changed no verdict (including
+# `git --x commit`, the shape it literally described) and no timing at any size
+# from 60 to 1000 flags. It survived the atomic group's deletion by inertia and
+# kept a comment claiming a job it no longer did.
+#
+# KNOWN NARROWING, accepted: a bare `--` is no longer read as a flag, so
+# `git -- commit` stops matching. That is not a commit — git answers `unknown
+# option: --` and exits 129 (verified, not assumed) — so the old behaviour was
+# over-detecting a non-command.
+#
+# WHY THIS WENT UNMEASURED for a whole PR, since this comment once claimed the
+# opposite: the timing probe built its flags as `-x0 -x1 …` — SINGLE dash, so
+# `-{1,2}` has exactly one parse and the ambiguity is never reached — and on the
+# gh side placed them after the subcommand, where this group cannot consume them
+# at all. It measured a shape with no ambiguity in it and reported the pattern
+# safe. Both probes now use double-dash flags with values, positioned to reach
+# the group, and each is canaried by reverting the fix.
+GH_FLAGS = r"(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*"
 GH_READ_PARTS = [
     r"\bgh" + GH_FLAGS + r"\s+pr\s+(checks|view)(?![-\w])",
     r"\bgh" + GH_FLAGS + r"\s+run\s+list(?![-\w])",
@@ -336,6 +323,11 @@ GH_READ_PARTS = [
     # whole. That produced pure friction — it blocked `gh:pr-edit --help | tail`
     # during this PR's own authoring, twice. Rule 2 exists for reads whose rows
     # can hide a failure; a write command has no rows to lose.
+    # DRIFT RISK, named rather than hidden: nothing ties this list to the
+    # command registry in packages/tooling/src/commands/gh.ts, so a future
+    # gh: READ wrapper is unprotected by rule 2 until someone adds it here.
+    # Enumerated anyway — the `gh:[a-z-]+` glob that would self-maintain
+    # swept in the WRITE command gh:pr-edit and produced pure friction.
     r"\bgh:(pr-all|pr-comments|pr-conversation|pr-info|pr-reviews|ci-gate)(?![-\w])",
 ]
 # `gh api` is conditional, and the condition is not squeamishness: an api URL
