@@ -3,9 +3,10 @@ id: TASK-468
 title: >-
   pr-merge-review-check ack fast path skips the release reminder if a PR is
   retargeted develop-to-main
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 01:03'
+updated_date: '2026-08-09 01:12'
 labels:
   - 'area:process'
   - 'area:tooling'

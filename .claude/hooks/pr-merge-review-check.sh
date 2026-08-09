@@ -232,7 +232,17 @@ def extract(text, depth=0):
     # The command word of the segment being scanned — what actually owns any
     # flags that follow. Cleared at every command boundary.
     current_command = None
-    nested = []
+    # (token_index, kind, value) where kind is "pr" (a number read directly off
+    # a top-level `gh pr merge`) or "nested" (a `-c`/`eval` string argument to
+    # be scanned recursively). BOTH kinds land in one list so they can be
+    # resolved in TOKEN ORDER after the scan.
+    #
+    # Draining the top level first and only then recursing was wrong by
+    # execution order: in `bash -c "gh pr merge 2001" && gh pr merge 2002` the
+    # first merge to actually run is 2001, and the gate armed on 2002. Both are
+    # real merges, so this was a precision bug rather than a bypass — the safe
+    # direction — but arming on the wrong PR shows an unrelated review.
+    candidates = []
     for i, token in enumerate(tokens):
         if i > 0 and linenos[i] != linenos[i - 1]:
             at_command_start = True
@@ -242,7 +252,8 @@ def extract(text, depth=0):
             current_command = None
             continue
         # A shell's `-c` argument, or `eval`'s, is a command in its own right;
-        # collect it and scan it only if nothing real is found at this level.
+        # record it WITH ITS INDEX so it resolves in execution order alongside
+        # any top-level hit.
         # Which program owns this `-c`? Tracked as the current segment's command
         # word, not the whole prefix and not the immediately-preceding token.
         # Both narrower rules were wrong: a prefix-wide check let `bash
@@ -250,12 +261,12 @@ def extract(text, depth=0):
         # immediately-preceding check missed `bash -x -c "..."`, where a flag
         # sits between the shell and its own `-c`.
         if i + 1 < len(tokens) and token == "-c" and current_command in SHELLS:
-            nested.append(tokens[i + 1])
+            candidates.append((i, "nested", tokens[i + 1]))
         # `eval` is in WRAPPERS, which handles its UNQUOTED form (bash joins the
         # args and runs them). The quoted form is one opaque token, so it needs
         # the recursion as well.
         if i + 1 < len(tokens) and token == "eval":
-            nested.append(tokens[i + 1])
+            candidates.append((i, "nested", tokens[i + 1]))
         # `FOO=bar gh pr merge 5` — an assignment prefix does not consume the
         # command position. Missing this made the gate silently skip that shape.
         # A wrapper runs what follows, so it is not the command word itself.
@@ -270,15 +281,20 @@ def extract(text, depth=0):
                 if opens_command(candidate):
                     break
                 if ASCII_DIGITS.fullmatch(candidate):
-                    return candidate
+                    candidates.append((i, "pr", candidate))
+                    break
             # This occurrence yielded no PR number — a bare `gh pr merge`, or
             # its arguments ran into an operator first. KEEP SCANNING: `gh pr
             # merge && gh pr merge 2002` would otherwise extract nothing and
             # let the real, explicit merge through completely ungated.
         at_command_start = False
 
-    for inner in nested:
-        found = extract(inner, depth + 1)
+    # Execution order, not level order: the earliest token wins, whether it was
+    # a plain invocation or one wrapped in `-c`/`eval`.
+    for _, kind, value in sorted(candidates, key=lambda c: c[0]):
+        if kind == "pr":
+            return value
+        found = extract(value, depth + 1)
         if found:
             return found
 
@@ -349,14 +365,20 @@ RELEASE_KEY="RELEASE:${PR_NUM}"
 # with no reminder at all, which is the exact silent-drop this hook was moved
 # here to end.
 #
-# That does NOT cost the acked-retry fast path anything, because that path
-# exits at the ack check below before this is ever called — which is also why
-# an earlier cache of the answer was removed rather than kept: it bought
-# nothing on the hot path and introduced a staleness bug, since a PR retargeted
-# from develop to main (or back) would keep serving the old base for the life
-# of /tmp, silently suppressing or spuriously firing the reminder. A stale
-# answer here reproduces the very failure class this hook exists to prevent, so
-# freshness wins over one saved API call on a rare path.
+# The acked-retry path calls this too, and that IS a cost: an ordinary feature
+# PR never accumulates a RELEASE ack, so every acked retry for the life of that
+# PR resolves the base again. Accepted knowingly — the retarget gap it closes
+# is a silently-skipped release reminder, and the path already pays an
+# unconditional `gh api` for the review fetch before reaching the ack check, so
+# this is a second round trip on an already-network-bound path rather than a
+# first one on a free path.
+#
+# An earlier CACHE of the answer was removed rather than kept, and must not
+# come back in any spelling: a PR retargeted from develop to main (or back)
+# keeps serving the old base for the life of /tmp, silently suppressing or
+# spuriously firing the reminder. A stale answer here reproduces the very
+# failure class this hook exists to prevent, so freshness wins over a saved
+# API call.
 #
 # Fails open to "": an unreadable base skips the release block rather than
 # blocking a merge on a `gh` blip.
@@ -429,17 +451,23 @@ print_release_block() {
 # blocking path, so delivering it means exiting 2 once. A feature PR is
 # unaffected and still exits 0 immediately.
 #
-# $1 is the reason line, because the two call sites are NOT the same state: one
-# found no comment, the other found one that would not parse. Saying "none
-# found" for both would be a banner asserting something untrue, which is the
-# whole class this hook's own PR was cleaning up.
+# $1 is the reason line, because the call sites are NOT the same state: one
+# found no comment, another found one that would not parse, a third has already
+# surfaced the review. Saying "none found" for all of them would be a banner
+# asserting something untrue, which is the whole class this hook's own PR was
+# cleaning up.
+#
+# $2 overrides the body's first line for the same reason. It defaults to the
+# no-review wording, which is wrong for the acked-retry caller: there, a review
+# exists and was already shown, so claiming the gate "has nothing to surface"
+# would be the same species of false banner.
 release_block_then_exit() {
     if release_reminder_due; then
         {
             printf '%s\n' "$RULE"
             printf 'PR MERGE GATE — %s for PR #%s\n' "${1:-no usable claude-review}" "$PR_NUM"
             printf '%s\n\n' "$RULE"
-            printf 'The review gate has nothing to surface, so it is not blocking on that.\n'
+            printf '%s\n' "${2:-The review gate has nothing to surface, so it is not blocking on that.}"
             printf 'This block is the release reminder, which does NOT depend on a review\n'
             printf 'existing. Retry the same merge command to proceed.\n\n'
             print_release_block
@@ -506,22 +534,38 @@ ORIGIN_HITS=$(grep -icE 'pre-?existing|pre-?dates|not a regression|not introduce
 # re-engagement; a retry after ack proceeds.
 ACK_KEY="${PR_NUM}:${REVIEW_ID}"
 
-# Acked-retry fast path. Deliberately BEFORE any base resolution so it stays
-# free of API calls — it runs on every ordinary feature merge, and the release
-# reminder (if this is a release PR) was already delivered by the blocking call
-# that wrote this ack.
+# Acked-retry path: the review has already been surfaced for this comment-id,
+# so the review gate itself is satisfied. The RELEASE reminder is still
+# evaluated, because it is a separate obligation with a separate ack.
 #
-# KNOWN GAP, tracked: that last clause assumes the base has not changed since
-# the ack was written. Retarget an open PR from develop to main between two
-# merge attempts on the SAME review comment and the ack still matches, so this
-# exits before release_reminder_due() is ever consulted and the reminder never
-# fires. Not the documented workflow — release PRs are opened against main
-# directly — and closing it costs a `gh pr view` on EVERY merge attempt, which
-# is the cost two earlier review rounds asked to remove from these paths. Those
-# reviewers genuinely conflict, so the resolution is its own change rather than
-# a late patch here.
+# This used to `exit 0` outright, on the reasoning that the reminder "was
+# already delivered by the blocking call that wrote this ack". That holds only
+# while the base is unchanged: retarget an open PR develop->main between two
+# merge attempts on the SAME review comment and the ack still matches, so the
+# reminder never fires — the same staleness class as the base cache removed
+# earlier, reached through a different door.
+#
+# The cost objection that kept this open is ANSWERED BY MEASUREMENT, not
+# overruled: two earlier rounds asked for `gh pr view` to be kept off these
+# paths on the belief they were call-free. They are not. The review fetch above
+# is an unconditional `gh api` on every merge attempt, so by the time control
+# reaches here the call has ALREADY been paid — closing the gap adds a second
+# round trip to an already-network-bound path that runs a handful of times a
+# day, which is the exact trade release_reminder_due's own header already
+# accepts for the first-block case.
+#
+# The steady-state cost, stated the unflattering way round: a RELEASE PR pays
+# until its reminder fires and is free afterwards (release_reminder_due checks
+# the RELEASE ack first), while an ordinary FEATURE PR never accumulates a
+# RELEASE ack and therefore pays one call on every acked retry, indefinitely.
+# The feature case is the common one, so that is the number to judge this by.
+#
+# A NOTRELEASE marker would avoid the call and was REJECTED: it is a base cache
+# under another name and carries the identical retarget staleness this change
+# exists to remove.
 if [ -f "$ACK_FILE" ] && grep -qxF "$ACK_KEY" "$ACK_FILE" 2>/dev/null; then
-    exit 0
+    release_block_then_exit "the review was already acked" \
+        "The review for this PR was surfaced and acknowledged on an earlier call."
 fi
 
 # First-call path: inject the review into stderr FIRST, then ack and exit 2.

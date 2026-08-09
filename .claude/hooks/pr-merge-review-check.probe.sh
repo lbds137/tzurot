@@ -43,12 +43,7 @@
 #   2. The pagination params (`per_page=100&direction=desc`). Their whole
 #      purpose is to make the LAST claude[bot] comment the newest one on a busy
 #      PR, which is a property of the live API, not of this fixture.
-#   3. The known retarget gap the hook's own comment documents: a PR retargeted
-#      develop→main between two attempts on the SAME review comment exits at the
-#      ack fast path and never fires the release reminder. Deliberately not
-#      pinned in either direction — pinning it as correct would make fixing it
-#      a probe failure.
-#   4. Whether stderr from a blocking PreToolUse hook actually reaches the
+#   3. Whether stderr from a blocking PreToolUse hook actually reaches the
 #      agent's context. That is a Claude Code runtime property; the probe can
 #      only assert the hook wrote it.
 #
@@ -475,6 +470,19 @@ assert_pr "an empty-string token does not truncate the scan" 2002
 new_case; invoke 'bash -c "gh pr merge 2002"'
 assert_pr "a merge inside a -c string argument still arms the gate" 2002
 
+# ORDERING: candidates resolve in TOKEN order, which is execution order — not
+# top-level-first. Draining the top level before recursing armed the gate on
+# 2002 here, while the merge that actually runs first is 2001. Both are real
+# merges, so the old behaviour was a precision bug rather than a bypass; it
+# still showed an unrelated review.
+new_case; invoke 'bash -c "gh pr merge 2001" && gh pr merge 2002'
+assert_pr "a wrapped merge BEFORE a plain one wins on order" 2001
+
+# The mirror case must not regress: a plain merge that genuinely comes first
+# still wins over a later wrapped one.
+new_case; invoke 'gh pr merge 2001 && bash -c "gh pr merge 2002"'
+assert_pr "a plain merge before a wrapped one still wins" 2001
+
 # Bash keywords that open a command position. `if`/`while`/`until` were absent
 # while `then`/`do` were present, so a merge directly after them went ungated.
 new_case; invoke 'if gh pr merge 2002; then echo ok; fi'
@@ -713,6 +721,60 @@ new_case; SHIM_PR_BASE='develop'; SHIM_REVIEW_JSON="$LGTM"
 invoke 'gh pr merge 2002 --rebase'
 assert_stderr_lacks "feature PR gets no release block" 'RELEASE PR — base is main'
 assert_ack_lacks "…and no release ack key" 'RELEASE:2002'
+
+# RETARGET: the acked-retry path must re-evaluate the release obligation.
+#
+# The gap this pins: the ack fast path used to `exit 0` before the base was
+# ever consulted, on the reasoning that a prior blocking call had already
+# delivered any reminder. Retargeting develop->main between two attempts on the
+# SAME review comment left the ack matching and the reminder never fired — the
+# same staleness class as the base cache removed earlier, through another door.
+new_case; SHIM_PR_BASE='develop'; SHIM_REVIEW_JSON="$LGTM"
+invoke 'gh pr merge 2011 --rebase'
+assert_exit "round 1 on a develop-based PR: review block" 2
+assert_stderr_lacks "…no release reminder while based on develop" 'RELEASE PR — base is main'
+SHIM_PR_BASE='main'
+invoke 'gh pr merge 2011 --rebase'
+assert_exit "retargeted to main on the SAME review: blocks for the reminder" 2
+assert_stderr_has "…and the reminder finally fires" 'RELEASE PR — base is main'
+assert_ack_has "…and the release key is acked" 'RELEASE:2011'
+invoke 'gh pr merge 2011 --rebase'
+assert_exit "third attempt: both obligations acked, merge proceeds" 0
+
+# REVERSE retarget: main -> develop AFTER the reminder already fired. Correct by
+# inspection (release_reminder_due checks the RELEASE ack before it ever looks
+# at the base, so a fired reminder cannot re-fire), and pinned anyway — every
+# gap this file has had was found by a case that was not there.
+new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON="$LGTM"
+invoke 'gh pr merge 2014 --rebase'
+assert_exit "release PR round 1 blocks with the reminder" 2
+assert_stderr_has "…reminder fired while based on main" 'RELEASE PR — base is main'
+SHIM_PR_BASE='develop'
+invoke 'gh pr merge 2014 --rebase'
+assert_exit "retargeted BACK to develop: merge proceeds" 0
+assert_silent "…and the fired reminder does not re-fire"
+
+# FAIL-OPEN on the acked path. The acked retry is the highest-traffic path in
+# this hook, and it now resolves the base — so a `gh` blip there must degrade to
+# "no reminder", never to "cannot merge". Previously this path made no network
+# call at all, so the blast radius of any fragility in it is new.
+new_case; SHIM_PR_BASE='develop'; SHIM_REVIEW_JSON="$LGTM"
+invoke 'gh pr merge 2013 --rebase'
+assert_exit "round 1 blocks to surface the review" 2
+SHIM_BASE_EXIT=1; SHIM_PR_BASE=''
+invoke 'gh pr merge 2013 --rebase'
+assert_exit "acked retry with a FAILING base lookup still allows the merge" 0
+assert_silent "…and says nothing, rather than blocking on a gh blip"
+SHIM_BASE_EXIT=0
+
+# The acked path stays free of a SECOND block once the release key exists —
+# the reminder is once per PR, not once per retry.
+new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON="$LGTM"
+invoke 'gh pr merge 2012 --rebase'
+assert_exit "release PR round 1 blocks" 2
+invoke 'gh pr merge 2012 --rebase'
+assert_exit "acked retry on a release PR proceeds" 0
+assert_silent "…silently — no repeated reminder"
 
 # ===========================================================================
 # 6. Origin-language scan
