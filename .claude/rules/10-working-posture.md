@@ -125,6 +125,13 @@ The same instinct applies down-stack: one package per rollout PR, one campaign
 slice per PR, fix-forward for a release review's non-blocking finding rather
 than holding the train.
 
+## SKILL CHECK reminders are binding
+
+Trigger: a `SKILL CHECK` reminder fires, or a cycle-rare operation is next
+(release finalize, prod migration, dependabot recovery). Load the named skill
+before acting — once per session per skill is enough. The "it probably says what
+I'd do anyway" pull is the strongest signal TO load it; disagreement is the payoff.
+
 ## Failure modes get structure, not resolutions
 
 Mechanism in `00-critical.md` § Fix Recurring Failures Structurally; the

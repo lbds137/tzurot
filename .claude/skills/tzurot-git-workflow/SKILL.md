@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-07'
+lastUpdated: '2026-08-09'
 ---
 
 # Git Workflow Procedures
@@ -150,6 +150,8 @@ Dependabot PRs have three distinct cleanup paths — using the wrong one wastes 
 **Rule of thumb**: don't hit "Update branch" on dependabot PRs. Use the chat command. If you do hit it by accident, don't waste time on `rebase` — go straight to `recreate`.
 
 **`dependabot.yml` is read from the DEFAULT branch (`main`)** — same trap as the claude workflow files below. An `ignore:` entry merged to `develop` does nothing until the next release lands it on `main`; dependabot will keep opening PRs with the "ignored" dep in the meantime (observed: the bullmq ignore merged to develop, and the very next recreate still carried bullmq 6). For immediate effect, comment `@dependabot ignore <dep-name> major version` on the open PR — a server-side ignore, persistent until `@dependabot unignore <dep-name> major version`, and it works per-dependency inside grouped PRs. Config entry = durable documentation; chat command = the thing that actually stops the PRs. Removing an ignore later requires BOTH the config-entry removal and the unignore comment.
+
+**After a dev-tooling bump merges (eslint/tsc/prettier/vitest — especially a major), rebase every open PR before merging it.** A green PR's CI ran against its OLD base, so the new tooling never saw its code, and merging on that stale base can redden `develop`. **`gh pr merge --rebase` rebases-and-merges WITHOUT re-running CI**, so it does not protect against this — only a manual pass does: `git rebase origin/develop` → `pnpm install` → re-run the affected gate (`pnpm focus:lint` for eslint/prettier, `pnpm typecheck` for tsc; changed-package scope is enough, since the bump's own merge proved existing code passes) → push for a confirming CI round → merge.
 
 ## Claude workflow changes target `main`, not `develop`
 
@@ -444,6 +446,10 @@ owner has named session-per-release as the preferred cadence. This is a
 technical-breakpoint flag per `09-interaction-style.md` § Don't Suggest
 Stopping (a fresh session continues the work — it is not a stop); one sentence
 at close-out is enough, and the call is theirs.
+
+### Hotfix release cut from `main`
+
+Three gotchas the standard `develop`→`main` flow never exercises: (1) the pre-push branch-name pattern has **no `release` type** — use a valid prefix such as `chore/release-vX.Y.Z-beta.N`; (2) `gh pr merge --rebase --delete-branch` **switches the local checkout** to the default branch and tries to fast-forward it, so expect "not possible to fast-forward" noise and a stale local `main` — `git pull origin main` after; (3) `pnpm ops release:finalize --yes` rebases `develop` cleanly (duplicate cherry-picks drop via patch-id), but its force-push can still fail the pre-push gate on **semantic** divergence the textual rebase resolved (a symbol that moved between packages, a develop-side manifest route the conformance gate wants fixtures for) — budget one fix-commit riding the rebased push, and note the force-push to `develop` needs explicit per-instance user approval.
 
 ## GitHub CLI (Use ops instead of broken `gh pr edit`)
 
