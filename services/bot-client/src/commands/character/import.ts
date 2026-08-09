@@ -58,6 +58,7 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'conversationalGoals', label: 'Conversational Goals' },
   { key: 'conversationalExamples', label: 'Conversational Examples' },
   { key: 'customFields', label: 'Custom Fields' },
+  { key: 'tags', label: 'Tags' },
   { key: 'avatarData', label: 'Avatar Data' },
   { key: 'voiceReferenceData', label: 'Voice Reference' },
 ];
@@ -86,7 +87,8 @@ export const CHARACTER_JSON_TEMPLATE = `{
   "personalityDislikes": "Things the character avoids... (optional)",
   "conversationalGoals": "What conversations should achieve... (optional)",
   "conversationalExamples": "Example dialogues to guide AI... (optional)",
-  "errorMessage": "Custom error message when AI fails (optional)"
+  "errorMessage": "Custom error message when AI fails (optional)",
+  "tags": ["fantasy", "sci-fi"]
 }`;
 
 /**
@@ -314,6 +316,9 @@ function buildImportPayload(
     conversationalGoals: data.conversationalGoals ?? undefined,
     conversationalExamples: data.conversationalExamples ?? undefined,
     customFields: data.customFields ?? undefined,
+    // Accepted as an array (the export shape) or a comma-separated string;
+    // the gateway schema normalizes, dedupes, and caps either form.
+    tags: data.tags ?? undefined,
     avatarData: finalAvatarData,
     voiceReferenceData: finalVoiceData,
     // Enable voice whenever a reference is present. On CREATE this is stripped

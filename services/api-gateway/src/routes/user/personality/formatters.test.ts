@@ -41,6 +41,7 @@ function createMockPersonality(overrides: Record<string, unknown> = {}) {
     avatarData: Buffer.from('avatar'),
     voiceReferenceType: null,
     customFields: { key: 'value' },
+    tags: ['fantasy', 'sci-fi'],
     systemPromptId: 'prompt-123',
     voiceSettings: { voice: 'alloy' },
     imageSettings: { style: 'natural' },
@@ -84,6 +85,7 @@ describe('formatPersonalityResponse', () => {
       avatarUrl: `https://public.example/avatars/test-bot-${new Date('2026-02-01T00:00:00Z').getTime()}.png`,
       hasVoiceReference: false,
       customFields: { key: 'value' },
+      tags: ['fantasy', 'sci-fi'],
       systemPromptId: 'prompt-123',
       voiceSettings: { voice: 'alloy' },
       imageSettings: { style: 'natural' },
@@ -135,6 +137,11 @@ describe('formatPersonalityResponse', () => {
       expect(result.voiceEnabled).toBe(false);
       expect(result.ownerId).toBe('owner-123');
       expect(result.createdAt).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('keeps tags visible when redacted — discovery metadata is not a card field', () => {
+      const result = formatPersonalityResponse(createMockPersonality(), { redact: true });
+      expect(result.tags).toEqual(['fantasy', 'sci-fi']);
     });
 
     it('does not redact when redact=false (definitionRedacted false)', () => {

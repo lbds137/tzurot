@@ -91,7 +91,7 @@ export function buildEditMenu<T>(
 
   // Add section options
   for (const section of config.sections) {
-    // Extract the section's own emoji from its label (e.g., "🏷️ Identity & Basics" -> "🏷️")
+    // Extract the section's own emoji from its label (e.g., "🪪 Identity & Basics" -> "🪪")
     const { emoji: sectionEmoji, cleanLabel } = extractLabelEmoji(section.label);
 
     const option = new StringSelectMenuOptionBuilder()

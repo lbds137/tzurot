@@ -51,6 +51,8 @@ const EXPORT_FIELDS = [
   // Import accepts customFields; omitting it here silently lost the data on
   // an export → re-import round-trip.
   'customFields',
+  // Same round-trip reason: import accepts a tag array.
+  'tags',
 ] as const;
 
 /**
@@ -62,10 +64,15 @@ function buildExportData(character: ExportCharacterData): Record<string, unknown
 
   for (const field of EXPORT_FIELDS) {
     const value = character[field];
-    // Only include non-null values
-    if (value !== null && value !== undefined && value !== '') {
-      exportData[field] = value;
+    // Only include non-empty values. An empty array (an untagged character)
+    // is the list-valued analogue of '' and is omitted for the same reason.
+    if (value === null || value === undefined || value === '') {
+      continue;
     }
+    if (Array.isArray(value) && value.length === 0) {
+      continue;
+    }
+    exportData[field] = value;
   }
 
   return exportData;

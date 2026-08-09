@@ -10,6 +10,8 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { MAX_JOINED_TAGS_LENGTH } from '@tzurot/common-types/schemas/api/personality';
+import { formatTagsValue } from './tagsRendering.js';
 import {
   type SectionDefinition,
   type DashboardContext,
@@ -37,7 +39,7 @@ function truncatePreview(text: string | null | undefined, maxLength = 100): stri
  */
 export const identitySection: SectionDefinition<CharacterData> = {
   id: 'identity',
-  label: '🏷️ Identity & Basics',
+  label: '🪪 Identity & Basics',
   description: 'Name, traits, tone, and age',
   fieldIds: ['name', 'displayName', 'personalityTraits', 'personalityTone', 'personalityAge'],
   fields: [
@@ -165,16 +167,23 @@ export const biographySection: SectionDefinition<CharacterData> = {
   },
 };
 
+/** Preview line for a character's tags, or '' when it has none. */
+function tagsPreview(tags: string[]): string {
+  const value = formatTagsValue(tags);
+  return value === null ? '' : `🏷️ ${value}`;
+}
+
 /**
- * Preferences Section
- * Fields: personalityLikes, personalityDislikes
- * Both are long fields (4000 chars each)
+ * Preferences & Tags Section
+ * Fields: personalityLikes, personalityDislikes, tags
+ * The two preference fields are long (4000 chars each); tags is a short
+ * comma-separated list the gateway normalizes.
  */
 export const preferencesSection: SectionDefinition<CharacterData> = {
   id: 'preferences',
-  label: '❤️ Preferences',
-  description: 'Likes and dislikes',
-  fieldIds: ['personalityLikes', 'personalityDislikes'],
+  label: '❤️ Preferences & Tags',
+  description: 'Likes, dislikes, and discovery tags',
+  fieldIds: ['personalityLikes', 'personalityDislikes', 'tags'],
   fields: [
     {
       id: 'personalityLikes',
@@ -192,14 +201,28 @@ export const preferencesSection: SectionDefinition<CharacterData> = {
       style: 'paragraph',
       maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
+    {
+      id: 'tags',
+      label: 'Tags',
+      placeholder: 'fantasy, sci-fi, comedy',
+      required: false,
+      style: 'short',
+      // Sized from the schema's own arithmetic so a cap change there can't
+      // silently truncate a maximal-but-valid tag list in the edit modal.
+      maxLength: MAX_JOINED_TAGS_LENGTH,
+    },
   ],
   getStatus: (data: CharacterData) => {
     const hasLikes = data.personalityLikes !== null && data.personalityLikes.length > 0;
     const hasDislikes = data.personalityDislikes !== null && data.personalityDislikes.length > 0;
+    // COMPLETE deliberately requires only the two preference fields: tags are
+    // optional discovery metadata, so an untagged character can still show a
+    // complete section. Tags DO count toward PARTIAL, so the badge never says
+    // "not configured" above a preview that renders a tag line.
     if (hasLikes && hasDislikes) {
       return SectionStatus.COMPLETE;
     }
-    if (hasLikes || hasDislikes) {
+    if (hasLikes || hasDislikes || data.tags.length > 0) {
       return SectionStatus.PARTIAL;
     }
     return SectionStatus.DEFAULT;
@@ -211,6 +234,10 @@ export const preferencesSection: SectionDefinition<CharacterData> = {
     }
     if (data.personalityDislikes !== null && data.personalityDislikes.length > 0) {
       parts.push(`💔 ${truncatePreview(data.personalityDislikes, 60)}`);
+    }
+    const tagLine = tagsPreview(data.tags);
+    if (tagLine.length > 0) {
+      parts.push(tagLine);
     }
     return parts.length > 0 ? parts.join('\n') : '_Preferences not set_';
   },

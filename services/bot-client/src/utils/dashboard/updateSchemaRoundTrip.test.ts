@@ -67,10 +67,21 @@ const characterDetailWithNulls = {
   errorMessage: null,
   isPublic: false,
   voiceEnabled: false,
+  // An untagged character: the response schema defaults `tags` to [], and the
+  // update schema's union input arm must accept the replayed empty array.
+  tags: [] as string[],
   // The gateway response carries `hasAvatar`, not the base64 — `toCharacterData`
   // force-nulls `avatarData` regardless, so `false` here mirrors a real no-avatar
   // detail without changing the round-tripped null.
   hasAvatar: false,
+};
+
+// A tagged character: the fetched `tags` ARRAY is replayed verbatim on every
+// section save, so the update schema's array arm has to accept it — the
+// string arm alone would 400 every save on a tagged character.
+const characterDetailWithTags = {
+  ...characterDetailWithNulls,
+  tags: ['fantasy', 'slice-of-life'],
 };
 
 // A legacy character predating the `min(1)` create constraint: its required text
@@ -113,6 +124,11 @@ const DASHBOARDS: DashboardRoundTrip[] = [
     // updateCharacter sends). A no-op on this non-empty fixture, but keeps the
     // model faithful so the avatarData-null guard stays accurate.
     buildPayload: () => omitEmptyRequiredText(toCharacterData(characterDetailWithNulls)),
+    updateSchema: PersonalityUpdateSchema,
+  },
+  {
+    name: 'character (tagged)',
+    buildPayload: () => omitEmptyRequiredText(toCharacterData(characterDetailWithTags)),
     updateSchema: PersonalityUpdateSchema,
   },
   {

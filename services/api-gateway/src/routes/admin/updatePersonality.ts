@@ -9,6 +9,7 @@ import {
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
 } from '@tzurot/common-types/schemas/api/personality';
+import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import type { RouteDeps } from '../routeDeps.js';
@@ -50,6 +51,16 @@ function buildUpdateData(
     if (validated[field] !== undefined) {
       updateData[field] = validated[field];
     }
+  }
+
+  // Tags are handled outside the loop, mirroring the user update route: the
+  // loop launders every value through `Record<string, unknown>`, so a list
+  // column would get no compile-time protection inside it — the `satisfies`
+  // pins the value to the Prisma column type. Already normalized/deduped/
+  // capped by PersonalityTagsInputSchema. Absent = leave stored tags alone;
+  // [] = clear them.
+  if (validated.tags !== undefined) {
+    updateData.tags = validated.tags satisfies Prisma.PersonalityUpdateInput['tags'];
   }
 
   if (validated.customFields !== undefined) {

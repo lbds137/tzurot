@@ -45,6 +45,7 @@ function createMockPersonality(overrides: Partial<PersonalitySummary> = {}): Per
     isPublic: false,
     ownerId: 'owner-123',
     ownerDiscordId: 'owner-discord-123',
+    tags: [],
     permissions: { canEdit: isOwned, canDelete: isOwned },
     ...overrides,
   };

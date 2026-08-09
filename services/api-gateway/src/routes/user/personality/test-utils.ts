@@ -137,6 +137,7 @@ export function createMockPersonality(
     avatarData: null,
     voiceReferenceType: null,
     customFields: null,
+    tags: [],
     systemPromptId: null,
     voiceSettings: null,
     imageSettings: null,

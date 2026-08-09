@@ -76,6 +76,14 @@ export interface PersonalityResponse extends Omit<PersonalityCharacterFields, Re
   // Matches PersonalityFullSchema's declared shape — the create/update
   // schemas only ever store records in the Json? column.
   customFields: Record<string, unknown> | null;
+  /**
+   * Owner-authored discovery tags. Deliberately NOT in
+   * REDACTABLE_CARD_FIELDS — like the name and slug, tags describe the
+   * character to would-be users rather than revealing its definition, so
+   * they survive the redaction pass for a definition-private character.
+   * Pinned by the formatters test that asserts tags on a redacted response.
+   */
+  tags: string[];
   systemPromptId: string | null;
   voiceSettings: unknown;
   imageSettings: unknown;
@@ -133,6 +141,8 @@ export function formatPersonalityResponse(
     // Prisma types Json? as JsonValue; the create/update schemas only ever
     // accept records, so the stored value is a record (or null) by invariant.
     customFields: (personality.customFields ?? null) as Record<string, unknown> | null,
+    // Survives the `redact` pass below (see the field's doc comment).
+    tags: personality.tags,
     systemPromptId: personality.systemPromptId,
     voiceSettings: personality.voiceSettings,
     imageSettings: personality.imageSettings,

@@ -68,6 +68,7 @@ describe('handlePersonalityAutocomplete', () => {
       isOwned,
       ownerId: 'owner-123',
       ownerDiscordId: 'discord-123',
+      tags: [],
       permissions: { canEdit: isOwned, canDelete: isOwned },
       ...overrides,
     };

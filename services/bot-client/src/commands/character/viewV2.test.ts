@@ -34,6 +34,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     isPublic: false,
     definitionPublic: false,
     definitionRedacted: false,
+    tags: [],
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,
@@ -208,6 +209,35 @@ describe('buildCharacterViewV2', () => {
     expect(flat.some(n => n.type === ComponentType.Button)).toBe(false);
     expect(flat.some(n => n.type === ComponentType.Section)).toBe(false);
     expect(flat.some(n => n.content?.includes('definition is private') === true)).toBe(true);
+  });
+
+  it('renders a tags block on the overview page when the character has tags', () => {
+    const flat = flatten(
+      toTree(
+        buildCharacterViewV2(createTestCharacter({ tags: ['fantasy', 'sci-fi'] }), 0, null, false)
+      )
+    );
+    const tagNode = flat.find(n => n.content?.startsWith('**🏷️ Tags**') === true);
+    expect(tagNode?.content).toContain('fantasy, sci-fi');
+  });
+
+  it('omits the tags block entirely when the character has none', () => {
+    const flat = flatten(toTree(buildCharacterViewV2(createTestCharacter(), 0, null, false)));
+    expect(flat.some(n => n.content?.includes('🏷️ Tags') === true)).toBe(false);
+  });
+
+  it('still shows tags in the REDACTED view — tags are not redacted gateway-side', () => {
+    const flat = flatten(
+      toTree(
+        buildCharacterViewV2(
+          createTestCharacter({ definitionRedacted: true, tags: ['fantasy'] }),
+          0,
+          null,
+          false
+        )
+      )
+    );
+    expect(flat.some(n => n.content?.includes('**🏷️ Tags**') === true)).toBe(true);
   });
 
   it('renders Tone and Age as separate blocks, never one joined line (owner eval finding)', () => {

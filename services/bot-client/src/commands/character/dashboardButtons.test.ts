@@ -143,6 +143,7 @@ describe('Character Dashboard Buttons', () => {
     birthDay: null,
     birthYear: null,
     isPublic: false,
+    tags: [],
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,

@@ -21,6 +21,13 @@ import {
   AdminPersonalityResponseSchema,
   SetVisibilitySchema,
   PERSONALITY_DETAIL_SELECT,
+  PERSONALITY_LIST_SELECT,
+  TAG_LIMITS,
+  TAG_INPUT_LIMITS,
+  MAX_JOINED_TAGS_LENGTH,
+  normalizeTag,
+  PersonalityTagSchema,
+  PersonalityTagsInputSchema,
   AddPersonalityAliasRequestSchema,
   AddPersonalityAliasResponseSchema,
   AliasScopeSchema,
@@ -1083,5 +1090,371 @@ describe('ListMyAliasesResponseSchema', () => {
         truncated: false,
       }).success
     ).toBe(false);
+  });
+});
+
+// ============================================================================
+// Character tags
+// ============================================================================
+
+describe('normalizeTag', () => {
+  it('trims, lowercases, and collapses internal whitespace runs to one hyphen', () => {
+    expect(normalizeTag('  Sci   Fi  ')).toBe('sci-fi');
+    expect(normalizeTag('FANTASY')).toBe('fantasy');
+    expect(normalizeTag('slice of life')).toBe('slice-of-life');
+  });
+
+  it('leaves an already-normalized tag untouched', () => {
+    expect(normalizeTag('sci-fi')).toBe('sci-fi');
+  });
+
+  it('collapses a tab run the same as spaces', () => {
+    expect(normalizeTag('dark\tfantasy')).toBe('dark-fantasy');
+  });
+
+  it('collapses hyphen runs — the hyphen is OUR separator, so runs are noise', () => {
+    expect(normalizeTag('sci--fi')).toBe('sci-fi');
+    expect(normalizeTag('sci -- fi')).toBe('sci-fi');
+  });
+
+  it('trims leading and trailing hyphens', () => {
+    expect(normalizeTag('anime-')).toBe('anime');
+    expect(normalizeTag('-anime')).toBe('anime');
+    expect(normalizeTag('-x-')).toBe('x');
+  });
+
+  it('leaves a content character alone — only the separator gets hygiene', () => {
+    expect(normalizeTag('Sci Fi!')).toBe('sci-fi!');
+  });
+});
+
+describe('PersonalityTagSchema', () => {
+  it('normalizes before validating, so a spaced tag is accepted', () => {
+    const result = PersonalityTagSchema.safeParse('  Sci Fi ');
+    expect(result.success).toBe(true);
+    expect(result.data).toBe('sci-fi');
+  });
+
+  it('rejects a tag shorter than the minimum', () => {
+    expect(PersonalityTagSchema.safeParse('a').success).toBe(false);
+  });
+
+  it('rejects a tag longer than the maximum', () => {
+    expect(PersonalityTagSchema.safeParse('x'.repeat(TAG_LIMITS.MAX_LENGTH + 1)).success).toBe(
+      false
+    );
+  });
+
+  it('accepts a tag exactly at each length bound', () => {
+    expect(PersonalityTagSchema.safeParse('x'.repeat(TAG_LIMITS.MIN_LENGTH)).success).toBe(true);
+    expect(PersonalityTagSchema.safeParse('x'.repeat(TAG_LIMITS.MAX_LENGTH)).success).toBe(true);
+  });
+
+  it('rejects characters outside the pattern rather than silently stripping them', () => {
+    expect(PersonalityTagSchema.safeParse('sci-fi!').success).toBe(false);
+    expect(PersonalityTagSchema.safeParse('under_score').success).toBe(false);
+  });
+
+  it('accepts a leading hyphen by trimming it, and accepts a leading digit', () => {
+    // Normalization strips the edge hyphen, so the pattern never sees it.
+    expect(PersonalityTagSchema.safeParse('-fantasy').data).toBe('fantasy');
+    expect(PersonalityTagSchema.safeParse('90s-anime').success).toBe(true);
+  });
+
+  it('rejects a hyphen-trimmed tag that falls under the minimum length', () => {
+    // '-x-' normalizes to 'x' (1 char), which the min-length check rejects.
+    expect(PersonalityTagSchema.safeParse('-x-').success).toBe(false);
+  });
+
+  it('rejects an all-hyphen token, which normalizes to empty', () => {
+    expect(PersonalityTagSchema.safeParse('---').success).toBe(false);
+  });
+});
+
+describe('PersonalityTagsInputSchema', () => {
+  it('splits a comma-separated string into normalized tags', () => {
+    const result = PersonalityTagsInputSchema.safeParse('Fantasy, Sci Fi ,comedy');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(['fantasy', 'sci-fi', 'comedy']);
+  });
+
+  it('accepts an array and normalizes each entry', () => {
+    const result = PersonalityTagsInputSchema.safeParse(['Fantasy', ' Sci Fi ']);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(['fantasy', 'sci-fi']);
+  });
+
+  it('drops empty tokens from a trailing or doubled comma', () => {
+    const result = PersonalityTagsInputSchema.safeParse('fantasy,,comedy, ');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(['fantasy', 'comedy']);
+  });
+
+  it('dedupes after normalization, preserving first-seen order', () => {
+    const result = PersonalityTagsInputSchema.safeParse('Comedy, fantasy, COMEDY, Sci Fi, sci-fi');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(['comedy', 'fantasy', 'sci-fi']);
+  });
+
+  it('accepts an empty string and an empty array as "no tags"', () => {
+    expect(PersonalityTagsInputSchema.safeParse('').data).toEqual([]);
+    expect(PersonalityTagsInputSchema.safeParse([]).data).toEqual([]);
+  });
+
+  it('accepts exactly the per-character cap', () => {
+    const atCap = Array.from({ length: TAG_LIMITS.MAX_PER_CHARACTER }, (_, i) => `tag-${i}`);
+    expect(PersonalityTagsInputSchema.safeParse(atCap).success).toBe(true);
+  });
+
+  it('rejects one tag over the per-character cap', () => {
+    const overCap = Array.from({ length: TAG_LIMITS.MAX_PER_CHARACTER + 1 }, (_, i) => `tag-${i}`);
+    expect(PersonalityTagsInputSchema.safeParse(overCap).success).toBe(false);
+  });
+
+  it('counts the cap AFTER dedupe, so duplicates do not consume slots', () => {
+    const duplicated = Array.from(
+      { length: TAG_LIMITS.MAX_PER_CHARACTER + 2 },
+      () => 'the-same-tag'
+    );
+    const result = PersonalityTagsInputSchema.safeParse(duplicated);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(['the-same-tag']);
+  });
+
+  it('rejects the whole input when any single tag is invalid', () => {
+    expect(PersonalityTagsInputSchema.safeParse('fantasy, bad!tag').success).toBe(false);
+    expect(PersonalityTagsInputSchema.safeParse('fantasy, a').success).toBe(false);
+  });
+
+  it('dedupes hyphen-run and whitespace spellings of the same tag', () => {
+    const result = PersonalityTagsInputSchema.safeParse('sci--fi, sci fi, Sci-Fi');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(['sci-fi']);
+  });
+
+  describe('raw-size guards (bound the work before tokenizing)', () => {
+    it('a maximal-but-valid comma string still passes', () => {
+      const maximal = Array.from(
+        { length: TAG_LIMITS.MAX_PER_CHARACTER },
+        (_, i) =>
+          // Distinct tags at exactly MAX_LENGTH: a numeric suffix over an 'x' run.
+          `${'x'.repeat(TAG_LIMITS.MAX_LENGTH - 2)}${i.toString().padStart(2, '0')}`
+      ).join(', ');
+      expect(maximal.length).toBe(MAX_JOINED_TAGS_LENGTH);
+      const result = PersonalityTagsInputSchema.safeParse(maximal);
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(TAG_LIMITS.MAX_PER_CHARACTER);
+    });
+
+    it('a maximal-but-valid array still passes', () => {
+      const maximal = Array.from(
+        { length: TAG_LIMITS.MAX_PER_CHARACTER },
+        (_, i) => `${'x'.repeat(TAG_LIMITS.MAX_LENGTH - 2)}${i.toString().padStart(2, '0')}`
+      );
+      const result = PersonalityTagsInputSchema.safeParse(maximal);
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(TAG_LIMITS.MAX_PER_CHARACTER);
+    });
+
+    // Each of these asserts the SPECIFIC raw ceiling that fired, not merely
+    // that the input was rejected: the downstream tag rules would reject these
+    // too, so a bare `success === false` passes with the guards deleted.
+    it('rejects an oversized comma string AT the raw string ceiling', () => {
+      const oversized = 'a,'.repeat(TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH);
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'too_big',
+          origin: 'string',
+          maximum: TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH,
+        })
+      );
+    });
+
+    it('rejects an oversized array AT the raw element-count ceiling', () => {
+      const oversized = Array.from(
+        { length: TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH + 1 },
+        (_, i) => `tag-${i}`
+      );
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'too_big',
+          origin: 'array',
+          maximum: TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH,
+        })
+      );
+    });
+
+    it('rejects a single oversized raw array element AT the element ceiling', () => {
+      const oversized = ['x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH + 1)];
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'too_big',
+          origin: 'string',
+          maximum: TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH,
+        })
+      );
+    });
+
+    it('accepts a string exactly AT the raw ceiling (the bound is inclusive)', () => {
+      // Padding a valid short tag out to exactly the ceiling with empty
+      // tokens: the size guard passes, and the transform drops the empties.
+      const padded = 'fantasy'.padEnd(TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH, ',');
+      expect(padded.length).toBe(TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH);
+      const result = PersonalityTagsInputSchema.safeParse(padded);
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(['fantasy']);
+    });
+
+    it('the raw ceilings leave real headroom over the longest legitimate input', () => {
+      // The guards bound WORK; the tag rules do the rejecting. A sloppy
+      // over-long list must still reach the specific "too many tags" error.
+      expect(TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH).toBeGreaterThan(MAX_JOINED_TAGS_LENGTH * 4);
+      expect(TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH).toBeGreaterThan(
+        TAG_LIMITS.MAX_PER_CHARACTER * 4
+      );
+      expect(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH).toBeGreaterThan(TAG_LIMITS.MAX_LENGTH * 4);
+    });
+
+    it('an over-cap but under-ceiling list still gets the tag-count error, not a size error', () => {
+      const overCap = Array.from(
+        { length: TAG_LIMITS.MAX_PER_CHARACTER + 1 },
+        (_, i) => `tag-${i}`
+      );
+      const result = PersonalityTagsInputSchema.safeParse(overCap);
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain('at most');
+    });
+  });
+});
+
+describe('tags on the response schemas', () => {
+  const fullPersonality = {
+    id: '33333333-3333-5333-8333-333333333333',
+    name: 'Test Character',
+    slug: 'test-character',
+    displayName: null,
+    characterInfo: 'A test character',
+    personalityTraits: 'Friendly',
+    personalityTone: null,
+    personalityAge: null,
+    personalityAppearance: null,
+    personalityLikes: null,
+    personalityDislikes: null,
+    conversationalGoals: null,
+    conversationalExamples: null,
+    errorMessage: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    isPublic: false,
+    definitionPublic: false,
+    definitionRedacted: false,
+    voiceEnabled: false,
+    imageEnabled: false,
+    ownerId: '44444444-4444-5444-8444-444444444444',
+    hasAvatar: false,
+    avatarUrl: null,
+    hasVoiceReference: false,
+    customFields: null,
+    createdAt: '2025-01-15T12:00:00.000Z',
+    updatedAt: '2025-01-20T15:30:00.000Z',
+  };
+
+  const summaryPersonality = {
+    id: '33333333-3333-5333-8333-333333333333',
+    name: 'TestCharacter',
+    displayName: null,
+    slug: 'test-character',
+    isOwned: true,
+    isPublic: false,
+    ownerId: '44444444-4444-5444-8444-444444444444',
+    ownerDiscordId: '123456789012345678',
+    permissions: { canEdit: true, canDelete: true },
+  };
+
+  it('PersonalityFullSchema keeps tags through the strip-mode parse', () => {
+    const result = PersonalityFullSchema.safeParse({
+      ...fullPersonality,
+      tags: ['fantasy', 'sci-fi'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toEqual(['fantasy', 'sci-fi']);
+  });
+
+  it('PersonalityFullSchema defaults tags to [] for an older gateway response', () => {
+    const result = PersonalityFullSchema.safeParse(fullPersonality);
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toEqual([]);
+  });
+
+  it('PersonalitySummarySchema keeps tags through the strip-mode parse', () => {
+    const result = PersonalitySummarySchema.safeParse({
+      ...summaryPersonality,
+      tags: ['fantasy'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toEqual(['fantasy']);
+  });
+
+  it('PersonalitySummarySchema defaults tags to [] for an older gateway response', () => {
+    const result = PersonalitySummarySchema.safeParse(summaryPersonality);
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toEqual([]);
+  });
+});
+
+describe('tags on the input schemas', () => {
+  const minimalCreate = {
+    name: 'Helen',
+    slug: 'helen',
+    characterInfo: 'A detective.',
+    personalityTraits: 'Sharp.',
+  };
+
+  it('PersonalityCreateSchema normalizes a comma string into an array', () => {
+    const result = PersonalityCreateSchema.safeParse({
+      ...minimalCreate,
+      tags: 'Mystery, Noir',
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toEqual(['mystery', 'noir']);
+  });
+
+  it('PersonalityCreateSchema treats absent tags as undefined (not [])', () => {
+    const result = PersonalityCreateSchema.safeParse(minimalCreate);
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toBeUndefined();
+  });
+
+  it('PersonalityUpdateSchema accepts a replayed tag ARRAY (the dashboard round-trip)', () => {
+    const result = PersonalityUpdateSchema.safeParse({ tags: ['fantasy', 'sci-fi'] });
+    expect(result.success).toBe(true);
+    expect(result.data?.tags).toEqual(['fantasy', 'sci-fi']);
+  });
+
+  it('PersonalityUpdateSchema distinguishes absent (no change) from [] (clear)', () => {
+    expect(PersonalityUpdateSchema.safeParse({}).data?.tags).toBeUndefined();
+    expect(PersonalityUpdateSchema.safeParse({ tags: [] }).data?.tags).toEqual([]);
+  });
+
+  it('PersonalityUpdateSchema rejects an over-cap tag list', () => {
+    const overCap = Array.from({ length: TAG_LIMITS.MAX_PER_CHARACTER + 1 }, (_, i) => `tag-${i}`);
+    expect(PersonalityUpdateSchema.safeParse({ tags: overCap }).success).toBe(false);
+  });
+});
+
+describe('PERSONALITY SELECT constants carry tags', () => {
+  it('the detail select requests tags', () => {
+    expect(PERSONALITY_DETAIL_SELECT.tags).toBe(true);
+  });
+
+  it('the list select requests tags', () => {
+    expect(PERSONALITY_LIST_SELECT.tags).toBe(true);
   });
 });

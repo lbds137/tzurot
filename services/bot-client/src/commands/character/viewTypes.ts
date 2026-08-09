@@ -45,9 +45,9 @@ export const VIEW_TOTAL_PAGES = 4;
 
 /** Page titles for character view - aligned with edit section names */
 export const VIEW_PAGE_TITLES = [
-  '🏷️ Identity & Basics',
+  '🪪 Identity & Basics',
   '📖 Biography & Appearance',
-  '❤️ Preferences',
+  '❤️ Preferences & Tags',
   '💬 Conversation',
 ];
 

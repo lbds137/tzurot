@@ -190,6 +190,8 @@ describe('POST /api/user/personality (create)', () => {
           // No voice reference provided → voice stays disabled (the false
           // branch of create.ts's voiceEnabled derivation).
           voiceEnabled: false,
+          // Absent in the request → the column's empty-array default.
+          tags: [],
         }),
         select: expect.objectContaining({
           id: true,
@@ -208,6 +210,47 @@ describe('POST /api/user/personality (create)', () => {
         }),
       })
     );
+  });
+
+  it('normalizes a comma-separated tags string into the create data', async () => {
+    mockPrisma.personality.create.mockResolvedValue(
+      createMockPersonality({ tags: ['fantasy', 'sci-fi'] })
+    );
+
+    const handler = getCreateHandler();
+    const { req, res } = createMockReqRes({
+      name: 'New Character',
+      slug: 'new-char',
+      characterInfo: 'A new character',
+      personalityTraits: 'Friendly, kind',
+      tags: 'Fantasy, Sci Fi, FANTASY',
+    });
+
+    await handler(req, res);
+
+    expect(mockPrisma.personality.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // Lowercased, whitespace-hyphenated, and deduped by the input schema.
+        data: expect.objectContaining({ tags: ['fantasy', 'sci-fi'] }),
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('rejects a create whose tag list exceeds the per-character cap', async () => {
+    const handler = getCreateHandler();
+    const { req, res } = createMockReqRes({
+      name: 'New Character',
+      slug: 'new-char',
+      characterInfo: 'A new character',
+      personalityTraits: 'Friendly, kind',
+      tags: Array.from({ length: 11 }, (_, i) => `tag-${i}`),
+    });
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockPrisma.personality.create).not.toHaveBeenCalled();
   });
 
   it('warns (does not block) when the new name/slug shadows GLOBAL aliases', async () => {

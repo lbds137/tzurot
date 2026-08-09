@@ -31,6 +31,13 @@ export interface CharacterData extends PersonalityCharacterFields {
   definitionPublic: boolean;
   /** True when THIS response's card fields were redacted for the requester */
   definitionRedacted: boolean;
+  /**
+   * Owner-authored discovery tags, normalized gateway-side. Non-optional
+   * because the response schema defaults it to `[]`, so every fetched
+   * character carries the field (matching `isPublic`/`voiceEnabled` rather
+   * than the optional read-only extras below).
+   */
+  tags: string[];
   voiceEnabled: boolean;
   /** Whether the character has a voice reference uploaded (from API) */
   hasVoiceReference: boolean;

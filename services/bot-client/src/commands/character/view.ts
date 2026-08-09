@@ -39,6 +39,7 @@ import {
   buildViewV2Notice,
   viewAvatarUrl,
 } from './viewV2.js';
+import { addTagsEmbedField } from './tagsRendering.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
@@ -82,24 +83,25 @@ function buildOverviewPage(
 ): void {
   embed.setDescription(buildOverviewDescription(character));
 
-  embed.addFields(
-    {
-      name: '🏷️ Identity',
-      value:
-        `**Name:** ${escapeMarkdown(character.name)}\n` +
-        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
-        `**Slug:** \`${character.slug}\``,
-      inline: false,
-    },
-    {
-      name: '⚙️ Settings',
-      value:
-        `**Visibility:** ${character.isPublic ? '🌐 Public' : '🔒 Private'}\n` +
-        `**Voice:** ${character.voiceEnabled ? '🎤 Enabled' : '❌ Disabled'}\n` +
-        `**Images:** ${character.imageEnabled ? '🖼️ Enabled' : '❌ Disabled'}`,
-      inline: false,
-    }
-  );
+  embed.addFields({
+    name: '🪪 Identity',
+    value:
+      `**Name:** ${escapeMarkdown(character.name)}\n` +
+      `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
+      `**Slug:** \`${character.slug}\``,
+    inline: false,
+  });
+
+  addTagsEmbedField(character.tags, embed);
+
+  embed.addFields({
+    name: '⚙️ Settings',
+    value:
+      `**Visibility:** ${character.isPublic ? '🌐 Public' : '🔒 Private'}\n` +
+      `**Voice:** ${character.voiceEnabled ? '🎤 Enabled' : '❌ Disabled'}\n` +
+      `**Images:** ${character.imageEnabled ? '🖼️ Enabled' : '❌ Disabled'}`,
+    inline: false,
+  });
 
   const traits = truncateField(character.personalityTraits, CHARACTER_VIEW_LIMITS.MEDIUM);
   if (traits.wasTruncated) {
@@ -211,13 +213,17 @@ export function buildRedactedViewPage(character: CharacterData): ViewPageResult 
         'You can still chat with this character normally.'
     )
     .addFields({
-      name: '🏷️ Identity',
+      name: '🪪 Identity',
       value:
         `**Name:** ${escapeMarkdown(character.name)}\n` +
         `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
         `**Slug:** \`${character.slug}\``,
       inline: false,
     });
+
+  // Tags survive redaction gateway-side, so the private-definition view still
+  // shows them — they are how a non-owner finds the character at all.
+  addTagsEmbedField(character.tags, embed);
 
   // Static dates by necessity: embed FOOTERS don't render <t:> markup, so
   // the §2.5 dynamic-timestamp rule can't apply here (same carve-out class
