@@ -57,8 +57,8 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/develop-code-commit-guard.probe.sh',
   },
   {
-    hook: '.claude/hooks/git-commit-filter-guard.sh',
-    probe: '.claude/hooks/git-commit-filter-guard.probe.sh',
+    hook: '.claude/hooks/lossy-pipe-guard.sh',
+    probe: '.claude/hooks/lossy-pipe-guard.probe.sh',
   },
   {
     hook: '.claude/hooks/promise-ledger-check.sh',

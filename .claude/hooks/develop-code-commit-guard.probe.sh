@@ -201,6 +201,30 @@ run 0 "plumbing: commit-tree behind -C flag"      'git -C /some/path commit-tree
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
 run 0 "escape hatch, canonical heredoc form"      "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $CANONICAL_HEREDOC"  'services/probe.ts'
 run 0 "non-git command"                           'echo hello'                                             'services/probe.ts'
+
+# --- pathological flag runs must not hang the session ---------------------
+# The flag-value group here carried the same ambiguity that was MEASURED
+# backtracking exponentially in the sibling lossy-pipe-guard: with a bare `\S+`
+# value, every token in a run of flags can be read either as the previous flag's
+# value or as a new flag, so a FAILING match explores exponentially many
+# partitions — 26 dummy flags took 231ms there, doubling every two, and ~34
+# would hang for minutes.
+#
+# This hook is PreToolUse on every Bash call AND it blocks, so a hang here is
+# strictly worse than in the advisory sibling. The fix (a value may not itself
+# start with `-`) preserves every verdict; this case exists so a revert cannot
+# go unnoticed. Bounded on wall clock rather than on a verdict, because the
+# verdict was always correct — it just took forever to reach.
+long_flags=$(python3 -c "print(' '.join(f'-x{i}' for i in range(60)))")
+redos_start=$(date +%s%N)
+run 0 "60 dummy flags does not hang"              "git $long_flags nocommit"                               'services/probe.ts'
+redos_ms=$(( ($(date +%s%N) - redos_start) / 1000000 ))
+if [ "$redos_ms" -lt 2000 ]; then
+  printf 'PASS  (%dms)  ...and returns well inside the 2s bound\n' "$redos_ms"
+else
+  printf 'FAIL  (%dms, expected <2000ms)  pathological flag run is backtracking\n' "$redos_ms"
+  FAILURES=$((FAILURES + 1))
+fi
 # Raw-payload pre-check boundary: the hook exits before forking jq when the RAW
 # stdin has no git…commit token pair. `git status` has no `commit` at all;
 # `echo commit && git status` has the tokens in the WRONG ORDER, and the glob
