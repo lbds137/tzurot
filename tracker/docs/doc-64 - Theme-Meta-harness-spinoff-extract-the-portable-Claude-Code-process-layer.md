@@ -30,6 +30,10 @@ The hard middle: `packages/tooling`'s audit/ratchet infrastructure (lines:check,
 
 **Settings-management guidance rides the plugin too** (owner, same day): a skill/doc on managing `settings.json` layers — what belongs in the tracked project file (team-wide permissions, hook wiring) vs `.claude/settings.local.json` (per-machine allowlist accretion, e.g. WebFetch domains) vs user-level `~/.claude/settings.json` (cross-project permissions like the AskUserQuestion allow entry) — plus hygiene like periodically promoting local-file entries that every contributor needs into the tracked file. Nothing owns this split today; it is learned by tripping over it.
 
+### License (decide at repo creation)
+
+Owner constraint (2026-08-09): permissive only — reuse into Capital One work without licensing friction rules out GPL/AGPL despite taste; owner wants ONE consistent posture across repos, not per-repo re-derivation. Assistant recommendation: **MIT everywhere** (Tzurot already is; the plugin is skills/hooks/scripts with ~nil patent surface; lowest ceremony, universally allowlisted). The one alternative worth naming: Apache-2.0 adds an explicit patent grant + contribution-licensing terms — pick it only if third-party contributors become a real prospect; relicensing is trivial while the owner is sole copyright holder. Decision is the owner's, pending at repo creation.
+
 ### Phase sketch
 
 - **Phase 0 — inventory (decides everything)**: classify every rule section, hook, skill, and ops command as portable / Tzurot-bound / parameterizable-with-effort. Output: the classification table; it picks the split shape empirically.
