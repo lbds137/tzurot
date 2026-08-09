@@ -59,6 +59,42 @@ This applies to all comment shapes: full-line `//`, JSDoc `*` body, block `/* */
 
 **Enforcement**: `.husky/pre-commit` scans newly-added comment lines in `*.ts`/`*.tsx`/`*.js`/`*.jsx` for date stamps, PR refs, and round/review markers. Override with `TZUROT_SKIP_TEMPORAL_CHECK=1` for the rare intentional case (post-mortem references where the date is the point).
 
+## A Comment That Asserts Behavior Is a Claim
+
+A comment stating what the code _does_ under some condition — "it never
+bypasses", "this cannot backtrack", "the retry is idempotent" — gets the same
+treatment as a claim in a PR body: **pin it with a test, or say in the comment
+that it is unverified.** This applies to the same comment shapes the section
+above enumerates.
+
+Both failure directions are silent, which is why this is a rule and not care. A
+_wrong_ claim reads as documentation and is trusted — a comment described a
+ReDoS as fixed for a whole PR while the pattern still ran for minutes. A claim
+that is _right but unpinned_ invites the change that breaks it: an exact-case
+escape token, argued at length and tested nowhere, sits one plausible
+"consistency cleanup" away from unlocking a blocking guard.
+
+Trigger: any comment asserting RUNTIME behavior. The certainty words — _never_,
+_always_, _cannot_, _is safe_ — are the usual tell but not the whole set: a bare
+property name claims just as much ("the retry is idempotent"), and so does a
+named mechanism's EFFECT ("the lookahead prevents backtracking"), which asserts
+something with no certainty word in it at all. Naming a mechanism alone does not
+("uses a lookahead to skip whitespace" asserts nothing), and neither does
+design-structure prose ("cannot be extracted", "cannot be collapsed into one") —
+`claim-shape-guard.sh` was narrowed for exactly that reason, because a trigger
+that fires on structure trains readers to skim past the real ones. Name the
+test, or hedge in the comment itself (`// not verified: assumes the caller
+already acked`) — an honest hedge invites the correction that a confident wrong
+claim deters.
+
+Scope: in CODE files the VALUE half is already caught mechanically by
+`claim-shape-guard.sh` (`never null`, `always populated`, `cannot be <value>`) —
+it skips `*.md` and the `.claude/` tree entirely, so a value claim in prose is
+this rule's too. Otherwise this rule is the judgment half — behavioral,
+algorithmic, security. `00-critical.md`
+§ "Code-reading is not runtime verification" holds the same standard for a claim
+made in conversation; a comment differs by persisting.
+
 ## TypeScript Strict Rules
 
 - TypeScript `strict: true`, no `any` types
