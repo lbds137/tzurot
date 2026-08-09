@@ -6,6 +6,14 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/skill-eval.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/bare-token-binding-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/queued-message-receipt.sh"
           }
         ]
       }

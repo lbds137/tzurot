@@ -45,6 +45,10 @@ export interface HookProbeEntry {
  */
 export const HOOK_PROBES: HookProbeEntry[] = [
   {
+    hook: '.claude/hooks/bare-token-binding-reminder.sh',
+    probe: '.claude/hooks/bare-token-binding-reminder.probe.sh',
+  },
+  {
     hook: '.claude/hooks/claim-shape-guard.sh',
     probe: '.claude/hooks/claim-shape-guard.probe.sh',
   },
@@ -76,6 +80,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   {
     hook: '.claude/hooks/pr-monitor-reminder.sh',
     probe: '.claude/hooks/pr-monitor-reminder.probe.sh',
+  },
+  {
+    hook: '.claude/hooks/queued-message-receipt.sh',
+    probe: '.claude/hooks/queued-message-receipt.probe.sh',
   },
   {
     hook: '.claude/hooks/eslint-on-edit.sh',

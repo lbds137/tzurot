@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-07-28'
+lastUpdated: '2026-08-09'
 ---
 
 # Documentation & Session Workflow
@@ -124,3 +124,9 @@ procedure, don't wait to be walked through it:
    removed (verify by grep, not by date); umbrella entries get sub-items struck.
 4. **Measure net shrink**: the success metric is the backlog getting SMALLER —
    report entries removed vs. added at the end of the sweep.
+5. **Standing drain directive = running net at every batch.** While a
+   drain/shrink directive is in force, every batch report states the running
+   session net (tasks closed vs tasks filed). Any task the assistant itself
+   generates (process/meta work — audits, gates, skill/hook improvements) is
+   named as such at filing time and counts visibly against the net — growth
+   must be visible at the moment it happens, not discovered by the owner later.
