@@ -13,11 +13,13 @@ Owner report (2026-08-09, verbatim): "if multiple user messages targeting an act
 
 **Current behavior**: one generation job per triggering message. Rapid short messages (very common Discord chat style) produce multiple queued jobs, each seeing slightly more history, yielding repetitive near-duplicate replies and multiplied token spend.
 
+**Owner refinement (2026-08-09): collapse stacks by USER ALTERNATION.** Only consecutive pending messages from the SAME author collapse — concatenated with line breaks (or whatever renders best) into one logical user message, because the target is a typing style (many rapid short messages = one thought). A message from a different user breaks the stack: never over-collapse across authors, so the LLM never loses sight of who is speaking and no user loses potential memory formation from their turns.
+
 **Scoping questions for build time**:
 
-- **Where the coalescing seam lives.** Natural shape: key an "in-flight" marker on (channel, personality); while one generation runs, arriving trigger messages accumulate in a pending buffer instead of enqueuing jobs; when the in-flight job completes, ONE job drains the whole buffer. Candidate homes: bot-client (before enqueue — knows Discord arrival order, but multi-replica state needs Redis), api-gateway (queue layer — BullMQ job dedup/delay primitives live here), or ai-worker (at job start, absorb newer sibling jobs — riskiest for double-reply races).
-- **Discord UX**: one reply addressing several messages — which message does the webhook reply anchor to (latest? none?); does the prompt present the batch as distinct user turns (it should — they already land as separate history rows).
-- **Attribution**: multiple AUTHORS in the pending buffer (busy activated channel) — the coalesced prompt must keep per-message author attribution; the reply addresses the room, not one user.
+- **Where the coalescing seam lives.** Natural shape: key an "in-flight" marker on (channel, personality); while one generation runs, arriving trigger messages accumulate in a pending buffer instead of enqueuing jobs; when the in-flight job completes, one job per same-author run drains the buffer (a strict-alternation buffer may still produce multiple jobs — that is correct, per the refinement above). Candidate homes: bot-client (before enqueue — knows Discord arrival order, but multi-replica state needs Redis), api-gateway (queue layer — BullMQ job dedup/delay primitives live here), or ai-worker (at job start, absorb newer sibling jobs — riskiest for double-reply races).
+- **Discord UX**: one reply addressing a same-author run — which message does the webhook reply anchor to (latest? none?).
+- **Memory/history integrity**: the messages still land as separate history rows and separate memory-formation inputs per author; collapsing affects only how many GENERATION round-trips fire, never what gets recorded.
 - **Correctness rails**: BullMQ retry/idempotency semantics for a drained buffer (spend-idempotency rule, `04-discord.md`); ordering guarantee that the buffer drains in arrival order; a cap so a flood coalesces into bounded prompt growth; interaction with the existing per-message dedup cache.
 - **Scope boundary**: mentions/replies to a personality in non-activated channels may deserve the same treatment (same in-flight key) or may stay 1:1 — decide at scoping.
 
