@@ -24,6 +24,8 @@ The hard middle: `packages/tooling`'s audit/ratchet infrastructure (lines:check,
 1. **Process plugin**: skills + hooks + agent contracts. Mostly parameter-free already; cheapest extraction.
 2. **Audit/ratchet npm package** (later): the `pnpm ops` gate infrastructure behind a config boundary.
 
+**Brain-management mechanisms ride the plugin** (owner directive 2026-08-09: "the brain itself stays private but the mechanisms for setting it up and managing it would belong in the plug-in"). The plugin ships the doc-65 scaffolding — a brain-setup skill (create private repo, move the memory dir, symlink from the harness path), the session-end auto-commit hook, and any status/management commands — while the brain repo holds only data. Clean content/mechanism split, and it makes versioned memory a capability every plugin adopter gets rather than a Tzurot-local hack.
+
 ### Phase sketch
 
 - **Phase 0 — inventory (decides everything)**: classify every rule section, hook, skill, and ops command as portable / Tzurot-bound / parameterizable-with-effort. Output: the classification table; it picks the split shape empirically.

@@ -26,6 +26,6 @@ Owner directive (2026-08-09, verbatim): "not having version control on memory fi
 
 ### Relations
 
-- doc-64 (meta-harness spinoff): this is the PRIVATE layer of the same split — plugin = public portable, brain = private personal. Build order is independent; brain is smaller and can go first.
+- doc-64 (meta-harness spinoff): this is the PRIVATE layer of the same split — plugin = public portable, brain = private personal. Build order is independent; brain is smaller and can go first. **Owner refinement 2026-08-09: the brain-management MECHANISMS ship in the plugin** ("the brain itself stays private but the mechanisms for setting it up and managing it would belong in the plug-in") — the setup skill, the session-end auto-commit hook, and any status commands are plugin payload; this repo holds only data. If the brain is built before the plugin exists, build those mechanisms as clearly-portable pieces destined for extraction.
 - doc-62 (memory promoter): version control makes promote-and-delete auditable (the deletion commit IS the record).
 - doc-63 (ratchet bidirectionality): a tracked brain could carry its own size measurement, closing the "memory is ungated" inventory row.
