@@ -1,10 +1,10 @@
 ---
 id: TASK-470
 title: 'Assertions that cannot fail: three shapes, three sightings in one session'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 17:15'
-updated_date: '2026-08-08 23:42'
+updated_date: '2026-08-09 18:19'
 labels:
   - 'area:process'
   - 'area:tooling'
