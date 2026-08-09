@@ -6,8 +6,9 @@
  *   - MultiTagCoordinator (multi-tag fan-out path)
  *
  * "Slot" naming reflects the multi-tag mental model — a single message can
- * produce up to MULTI_TAG.MAX_TAGS slots, each requiring this same
- * send-and-persist sequence. For single-personality messages, N=1.
+ * produce up to the admin-configured multi-character cap's worth of slots
+ * (multiTagMaxCharacters, default MULTI_TAG.MAX_TAGS), each requiring this
+ * same send-and-persist sequence. For single-personality messages, N=1.
  *
  * Responsibilities (per slot):
  *  1. Upgrade user-message row with attachment descriptions from the AI result.

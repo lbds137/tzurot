@@ -12,6 +12,7 @@ import {
   type SystemSettings,
 } from '@tzurot/common-types/schemas/api/systemSettings';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import {
   type SettingsData,
   type SettingsDashboardSession,
@@ -58,6 +59,11 @@ export async function handleSystemSettingUpdate(
       logger.warn({ settingId, error: result.error }, 'System settings write rejected');
       return { success: false, error: `${result.error}${conflictHint}` };
     }
+
+    // Clear the service-read cache so live readers (getMultiTagCap, the voice
+    // processors) see the owner's own change immediately instead of waiting
+    // out the 60s TTL — mirrors the cascade write path in settings.ts.
+    invalidateAdminSettingsCache();
 
     // Surface non-blocking write warnings (catalog fail-open notes) and the
     // restart-liveness banner — mirrors the slash setter's contract. The

@@ -56,6 +56,12 @@ export interface RuntimeEntry {
    * snapshot so the notice survives restart/recovery.
    */
   truncated: boolean;
+  /**
+   * The admin-configured cap this fan-out was resolved under. Stamped at
+   * resolution time and persisted, so the truncation notice quotes the cap
+   * that actually applied even if an admin changes the setting mid-flight.
+   */
+  maxTags: number;
 }
 
 /**
@@ -139,6 +145,7 @@ export function toSnapshot(entry: RuntimeEntry): CoordinatorEntrySnapshot {
     })),
     createdAt: entry.createdAt,
     truncated: entry.truncated,
+    maxTags: entry.maxTags,
   };
 }
 

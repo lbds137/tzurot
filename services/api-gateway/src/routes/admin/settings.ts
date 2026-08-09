@@ -73,12 +73,20 @@ async function tryInvalidateAdmin(
   }
 }
 
-/** Build response object from DB settings (type stays in sync via z.infer) */
+/**
+ * Build response object from DB settings (type stays in sync via z.infer).
+ *
+ * `systemSettings` rides both mounts, including the credential-free
+ * `/api/internal` service alias. That bag holds model ids, budget numbers and
+ * feature flags — no secrets, keys or user data — so service-mount exposure is
+ * acceptable; a secret-bearing setting would need a per-mount projection here.
+ */
 function buildResponse(settings: Prisma.AdminSettingsGetPayload<object>): GetAdminSettingsResponse {
   return {
     id: settings.id,
     updatedBy: settings.updatedBy,
     configDefaults: settings.configDefaults as Record<string, unknown> | null,
+    systemSettings: settings.systemSettings as Record<string, unknown> | null,
     createdAt: settings.createdAt.toISOString(),
     updatedAt: settings.updatedAt.toISOString(),
   };

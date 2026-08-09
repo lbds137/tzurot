@@ -20,7 +20,6 @@
 
 import type { Message } from 'discord.js';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
-import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -174,9 +173,9 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
   // channel. Best-effort — log on failure but don't impact cleanup.
   if (entry.truncated) {
     try {
-      await entry.message.reply(
-        `_(Only the first ${MULTI_TAG.MAX_TAGS} tagged personalities respond.)_`
-      );
+      // The cap floor is 1, so the singular is a reachable admin choice.
+      const subject = entry.maxTags === 1 ? 'personality responds' : 'personalities respond';
+      await entry.message.reply(`_(Only the first ${entry.maxTags} tagged ${subject}.)_`);
     } catch (err) {
       logger.warn({ err, groupId: entry.groupId }, 'Failed to send multi-tag truncation notice');
     }
@@ -311,7 +310,8 @@ export async function deliverErroredOutcomes(
  *   its webhook (in-character), in parallel. Denied slots stay silent — the
  *   user already knows a denylisted/NSFW-gated/channel-restricted character
  *   won't respond, and mixing a system "unavailable" line with in-character
- *   error replies just adds register-noise. Bounded by MAX_TAGS upstream.
+ *   error replies just adds register-noise. Bounded by the multi-character cap
+ *   upstream.
  * - **All denied**: a single system notice (no character has anything to say
  *   in-voice, and a per-persona "I'm unavailable" from each would confuse).
  */

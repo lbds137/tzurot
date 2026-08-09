@@ -78,6 +78,7 @@ function buildEntry(overrides: Partial<RuntimeEntry> = {}): RuntimeEntry {
     // Throwaway handle for the fixture; never armed for real. 0ms leaves no timer pending.
     timeoutHandle: setTimeout(() => undefined, 0),
     truncated: false,
+    maxTags: 5,
     ...overrides,
   };
 }
@@ -382,12 +383,35 @@ describe('deliverGroup', () => {
   });
 
   it('appends a truncation notice when entry.truncated is true', async () => {
-    const entry = buildEntry({ truncated: true });
+    const entry = buildEntry({ truncated: true, maxTags: MULTI_TAG.MAX_TAGS });
 
     await deliverGroup(entry, deps);
 
     expect(entry.message.reply).toHaveBeenCalledWith(
       `_(Only the first ${MULTI_TAG.MAX_TAGS} tagged personalities respond.)_`
+    );
+  });
+
+  it('quotes the entry cap in the notice, not the in-code default', async () => {
+    // The stamped cap is what the resolver applied; an admin change landing
+    // between resolution and delivery must not rewrite the number the user
+    // sees. 3 is deliberately different from MULTI_TAG.MAX_TAGS.
+    const entry = buildEntry({ truncated: true, maxTags: 3 });
+
+    await deliverGroup(entry, deps);
+
+    expect(entry.message.reply).toHaveBeenCalledWith(
+      '_(Only the first 3 tagged personalities respond.)_'
+    );
+  });
+
+  it('uses the singular wording at a cap of 1 — the registry floor makes it reachable', async () => {
+    const entry = buildEntry({ truncated: true, maxTags: 1 });
+
+    await deliverGroup(entry, deps);
+
+    expect(entry.message.reply).toHaveBeenCalledWith(
+      '_(Only the first 1 tagged personality responds.)_'
     );
   });
 

@@ -89,7 +89,8 @@ describe('SYSTEM_SETTINGS_PAGES', () => {
       'System · Extraction',
       'System · Free Tier — Fair Share',
       'System · Free Tier — z.ai',
-      'System · Models & Limits',
+      'System · Fallback Models',
+      'System · Limits',
       'System · Operations',
     ]);
     const allIds = SYSTEM_SETTINGS_PAGES.flatMap(p => p.settingIds);

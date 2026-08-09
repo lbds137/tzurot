@@ -30,7 +30,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { ReplyResolutionService } from '../services/ReplyResolutionService.js';
-import { getChannelSettingsCached } from '../utils/gatewayServiceCalls.js';
+import { getChannelSettingsCached, getMultiTagCap } from '../utils/gatewayServiceCalls.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import { resolveSlots } from '../services/SlotResolver.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
@@ -66,8 +66,17 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     // sender.
     const forwarded = isForwardedMessage(message);
 
+    // Read the admin-configured cap ONCE per message and thread it through
+    // mention parsing, slot resolution, the truncation flag, and the notice.
+    // Re-reading per site would let a mid-flight admin change split one
+    // message's pipeline across two caps (e.g. a notice quoting a number the
+    // resolver never applied).
+    //
     // Resolve the three trigger sources in parallel — they don't depend on
-    // each other and each may produce 0..1 personalities.
+    // each other and each may produce 0..1 personalities. The cap fetch joins
+    // the same Promise.all because none of the resolvers read it; the cap is
+    // consumed only at resolveSlots below, so serializing it ahead of the
+    // resolvers would just add a round-trip on an admin-settings cache miss.
     //
     // Cold-cache caveat: this may load the same personality up to 3x when
     // reply target + activation + mention all resolve to the same character.
@@ -75,18 +84,21 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     // `resolveSlots` dedupes by personality.id downstream so the duplicate
     // resolution doesn't propagate. The duplicated cold-cache fetch is an
     // acceptable cost for keeping the resolvers independent.
-    const [replyPersonality, activatedPersonality, mentionedPersonalities] = await Promise.all([
-      forwarded ? Promise.resolve(null) : this.resolveReplyPersonality(message, userId),
-      this.resolveActivatedPersonality(message, userId),
-      forwarded
-        ? Promise.resolve<LoadedPersonality[]>([])
-        : this.resolveMentionedPersonalities(message, userId),
-    ]);
+    const [maxTags, replyPersonality, activatedPersonality, mentionedPersonalities] =
+      await Promise.all([
+        getMultiTagCap(),
+        forwarded ? Promise.resolve(null) : this.resolveReplyPersonality(message, userId),
+        this.resolveActivatedPersonality(message, userId),
+        forwarded
+          ? Promise.resolve<LoadedPersonality[]>([])
+          : this.resolveMentionedPersonalities(message, userId),
+      ]);
 
     const slots = resolveSlots({
       replyPersonality,
       activatedPersonality,
       mentionedPersonalities,
+      maxTags,
     });
 
     if (slots.length === 0) {
@@ -95,7 +107,15 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
 
     // Did the cap drop any tagged personalities? Compare unique candidate
     // count to delivered slot count. Dedup-driven shrinkage (same personality
-    // mentioned twice) doesn't count as truncation — only the cap does.
+    // mentioned twice) doesn't count as truncation — only the cap does. This
+    // only works because the mention resolver above is uncapped; capping it
+    // would make the two counts equal by construction.
+    //
+    // Known edge: the mention scan stops at MAX_POTENTIAL_MENTIONS positions
+    // (personalityMentionParser.ts), which sits at the same value as the
+    // multiTagMaxCharacters registry ceiling. At a cap of 10 an 11th mention is
+    // invisible to the scan, so overflow past 10 goes undetected and no notice
+    // fires — the same coupling the ceiling cross-reference comments describe.
     const uniqueCandidates = new Set<string>();
     if (replyPersonality !== null) {
       uniqueCandidates.add(replyPersonality.id);
@@ -116,6 +136,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
         messageId: message.id,
         slotCount: slots.length,
         candidateCount: uniqueCandidates.size,
+        maxTags,
         truncated,
         sources: slots.map(s => s.source),
         personalityIds: slots.map(s => s.personality.id),
@@ -129,6 +150,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
       slots,
       content,
       truncated,
+      maxTags,
     });
 
     return true; // Stop chain — coordinator owns delivery from here.
@@ -246,9 +268,13 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
   }
 
   /**
-   * Resolve inline `@`-mention personalities, in textual order, deduped,
-   * capped at the multi-tag MAX_TAGS. Returns just the personality objects;
-   * the slot resolver applies dedupe-vs-reply/activation and final ordering.
+   * Resolve inline `@`-mention personalities, in textual order, deduped, and
+   * deliberately UNCAPPED. Returns just the personality objects; the slot
+   * resolver applies dedupe-vs-reply/activation, final ordering, AND the cap.
+   *
+   * Passing the cap down here would hide overflow from the caller: the
+   * truncation flag is computed by comparing this list against the capped slot
+   * list, so a pre-capped list makes the two equal and the notice unreachable.
    */
   private async resolveMentionedPersonalities(
     message: Message,

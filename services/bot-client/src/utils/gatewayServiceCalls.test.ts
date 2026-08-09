@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { JobStatus } from '@tzurot/common-types/constants/queue';
 import {
   TimeoutError,
@@ -36,6 +37,7 @@ vi.mock('../startup.js', () => ({
 import {
   getChannelSettingsCached,
   getAdminSettingsCached,
+  getMultiTagCap,
   setDmSessionPersonality,
   lookupPersonalityFromMessage,
   updateDiagnosticResponseIds,
@@ -118,6 +120,46 @@ describe('getAdminSettingsCached', () => {
   it('returns null on error', async () => {
     mockServiceClient.getAdminSettingsInternal.mockResolvedValue(makeErr(503, 'boom'));
     expect(await getAdminSettingsCached()).toBeNull();
+  });
+});
+
+describe('getMultiTagCap', () => {
+  it('returns the admin-configured cap when the stored value is in range', async () => {
+    mockServiceClient.getAdminSettingsInternal.mockResolvedValue(
+      ok({ systemSettings: { multiTagMaxCharacters: 3 } })
+    );
+
+    expect(await getMultiTagCap()).toBe(3);
+  });
+
+  it('rides the 60s admin-settings cache instead of re-fetching per call', async () => {
+    mockServiceClient.getAdminSettingsInternal.mockResolvedValue(
+      ok({ systemSettings: { multiTagMaxCharacters: 8 } })
+    );
+
+    await getMultiTagCap();
+    await getMultiTagCap();
+
+    expect(mockServiceClient.getAdminSettingsInternal).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['the gateway is down', makeErr(503, 'boom')],
+    ['systemSettings has never been seeded', ok({ systemSettings: null })],
+    ['the key is absent from the bag', ok({ systemSettings: {} })],
+    ['the stored value is out of range', ok({ systemSettings: { multiTagMaxCharacters: 99 } })],
+    ['the stored value is the wrong type', ok({ systemSettings: { multiTagMaxCharacters: 'a' } })],
+    ['the stored value is not an integer', ok({ systemSettings: { multiTagMaxCharacters: 2.5 } })],
+  ])('falls back to MULTI_TAG.MAX_TAGS when %s', async (_label, response) => {
+    mockServiceClient.getAdminSettingsInternal.mockResolvedValue(response);
+
+    expect(await getMultiTagCap()).toBe(MULTI_TAG.MAX_TAGS);
+  });
+
+  it('falls back rather than throwing when the client itself rejects', async () => {
+    mockServiceClient.getAdminSettingsInternal.mockRejectedValue(new Error('socket hang up'));
+
+    expect(await getMultiTagCap()).toBe(MULTI_TAG.MAX_TAGS);
   });
 });
 

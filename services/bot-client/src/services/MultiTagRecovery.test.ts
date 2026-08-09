@@ -66,6 +66,7 @@ function buildSnapshot(
     // describe with an explicitly ancient createdAt).
     createdAt: Date.now() - 60_000,
     truncated: false,
+    maxTags: 5,
     ...overrides,
   };
 }

@@ -75,12 +75,20 @@ export interface StartFanOutInput {
   content: string;
   /**
    * `true` if the resolver's cap dropped at least one tagged personality
-   * (more unique candidates than `MAX_TAGS`). Surfaced as a one-line notice
+   * (more unique candidates than the per-message `maxTags` cap below).
+   * Surfaced as a one-line notice
    * after the slot-delivery burst so users see why fewer characters
    * responded than they tagged. Dedup-driven shrinkage (same character
    * tagged twice) doesn't count — caller decides.
    */
   truncated: boolean;
+  /**
+   * The cap that produced `slots` — the admin-configured
+   * `multiTagMaxCharacters`, read once by the caller for this message.
+   * Carried (rather than re-read at delivery) so the truncation notice quotes
+   * the number the resolver actually applied.
+   */
+  maxTags: number;
 }
 
 export interface MultiTagCoordinatorDeps {
@@ -208,6 +216,7 @@ export class MultiTagCoordinator {
       createdAt: Date.now(),
       timeoutHandle,
       truncated: input.truncated,
+      maxTags: input.maxTags,
     };
 
     // Populate in-memory ownership BEFORE the persistence roundtrip.
