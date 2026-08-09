@@ -4,12 +4,12 @@ title: claim-shape-guard cannot-<verb> pattern false-fires on ordinary prose
 status: To Do
 assignee: []
 created_date: '2026-08-07 23:50'
-updated_date: '2026-08-07 23:50'
+updated_date: '2026-08-09 00:48'
 labels:
   - 'area:process'
   - 'area:tooling'
   - 'size:S'
-  - 'state:observable'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 463000
