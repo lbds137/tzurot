@@ -78,6 +78,8 @@ function buildPersonalityCreateData(
     conversationalExamples: validated.conversationalExamples ?? null,
     errorMessage: validated.errorMessage ?? null,
     isPublic: validated.isPublic ?? false,
+    // Already normalized/deduped/capped by PersonalityTagsInputSchema.
+    tags: validated.tags ?? [],
     systemPromptId,
     ownerId,
     ...(validated.customFields !== null && validated.customFields !== undefined

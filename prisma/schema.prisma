@@ -452,6 +452,13 @@ model Personality {
   /// Reads guard with != null.
   originalOwnerDiscordId String? @map("original_owner_discord_id") @db.VarChar(20)
 
+  /// Owner-authored discovery tags (GLOBAL namespace; normalized lowercase
+  /// kebab tokens, e.g. "fantasy", "sci-fi"). Empty array = untagged.
+  /// Normalization + bounds enforced by PersonalityTagsInputSchema at the
+  /// gateway boundary. NOT part of the definition-privacy redaction set —
+  /// tags are discovery metadata like the name.
+  tags                   String[] @default([])
+
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")
   channelSettings         ChannelSettings[]

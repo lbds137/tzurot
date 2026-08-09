@@ -7,6 +7,7 @@ import { characterSeedFields, getCharacterDashboardConfig } from './config.js';
 import { adminSection } from './sections.js';
 import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { TAG_LIMITS } from '@tzurot/common-types/schemas/api/personality';
 import { asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import { SectionStatus, type DashboardContext } from '../../utils/dashboard/index.js';
 
@@ -35,6 +36,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     isPublic: false,
     definitionPublic: false,
     definitionRedacted: false,
+    tags: [],
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,
@@ -202,20 +204,35 @@ describe('Character Dashboard Configuration', () => {
     const preferencesSection = dashboardConfig.sections.find(s => s.id === 'preferences')!;
 
     it('should have correct fields', () => {
-      expect(preferencesSection.fieldIds).toEqual(['personalityLikes', 'personalityDislikes']);
+      expect(preferencesSection.fieldIds).toEqual([
+        'personalityLikes',
+        'personalityDislikes',
+        'tags',
+      ]);
     });
 
-    it('should have 2 long-form fields', () => {
-      expect(preferencesSection.fields).toHaveLength(2);
-      for (const field of preferencesSection.fields) {
+    it('should have 2 long-form fields plus the short tags field', () => {
+      expect(preferencesSection.fields).toHaveLength(3);
+      const longFields = preferencesSection.fields.filter(f => f.id !== 'tags');
+      expect(longFields).toHaveLength(2);
+      for (const field of longFields) {
         expect(field.style).toBe('paragraph');
       }
+      expect(preferencesSection.fields.find(f => f.id === 'tags')?.style).toBe('short');
     });
 
-    it('should allow MODAL_INPUT_MAX_LENGTH characters for both fields', () => {
-      for (const field of preferencesSection.fields) {
+    it('should allow MODAL_INPUT_MAX_LENGTH characters for both long-form fields', () => {
+      for (const field of preferencesSection.fields.filter(f => f.id !== 'tags')) {
         expect(field.maxLength).toBe(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
       }
+    });
+
+    it('sizes the tags field to hold a maximal valid comma-joined tag list', () => {
+      const tagsField = preferencesSection.fields.find(f => f.id === 'tags');
+      const maximal = Array.from({ length: TAG_LIMITS.MAX_PER_CHARACTER }, () =>
+        'x'.repeat(TAG_LIMITS.MAX_LENGTH)
+      ).join(', ');
+      expect(tagsField?.maxLength).toBeGreaterThanOrEqual(maximal.length);
     });
 
     it('should return COMPLETE when both likes and dislikes are set', () => {

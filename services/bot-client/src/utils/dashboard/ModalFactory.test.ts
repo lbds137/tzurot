@@ -113,6 +113,43 @@ describe('ModalFactory', () => {
       expect(input.placeholder).toBe('Enter description...');
     });
 
+    it('pre-fills a string-array field as its comma-joined form (character tags)', () => {
+      const config = createTestConfig<{ tags: string[] }>('character');
+      const section = createTestSection<{ tags: string[] }>('preferences', 'Preferences', [
+        { id: 'tags', label: 'Tags', style: 'short', maxLength: 350 },
+      ]);
+
+      const modal = buildSectionModal(config, section, 'char-123', {
+        tags: ['fantasy', 'sci-fi'],
+      });
+
+      expect(getTextInput(modal, 0).value).toBe('fantasy, sci-fi');
+    });
+
+    it('leaves a string-array field blank when the array is empty', () => {
+      const config = createTestConfig<{ tags: string[] }>('character');
+      const section = createTestSection<{ tags: string[] }>('preferences', 'Preferences', [
+        { id: 'tags', label: 'Tags', style: 'short', maxLength: 350 },
+      ]);
+
+      const modal = buildSectionModal(config, section, 'char-123', { tags: [] });
+
+      expect(getTextInput(modal, 0).value).toBeUndefined();
+    });
+
+    it('ignores a non-string-array value rather than rendering "[object Object]"', () => {
+      const config = createTestConfig<Record<string, unknown>>('character');
+      const section = createTestSection<Record<string, unknown>>('misc', 'Misc', [
+        { id: 'settings', label: 'Settings', style: 'short', maxLength: 100 },
+      ]);
+
+      const modal = buildSectionModal(config, section, 'char-123', {
+        settings: [{ nested: true }],
+      });
+
+      expect(getTextInput(modal, 0).value).toBeUndefined();
+    });
+
     it('should limit fields to 5 (Discord limit)', () => {
       const config = createTestConfig<Record<string, string>>('test');
 

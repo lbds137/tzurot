@@ -157,6 +157,34 @@ describe('GET /api/user/personality (list)', () => {
     );
   });
 
+  it('carries tags through to each summary row', async () => {
+    mockPrisma.personality.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'personality-3',
+          name: 'Tagged Character',
+          displayName: 'Tagged',
+          slug: 'tagged-character',
+          ownerId: 'other-user',
+          isPublic: true,
+          tags: ['fantasy', 'sci-fi'],
+          owner: { discordId: 'other-discord-id' },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const handler = getListHandler();
+    const { req, res } = createMockReqRes();
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personalities: [expect.objectContaining({ tags: ['fantasy', 'sci-fi'] })],
+      })
+    );
+  });
+
   it('should handle user not found', async () => {
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.personality.findMany.mockResolvedValue([]);

@@ -41,6 +41,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     isPublic: false,
     definitionPublic: false,
     definitionRedacted: false,
+    tags: [],
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,
@@ -116,7 +117,11 @@ describe('Character Dashboard Sections', () => {
   describe('preferencesSection', () => {
     it('should have correct id and fields', () => {
       expect(preferencesSection.id).toBe('preferences');
-      expect(preferencesSection.fieldIds).toEqual(['personalityLikes', 'personalityDislikes']);
+      expect(preferencesSection.fieldIds).toEqual([
+        'personalityLikes',
+        'personalityDislikes',
+        'tags',
+      ]);
     });
 
     it('should return PARTIAL when only dislikes is set', () => {
@@ -125,6 +130,52 @@ describe('Character Dashboard Sections', () => {
         personalityDislikes: 'Loud noises',
       });
       expect(preferencesSection.getStatus(character)).toBe(SectionStatus.PARTIAL);
+    });
+
+    it('returns PARTIAL when tags are the only content — the badge must not say "not configured" above a rendered tag line', () => {
+      const character = createTestCharacter({
+        personalityLikes: null,
+        personalityDislikes: null,
+        tags: ['fantasy'],
+      });
+      expect(preferencesSection.getStatus(character)).toBe(SectionStatus.PARTIAL);
+    });
+
+    it('returns COMPLETE from likes + dislikes alone — tags are optional discovery metadata, never a completion requirement', () => {
+      const character = createTestCharacter({
+        personalityLikes: 'Music',
+        personalityDislikes: 'Loud noises',
+        tags: [],
+      });
+      expect(preferencesSection.getStatus(character)).toBe(SectionStatus.COMPLETE);
+    });
+
+    it('returns DEFAULT when likes, dislikes, and tags are all empty', () => {
+      const character = createTestCharacter({
+        personalityLikes: null,
+        personalityDislikes: null,
+        tags: [],
+      });
+      expect(preferencesSection.getStatus(character)).toBe(SectionStatus.DEFAULT);
+    });
+
+    it('shows a tag line in the preview when the character has tags', () => {
+      const character = createTestCharacter({ tags: ['fantasy', 'sci-fi'] });
+      expect(preferencesSection.getPreview(character)).toContain('🏷️ fantasy, sci-fi');
+    });
+
+    it('omits the tag line entirely when the character has no tags', () => {
+      const character = createTestCharacter({ personalityLikes: 'Music', tags: [] });
+      expect(preferencesSection.getPreview(character)).not.toContain('🏷️');
+    });
+
+    it('still reports "Preferences not set" when tags are the only empty-ish field', () => {
+      const character = createTestCharacter({
+        personalityLikes: null,
+        personalityDislikes: null,
+        tags: [],
+      });
+      expect(preferencesSection.getPreview(character)).toBe('_Preferences not set_');
     });
 
     it('should truncate long preferences in preview', () => {

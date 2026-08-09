@@ -269,6 +269,93 @@ describe('PUT /api/user/personality/:slug (update)', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
+  describe('tags', () => {
+    function stubExistingPersonality(): void {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: '7e570000-0000-4000-8000-00000000000a',
+        ownerId: MOCK_USER_ID,
+        name: 'My Char',
+      });
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({ id: '7e570000-0000-4000-8000-00000000000a' })
+      );
+    }
+
+    it('forwards a replayed tag ARRAY as an array (not through the string-field loop)', async () => {
+      stubExistingPersonality();
+      const handler = getUpdateHandler();
+      const { req, res } = createMockReqRes({ tags: ['fantasy', 'sci-fi'] }, { slug: 'my-char' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ tags: ['fantasy', 'sci-fi'] }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('normalizes the dashboard modal comma string into an array', async () => {
+      stubExistingPersonality();
+      const handler = getUpdateHandler();
+      const { req, res } = createMockReqRes(
+        { tags: ' Fantasy , Sci Fi , fantasy ' },
+        { slug: 'my-char' }
+      );
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ tags: ['fantasy', 'sci-fi'] }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('an empty tags string CLEARS the stored tags', async () => {
+      stubExistingPersonality();
+      const handler = getUpdateHandler();
+      const { req, res } = createMockReqRes({ tags: '' }, { slug: 'my-char' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ tags: [] }) })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('an absent tags field leaves the stored tags untouched', async () => {
+      stubExistingPersonality();
+      const handler = getUpdateHandler();
+      const { req, res } = createMockReqRes({ personalityLikes: 'coffee' }, { slug: 'my-char' });
+
+      await handler(req, res);
+
+      const call = vi.mocked(mockPrisma.personality.update).mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      };
+      expect('tags' in call.data).toBe(false);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('rejects an over-cap tag list with a 400 and never writes', async () => {
+      stubExistingPersonality();
+      const handler = getUpdateHandler();
+      const { req, res } = createMockReqRes(
+        { tags: Array.from({ length: 11 }, (_, i) => `tag-${i}`) },
+        { slug: 'my-char' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+    });
+  });
+
   it('should allow update via PersonalityOwner table', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: '7e570000-0000-4000-8000-000000000008',

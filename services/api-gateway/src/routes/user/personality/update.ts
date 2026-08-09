@@ -60,6 +60,15 @@ function buildUpdateData(
     }
   }
 
+  // Tags are a scalar LIST, handled outside the simpleFields loop: that loop
+  // launders every field through `Record<string, unknown>`, so it type-checks
+  // any shape and would give a list column no compile-time protection. The
+  // explicit assignment keeps `Prisma.PersonalityUpdateInput['tags']` checking
+  // the value. Absent = leave stored tags alone; [] = clear them.
+  if (body.tags !== undefined) {
+    updateData.tags = body.tags;
+  }
+
   if (body.name !== undefined) {
     updateData.name = body.name;
     if (body.displayName === undefined) {

@@ -233,6 +233,7 @@ describe('Character Import Constants', () => {
       expect(template).toHaveProperty('conversationalGoals');
       expect(template).toHaveProperty('conversationalExamples');
       expect(template).toHaveProperty('errorMessage');
+      expect(template).toHaveProperty('tags');
       // avatarData is NOT in template - avatars are uploaded as separate image attachments
     });
 
@@ -755,6 +756,39 @@ describe('handleImport', () => {
 
       expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({ definitionPublic: true })
+      );
+    });
+
+    it('forwards a tags array from the import JSON to the create payload', async () => {
+      const context = createMockContext();
+      const characterData = createValidCharacterData({ tags: ['fantasy', 'sci-fi'] });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(characterData)),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(context, mockConfig);
+
+      expect(stub.createPersonality).toHaveBeenCalledWith(
+        expect.objectContaining({ tags: ['fantasy', 'sci-fi'] })
+      );
+    });
+
+    it('forwards tags on the update path when re-importing an existing character', async () => {
+      const context = createMockContext();
+      const characterData = createValidCharacterData({ tags: ['fantasy'] });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(characterData)),
+      });
+      mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
+
+      await handleImport(context, mockConfig);
+
+      expect(stub.updatePersonality).toHaveBeenCalledWith(
+        'test-character',
+        expect.objectContaining({ tags: ['fantasy'] })
       );
     });
 

@@ -165,6 +165,7 @@ export async function fetchAllCharacters(
       displayName: p.displayName,
       slug: p.slug,
       isPublic: p.isPublic,
+      tags: p.tags,
       ownerId: p.ownerDiscordId, // Use Discord ID for fetching display names
       // These fields are not in the list response, but needed for CharacterData interface.
       // definitionPublic/definitionRedacted are placeholder `false` here — the
