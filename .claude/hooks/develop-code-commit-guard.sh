@@ -11,7 +11,7 @@
 #
 # Matching notes (review-hardened):
 # - Heredoc bodies and quoted strings are stripped BEFORE any matching (the
-#   sibling git-commit-filter-guard.sh python technique — delimiter-scoped,
+#   sibling lossy-pipe-guard.sh python technique — delimiter-scoped,
 #   so the repo's canonical `-m "$(cat <<'EOF' … EOF)"` commit shape strips
 #   to just its command skeleton instead of blinding the scan). A commit
 #   MESSAGE can therefore neither trigger the guard nor supply the escape
@@ -97,7 +97,7 @@ cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=
 cmd = re.sub(r"'[^']*'", "S", cmd)
 cmd = re.sub(r'"[^"]*"', "S", cmd)
 
-# Kept in agreement with the other copy (git-commit-filter-guard.sh) by
+# Kept in agreement with the other copy (lossy-pipe-guard.sh) by
 # packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
 # both patterns and runs them over a shared case table. Both copies BLOCK, so a
 # drift between them is a wrongly-blocked or wrongly-allowed commit.
@@ -114,7 +114,7 @@ cmd = re.sub(r'"[^"]*"', "S", cmd)
 # flag narrows \s in the same pattern too, so a non-breaking space between
 # `git` and `commit` would stop matching and the guard would MISS a real
 # commit — failing open on a pasteable input to close a hypothetical one.
-if not re.search(r"\bgit(\s+-{1,2}\S+(\s+\S+)?)*\s+commit(?![-\w])", cmd):
+if not re.search(r"\bgit(\s+-{1,2}\S+(\s+[^-\s]\S*)?)*\s+commit(?![-\w])", cmd):
     print("ok")
     raise SystemExit
 

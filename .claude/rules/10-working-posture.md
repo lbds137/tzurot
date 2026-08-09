@@ -78,10 +78,13 @@ a form I produced rather than the stored form, (c) is every identifier and
 argument complete and well-formed. Only after those pass does "the data
 isn't there" become a hypothesis — and stating it is governed by
 `00-critical.md` § "An empty or sparse tool result" (the store side of this
-same seam). There is no structural backstop here — this check is yours to run.
-A hook once claimed the job and was retired: it needed the command's RESULT,
-which exists only post-hoc, and non-blocking post-hoc hook output never reaches
-the agent. No channel can carry it, so the rule is the mechanism.
+same seam). Two write-side shapes are blocked pre-hoc by `lossy-pipe-guard.sh`
+— a filtered `git commit`/`push`, and a `gh` read truncated by head/tail/`sed
+-n` — but that is two command families, not the class. The read-side check
+above is yours to run: a hook once claimed it and was retired, because it
+needed the command's RESULT, which exists only post-hoc, and non-blocking
+post-hoc hook output never reaches the agent. No channel can carry it, so for
+everything the guard does not name, the rule is the mechanism.
 
 ## Reviews are collaborators, not gates to survive
 
