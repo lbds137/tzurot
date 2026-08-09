@@ -1,7 +1,7 @@
 ---
 name: tzurot-bug-remediation
 description: 'The recurring-bug remediation protocol: runtime evidence → root cause → exhaustive class sweep → seam-tier regression test → structural guard. Invoke with /tzurot-bug-remediation when a bug recurs, a "fixed" class regresses, the owner says a failure "keeps biting", OR at the FIRST fix of a path-specific UI/flow bug (create/edit/browse/view/delete) — to sweep sibling flows before declaring it fixed.'
-lastUpdated: '2026-07-20'
+lastUpdated: '2026-08-09'
 ---
 
 # Bug Remediation Protocol
@@ -50,6 +50,22 @@ The five steps run IN ORDER. Skipping one is how the bug comes back.
   in the PR body so review can check the sweep, not just the diff.
 - If the class exists because logic is duplicated, consolidation is part of the
   remediation — see `/tzurot-reuse-scout`.
+- **Sweep the class's TESTS, not only its code sites.** An existing regression
+  test for a member is not coverage until it is shown to fail on the pre-fix
+  code — apply step 4's own bar to every test you did NOT write. A fixture can
+  be well-formed and still never reach the bug: its inputs sit on the wrong
+  side of the trigger, one size below the threshold, or in a shape the buggy
+  branch never sees. It then passes identically before and after and reads as
+  protection while providing none. The tell is that reverting the fix leaves it
+  green. Enumerate the tests from the member list the code sweep already
+  produced — for each member, name the test that covers it (grep the symbol,
+  the fixture constant, the file's colocated `.test.*`/`.probe.*`). A member
+  with no test is a step-4 obligation, not a tracked item: an untested member
+  of a class you have just proven buggy is the one thing least safe to defer.
+  The canary is cheap: back the fix out — once when the class was fixed in one
+  change, else once per fix commit — run the whole set, and every test that
+  stays green is a test that was measuring nothing. A sweep that lists members but never asks which fixture exercises
+  each one has checked half the class.
 
 ## 4. Regression test at the correct tier
 
@@ -74,5 +90,7 @@ The five steps run IN ORDER. Skipping one is how the bug comes back.
 - [ ] Runtime observation captured (or diagnostic shipped + item parked)
 - [ ] Mechanism named; fix explains the cause, not the symptom
 - [ ] Class enumerated deterministically; every member fixed or tracked
+- [ ] Every EXISTING test for the class canaried (revert the fix — anything
+      still green was measuring nothing)
 - [ ] Regression test fails pre-fix, at the right tier
 - [ ] Structural guard shipped, or its absence justified in the PR
