@@ -8,3 +8,5 @@
 export { handlePersonalityAutocomplete } from './personalityAutocomplete.js';
 
 export { handlePersonaAutocomplete, CREATE_NEW_PERSONA_VALUE } from './personaAutocomplete.js';
+
+export { handleTagAutocomplete } from './tagAutocomplete.js';

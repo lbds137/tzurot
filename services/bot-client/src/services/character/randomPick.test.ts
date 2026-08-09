@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -50,18 +51,27 @@ const mockedRandomInt = vi.mocked(randomInt as (max: number) => number);
 
 const makeSummary = (
   slug: string,
-  opts: { displayName?: string | null; isPublic?: boolean; isOwned?: boolean } = {}
-) => ({
-  id: `id-${slug}`,
-  slug,
-  name: slug,
-  displayName: opts.displayName ?? null,
-  isOwned: opts.isOwned ?? true,
-  isPublic: opts.isPublic ?? false,
-  ownerId: 'user-123',
-  ownerDiscordId: 'user-123',
-  permissions: { canEdit: true, canDelete: true, canView: true },
-});
+  opts: {
+    displayName?: string | null;
+    isPublic?: boolean;
+    isOwned?: boolean;
+    tags?: string[];
+  } = {}
+) =>
+  ({
+    id: `id-${slug}`,
+    slug,
+    name: slug,
+    displayName: opts.displayName ?? null,
+    isOwned: opts.isOwned ?? true,
+    isPublic: opts.isPublic ?? false,
+    ownerId: 'user-123',
+    ownerDiscordId: 'user-123',
+    tags: opts.tags ?? [],
+    permissions: { canEdit: true, canDelete: true },
+    // Typed so a shape change to PersonalitySummary breaks this fixture at
+    // compile time instead of silently producing a payload the code can't use.
+  }) satisfies PersonalitySummary;
 
 const makeContext = (): DeferredCommandContext =>
   ({
@@ -295,6 +305,102 @@ describe('resolveCharacterSlug', () => {
       expect(result.message).toContain('filter on');
       expect(result.message).not.toContain('filters active');
     }
+  });
+
+  // --- tag filter (independent of the two boolean filters, AND-composable) ---
+
+  it('with a tag, restricts the pool to characters carrying it', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('untagged'),
+        makeSummary('fantasy-one', { tags: ['fantasy', 'noir'] }),
+        makeSummary('scifi-one', { tags: ['sci-fi'] }),
+        makeSummary('fantasy-two', { tags: ['fantasy'] }),
+      ],
+    });
+    mockedRandomInt.mockReturnValue(1); // index 1 of the 2 survivors
+
+    const result = await resolveCharacterSlug(null, makeContext(), { tag: 'fantasy' });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'fantasy-two', randomPick: true });
+    expect(mockedRandomInt).toHaveBeenCalledWith(2); // survivors, not the full pool
+  });
+
+  it('normalizes the typed tag before matching, so "Sci Fi" finds "sci-fi"', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('scifi-one', { tags: ['sci-fi'] })],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), { tag: 'Sci Fi' });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'scifi-one', randomPick: true });
+  });
+
+  it('composes the tag with only-mine as an AND', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('theirs-fantasy', { isOwned: false, tags: ['fantasy'] }),
+        makeSummary('mine-untagged', { isOwned: true }),
+        makeSummary('mine-fantasy', { isOwned: true, tags: ['fantasy'] }),
+      ],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), {
+      onlyMine: true,
+      tag: 'fantasy',
+    });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'mine-fantasy', randomPick: true });
+  });
+
+  it('names the tag when nothing carries it', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('untagged'), makeSummary('scifi-one', { tags: ['sci-fi'] })],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), { tag: 'Fantasy' });
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      // Echoes the NORMALIZED needle — that is what was actually searched for
+      expect(result.message).toContain('fantasy');
+      expect(result.message).toContain('No characters carry the tag');
+      // The tag arm replaces the generic wording rather than stacking on it
+      expect(result.message).not.toContain('No characters available');
+    }
+  });
+
+  it('mentions the other active filters alongside the tag when the pool is empty', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('theirs-fantasy', { isOwned: false, tags: ['fantasy'] })],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), {
+      onlyMine: true,
+      tag: 'fantasy',
+    });
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toContain('only-mine');
+      expect(result.message).toContain('fantasy');
+    }
+  });
+
+  it('leaves the pool untouched when no tag is given', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('untagged')],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), { tag: null });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'untagged', randomPick: true });
   });
 });
 
