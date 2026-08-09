@@ -25,4 +25,6 @@ Fix shape: a probe or guard that feeds one shared case table through all three i
 Note the implementations are NOT literally identical and should not be forced to be: python \w is Unicode-aware while the bash character class is ASCII-only, and re.ASCII would narrow \s and break a non-breaking-space commit. The guard asserts agreement on the case table, not textual identity.
 
 Acceptance: one probe exercises all three implementations over a shared table; changing any one pattern without the others fails it.
+
+Note 2026-08-08: it is TWO copies now, not three — lib/git-command.sh was retired (TASK-466). The guard and its acceptance are unchanged in substance: the two that remain are the ones that BLOCK, so a drift between them wrongly blocks or wrongly allows a commit, which is what this task existed to catch. The bash copy could not do that; nothing executed it. The two Unicode rows this task called out survive as ordinary agreement cases, including the non-breaking-space one that keeps re.ASCII from being added.
 <!-- SECTION:DESCRIPTION:END -->

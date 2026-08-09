@@ -1,40 +1,41 @@
 /**
- * Agreement guard for the three git-commit-detection patterns.
+ * Agreement guard for the two git-commit-detection patterns.
  *
  * The same "does this command string invoke `git commit`" decision is encoded
- * three times, in two languages:
+ * twice, and both copies BLOCK:
  *
- *   1. `.claude/hooks/lib/git-command.sh`         — `is_git_commit_command`, a
- *      GNU-grep ERE. No runtime consumer; the canonical reference copy.
- *   2. `.claude/hooks/develop-code-commit-guard.sh` — a Python regex (BLOCKING)
- *   3. `.claude/hooks/git-commit-filter-guard.sh`   — a Python regex (BLOCKING)
+ *   1. `.claude/hooks/develop-code-commit-guard.sh` — a Python regex
+ *   2. `.claude/hooks/git-commit-filter-guard.sh`   — a Python regex
  *
- * Copy 1 had two bash consumers until they moved to husky channels and stopped
- * needing command-text matching; it is retained as a language-neutral reference
- * for the two live Python copies to be compared against. Those two cannot be
- * collapsed into one: each needs its own heredoc/quote stripping inside a
- * blocking hook. So the coupling is real, hand-managed, and documented only in
- * a comment ("sync manually if the shape changes") — the unenforced-invariant
- * shape. It has already opened once: the commit-tree false positive was fixed
- * in the bash copy one PR before the two Python ones.
+ * They cannot be collapsed into one: each needs its own heredoc/quote stripping
+ * inside its own blocking hook. So the coupling is real, hand-managed, and
+ * documented only in a comment ("sync manually if the shape changes") — the
+ * unenforced-invariant shape. It has already opened once: the commit-tree false
+ * positive was fixed in one copy a PR before the other.
  *
- * This test asserts the three agree on a shared CASE TABLE, not that they are
- * textually identical — they deliberately aren't (see DIVERGENCES below). The
- * patterns are EXTRACTED from the hook sources at run time, so editing any one
- * of them without the others fails here; an extraction that stops matching is
- * a hard failure, never a silent pass.
+ * A third, bash copy (`lib/git-command.sh`) sat here until it was retired. It
+ * had no runtime consumer, so its drift could not cause a runtime bug — while
+ * still imposing a change-one-change-three obligation and forcing this file to
+ * demand GNU grep on PATH. Both copies that remain are ones a wrong verdict
+ * actually blocks a commit on.
  *
- * Copy 3 detects `(commit|push)` rather than `commit`. Every case below is
+ * This test asserts the two agree on a shared CASE TABLE, not that they are
+ * textually identical — they deliberately aren't. The patterns are EXTRACTED
+ * from the hook sources at run time, so editing one without the other fails
+ * here; an extraction that stops matching is a hard failure, never a silent
+ * pass.
+ *
+ * Copy 2 detects `(commit|push)` rather than `commit`. Every case below is
  * free of the token `push` (asserted), which makes that alternation inert and
- * lets all three be compared directly with no rewriting of the extracted text.
+ * lets both be compared directly with no rewriting of the extracted text.
  *
- * EXTERNAL BINARIES: this file shells out to `grep` and `python3`, because the
- * only honest way to evaluate a hook's pattern is to run it through the same
- * engine the hook does. `python3` was already required to RUN the two blocking
- * hooks and their .probe.sh scripts; this makes it a prerequisite of the
- * tooling unit-test cell too. Both are present on ubuntu-latest, which is where
- * CI runs. If a future minimal image drops either, the failure surfaces here as
- * an ENOENT at collection time — that is this note's reason for existing.
+ * EXTERNAL BINARIES: this file shells out to `python3`, because the only honest
+ * way to evaluate a hook's pattern is to run it through the same engine the
+ * hook does. `python3` was already required to RUN both hooks and their
+ * .probe.sh scripts; this makes it a prerequisite of the tooling unit-test cell
+ * too. It is present on ubuntu-latest, which is where CI runs. If a future
+ * minimal image drops it, the failure surfaces here as an ENOENT at collection
+ * time — that is this note's reason for existing.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -54,11 +55,6 @@ interface PatternSource {
 }
 
 const SOURCES: readonly PatternSource[] = [
-  {
-    label: 'bash lib/git-command.sh',
-    file: '.claude/hooks/lib/git-command.sh',
-    extract: /grep -qE '(.+)' <<</,
-  },
   {
     label: 'python develop-code-commit-guard.sh',
     file: '.claude/hooks/develop-code-commit-guard.sh',
@@ -89,10 +85,7 @@ function extractPattern(source: PatternSource): string {
   return match![1];
 }
 
-/**
- * Cases every implementation must agree on. Single-line only: the bash copy is
- * evaluated through `grep`, which is line-oriented.
- */
+/** Cases both implementations must agree on. */
 const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] = [
   // --- is a commit ---
   [true, 'git commit'],
@@ -119,80 +112,33 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [false, 'git add .'],
   [false, 'git log --grep=commit'],
   [false, 'echo committing now'],
+
+  // --- Unicode boundary cases ---
+  // These two were pinned as bash-vs-Python DIVERGENCES while a third, ASCII-only
+  // bash copy was compared here. Both Python copies agree on them, so with that
+  // copy retired they are ordinary agreement cases — but each still pins a real
+  // property, which is why they survived the migration rather than being dropped.
+
+  // A non-ASCII suffix is not a word boundary for the purpose of this decision:
+  // Python's `(?![-\w])` sees `日` as a word character and rejects the match.
+  [false, 'git commit日本語'],
+
+  // A non-breaking space (U+00A0) between `git` and `commit`. Python's `\s` is
+  // Unicode-aware and matches it, so this IS a commit. This row is what makes
+  // adding `re.ASCII` to either copy fail here — the flag would narrow `\s` and
+  // the guard would MISS a real commit, which for a blocking hook means letting
+  // through a commit that should have been stopped.
+  //
+  // Written as an ESCAPE, not a raw byte. It was a raw byte while a third,
+  // ASCII-only copy made this a pinned divergence, and a raw U+00A0 is
+  // indistinguishable from a plain space on screen — during this very migration
+  // it was nearly retyped as one, which would have silently turned this row into
+  // a duplicate of the plain `git commit -m "x"` case above and deleted the
+  // `re.ASCII` guard with it.
+  [true, 'git\u00A0commit -m "x"'],
 ];
 
-/**
- * The cases where the implementations legitimately differ, pinned so each
- * divergence stays deliberate rather than becoming an unnoticed drift. Both
- * come from the same root: the bash copy's character classes are ASCII-only
- * while Python's \w and \s are Unicode-aware. Neither side is wrong — see the
- * re.ASCII discussion in both Python hooks, which argues exactly this trade —
- * but a change to either side shows up here first.
- *
- * Verified against /usr/bin/grep (GNU). A grep whose [[:space:]] accepts
- * U+00A0 — ugrep does — flips the second row's bash column, so re-confirm which
- * binary is on PATH before treating a failure here as pattern drift.
- */
-const DIVERGENCE_CASES: readonly (readonly [input: string, expectedByLabel: readonly boolean[]])[] =
-  [
-    // Non-ASCII suffix: Python's (?![-\w]) rejects it, bash's [^-a-zA-Z0-9_] accepts.
-    ['git commit日本語', [true, false, false]],
-    // Non-breaking space as the separator: Python's \s matches U+00A0, GNU grep's
-    // [[:space:]] does not. This row is what makes adding re.ASCII to either
-    // Python copy fail here — the flag would narrow \s and MISS a real commit.
-    ['git commit -m "x"', [false, true, true]],
-  ];
-
-/**
- * The bash copy's verdicts are only meaningful under the engine the hooks
- * actually run on. `grep` on PATH is not reliably GNU grep: ugrep ships as a
- * drop-in `/usr/bin/grep` on some systems (including at least one sandbox this
- * project's own agent sessions run in), and its `[[:space:]]` ACCEPTS U+00A0
- * where GNU's does not — which flips the NBSP divergence row below.
- *
- * Without this check that mismatch surfaces as a per-case assertion failure,
- * i.e. as "the pattern drifted" — the one message this guard must never emit
- * falsely. Fail loudly, and name the cause, so the reader is not sent to
- * re-audit three correct regexes.
- *
- * BSD/macOS grep is out of scope for the same reason it is in lib/git-command.sh:
- * the shared pattern uses `\b`, a GNU extension, so the hook itself is already
- * GNU-scoped.
- */
-function assertGnuGrep(): void {
-  let version: string;
-  try {
-    version = execFileSync('grep', ['--version'], { encoding: 'utf-8' });
-  } catch (error) {
-    throw new Error('Could not run `grep --version`, so the bash copy cannot be evaluated', {
-      cause: error,
-    });
-  }
-  const firstLine = version.split('\n')[0];
-  if (!/GNU grep/.test(firstLine)) {
-    throw new Error(
-      `This guard compares the hooks' patterns under the engine they run on, and \`grep\` ` +
-        `on PATH is not GNU grep — it reports: "${firstLine}". A non-GNU grep (ugrep ships as ` +
-        `a drop-in /usr/bin/grep on some systems) differs on U+00A0 in [[:space:]], which would ` +
-        `fail the NBSP divergence row below as if a pattern had drifted. This is an ENVIRONMENT ` +
-        `mismatch, not a hook change: put GNU grep on PATH before reading the result.`
-    );
-  }
-}
-
-/** grep exits 0 on match, 1 on no-match; anything else is a real error. */
-function bashVerdict(pattern: string, input: string): boolean {
-  try {
-    execFileSync('grep', ['-qE', pattern], { input });
-    return true;
-  } catch (error) {
-    const status = (error as { status?: number | null }).status;
-    if (status === 1) return false;
-    throw error;
-  }
-}
-
-/** One python3 spawn evaluates both Python patterns over every case. */
+/** One python3 spawn evaluates both patterns over every case. */
 function pythonVerdicts(patterns: readonly string[], inputs: readonly string[]): boolean[][] {
   const script = [
     'import json, re, sys',
@@ -207,22 +153,14 @@ function pythonVerdicts(patterns: readonly string[], inputs: readonly string[]):
   return JSON.parse(out) as boolean[][];
 }
 
-assertGnuGrep();
-
 const patterns = SOURCES.map(extractPattern);
-const allInputs = [
-  ...AGREEMENT_CASES.map(([, input]) => input),
-  ...DIVERGENCE_CASES.map(([input]) => input),
-];
-const pythonResults = pythonVerdicts(patterns.slice(1), allInputs);
+const allInputs = AGREEMENT_CASES.map(([, input]) => input);
+const pythonResults = pythonVerdicts(patterns, allInputs);
 
 /** verdicts[sourceIndex][caseIndex] */
-const verdicts: boolean[][] = [
-  allInputs.map(input => bashVerdict(patterns[0], input)),
-  ...pythonResults,
-];
+const verdicts: boolean[][] = pythonResults;
 
-describe('git-commit detection patterns agree across all three copies', () => {
+describe('git-commit detection patterns agree across both blocking copies', () => {
   it('extracts a distinct, non-empty pattern from each hook', () => {
     for (const [i, pattern] of patterns.entries()) {
       expect(pattern.length, `${SOURCES[i].label} extracted an empty pattern`).toBeGreaterThan(10);
@@ -232,19 +170,19 @@ describe('git-commit detection patterns agree across all three copies', () => {
     // same substring from two files, every case below would compare a pattern
     // against ITSELF and pass unconditionally — the guard would read green while
     // enforcing nothing, which is the exact failure it exists to prevent. The
-    // three patterns genuinely differ today (bash character classes vs Python
-    // lookahead vs the (commit|push) alternation), so equality means a broken
-    // extractor, never a legitimate convergence.
+    // two patterns genuinely differ today (only one carries the (commit|push)
+    // alternation), so equality means a broken extractor, never a legitimate
+    // convergence.
     expect(new Set(patterns).size, 'two extractors captured the same pattern').toBe(
       patterns.length
     );
   });
 
-  it('uses only push-free cases, so copy 3’s (commit|push) alternation is inert', () => {
+  it('uses only push-free cases, so the (commit|push) alternation is inert', () => {
     for (const input of allInputs) {
       expect(
         input,
-        'a case containing "push" would compare copy 3 against a different decision'
+        'a case containing "push" would compare the filter guard against a different decision'
       ).not.toContain('push');
     }
   });
@@ -253,20 +191,6 @@ describe('git-commit detection patterns agree across all three copies', () => {
     it(`${expected ? 'detects' : 'ignores'}: ${JSON.stringify(input)}`, () => {
       for (const [sourceIndex, source] of SOURCES.entries()) {
         expect.soft(verdicts[sourceIndex][caseIndex], source.label).toBe(expected);
-      }
-    });
-  }
-
-  for (const [offset, [input, expectedByLabel]] of DIVERGENCE_CASES.entries()) {
-    it(`pinned divergence: ${JSON.stringify(input)}`, () => {
-      const caseIndex = AGREEMENT_CASES.length + offset;
-      for (const [sourceIndex, source] of SOURCES.entries()) {
-        expect
-          .soft(
-            verdicts[sourceIndex][caseIndex],
-            `${source.label} (deliberate ASCII-vs-Unicode divergence)`
-          )
-          .toBe(expectedByLabel[sourceIndex]);
       }
     });
   }
