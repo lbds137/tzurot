@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import {
+  ALLOW_ORIGIN_ID_COLLISION_ENV,
+  checkDuplicateTaskIds,
+  checkOriginIdCollisions,
   checkTaskTriage,
   extractQueueDocRefs,
   parseSectionCaps,
   runBacklogLint,
+  type OriginTaskListing,
 } from './backlogLint.js';
 import type { TrackerTask } from './trackerTasks.js';
 
@@ -77,21 +81,118 @@ const VALID_TASK = [
   'Body.',
 ].join('\n');
 
-describe('checkTaskTriage', () => {
-  function task(overrides: Partial<TrackerTask> = {}): TrackerTask {
-    return {
-      id: 'TASK-1',
-      title: 'A task',
-      status: 'To Do',
-      createdDate: '2026-05-16',
-      labels: ['area:db', 'size:S', 'state:ready'],
-      priority: 'medium',
-      body: '',
-      file: 'tracker/tasks/task-1 - a-task.md',
-      ...overrides,
-    };
-  }
+function task(overrides: Partial<TrackerTask> = {}): TrackerTask {
+  return {
+    id: 'TASK-1',
+    title: 'A task',
+    status: 'To Do',
+    createdDate: '2026-05-16',
+    labels: ['area:db', 'size:S', 'state:ready'],
+    priority: 'medium',
+    body: '',
+    file: 'tracker/tasks/task-1 - a-task.md',
+    ...overrides,
+  };
+}
 
+describe('checkDuplicateTaskIds', () => {
+  it('passes a tree where every id appears once', () => {
+    expect(
+      checkDuplicateTaskIds([
+        task(),
+        task({ id: 'TASK-2', file: 'tracker/tasks/task-2 - other.md' }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('flags two files carrying the same id, naming both', () => {
+    // The post-merge union shape: each file parses cleanly on its own branch,
+    // and only the merged tree has the ambiguity.
+    const [problem] = checkDuplicateTaskIds([
+      task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - one.md' }),
+      task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - two.md' }),
+    ]);
+
+    expect(problem).toContain('duplicate task id TASK-451');
+    expect(problem).toContain('task-451 - one.md');
+    expect(problem).toContain('task-451 - two.md');
+  });
+});
+
+describe('checkOriginIdCollisions', () => {
+  const resolvable = (files: string[]): OriginTaskListing => ({ resolvable: true, files });
+
+  it('flags a NEW local file reusing an id origin already has under another name', () => {
+    const problems = checkOriginIdCollisions(
+      [task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - filed-here.md' })],
+      resolvable(['tracker/tasks/task-451 - filed-on-develop.md'])
+    );
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('id TASK-451 is already used on origin/develop');
+    expect(problems[0]).toContain('task-451 - filed-on-develop.md');
+  });
+
+  it('passes a file that already exists on origin under the same path', () => {
+    expect(
+      checkOriginIdCollisions(
+        [task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - same.md' })],
+        resolvable(['tracker/tasks/task-451 - same.md'])
+      )
+    ).toEqual([]);
+  });
+
+  it('passes a new file whose id origin does not carry', () => {
+    expect(
+      checkOriginIdCollisions(
+        [task({ id: 'TASK-452', file: 'tracker/tasks/task-452 - new.md' })],
+        resolvable(['tracker/tasks/task-451 - old.md'])
+      )
+    ).toEqual([]);
+  });
+
+  it('skips entirely when origin/develop is not resolvable', () => {
+    // Fail-open: a CI shallow clone legitimately lacks the ref, and the
+    // in-tree duplicate check still covers the merged case.
+    expect(
+      checkOriginIdCollisions(
+        [task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - filed-here.md' })],
+        { resolvable: false, files: [] }
+      )
+    ).toEqual([]);
+  });
+
+  it('matches a title-less origin filename (task-N.md, no separator) by its id', () => {
+    // fileIdToken strips the .md so `task-451.md` yields `task-451`, not
+    // `task-451.md` — otherwise a real collision against a title-less origin
+    // file would silently go undetected.
+    const problems = checkOriginIdCollisions(
+      [task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - filed-here.md' })],
+      resolvable(['tracker/tasks/task-451.md'])
+    );
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('task-451.md');
+  });
+
+  it('names every origin file when origin/develop itself carries a duplicate id', () => {
+    // A pre-existing upstream dup is invisible to checkDuplicateTaskIds (local
+    // tree only); the message must not understate it to a single file.
+    const problems = checkOriginIdCollisions(
+      [task({ id: 'TASK-451', file: 'tracker/tasks/task-451 - filed-here.md' })],
+      resolvable([
+        'tracker/tasks/task-451 - one-on-develop.md',
+        'tracker/tasks/task-451 - two-on-develop.md',
+      ])
+    );
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('one-on-develop.md');
+    expect(problems[0]).toContain('two-on-develop.md');
+  });
+});
+
+describe('checkTaskTriage', () => {
   it('passes a fully triaged open task', () => {
     expect(checkTaskTriage([task()])).toEqual([]);
   });
@@ -202,6 +303,14 @@ describe('checkTaskTriage', () => {
 describe('runBacklogLint', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
+  /**
+   * A resolvable origin/develop with no task files on it. Injected so the suite
+   * never shells out to git: the default path reads the real repo, which would
+   * make these results depend on whatever the checkout's origin happens to
+   * carry. The id-collision cases below inject their own listings.
+   */
+  const NO_ORIGIN_FILES: OriginTaskListing = { resolvable: true, files: [] };
+
   beforeEach(() => {
     vi.resetAllMocks();
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -250,7 +359,7 @@ describe('runBacklogLint', () => {
       ['doc-1 - Foo.md']
     );
 
-    await runBacklogLint({ rootDir: '/repo' });
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     const out = logSpy.mock.calls.flat().join('\n');
     expect(out).toContain('Backlog layout in sync');
@@ -260,7 +369,7 @@ describe('runBacklogLint', () => {
   it('flags a cap violation and sets a non-zero exit code', async () => {
     mockFs({ 'backlog/now.md': '### ⚡ Quick Wins (max 2)\n- a\n- b\n- c\n' }, []);
 
-    await runBacklogLint({ rootDir: '/repo' });
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     expect(logSpy.mock.calls.flat().join('\n')).toContain('has 3 items (cap 2)');
     expect(process.exitCode).toBe(1);
@@ -277,7 +386,7 @@ describe('runBacklogLint', () => {
       ['doc-14 - Other.md']
     );
 
-    await runBacklogLint({ rootDir: '/repo' });
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     expect(logSpy.mock.calls.flat().join('\n')).toContain('dangling doc reference → doc-1');
     expect(process.exitCode).toBe(1);
@@ -286,7 +395,7 @@ describe('runBacklogLint', () => {
   it('passes silently when queue.md is absent (cold/queue.md is optional)', async () => {
     mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, []);
 
-    await runBacklogLint({ rootDir: '/repo' });
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
     expect(process.exitCode).not.toBe(1);
@@ -301,7 +410,7 @@ describe('runBacklogLint', () => {
       'task-2 - broken.md': 'no frontmatter here, just prose',
     });
 
-    await runBacklogLint({ rootDir: '/repo' });
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     const out = logSpy.mock.calls.flat().join('\n');
     expect(out).toContain('Backlog structural problems');
@@ -313,9 +422,131 @@ describe('runBacklogLint', () => {
     vi.mocked(existsSync).mockImplementation(p => String(p).endsWith('backlog/now.md'));
     vi.mocked(readFileSync).mockReturnValue('### 🎯 Current Focus (max 3)\n1. a\n');
 
-    await runBacklogLint({ rootDir: '/repo' });
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     expect(logSpy.mock.calls.flat().join('\n')).toContain('tracker/tasks/ not found');
     expect(process.exitCode).toBe(1);
+  });
+
+  it('flags two working-tree tasks sharing an id and sets a non-zero exit code', async () => {
+    // Same id, different file and title — what two branches each filing a task
+    // produce once they merge.
+    const duplicate = VALID_TASK.replace("title: 'A valid task'", "title: 'The other one'");
+    mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+      'task-1 - valid.md': VALID_TASK,
+      'task-1 - other.md': duplicate,
+    });
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('duplicate task id TASK-1');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('flags a new local task reusing an id origin/develop already carries', async () => {
+    mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+      'task-1 - valid.md': VALID_TASK,
+    });
+
+    await runBacklogLint({
+      rootDir: '/repo',
+      origin: { resolvable: true, files: ['tracker/tasks/task-1 - filed-on-develop.md'] },
+    });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('id TASK-1 is already used on origin/develop');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('notes the skip and stays clean when origin/develop is unresolvable', async () => {
+    mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+      'task-1 - valid.md': VALID_TASK,
+    });
+
+    await runBacklogLint({ rootDir: '/repo', origin: { resolvable: false, files: [] } });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('origin/develop not resolvable');
+    expect(out).toContain('Backlog layout in sync');
+    expect(process.exitCode).not.toBe(1);
+  });
+
+  it('bypasses the origin-collision check (only) when the env var is set', async () => {
+    // The rename escape hatch: the same colliding setup as above must NOT block
+    // once the bypass is set, so a legitimate rename branch is not deadlocked.
+    mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+      'task-1 - valid.md': VALID_TASK,
+    });
+    process.env[ALLOW_ORIGIN_ID_COLLISION_ENV] = '1';
+    try {
+      await runBacklogLint({
+        rootDir: '/repo',
+        origin: { resolvable: true, files: ['tracker/tasks/task-1 - filed-on-develop.md'] },
+      });
+    } finally {
+      delete process.env[ALLOW_ORIGIN_ID_COLLISION_ENV];
+    }
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain(`${ALLOW_ORIGIN_ID_COLLISION_ENV}=1`);
+    expect(out).not.toContain('already used on origin/develop');
+    expect(process.exitCode).not.toBe(1);
+  });
+});
+
+// The one real git/OS seam this module introduces. A parse bug here fails
+// toward a false positive that sets process.exitCode = 1, tripping everyone's
+// quality gate — so the shell-out is mocked and its parse/trim/filter exercised
+// directly, the way ci-gate.test.ts covers fetchRuns' execFileSync.
+describe('readOriginTaskFiles', () => {
+  // Reset BEFORE each test, not only after: the top-level static import already
+  // cached this module with the real child_process, so without a reset the
+  // FIRST test's doMock would not apply and it would shell out to real git.
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
+  it('parses ls-tree output into repo-relative .md paths, dropping blanks and non-md', async () => {
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) =>
+        args[0] === 'rev-parse'
+          ? ''
+          : 'tracker/tasks/task-1 - a.md\ntracker/tasks/task-2 - b.md\n\ntracker/tasks/README.txt\n',
+    }));
+    const { readOriginTaskFiles } = await import('./backlogLint.js');
+
+    expect(readOriginTaskFiles('/repo')).toEqual({
+      resolvable: true,
+      files: ['tracker/tasks/task-1 - a.md', 'tracker/tasks/task-2 - b.md'],
+    });
+  });
+
+  it('reports unresolvable (fail-open) when rev-parse cannot verify origin/develop', async () => {
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) => {
+        if (args[0] === 'rev-parse') throw new Error('unknown revision or path');
+        return '';
+      },
+    }));
+    const { readOriginTaskFiles } = await import('./backlogLint.js');
+
+    expect(readOriginTaskFiles('/repo')).toEqual({ resolvable: false, files: [] });
+  });
+
+  it('reports unresolvable when ls-tree fails even though rev-parse succeeded', async () => {
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) => {
+        if (args[0] === 'rev-parse') return '';
+        throw new Error('ls-tree failed');
+      },
+    }));
+    const { readOriginTaskFiles } = await import('./backlogLint.js');
+
+    expect(readOriginTaskFiles('/repo')).toEqual({ resolvable: false, files: [] });
   });
 });
