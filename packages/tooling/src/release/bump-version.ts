@@ -8,6 +8,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import chalk from 'chalk';
+import { ALLOW_STALE_CURRENT_FLAG, checkCurrentMdReset } from './current-md-gate.js';
 
 /** Semver with optional pre-release pattern */
 const SEMVER_REGEX = /^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$/;
@@ -17,6 +18,8 @@ const EXCLUDED_DIRS = new Set(['node_modules', '.pnpm-store', 'tzurot-legacy', '
 
 interface BumpVersionOptions {
   dryRun?: boolean;
+  /** Skip the CURRENT.md-reset gate for a deliberate exceptional flow. */
+  allowStaleCurrent?: boolean;
 }
 
 interface BumpResult {
@@ -52,6 +55,24 @@ function findPackageJsonFiles(dir: string): string[] {
 }
 
 /**
+ * Run the CURRENT.md reset gate, reporting and marking failure. Returns whether
+ * the bump may proceed.
+ */
+function enforceCurrentMdReset(rootDir: string, allowStaleCurrent: boolean): boolean {
+  if (allowStaleCurrent) {
+    return true;
+  }
+  const verdict = checkCurrentMdReset(rootDir);
+  if (verdict.ok) {
+    return true;
+  }
+  console.error(chalk.red(`Error: ${verdict.reason}`));
+  console.error(chalk.dim(`Bypass with ${ALLOW_STALE_CURRENT_FLAG} if that is intended.`));
+  process.exitCode = 1;
+  return false;
+}
+
+/**
  * Bump version in all package.json files
  */
 // eslint-disable-next-line sonarjs/cognitive-complexity -- CLI orchestrator: validation → file discovery → JSON parsing → version replacement → confirmation → write
@@ -59,7 +80,7 @@ export async function bumpVersion(
   newVersion: string,
   options: BumpVersionOptions = {}
 ): Promise<void> {
-  const { dryRun = false } = options;
+  const { dryRun = false, allowStaleCurrent = false } = options;
 
   // Validate version format
   if (!SEMVER_REGEX.test(newVersion)) {
@@ -73,6 +94,14 @@ export async function bumpVersion(
 
   // Find project root (where we're running from)
   const rootDir = process.cwd();
+
+  // The bump is where the PREVIOUS release's close-out is still checkable — see
+  // current-md-gate.ts. Runs before file discovery so a refusal writes nothing,
+  // and in dry-run too: a preview that hides the refusal would report the bump
+  // as clear when it is not.
+  if (!enforceCurrentMdReset(rootDir, allowStaleCurrent)) {
+    return;
+  }
 
   // Find all package.json files
   const packageFiles = findPackageJsonFiles(rootDir);

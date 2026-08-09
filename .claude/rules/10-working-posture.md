@@ -93,7 +93,10 @@ total — a subtotal is a well-formed number, so nothing looks off. Neither has 
 tell, so this half triggers at CLAIM time rather than at result time. Before
 stating what a file says or does not say, read it whole or state the window you
 read. Before stating a count, sum, or ranking as complete, derive it from the
-whole result set rather than the part on screen. An exit code read through a
+whole result set rather than the part on screen — and RE-derive it whenever the
+thing it counts changes, not only when first written: a correctly-derived count
+carried through later edits (a rebase, a trim, more cases) is still a
+well-formed number, so nothing flags it. An exit code read through a
 pipeline is the same seam: `PIPESTATUS` is indexed per stage, so `[0]` is the
 FIRST command's status, not the one whose result you want — index the stage you
 mean, or do not pipe.

@@ -281,6 +281,17 @@ export class GhApiError extends Error {
  */
 export const RUNS_PAGE_SIZE = 100;
 
+/**
+ * Bound on each poll's runs lookup, matching `HEAD_FETCH_TIMEOUT_MS`.
+ *
+ * This call is synchronous and sits inside the poll loop, so a HUNG `gh api`
+ * (as opposed to a failing one) blocks the loop entirely: no further polls, and
+ * no heartbeat — the "a broken gate must not look like a slow one" promise fails
+ * for exactly the hang shape. Bounded, a hang becomes an ordinary `GhApiError`
+ * that the loop's failure reporting already prints.
+ */
+export const RUNS_FETCH_TIMEOUT_MS = 15_000;
+
 export function fetchRuns(
   sha: string,
   warn: (message: string) => void = console.warn
@@ -295,12 +306,20 @@ export function fetchRuns(
         '--jq',
         '.workflow_runs',
       ],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: RUNS_FETCH_TIMEOUT_MS }
     );
   } catch (error) {
-    const stderr = (error as { stderr?: string }).stderr ?? '';
-    const detail = (stderr || (error as Error).message).trim().split('\n')[0];
-    throw new GhApiError(detail);
+    const { stderr, signal } = error as { stderr?: string; signal?: string | null };
+    const reported = (stderr ?? '') || (error as Error).message || '';
+    const first = reported.trim().split('\n')[0] ?? '';
+    // A timeout kill carries no stderr and only a bare "Command failed" message,
+    // which reads as an unexplained failure. Name the signal, the way
+    // `runChecks` separates "killed by SIGTERM" from a spawn failure — and keep
+    // the detail non-empty either way, because a blank failure line is the
+    // silence this gate exists to remove.
+    const killed = signal !== undefined && signal !== null ? `killed by ${signal}` : '';
+    const detail = [first, killed].filter(part => part !== '').join(' — ');
+    throw new GhApiError(detail === '' ? 'gh api failed with no output' : detail);
   }
   let runs: WorkflowRun[];
   try {

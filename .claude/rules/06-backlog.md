@@ -53,6 +53,8 @@ the task file directly. Either way **read the file back after creating a task
 with a multi-paragraph description** — `pnpm ops backlog` gates on frontmatter
 parsing and cannot see a mangled body.
 
+**Repeated `-l` flags do not accumulate on `task create`** — only the last survives, so `-l area:x -l size:S -l state:ready` files a task labelled `state:ready` alone. Use the comma form: `-l area:x,size:S,state:ready`. (Repeated `-l` on `task list` DOES intersect — measured; the drain query below is fine as written.)
+
 - **A task description carries why, what, and acceptance** — same bar as any backlog entry. `Promote when: <event>` is an optional annotation (see the admission bar).
 - **Labels**: `area:<package-or-domain>` (db, redis, voice, bot-client, …). Label at filing; the digest's per-area counts are the jump-around index.
 - **Size + priority** (set at filing; every existing task carries them): `size:S` (<~1hr, one file) / `size:M` (a PR) / `size:L` (multi-PR or needs design) labels, plus the CLI priority field — `high` (prod-correctness / data-rights adjacent) · `medium` (real improvement, no urgency) · `low` (gated, speculative, or watch items).

@@ -510,10 +510,19 @@ export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
   });
 
   if (surface.findings.length === 0) {
+    // The headline claims only what zero findings establish. It does NOT claim
+    // every branch carries an un-bypassable deletion rule: the clean state is
+    // reachable with delete_branch_on_merge off and develop's deletion rule
+    // fully bypassable, which is what the per-branch lines below would then say
+    // — a headline asserting otherwise contradicts its own report. The
+    // probe-verified note is scoped to the one thing the probe established: a
+    // deletion rule with NO bypass actors holds against the admin-privileged
+    // path (see `isDeletionReachable` for the measurement).
     return [
-      '✓ No deletion-safety findings — every long-lived branch carries an un-bypassable',
-      '  deletion rule, and that rule is known to hold against the admin-privileged',
-      '  path (probe-verified). Still CONFIGURATION, not a proof of sufficiency —',
+      '✓ No deletion-safety findings. What each branch actually carries is in the',
+      '  per-branch state below: a deletion rule with no bypass actors is probe-verified',
+      '  to hold against the admin-privileged path; a fully bypassable rule carries no',
+      '  such guarantee. Still CONFIGURATION, not a proof of sufficiency —',
       '  delete_branch_on_merge below is the protection that assumes nothing.',
       `  delete_branch_on_merge: ${String(surface.deleteBranchOnMerge)}`,
       ...stateLines,

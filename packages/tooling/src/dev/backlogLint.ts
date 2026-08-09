@@ -30,6 +30,7 @@
  * informational nudge printed into a CI log surfaced nothing.
  */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
@@ -97,6 +98,11 @@ export function extractQueueDocRefs(queueMd: string): string[] {
 interface LintOptions {
   /** Repo root (defaults to cwd) */
   rootDir?: string;
+  /**
+   * The origin/develop task listing for the id-collision check. Injected by
+   * tests; read from git when absent.
+   */
+  origin?: OriginTaskListing;
 }
 
 /** Structural problems from now.md section caps. */
@@ -228,6 +234,155 @@ export function checkTaskTriage(tasks: TrackerTask[]): string[] {
   return problems;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Task-id collisions                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `tracker/tasks/` as it exists on `origin/develop`, or the fact that the ref
+ * could not be resolved.
+ *
+ * The CLI allocates the next task id by scanning the CURRENT working tree, so a
+ * task filed on an unmerged sibling branch is invisible and the same id gets
+ * handed out twice. Neither branch's own lint can see that — the collision only
+ * exists in the union — so the comparison has to reach outside the working tree.
+ */
+export interface OriginTaskListing {
+  /** False when `origin/develop` could not be resolved (e.g. a shallow clone). */
+  resolvable: boolean;
+  /** Repo-root-relative task file paths on origin/develop. */
+  files: string[];
+}
+
+/**
+ * The id token a task filename starts with, e.g. `task-453 - Foo.md` → `task-453`.
+ *
+ * The trailing `.md` is stripped so a title-less filename (`task-453.md`, no
+ * ` - Title` suffix) still yields `task-453` rather than `task-453.md` — which
+ * would silently never match a frontmatter id and turn a real collision into a
+ * false negative. The convention is CLI-enforced, so this is belt-and-braces,
+ * but it fails LOUD rather than toward silence.
+ */
+function fileIdToken(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.split(' ')[0].replace(/\.md$/i, '').toLowerCase();
+}
+
+/** Read the origin listing via git; unresolvable is a normal, non-fatal answer. */
+export function readOriginTaskFiles(rootDir: string): OriginTaskListing {
+  try {
+    execFileSync('git', ['rev-parse', '--verify', 'origin/develop'], {
+      cwd: rootDir,
+      stdio: 'ignore',
+    });
+  } catch {
+    return { resolvable: false, files: [] };
+  }
+  try {
+    const raw = execFileSync(
+      'git',
+      ['ls-tree', '-r', '--name-only', 'origin/develop', '--', 'tracker/tasks/'],
+      { cwd: rootDir, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    return {
+      resolvable: true,
+      files: raw
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.endsWith('.md')),
+    };
+  } catch {
+    return { resolvable: false, files: [] };
+  }
+}
+
+/**
+ * Two task files in the WORKING TREE carrying the same `id:`.
+ *
+ * This is the post-merge shape: two branches each filed a task, each parsed
+ * cleanly in isolation, and the union has a duplicated id under which every
+ * id-based query (`task edit`, `task view`, cross-references) is ambiguous.
+ * @internal Exported for testing
+ */
+export function checkDuplicateTaskIds(tasks: TrackerTask[]): string[] {
+  const byId = new Map<string, string[]>();
+  for (const task of tasks) {
+    const files = byId.get(task.id) ?? [];
+    files.push(task.file);
+    byId.set(task.id, files);
+  }
+  return [...byId.entries()]
+    .filter(([, files]) => files.length > 1)
+    .map(
+      ([id, files]) => `duplicate task id ${id} across ${files.length} files: ${files.join(', ')}`
+    );
+}
+
+/** Escape hatch for the legitimate-rename false positive; mirrors `--allow-stale-current`. */
+export const ALLOW_ORIGIN_ID_COLLISION_ENV = 'TZUROT_ALLOW_ORIGIN_ID_COLLISION';
+
+/**
+ * A NEW local task file reusing an id that already exists on `origin/develop`
+ * under a different filename — the collision caught at push time, before the
+ * union ever lands.
+ *
+ * Asymmetric on purpose: the local id comes from frontmatter (authoritative,
+ * already parsed), the origin id from the FILENAME prefix, because reading the
+ * frontmatter of every origin file would cost one `git show` each.
+ *
+ * A deliberate RENAME of an existing task file lands in this same shape (the new
+ * path is absent from origin while the id is present under the old name), and it
+ * CANNOT be distinguished from a real collision by filenames alone. Because this
+ * runs in `pnpm quality` locally and the CI lint job, an un-escapable hard-fail
+ * would deadlock a rename branch (it can't merge until CI is green, and CI is
+ * red because of the rename). So `runBacklogLint` honours the
+ * `TZUROT_ALLOW_ORIGIN_ID_COLLISION` env var as the bypass, and the message
+ * names it.
+ *
+ * COVERAGE VARIES WITH FETCH RECENCY: this compares against the local
+ * `origin/develop` ref, not the true remote head. A same-id collision a teammate
+ * pushed since the last `git fetch` is invisible until the next fetch — a
+ * best-effort catch, not an authoritative gate (which is why the in-tree
+ * `checkDuplicateTaskIds` stays the unconditional backstop for the merged case).
+ * @internal Exported for testing
+ */
+export function checkOriginIdCollisions(tasks: TrackerTask[], origin: OriginTaskListing): string[] {
+  if (!origin.resolvable) {
+    return [];
+  }
+  const originPaths = new Set(origin.files);
+  // Accumulate ALL origin paths per id, not last-write-wins: if origin/develop
+  // already carries a pre-existing duplicate id (which checkDuplicateTaskIds
+  // cannot see — it scans only the local tree), the message should name every
+  // colliding origin file rather than silently understating the upstream state.
+  const originById = new Map<string, string[]>();
+  for (const path of origin.files) {
+    const id = fileIdToken(path);
+    const paths = originById.get(id) ?? [];
+    paths.push(path);
+    originById.set(id, paths);
+  }
+
+  return tasks
+    .filter(task => !originPaths.has(task.file))
+    .flatMap(task => {
+      // onOrigin is drawn from origin.files; the filter above dropped every
+      // task whose file is on origin, so a lookup hit here names a
+      // different origin file, not this task's own path — which is why the
+      // check does not re-compare against task.file.
+      const onOrigin = originById.get(task.id.toLowerCase());
+      if (onOrigin === undefined) {
+        return [];
+      }
+      return [
+        `${task.file}: id ${task.id} is already used on origin/develop by ${onOrigin.join(', ')} — ` +
+          'the CLI allocates ids from the working tree, so a sibling branch can hand out the ' +
+          'same one. Renumber this task (file, `id:`, and `ordinal:`), or — if the file was ' +
+          `simply renamed — re-run with ${ALLOW_ORIGIN_ID_COLLISION_ENV}=1 to bypass.`,
+      ];
+    });
+}
+
 function reportProblems(problems: string[]): void {
   if (problems.length === 0) {
     console.log(
@@ -246,7 +401,7 @@ function reportProblems(problems: string[]): void {
 /**
  * CLI entry point. Sets a non-zero exit code on any structural problem (cap
  * exceeded, dangling doc reference, unreadable tracker task, untriaged open
- * task).
+ * task, duplicated or origin-colliding task id).
  */
 export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   const rootDir = options.rootDir ?? process.cwd();
@@ -254,12 +409,35 @@ export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   // A task that failed to parse is already in `problems` and absent from
   // `tasks`, so the triage check never double-reports it.
   const { tasks, problems: trackerProblems } = loadTrackerTasks(rootDir);
+  const origin = options.origin ?? readOriginTaskFiles(rootDir);
+  // The bypass is honoured here, not inside the pure check, so the check stays
+  // testable and the skip is announced. The in-tree duplicate check is NOT
+  // bypassed — two local files sharing an id is unambiguous, never a rename.
+  const bypassOriginCollision = process.env[ALLOW_ORIGIN_ID_COLLISION_ENV] === '1';
   const problems = [
     ...checkNowCaps(rootDir),
     ...checkQueueDocRefs(rootDir),
     ...trackerProblems,
     ...checkTaskTriage(tasks),
+    ...checkDuplicateTaskIds(tasks),
+    ...(bypassOriginCollision ? [] : checkOriginIdCollisions(tasks, origin)),
   ];
+  if (bypassOriginCollision) {
+    console.log(
+      chalk.dim(
+        `ℹ ${ALLOW_ORIGIN_ID_COLLISION_ENV}=1 — skipped the origin/develop id-collision check`
+      )
+    );
+  }
+  if (!origin.resolvable) {
+    // Fail-open, and say so: a CI shallow clone legitimately lacks the ref, and
+    // the in-tree duplicate check above still covers the merged case.
+    console.log(
+      chalk.dim(
+        'ℹ origin/develop not resolvable — skipped the cross-branch task-id collision check'
+      )
+    );
+  }
   reportProblems(problems);
 
   if (problems.length > 0) {

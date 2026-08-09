@@ -593,6 +593,13 @@ describe('formatRepoSettingsReport', () => {
     expect(text).toContain('not a proof of sufficiency');
     expect(text).not.toContain('deletion is unreachable');
     expect(text).not.toContain('deletion is impossible');
+    // This fixture IS the clean-but-bypassable state (delete_branch_on_merge
+    // off, develop's deletion rule fully bypassable — the repo's live shape), so
+    // a headline generalising over branches would contradict the state line two
+    // rows below it. Zero findings is all the headline gets to claim.
+    expect(text).not.toContain('every long-lived branch');
+    expect(text).toContain('✓ No deletion-safety findings. What each branch actually carries');
+    expect(text).toContain('probe-verified');
     expect(text).toContain('delete_branch_on_merge: false');
     expect(text).toContain('main: deletion rule present, not bypassable');
     expect(text).toContain('develop: deletion rule present but fully bypassable');
