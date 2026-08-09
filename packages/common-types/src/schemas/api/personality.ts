@@ -100,8 +100,8 @@ export const PersonalityTagSchema = z
   .pipe(
     z
       .string()
-      .min(TAG_LIMITS.MIN_LENGTH, `tags must be at least ${TAG_LIMITS.MIN_LENGTH} characters`)
-      .max(TAG_LIMITS.MAX_LENGTH, `tags must be ${TAG_LIMITS.MAX_LENGTH} characters or less`)
+      .min(TAG_LIMITS.MIN_LENGTH, `each tag must be at least ${TAG_LIMITS.MIN_LENGTH} characters`)
+      .max(TAG_LIMITS.MAX_LENGTH, `each tag must be ${TAG_LIMITS.MAX_LENGTH} characters or less`)
       .regex(
         TAG_PATTERN,
         'tags may contain only lowercase letters, numbers, and hyphens, and must start with a letter or number'

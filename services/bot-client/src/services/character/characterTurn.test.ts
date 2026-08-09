@@ -23,6 +23,7 @@ import { resolveChatLlmConfig } from './chatConfigResolution.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { InfraError } from '@tzurot/clients';
+import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const mockGatewayClient = {
@@ -180,7 +181,9 @@ describe('Character Turn Engine (push delivery)', () => {
     characterSlug: string | null,
     message: string | null,
     channel = createMockChannel(),
-    guild: { id: string; name: string } | null = createMockGuild()
+    guild: { id: string; name: string } | null = createMockGuild(),
+    /** The `/random tag:` option value, or null when the user gave none. */
+    tag: string | null = null
   ): DeferredCommandContext => {
     const mockMember = { displayName: 'TestUser' } as GuildMember;
     const mockUser = { id: 'user-123', displayName: 'TestUser' };
@@ -191,6 +194,7 @@ describe('Character Turn Engine (push delivery)', () => {
         getString: vi.fn((name: string) => {
           if (name === 'character') return characterSlug;
           if (name === 'message') return message;
+          if (name === 'tag') return tag;
           return null;
         }),
         getBoolean: vi.fn(() => null),
@@ -212,6 +216,25 @@ describe('Character Turn Engine (push delivery)', () => {
       followUp: vi.fn().mockResolvedValue(undefined),
     } as unknown as DeferredCommandContext;
   };
+
+  /**
+   * An accessible-list row, typed so a PersonalitySummary shape change breaks
+   * this fixture at compile time rather than silently producing a payload the
+   * tag filter can't read.
+   */
+  const makeSummary = (slug: string, opts: { tags?: string[] } = {}) =>
+    ({
+      id: `id-${slug}`,
+      slug,
+      name: slug,
+      displayName: null,
+      isOwned: true,
+      isPublic: true,
+      ownerId: 'user-123',
+      ownerDiscordId: 'user-123',
+      tags: opts.tags ?? [],
+      permissions: { canEdit: true, canDelete: true },
+    }) satisfies PersonalitySummary;
 
   const createMockPersonality = (overrides = {}) => ({
     id: 'pers-123',
@@ -480,7 +503,7 @@ describe('Character Turn Engine (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx);
+      await handleChimeIn(ctx, 'test-char');
 
       // The only send should be from a possible error path — the user message
       // send path is gated on isWeighInMode === false.
@@ -502,7 +525,7 @@ describe('Character Turn Engine (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx);
+      await handleChimeIn(ctx, 'test-char');
 
       expect(channel.send).not.toHaveBeenCalledWith(
         expect.stringContaining('Start a conversation first')
@@ -524,7 +547,7 @@ describe('Character Turn Engine (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx);
+      await handleChimeIn(ctx, 'test-char');
 
       expect(channel.send).not.toHaveBeenCalledWith(
         expect.stringContaining('No conversation history')
@@ -550,7 +573,7 @@ describe('Character Turn Engine (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx);
+      await handleChimeIn(ctx, 'test-char');
 
       expect(mockMessageContextBuilder.buildContext).toHaveBeenCalledTimes(1);
       const anchorArg = mockMessageContextBuilder.buildContext.mock.calls[0][0] as {
@@ -669,6 +692,46 @@ describe('Character Turn Engine (push delivery)', () => {
         expect.any(String),
         expect.objectContaining({ kind: 'slash', isWeighInMode: true })
       );
+    });
+
+    it('forwards the tag option into the pool filter, so only tagged characters can be picked', async () => {
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext(null, 'Hi', channel, createMockGuild(), 'fantasy');
+      mockPersonalityService.loadPersonalityStrict.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockGetCachedPersonalities.mockResolvedValueOnce({
+        kind: 'ok',
+        value: [
+          makeSummary('untagged-char', { tags: [] }),
+          makeSummary('tagged-char', { tags: ['fantasy'] }),
+        ],
+      });
+
+      await handleRandom(ctx);
+
+      // Seam assertion: the slug that reaches the personality loader is the one
+      // the tag filter selected. A dropped `tag` option would let the untagged
+      // character through here while every other assertion still passed.
+      expect(mockPersonalityService.loadPersonalityStrict).toHaveBeenCalledWith(
+        'tagged-char',
+        'user-123'
+      );
+    });
+
+    it('reports an unmatched tag instead of picking from the whole pool', async () => {
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext(null, 'Hi', channel, createMockGuild(), 'western');
+      mockGetCachedPersonalities.mockResolvedValueOnce({
+        kind: 'ok',
+        value: [makeSummary('tagged-char', { tags: ['fantasy'] })],
+      });
+
+      await handleRandom(ctx);
+
+      expect(mockPersonalityService.loadPersonalityStrict).not.toHaveBeenCalled();
+      expect(ctx.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('No characters carry the tag'),
+      });
     });
   });
 });

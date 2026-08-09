@@ -17,6 +17,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { filterByTag, emptyTagPoolDetail } from './tagPool.js';
 
 const logger = createLogger('character-random-pick');
 
@@ -32,6 +33,50 @@ export interface ResolveCharacterSlugOptions {
   excludePrivate?: boolean;
   /** When true and no slug was provided, restrict the random pool to user-owned personalities. */
   onlyMine?: boolean;
+  /**
+   * When set and no slug was provided, restrict the random pool to characters
+   * carrying this discovery tag. Normalized at query time, so the user may type
+   * `Sci Fi` for the stored `sci-fi`. null/undefined = no tag filter.
+   */
+  tag?: string | null;
+}
+
+/**
+ * Explain an empty random pool in terms of the filters that emptied it.
+ *
+ * Extracted from {@link resolveCharacterSlug} so the per-filter branching lives
+ * in one place rather than pushing the resolver past the complexity cap.
+ * The tag gets its own sentence because it's the filter a user is most likely
+ * to have simply mistyped — naming it back is the whole diagnostic.
+ */
+function buildEmptyPoolDetail(filters: {
+  excludePrivate: boolean;
+  onlyMine: boolean;
+  tag: string | null;
+}): string {
+  const { excludePrivate, onlyMine, tag } = filters;
+  const activeFilters: string[] = [];
+  if (onlyMine) {
+    activeFilters.push('`only-mine`');
+  }
+  if (excludePrivate) {
+    activeFilters.push('`exclude-private`');
+  }
+
+  if (tag !== null) {
+    const extraClause =
+      activeFilters.length > 0 ? ` with ${activeFilters.join(' and ')} also active` : '';
+    return emptyTagPoolDetail(tag, extraClause);
+  }
+
+  const filterNoun = activeFilters.length > 1 ? 'filters active' : 'filter on';
+  const filtersClause =
+    activeFilters.length > 0 ? ` (${activeFilters.join(', ')} ${filterNoun})` : '';
+  const suggestion =
+    activeFilters.length > 0
+      ? 'Adjust the filters or use `/character create` to make one.'
+      : 'Use `/character create` to make one, or check that public characters exist.';
+  return `No characters available to chat with${filtersClause}. ${suggestion}`;
 }
 
 /**
@@ -39,10 +84,11 @@ export interface ResolveCharacterSlugOptions {
  * If they didn't, pick a random personality from their accessible pool.
  *
  * The pool is `getCachedPersonalities` — owned + public per the autocomplete
- * scope. Two independent filters compose as AND conjunctions:
+ * scope. Three independent filters compose as AND conjunctions:
  *  - `excludePrivate: true` drops private personalities (`isPublic === false`)
  *  - `onlyMine: true` drops personalities the user doesn't own (`isOwned === false`)
- * Combined, the pool becomes the user's owned-AND-public characters.
+ *  - `tag: 'sci-fi'` drops personalities not carrying that discovery tag
+ * Combined, the pool becomes the user's owned-AND-public tagged characters.
  */
 export async function resolveCharacterSlug(
   providedSlug: string | null,
@@ -72,6 +118,7 @@ export async function resolveCharacterSlug(
 
   const excludePrivate = options.excludePrivate === true;
   const onlyMine = options.onlyMine === true;
+  const tag = options.tag ?? null;
 
   let candidates = result.value;
   if (onlyMine) {
@@ -80,29 +127,15 @@ export async function resolveCharacterSlug(
   if (excludePrivate) {
     candidates = candidates.filter(p => p.isPublic);
   }
+  if (tag !== null) {
+    candidates = filterByTag(candidates, tag);
+  }
 
   if (candidates.length === 0) {
-    const activeFilters: string[] = [];
-    if (onlyMine) {
-      activeFilters.push('`only-mine`');
-    }
-    if (excludePrivate) {
-      activeFilters.push('`exclude-private`');
-    }
-
-    const filterNoun = activeFilters.length > 1 ? 'filters active' : 'filter on';
-    const filtersClause =
-      activeFilters.length > 0 ? ` (${activeFilters.join(', ')} ${filterNoun})` : '';
-    const suggestion =
-      activeFilters.length > 0
-        ? 'Adjust the filters or use `/character create` to make one.'
-        : 'Use `/character create` to make one, or check that public characters exist.';
     return {
       kind: 'error',
       message: renderSpec(
-        CATALOG.error.validation(
-          `No characters available to chat with${filtersClause}. ${suggestion}`
-        )
+        CATALOG.error.validation(buildEmptyPoolDetail({ excludePrivate, onlyMine, tag }))
       ),
     };
   }
