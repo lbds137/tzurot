@@ -4,7 +4,7 @@ title: 'Experiment: tools allowlist for opus-implementer that omits Agent'
 status: Done
 assignee: []
 created_date: '2026-08-05 11:30'
-updated_date: '2026-08-09 02:16'
+updated_date: '2026-08-09 15:38'
 labels:
   - 'area:process'
   - 'size:S'
@@ -54,11 +54,12 @@ which is the second outcome the acceptance criteria allow. Re-open only with new
 evidence that the harness honors a tool restriction for subagents — and verify
 by probe before writing frontmatter, never from documentation, which is what
 pointed at `disallowedTools` in the first place.
-
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 EXPERIMENT RUN 2026-08-05 (three live probes, all in one session; probe edits reverted, nothing committed). Findings: (1) docs claim agent frontmatter supports both a tools: allowlist and a disallowedTools: denylist with live file-watching — the denylist would be the zero-maintenance shape (new harness tools still inherit). (2) BOTH fields were ignored in live spawns: with disallowedTools: Agent, Workflow set, the worker still had Agent fully loaded; with a 9-tool tools: allowlist set, the surface was byte-identical to the unrestricted default (Agent present, full deferred+MCP sets). (3) Root cause isolated by a marker probe: a body edit to the definition did NOT reach a subsequent spawn — definitions are CACHED AT SESSION START in this harness, so in-session edits are invisible and both tool-field probes were vacuous, not negative. The doc claim of live re-reading is falsified for this environment. (4) Workflow is absent from subagent surfaces inherently (not in the subagent baseline), so only Agent needs blocking. NEXT STEP (requires a FRESH session, cannot be done in-session): at session start, apply disallowedTools: Agent (preferred), spawn a minimal enumeration probe (list tools; is Agent present; does ToolSearch select:Agent return a schema). If ignored, try tools: allowlist. If both ignored after a restart, the harness cannot express it — record the prompt-level caveat as the accepted state and close. If it works, ship via the review-gated PR path. Do not commit any restriction that has not passed the spawn probe.
+
+UPDATE 2026-08-09: the ruling HELD and caught a repeat. The agentic-workflows audit (docs-only verification) re-pointed at disallowedTools; PR #2027 initially shipped it on opus-implementer PLUS a new Explore override file — exactly the docs-not-probe path this task's close-out warns against. claude-review caught the contradiction against this task; the fixup removed both, restored the prompt-level caveat, and switched the Haiku-Explore goal to the per-call Agent-tool model param (schema-verified mechanism, keeps the built-in Explore's managed read-only surface). Still open for a future fresh session: probe whether frontmatter effort: is honored for subagents (same unverified-channel class; opus-implementer now carries effort: medium explicitly labeled unverified).
 <!-- SECTION:NOTES:END -->
