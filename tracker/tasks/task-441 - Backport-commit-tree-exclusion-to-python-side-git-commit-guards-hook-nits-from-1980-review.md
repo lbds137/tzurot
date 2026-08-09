@@ -111,4 +111,14 @@ class is delegated to review). Every reference to it above is history: its
 members are shipped, and the acceptance line naming it is satisfied by its
 removal rather than by anything left to do.
 
+Note 2026-08-08 (second): lib/git-command.sh and is_git_commit_command are gone
+too (TASK-466). This does not reopen (d) — it closes it harder — but it DOES
+invalidate the stated reason. The CLOSED section above gives two reasons (d) is
+moot, and reason 2 ("the function survives as the reference copy the agreement
+test compares against") is now false: nothing survives, and the agreement test
+runs on the two blocking Python copies alone. Reason 1 still stands on its own,
+and (d) is now unreachable rather than merely unnecessary — there is no bash
+function left to harden. Recorded because a reader who checks reason 2, finds
+it false, and stops there could conclude (d) is live again.
+
 <!-- SECTION:DESCRIPTION:END -->
