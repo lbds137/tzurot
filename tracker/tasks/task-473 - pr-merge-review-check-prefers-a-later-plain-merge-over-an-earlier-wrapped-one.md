@@ -1,10 +1,10 @@
 ---
 id: TASK-473
 title: pr-merge-review-check prefers a later plain merge over an earlier wrapped one
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 23:35'
-updated_date: '2026-08-08 23:35'
+updated_date: '2026-08-09 01:12'
 labels:
   - 'area:process'
   - 'area:tooling'
