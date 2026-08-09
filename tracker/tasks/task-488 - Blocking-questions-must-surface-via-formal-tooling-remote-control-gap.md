@@ -1,5 +1,5 @@
 ---
-id: TASK-487
+id: TASK-488
 title: Blocking questions must surface via formal tooling - remote control gap
 status: To Do
 assignee: []
@@ -10,7 +10,7 @@ labels:
   - 'state:ready'
 dependencies: []
 priority: high
-ordinal: 487000
+ordinal: 488000
 ---
 
 ## Description
