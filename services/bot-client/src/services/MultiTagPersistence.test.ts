@@ -53,6 +53,7 @@ function buildEntry(overrides: Partial<CoordinatorEntrySnapshot> = {}): Coordina
     ],
     createdAt: Date.now(),
     truncated: false,
+    maxTags: 5,
     ...overrides,
   };
 }
@@ -241,6 +242,31 @@ describe('MultiTagPersistence', () => {
 
       const result = await persistence.scanAllEntries();
       expect(result.map(e => e.groupId)).toEqual(['p1', 'p2']);
+    });
+
+    it('defaults maxTags to the in-code floor on a snapshot written before the field existed', async () => {
+      const legacy = buildEntry({ groupId: 'legacy' }) as Partial<CoordinatorEntrySnapshot>;
+      delete legacy.maxTags;
+      mockRedis.scan.mockResolvedValueOnce(['0', [`${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}legacy`]]);
+      mockRedis.mget.mockResolvedValueOnce([JSON.stringify(legacy)]);
+
+      const result = await persistence.scanAllEntries();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].maxTags).toBe(MULTI_TAG.MAX_TAGS);
+    });
+
+    it('preserves an explicit maxTags rather than overwriting it with the floor', async () => {
+      const configured = buildEntry({ groupId: 'configured', maxTags: 3 });
+      mockRedis.scan.mockResolvedValueOnce([
+        '0',
+        [`${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}configured`],
+      ]);
+      mockRedis.mget.mockResolvedValueOnce([JSON.stringify(configured)]);
+
+      const result = await persistence.scanAllEntries();
+
+      expect(result[0].maxTags).toBe(3);
     });
   });
 

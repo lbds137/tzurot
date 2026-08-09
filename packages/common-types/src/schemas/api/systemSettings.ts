@@ -20,6 +20,7 @@ import {
   MODEL_DEFAULTS,
   type ModelSlot,
 } from '../../constants/ai.js';
+import { MULTI_TAG } from '../../constants/message.js';
 
 // ============================================================================
 // Schema (the RESOLVED shape — every key present)
@@ -58,6 +59,8 @@ export const SystemSettingsSchema = z.object({
   zaiGlobalDailyBudget: z.number().int().min(1),
   /** Per-IP public API rate limit (requests/minute). */
   publicRateLimitPerMin: z.number().int().min(1),
+  /** How many characters may respond to one message (multi-tag fan-out cap). */
+  multiTagMaxCharacters: z.number().int().min(1).max(10),
   /** The paid text floor — what runs when every chain above is exhausted. */
   fallbackTextModel: z.string().min(1),
   /** The paid vision floor. */
@@ -88,12 +91,15 @@ export const StoredSystemSettingsSchema = SystemSettingsSchema.partial().passthr
 
 /** Dashboard page-group assignment (concern grouping; the dashboard slice owns rendering). */
 export type SystemSettingGroup =
-  'extraction' | 'free-tier-fair-share' | 'free-tier-zai' | 'models-limits' | 'operations';
+  'extraction' | 'free-tier-fair-share' | 'free-tier-zai' | 'models' | 'limits' | 'operations';
 
 const GROUP_EXTRACTION: SystemSettingGroup = 'extraction';
 const GROUP_FAIR_SHARE: SystemSettingGroup = 'free-tier-fair-share';
 const GROUP_ZAI: SystemSettingGroup = 'free-tier-zai';
-const GROUP_MODELS_LIMITS: SystemSettingGroup = 'models-limits';
+/** The four fallback model floors. */
+const GROUP_MODELS: SystemSettingGroup = 'models';
+/** Numeric/behavioral ceilings: rate limit, sticker spend, multi-character cap. */
+const GROUP_LIMITS: SystemSettingGroup = 'limits';
 const GROUP_OPERATIONS: SystemSettingGroup = 'operations';
 
 /**
@@ -297,7 +303,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     label: 'Sticker Vision',
     description:
       'Vision-describe rasterizable stickers. Instance-funded; one call per sticker, ever.',
-    group: GROUP_MODELS_LIMITS,
+    group: GROUP_LIMITS,
     control: 'boolean',
     liveness: 'live',
     // Defaults ON: the feature is the point, and the spend it authorizes is
@@ -336,19 +342,39 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     key: 'publicRateLimitPerMin',
     label: 'Public Rate Limit (req/min)',
     description: 'Per-IP public API rate limit.',
-    group: GROUP_MODELS_LIMITS,
+    group: GROUP_LIMITS,
     control: 'integer',
     liveness: 'live',
     fallback: 60,
     seedSource: 'PUBLIC_RATE_LIMIT_PER_MIN',
     min: 1,
   },
+  multiTagMaxCharacters: {
+    key: 'multiTagMaxCharacters',
+    label: 'Multi-Character Cap',
+    description:
+      'How many characters may respond to a single message: the multi-tag fan-out cap (extra tagged characters are dropped with a notice). Once tag-filtered chime-in ships, also the size of its random character sample.',
+    group: GROUP_LIMITS,
+    control: 'integer',
+    liveness: 'live',
+    // The in-code constant IS the floor here — bot-client falls back to it
+    // whenever the gateway read fails or the key is absent, so registry and
+    // code cannot disagree about the default.
+    fallback: MULTI_TAG.MAX_TAGS,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
+    min: 1,
+    // The mention parser's MAX_POTENTIAL_MENTIONS position-scan bound sits at
+    // this same value — raising this ceiling past 10 makes that the binding
+    // cap, so raise both together (personalityMentionParser.ts).
+    max: 10,
+  },
   fallbackTextModel: {
     key: 'fallbackTextModel',
     label: 'Fallback Text Model (paid)',
     description:
       'The paid text floor — runs when every chain above is exhausted. Choose boring, highly-available targets.',
-    group: GROUP_MODELS_LIMITS,
+    group: GROUP_MODELS,
     control: 'model',
     liveness: 'live',
     fallback: AUTO_ROUTER_MODEL,
@@ -364,7 +390,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     key: 'fallbackVisionModel',
     label: 'Fallback Vision Model (paid)',
     description: 'The paid vision floor — must accept image input.',
-    group: GROUP_MODELS_LIMITS,
+    group: GROUP_MODELS,
     control: 'model',
     liveness: 'live',
     fallback: AUTO_ROUTER_MODEL,
@@ -381,7 +407,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     label: 'Fallback Text Model (free)',
     description:
       'The FREE text floor (guest ladder last resort + quota-degrade retarget). Free-route models only.',
-    group: GROUP_MODELS_LIMITS,
+    group: GROUP_MODELS,
     control: 'model',
     liveness: 'live',
     fallback: FREE_ROUTER_MODEL,
@@ -397,7 +423,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     key: 'fallbackVisionModelFree',
     label: 'Fallback Vision Model (free)',
     description: 'The FREE vision floor (guest clamp). Free-route, image-capable models only.',
-    group: GROUP_MODELS_LIMITS,
+    group: GROUP_MODELS,
     control: 'model',
     liveness: 'live',
     fallback: FREE_ROUTER_MODEL,

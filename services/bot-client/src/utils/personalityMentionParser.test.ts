@@ -6,12 +6,25 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { findPersonalityMentions } from './personalityMentionParser.js';
+import { findPersonalityMentions, MAX_POTENTIAL_MENTIONS } from './personalityMentionParser.js';
 import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { SYSTEM_SETTINGS_REGISTRY } from '@tzurot/common-types/schemas/api/systemSettings';
 
 const TEST_USER_ID = 'test-user-123';
+
+// Ceiling parity: the position-scan bound and the admin setting's registry max
+// sit at the same value by design. If the registry ceiling ever rises past the
+// scan bound, mentions beyond MAX_POTENTIAL_MENTIONS become invisible to the
+// scan — overflow past the cap would go undetected and no truncation notice
+// would fire. This is the ceiling twin of the fallback-parity test in
+// systemSettings.test.ts (which pins the floor).
+describe('MAX_POTENTIAL_MENTIONS registry parity', () => {
+  it('equals the multiTagMaxCharacters registry ceiling', () => {
+    expect(MAX_POTENTIAL_MENTIONS).toBe(SYSTEM_SETTINGS_REGISTRY.multiTagMaxCharacters.max);
+  });
+});
 
 describe('personalityMentionParser', () => {
   let mockPersonalityService: IPersonalityLoader;
@@ -201,8 +214,12 @@ describe('personalityMentionParser', () => {
   });
 
   describe('Mention cap', () => {
-    it('caps at MULTI_TAG.MAX_TAGS by default', async () => {
-      // Six distinct valid mentions; cap is 5.
+    it('does NOT apply the multi-character cap — returns every valid mention', async () => {
+      // Six distinct valid mentions, more than MULTI_TAG.MAX_TAGS. The parser
+      // reports all of them; SlotResolver is the only thing that caps. If this
+      // capped here, PersonalityTriggerProcessor could never detect overflow
+      // (its uniqueCandidates set is built from this list) and the truncation
+      // notice would be unreachable for mention-only messages.
       const result = await findPersonalityMentions(
         '@Lilith @Sarcastic @Charlie @Delta @Echo @Foxtrot',
         '@',
@@ -210,13 +227,14 @@ describe('personalityMentionParser', () => {
         TEST_USER_ID
       );
 
-      expect(result).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(result.length).toBeGreaterThan(MULTI_TAG.MAX_TAGS);
       expect(result.map(r => r.personality.name)).toEqual([
         'Lilith',
         'Sarcastic',
         'Charlie',
         'Delta',
         'Echo',
+        'Foxtrot',
       ]);
     });
 
@@ -231,6 +249,21 @@ describe('personalityMentionParser', () => {
 
       expect(result).toHaveLength(2);
       expect(result.map(r => r.personality.name)).toEqual(['Lilith', 'Sarcastic']);
+    });
+
+    it('still early-exits after one match at maxMentions: 1 (the existence-check caller)', async () => {
+      // VoiceMessageProcessor passes 1 purely to answer "is any character
+      // tagged?" — raising the default must not change that call's behavior.
+      const result = await findPersonalityMentions(
+        '@Lilith @Sarcastic @Charlie @Delta @Echo @Foxtrot',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID,
+        1
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
   });
 
@@ -524,8 +557,8 @@ describe('personalityMentionParser', () => {
 
   describe('Resource exhaustion protection', () => {
     it('caps position scanning at MAX_POTENTIAL_MENTIONS', async () => {
-      // 15 @-mentions; internal position cap is 10. The mention cap further
-      // narrows to MAX_TAGS=5. We assert the final cap (5).
+      // 15 @-mentions; internal position cap is 10. All resolve to the same
+      // personality, so dedupe collapses them regardless.
       const noisy = Array(15).fill('@Lilith').join(' ');
       const result = await findPersonalityMentions(
         noisy,
@@ -538,7 +571,7 @@ describe('personalityMentionParser', () => {
       expect(result[0].personality.name).toBe('Lilith');
     });
 
-    it('handles 15 distinct mentions by capping at MAX_TAGS after dedup', async () => {
+    it('returns all 8 distinct mentions — the position bound, not the cap, is the limit', async () => {
       const noisy = '@Lilith @Sarcastic @Charlie @Delta @Echo @Foxtrot @Bambi @Administrator';
       const result = await findPersonalityMentions(
         noisy,
@@ -546,7 +579,23 @@ describe('personalityMentionParser', () => {
         mockPersonalityService,
         TEST_USER_ID
       );
-      expect(result).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(result).toHaveLength(8);
+    });
+
+    it('the position bound is the ceiling: 11 distinct mentions yield 10', async () => {
+      // The known edge the processor documents at its `truncated` computation —
+      // an 11th mention is invisible to the scan, so overflow past
+      // MAX_POTENTIAL_MENTIONS cannot be detected downstream.
+      const noisy =
+        '@Lilith @Sarcastic @Charlie @Delta @Echo @Foxtrot @Bambi @Administrator ' +
+        "@Angel Dust @O'Reilly @Dr. Gregory House";
+      const result = await findPersonalityMentions(
+        noisy,
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).toHaveLength(10);
     });
   });
 });

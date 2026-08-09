@@ -10,6 +10,7 @@ import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { PersonalityTriggerProcessor } from './PersonalityTriggerProcessor.js';
+import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 
 vi.mock('@tzurot/common-types/config/config', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
@@ -65,12 +66,13 @@ vi.mock('./notificationCache.js', () => ({
 
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
   getChannelSettingsCached: vi.fn(),
+  getMultiTagCap: vi.fn(),
 }));
 
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
-import { getChannelSettingsCached } from '../utils/gatewayServiceCalls.js';
+import { getChannelSettingsCached, getMultiTagCap } from '../utils/gatewayServiceCalls.js';
 
 function buildPersonality(name: string): LoadedPersonality {
   return {
@@ -120,6 +122,7 @@ describe('PersonalityTriggerProcessor', () => {
     coordinator = { startFanOut: vi.fn().mockResolvedValue(undefined) };
     vi.mocked(findPersonalityMentions).mockResolvedValue([]);
     vi.mocked(isForwardedMessage).mockReturnValue(false);
+    vi.mocked(getMultiTagCap).mockResolvedValue(MULTI_TAG.MAX_TAGS);
     processor = new PersonalityTriggerProcessor({
       personalityService: personalityService as never,
       replyResolver: replyResolver as never,
@@ -204,6 +207,153 @@ describe('PersonalityTriggerProcessor', () => {
 
       const arg = coordinator.startFanOut.mock.calls[0][0];
       expect(arg.slots).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(arg.truncated).toBe(false);
+    });
+  });
+
+  describe('Admin-configured cap threading', () => {
+    const SIX = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
+
+    function mockMentions(names: string[]): LoadedPersonality[] {
+      const personalities = names.map(buildPersonality);
+      vi.mocked(findPersonalityMentions).mockResolvedValue(
+        personalities.map((p, i) => ({ personality: p, startIndex: i * 7 }))
+      );
+      return personalities;
+    }
+
+    it('reads the cap exactly once per message', async () => {
+      mockMentions(SIX);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob hi' }));
+
+      expect(vi.mocked(getMultiTagCap)).toHaveBeenCalledOnce();
+    });
+
+    it('does NOT forward the cap to the mention parser (overflow must stay visible)', async () => {
+      vi.mocked(getMultiTagCap).mockResolvedValue(2);
+      mockMentions(SIX);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol hi' }));
+
+      // Exactly four args — no cap. Passing one would pre-cap the candidate
+      // list and make `truncated` false by construction for mention-only
+      // messages.
+      expect(vi.mocked(findPersonalityMentions)).toHaveBeenCalledWith(
+        expect.anything(),
+        '@',
+        expect.anything(),
+        'user-1'
+      );
+    });
+
+    it('caps the slot list and the truncation flag at the configured value', async () => {
+      // 2 is deliberately below MULTI_TAG.MAX_TAGS: a hardcoded cap anywhere in
+      // the chain would produce more than two slots here.
+      vi.mocked(getMultiTagCap).mockResolvedValue(2);
+      mockMentions(SIX);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(2);
+      expect(arg.truncated).toBe(true);
+      expect(arg.maxTags).toBe(2);
+    });
+
+    it('flags truncated for a MENTION-ONLY overflow (no reply, no activation)', async () => {
+      // The regression case. Before the fix the parser pre-capped its results,
+      // so uniqueCandidates could never exceed slots.length on this path and
+      // `truncated` was provably always false — the most common overflow shape
+      // never produced its notice.
+      vi.mocked(getMultiTagCap).mockResolvedValue(MULTI_TAG.MAX_TAGS);
+      mockMentions(SIX);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol @Dave @Eve @Frank hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(arg.truncated).toBe(true);
+      expect(arg.maxTags).toBe(MULTI_TAG.MAX_TAGS);
+    });
+
+    it('lets a raised cap admit more characters than the in-code floor', async () => {
+      vi.mocked(getMultiTagCap).mockResolvedValue(6);
+      mockMentions(SIX);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(6);
+      expect(arg.truncated).toBe(false);
+      expect(arg.maxTags).toBe(6);
+    });
+  });
+
+  /**
+   * Wiring/seam tests: the REAL `findPersonalityMentions` runs against the real
+   * processor, with only the external boundary (the personality loader) mocked.
+   *
+   * Every other test here mocks the parser, which is exactly why the pre-cap
+   * bug survived — a mocked parser returns an uncapped list no matter what the
+   * caller forwards, so the two halves agreed in tests and disagreed in prod
+   * (02-code-standards Core Principle 7).
+   */
+  describe('SEAM: real mention parser + processor', () => {
+    const SIX_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
+
+    beforeEach(async () => {
+      const actual = await vi.importActual<typeof import('../utils/personalityMentionParser.js')>(
+        '../utils/personalityMentionParser.js'
+      );
+      vi.mocked(findPersonalityMentions).mockImplementation(actual.findPersonalityMentions);
+
+      const loader = createMockPersonalityService(
+        SIX_NAMES.map(name => ({ name, displayName: name, systemPrompt: 'Test prompt' }))
+      );
+      personalityService.loadPersonality.mockImplementation((...args: unknown[]) =>
+        loader.loadPersonality(args[0] as string, args[1] as string)
+      );
+    });
+
+    it('mention-only overflow through the real parser sets truncated', async () => {
+      vi.mocked(getMultiTagCap).mockResolvedValue(MULTI_TAG.MAX_TAGS);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol @Dave @Eve @Frank hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(arg.truncated).toBe(true);
+    });
+
+    it('mention-only WITHOUT overflow leaves truncated false', async () => {
+      vi.mocked(getMultiTagCap).mockResolvedValue(MULTI_TAG.MAX_TAGS);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(2);
+      expect(arg.truncated).toBe(false);
+    });
+
+    it('a lowered cap makes a previously-fitting message overflow', async () => {
+      vi.mocked(getMultiTagCap).mockResolvedValue(2);
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(2);
+      expect(arg.truncated).toBe(true);
+      expect(arg.maxTags).toBe(2);
+    });
+
+    it('the same character tagged twice is dedupe, not truncation', async () => {
+      vi.mocked(getMultiTagCap).mockResolvedValue(MULTI_TAG.MAX_TAGS);
+
+      await processor.process(buildMessage({ content: '@Alice @Alice hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(1);
       expect(arg.truncated).toBe(false);
     });
   });

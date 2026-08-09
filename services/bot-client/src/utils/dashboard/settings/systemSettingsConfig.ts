@@ -21,7 +21,8 @@ const SYSTEM_PAGE_LABELS: Record<SystemSettingGroup, string> = {
   extraction: 'System · Extraction',
   'free-tier-fair-share': 'System · Free Tier — Fair Share',
   'free-tier-zai': 'System · Free Tier — z.ai',
-  'models-limits': 'System · Models & Limits',
+  models: 'System · Fallback Models',
+  limits: 'System · Limits',
   operations: 'System · Operations',
 };
 
@@ -29,7 +30,8 @@ const SYSTEM_GROUP_ORDER: SystemSettingGroup[] = [
   'extraction',
   'free-tier-fair-share',
   'free-tier-zai',
-  'models-limits',
+  'models',
+  'limits',
   'operations',
 ];
 
@@ -48,6 +50,7 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   zaiHeadroomPercent: '🌡️',
   zaiGlobalDailyBudget: '📊',
   publicRateLimitPerMin: '🚦',
+  multiTagMaxCharacters: '👥',
   fallbackTextModel: '🛟',
   fallbackVisionModel: '👁️',
   fallbackTextModelFree: '🆓',
@@ -127,9 +130,7 @@ function toSettingDefinition(meta: SystemSettingMeta): SettingDefinition {
   }
 }
 
-/**
- * All 19 system settings as dashboard definitions, registry order.
- */
+/** Every system setting as a dashboard definition, in registry order. */
 export const SYSTEM_SETTINGS_DEFINITIONS: SettingDefinition[] = SYSTEM_SETTINGS_KEYS.map(key =>
   toSettingDefinition(SYSTEM_SETTINGS_REGISTRY[key])
 );

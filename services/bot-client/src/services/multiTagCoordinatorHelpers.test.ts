@@ -64,6 +64,7 @@ function buildEntry(overrides: Partial<RuntimeEntry> = {}): RuntimeEntry {
     // Throwaway handle for the fixture; never armed for real. 0ms leaves no timer pending.
     timeoutHandle: setTimeout(() => undefined, 0),
     truncated: false,
+    maxTags: 5,
     ...overrides,
   };
 }

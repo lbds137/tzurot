@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Queue } from 'bullmq';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import {
+  buildSentinelPersonality,
   pollPriorJobState,
   recoverRealResultsAtDeadline,
   synthesizeFailureResult,
@@ -293,5 +294,18 @@ describe('recoverRealResultsAtDeadline', () => {
       success: false,
       error: 'model exploded',
     });
+  });
+});
+
+describe('buildSentinelPersonality', () => {
+  it('carries the four identity fields deliverError renders from the snapshot', () => {
+    const snap = buildSlotSnapshot({ personalityId: 'id-bob', personalitySlug: 'bob' });
+
+    const sentinel = buildSentinelPersonality(snap);
+
+    expect(sentinel.id).toBe('id-bob');
+    expect(sentinel.slug).toBe('bob');
+    expect(sentinel.name).toBe('bob');
+    expect(sentinel.displayName).toBe('bob');
   });
 });

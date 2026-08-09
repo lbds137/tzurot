@@ -12,7 +12,9 @@
  *   slot 2+ = inline mentions in textual order
  *
  * Deduplicated by personality.id (first occurrence keeps its slot).
- * Capped at MULTI_TAG.MAX_TAGS.
+ * Capped at the caller-supplied maxTags (the admin-configurable
+ * multiTagMaxCharacters setting); MULTI_TAG.MAX_TAGS is only the default
+ * when no override is passed.
  */
 
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';

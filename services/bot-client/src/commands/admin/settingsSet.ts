@@ -19,6 +19,7 @@ import {
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import {
   fetchTextModels,
   fetchVisionModels,
@@ -132,6 +133,11 @@ export async function handleSettingsSet(context: DeferredCommandContext): Promis
     await context.editReply({ content: `❌ ${result.error}${conflictHint}` });
     return;
   }
+
+  // Clear the service-read cache so live readers (getMultiTagCap, the voice
+  // processors) see the owner's own change immediately instead of waiting
+  // out the 60s TTL — mirrors the cascade write path in settings.ts.
+  invalidateAdminSettingsCache();
 
   const lines = [
     `✅ **${meta.label}** updated: ${displayValue(oldValue)} → \`${String(coerced.value)}\``,

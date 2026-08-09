@@ -157,6 +157,12 @@ export interface CoordinatorEntrySnapshot {
    * group finally delivers.
    */
   truncated: boolean;
+  /**
+   * The admin-configured cap this fan-out ran under. Persisted so a
+   * post-restart recovery renders the truncation notice with the number the
+   * resolver applied, not whatever the setting reads at delivery time.
+   */
+  maxTags: number;
 }
 
 export class MultiTagPersistence {
@@ -565,6 +571,12 @@ function parseSnapshotOrLog(key: string, raw: string | null): CoordinatorEntrySn
       // the older build.
       if (typeof parsed.truncated !== 'boolean') {
         parsed.truncated = false;
+      }
+      // Same backwards-compat shape for `maxTags`: snapshots written before
+      // the cap became admin-configurable carry no value. Default to the
+      // in-code floor, which IS the cap those fan-outs ran under.
+      if (typeof parsed.maxTags !== 'number') {
+        parsed.maxTags = MULTI_TAG.MAX_TAGS;
       }
       // Same pattern for `isAutoResponse` on each slot. The
       // `SlotDeliveryContext.isAutoResponse` field was narrowed from

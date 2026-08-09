@@ -17,6 +17,11 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   }),
 }));
 
+const mockInvalidateAdminSettingsCache = vi.fn();
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  invalidateAdminSettingsCache: () => mockInvalidateAdminSettingsCache(),
+}));
+
 vi.mock('../../utils/modelAutocomplete.js', () => ({
   fetchTextModels: (search?: string) => mockFetchTextModels(search),
   fetchVisionModels: (search?: string) => mockFetchVisionModels(search),
@@ -83,6 +88,9 @@ describe('handleSettingsSet', () => {
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('✅'),
     });
+    // A successful write must be visible to this process's own live readers
+    // (getMultiTagCap etc.) immediately, not after the 60s TTL.
+    expect(mockInvalidateAdminSettingsCache).toHaveBeenCalled();
   });
 
   it('shows the old value in the success message', async () => {
@@ -146,6 +154,8 @@ describe('handleSettingsSet', () => {
 
     const content = (context.editReply.mock.calls[0][0] as { content: string }).content;
     expect(content).toContain('free-route');
+    // Rejected writes changed nothing — the cache must NOT be dropped.
+    expect(mockInvalidateAdminSettingsCache).not.toHaveBeenCalled();
   });
 
   it('adds a retry hint on a 409 concurrency conflict', async () => {

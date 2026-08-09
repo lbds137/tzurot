@@ -86,6 +86,7 @@ import type {
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import {
+  buildSentinelPersonality,
   pollPriorJobState,
   synthesizeFailureResult,
   type DeferredDelivery,
@@ -260,6 +261,7 @@ export class MultiTagRecovery {
         createdAt: snapshot.createdAt,
         timeoutHandle,
         truncated: snapshot.truncated,
+        maxTags: snapshot.maxTags,
       };
 
       // Adopt: coordinator wires the in-memory state. The jobToGroup map
@@ -574,7 +576,7 @@ export class MultiTagRecovery {
   private buildRevokedSlot(slotSnap: SlotSnapshot, personaId: string): RuntimeSlot {
     return {
       slotIndex: slotSnap.slotIndex,
-      personality: this.buildSentinelPersonality(slotSnap),
+      personality: buildSentinelPersonality(slotSnap),
       personaId,
       source: slotSnap.source,
       isAutoResponse: slotSnap.isAutoResponse,
@@ -674,30 +676,6 @@ export class MultiTagRecovery {
       return byId;
     }
     return this.loadPersonalityOrErrored(slotSnap.personalitySlug, userId);
-  }
-
-  /**
-   * Build a minimal LoadedPersonality-shaped object for slots whose
-   * personality is no longer accessible. The deliverError path uses
-   * .displayName / .id / .slug / .name; this preserves those fields from
-   * the snapshot so the user's error message identifies the right character.
-   *
-   * **Type-safety caveat**: the `as unknown as LoadedPersonality` cast
-   * bypasses TypeScript. Downstream code that touches any field beyond
-   * the four set here (e.g., `llmConfig`, `systemPrompt`, etc.) will
-   * silently observe `undefined` rather than receive a type error. If a
-   * future refactor changes deliverError to access additional
-   * LoadedPersonality fields, this sentinel must be extended accordingly.
-   * A typed `Partial<LoadedPersonality>` + a discriminated-union sentinel
-   * shape would be cleaner; tracked as TASK-98.
-   */
-  private buildSentinelPersonality(slotSnap: SlotSnapshot): LoadedPersonality {
-    return {
-      id: slotSnap.personalityId,
-      slug: slotSnap.personalitySlug,
-      displayName: slotSnap.personalitySlug,
-      name: slotSnap.personalitySlug,
-    } as unknown as LoadedPersonality;
   }
 
   /**
