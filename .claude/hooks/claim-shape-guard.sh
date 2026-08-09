@@ -9,6 +9,49 @@
 # author's intent at writing time and drifts silently; near-identical sibling
 # interfaces make a plausible-looking declaration weak evidence.
 #
+# `cannot be` is NARROWED to a following value token (null/empty/set/…) rather
+# than matching bare. Unqualified, it fired on ordinary design prose about code
+# STRUCTURE — "cannot be collapsed into one", "cannot be extracted", "cannot be
+# reused" — which asserts nothing about runtime and has no producer to cite.
+# That noise is not free: a guard whose output is mostly false positives trains
+# the reader to skim past the true ones. The other arms (`always populated`,
+# `never null`, `cannot happen`) are already runtime-claim-shaped and are left
+# alone.
+#
+# The trailing ([^a-z]|$) is LOAD-BEARING, not tidiness. awk's `~` is a
+# substring match with no \b, so an unanchored alternation matched whenever the
+# next word merely STARTS with a token: "cannot be settled" hit `set`, "cannot
+# be negatively impacted" hit `negative`, "cannot be zeroed out" hit `zero`.
+# That is the same design-prose false positive the narrowing exists to remove,
+# reintroduced through the back door.
+#
+# `[^a-z]` is a broad boundary, not a true word break — awk ERE has no \b — so
+# ANY hyphenated compound built on a token still fires: "cannot be
+# false-positive", "cannot be zero-indexed", "cannot be null-terminated". The
+# limitation is not specific to one token, and a reader who assumes otherwise
+# will be surprised by the second one. Left as is: the constructions are rare,
+# and over-firing on an advisory guard costs a glance where under-firing costs
+# the signal entirely.
+#
+# `reached` was considered for the token list and left OUT: "this branch cannot
+# be reached" is a control-flow claim, not a claim about what a value holds, so
+# it sits outside this guard's stated scope and reads like the design prose
+# above. If reachability claims ever deserve a guard, that is its own decision
+# with its own evidence. Pinned silent in the probe so the decision cannot be
+# reverted by accident.
+#
+# ACCEPTED RECALL LOSS: only the exact token form fires, so inflected ones no
+# longer do — "cannot be nulled / emptied / populating" are real value claims
+# that now pass unflagged, where the bare arm caught them. This is a deliberate
+# trade of recall for precision, not an oversight, and it is not free.
+#
+# Not fixed by adding the inflections, because the ambiguity is genuine rather
+# than a vocabulary gap: "the count cannot be zeroed out" is pinned SILENT here
+# as design prose, yet it is defensible as a value claim. Deciding that sentence
+# either way requires the reader's context, which is exactly the judgement the
+# bare arm made badly and noisily. A guard that fires on the unambiguous forms
+# and stays quiet on the arguable ones is the version people keep reading.
+#
 # Channel: this runs from `.husky/pre-commit`, NOT as a Claude Code hook.
 # Non-blocking PostToolUse output never reaches the agent — probed directly and
 # confirmed for every matcher — so the PostToolUse registration this guard used
@@ -62,7 +105,7 @@ MATCHES=$(git -c diff.mnemonicprefix=false -c core.quotepath=false diff --cached
 /^\+/{
     if (skip || n >= 3) next
     line = substr($0, 2)
-    if (tolower(line) ~ /always (populated|set|non-null|present|returns)|never (null|empty|undefined|happens|fires)|cannot (be|happen|match|occur)|guaranteed to|(is|are) always|only ever/) {
+    if (tolower(line) ~ /always (populated|set|non-null|present|returns)|never (null|empty|undefined|happens|fires)|cannot be (null|empty|undefined|unset|set|present|absent|missing|zero|negative|false|true|populated)([^a-z]|$)|cannot (happen|match|occur)|guaranteed to|(is|are) always|only ever/) {
         print substr(line, 1, 100)
         n++
     }
