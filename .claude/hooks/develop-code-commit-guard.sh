@@ -10,12 +10,19 @@
 # staged yet — only the working tree carries the signal.
 #
 # Matching notes (review-hardened):
-# - Heredoc bodies and quoted strings are stripped BEFORE any matching (the
-#   sibling lossy-pipe-guard.sh python technique — delimiter-scoped,
-#   so the repo's canonical `-m "$(cat <<'EOF' … EOF)"` commit shape strips
-#   to just its command skeleton instead of blinding the scan). A commit
-#   MESSAGE can therefore neither trigger the guard nor supply the escape
-#   token.
+# - Heredoc bodies and quoted strings are stripped BEFORE any matching, so the
+#   repo's canonical `-m "$(cat <<'EOF' … EOF)"` commit shape strips to just
+#   its command skeleton instead of blinding the scan. A commit MESSAGE can
+#   therefore neither trigger the guard nor supply the escape token. The quote
+#   half is the SHARED scanner in lib/shell_quotes.py — this hook's own copy
+#   was a two-pass strip, and it was a measured bypass (see the note at the
+#   call site). The heredoc half stays local: each hook strips the heredoc
+#   forms its own matching cares about.
+# - COMMIT DETECTION is case-insensitive on BOTH sides — the bash pre-filters
+#   and the python regex. Either one left case-sensitive re-opens the hole on
+#   its own, because the pre-filter short-circuits before python runs. The
+#   ESCAPE TOKEN is deliberately exact-case and is not covered by this; see its
+#   own note at the match site.
 # - `git commit` matching tolerates global flags (`git -C x commit`,
 #   `git --git-dir=y commit`).
 # - The escape hatch is an assignment token leading ANY chain segment of the
@@ -42,6 +49,19 @@
 # included).
 
 set -uo pipefail
+
+# The pre-filters below are the fast path, and a case-sensitive one is a hole
+# in its own right: `GIT COMMIT -m x` would exit at the raw-payload glob before
+# the python regex ever ran, so making only the regex case-insensitive fixes
+# nothing. Both sides change together or neither does.
+# FILE-GLOBAL, and there is no reset below — every `case` and `[[ ]]` in the
+# rest of this script inherits case-insensitive matching. Nothing downstream
+# relies on case today (the checks past this point use `grep -E` and `[ ]`
+# string equality, neither affected), but a later contributor adding a `case`
+# on a filename, branch, or extension would silently get case-insensitive
+# behaviour without anything at the new site saying so. If you add one and want
+# exact matching, `shopt -u nocasematch` around it — do not assume the default.
+shopt -s nocasematch
 
 INPUT=$(cat)
 
@@ -78,9 +98,23 @@ case "$COMMAND" in
   *) exit 0 ;;
 esac
 
-VERDICT=$(GUARD_CMD="$COMMAND" python3 << 'PYEOF'
+# Absolute path to the shared hook lib, resolved before the python spawn and
+# before the cd below, so the import cannot depend on the caller's cwd.
+HOOK_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
+
+# PYTHONDONTWRITEBYTECODE: keep the import from dropping a __pycache__ into
+# the hooks lib on every guarded commit (gitignored, but a stale .pyc can
+# also mask a broken edit to the module).
+VERDICT=$(GUARD_CMD="$COMMAND" HOOK_LIB="$HOOK_LIB" PYTHONDONTWRITEBYTECODE=1 python3 << 'PYEOF'
 import os
 import re
+import sys
+
+# Shared with lossy-pipe-guard.sh and cwd-drift-guard.sh. An import failure
+# exits non-zero, which the caller treats as allow (fail-open); the probe,
+# not runtime, is what catches a missing lib.
+sys.path.insert(0, os.environ["HOOK_LIB"])
+from shell_quotes import strip_quoted
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -94,8 +128,23 @@ if not cmd:
 # and erases the very line carrying `git commit`.)
 cmd = re.sub(r"\$\(cat <<'?\"?(\w+)'?\"?.*?\n\1\s*\)", "MSG", cmd, flags=re.S)
 cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=re.S)
-cmd = re.sub(r"'[^']*'", "S", cmd)
-cmd = re.sub(r'"[^"]*"', "S", cmd)
+
+# Quote stripping is a single left-to-right SCAN. The two independent regex
+# passes this replaces were a BYPASS of this blocking hook, measured:
+#
+#     echo "it's" && git commit -m "won't"     stripped to `echo S`, exit 0
+#
+# The apostrophes in `it's` and `won't` paired across the `&&`, erasing the
+# whole `git commit` — so a code commit could land on develop with no review
+# because someone used a contraction. Note the ordering: quoted arguments AFTER
+# `git commit` are harmless (the swallow happens downstream of the match); it is
+# specifically an EARLIER quoted argument that hides the commit.
+#
+# Full rationale, both measured repros, and the unterminated-quote failure
+# direction live in .claude/hooks/lib/shell_quotes.py.
+scanned = strip_quoted(cmd)
+if scanned is not None:
+    cmd = scanned
 
 # Kept in agreement with the other copy (lossy-pipe-guard.sh) by
 # packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
@@ -108,18 +157,44 @@ cmd = re.sub(r'"[^"]*"', "S", cmd)
 # is a non-word character and so a word boundary exists right before it.
 # Those write no commit and must never be treated as one.
 #
+# The flag run is DETERMINISTIC, deliberately without an atomic group. `-{1,2}`
+# made it re-partitionable — `--flag` parses as `--`+`flag` or `-`+`-flag`, so a
+# failing match explores 2^n splits (measured: 20 double-dash flags 2.7s, 60 no
+# finish in 20s). `-+[^-\s]\S*` forces the dash count by requiring a non-dash
+# after it; 200 flags then take 0.24ms with every verdict unchanged.
+#
+# `(?>...)` would also fix it and is NOT used: atomic groups need Python 3.11,
+# and on anything older re.compile raises, python exits non-zero, and the
+# `|| exit 0` below silently ALLOWS the commit — this guard disabled by
+# interpreter version. Ubuntu 22.04 ships 3.10; CI (3.12) would not have caught
+# it.
+#
+# The (?i) is INLINE rather than an re.I argument: the agreement test extracts
+# this pattern out of the source text, so a flag passed outside the string
+# would vanish from the comparison against the sibling copy (and break the
+# extraction outright, which that test treats as a hard failure).
+#
 # Python's \w is Unicode-aware, so this is equivalent to the bash side's
 # ASCII-only ([^-a-zA-Z0-9_]|$) for every real git invocation but not for
 # a non-ASCII suffix (`git commit日本語`). Deliberately NOT re.ASCII: that
 # flag narrows \s in the same pattern too, so a non-breaking space between
 # `git` and `commit` would stop matching and the guard would MISS a real
 # commit — failing open on a pasteable input to close a hypothetical one.
-if not re.search(r"\bgit(\s+-{1,2}\S+(\s+[^-\s]\S*)?)*\s+commit(?![-\w])", cmd):
+if not re.search(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+commit(?![-\w])", cmd):
     print("ok")
     raise SystemExit
 
 # Escape hatch: an assignment token leading a chain segment — never prose
 # (prose lived in quotes/heredocs, which are already stripped).
+#
+# EXACT-CASE ON PURPOSE, and the asymmetry with the case-insensitive detection
+# above is the point rather than an oversight. This token is an environment
+# variable NAME, and bash env names are case-sensitive: `tzurot_allow_...=1`
+# sets a different variable entirely. Honouring a lowercase spelling would mean
+# unlocking on a token that is not the documented variable — the unlock is
+# supposed to be a deliberate, review-visible act, so it recognises exactly one
+# spelling. The failure direction is safe either way: an unrecognised spelling
+# BLOCKS, it never bypasses.
 for segment in re.split(r"&&|\|\||;|\||\n", cmd):
     if re.match(r"\s*TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1(\s|$)", segment):
         print("ok")

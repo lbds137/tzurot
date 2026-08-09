@@ -193,11 +193,67 @@ run 2 "dirty .mts module"                         'git commit -m "x"'           
 run 2 "dirty .cts module"                         'git commit -m "x"'                                      'services/probe.cts'
 run 2 "dirty yaml config"                         'git commit -m "x"'                                      'services/probe/config.yaml'
 run 2 "dirty Dockerfile"                          'git commit -m "x"'                                      'services/probe/Dockerfile'
+
+# --- the quote scanner ------------------------------------------------------
+# An EARLIER quoted argument carrying an apostrophe used to erase the whole
+# `git commit` that followed it. Measured against the two-pass strip this
+# replaces: the first case stripped to `echo S`, detection returned False, and
+# the guard exited 0 — an unreviewed code commit on develop because someone
+# wrote a contraction. The ordering matters and both directions are pinned:
+# apostrophes AFTER the commit were always harmless (the swallow happens
+# downstream of the match), so a one-sided case would pass on the OLD code too.
+run 2 "apostrophe in an EARLIER quoted arg"       'echo "it'"'"'s" && git commit -m "won'"'"'t"'            'services/probe.ts'
+run 2 "apostrophe only AFTER the commit"          'git commit -m "won'"'"'t"'                               'services/probe.ts'
+# The mirror direction, and it is honestly labelled: this case passes on the OLD
+# two-pass code too (that version stripped single-quoted spans FIRST, so this
+# shape never reached the double-quote pass). It is here to pin the mirror
+# against a future "fix" that swaps the pass order back — which is the tempting
+# wrong repair, because swapping makes the apostrophe case above pass while
+# breaking this one.
+run 2 "double quote inside single-quoted arg"     "echo 'say \"hi\"' && git commit -m x"                    'services/probe.ts'
+
+# --- line continuations -----------------------------------------------------
+# Breaking a long invocation across lines with `\` is an ordinary style choice,
+# not obfuscation — and it defeated detection outright: the scanner emitted a
+# placeholder where bash emits nothing, so `git` and `commit` were no longer
+# adjacent and the guard exited 0 on a real commit. The flag-carrying variant is
+# the realistic one, since long `-C <path>` invocations are what get wrapped.
+run 2 "line continuation before the subcommand"   "$(printf 'git \\\n  commit -m "x"')"       'services/probe.ts'
+run 2 "line continuation after a global flag"     "$(printf 'git -C /some/path \\\n  commit -m x')" 'services/probe.ts'
+# The splice must also produce the NON-match: with no space around it, bash
+# joins the words into one token and `gitcommit` is not a commit.
+run 0 "continuation joining words is not a commit" "$(printf 'git\\\ncommit -m x')"          'services/probe.ts'
+
+# --- case-insensitivity -----------------------------------------------------
+# Both the bash pre-filters and the python regex had to change: a case-sensitive
+# pre-filter short-circuits before python runs, so fixing the regex alone fixes
+# nothing. Mixed case is the case that catches a half-fix on either side.
+run 2 "uppercase GIT COMMIT"                      'GIT COMMIT -m "x"'                                      'services/probe.ts'
+run 2 "mixed-case Git Commit"                     'Git Commit -m "x"'                                      'services/probe.ts'
+run 2 "uppercase behind a global flag"            'GIT -C /some/path COMMIT -m "x"'                        'services/probe.ts'
+
+# The shared lib is a runtime dependency of this hook, and a missing one fails
+# OPEN. Nothing above distinguishes "lib present" from "lib gone" on the ALLOW
+# cases, so this asserts the import path itself rather than trusting it.
+if [ ! -f "$SCRIPT_DIR/lib/shell_quotes.py" ]; then
+  echo "FAIL  shared lib .claude/hooks/lib/shell_quotes.py is missing" >&2
+  FAILURES=$((FAILURES + 1))
+fi
 # Plumbing subcommands are not `git commit`: `-` is a non-word character, so
 # a bare `commit\b` matched them and blocked a tree-writing plumbing call.
 run 0 "plumbing: git commit-tree stays silent"    'git commit-tree abc1234 -m x'                           'services/probe.ts'
 run 0 "plumbing: git commit-graph stays silent"   'git commit-graph write'                                 'services/probe.ts'
 run 0 "plumbing: commit-tree behind -C flag"      'git -C /some/path commit-tree abc1234'                  'services/probe.ts'
+# The escape token is exact-case while DETECTION is case-insensitive, and that
+# asymmetry is deliberate (env var names are case-sensitive in bash). It was
+# argued at length in a comment and pinned by nothing, which is the one claim in
+# this hook that had no test. It needs one precisely because the asymmetry looks
+# like an oversight: a future contributor "fixing" it with (?i) would let
+# `tzurot_allow_...=1` unlock the guard while the REAL variable was never set —
+# an unreviewed commit, from a change that looks like a consistency cleanup.
+run 2 "lowercase escape token does NOT unlock"    'tzurot_allow_develop_code_commit=1 git commit -m "x"'   'services/probe.ts'
+run 2 "mixed-case escape token does NOT unlock"   'Tzurot_Allow_Develop_Code_Commit=1 git commit -m "x"'   'services/probe.ts'
+
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
 run 0 "escape hatch, canonical heredoc form"      "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $CANONICAL_HEREDOC"  'services/probe.ts'
 run 0 "non-git command"                           'echo hello'                                             'services/probe.ts'
@@ -211,19 +267,45 @@ run 0 "non-git command"                           'echo hello'                  
 # would hang for minutes.
 #
 # This hook is PreToolUse on every Bash call AND it blocks, so a hang here is
-# strictly worse than in the advisory sibling. The fix (a value may not itself
-# start with `-`) preserves every verdict; this case exists so a revert cannot
-# go unnoticed. Bounded on wall clock rather than on a verdict, because the
-# verdict was always correct — it just took forever to reach.
-long_flags=$(python3 -c "print(' '.join(f'-x{i}' for i in range(60)))")
+# strictly worse than in the advisory sibling.
+#
+# TWO THINGS THIS CASE GOT WRONG, both fixed together because either alone
+# leaves it useless:
+#
+# 1. The fixture reached nothing. `-x0 -x1 …` is SINGLE-dash, and the
+#    re-partitioning that actually blows this pattern up comes from `-{1,2}`
+#    on a DOUBLE dash (`--flag` = `--`+`flag` or `-`+`-flag`). The case passed
+#    in milliseconds while the real shape ran for minutes, and it would not
+#    have noticed the fix being reverted. Now double-dash, each with a value.
+#
+# 2. The bound was measured, not enforced. A wall clock read AFTER the call
+#    cannot catch a hang — it can only report one that already finished.
+#    Catastrophic backtracking does not finish, so this case would have wedged
+#    the probe until guard:hook-probes' 120s ceiling killed the whole job, with
+#    no attributable diagnostic. `timeout` turns that into exit 124 and a named
+#    failure. (The sibling probe learned this first; this copy did not get the
+#    lesson until a reviewer noticed the asymmetry.)
+#
+# Bounded on wall clock rather than on a verdict, because the verdict was
+# always correct — it just took forever to reach.
+long_flags=$(python3 -c "print(' '.join(f'--flag{i} val{i}' for i in range(60)))")
 redos_start=$(date +%s%N)
-run 0 "60 dummy flags does not hang"              "git $long_flags nocommit"                               'services/probe.ts'
+jq -n --arg c "git $long_flags nocommit" \
+  '{tool_name:"Bash",tool_input:{command:$c}}' \
+  | timeout 10 "$HOOK" >/dev/null 2>&1
+redos_rc=$?
 redos_ms=$(( ($(date +%s%N) - redos_start) / 1000000 ))
-if [ "$redos_ms" -lt 2000 ]; then
-  printf 'PASS  (%dms)  ...and returns well inside the 2s bound\n' "$redos_ms"
-else
+if [ "$redos_rc" -eq 124 ]; then
+  printf 'FAIL  (timed out at 10s)  pathological flag run is backtracking\n'
+  FAILURES=$((FAILURES + 1))
+elif [ "$redos_rc" -ne 0 ]; then
+  printf 'FAIL  (exit %d, expected 0)  60 dummy flags\n' "$redos_rc"
+  FAILURES=$((FAILURES + 1))
+elif [ "$redos_ms" -ge 2000 ]; then
   printf 'FAIL  (%dms, expected <2000ms)  pathological flag run is backtracking\n' "$redos_ms"
   FAILURES=$((FAILURES + 1))
+else
+  printf 'PASS  (%dms)  60 dummy flags stays well inside the bound\n' "$redos_ms"
 fi
 # Raw-payload pre-check boundary: the hook exits before forking jq when the RAW
 # stdin has no git…commit token pair. `git status` has no `commit` at all;

@@ -99,6 +99,19 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [true, 'cd foo && git commit -m "x"'],
   [true, 'git add . && git commit -m "x" && git status'],
 
+  // --- case ---
+  // Both copies carry an inline (?i). Uppercase is not a hypothetical: shells
+  // accept it, and a case-sensitive copy exits silently on it — for two BLOCKING
+  // hooks that means a commit that should have been stopped goes through. The
+  // flag is inline rather than an re.I argument because these patterns are
+  // extracted from source TEXT above; a flag outside the string would be
+  // invisible here (and break the extraction, which is a hard failure).
+  [true, 'GIT COMMIT -m "x"'],
+  [true, 'Git Commit -m "x"'],
+  [true, 'GIT -C /some/path COMMIT -m "x"'],
+  // Case-insensitivity must not erode the plumbing exclusion.
+  [false, 'GIT COMMIT-TREE abc1234'],
+
   // --- is NOT a commit ---
   // The plumbing subcommands: `-` is a non-word character, so a bare \b matched
   // these. They write no commit; treating one as a commit wrongly BLOCKS.
