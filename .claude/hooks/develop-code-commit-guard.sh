@@ -97,10 +97,10 @@ cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=
 cmd = re.sub(r"'[^']*'", "S", cmd)
 cmd = re.sub(r'"[^"]*"', "S", cmd)
 
-# Kept in agreement with the other two copies (lib/git-command.sh and
-# git-commit-filter-guard.sh) by
-# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts all
-# three patterns and runs them over a shared case table.
+# Kept in agreement with the other copy (git-commit-filter-guard.sh) by
+# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
+# both patterns and runs them over a shared case table. Both copies BLOCK, so a
+# drift between them is a wrongly-blocked or wrongly-allowed commit.
 #
 # `git commit` with optional global flags (-C <path>, --git-dir=…, etc.).
 # The trailing (?![-\w]) is load-bearing: a plain \b would also match the

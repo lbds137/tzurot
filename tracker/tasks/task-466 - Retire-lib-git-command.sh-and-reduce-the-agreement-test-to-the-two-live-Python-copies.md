@@ -3,9 +3,10 @@ id: TASK-466
 title: >-
   Retire lib/git-command.sh and reduce the agreement test to the two live Python
   copies
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 00:36'
+updated_date: '2026-08-09 00:27'
 labels:
   - 'area:tooling'
   - 'area:process'
