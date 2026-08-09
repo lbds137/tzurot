@@ -93,21 +93,18 @@ export interface ActiveBranchRuleset {
  * admin-privileged delete: either no active ruleset carries a `deletion` rule,
  * or every ruleset that does can be bypassed.
  *
- * UNVERIFIED PREMISE — read before trusting a clean report. The converse (a
- * deletion rule with ZERO bypass actors actually blocks the admin-privileged
- * auto-delete) has never been observed. The incident that motivated this guard
- * demonstrates only the FAILURE case: a bypassable rule on `develop`, deleted.
- * `main` survived because `main` is never the head branch of any merge here —
- * feature PRs merge into `develop`, and the release PR's head is `develop` —
- * NOT because its bypass-actor-free rule was exercised and held.
+ * The premise this rests on is VERIFIED, not assumed. A bypass-actor-free
+ * `deletion` rule does stop the admin-privileged path, measured on a disposable
+ * repo carrying that rule with `delete_branch_on_merge: true`: a direct ref
+ * DELETE issued as the repository OWNER was refused 422, and a PR whose HEAD
+ * was that branch merged with the branch surviving. Both directions of the
+ * guard have now been exercised — the incident supplied the failure case (a
+ * bypassable rule on `develop`, deleted), the probe supplied the success case.
  *
- * So a "safe" verdict rests on how GitHub is assumed to treat bypass actors on
- * that path. If the auto-delete ignores rulesets entirely, this reports safe
- * for a branch that is still deletable — the silent direction. The falsifying
- * probe is cheap and has not been run: a disposable repo with a no-bypass
- * deletion rule and `delete_branch_on_merge: true`, merge a PR whose head is
- * that branch, see whether it survives. Until then the primary protection is
- * `delete_branch_on_merge: false`, which needs no assumption about rulesets.
+ * What that does NOT establish is sufficiency: one branch, one ruleset, one
+ * merge, on a repo nobody else touches. `delete_branch_on_merge: false` stays
+ * the primary protection precisely because it needs no assumption about
+ * rulesets at all, and this guard asserts both.
  */
 export function isDeletionReachable(state: BranchDeletionState): boolean {
   return !state.hasDeletionRule || state.deletionRuleFullyBypassable;
@@ -515,8 +512,9 @@ export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
   if (surface.findings.length === 0) {
     return [
       '✓ No deletion-safety findings — every long-lived branch carries an un-bypassable',
-      '  deletion rule. (Reports observed CONFIGURATION, not a proven guarantee — see',
-      '  the unverified-premise note in check-repo-settings.ts.)',
+      '  deletion rule, and that rule is known to hold against the admin-privileged',
+      '  path (probe-verified). Still CONFIGURATION, not a proof of sufficiency —',
+      '  delete_branch_on_merge below is the protection that assumes nothing.',
       `  delete_branch_on_merge: ${String(surface.deleteBranchOnMerge)}`,
       ...stateLines,
     ].join('\n');
