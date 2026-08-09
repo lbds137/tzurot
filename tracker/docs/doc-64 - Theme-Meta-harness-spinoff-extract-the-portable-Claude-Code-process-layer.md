@@ -24,7 +24,7 @@ The hard middle: `packages/tooling`'s audit/ratchet infrastructure (lines:check,
 **A Claude Code plugin, not a bare repo** — plugins are the harness-native distribution unit for exactly this payload (skills, hooks, agents, commands), installable at user level so every project inherits them. Two layers, in order:
 
 1. **Process plugin**: skills + hooks + agent contracts. Mostly parameter-free already; cheapest extraction.
-2. **Audit/ratchet npm package** (later): the `pnpm ops` gate infrastructure behind a config boundary.
+2. **Audit/ratchet npm package** (later): the `pnpm ops` gate infrastructure behind a config boundary. **Owner refinement (2026-08-09): decouple via a configuration/control plane, split collation from delivery** — the plugin owns the audit ENGINE (run the registered tools, collate findings into a structured report artifact); each consuming project owns its SINK (Tzurot keeps the Discord webhook poster — which is where TASK-491's chunking fix lives, deliberately on the Tzurot side of the seam). Exact boundary is implementer discretion at build time; the concept is engine-emits-report, project-delivers-it.
 
 **Brain-management mechanisms ride the plugin** (owner directive 2026-08-09: "the brain itself stays private but the mechanisms for setting it up and managing it would belong in the plug-in"). The plugin ships the doc-65 scaffolding — a brain-setup skill (create private repo, move the memory dir, symlink from the harness path), the session-end auto-commit hook, and any status/management commands — while the brain repo holds only data. Clean content/mechanism split, and it makes versioned memory a capability every plugin adopter gets rather than a Tzurot-local hack.
 
