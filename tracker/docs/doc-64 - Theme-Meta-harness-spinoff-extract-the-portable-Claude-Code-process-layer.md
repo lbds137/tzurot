@@ -9,6 +9,8 @@ _Focus: the Claude Code process layer built here (rules, hooks, skills, agents, 
 
 Owner directive (2026-08-09, verbatim): "the scope of the tooling we've been building has grown a lot, to the point of it almost being its own meta harness layer that deserves its own home... I'm thinking the new tooling repo would maybe end up having its instructions / tools installed at the user level somehow, so that it can be easily leveraged for other projects too."
 
+**Versioning-honesty motivation** (owner, same day): recent betas have been essentially tooling-only — no user-facing changes — so Tzurot's version stream currently counts process-layer work as product releases. A separately-versioned plugin restores the meaning of a Tzurot release: plugin versions track the process layer, Tzurot versions track the product.
+
 ### The seam
 
 Portable (the majority): the epistemics rules (speculation-vs-fact, negative-existence, code-reading-vs-runtime), interaction/working-posture layer, review-response state machine, session-mining, doc-audit economy pass, orchestration mode, and most hooks (lossy-pipe-guard, claim-shape-guard, pr-merge-review-check, bare-token, queued-receipt). These encode "how to run AI-driven development honestly," not "how Tzurot works."
