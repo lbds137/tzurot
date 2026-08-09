@@ -193,7 +193,7 @@ Arm the CI Monitor immediately after `gh pr create` per `05-tooling.md` § PR Mo
 
 **Apply the test, not just the file extension**: when in doubt about a doc change, ask "would `claude-bot`, codecov, or lint produce useful output on this diff?" If yes (e.g., a rule that affects every contributor's behavior, a runbook that prescribes a specific command sequence reviewer might want to second-guess), use a PR. If no (a status update, a typo fix, a stale-link replacement), direct commit is fine.
 
-**Workflow**: commit the doc files on `develop` and push — no branch, no PR, no CI re-run. Pre-push hooks still fire.
+**Workflow**: pull `develop` first, commit the doc files, push — no branch, no PR, no CI re-run. Pre-push hooks still fire.
 
 **This permission does NOT extend to:**
 
