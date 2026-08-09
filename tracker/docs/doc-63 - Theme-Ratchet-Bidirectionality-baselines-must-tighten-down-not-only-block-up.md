@@ -21,6 +21,7 @@ Per ratchet: (1) does a down-tightening moment exist at all? (2) who/what owns i
 | Always-loaded lines/bytes | `lines-baseline` | the ONLY one with a scoped down-write (`lines:update-baseline --surface`) — and it has never been used to ratchet down |
 | Lint suppressions | xray `--suppressions` target 0 | count-only; no baseline, drifts unwatched |
 | pnpm.overrides bounds | TASK-317 | undershoot direction already filed as a task |
+| Auto-memory store (machine-local) | NONE - not in any measured surface | doc-audit Section 0 sweeps it whenever the audit runs, but nothing measures it or signals "time to trim" (owner raised 2026-08-09: is the memory sweep structural or remember-to-ask?); machine-local, so a committed baseline cannot gate it - the Phase 3 cadence design must name it explicitly, and doc-62 (memory promoter) is its drain mechanism |
 
 ### Phase sketch
 
