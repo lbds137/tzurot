@@ -49,6 +49,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/bare-token-binding-reminder.probe.sh',
   },
   {
+    hook: '.claude/hooks/blocking-question-channel-check.sh',
+    probe: '.claude/hooks/blocking-question-channel-check.probe.sh',
+  },
+  {
     hook: '.claude/hooks/claim-shape-guard.sh',
     probe: '.claude/hooks/claim-shape-guard.probe.sh',
   },

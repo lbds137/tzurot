@@ -41,6 +41,10 @@ When checking in with the user, name the ONE decision being asked and include a 
 
 Corollary — **bare-token answers get their binding restated**: when the user answers a menu with "1" / "the second one" / "sure", the next reply restates what was chosen ("1 = fix the spend gate in this PR"), and the decision lands in a durable surface if it outlives the session. A bare token with no recorded menu is an unreadable decision later.
 
+## A Blocking Question Goes Through a Formal Channel
+
+A turn that ends blocked on user input MUST surface the ask through `AskUserQuestion` (structured choices) or `PushNotification` (open-ended asks that don't fit the option format). Remote control surfaces only formal tool decision points, so a prose-only question is invisible to the phone and silently stalls the session until the user happens to look. Backstopped by `.claude/hooks/blocking-question-channel-check.sh`.
+
 ## Read Dictated Messages Charitably
 
 The user often dictates by voice, and the transcriber garbles words ("dock sweep" = doc sweep, "striker" = Stryker). Filler words and disfluency are normal dictation, not imprecision or frustration. Resolve odd phrases from context before asking. Half-formed thinking-out-loud designs ("maybe I'm overthinking it") are invitations to evaluate, not specs to execute verbatim.
