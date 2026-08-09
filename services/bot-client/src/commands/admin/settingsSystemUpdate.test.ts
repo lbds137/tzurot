@@ -7,6 +7,11 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
+const invalidateAdminSettingsCacheMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  invalidateAdminSettingsCache: invalidateAdminSettingsCacheMock,
+}));
+
 import { handleSystemSettingUpdate } from './settingsSystemUpdate.js';
 
 const UPDATED_AT = '2026-07-12T10:00:00.000Z';
@@ -82,6 +87,9 @@ describe('handleSystemSettingUpdate', () => {
       patch: { extractionEnabled: false },
     });
     expect(result.success).toBe(true);
+    // A successful write must be visible to this process's own live readers
+    // (getMultiTagCap etc.) immediately, not after the 60s TTL.
+    expect(invalidateAdminSettingsCacheMock).toHaveBeenCalled();
   });
 
   it('merges the refreshed bag over the session map, preserving cascade entries', async () => {
@@ -96,7 +104,7 @@ describe('handleSystemSettingUpdate', () => {
     expect(result.newData?.extractionEnabled?.effectiveValue).toBe(false); // refreshed
   });
 
-  it('returns the changed-underneath-you hint on 409', async () => {
+  it('returns the changed-underneath-you hint on 409 and leaves the cache intact', async () => {
     stub.updateSystemSettings.mockResolvedValue({
       ok: false,
       status: 409,
@@ -112,6 +120,8 @@ describe('handleSystemSettingUpdate', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Settings changed underneath you');
+    // Rejected writes changed nothing — the cache must NOT be dropped.
+    expect(invalidateAdminSettingsCacheMock).not.toHaveBeenCalled();
   });
 
   it('fails soft when the fresh read fails (no blind write without a token)', async () => {

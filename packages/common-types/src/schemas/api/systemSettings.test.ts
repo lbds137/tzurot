@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL, isFreeModel } from '../../constants/ai.js';
+import { MULTI_TAG } from '../../constants/message.js';
 import {
   SystemSettingsSchema,
   StoredSystemSettingsSchema,
@@ -102,6 +103,12 @@ describe('fallbacks (the floor beneath the floor)', () => {
     expect(SYSTEM_SETTINGS_FALLBACKS.nightlySyncHourUtc).toBe(7);
   });
 
+  it('the multi-character cap falls back to the in-code MULTI_TAG constant', () => {
+    // bot-client resolves the cap through this same constant when the gateway
+    // read fails, so registry fallback and in-code floor must be one value.
+    expect(SYSTEM_SETTINGS_FALLBACKS.multiTagMaxCharacters).toBe(MULTI_TAG.MAX_TAGS);
+  });
+
   it('free floors fall back to a free-route model (billing firewall holds even at the floor)', () => {
     expect(isFreeModel(SYSTEM_SETTINGS_FALLBACKS.fallbackTextModelFree)).toBe(true);
     expect(isFreeModel(SYSTEM_SETTINGS_FALLBACKS.fallbackVisionModelFree)).toBe(true);
@@ -156,6 +163,7 @@ describe('SystemSettingsSchema bounds (mirror the env schema ranges)', () => {
     ['freeTierWindowMinutes', 0, 1441],
     ['zaiHeadroomPercent', 0, 100],
     ['nightlySyncHourUtc', -1, 24],
+    ['multiTagMaxCharacters', 0, 11],
   ] as const)('%s rejects values outside its env-schema range', (key, below, above) => {
     expect(SystemSettingsSchema.safeParse({ ...valid, [key]: below }).success).toBe(false);
     expect(SystemSettingsSchema.safeParse({ ...valid, [key]: above }).success).toBe(false);

@@ -17,9 +17,11 @@
 
 import { getConfig } from '@tzurot/common-types/config/config';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { JobStatus } from '@tzurot/common-types/constants/queue';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type GetAdminSettingsResponse } from '@tzurot/common-types/schemas/api/adminSettings';
+import { SystemSettingsSchema } from '@tzurot/common-types/schemas/api/systemSettings';
 import { type GetChannelSettingsResponse } from '@tzurot/common-types/schemas/api/channel';
 import { type SttProvider } from '@tzurot/common-types/types/sttProvider';
 import {
@@ -138,6 +140,31 @@ export async function getAdminSettingsCached(): Promise<GetAdminSettingsResponse
   adminSettingsCache.set(ADMIN_SETTINGS_CACHE_KEY, result.data);
   logger.debug('Admin settings fetched and cached');
   return result.data;
+}
+
+/**
+ * The admin-configured multi-character cap (how many characters may respond to
+ * one message). Rides the 60s admin-settings cache, so a fan-out pays no extra
+ * gateway roundtrip.
+ *
+ * Never throws. Falls back to `MULTI_TAG.MAX_TAGS` when the gateway is down,
+ * the column has never been seeded, or the stored value fails its schema
+ * bounds — a bad or missing setting must not stop characters from responding.
+ * Covered by 'getMultiTagCap' in gatewayServiceCalls.test.ts.
+ */
+export async function getMultiTagCap(): Promise<number> {
+  try {
+    const settings = await getAdminSettingsCached();
+    const raw = settings?.systemSettings?.multiTagMaxCharacters;
+    const parsed = SystemSettingsSchema.shape.multiTagMaxCharacters.safeParse(raw);
+    if (!parsed.success) {
+      return MULTI_TAG.MAX_TAGS;
+    }
+    return parsed.data;
+  } catch (error) {
+    logger.warn({ err: error }, 'Multi-tag cap lookup failed; using the in-code floor');
+    return MULTI_TAG.MAX_TAGS;
+  }
 }
 
 /**

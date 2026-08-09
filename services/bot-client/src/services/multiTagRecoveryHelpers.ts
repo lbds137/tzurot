@@ -12,9 +12,35 @@
 
 import type { Queue } from 'bullmq';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { SlotSnapshot } from './MultiTagPersistence.js';
 
 const logger = createLogger('MultiTagRecoveryHelpers');
+
+/**
+ * Build a minimal LoadedPersonality-shaped object for slots whose
+ * personality is no longer accessible. The deliverError path uses
+ * .displayName / .id / .slug / .name; this preserves those fields from
+ * the snapshot so the user's error message identifies the right character.
+ *
+ * **Type-safety caveat**: the `as unknown as LoadedPersonality` cast
+ * bypasses TypeScript. Downstream code that touches any field beyond
+ * the four set here (e.g., `llmConfig`, `systemPrompt`, etc.) will
+ * silently observe `undefined` rather than receive a type error. If a
+ * future refactor changes deliverError to access additional
+ * LoadedPersonality fields, this sentinel must be extended accordingly.
+ * A typed `Partial<LoadedPersonality>` + a discriminated-union sentinel
+ * shape would be cleaner; tracked as TASK-98.
+ */
+export function buildSentinelPersonality(slotSnap: SlotSnapshot): LoadedPersonality {
+  return {
+    id: slotSnap.personalityId,
+    slug: slotSnap.personalitySlug,
+    displayName: slotSnap.personalitySlug,
+    name: slotSnap.personalitySlug,
+  } as unknown as LoadedPersonality;
+}
 
 /**
  * Note on semantics: the per-slot counters (`slotsRecoveredCompleted`,

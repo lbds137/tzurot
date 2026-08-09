@@ -11,7 +11,10 @@ import {
   handleGetAdminSettings,
   handleUpdateAdminSettings,
 } from './settings.js';
-import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import {
+  ADMIN_SETTINGS_SINGLETON_ID,
+  AdminSettingsSchema,
+} from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
@@ -103,6 +106,7 @@ function createDefaultSettings(
     id: string;
     updatedBy: string | null;
     configDefaults: Record<string, unknown> | null;
+    systemSettings: Record<string, unknown> | null;
     createdAt: Date;
     updatedAt: Date;
   }> = {}
@@ -111,6 +115,7 @@ function createDefaultSettings(
     id: ADMIN_SETTINGS_SINGLETON_ID,
     updatedBy: null,
     configDefaults: null,
+    systemSettings: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,
@@ -198,6 +203,60 @@ describe('Admin Settings Routes (Singleton)', () => {
 
       expect(response.status).toBe(403);
       expect(response.body.error).toBe('FORBIDDEN');
+    });
+
+    it('emits the stored systemSettings bag', async () => {
+      mockPrisma.adminSettings.upsert.mockResolvedValue(
+        createDefaultSettings({ systemSettings: { multiTagMaxCharacters: 7 } })
+      );
+
+      const response = await request(app).get('/admin/settings');
+
+      expect(response.status).toBe(200);
+      expect(response.body.systemSettings).toEqual({ multiTagMaxCharacters: 7 });
+    });
+
+    it('emits systemSettings as null when the column has never been seeded', async () => {
+      mockPrisma.adminSettings.upsert.mockResolvedValue(createDefaultSettings());
+
+      const response = await request(app).get('/admin/settings');
+
+      expect(response.status).toBe(200);
+      expect(response.body.systemSettings).toBeNull();
+    });
+  });
+
+  /**
+   * The response is re-parsed client-side through AdminSettingsSchema, which
+   * strips undeclared keys. A mocked client never runs that parse, so field
+   * survival is pinned at the schema boundary directly.
+   */
+  describe('CONTRACT: systemSettings survives the response schema parse', () => {
+    it('keeps a sentinel systemSettings value through AdminSettingsSchema', () => {
+      const parsed = AdminSettingsSchema.safeParse({
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        configDefaults: null,
+        systemSettings: { multiTagMaxCharacters: 9 },
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.systemSettings).toEqual({ multiTagMaxCharacters: 9 });
+    });
+
+    it('accepts a response with systemSettings absent (old gateway, new client)', () => {
+      const parsed = AdminSettingsSchema.safeParse({
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        configDefaults: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.systemSettings).toBeUndefined();
     });
   });
 

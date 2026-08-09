@@ -22,14 +22,16 @@
  * prevent resource exhaustion attacks (a message full of `@`-noise).
  */
 
-import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 
 const logger = createLogger('PersonalityMentionParser');
 const MAX_MENTION_WORDS = 4;
-const MAX_POTENTIAL_MENTIONS = 10; // Bound on positions scanned per message.
+// Bound on positions scanned per message. Sits at the same value as the
+// multiTagMaxCharacters registry ceiling (systemSettings.ts) — raising that
+// ceiling past 10 makes THIS the binding cap, so raise both together.
+export const MAX_POTENTIAL_MENTIONS = 10;
 
 /** Strip possessive suffix ('s) from a name candidate to also try the base form. */
 const POSSESSIVE_SUFFIX = /'s$/i;
@@ -79,25 +81,35 @@ export interface PersonalityMentionMatch {
  * Returns an array of `{personality, startIndex}` deduplicated by personality
  * ID (first occurrence keeps its slot). Capped at `maxMentions` after dedupe.
  *
+ * **This function does NOT apply the multi-character cap.** It reports every
+ * valid mention it finds (bounded by the position scan) so callers can compare
+ * what the user tagged against what the cap admits — `SlotResolver` is the one
+ * place that caps, and the truncation notice depends on that difference being
+ * visible here. Passing a smaller `maxMentions` is an early-exit optimization
+ * for callers that only need "is there at least one?", not a policy knob.
+ *
  * @param content      Message content to search.
  * @param mentionChar  Mention prefix character (from `BOT_MENTION_CHAR`).
  * @param personalityService  Loader used to validate candidates (also enforces access control).
  * @param userId       Discord user ID — only personalities accessible to this user match.
- * @param maxMentions  Maximum mentions to return. Defaults to `MULTI_TAG.MAX_TAGS`.
+ * @param maxMentions  Stop after this many matches. Defaults to
+ *   `MAX_POTENTIAL_MENTIONS`, the position-scan bound — i.e. no cap beyond the
+ *   one the scan already imposes.
  *
  * Examples:
  * - `'@Lilith hi'`  → `[{personality: Lilith, startIndex: 0}]`
  * - `'@Bambi @Bambi Prime hi'` → `[{Bambi, 0}, {BambiPrime, 7}]` (two distinct personalities)
  * - `'@Bambi @Bambi hi'` → `[{Bambi, 0}]` (dedupe — same personality)
  * - `'@Unknown @Lilith hi'` → `[{Lilith, 9}]` (invalid mention skipped)
- * - `'@A @B @C @D @E @F'` with cap 5 → first 5 in textual order
+ * - `'@A @B @C @D @E @F'` → all six, in textual order (the caller applies the cap)
+ * - `'@A @B @C'` with `maxMentions: 1` → `[{A, 0}]` (existence-check early exit)
  */
 export async function findPersonalityMentions(
   content: string,
   mentionChar: string,
   personalityService: IPersonalityLoader,
   userId: string,
-  maxMentions: number = MULTI_TAG.MAX_TAGS
+  maxMentions: number = MAX_POTENTIAL_MENTIONS
 ): Promise<PersonalityMentionMatch[]> {
   logger.debug({ contentLength: content.length, mentionChar }, 'Parsing multi-tag mentions');
 

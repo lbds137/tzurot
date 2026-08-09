@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { ConfigOverridesSchema } from './configOverrides.js';
+import { StoredSystemSettingsSchema } from './systemSettings.js';
 
 // ============================================================================
 // AdminSettings Schema
@@ -21,6 +22,13 @@ export const AdminSettingsSchema = z.object({
   updatedBy: z.string().uuid().nullable(),
   /** Admin-tier config cascade defaults (JSONB). Null when no admin overrides set. */
   configDefaults: ConfigOverridesSchema.nullable(),
+  /**
+   * Owner-only operational settings (JSONB). Null until the boot seed pass
+   * populates the column. `.optional()` covers the rolling-deploy window where
+   * a new bot-client parses a response from a gateway that predates this
+   * field — the client's own read falls back to its in-code floor.
+   */
+  systemSettings: StoredSystemSettingsSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

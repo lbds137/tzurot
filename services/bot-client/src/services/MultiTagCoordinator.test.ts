@@ -169,6 +169,7 @@ describe('MultiTagCoordinator', () => {
       slots,
       content: 'hi everyone',
       truncated: opts.truncated ?? false,
+      maxTags: 5,
     };
     chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
       const idx = slots.findIndex(s => s.personality.id === personality.id);
@@ -240,6 +241,7 @@ describe('MultiTagCoordinator', () => {
         slots: [buildResolvedSlot(a), buildResolvedSlot(b)],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
 
       // Only Alice tracked
@@ -258,6 +260,7 @@ describe('MultiTagCoordinator', () => {
         slots: [buildResolvedSlot(buildPersonality('Alice'))],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
 
       expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
@@ -283,6 +286,7 @@ describe('MultiTagCoordinator', () => {
         ],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
 
       // Per-persona in-character delivery — one no-persist webhook call each.
@@ -313,6 +317,7 @@ describe('MultiTagCoordinator', () => {
         ],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
 
       // Only the errored character delivers; the denied one is silent.
@@ -352,6 +357,7 @@ describe('MultiTagCoordinator', () => {
         ],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
       // The errored delivery is fire-and-forget — drain the microtask queue.
       await vi.waitFor(() => {
@@ -375,6 +381,7 @@ describe('MultiTagCoordinator', () => {
         slots: [buildResolvedSlot(buildPersonality('Alice'))],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
       expect(chatManager.submitChatJob).not.toHaveBeenCalled();
     });
@@ -386,6 +393,7 @@ describe('MultiTagCoordinator', () => {
         slots: [],
         content: 'hi',
         truncated: false,
+        maxTags: 5,
       });
       expect(chatManager.submitChatJob).not.toHaveBeenCalled();
       expect(persistence.putEntry).not.toHaveBeenCalled();
@@ -914,6 +922,7 @@ describe('MultiTagCoordinator', () => {
         // Throwaway handle; the coordinator clears it. 0ms leaves no real timer pending.
         timeoutHandle: setTimeout(() => undefined, 0),
         truncated: false,
+        maxTags: 5,
       };
 
       await coordinator.adoptRehydratedEntry(entry);
@@ -956,6 +965,7 @@ describe('MultiTagCoordinator', () => {
         // Throwaway handle; the coordinator clears it. 0ms leaves no real timer pending.
         timeoutHandle: setTimeout(() => undefined, 0),
         truncated: false,
+        maxTags: 5,
       };
 
       await coordinator.adoptRehydratedEntry(entry);
@@ -1030,6 +1040,7 @@ describe('MultiTagCoordinator — all-errored in-character delivery (real chain)
       ],
       content: 'hi',
       truncated: false,
+      maxTags: 5,
     });
 
     // Each errored character reached the webhook exactly once, in its own voice.
@@ -1120,6 +1131,7 @@ describe('MultiTagCoordinator — all-terminal adoption drains the REAL ordering
       // Throwaway handle; the coordinator clears it. 0ms leaves no real timer pending.
       timeoutHandle: setTimeout(() => undefined, 0),
       truncated: false,
+      maxTags: 5,
     };
 
     await coordinator.adoptRehydratedEntry(entry);
