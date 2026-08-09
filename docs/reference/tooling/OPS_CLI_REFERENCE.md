@@ -235,8 +235,9 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 
 | Command                                                              | Description                                                                                                       |
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `pnpm ops release:bump 3.0.0-beta.49`                                | Bump version in all package.json files                                                                            |
-| `pnpm ops release:bump 3.0.0 --dry-run`                              | Preview bump without writing                                                                                      |
+| `pnpm ops release:bump 3.0.0-beta.49`                                | Bump version in all package.json files (refuses when CURRENT.md still declares the previous release)              |
+| `pnpm ops release:bump 3.0.0 --dry-run`                              | Preview bump without writing (the CURRENT.md check still applies)                                                 |
+| `pnpm ops release:bump 3.0.0 --allow-stale-current`                  | Bump anyway when CURRENT.md was deliberately not reset                                                            |
 | `pnpm ops release:draft-notes`                                       | Draft release-notes skeleton from PRs merged since the previous tag                                               |
 | `pnpm ops release:draft-notes --from v3.0.0-beta.103`                | Draft starting from a specific tag (else auto-discovered via `git describe`)                                      |
 | `cat /tmp/notes.md \| pnpm ops release:verify-notes`                 | Verify a notes draft references every merged PR in range exactly once (exits 1 on missing/extra/duplicate refs)   |
@@ -249,7 +250,7 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 
 **Use cases:**
 
-- `release:bump` — before cutting the release PR, bump the monorepo version so it ships tagged correctly.
+- `release:bump` — before cutting the release PR, bump the monorepo version so it ships tagged correctly. It also gates the PREVIOUS release's close-out: CURRENT.md's `> **Version**: vX` header must equal package.json's current version, which is exactly what a skipped CURRENT.md reset looks like. The reset itself stays human judgment; `--allow-stale-current` bypasses the check for a deliberate exception.
 - `release:draft-notes` — generate the skeleton for the release PR body; edit as needed before submitting.
 - `release:verify-notes` — CI/pre-publish gate: confirms every merged PR in the tag-to-HEAD range appears in the notes exactly once.
 - `release:premigrate` — run BEFORE merging the release PR so auto-deploy lands into a ready schema; destructive shapes need `--allow-destructive` inside a maintenance window (see `.claude/rules/03-database.md` § Deployment).

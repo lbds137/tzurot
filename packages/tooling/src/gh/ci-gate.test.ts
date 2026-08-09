@@ -731,4 +731,56 @@ describe('fetchRuns', () => {
     vi.doUnmock('node:child_process');
     vi.resetModules();
   });
+
+  it('bounds the call so a hang cannot block the poll loop', async () => {
+    // The catch below reports a timeout the same way it reports any other gh
+    // failure, so the error path alone cannot tell a bounded call from an
+    // unbounded one — only the options object can.
+    vi.resetModules();
+    let opts: { timeout?: number } = {};
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_c: string, _a: string[], o: { timeout?: number }) => {
+        opts = o;
+        return '[]';
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    mod.fetchRuns('a'.repeat(40));
+    expect(opts.timeout).toBe(mod.RUNS_FETCH_TIMEOUT_MS);
+    expect(typeof opts.timeout).toBe('number');
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
+  it('reports a timeout kill with a non-empty detail naming the signal', async () => {
+    // The shape execFileSync produces on timeout: no stderr, a bare "Command
+    // failed" message, and the signal it was killed with. Reported blank, this
+    // failure would be indistinguishable from the silence the gate removes.
+    vi.resetModules();
+    vi.doMock('node:child_process', () => ({
+      execFileSync: () => {
+        const err = new Error('Command failed: gh api repos/...') as Error & {
+          stderr: string;
+          status: null;
+          signal: string;
+        };
+        err.stderr = '';
+        err.status = null;
+        err.signal = 'SIGTERM';
+        throw err;
+      },
+    }));
+    const { fetchRuns } = await import('./ci-gate.js');
+    let thrown: unknown;
+    try {
+      fetchRuns('a'.repeat(40));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toEqual(expect.objectContaining({ name: 'GhApiError' }));
+    expect((thrown as Error).message).not.toBe('');
+    expect((thrown as Error).message).toContain('killed by SIGTERM');
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
 });
