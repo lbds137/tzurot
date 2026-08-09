@@ -46,6 +46,26 @@ function stripAll(inputs: readonly string[]): (string | null)[] {
   return JSON.parse(out) as (string | null)[];
 }
 
+/**
+ * One python3 spawn evaluates one single-argument helper over every case.
+ * Results come back through JSON so a list result and a string result are both
+ * asserted as themselves rather than through a rendered form.
+ */
+function evalAll<T>(fn: string, inputs: readonly string[]): T[] {
+  const script = [
+    'import json, sys',
+    'sys.path.insert(0, sys.argv[1])',
+    `from shell_quotes import ${fn}`,
+    `json.dump([${fn}(c) for c in json.load(sys.stdin)], sys.stdout)`,
+  ].join('\n');
+  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
+    input: JSON.stringify(inputs),
+    encoding: 'utf-8',
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  return JSON.parse(out) as T[];
+}
+
 /** [label, input, expected output] — `null` means "unterminated, strip nothing". */
 const CASES: readonly (readonly [string, string, string | null])[] = [
   ['leaves an unquoted command alone', 'git status', 'git status'],
@@ -199,5 +219,226 @@ describe('shell_quotes.strip_quoted (shared by three hooks)', () => {
       if (stripped === null) continue;
       expect(stripped, label).not.toMatch(/["']/);
     }
+  });
+});
+
+/**
+ * `strip_quoted` replaces a quoted span WHOLE, so a command substitution nested
+ * inside one is erased while bash still executes it — measured, that let
+ * `echo "$(git commit -m x)"` through the blocking commit guard. These two
+ * helpers are what the guards use instead of trusting the stripped text.
+ */
+const SPAN_CASES: readonly (readonly [string, string, readonly string[]])[] = [
+  ['no substitution yields no spans', 'git commit -m "x"', []],
+  ['a $( ) span inside double quotes', 'echo "$(git commit -m x)"', ['git commit -m x']],
+  ['a backtick span inside double quotes', 'echo "`git commit -m x`"', ['git commit -m x']],
+  ['an unquoted $( ) span', 'echo $(git commit)', ['git commit']],
+  ['two spans in one command', 'echo $(a) and `b`', ['a', 'b']],
+
+  // Nesting is paren DEPTH only. The caller runs a regex over the content, and
+  // a regex sees the inner text inside the outer span just as well — recursing
+  // would only produce duplicate hits.
+  ['a nested span is returned inside its outer span, verbatim', 'echo $(a $(b))', ['a $(b)']],
+
+  // An escaped opener is not an opener.
+  ['an escaped backtick opens nothing', 'echo \\`x\\`', []],
+  ['an escaped dollar opens nothing', 'echo \\$(git commit)', []],
+
+  // Unterminated runs to end of text. Safe here in a way it is not for
+  // strip_quoted: this function only ADDS text for the caller to scan.
+  ['an unterminated $( runs to end of text', 'echo "$(git commit', ['git commit']],
+  ['an unterminated backtick runs to end of text', 'echo `git commit', ['git commit']],
+
+  // THE ACCEPTED OVER-ARM. A span inside SINGLE quotes is inert prose to bash
+  // and is extracted anyway, so the consuming guards block on it. Over-arming
+  // is the recoverable direction for a blocking guard; the escape hatch covers
+  // the false positive.
+  [
+    'a span inside single quotes is extracted anyway (accepted over-arm)',
+    "echo 'run $(git commit)'",
+    ['git commit'],
+  ],
+
+  // THE KNOWN UNDER-ARM, pinned AS the limit rather than left to be discovered.
+  // `)` is counted structurally, so a quoted one inside the span ends it early
+  // and the command names after it escape the scan.
+  ['a quoted `)` inside a span ends it early', 'echo "$(echo ")" && git commit)"', ['echo "']],
+];
+
+describe('shell_quotes.substitution_spans', () => {
+  const results = evalAll<string[]>(
+    'substitution_spans',
+    SPAN_CASES.map(([, input]) => input)
+  );
+
+  for (const [index, [label, input, expected]] of SPAN_CASES.entries()) {
+    it(label, () => {
+      expect(results[index], `input: ${JSON.stringify(input)}`).toEqual([...expected]);
+    });
+  }
+});
+
+/**
+ * The companion strip: a heredoc body is DATA, and the repo's canonical commit
+ * form puts the whole message inside a substitution span. Without this, a span
+ * scan of `-m "$(cat <<'EOF' … EOF)"` reads the commit MESSAGE as a command.
+ */
+const HEREDOC_CASES: readonly (readonly [string, string, string])[] = [
+  ['text with no heredoc is returned unchanged', 'git commit -m x', 'git commit -m x'],
+  ["a quoted marker's body is dropped", "cat <<'EOF'\ngit commit\nEOF\n", "cat <<'EOF'\n\n"],
+  ["a bare marker's body is dropped", 'cat <<EOF\ngit commit\nEOF\n', 'cat <<EOF\n\n'],
+  ['a double-quoted marker works too', 'cat <<"EOF"\ngit commit\nEOF\n', 'cat <<"EOF"\n\n'],
+
+  // `<<-` is the only form whose terminator may be indented, and bash allows
+  // only TABS there. The non-dash row is what pins that the indent tolerance is
+  // not applied everywhere.
+  [
+    'the <<- form accepts an indented terminator',
+    'cat <<-EOF\n\tgit commit\n\tEOF\n',
+    'cat <<-EOF\n\n',
+  ],
+  // An indented terminator does not close a plain (non-`<<-`) heredoc, so this
+  // is UNTERMINATED — and an unterminated heredoc now KEEPS its tail rather than
+  // dropping it (over-arm), because this runs on the whole raw command where a
+  // dropped tail can hide a real target.
+  [
+    'an indented terminator leaves a plain heredoc unterminated; tail kept',
+    'cat <<EOF\n\tEOF\ngit commit',
+    'cat <<EOF\n\tEOF\ngit commit',
+  ],
+
+  // Unterminated KEEPS the tail — the same over-arm direction as the sibling
+  // stripper in pr-merge-review-check.sh. Dropping it here would let a `<<WORD`
+  // inside earlier quoted prose truncate a real $(…) target out of the scan (a
+  // measured bypass); keeping it can only over-block.
+  [
+    'an unterminated heredoc keeps its tail (over-arm, not dropped)',
+    'cat <<EOF\ngit commit\n',
+    'cat <<EOF\ngit commit\n',
+  ],
+
+  // The rest of the OPENER line is real command text and survives.
+  [
+    'the rest of the opener line survives',
+    'cat <<EOF > notes.txt\ngit commit\nEOF\n',
+    'cat <<EOF > notes.txt\n\n',
+  ],
+
+  // A here-string is not a heredoc: its trailing `<` plus a bare word matches
+  // the same characters, and the marker would never terminate.
+  [
+    'a here-string is not read as an opener',
+    'cat <<<marker && git commit',
+    'cat <<<marker && git commit',
+  ],
+
+  // The shape this function exists for, asserted end to end.
+  [
+    'the canonical commit-message span keeps its skeleton and loses its body',
+    "cat <<'EOF'\nfix: stop saying git commit in prose\nEOF\n",
+    "cat <<'EOF'\n\n",
+  ],
+
+  // KNOWN LIMITATION (matches the sibling strip_heredocs): only the FIRST
+  // opener on a line is recognized, so with two openers on one line the second
+  // body survives un-stripped. Safe — an un-stripped body only adds text to
+  // scan, never hides a target.
+  [
+    'second heredoc opener on a line leaves its body',
+    'cat <<A <<B\naaa-body\nA\nbbb-body\nB\ntrailer\n',
+    'cat <<A <<B\n\nbbb-body\nB\ntrailer\n',
+  ],
+];
+
+describe('shell_quotes.strip_heredoc_bodies', () => {
+  const results = evalAll<string>(
+    'strip_heredoc_bodies',
+    HEREDOC_CASES.map(([, input]) => input)
+  );
+
+  for (const [index, [label, input, expected]] of HEREDOC_CASES.entries()) {
+    it(label, () => {
+      expect(results[index], `input: ${JSON.stringify(input)}`).toBe(expected);
+    });
+  }
+
+  it('suppresses a commit-shaped message body inside a canonical commit span', () => {
+    // The two functions in composition, which is how both guards call them —
+    // and the property that actually matters: the span of a real canonical
+    // commit carries a message mentioning `git commit`, and what the guards
+    // scan must not contain it.
+    const command = [
+      "git commit -m \"$(cat <<'EOF'",
+      'docs: explain when to git commit',
+      'EOF',
+      ')"',
+    ].join('\n');
+    const spans = evalAll<string[]>('substitution_spans', [command])[0];
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toContain('git commit');
+    expect(evalAll<string>('strip_heredoc_bodies', [spans[0]])[0]).not.toContain('git commit');
+  });
+});
+
+/**
+ * Runs `substitution_spans_matching` with a fixed `'git commit' in span`
+ * predicate, exercising the full composition both blocking guards rely on
+ * (heredoc-strip the WHOLE raw text → extract spans → strip_quoted each →
+ * predicate). A predicate can't cross the JSON boundary, so it is baked into
+ * the python snippet.
+ */
+function spansMatchGitCommit(inputs: readonly string[]): boolean[] {
+  const script = [
+    'import json, sys',
+    'sys.path.insert(0, sys.argv[1])',
+    'from shell_quotes import substitution_spans_matching',
+    "pred = lambda s: 'git commit' in s.lower()",
+    'json.dump([substitution_spans_matching(c, pred) for c in json.load(sys.stdin)], sys.stdout)',
+  ].join('\n');
+  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
+    input: JSON.stringify(inputs),
+    encoding: 'utf-8',
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  return JSON.parse(out) as boolean[];
+}
+
+describe('shell_quotes.substitution_spans_matching (composition used by both guards)', () => {
+  it('matches a target hidden in a real substitution span', () => {
+    expect(spansMatchGitCommit(['echo "$(git commit -m x)"'])[0]).toBe(true);
+  });
+
+  it('does NOT match a target in an inert heredoc body — heredocs are stripped FIRST', () => {
+    // If the whole raw text were not heredoc-stripped before span extraction,
+    // the $(git commit) in this bare-heredoc body would be pulled out as a span
+    // and falsely match. This pins the strip-then-extract order.
+    const cmd = ["cat <<'EOF' > notes.md", 'we fixed the $(git commit -m x) bypass', 'EOF'].join(
+      '\n'
+    );
+    expect(spansMatchGitCommit([cmd])[0]).toBe(false);
+  });
+
+  it('does NOT match a target that is only quoted prose inside a span — strip_quoted runs', () => {
+    expect(spansMatchGitCommit(['echo "$(gh pr comment --body "git commit early")"'])[0]).toBe(
+      false
+    );
+  });
+
+  it('still matches when a real invocation sits beside quoted prose in the span', () => {
+    // strip_quoted removes the quoted arg but leaves the real command word.
+    expect(spansMatchGitCommit(['echo "$(git commit -m "wip")"'])[0]).toBe(true);
+  });
+
+  it('is span-only: a top-level target with no substitution does not match', () => {
+    expect(spansMatchGitCommit(['git commit -m x'])[0]).toBe(false);
+  });
+
+  it('a target after an unterminated heredoc opener still matches (no truncation bypass)', () => {
+    // The regression guard for the whole-command heredoc strip: a `<<WORD`-shaped
+    // string in earlier quoted prose with no terminator must NOT drop the real
+    // $(git commit) span that follows. strip_heredoc_bodies keeps the tail on an
+    // unterminated opener, so the span survives and matches.
+    const cmd = ['echo "notes: <<EOF"', 'echo "$(git commit -m x)"'].join('\n');
+    expect(spansMatchGitCommit([cmd])[0]).toBe(true);
   });
 });
