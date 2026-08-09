@@ -33,4 +33,6 @@ Why filed rather than done: the natural home is a clause in 02-code-standards Te
 Acceptance: either a short clause lands in 02-code-standards (owner sees the diff), or the pattern is folded into the doc-61 pass as content that earns its place, or it is ruled out on merit with the reason recorded.
 
 DISPOSITION (owner, 2026-08-08): the second option. Weighed inside the next context-economy pass rather than appended beside it. Only the one-line defense is a candidate for always-loaded space — mutate the code an assertion covers and confirm it goes red — because that is a constraint a reader acts on. The three shapes above are examples of what it catches, and examples are what an always-loaded surface can least afford; they stay here. State is dependent on the doc-61 pass running, not owner.
+
+DISPOSITION (TASK-490 rider): INCLUDED — one-line mutate-and-confirm-red clause added to 02-code-standards Testing Standards.
 <!-- SECTION:DESCRIPTION:END -->
