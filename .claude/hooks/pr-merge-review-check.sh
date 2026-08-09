@@ -186,28 +186,26 @@ def legacy_scan(text):
     return ""
 
 
-def extract(text, depth=0):
-    """Return the PR number a real `gh pr merge` in `text` targets, or "".
+def tokenize(command):
+    """Token list plus each token's starting line, or None if it won't parse.
 
-    Recurses into `-c` / `eval` string arguments: `bash -c "gh pr merge N"` is
-    ONE quoted token to the tokenizer, so without recursion the invocation is
-    invisible — which the naive text scan this replaced did catch, making it a
-    regression rather than a pre-existing gap.
+    A newline separates commands, but shlex counts it as plain whitespace and
+    never emits it as a token — so `pnpm test\\ngh pr merge 2002` would read as
+    one long command and the merge would lose its command position. Record the
+    line each token STARTS on to restore it.
+
+    Read the counter BEFORE each token, not after: measured, `lineno` is
+    incremented while finishing the token that PRECEDES the newline, so the
+    after-value marks the wrong token as having crossed the line.
+
+    Returns None on ANY tokenizer failure, not just the unbalanced-quote
+    ValueError. A narrower catch let every other exception escape, crash
+    python, and reach the shell's `|| PR_NUM=""` — which is silently NO GATE,
+    the exact direction this design refuses.
     """
-    if depth > 3:
-        return ""
-    command = strip_heredocs(text)
     try:
         lexer = shlex.shlex(command, punctuation_chars=True, posix=True)
         lexer.whitespace_split = True
-        # A newline separates commands, but shlex counts it as plain whitespace
-        # and never emits it as a token — so `pnpm test\ngh pr merge 2002` would
-        # read as one long command and the merge would lose its command
-        # position. Record the line each token STARTS on to restore it.
-        #
-        # Read the counter BEFORE each token, not after: measured, `lineno` is
-        # incremented while finishing the token that PRECEDES the newline, so
-        # the after-value marks the wrong token as having crossed the line.
         tokens = []
         linenos = []
         while True:
@@ -220,13 +218,67 @@ def extract(text, depth=0):
                 break
             tokens.append(token)
             linenos.append(line_at_start)
+        return tokens, linenos
     except Exception:
-        # ANY tokenizer failure, not just the unbalanced-quote ValueError.
-        # A narrower catch let every other exception escape, crash python, and
-        # reach the shell's `|| PR_NUM=""` — which is silently NO GATE, the
-        # exact direction this design refuses. Failure means fall back to the
-        # permissive scan; it never means arm nothing.
+        return None
+
+
+def adjacent_merge_scan(tokens):
+    """The PR number after the first ADJACENT `gh` `pr` `merge` token triple.
+
+    Scans the TOKENS, not raw text. `legacy_scan` reads the first textual
+    occurrence, so a decoy earlier in the command beats the real invocation —
+    that would reintroduce the very bug this file exists to fix. Tokens carry
+    quoting, so prose inside a quoted argument is ONE token and can never look
+    adjacent.
+    """
+    for i in range(len(tokens)):
+        if tokens[i : i + 3] == ["gh", "pr", "merge"]:
+            for candidate in tokens[i + 3 :]:
+                if opens_command(candidate):
+                    break
+                if ASCII_DIGITS.fullmatch(candidate):
+                    return candidate
+    return ""
+
+
+def extract(text, depth=0):
+    """Return the PR number a real `gh pr merge` in `text` targets, or "".
+
+    Recurses into `-c` / `eval` string arguments: `bash -c "gh pr merge N"` is
+    ONE quoted token to the tokenizer, so without recursion the invocation is
+    invisible — which the naive text scan this replaced did catch, making it a
+    regression rather than a pre-existing gap.
+    """
+    if depth > 3:
+        # THE RECURSION CAP FAILS TOWARD ARMING. Returning "" here resolved no
+        # PR at all for a merge nested four shells deep, and the caller reads
+        # "" as "nothing to gate on" and exits 0 — an UNDER-arm, the one
+        # direction this hook must never fail in. The cap itself stays (it
+        # bounds recursion depth); what changes is what happens at it.
+        #
+        # A TOKEN scan at the cap only sees the outermost layer, so a merge
+        # still wrapped one-or-more `bash -c` deep tokenizes as a single quoted
+        # token and the under-arm just returns one level deeper. This is a raw
+        # TEXTUAL over-arm instead: it finds `gh pr merge <n>` at ANY remaining
+        # nesting depth. `["']*` sits BEFORE the digits, so it absorbs a quote
+        # directly in front of the number — a quoted PR number like
+        # `merge "2002"` — not the trailing shell-wrap quote (`merge 2002'`),
+        # which needs no help because `(\d+)` stops at the first non-digit
+        # anyway. Belt-and-braces for the quoted-number shape, which the nesting
+        # probes do not exercise (their numbers are bare). At the cap the input
+        # is pathological, so over-arming on the first textual match (even a
+        # decoy's) is the safe direction. Pinned by the 5- and 7-level nesting
+        # cases in pr-merge-review-check.probe.sh.
+        match = re.search(r"gh\s+pr\s+merge\s+[\"']*(\d+)", strip_heredocs(text))
+        return match.group(1) if match else ""
+    command = strip_heredocs(text)
+    tokenized = tokenize(command)
+    if tokenized is None:
+        # Tokenizer failure means fall back to the permissive scan; it never
+        # means arm nothing.
         return legacy_scan(command)
+    tokens, linenos = tokenized
 
     at_command_start = True
     # The command word of the segment being scanned — what actually owns any
@@ -316,18 +368,13 @@ def extract(text, depth=0):
     # inside a quoted `--body` is ONE token, so it never looks adjacent, and a
     # heredoc body is already stripped before it gets here. Only text the shell
     # would actually execute as words reaches this check.
-    # Scan the TOKENS, not the raw text. `legacy_scan` reads the first textual
-    # occurrence, so a decoy earlier in the command won over the real
-    # invocation — this backstop would have reintroduced the very bug the file
-    # exists to fix. Tokens carry quoting, so prose cannot appear adjacent.
-    for i in range(len(tokens)):
-        if tokens[i : i + 3] == ["gh", "pr", "merge"]:
-            for candidate in tokens[i + 3 :]:
-                if opens_command(candidate):
-                    break
-                if ASCII_DIGITS.fullmatch(candidate):
-                    return candidate
-    return ""
+    #
+    # adjacent_merge_scan is called only here. The depth-cap path at the top of
+    # this function plays the SAME conceptual role — over-arm as the safe
+    # fallback when the position logic can't model the shape — but shares no
+    # code with it: at the cap there is no reliable tokenization to run
+    # adjacency over, so it uses a raw-text regex instead.
+    return adjacent_merge_scan(tokens)
 
 
 try:

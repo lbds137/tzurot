@@ -52,6 +52,11 @@
 # is named here so the next reader who hits it recognises it rather than
 # hunting a bug.
 #
+# BOTH RULES also scan COMMAND SUBSTITUTIONS for their target, because the quote
+# strip erases a `$(…)`/backtick span nested inside a quoted argument while
+# bash still runs it. That scan is command-wide rather than per-stage — its
+# accepted over-block is spelled out at SPAN_CARRIES_GIT_TARGET below.
+#
 # This guard buys these two classes, NOT the general pattern. A `sed -n '18,40p'`
 # on a source file and a grep scoped to two named files both hid information in
 # the same session and neither is reachable from here — that class belongs to
@@ -149,7 +154,7 @@ import sys
 # non-zero, which the caller treats as allow (fail-open) — the probe is
 # what catches a missing lib, not runtime.
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted
+from shell_quotes import strip_quoted, substitution_spans_matching
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -265,6 +270,38 @@ TRUNCATORS = re.compile(r"(?i)^\s*(head|tail|sed)\b")
 # commit — failing open on a pasteable input to close a hypothetical one.
 GIT_TARGET = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+(commit|push)(?![-\w])")
 
+# BOTH RULES: the target hiding inside a command SUBSTITUTION. A `$(…)` or
+# backtick span nested in a QUOTED argument is erased whole by the quote strip
+# above while bash still executes it, so `echo "$(git commit -m x)" | tail`
+# reached the stage scan as `echo S | tail` and matched no target. The same
+# shape hides a gh READ from rule 2 — `echo "$(gh pr checks 2000)" | tail` — so
+# BOTH targets get the scan, not just git (the gh flag is built with
+# GH_READ_TARGET below, once it exists). The shared helper cleans each span
+# exactly as the top-level scan cleans the command (heredoc bodies off the whole
+# raw command first, then strip_quoted per span), so a quoted argument that
+# merely MENTIONS a target — `$(gh pr comment --body "git push …") | tail` — is
+# inert prose, not a false block. See substitution_spans_matching in
+# lib/shell_quotes.py for the boundaries.
+#
+# COMMAND-WIDE, NOT PER-STAGE, and that is an accepted OVER-BLOCK rather than an
+# oversight: the stage split runs on the STRIPPED text, where the span no longer
+# exists, so there is no offset left to tie a span back to the stage that
+# carried it. The consequence is that a command holding BOTH a target-bearing
+# substitution and any filtered pipeline blocks, even when the two are in
+# different segments. Over-blocking costs one re-run without the pipe; the
+# under-arm it replaces is a swallowed commit/push failure or a truncated gh
+# read, which is the whole reason this hook exists. Pinned by the "quoted
+# substitution hides the commit/target from the pipe scan" cases in
+# lossy-pipe-guard.probe.sh.
+#
+# The substitution is only ever read for a rule's target, never fed to the
+# pipe segmentation — a `|` inside a substitution is that subshell's pipeline,
+# not this command's, and treating it as a stage boundary would invent stages
+# bash never runs.
+SPAN_CARRIES_GIT_TARGET = substitution_spans_matching(
+    raw_cmd, lambda span: GIT_TARGET.search(span) is not None
+)
+
 # Rule 2's targets: gh READ commands whose output has to be seen whole.
 # Global flags may sit between `gh` and its subcommand, exactly as GIT_TARGET
 # already tolerates for git. Without this, `gh --repo owner/name pr checks |
@@ -341,6 +378,17 @@ if re.search(r"(?i)\bcomments?\b|\breviews?\b", raw_cmd):
     GH_READ_PARTS.append(r"\bgh" + GH_FLAGS + r"\s+api(?![-\w])")
 GH_READ_TARGET = re.compile("(?i)" + "|".join(GH_READ_PARTS))
 
+# The gh half of the substitution scan (see SPAN_CARRIES_GIT_TARGET above for
+# the full reasoning and the accepted command-wide over-block). Symmetric with
+# git: `echo "$(gh pr checks 2000)" | tail` truncates a gh read exactly as the
+# direct pipe would, and without this the captured read hides from the stage
+# scan. Pinned by "quoted substitution hides the gh read from the pipe scan" in
+# lossy-pipe-guard.probe.sh.
+SPAN_CARRIES_GH_TARGET = substitution_spans_matching(
+    raw_cmd, lambda span: GH_READ_TARGET.search(span) is not None
+)
+SPAN_TARGET_HITS = {"git": SPAN_CARRIES_GIT_TARGET, "gh": SPAN_CARRIES_GH_TARGET}
+
 # (target, lossy-stage, rule-name). Two different lossy sets is exactly why
 # this is a list of pairs rather than one target regex: rule 1 blocks any
 # filter, rule 2 blocks only truncation.
@@ -364,9 +412,8 @@ for segment in re.split(r"&&|\|\||;|\n", cmd):
     stages = segment.split("|")
     for i, stage in enumerate(stages[:-1]):
         for target, lossy, name in RULES:
-            if target.search(stage) and any(
-                lossy.match(stage_head(later)) for later in stages[i + 1 :]
-            ):
+            hit = target.search(stage) or SPAN_TARGET_HITS.get(name, False)
+            if hit and any(lossy.match(stage_head(later)) for later in stages[i + 1 :]):
                 print("block:" + name)
                 raise SystemExit
 print("ok")

@@ -135,6 +135,48 @@ run 2 "even backslash run, gh rule"           'gh pr checks 2000 | grep "x\\" | 
 # passed because the buggy neutralization made it look terminated.)
 run 2 "backslash before a closing single quote" "git commit -m 'a\\' | grep 'x'"
 
+# --- a target hidden inside a command substitution ------------------------
+# The quote strip replaces a quoted argument WHOLE, so a `$(…)` nested inside
+# one disappears while bash still runs it — the stage scan saw `echo S | tail`
+# and matched no target. The pipe here is real and at the top level, so `tail`
+# does truncate the commit output that `echo` prints.
+run 2 "quoted substitution hides the commit from the pipe scan" 'echo "$(git commit -m x)" | tail -5'
+run 2 "same via a backtick substitution"                        'echo "`git push origin b`" | head -3'
+# RULE 2 gets the SAME span protection: a gh read captured via a substitution and
+# piped to a truncator truncates the read exactly as the direct pipe would, so it
+# must block too — the git-only version of this scan left it exposed.
+run 2 "quoted substitution hides the gh read from the pipe scan" 'echo "$(gh pr checks 2000)" | tail -5'
+# And the complement: heredoc bodies come off the span before it is scanned, so
+# a commit MESSAGE that merely discusses the phrase is not a target. Without the
+# strip this blocks an ordinary `echo`.
+run 0 "a heredoc BODY inside a span is not a target" 'echo "$(cat <<'"'"'EOF'"'"'
+notes about git commit habits
+EOF
+)" | tail -5'
+# And the non-heredoc complement: a quoted argument inside a span that merely
+# mentions the target is inert prose, because the span is strip_quoted before
+# scanning, exactly as the top-level pipe scan strips it. Capturing a gh command
+# whose --body says "git push" then filtering the output must not block.
+run 0 "quoted prose in a span is not a target" 'echo "$(gh pr comment 5 --body "remember to git push")" | tail -5'
+# A BARE heredoc body mentioning $(git push), piped to a filter — inert data, so
+# the helper strips it from the whole raw command before span extraction and the
+# pipe does not block. Without the global strip the span scan would pull the
+# $(git push) out of the heredoc and arm the git rule for the trailing filter.
+run 0 "a bare heredoc body mentioning a push substitution is data" 'cat <<'"'"'EOF'"'"' | tail -5
+notes: we closed the $(git push) bypass
+EOF'
+# BYPASS REGRESSION: an UNTERMINATED `<<WORD` in earlier quoted prose must not
+# truncate a real gh/git target substitution + pipe that follows. The whole-
+# command heredoc strip keeps the tail on an unterminated opener.
+run 2 "unterminated heredoc opener does not truncate a later piped target" 'echo "notes: <<EOF"
+echo "$(git push origin b)" | tail -5'
+# THE ACCEPTED OVER-BLOCK, pinned as behaviour rather than left in a comment.
+# The span scan is command-wide because the stage split runs on the STRIPPED
+# text, where the span no longer exists to be tied back to its stage — so a
+# target-bearing substitution in one segment arms the git rule for a filtered
+# pipeline in another. Named here so the false positive is recognisable.
+run 2 "the span scan is command-wide, not per-stage" 'echo "$(git commit -m x)" && ls | head -3'
+
 # --- case and leading redirects ------------------------------------------
 # Both were live bypasses. Case: the bash PRE-FILTER is checked first, so making
 # only the python regexes case-insensitive would have fixed nothing — the

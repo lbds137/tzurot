@@ -470,6 +470,46 @@ assert_pr "an empty-string token does not truncate the scan" 2002
 new_case; invoke 'bash -c "gh pr merge 2002"'
 assert_pr "a merge inside a -c string argument still arms the gate" 2002
 
+# THE RECURSION DEPTH CAP, both sides of it. `extract` stops recursing past
+# depth 3, and it used to resolve NOTHING there — so a merge nested four shells
+# deep armed no gate and the hook exited 0, which is the under-arm direction the
+# whole file is built to avoid. The cap now runs the token-adjacency backstop on
+# the text it abandons, so the deep shape over-arms instead of vanishing.
+#
+# Built by wrapping rather than by hand, so the nesting depth is the loop count
+# and not a hand-counted run of backslashes that is easy to get wrong by one.
+#
+# SINGLE-QUOTE wrapping specifically, not `printf %q`. %q escapes the SPACES
+# (`gh\ pr\ merge`), and the hook's bash pre-filter requires the three words to
+# be separated by real whitespace — so a %q-built fixture exits at the
+# pre-filter and measures nothing, whichever way the depth cap behaves. Measured
+# while writing these cases: both levels fetched no PR at all.
+sq() { # <text> -> the text as one single-quoted shell word
+  local escaped=${1//\'/\'\\\'\'}
+  printf "'%s'" "$escaped"
+}
+nest_shells() { # <levels>
+  local nested='gh pr merge 2002' i
+  for ((i = 0; i < $1; i++)); do nested="bash -c $(sq "$nested")"; done
+  printf '%s' "$nested"
+}
+new_case; invoke "$(nest_shells 3)"
+assert_pr "three levels of shell nesting resolve the real PR" 2002
+
+new_case; invoke "$(nest_shells 4)"
+assert_pr "four levels hit the depth cap and still arm rather than exiting clean" 2002
+
+# Five-plus levels leave a `bash -c '…'` wrap still on the text when the cap
+# fires, so a token scan (which only sees the outermost layer) would find
+# nothing and the under-arm would return one level deeper. The cap now runs a
+# raw textual regex that reads through every wrap and tolerates the closing
+# quote abutting the number, so a merge arms at ANY nesting depth.
+new_case; invoke "$(nest_shells 5)"
+assert_pr "five levels past the cap still arm via the textual scan" 2002
+
+new_case; invoke "$(nest_shells 7)"
+assert_pr "seven levels still arm — depth-independent at the cap" 2002
+
 # ORDERING: candidates resolve in TOKEN order, which is execution order — not
 # top-level-first. Draining the top level before recursing armed the gate on
 # 2002 here, while the merge that actually runs first is 2001. Both are real
@@ -486,10 +526,14 @@ assert_pr "a plain merge before a wrapped one still wins" 2001
 # Bash keywords that open a command position. `if`/`while`/`until` were absent
 # while `then`/`do` were present, so a merge directly after them went ungated.
 new_case; invoke 'if gh pr merge 2002; then echo ok; fi'
-assert_pr "a merge directly after `if` is at a command position" 2002
+# SINGLE-quoted labels here and below: a backticked word inside a DOUBLE-quoted
+# label is command substitution, and bash printed `command substitution: syntax
+# error` to stderr for each one. The assertions still passed, so the only cost
+# was noise that reads as a failing probe to anyone scanning stderr.
+assert_pr 'a merge directly after `if` is at a command position' 2002
 
 new_case; invoke 'while gh pr merge 2002; do echo retry; done'
-assert_pr "same after `while`" 2002
+assert_pr 'same after `while`' 2002
 
 # A phrase-match that yields no PR number must not end the scan. The earlier
 # implementation exited unconditionally after the first match, so a bare merge
@@ -508,7 +552,7 @@ assert_pr "glued punctuation still opens a command position" 2002
 
 # Bash keywords open a command position too.
 new_case; invoke 'if true; then gh pr merge 2002; fi'
-assert_pr "a merge after `then` is still at a command position" 2002
+assert_pr 'a merge after `then` is still at a command position' 2002
 
 # Heredoc bodies are DATA, never commands — bash will not execute a word in
 # one however shell-like it looks. shlex has no concept of heredocs, so
