@@ -1,10 +1,10 @@
 ---
 id: TASK-474
 title: develop-code-commit-guard misses an uppercase git commit
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 03:32'
-updated_date: '2026-08-09 05:07'
+updated_date: '2026-08-09 11:12'
 labels:
   - 'area:process'
   - 'area:tooling'
