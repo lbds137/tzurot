@@ -3,9 +3,10 @@ id: TASK-479
 title: >-
   A command substitution nested inside quotes is erased by strip_quoted,
   bypassing the blocking commit guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 10:37'
+updated_date: '2026-08-09 14:21'
 labels:
   - 'area:tooling'
   - 'area:process'

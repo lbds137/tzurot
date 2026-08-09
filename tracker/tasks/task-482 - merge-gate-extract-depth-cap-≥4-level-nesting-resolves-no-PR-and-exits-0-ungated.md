@@ -3,9 +3,10 @@ id: TASK-482
 title: >-
   merge gate extract() depth cap ≥4-level nesting resolves no PR and exits 0
   ungated
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 11:28'
+updated_date: '2026-08-09 14:21'
 labels:
   - 'area:tooling'
   - 'size:S'

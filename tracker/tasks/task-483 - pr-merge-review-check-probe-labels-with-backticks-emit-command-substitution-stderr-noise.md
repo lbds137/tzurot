@@ -3,9 +3,10 @@ id: TASK-483
 title: >-
   pr-merge-review-check probe labels with backticks emit command-substitution
   stderr noise
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 11:28'
+updated_date: '2026-08-09 14:21'
 labels:
   - 'area:tooling'
   - 'size:S'
