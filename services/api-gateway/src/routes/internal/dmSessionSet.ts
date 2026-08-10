@@ -34,10 +34,11 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
+import { DmSessionSetResponseSchema } from '@tzurot/common-types/schemas/api/internal';
 import { generateChannelSettingsUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
@@ -94,6 +95,6 @@ export const handleSetDmSession = (deps: RouteDeps): RequestHandler => {
     });
 
     logger.debug({ channelId, personalitySlug }, 'DM session set');
-    sendCustomSuccess(res, { channelId, personalitySlug });
+    sendContractSuccess(res, DmSessionSetResponseSchema, { channelId, personalitySlug });
   });
 };

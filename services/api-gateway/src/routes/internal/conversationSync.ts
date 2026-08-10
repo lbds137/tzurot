@@ -17,11 +17,12 @@
 import { type Response, type RequestHandler } from 'express';
 import {
   ConversationSyncRequestSchema,
+  ConversationSyncResponseSchema,
   type ConversationSyncResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import { ConversationSyncService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -49,6 +50,10 @@ export const handleSyncConversation = (deps: RouteDeps): RequestHandler => {
       }))
     );
 
-    sendCustomSuccess(res, result satisfies ConversationSyncResponse);
+    sendContractSuccess(
+      res,
+      ConversationSyncResponseSchema,
+      result satisfies ConversationSyncResponse
+    );
   });
 };

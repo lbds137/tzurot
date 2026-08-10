@@ -20,11 +20,14 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
-import { type LoadPersonalityInternalResponse } from '@tzurot/common-types/schemas/api/internal';
+import {
+  LoadPersonalityInternalResponseSchema,
+  type LoadPersonalityInternalResponse,
+} from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { PersonalityService } from '@tzurot/identity';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -57,6 +60,8 @@ export const handleLoadPersonalityInternal = (deps: RouteDeps): RequestHandler =
       { nameOrId, found: personality !== null, hasUserId: userId !== undefined },
       'Personality load'
     );
-    sendCustomSuccess(res, { personality } satisfies LoadPersonalityInternalResponse);
+    sendContractSuccess(res, LoadPersonalityInternalResponseSchema, {
+      personality,
+    } satisfies LoadPersonalityInternalResponse);
   });
 };
