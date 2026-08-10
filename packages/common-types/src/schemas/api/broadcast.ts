@@ -190,6 +190,11 @@ export const ReleaseReconcileResponseSchema = z.object({
   skipped: z.number().int().min(0),
   /** True when the per-run announcement cap stopped the sweep early. */
   capped: z.boolean(),
+  /**
+   * Tag name of the newest published release when it is prerelease-flagged
+   * (the invariant break that silently kills every release DM), else null.
+   */
+  newestPrerelease: z.string().nullable(),
   /** Announced-but-incomplete sweep outcome (the second sweep of the run). */
   resweep: z
     .object({

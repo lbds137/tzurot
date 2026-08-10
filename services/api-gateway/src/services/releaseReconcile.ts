@@ -32,12 +32,13 @@ import type { Queue } from 'bullmq';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { addValidatedJob } from '../utils/validatedQueue.js';
 import {
-  announceGitHubRelease,
   GitHubReleaseSchema,
+  newestPublishedRelease,
   type GitHubRelease,
-} from './releaseAnnounce.js';
+} from '@tzurot/common-types/schemas/github/release';
+import { addValidatedJob } from '../utils/validatedQueue.js';
+import { announceGitHubRelease } from './releaseAnnounce.js';
 import {
   BROADCAST_BATCH_SIZE,
   computeCompletionSummary,
@@ -107,6 +108,11 @@ export interface ReconcileSummary {
   alreadyAnnounced: number;
   skipped: number;
   capped: boolean;
+  /**
+   * Tag name of the newest published release when it is prerelease-flagged
+   * (the invariant break that silently kills every release DM), else null.
+   */
+  newestPrerelease: string | null;
 }
 
 export interface ReconcileDeps {
@@ -123,6 +129,20 @@ export async function reconcileReleaseAnnouncements(
   const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
 
   const releases = await deps.fetchReleases();
+
+  // Checked over the FULL fetched list, not the lookback window — the
+  // "newest release is non-prerelease" invariant holds at all times, and
+  // window-scoping this would go silent again 24h after the mis-flag.
+  const newest = newestPublishedRelease(releases);
+  let newestPrerelease: string | null = null;
+  if (newest?.prerelease === true) {
+    newestPrerelease = newest.tag_name;
+    logger.warn(
+      { version: newest.tag_name, publishedAt: newest.published_at },
+      'Newest GitHub release is prerelease-flagged — release DMs are suppressed until it is demoted (release:publish flag choreography, or `gh release edit --prerelease=false`)'
+    );
+  }
+
   const inWindow = releases
     // Drafts carry a null published_at; everything else timestamps.
     .filter(release => {
@@ -142,6 +162,7 @@ export async function reconcileReleaseAnnouncements(
     alreadyAnnounced: 0,
     skipped: 0,
     capped: false,
+    newestPrerelease,
   };
 
   for (const release of inWindow) {
