@@ -30,6 +30,7 @@ import {
 } from './QuoteFormatter.js';
 import { promptTime, type RenderableReference } from './RenderableReference.js';
 import { deriveRefRole } from './referenceRole.js';
+import { isOwnPersonaVoice, redactOwnVoiceTranscript } from '../voice/ownVoiceGuard.js';
 
 const logger = createLogger('StoredReference');
 
@@ -152,6 +153,13 @@ export function buildStoredAttachments(ref: StoredReferencedMessage): Renderable
         ? { kind: 'image', description: entry.description }
         : { kind: 'voice', description: entry.description }
     );
+  }
+
+  // Render-side belt-and-suspenders: a row persisted BEFORE this guard existed
+  // can still carry a real STT transcript in `attachmentEnrichment` — replay
+  // must not let it back into the prompt just because it survived in storage.
+  if (isOwnPersonaVoice(ref.authorRole)) {
+    return attachments.map(att => (att.kind === 'voice' ? redactOwnVoiceTranscript(att) : att));
   }
 
   return attachments;

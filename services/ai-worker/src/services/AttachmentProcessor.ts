@@ -9,7 +9,10 @@
 import type { Logger } from 'pino';
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
-import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import {
+  type ReferencedMessage,
+  type ReferenceAuthorRole,
+} from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -20,6 +23,7 @@ import {
   type BuiltAttachment,
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
+import { isOwnPersonaVoice, OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
 import { withRetry } from '../utils/retry.js';
 import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
 
@@ -43,6 +47,13 @@ interface ProcessSingleAttachmentOptions {
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
   sttDispatch?: SttDispatch;
+  /**
+   * The REFERENCE's raw authorship stamp (not the derived render role) — used
+   * only to gate voice STT. `'assistant'` means one of our own personas (self
+   * or sibling); absent/`'user'`/`'bot'` leave today's behavior untouched. See
+   * `ownVoiceGuard.ts`.
+   */
+  authorRole?: ReferenceAuthorRole;
   /** Diagnostic context for vision-failure logging (see VisionLoggingContext in VisionProcessor.ts) */
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
@@ -87,6 +98,13 @@ export interface ProcessAttachmentsOptions {
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
   sttDispatch?: SttDispatch;
+  /**
+   * The REFERENCE's raw authorship stamp (not the derived render role) — used
+   * only to gate voice STT. `'assistant'` means one of our own personas (self
+   * or sibling); absent/`'user'`/`'bot'` leave today's behavior untouched. See
+   * `ownVoiceGuard.ts`.
+   */
+  authorRole?: ReferenceAuthorRole;
   /** Diagnostic context for vision-failure logging */
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
@@ -124,6 +142,7 @@ export async function processAttachmentsParallel(
     preprocessedAttachments,
     userApiKey,
     sttDispatch,
+    authorRole,
     loggingContext,
     visionProvider,
     model,
@@ -174,6 +193,7 @@ export async function processAttachmentsParallel(
             preprocessedAttachments,
             userApiKey,
             sttDispatch,
+            authorRole,
             loggingContext,
             visionProvider,
             model,
@@ -245,14 +265,19 @@ function findPreprocessedByUrl(
   return preprocessedAttachments.find(p => p.originalUrl === url);
 }
 
+/** Options for processing a voice attachment (internal) */
+interface ProcessVoiceOptions {
+  attachment: ProcessSingleAttachmentOptions['attachment'];
+  referenceNumber: number;
+  log: Logger;
+  preprocessed?: ProcessedAttachment;
+  sttDispatch?: SttDispatch;
+  authorRole?: ReferenceAuthorRole;
+}
+
 /** Process voice message attachment */
-async function processVoiceAttachment(
-  attachment: ProcessSingleAttachmentOptions['attachment'],
-  referenceNumber: number,
-  log: Logger,
-  preprocessed?: ProcessedAttachment,
-  sttDispatch?: SttDispatch
-): Promise<BuiltAttachment> {
+async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<BuiltAttachment> {
+  const { attachment, referenceNumber, log, preprocessed, sttDispatch, authorRole } = options;
   // Identity only — NOT a whole RenderableVoice. `kind` and the enrichment are
   // supplied per return site, because the type makes description and status
   // mutually exclusive and a pre-built object cannot commit to either arm.
@@ -262,6 +287,17 @@ async function processVoiceAttachment(
     contentType: attachment.contentType,
     durationSeconds: attachment.duration,
   } as const;
+
+  // Own-persona voice: skip BOTH the preprocessed short-circuit below AND the
+  // STT call — a preprocessed transcript here could be a cache hit computed
+  // before this guard existed, which is still our own TTS transcript.
+  if (isOwnPersonaVoice(authorRole)) {
+    log.debug(
+      { referenceNumber, url: attachment.url },
+      "Skipping STT for the persona's own voice reference"
+    );
+    return { url: attachment.url, attachment: { ...identity, description: OWN_VOICE_DESCRIPTION } };
+  }
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     log.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed voice transcription');
@@ -371,6 +407,7 @@ async function processSingleAttachment(
     preprocessedAttachments,
     userApiKey,
     sttDispatch,
+    authorRole,
     loggingContext,
     visionProvider,
     model,
@@ -380,7 +417,14 @@ async function processSingleAttachment(
 
   switch (classifyAttachment(attachment)) {
     case 'voice':
-      return processVoiceAttachment(attachment, referenceNumber, log, preprocessed, sttDispatch);
+      return processVoiceAttachment({
+        attachment,
+        referenceNumber,
+        log,
+        preprocessed,
+        sttDispatch,
+        authorRole,
+      });
     case 'image':
       return processImageAttachment({
         attachment,

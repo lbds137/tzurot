@@ -35,6 +35,7 @@ import {
 import { deriveRefRole } from './prompt/referenceRole.js';
 import { toStoredReference } from './prompt/storedReference.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
+import { isOwnPersonaVoice, redactOwnVoiceTranscript } from './voice/ownVoiceGuard.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
@@ -202,6 +203,20 @@ function buildDedupedAttachments(
         },
       });
     }
+  }
+
+  // Render-side belt-and-suspenders: a preprocessed voice description here was
+  // computed by the dependency stage's job, which can run before this turn's
+  // render decides the reference is our own persona's audio — so even a
+  // freshly-produced transcript must not survive into the prompt for an
+  // assistant-authored reference. Applied last, after both loops, so it covers
+  // every voice entry regardless of which loop produced it.
+  if (isOwnPersonaVoice(ref.authorRole)) {
+    return attachments.map(entry =>
+      entry.attachment.kind === 'voice'
+        ? { url: entry.url, attachment: redactOwnVoiceTranscript(entry.attachment) }
+        : entry
+    );
   }
 
   return attachments;
@@ -452,6 +467,7 @@ export class ReferencedMessageFormatter {
       preprocessedAttachments: preprocessedForRef,
       userApiKey,
       sttDispatch,
+      authorRole: ref.authorRole,
       visionProvider,
       model: visionModel,
       requestId: apiKeys?.requestId,
