@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AutocompleteInteraction, User } from 'discord.js';
 import { mockListLlmConfigsResponse, mockLlmConfigSummary } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
-import type { CatalogModel } from '../../utils/modelCatalog.js';
+import { catalogModel } from '../../test/catalogModel.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -41,24 +41,6 @@ vi.mock('../../utils/modelCatalog.js', async importOriginal => {
 });
 
 const { handleAutocomplete, __resetGlobalConfigCacheForTests } = await import('./autocomplete.js');
-
-function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
-  return {
-    name: overrides.id,
-    contextLength: 200_000,
-    supportsVision: false,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-    isZaiCoding: false,
-    docsUrl: null,
-    source: 'openrouter',
-    hasPricing: true,
-    ...overrides,
-  };
-}
 
 interface UserClientStub {
   listUserLlmConfigs: ReturnType<typeof vi.fn>;

@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AutocompleteInteraction } from 'discord.js';
-import type { CatalogModel } from '../../utils/modelCatalog.js';
+import { catalogModel } from '../../test/catalogModel.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -27,24 +27,6 @@ vi.mock('../../utils/modelCatalog.js', async importOriginal => {
 
 import { handleAutocomplete } from './autocomplete.js';
 
-function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
-  return {
-    name: overrides.id,
-    contextLength: 200_000,
-    supportsVision: false,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-    isZaiCoding: overrides.id.startsWith('z-ai/'),
-    docsUrl: null,
-    source: 'openrouter',
-    hasPricing: true,
-    ...overrides,
-  };
-}
-
 function interaction(focused: string): AutocompleteInteraction {
   return {
     options: { getFocused: () => focused },
@@ -58,7 +40,14 @@ describe('handleAutocomplete', () => {
   it('returns choices with name+value and a z.ai marker', async () => {
     catalogMock.fetchModelCatalog.mockResolvedValue([
       catalogModel({ id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' }),
-      catalogModel({ id: 'z-ai/glm-5.2', name: 'GLM-5.2', contextLength: 1_000_000 }),
+      // This suite doesn't exercise the z.ai-merge `source` distinction, so pin
+      // 'openrouter' explicitly rather than relying on the builder's id-prefix default.
+      catalogModel({
+        id: 'z-ai/glm-5.2',
+        name: 'GLM-5.2',
+        contextLength: 1_000_000,
+        source: 'openrouter',
+      }),
     ]);
     const ix = interaction('glm');
     await handleAutocomplete(ix);

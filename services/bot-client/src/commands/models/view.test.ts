@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { CatalogModel } from '../../utils/modelCatalog.js';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
+import { catalogModel } from '../../test/catalogModel.js';
 import { mockListWalletKeysResponse } from '@tzurot/test-factories';
 
 let viewModelId = 'anthropic/claude-sonnet-4';
@@ -47,24 +47,6 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 
 import { handleView } from './view.js';
 
-function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
-  return {
-    name: overrides.id,
-    contextLength: 200_000,
-    supportsVision: false,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-    isZaiCoding: false,
-    docsUrl: null,
-    source: 'openrouter',
-    hasPricing: true,
-    ...overrides,
-  };
-}
-
 function ctx(): DeferredCommandContext {
   const editReply = vi.fn();
   const interaction = { user: { id: 'u1' }, editReply } as unknown as ChatInputCommandInteraction;
@@ -96,7 +78,15 @@ describe('handleView', () => {
     // billed on their own key). Empty-Set-on-failure regressed exactly this.
     viewModelId = 'z-ai/glm-4.5-air';
     catalogMock.fetchCatalogModelById.mockResolvedValue(
-      catalogModel({ id: 'z-ai/glm-4.5-air', name: 'GLM 4.5 Air', source: 'both' })
+      // glm-4.5-air is a real coding-plan member, so the builder's computed
+      // isZaiCoding default is true; this suite doesn't exercise the ⚡ badge,
+      // so pin the original false rather than let the default drift in.
+      catalogModel({
+        id: 'z-ai/glm-4.5-air',
+        name: 'GLM 4.5 Air',
+        source: 'both',
+        isZaiCoding: false,
+      })
     );
     walletStub.listWalletKeys.mockResolvedValue(makeErr(500, 'wallet down'));
     const context = ctx();
@@ -112,7 +102,15 @@ describe('handleView', () => {
   it('renders the piggyback model as free for a CONFIRMED keyless user', async () => {
     viewModelId = 'z-ai/glm-4.5-air';
     catalogMock.fetchCatalogModelById.mockResolvedValue(
-      catalogModel({ id: 'z-ai/glm-4.5-air', name: 'GLM 4.5 Air', source: 'both' })
+      // glm-4.5-air is a real coding-plan member, so the builder's computed
+      // isZaiCoding default is true; this suite doesn't exercise the ⚡ badge,
+      // so pin the original false rather than let the default drift in.
+      catalogModel({
+        id: 'z-ai/glm-4.5-air',
+        name: 'GLM 4.5 Air',
+        source: 'both',
+        isZaiCoding: false,
+      })
     );
     // beforeEach default: wallet fetch OK with zero keys = confirmed guest
     const context = ctx();
