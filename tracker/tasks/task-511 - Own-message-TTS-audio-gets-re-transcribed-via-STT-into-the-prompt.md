@@ -1,10 +1,10 @@
 ---
 id: TASK-511
 title: Own-message TTS audio gets re-transcribed via STT into the prompt
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 20:57'
-updated_date: '2026-08-10 21:08'
+updated_date: '2026-08-10 22:00'
 labels:
   - 'area:ai-worker'
   - 'size:M'
