@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getConfig, resetConfig, createTestConfig, validateEnv, envSchema } from './config.js';
-import { AIProvider } from '../constants/index.js';
+import { AIProvider, SERVICE_DEFAULTS } from '../constants/index.js';
 
 describe('config', () => {
   // Store original process.env
@@ -244,8 +244,12 @@ describe('config', () => {
       expect(envSchema.parse({ PUBLIC_SITE_URL: 'https://rotzot.example' }).PUBLIC_SITE_URL).toBe(
         'https://rotzot.example'
       );
-      // Trailing slash stripped so `${SITE}/docs/...` never double-slashes.
+      // Trailing slashes stripped so `${SITE}/docs/...` never double-slashes —
+      // including the doubled-slash misconfig, which a single-slash strip would miss.
       expect(envSchema.parse({ PUBLIC_SITE_URL: 'https://rotzot.example/' }).PUBLIC_SITE_URL).toBe(
+        'https://rotzot.example'
+      );
+      expect(envSchema.parse({ PUBLIC_SITE_URL: 'https://rotzot.example//' }).PUBLIC_SITE_URL).toBe(
         'https://rotzot.example'
       );
     });
@@ -253,6 +257,37 @@ describe('config', () => {
     it('rejects a PUBLIC_SITE_URL without a scheme', () => {
       // A bare domain fails `.url()` — fail-fast at startup beats a broken link.
       expect(() => envSchema.parse({ PUBLIC_SITE_URL: 'rotzot.example' })).toThrow();
+    });
+
+    it('defaults GATEWAY_URL to localhost when unset and strips a trailing slash from an explicit value', () => {
+      expect(envSchema.parse({}).GATEWAY_URL).toBe(
+        `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`
+      );
+      expect(envSchema.parse({ GATEWAY_URL: 'https://gateway.example' }).GATEWAY_URL).toBe(
+        'https://gateway.example'
+      );
+      // Trailing slashes stripped so `${GATEWAY_URL}/api/...` never double-slashes —
+      // including the doubled-slash misconfig, which a single-slash strip would miss.
+      expect(envSchema.parse({ GATEWAY_URL: 'https://gateway.example/' }).GATEWAY_URL).toBe(
+        'https://gateway.example'
+      );
+      expect(envSchema.parse({ GATEWAY_URL: 'https://gateway.example//' }).GATEWAY_URL).toBe(
+        'https://gateway.example'
+      );
+    });
+
+    it('honors an explicit PUBLIC_GATEWAY_URL, strips a trailing slash, and stays undefined when unset', () => {
+      expect(envSchema.parse({}).PUBLIC_GATEWAY_URL).toBeUndefined();
+      expect(
+        envSchema.parse({ PUBLIC_GATEWAY_URL: 'https://gateway.example' }).PUBLIC_GATEWAY_URL
+      ).toBe('https://gateway.example');
+      // Trailing slashes stripped so `${PUBLIC_GATEWAY_URL}/...` never double-slashes.
+      expect(
+        envSchema.parse({ PUBLIC_GATEWAY_URL: 'https://gateway.example/' }).PUBLIC_GATEWAY_URL
+      ).toBe('https://gateway.example');
+      expect(
+        envSchema.parse({ PUBLIC_GATEWAY_URL: 'https://gateway.example//' }).PUBLIC_GATEWAY_URL
+      ).toBe('https://gateway.example');
     });
 
     it('should transform ENABLE_HEALTH_SERVER correctly', () => {
