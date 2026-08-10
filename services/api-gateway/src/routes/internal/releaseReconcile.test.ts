@@ -55,6 +55,7 @@ const SUMMARY = {
   alreadyAnnounced: 0,
   skipped: 0,
   capped: false,
+  newestPrerelease: null,
 };
 
 const RESWEEP = {

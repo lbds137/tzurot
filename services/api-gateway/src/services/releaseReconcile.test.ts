@@ -27,6 +27,19 @@ vi.mock('./releaseBroadcast.js', async () => {
   };
 });
 
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 import {
   createGitHubReleasesFetcher,
   reconcileReleaseAnnouncements,
@@ -36,7 +49,7 @@ import {
   INCOMPLETE_WEDGE_THRESHOLD_MS,
   type FetchGitHubReleases,
 } from './releaseReconcile.js';
-import type { GitHubRelease } from './releaseAnnounce.js';
+import type { GitHubRelease } from '@tzurot/common-types/schemas/github/release';
 
 const NOW = new Date('2026-07-15T12:00:00Z');
 
@@ -72,6 +85,7 @@ describe('reconcileReleaseAnnouncements', () => {
       recipients: 1,
       batches: 1,
     });
+    mockLogger.warn.mockClear();
   });
 
   afterEach(() => {
@@ -131,6 +145,9 @@ describe('reconcileReleaseAnnouncements', () => {
       alreadyAnnounced: 1,
       skipped: 1,
       capped: false,
+      // v-2 is the newest by published_at (hoursAgo(1) < hoursAgo(2)) AND
+      // prerelease-flagged.
+      newestPrerelease: 'v-2',
     });
   });
 
@@ -154,6 +171,46 @@ describe('reconcileReleaseAnnouncements', () => {
     expect(summary.announced).toHaveLength(MAX_ANNOUNCEMENTS_PER_RUN);
     expect(summary.capped).toBe(true);
     expect(announceMock).toHaveBeenCalledTimes(MAX_ANNOUNCEMENTS_PER_RUN);
+  });
+
+  it('warns and surfaces newestPrerelease when the newest release by published_at is prerelease-flagged', async () => {
+    // The prerelease release is NOT the array's first element — an
+    // array-order-picking implementation (instead of published_at) would
+    // pick v-older and fail this assertion.
+    const older = makeRelease({ id: 1, tag_name: 'v-older', published_at: hoursAgo(10) });
+    const newerPrerelease = makeRelease({
+      id: 2,
+      tag_name: 'v-newer',
+      published_at: hoursAgo(1),
+      prerelease: true,
+    });
+    const summary = await reconcileReleaseAnnouncements({
+      ...deps,
+      fetchReleases: withReleases([older, newerPrerelease]),
+    });
+
+    expect(summary.newestPrerelease).toBe('v-newer');
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 'v-newer' }),
+      expect.any(String)
+    );
+  });
+
+  it('does not warn and reports newestPrerelease: null when the newest release is non-prerelease', async () => {
+    const older = makeRelease({
+      id: 1,
+      tag_name: 'v-older-pre',
+      published_at: hoursAgo(10),
+      prerelease: true,
+    });
+    const newerHealthy = makeRelease({ id: 2, tag_name: 'v-newer', published_at: hoursAgo(1) });
+    const summary = await reconcileReleaseAnnouncements({
+      ...deps,
+      fetchReleases: withReleases([older, newerHealthy]),
+    });
+
+    expect(summary.newestPrerelease).toBeNull();
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 });
 

@@ -252,6 +252,7 @@ describe('internal route inputs', () => {
       alreadyAnnounced: 1,
       skipped: 0,
       capped: false,
+      newestPrerelease: null,
     });
     expect(result.success).toBe(true);
     expect(ReleaseReconcileResponseSchema.safeParse({ checked: -1 }).success).toBe(false);
