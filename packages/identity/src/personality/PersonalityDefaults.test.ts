@@ -134,6 +134,25 @@ describe('PersonalityDefaults', () => {
       expect(result).toBe(`http://localhost:3000/avatars/test-bot-${expectedTimestamp}.png`);
     });
 
+    it('strips trailing slashes so the derived path never doubles the separator', () => {
+      process.env.PUBLIC_GATEWAY_URL = 'https://public.example.com/';
+      const result = deriveAvatarUrl('test-bot', testDate, mockLogger);
+      expect(result).toBe(`https://public.example.com/avatars/test-bot-${expectedTimestamp}.png`);
+
+      // Doubled-slash misconfig: the bounded multi-slash strip's reason to exist.
+      process.env.PUBLIC_GATEWAY_URL = 'https://public.example.com//';
+      const doubled = deriveAvatarUrl('test-bot', testDate, mockLogger);
+      expect(doubled).toBe(`https://public.example.com/avatars/test-bot-${expectedTimestamp}.png`);
+    });
+
+    it('treats a slash-only URL as unconfigured (strips to empty, warns)', () => {
+      delete process.env.PUBLIC_GATEWAY_URL;
+      process.env.GATEWAY_URL = '/';
+      const result = deriveAvatarUrl('test-bot', testDate, mockLogger);
+      expect(result).toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalled();
+    });
+
     it('should return undefined and log warning if no URL configured', () => {
       delete process.env.PUBLIC_GATEWAY_URL;
       delete process.env.GATEWAY_URL;
