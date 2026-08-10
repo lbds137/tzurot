@@ -128,6 +128,8 @@ export class FreeTierRequestQuota {
   private readonly redis: Redis;
   /** Normalized per-call config provider (see constructor doc). */
   private readonly configProvider: () => FreeTierQuotaConfig;
+  /** Set on the first inverted-bounds warn so the log fires once per instance, not per call. */
+  private warnedInvertedWindowBounds = false;
 
   constructor(
     redis: Redis,
@@ -222,12 +224,26 @@ export class FreeTierRequestQuota {
     }
   }
 
-  /** The dynamic per-user cap for a given concurrent-user count. */
+  /**
+   * The dynamic per-user cap for a given concurrent-user count. The admin
+   * write surface enforces `minPerWindow <= maxPerWindow`; this guard is
+   * defense-in-depth for direct/legacy config paths and is behavior-preserving
+   * for valid configs.
+   */
   computeWindowCap(activeUsers: number): number {
     const config = this.configProvider();
     const windowFraction = config.windowMinutes / MINUTES_PER_DAY;
     const raw = Math.floor((config.globalDailyBudget * windowFraction) / Math.max(activeUsers, 1));
-    return Math.max(config.minPerWindow, Math.min(config.maxPerWindow, raw));
+    if (config.minPerWindow > config.maxPerWindow && !this.warnedInvertedWindowBounds) {
+      this.warnedInvertedWindowBounds = true;
+      logger.warn(
+        { minPerWindow: config.minPerWindow, maxPerWindow: config.maxPerWindow },
+        'Free-tier window bounds are inverted (min > max) — clamping with the swapped pair'
+      );
+    }
+    const floor = Math.min(config.minPerWindow, config.maxPerWindow);
+    const ceiling = Math.max(config.minPerWindow, config.maxPerWindow);
+    return Math.max(floor, Math.min(ceiling, raw));
   }
 
   private logDeny(
