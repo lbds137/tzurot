@@ -1,10 +1,10 @@
 ---
 id: TASK-243
 title: FreeTierRequestQuota computeWindowCap has no min<=max guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-08 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-10 16:42'
 labels:
   - 'area:ai-worker'
   - 'size:S'
