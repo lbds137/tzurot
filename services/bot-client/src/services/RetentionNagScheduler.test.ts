@@ -69,7 +69,7 @@ const client = {} as Client;
 describe('RetentionNagScheduler runRetentionNagCheck', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPostOwnerChannelEmbed.mockResolvedValue(undefined);
+    mockPostOwnerChannelEmbed.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -90,6 +90,17 @@ describe('RetentionNagScheduler runRetentionNagCheck', () => {
       7 * 24 * 60 * 60,
       expect.any(String)
     );
+  });
+
+  it('does NOT arm the cooldown when the embed post reports non-delivery — the next tick retries', async () => {
+    mockRetentionPreview.mockResolvedValue({ ok: true, data: makePreview({ eligibleCount: 2 }) });
+    mockPostOwnerChannelEmbed.mockResolvedValue(false);
+    const redis = makeRedis(null);
+
+    await runRetentionNagCheck(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(redis.setex).not.toHaveBeenCalled();
   });
 
   it('does NOT post while the cooldown key exists (at most one nag per week)', async () => {
