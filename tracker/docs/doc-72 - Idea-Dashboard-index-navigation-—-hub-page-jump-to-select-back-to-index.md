@@ -20,13 +20,24 @@ named-page dashboard behave like a linked list when its structure is a tree._
 - Pages are PREDICTABLE AND NAMED — which is what makes the hub cheap: the
   option labels already exist as group names.
 
-## The generalization — jump navigation for long browse surfaces
+## The generalization — TWO-LEVEL navigation for long browse surfaces
 
-The browse utilities (`buildBrowseButtons`, `createBrowseCustomIdHelpers`)
-could grow an optional jump control when page count exceeds a threshold
-(~4+): a select menu of pages, labeled by section NAME where pages are named
-(dashboards) or by page number + first-item preview where they are not
-(character browse, memory browse). Two flavors, one mechanism.
+(Owner refinement, same session: the index is a LEVEL, not a bolt-on.)
+
+- **Level 1 — the index**: browse commands LAND here by default. A select menu
+  of sections/pages — labeled by section NAME where pages are named
+  (dashboards) or by page number + first-item preview where they are not
+  (character browse, memory browse).
+- **The index paginates itself** when its entries exceed the 25-option select
+  ceiling — this is structural, not optional: a 143-character roster's index
+  is 6+ index pages by arithmetic. Prev/next at the index level too.
+- **Level 2 — the drilled-in page**: prev/next within the level, plus an
+  always-present back-to-index button (one level up). Never strand the user in
+  level 2 with only linear motion.
+
+Open design question for the build: whether small surfaces (<= ~3 pages) skip
+the index and open directly at page 1 (today's behavior) — a hub for 2 pages
+is ceremony. Threshold-gated landing keeps small browses one-tap.
 
 Constraints to check at build time:
 
