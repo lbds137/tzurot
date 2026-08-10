@@ -62,7 +62,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
-    "discord-api-types": "^0.38.52",
+    "discord-api-types": "^0.38.53",
     "discord.js": "^14.27.0",
     "ioredis": "^5.11.1",
     "lru-cache": "^11.5.2",
