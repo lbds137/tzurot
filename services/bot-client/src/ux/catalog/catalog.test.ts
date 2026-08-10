@@ -22,6 +22,13 @@ function allSpecs(): { path: string; spec: MessageSpec }[] {
       path: 'error.committedUnconfirmed+refresh',
       spec: CATALOG.error.committedUnconfirmed('preset', { refreshAffordance: true }),
     },
+    {
+      path: 'error.destructiveApplied',
+      spec: CATALOG.error.destructiveApplied(
+        'The memories were deleted',
+        'Use /memory browse to verify.'
+      ),
+    },
     { path: 'error.gatewayRejection', spec: CATALOG.error.gatewayRejection('Slug already taken') },
     { path: 'error.operationFailed', spec: CATALOG.error.operationFailed('create the character') },
     { path: 'error.permissionDenied', spec: CATALOG.error.permissionDenied('edit this') },

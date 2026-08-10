@@ -85,6 +85,17 @@ export const CATALOG = {
     }),
 
     /**
+     * A destructive write APPLIED with its result already in hand; only
+     * rendering the result failed. Must never read as cancelled or failed —
+     * either invites redoing a destructive operation that already happened.
+     */
+    destructiveApplied: (whatApplied: string, verifySteer: string): MessageSpec => ({
+      severity: 'success',
+      outcome: 'committed-unconfirmed',
+      text: `${whatApplied}, but showing the result failed. ${verifySteer}`,
+    }),
+
+    /**
      * A definitive gateway rejection whose own message is worth surfacing
      * (validation detail, conflict explanation). The gateway emits clean
      * user-appropriate JSON messages (arch rule); bot-client adds the emoji.
