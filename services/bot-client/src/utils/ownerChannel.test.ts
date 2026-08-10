@@ -38,34 +38,34 @@ describe('postOwnerChannelEmbed', () => {
     configMock.value = { FEEDBACK_CHANNEL_ID: '123456789012345678' };
   });
 
-  it('sends the embed with pings suppressed', async () => {
+  it('sends the embed with pings suppressed and reports delivery', async () => {
     const send = vi.fn().mockResolvedValue({});
     const client = makeClient({ isTextBased: () => true, send });
 
-    await postOwnerChannelEmbed(client, embed);
+    await expect(postOwnerChannelEmbed(client, embed)).resolves.toBe(true);
 
     expect(send).toHaveBeenCalledWith({ embeds: [embed], allowedMentions: { parse: [] } });
   });
 
-  it('is a silent no-op when the channel id is unset', async () => {
+  it('is a silent no-op (not delivered) when the channel id is unset', async () => {
     configMock.value = { FEEDBACK_CHANNEL_ID: undefined };
     const client = makeClient(null);
 
-    await postOwnerChannelEmbed(client, embed);
+    await expect(postOwnerChannelEmbed(client, embed)).resolves.toBe(false);
 
     expect(client.channels.fetch).not.toHaveBeenCalled();
   });
 
-  it('warns-and-returns on a non-sendable channel (no throw)', async () => {
+  it('warns and reports non-delivery on a non-sendable channel (no throw)', async () => {
     const client = makeClient({ isTextBased: () => false });
 
-    await expect(postOwnerChannelEmbed(client, embed)).resolves.toBeUndefined();
+    await expect(postOwnerChannelEmbed(client, embed)).resolves.toBe(false);
   });
 
-  it('swallows a send failure — the caller primary action already succeeded', async () => {
+  it('swallows a send failure and reports non-delivery — the caller primary action already succeeded', async () => {
     const send = vi.fn().mockRejectedValue(new Error('missing access'));
     const client = makeClient({ isTextBased: () => true, send });
 
-    await expect(postOwnerChannelEmbed(client, embed)).resolves.toBeUndefined();
+    await expect(postOwnerChannelEmbed(client, embed)).resolves.toBe(false);
   });
 });

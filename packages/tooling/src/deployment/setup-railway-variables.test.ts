@@ -130,6 +130,27 @@ ZAI_CODING_API_KEY=test-zai-key
       expect(output).toContain('Would set api-gateway variable: ZAI_CODING_API_KEY');
       expect(output).toContain('Would set ai-worker variable: ZAI_CODING_API_KEY');
     });
+
+    it('sets GITHUB_API_TOKEN on BOTH api-gateway and bot-client', async () => {
+      // The both-services invariant: the gateway's hourly reconcile sweep and
+      // bot-client's daily release-flag nag each read the GitHub releases API,
+      // and both degrade to the unreliable unauthenticated path when the token
+      // is missing — this test pins the manifest pairing so the key can't
+      // quietly drop from either list.
+      mockReadFileSync.mockReturnValue(`
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-test-key
+DISCORD_TOKEN=test-discord-token
+DISCORD_CLIENT_ID=123456789
+GITHUB_API_TOKEN=ghp-test-token
+`);
+
+      await setupRailwayVariables({ env: 'dev', dryRun: true, yes: true });
+
+      const output = consoleLogs.join('\n');
+      expect(output).toContain('Would set api-gateway variable: GITHUB_API_TOKEN');
+      expect(output).toContain('Would set bot-client variable: GITHUB_API_TOKEN');
+    });
   });
 
   describe('environment validation', () => {
