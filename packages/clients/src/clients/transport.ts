@@ -302,11 +302,14 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     return { ok: false, kind: 'config', error: 'baseUrl is empty', status: 0 };
   }
 
-  // Strip a single trailing slash so a misconfigured `GATEWAY_URL=...example.test/`
+  // Strip trailing slashes so a misconfigured `GATEWAY_URL=...example.test/`
   // doesn't produce `example.test//api/...` (nginx and many CDN configs reject
   // double-slash paths). All `path` values from generated clients start with
-  // `/`, so this concatenation is well-formed in either case.
-  const normalizedBase = baseUrl.replace(/\/$/, '');
+  // `/`, so this concatenation is well-formed in either case. This is the
+  // defense-in-depth layer for callers that construct a baseUrl OUTSIDE the
+  // env schema's strip (ops CLI Railway-vars reads, raw-env local paths).
+  // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
+  const normalizedBase = baseUrl.replace(/\/{1,64}$/, '');
 
   try {
     const headers: Record<string, string> = {

@@ -132,7 +132,7 @@ describe('callGateway', () => {
     expect(url).toBe('https://example.test/api/user/timezone');
   });
 
-  it('strips a single trailing slash from baseUrl (defensive against misconfig)', async () => {
+  it('strips trailing slashes from baseUrl (defensive against misconfig)', async () => {
     // A misconfigured `GATEWAY_URL=https://example.test/` previously
     // produced `https://example.test//api/...`, which nginx and many CDN
     // configs reject. Normalizing here makes the transport robust against
@@ -141,6 +141,13 @@ describe('callGateway', () => {
     await callGateway({ ...baseOpts, baseUrl: 'https://example.test/' });
     const [url] = fetchSpy.mock.calls[0] as [string];
     expect(url).toBe('https://example.test/api/user/timezone');
+
+    // Doubled-slash misconfig: ops-CLI baseUrls bypass the env schema's strip,
+    // so this layer must handle the case a single-slash strip would miss.
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await callGateway({ ...baseOpts, baseUrl: 'https://example.test//' });
+    const [doubledUrl] = fetchSpy.mock.calls[1] as [string];
+    expect(doubledUrl).toBe('https://example.test/api/user/timezone');
   });
 
   it('defaults write methods (POST/PUT/PATCH/DELETE) to the WRITE timeout', async () => {

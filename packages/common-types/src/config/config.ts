@@ -117,20 +117,30 @@ export const envSchema = z.object({
     .url()
     .optional()
     .or(z.literal('').transform(() => undefined))
-    .transform(val => val ?? `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`), // Internal URL for API calls (bot-client -> api-gateway)
+    // Strip trailing slashes so callers can concatenate `${GATEWAY_URL}/api/...`
+    // without risking a double slash regardless of how the value is set.
+    // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
+    .transform(val =>
+      (val ?? `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`).replace(/\/{1,64}$/, '')
+    ), // Internal URL for API calls (bot-client -> api-gateway)
   PUBLIC_GATEWAY_URL: z
     .string()
     .url()
     .optional()
-    .or(z.literal('').transform(() => undefined)), // Public HTTPS URL for external resources (Discord avatar fetching)
+    .or(z.literal('').transform(() => undefined))
+    // Strip trailing slashes so callers can concatenate `${PUBLIC_GATEWAY_URL}/...`
+    // without risking a double slash regardless of how the value is set.
+    // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
+    .transform(val => val?.replace(/\/{1,64}$/, '')), // Public HTTPS URL for external resources (Discord avatar fetching)
   PUBLIC_SITE_URL: z
     .string()
     .url()
     .optional()
     .or(z.literal('').transform(() => undefined))
-    // Strip a trailing slash so callers can concatenate `${SITE}/docs/...`
+    // Strip trailing slashes so callers can concatenate `${SITE}/docs/...`
     // without risking a double slash regardless of how the value is set.
-    .transform(val => (val ?? 'https://tzurot.org').replace(/\/$/, '')), // Public website base URL; dev sets its own domain so user-facing links stay in-environment
+    // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
+    .transform(val => (val ?? 'https://tzurot.org').replace(/\/{1,64}$/, '')), // Public website base URL; dev sets its own domain so user-facing links stay in-environment
   CORS_ORIGINS: z
     .string()
     .optional()
