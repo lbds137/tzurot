@@ -1,9 +1,10 @@
 ---
 id: TASK-501
 title: Copy character tags dev-to-prod after the tags migration lands
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 01:41'
+updated_date: '2026-08-10 02:54'
 labels:
   - 'area:db'
   - 'size:S'
