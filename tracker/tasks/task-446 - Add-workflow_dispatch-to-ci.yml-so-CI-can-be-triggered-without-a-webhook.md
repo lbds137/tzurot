@@ -1,10 +1,10 @@
 ---
 id: TASK-446
 title: Add workflow_dispatch to ci.yml so CI can be triggered without a webhook
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-06 22:56'
-updated_date: '2026-08-07 16:23'
+updated_date: '2026-08-10 03:25'
 labels:
   - 'area:ci'
   - 'size:S'
