@@ -3,9 +3,10 @@ id: TASK-503
 title: >-
   SecretRotationNagScheduler: arm the nag cooldown only on confirmed embed
   delivery
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 10:50'
+updated_date: '2026-08-10 13:24'
 labels:
   - 'area:bot-client'
   - 'size:S'
