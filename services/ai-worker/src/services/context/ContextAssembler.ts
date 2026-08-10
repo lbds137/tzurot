@@ -51,7 +51,7 @@ import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
 import { recoverRelayEchoIdentities } from './relayEchoRecovery.js';
 import type { ContextDataSource } from './types.js';
-import { isOwnPersonaVoice } from '../voice/ownVoiceGuard.js';
+import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 
 const logger = createLogger('ContextAssembler');
 
