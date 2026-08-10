@@ -58,3 +58,9 @@ control should ship once, in the shared utilities.
 
 Owner annoyance recurs (it will — the settings dashboard is the owner's own
 daily surface), or bundled with doc-71's browse-machinery work.
+
+**At pickup (owner instruction, 2026-08-09): run the design through a council
+pass before plan-mode** — the two-level navigation is complex enough UX that
+independent perspectives should pressure-test it (index-landing threshold,
+component-row budget, whether the jump control belongs in browse utils or
+dashboard machinery) before anything is built.
