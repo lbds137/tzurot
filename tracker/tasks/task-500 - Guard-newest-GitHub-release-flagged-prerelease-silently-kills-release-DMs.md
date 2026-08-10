@@ -1,9 +1,10 @@
 ---
 id: TASK-500
 title: 'Guard: newest GitHub release flagged prerelease silently kills release DMs'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 00:40'
+updated_date: '2026-08-10 10:59'
 labels:
   - 'area:api-gateway'
   - 'size:S'
