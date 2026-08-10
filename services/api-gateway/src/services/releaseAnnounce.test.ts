@@ -7,11 +7,8 @@ vi.mock('./releaseBroadcast.js', () => ({
   enqueueBroadcast: enqueueBroadcastMock,
 }));
 
-import {
-  announceGitHubRelease,
-  GitHubReleaseSchema,
-  type GitHubRelease,
-} from './releaseAnnounce.js';
+import { announceGitHubRelease } from './releaseAnnounce.js';
+import type { GitHubRelease } from '@tzurot/common-types/schemas/github/release';
 
 const deps = {
   prisma: {} as PrismaClient,
@@ -31,25 +28,6 @@ function makeRelease(overrides: Partial<GitHubRelease> = {}): GitHubRelease {
     ...overrides,
   };
 }
-
-describe('GitHubReleaseSchema', () => {
-  it('accepts a real-shaped release payload and strips extras', () => {
-    const parsed = GitHubReleaseSchema.parse({ ...makeRelease(), assets: [], author: {} });
-    expect(parsed).not.toHaveProperty('assets');
-    expect(parsed.tag_name).toBe('v3.0.0-beta.166');
-  });
-
-  it('tolerates null body and name (GitHub sends null, not absent)', () => {
-    expect(GitHubReleaseSchema.safeParse(makeRelease({ body: null, name: null })).success).toBe(
-      true
-    );
-  });
-
-  it('rejects a payload missing the gate fields', () => {
-    const { draft: _draft, ...withoutDraft } = makeRelease();
-    expect(GitHubReleaseSchema.safeParse(withoutDraft).success).toBe(false);
-  });
-});
 
 describe('announceGitHubRelease', () => {
   beforeEach(() => {

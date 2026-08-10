@@ -17,9 +17,10 @@ import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { GitHubReleaseSchema } from '@tzurot/common-types/schemas/github/release';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { verifyGitHubSignature } from '../../utils/githubSignature.js';
-import { announceGitHubRelease, GitHubReleaseSchema } from '../../services/releaseAnnounce.js';
+import { announceGitHubRelease } from '../../services/releaseAnnounce.js';
 
 const logger = createLogger('github-webhook');
 

@@ -8,11 +8,11 @@
  * the prerelease gate doubles as a "current release only" filter.
  */
 
-import { z } from 'zod';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Queue } from 'bullmq';
 import type { NotifyLevelValue } from '@tzurot/common-types/schemas/api/notifications';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { GitHubRelease } from '@tzurot/common-types/schemas/github/release';
 import { enqueueBroadcast } from './releaseBroadcast.js';
 import {
   parseReleaseSections,
@@ -21,24 +21,6 @@ import {
 } from './releaseNotes.js';
 
 const logger = createLogger('ReleaseAnnounce');
-
-/**
- * The subset of GitHub's release object both triggers consume. Passthrough
- * fields are stripped; `id` is GitHub's numeric release id (stored stringly
- * as the announcement's githubReleaseId).
- */
-export const GitHubReleaseSchema = z.object({
-  id: z.number().int(),
-  tag_name: z.string().min(1),
-  name: z.string().nullable().optional(),
-  body: z.string().nullable().optional(),
-  draft: z.boolean(),
-  prerelease: z.boolean(),
-  html_url: z.string().min(1),
-  published_at: z.string().nullable().optional(),
-});
-
-export type GitHubRelease = z.infer<typeof GitHubReleaseSchema>;
 
 export type AnnounceOutcome =
   | {

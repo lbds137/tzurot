@@ -69,6 +69,10 @@ import {
   stopSecretRotationNagScheduler,
 } from './services/SecretRotationNagScheduler.js';
 import {
+  startReleaseFlagNagScheduler,
+  stopReleaseFlagNagScheduler,
+} from './services/ReleaseFlagNagScheduler.js';
+import {
   startRetentionNagScheduler,
   stopRetentionNagScheduler,
 } from './services/RetentionNagScheduler.js';
@@ -466,6 +470,12 @@ client.once(Events.ClientReady, () => {
   // cooldown; see SecretRotationNagScheduler for the restart-cadence design).
   startSecretRotationNagScheduler(client, services.cacheRedis);
 
+  // Daily check that the newest GitHub release isn't still prerelease-
+  // flagged → owner-channel nag (same restart-friendly cadence). That flag
+  // doubles as the release-DM announce gate, so a stuck flag silently kills
+  // every DM until this catches it.
+  startReleaseFlagNagScheduler(client, services.cacheRedis);
+
   // Daily retention purge-eligibility check → owner-channel nag (same
   // restart-friendly cadence; nothing purges automatically in Phase 2).
   startRetentionNagScheduler(client, services.cacheRedis);
@@ -551,6 +561,7 @@ async function disposeBotClient(): Promise<void> {
     stopNotificationCacheCleanup();
     stopVerificationCleanupScheduler();
     stopSecretRotationNagScheduler();
+    stopReleaseFlagNagScheduler();
     stopRetentionNagScheduler();
     stopNightlyDbSyncScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside

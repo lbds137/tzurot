@@ -68,6 +68,22 @@ const SHARED_VARIABLES: VariableConfig[] = [
   },
 ];
 
+/**
+ * GITHUB_API_TOKEN belongs on BOTH api-gateway and bot-client — the gateway's
+ * hourly release-reconcile sweep and bot-client's daily release-flag nag each
+ * read the GitHub releases API. Optional (both fetchers degrade to
+ * unauthenticated), but Railway's shared egress IPs make the per-IP anonymous
+ * rate limit unreliable, so an env that sets it on only one service leaves the
+ * other on the unreliable path. Declared once, listed in both service configs;
+ * a manifest test pins the pairing.
+ */
+const GITHUB_API_TOKEN_VARIABLE: VariableConfig = {
+  key: 'GITHUB_API_TOKEN',
+  description: 'Fine-grained PAT (Contents: Read-only) for GitHub releases API reads',
+  isSecret: true,
+  required: false,
+};
+
 // Service-specific variables
 const BOT_CLIENT_VARIABLES: VariableConfig[] = [
   { key: 'DISCORD_TOKEN', description: 'Discord bot token', isSecret: true, required: true },
@@ -86,6 +102,7 @@ const BOT_CLIENT_VARIABLES: VariableConfig[] = [
     required: false,
     defaultValue: 'false',
   },
+  GITHUB_API_TOKEN_VARIABLE,
 ];
 
 /**
@@ -113,6 +130,7 @@ const API_GATEWAY_VARIABLES: VariableConfig[] = [
     defaultValue: '3000',
   },
   ZAI_CODING_KEY_VARIABLE,
+  GITHUB_API_TOKEN_VARIABLE,
 ];
 
 const AI_WORKER_VARIABLES: VariableConfig[] = [
