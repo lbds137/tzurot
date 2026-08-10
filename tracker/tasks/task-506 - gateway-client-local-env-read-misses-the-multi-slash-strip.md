@@ -1,9 +1,10 @@
 ---
 id: TASK-506
 title: gateway-client local env read misses the multi-slash strip
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 14:24'
+updated_date: '2026-08-10 14:45'
 labels:
   - 'area:tooling'
   - 'size:S'
