@@ -20,10 +20,13 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { StampUserActivityRequestSchema } from '@tzurot/common-types/schemas/api/internal';
+import {
+  StampUserActivityRequestSchema,
+  StampUserActivityResponseSchema,
+} from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -55,6 +58,6 @@ export const handleStampUserActivity = (deps: RouteDeps): RequestHandler => {
     `;
 
     logger.debug({ discordId, stamped: affected > 0 }, 'Stamped pure-client user activity');
-    sendCustomSuccess(res, { stamped: affected > 0 });
+    sendContractSuccess(res, StampUserActivityResponseSchema, { stamped: affected > 0 });
   });
 };

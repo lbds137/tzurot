@@ -21,12 +21,13 @@
 import { type Response, type RequestHandler } from 'express';
 import {
   RoutingContextRequestSchema,
+  RoutingContextResponseSchema,
   type RoutingContextResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { PersonaResolver, resolveRoutingContext } from '@tzurot/identity';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getOrCreateUserService } from '../../services/AuthMiddleware.js';
@@ -69,6 +70,6 @@ export const handleRoutingContextCreate = (deps: RouteDeps): RequestHandler => {
       { userId: result.userId, personaId: result.personaId },
       'Routing context resolved'
     );
-    sendCustomSuccess(res, result satisfies RoutingContextResponse);
+    sendContractSuccess(res, RoutingContextResponseSchema, result satisfies RoutingContextResponse);
   });
 };

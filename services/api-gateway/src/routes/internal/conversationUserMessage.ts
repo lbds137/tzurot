@@ -24,13 +24,14 @@ import { type Response, type RequestHandler } from 'express';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   PersistUserMessageRequestSchema,
+  PersistUserMessageResponseSchema,
   type PersistUserMessageResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { logFastPoolTimeout } from '../../utils/dbTimeout.js';
 import { fetchExistingConversationRow } from './conversationPersistShared.js';
@@ -89,7 +90,7 @@ export const handlePersistUserMessage = (deps: RouteDeps): RequestHandler => {
 
     const preExisting = await compareExisting();
     if (preExisting !== null) {
-      sendCustomSuccess(res, preExisting);
+      sendContractSuccess(res, PersistUserMessageResponseSchema, preExisting);
       return;
     }
 
@@ -125,13 +126,16 @@ export const handlePersistUserMessage = (deps: RouteDeps): RequestHandler => {
       }
       const raced = await compareExisting();
       if (raced !== null) {
-        sendCustomSuccess(res, raced);
+        sendContractSuccess(res, PersistUserMessageResponseSchema, raced);
         return;
       }
       throw error;
     }
 
     logger.debug({ id, channelId }, 'User message persisted');
-    sendCustomSuccess(res, { id, created: true } satisfies PersistUserMessageResponse);
+    sendContractSuccess(res, PersistUserMessageResponseSchema, {
+      id,
+      created: true,
+    } satisfies PersistUserMessageResponse);
   });
 };
