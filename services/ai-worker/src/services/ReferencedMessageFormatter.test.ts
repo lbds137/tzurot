@@ -11,6 +11,7 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { type ProcessedAttachment } from './MultimodalProcessor.js';
 import { enrichmentKey } from './prompt/QuoteFormatter.js';
 import { type ResolvedPersona } from './reference/UserReferencePatterns.js';
+import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -1976,6 +1977,83 @@ describe('ReferencedMessageFormatter', () => {
       // preprocessed metadata — a placeholder must not render as fact.
       expect(formatted).not.toContain('type="audio/unknown"');
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('renders the static own-voice description for a deduped assistant reference, even with a real transcript in the preprocessed batch', async () => {
+      // The render-side belt-and-suspenders (design decision #4): the
+      // dependency stage's audio-transcription job can run and produce a real
+      // transcript before this turn's render decides the reference is our own
+      // persona's audio, so the preprocessed transcript existing at all must
+      // not be enough to reach the prompt.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [
+          refWithImage({
+            isDeduplicated: true,
+            attachments: undefined,
+            content: '',
+            authorRole: 'assistant',
+          }),
+        ],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: TRANSCRIPT_SENTINEL,
+              originalUrl: 'https://cdn.example.com/voice.ogg',
+              metadata: {
+                url: 'https://cdn.example.com/voice.ogg',
+                name: 'voice.ogg',
+                contentType: 'audio/ogg',
+                size: 2000,
+                duration: 6,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(formatted).not.toContain(TRANSCRIPT_SENTINEL);
+      expect(formatted).toContain(OWN_VOICE_DESCRIPTION);
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('does not fire the drop tripwire on the deliberate own-voice skip', async () => {
+      // The redaction still leaves `description` populated (with the static
+      // text), so `countRenderedEnrichment` counts it the same as a real
+      // transcript — the deliberate skip must not read as a dropped
+      // enrichment.
+      await formatter.formatReferencedMessages(
+        [
+          refWithImage({
+            isDeduplicated: true,
+            attachments: undefined,
+            content: '',
+            authorRole: 'assistant',
+          }),
+        ],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: TRANSCRIPT_SENTINEL,
+              originalUrl: 'https://cdn.example.com/voice.ogg',
+              metadata: {
+                url: 'https://cdn.example.com/voice.ogg',
+                name: 'voice.ogg',
+                contentType: 'audio/ogg',
+                size: 2000,
+                duration: 6,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
     it('pairs the count: every description handed in comes back out', async () => {
