@@ -30,7 +30,8 @@ import {
 } from './QuoteFormatter.js';
 import { promptTime, type RenderableReference } from './RenderableReference.js';
 import { deriveRefRole } from './referenceRole.js';
-import { isOwnPersonaVoice, redactOwnVoiceTranscript } from '../voice/ownVoiceGuard.js';
+import { redactOwnVoiceTranscript } from '../voice/ownVoiceGuard.js';
+import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 
 const logger = createLogger('StoredReference');
 

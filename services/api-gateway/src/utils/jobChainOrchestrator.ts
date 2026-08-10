@@ -26,8 +26,10 @@ import {
   llmGenerationJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
 import { assertJobIdShape } from './validatedQueue.js';
@@ -243,6 +245,7 @@ function processAttachmentsForJobs(
     personality: LoadedPersonality;
     queueName: string;
     referenceNumber?: number;
+    referenceAuthorRole?: ReferenceAuthorRole;
   }
 ): PreprocessingJobsResult {
   // THE sticker kill switch. This is where the spend is committed: every
@@ -262,8 +265,22 @@ function processAttachmentsForJobs(
   const children: FlowJob[] = [];
   const dependencies: JobDependency[] = [];
 
-  // Create audio transcription jobs
-  if (audio.length > 0) {
+  // Create audio transcription jobs — but not for a persona's own voice
+  // reference: ai-worker's render side already discards the transcript for
+  // an assistant-authored reference (isOwnPersonaVoice), so dispatching STT
+  // here would run and bill (or load the self-hosted voice-engine) for
+  // output that's thrown away downstream. Image-description jobs are
+  // unaffected — an assistant reference's images still need describing.
+  if (audio.length > 0 && isOwnPersonaVoice(params.referenceAuthorRole)) {
+    logger.info(
+      {
+        requestId: params.requestId,
+        referenceNumber: params.referenceNumber,
+        skippedCount: audio.length,
+      },
+      'Skipped audio transcription jobs for own-persona-voice reference'
+    );
+  } else if (audio.length > 0) {
     const audioResult = createAudioTranscriptionJobs({
       audioAttachments: audio,
       requestId: params.requestId,
@@ -354,6 +371,7 @@ function collectPreprocessingJobs(
         ...baseJobParams,
         requestIdSuffix: `-ref${refMsg.referenceNumber}`,
         referenceNumber: refMsg.referenceNumber,
+        referenceAuthorRole: refMsg.authorRole,
       });
       children.push(...result.children);
       dependencies.push(...result.dependencies);
