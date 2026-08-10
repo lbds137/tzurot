@@ -44,7 +44,7 @@ function friendlySourceName(source: SettingSource): string {
     case 'admin':
       return 'admin';
     case 'personality':
-      return 'personality';
+      return 'character';
     case 'channel':
       return 'channel';
     case 'user-default':
