@@ -10,6 +10,7 @@ import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
+import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -260,6 +261,93 @@ describe('AttachmentProcessor', () => {
         description: 'Hello world',
       });
       expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+    });
+
+    describe("the persona's own voice reference (authorRole)", () => {
+      const ownVoiceAttachment = {
+        url: 'https://example.com/own-voice.ogg',
+        contentType: 'audio/ogg',
+        name: 'own-voice.ogg',
+        size: 5000,
+        isVoiceMessage: true,
+        duration: 8,
+      };
+
+      it('never calls transcribeAudio for authorRole="assistant" and renders the static description', async () => {
+        const result = await processAttachmentsParallel({
+          attachments: [ownVoiceAttachment],
+          referenceNumber: 1,
+          personality: mockPersonality,
+          isGuestMode: false,
+          authorRole: 'assistant',
+        });
+
+        expect(mockTranscribeAudio).not.toHaveBeenCalled();
+        expect(result).toHaveLength(1);
+        expect(result[0].attachment).toEqual({
+          kind: 'voice',
+          filename: 'own-voice.ogg',
+          contentType: 'audio/ogg',
+          durationSeconds: 8,
+          description: OWN_VOICE_DESCRIPTION,
+        });
+      });
+
+      it('ignores a preprocessed transcript too — a cache hit predating this guard is still our own TTS', async () => {
+        const result = await processAttachmentsParallel({
+          attachments: [ownVoiceAttachment],
+          referenceNumber: 1,
+          personality: mockPersonality,
+          isGuestMode: false,
+          authorRole: 'assistant',
+          preprocessedAttachments: [
+            {
+              type: AttachmentType.Audio,
+              description: 'a stale cached transcript of our own TTS',
+              originalUrl: ownVoiceAttachment.url,
+              metadata: ownVoiceAttachment,
+            },
+          ],
+        });
+
+        expect(mockTranscribeAudio).not.toHaveBeenCalled();
+        expect(result[0].attachment).toMatchObject({ description: OWN_VOICE_DESCRIPTION });
+      });
+
+      it('still transcribes normally for authorRole="user" (unchanged)', async () => {
+        mockTranscribeAudio.mockResolvedValue({
+          text: 'a human said this',
+          actualProvider: 'voice-engine',
+        });
+
+        const result = await processAttachmentsParallel({
+          attachments: [ownVoiceAttachment],
+          referenceNumber: 1,
+          personality: mockPersonality,
+          isGuestMode: false,
+          authorRole: 'user',
+        });
+
+        expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+        expect(result[0].attachment).toMatchObject({ description: 'a human said this' });
+      });
+
+      it('still transcribes normally when authorRole is absent (legacy references, unchanged)', async () => {
+        mockTranscribeAudio.mockResolvedValue({
+          text: 'legacy reference audio',
+          actualProvider: 'voice-engine',
+        });
+
+        const result = await processAttachmentsParallel({
+          attachments: [ownVoiceAttachment],
+          referenceNumber: 1,
+          personality: mockPersonality,
+          isGuestMode: false,
+        });
+
+        expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+        expect(result[0].attachment).toMatchObject({ description: 'legacy reference audio' });
+      });
     });
 
     it('should handle regular file attachments', async () => {

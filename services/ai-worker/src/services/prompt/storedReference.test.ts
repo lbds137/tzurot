@@ -19,6 +19,7 @@ import {
   fromStoredReference,
   toStoredReference,
 } from './storedReference.js';
+import { OWN_VOICE_DESCRIPTION } from '../voice/ownVoiceGuard.js';
 
 const liveRef = (overrides: Partial<ReferencedMessage> = {}): ReferencedMessage => ({
   referenceNumber: 2,
@@ -181,6 +182,78 @@ describe('buildStoredAttachments', () => {
 
     expect(rendered).toEqual([
       { kind: 'voice', filename: undefined, contentType: 'audio/ogg', status: 'untranscribed' },
+    ]);
+  });
+
+  it('renders the static own-voice description on replay, even when a real transcript survived in storage', () => {
+    // Design decision #4 (the render-side belt-and-suspenders): a row
+    // persisted BEFORE this guard existed can still carry a real STT
+    // transcript in attachmentEnrichment. Replay must not let it back into
+    // the prompt just because it survived storage.
+    const rendered = buildStoredAttachments({
+      ...base,
+      authorRole: 'assistant',
+      attachments: [
+        {
+          url: 'https://cdn/own-voice.ogg',
+          contentType: 'audio/ogg',
+          isVoiceMessage: true,
+          duration: 4,
+        },
+      ],
+      attachmentEnrichment: [
+        { url: 'https://cdn/own-voice.ogg', kind: 'voice', description: 'a stale real transcript' },
+      ],
+    });
+
+    expect(rendered).toEqual([
+      {
+        kind: 'voice',
+        filename: undefined,
+        contentType: 'audio/ogg',
+        durationSeconds: 4,
+        description: OWN_VOICE_DESCRIPTION,
+      },
+    ]);
+  });
+
+  it('renders the static own-voice description even with no enrichment at all — never "untranscribed"', () => {
+    const rendered = buildStoredAttachments({
+      ...base,
+      authorRole: 'assistant',
+      attachments: [
+        { url: 'https://cdn/own-voice.ogg', contentType: 'audio/ogg', isVoiceMessage: true },
+      ],
+    });
+
+    expect(rendered).toEqual([
+      {
+        kind: 'voice',
+        filename: undefined,
+        contentType: 'audio/ogg',
+        description: OWN_VOICE_DESCRIPTION,
+      },
+    ]);
+  });
+
+  it('leaves a non-assistant reference unchanged (authorRole absent, N/A case)', () => {
+    const rendered = buildStoredAttachments({
+      ...base,
+      attachments: [
+        { url: 'https://cdn/user-voice.ogg', contentType: 'audio/ogg', isVoiceMessage: true },
+      ],
+      attachmentEnrichment: [
+        { url: 'https://cdn/user-voice.ogg', kind: 'voice', description: 'a real user transcript' },
+      ],
+    });
+
+    expect(rendered).toEqual([
+      {
+        kind: 'voice',
+        filename: undefined,
+        contentType: 'audio/ogg',
+        description: 'a real user transcript',
+      },
     ]);
   });
 });

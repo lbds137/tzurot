@@ -15,6 +15,7 @@ import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { enrichmentKey } from '../../services/prompt/QuoteFormatter.js';
 import { dedupeReference, renderReference } from '../../services/prompt/RenderableReference.js';
 import { fromStoredReference } from '../../services/prompt/storedReference.js';
+import { isOwnPersonaVoice } from '../../services/voice/ownVoiceGuard.js';
 import type { InlineImageDescription, RawHistoryEntry } from './conversationTypes.js';
 import { resolveSpeakerInfo } from './participantUtils.js';
 
@@ -166,7 +167,7 @@ function renderedImageDescriptions(msg: RawHistoryEntry): InlineImageDescription
  * only its unreachability needs stating.
  */
 function renderedVoiceTranscripts(msg: RawHistoryEntry, normalizedRole: string): string[] {
-  if (normalizedRole === 'assistant') {
+  if (isOwnPersonaVoice(normalizedRole)) {
     return [];
   }
   return msg.messageMetadata?.voiceTranscripts ?? [];

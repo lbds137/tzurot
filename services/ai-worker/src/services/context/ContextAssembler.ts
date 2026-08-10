@@ -51,6 +51,7 @@ import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
 import { recoverRelayEchoIdentities } from './relayEchoRecovery.js';
 import type { ContextDataSource } from './types.js';
+import { isOwnPersonaVoice } from '../voice/ownVoiceGuard.js';
 
 const logger = createLogger('ContextAssembler');
 
@@ -608,7 +609,7 @@ export class ContextAssembler {
         // Skip the bot's own (assistant) voice output: its transcript would just
         // duplicate the message text, and the chat-log renderer drops assistant
         // transcripts anyway — so re-resolving one is a wasted STT call.
-        if (target?.role === MessageRole.Assistant) {
+        if (isOwnPersonaVoice(target?.role)) {
           return;
         }
         // Only re-resolve when the message lacks a transcript — a cache HIT
