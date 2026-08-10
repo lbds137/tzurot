@@ -1,10 +1,10 @@
 ---
 id: TASK-234
 title: batchDelete inner catch mislabels a thrown delete as a timeout
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-08 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-10 18:01'
 labels:
   - 'origin:review'
   - 'area:bot-client'
