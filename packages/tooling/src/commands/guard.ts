@@ -281,4 +281,17 @@ function registerHealthCommand(cli: CAC): void {
       const { runHealth } = await import('../audits/health.js');
       runHealth();
     });
+
+  cli
+    .command(
+      'health:post-webhook',
+      'Chunk a health report and post it to the audit-health Discord webhook'
+    )
+    .option('--file <path>', 'Report file to post (default: health-report.txt)')
+    .example('ops health:post-webhook')
+    .example('ops health:post-webhook --file health-report.txt')
+    .action(async (options: { file?: string }) => {
+      const { runHealthWebhookPost } = await import('../audits/health-webhook-post.js');
+      await runHealthWebhookPost(options);
+    });
 }
