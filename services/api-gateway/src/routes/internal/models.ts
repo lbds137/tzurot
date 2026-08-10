@@ -13,9 +13,10 @@
 import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { type ModelModality } from '@tzurot/common-types/types/ai';
+import { ModelsListResponseSchema } from '@tzurot/common-types/schemas/api/models';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -91,6 +92,11 @@ export const handleGetModels = (deps: RouteDeps): RequestHandler => {
       },
       'Served model catalog'
     );
-    sendCustomSuccess(res, { models, count: models.length }, StatusCodes.OK);
+    sendContractSuccess(
+      res,
+      ModelsListResponseSchema,
+      { models, count: models.length },
+      StatusCodes.OK
+    );
   });
 };

@@ -23,13 +23,14 @@ import { type Response, type RequestHandler } from 'express';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   PersistAssistantMessageRequestSchema,
+  PersistAssistantMessageResponseSchema,
   type PersistAssistantMessageResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { logFastPoolTimeout } from '../../utils/dbTimeout.js';
 import { fetchExistingConversationRow } from './conversationPersistShared.js';
@@ -92,7 +93,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
 
     const preExisting = await compareExisting();
     if (preExisting !== null) {
-      sendCustomSuccess(res, preExisting);
+      sendContractSuccess(res, PersistAssistantMessageResponseSchema, preExisting);
       return;
     }
 
@@ -128,7 +129,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       }
       const raced = await compareExisting();
       if (raced !== null) {
-        sendCustomSuccess(res, raced);
+        sendContractSuccess(res, PersistAssistantMessageResponseSchema, raced);
         return;
       }
       throw error;
@@ -138,6 +139,9 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       { id, channelId, chunkCount: chunkMessageIds.length },
       'Assistant message persisted'
     );
-    sendCustomSuccess(res, { id, created: true } satisfies PersistAssistantMessageResponse);
+    sendContractSuccess(res, PersistAssistantMessageResponseSchema, {
+      id,
+      created: true,
+    } satisfies PersistAssistantMessageResponse);
   });
 };
