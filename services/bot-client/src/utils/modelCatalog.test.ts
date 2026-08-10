@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import { InfraError } from '@tzurot/clients';
+import { catalogModel } from '../test/catalogModel.js';
 
 // Mock the OpenRouter fetch layer so tests control the OpenRouter side of the
 // merge; the z.ai catalog half comes from the real listZaiCodingPlanModels().
@@ -21,7 +22,6 @@ import {
   formatCapabilities,
   zaiDisplayName,
   zaiReleasedToUnix,
-  type CatalogModel,
 } from './modelCatalog.js';
 
 const fetchModelsMock = vi.mocked(fetchModels);
@@ -172,23 +172,17 @@ describe('fetchCatalogModelById', () => {
 });
 
 describe('annotateUsability', () => {
-  const cat = (overrides: Partial<CatalogModel> & { id: string }): CatalogModel => ({
-    ...model(overrides),
-    isZaiCoding: overrides.id.startsWith('z-ai/'),
-    docsUrl: null,
-    source: 'openrouter',
-    hasPricing: true,
-    ...overrides,
-  });
-
   it('marks free models usable regardless of keys', () => {
-    const [r] = annotateUsability([cat({ id: 'google/gemma:free' })], new Set());
+    const [r] = annotateUsability([catalogModel({ id: 'google/gemma:free' })], new Set());
     expect(r.usability).toBe('free');
     expect(r.canUse).toBe(true);
   });
 
   it('marks the piggyback model free/usable for a KEYLESS (guest) user', () => {
-    const [r] = annotateUsability([cat({ id: 'z-ai/glm-4.5-air', source: 'both' })], new Set());
+    const [r] = annotateUsability(
+      [catalogModel({ id: 'z-ai/glm-4.5-air', source: 'both' })],
+      new Set()
+    );
     expect(r.usability).toBe('free');
     expect(r.canUse).toBe(true);
   });
@@ -197,7 +191,7 @@ describe('annotateUsability', () => {
     // An ElevenLabs key buys voice, not models — the wallet is non-empty but
     // holds no chat-capable key, so the free-tier presentation still applies.
     const [r] = annotateUsability(
-      [cat({ id: 'z-ai/glm-4.5-air', source: 'both' })],
+      [catalogModel({ id: 'z-ai/glm-4.5-air', source: 'both' })],
       new Set(['elevenlabs'])
     );
     expect(r.usability).toBe('free');
@@ -207,7 +201,7 @@ describe('annotateUsability', () => {
   it('keeps key-based verdicts for the piggyback model when the user HAS a key', () => {
     // Key-holders are billed on their own key — normal source-based routing
     const [r] = annotateUsability(
-      [cat({ id: 'z-ai/glm-4.5-air', source: 'both' })],
+      [catalogModel({ id: 'z-ai/glm-4.5-air', source: 'both' })],
       new Set(['openrouter'])
     );
     expect(r.usability).toBe('usable');
@@ -215,13 +209,13 @@ describe('annotateUsability', () => {
   });
 
   it('keeps the unknown verdict for the piggyback model when the wallet fetch failed', () => {
-    const [r] = annotateUsability([cat({ id: 'z-ai/glm-4.5-air', source: 'both' })], null);
+    const [r] = annotateUsability([catalogModel({ id: 'z-ai/glm-4.5-air', source: 'both' })], null);
     expect(r.usability).toBe('unknown');
   });
 
   it('marks an OpenRouter model usable when the user has an openrouter key', () => {
     const [r] = annotateUsability(
-      [cat({ id: 'anthropic/claude-sonnet-4' })],
+      [catalogModel({ id: 'anthropic/claude-sonnet-4' })],
       new Set(['openrouter'])
     );
     expect(r.usability).toBe('usable');
@@ -229,14 +223,21 @@ describe('annotateUsability', () => {
   });
 
   it('flags needs-openrouter-key when the user has no key', () => {
-    const [r] = annotateUsability([cat({ id: 'anthropic/claude-sonnet-4' })], new Set());
+    const [r] = annotateUsability([catalogModel({ id: 'anthropic/claude-sonnet-4' })], new Set());
     expect(r.usability).toBe('needs-openrouter-key');
     expect(r.canUse).toBe(false);
   });
 
   it('flags needs-zai-key for a z.ai-ONLY model (zai-catalog) without a z.ai key', () => {
     const [r] = annotateUsability(
-      [cat({ id: 'z-ai/glm-5.2', isZaiCoding: true, source: 'zai-catalog', hasPricing: false })],
+      [
+        catalogModel({
+          id: 'z-ai/glm-5.2',
+          isZaiCoding: true,
+          source: 'zai-catalog',
+          hasPricing: false,
+        }),
+      ],
       new Set(['openrouter']) // an OpenRouter key does NOT unlock a z.ai-only model
     );
     expect(r.usability).toBe('needs-zai-key');
@@ -245,7 +246,14 @@ describe('annotateUsability', () => {
 
   it('marks a z.ai-only model usable with a zai-coding key', () => {
     const [r] = annotateUsability(
-      [cat({ id: 'z-ai/glm-5.2', isZaiCoding: true, source: 'zai-catalog', hasPricing: false })],
+      [
+        catalogModel({
+          id: 'z-ai/glm-5.2',
+          isZaiCoding: true,
+          source: 'zai-catalog',
+          hasPricing: false,
+        }),
+      ],
       new Set(['zai-coding'])
     );
     expect(r.canUse).toBe(true);
@@ -254,7 +262,7 @@ describe('annotateUsability', () => {
   it('treats a coding-plan model on BOTH sources as usable via EITHER key', () => {
     // z-ai/glm-5 lives on OpenRouter too — an OR key (fallthrough) or a z.ai key
     // (direct) both unlock it.
-    const both = cat({ id: 'z-ai/glm-5', isZaiCoding: true, source: 'both' });
+    const both = catalogModel({ id: 'z-ai/glm-5', isZaiCoding: true, source: 'both' });
     expect(annotateUsability([both], new Set(['openrouter']))[0].canUse).toBe(true);
     expect(annotateUsability([both], new Set(['zai-coding']))[0].canUse).toBe(true);
     // Neither key → name BOTH paths, not just one.
@@ -262,13 +270,13 @@ describe('annotateUsability', () => {
   });
 
   it('marks non-free models unknown when keys could not be fetched (null providers)', () => {
-    const [r] = annotateUsability([cat({ id: 'anthropic/claude-sonnet-4' })], null);
+    const [r] = annotateUsability([catalogModel({ id: 'anthropic/claude-sonnet-4' })], null);
     expect(r.usability).toBe('unknown');
     expect(r.canUse).toBe(false);
   });
 
   it('keeps free models usable even when keys could not be fetched (null providers)', () => {
-    const [r] = annotateUsability([cat({ id: 'google/gemma:free' })], null);
+    const [r] = annotateUsability([catalogModel({ id: 'google/gemma:free' })], null);
     expect(r.usability).toBe('free');
     expect(r.canUse).toBe(true);
   });
@@ -277,7 +285,7 @@ describe('annotateUsability', () => {
     // e.g. z-ai/glm-4.6 — on OpenRouter, not in the coding-plan catalog, so
     // source is plain 'openrouter' and the z-ai/ prefix must NOT imply z.ai.
     const [r] = annotateUsability(
-      [cat({ id: 'z-ai/glm-4.6', isZaiCoding: false, source: 'openrouter' })],
+      [catalogModel({ id: 'z-ai/glm-4.6', isZaiCoding: false, source: 'openrouter' })],
       new Set(['zai-coding']) // a z.ai key does NOT unlock it
     );
     expect(r.usability).toBe('needs-openrouter-key');

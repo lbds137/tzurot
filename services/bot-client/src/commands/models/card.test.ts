@@ -5,21 +5,13 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelCard } from './card.js';
 import type { UsableCatalogModel } from '../../utils/modelCatalog.js';
+import { catalogModel } from '../../test/catalogModel.js';
 
+/** Thin local wrapper: the shared builder covers CatalogModel; only the
+ * usability/canUse fields (UsableCatalogModel's own addition) live here. */
 function usable(overrides: Partial<UsableCatalogModel> & { id: string }): UsableCatalogModel {
   return {
-    name: overrides.id,
-    contextLength: 200_000,
-    supportsVision: false,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-    isZaiCoding: false,
-    docsUrl: null,
-    source: 'openrouter',
-    hasPricing: true,
+    ...catalogModel(overrides),
     usability: 'usable',
     canUse: true,
     ...overrides,
