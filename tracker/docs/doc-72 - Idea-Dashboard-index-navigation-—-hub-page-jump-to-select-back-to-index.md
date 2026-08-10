@@ -50,9 +50,12 @@ Constraints to check at build time:
 
 ## Relation
 
-Standalone UX theme; touches the same `utils/browse` + `utils/dashboard`
-machinery doc-71's `/tag assign` flow would use — if both build, the jump
-control should ship once, in the shared utilities.
+**Member of doc-14's component vocabulary** (Platform-Portable UX Layer — the
+"storybook" of generalized patterns the Discord client implements first and
+future interfaces, e.g. Stoat, implement later). Whatever pattern ships here is
+a design-system component, not a one-off. Touches the same `utils/browse` +
+`utils/dashboard` machinery doc-71's `/tag assign` flow would use — if both
+build, the jump control ships once, in the shared utilities.
 
 ## Promote when
 
