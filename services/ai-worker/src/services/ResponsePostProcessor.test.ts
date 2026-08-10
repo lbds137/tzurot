@@ -670,4 +670,81 @@ Key elements: stay in persona.`;
       );
     });
   });
+
+  // Predicate unit tests live with the predicate: src/utils/reasoningMischannel.test.ts
+  describe('suspect mis-channel telemetry (step 9)', () => {
+    const shortReply = 'I would honestly die without our little talks.';
+
+    beforeEach(() => {
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: shortReply,
+      });
+    });
+
+    it('emits warn when structured reasoning dwarfs a short visible reply', () => {
+      processor.processResponse(shortReply, { reasoning_content: 'x'.repeat(2263) }, undefined, {
+        personalityName: 'TestBot',
+        userName: 'TestUser',
+        modelName: 'glm-4.5-air',
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'glm-4.5-air',
+          personalityName: 'TestBot',
+          apiReasoningLength: 2263,
+          cleanedContentLength: shortReply.length,
+        }),
+        expect.stringContaining('Suspect reasoning mis-channel')
+      );
+    });
+
+    it('does not emit the mis-channel warn for a normal-length reply', () => {
+      const normalReply = 'y'.repeat(900);
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: normalReply,
+      });
+
+      processor.processResponse(normalReply, { reasoning_content: 'x'.repeat(2263) }, undefined, {
+        personalityName: 'TestBot',
+        userName: 'TestUser',
+        modelName: 'glm-4.5-air',
+      });
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Suspect reasoning mis-channel')
+      );
+    });
+
+    it('does not emit the mis-channel warn when no structured reasoning exists', () => {
+      processor.processResponse(shortReply, undefined, undefined, {
+        personalityName: 'TestBot',
+        userName: 'TestUser',
+        modelName: 'glm-4.5-air',
+      });
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Suspect reasoning mis-channel')
+      );
+    });
+
+    it('does not emit the mis-channel warn for models outside the observed family', () => {
+      // A mandatory-reasoning model on the incident's exact length shape:
+      // this is its normal operating mode, not a suspect signature.
+      processor.processResponse(shortReply, { reasoning_content: 'x'.repeat(2263) }, undefined, {
+        personalityName: 'TestBot',
+        userName: 'TestUser',
+        modelName: 'openai/gpt-oss-120b',
+      });
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Suspect reasoning mis-channel')
+      );
+    });
+  });
 });
