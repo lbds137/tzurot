@@ -8,18 +8,18 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 
 ## Characters & Personas
 
-| Command      | Subcommands                                      | Purpose                                                   |
-| ------------ | ------------------------------------------------ | --------------------------------------------------------- |
-| `/chat`      | _(top-level)_                                    | Chat one-on-one with a character                          |
-| `/random`    | _(top-level)_                                    | Chat with a random character — or have them read the room |
-| `/chime-in`  | _(top-level)_                                    | Summon a character to react to the recent conversation    |
-| `/character` | `create` `edit` `view` `browse`                  | Manage AI characters                                      |
-|              | `import` `export` `template`                     | Character portability (JSON)                              |
-|              | `avatar` (`set` `clear`) `voice` (`set` `clear`) | Per-character avatar image and voice cloning enrollment   |
-|              | `settings` `overrides`                           | Per-character config and personal overrides               |
-|              | `alias browse` `alias add`                       | @mention aliases — personal (just you) or global tiers    |
-| `/persona`   | `view` `edit` `create` `browse` `default`        | User persona management                                   |
-|              | `override set` `override clear`                  | Per-character persona overrides                           |
+| Command      | Subcommands                                      | Purpose                                                                                             |
+| ------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `/chat`      | _(top-level)_                                    | Chat one-on-one with a character                                                                    |
+| `/random`    | _(top-level)_                                    | Chat with a random character (optionally within a tag) — or have them read the room                 |
+| `/chime-in`  | _(top-level)_                                    | Summon a character — or a random sample of a tag's characters — to react to the recent conversation |
+| `/character` | `create` `edit` `view` `browse`                  | Manage AI characters                                                                                |
+|              | `import` `export` `template`                     | Character portability (JSON)                                                                        |
+|              | `avatar` (`set` `clear`) `voice` (`set` `clear`) | Per-character avatar image and voice cloning enrollment                                             |
+|              | `settings` `overrides`                           | Per-character config and personal overrides                                                         |
+|              | `alias browse` `alias add`                       | @mention aliases — personal (just you) or global tiers                                              |
+| `/persona`   | `view` `edit` `create` `browse` `default`        | User persona management                                                                             |
+|              | `override set` `override clear`                  | Per-character persona overrides                                                                     |
 
 ## Voice Configuration
 
