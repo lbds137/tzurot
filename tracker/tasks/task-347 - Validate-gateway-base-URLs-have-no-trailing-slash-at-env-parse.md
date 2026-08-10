@@ -1,10 +1,10 @@
 ---
 id: TASK-347
 title: Validate gateway base URLs have no trailing slash at env parse
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 22:58'
-updated_date: '2026-07-28 22:58'
+updated_date: '2026-08-10 14:45'
 labels:
   - 'area:common-types'
   - 'size:S'
