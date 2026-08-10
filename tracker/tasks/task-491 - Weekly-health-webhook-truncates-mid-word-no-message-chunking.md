@@ -1,9 +1,10 @@
 ---
 id: TASK-491
 title: Weekly health webhook truncates mid-word - no message chunking
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 17:01'
+updated_date: '2026-08-10 11:37'
 labels:
   - 'area:tooling'
   - 'size:S'
