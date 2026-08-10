@@ -318,7 +318,16 @@ export interface DestructiveOperationResult {
 export interface DestructiveSubmitOptions {
   /** Progress text shown while executeOperation runs (pending-states rule). */
   progressContent?: string;
+  /**
+   * Copy for the outcome-honest fallback when the SUCCESS render throws
+   * after the write applied. When omitted, generic copy is used.
+   */
+  appliedNotice?: { whatApplied: string; verifySteer: string };
 }
+
+/** Default copy for the applied-fallback when the caller supplies none. */
+const DEFAULT_APPLIED_WHAT = 'The operation was applied';
+const DEFAULT_APPLIED_VERIFY_STEER = 'Re-run the command to verify.';
 
 /**
  * Baked phrase-mismatch handling: ephemeral reply showing entered vs expected,
@@ -411,7 +420,26 @@ export async function handleDestructiveModalSubmit(
       reply.content = result.successMessage ?? 'Operation completed successfully.';
     }
 
-    await interaction.editReply(reply);
+    try {
+      await interaction.editReply(reply);
+    } catch (err) {
+      // The write already applied — a throw here is a render/delivery
+      // failure, not an operation failure. Must not read as failed or
+      // retriable, or the user re-runs a destructive op that already ran.
+      logger.error(
+        { err, customId: interaction.customId },
+        'Destructive operation applied but result render failed'
+      );
+      const { whatApplied, verifySteer } = options.appliedNotice ?? {
+        whatApplied: DEFAULT_APPLIED_WHAT,
+        verifySteer: DEFAULT_APPLIED_VERIFY_STEER,
+      };
+      await interaction.editReply({
+        content: renderSpec(CATALOG.error.destructiveApplied(whatApplied, verifySteer)),
+        embeds: [],
+        components: [],
+      });
+    }
   } else {
     await interaction.editReply({
       content: result.errorMessage ?? renderSpec(CATALOG.error.operationFailed('operation')),

@@ -153,6 +153,10 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
       const { confirmationPhrase } = hardDeleteModalDisplay(personalitySlug);
       await handleDestructiveModalSubmit(interaction, confirmationPhrase, executeOperation, {
         progressContent: 'Deleting history…',
+        appliedNotice: {
+          whatApplied: 'The history was deleted',
+          verifySteer: 'Use /history stats to verify.',
+        },
       });
       return;
     }

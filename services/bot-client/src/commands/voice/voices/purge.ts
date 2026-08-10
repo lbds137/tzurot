@@ -184,6 +184,10 @@ export async function handleVoicePurgeModalSubmit(
 
   await handleDestructiveModalSubmit(interaction, confirmationPhrase, executeOperation, {
     progressContent: 'Purging voices…',
+    appliedNotice: {
+      whatApplied: 'The voices were purged',
+      verifySteer: 'Use /voice voices browse to verify.',
+    },
   });
 }
 
