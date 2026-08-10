@@ -3,9 +3,10 @@ id: TASK-507
 title: >-
   raw-content-allowlist test escapes turbo cache inputs - cross-package sweep
   passes stale locally
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 17:30'
+updated_date: '2026-08-10 22:04'
 labels:
   - 'area:tooling'
   - 'size:S'
