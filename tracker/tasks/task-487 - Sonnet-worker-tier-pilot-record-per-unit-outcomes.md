@@ -1,9 +1,10 @@
 ---
 id: TASK-487
 title: Sonnet worker-tier pilot - record per-unit outcomes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 15:55'
+updated_date: '2026-08-10 13:24'
 labels:
   - 'area:process'
   - 'size:S'
@@ -33,4 +34,8 @@ Unit 3 (2026-08-10, PR #2039, TASK-491 webhook chunking): diff-review defects: 0
 Unit 4 (2026-08-10, PR #2040, TASK-435 fixture dedupe, incl. a RESUME for the 4-site sweep the review found missing): diff-review defects: 0 across both stretches; per-consumer reconciliation notes accurate (reviewer independently verified every claim); resume-with-context worked exactly as the skill predicts (no re-grounding cost). The missed 4 copies were an ENUMERATION failure upstream of the worker (task file + grounding agent + orchestrator acceptance grep all scoped to the known 3). CI cycles: 3. Verdict: clean.
 
 Tally at 4 units: 0 semantic defects, 1 comment-level, all review rounds attributable to reviewer polish or orchestrator-side scoping — the Sonnet tier is holding for mechanical-class units. One more unit to the ~5 the acceptance asks for.
+
+Unit 5 (2026-08-10, PR #2045, TASK-503 delivered-gated nag cooldowns): diff-review defects: 0 — faithful mirror of the reference pattern, warn fields matched per-scheduler, both new tests assert the seam; reviewer independently verified every claim and raised only one informational item (dispositioned correct-as-is). CI cycles: 1 (cleanest unit of the pilot — zero fixups). Bonus signal: the unit's FIRST spawn landed on a stale worktree base (16 commits behind develop) and the worker correctly hit the spec's stop condition instead of improvising — exactly the contract behavior the tier needs. Orchestrator-side infra issue, not a worker defect; countermeasure (explicit `develop` start point + ancestor check in every spec's branch-setup step) now standard.
+
+DECISION at 5 units (acceptance reached): **KEEP** — 5/5 units clean, 0 semantic defects across ~30 files of diffs, review rounds never attributable to the worker tier. Sonnet is the standing worker tier for mechanical-class units (spec describes the edit precisely); semantic-class units stay on Opus per the skill. The orchestration skill's "measured pilot" framing should be updated to reflect the settled tier — that edit is review-gated (.claude/skills) and rides the next skills PR (e.g. TASK-498's).
 <!-- SECTION:NOTES:END -->
