@@ -29,7 +29,7 @@ import { emitSummary } from './summary.js';
 const STALE_THRESHOLD_DAYS = 180;
 
 /** Directories to scan, relative to the repo root. */
-const SCAN_DIRS = ['.claude/rules', '.claude/skills'];
+export const SCAN_DIRS = ['.claude/rules', '.claude/skills'] as const;
 
 export interface DanglingCommandRef {
   file: string;
