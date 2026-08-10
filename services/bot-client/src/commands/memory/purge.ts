@@ -279,6 +279,12 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
     expectedPhrase,
     enteredPhrase =>
       executePurgeHandshake(userClient, interaction.user.id, personalityId, enteredPhrase),
-    { progressContent: 'Purging memories…' }
+    {
+      progressContent: 'Purging memories…',
+      appliedNotice: {
+        whatApplied: 'The memories were purged',
+        verifySteer: 'Use /memory browse to verify.',
+      },
+    }
   );
 }

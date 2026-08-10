@@ -2,7 +2,7 @@
  * Tests for Tier-B destructive confirmation (typed-phrase flow).
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
 import type {
   APIButtonComponentWithCustomId,
@@ -23,6 +23,23 @@ import {
   FIXED_DELETE_PHRASE,
   type DestructiveConfirmationConfig,
 } from './confirmDestructive.js';
+
+const { mockLoggerError } = vi.hoisted(() => ({ mockLoggerError: vi.fn() }));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: mockLoggerError,
+    }),
+  };
+});
 
 const INVOKER = '123456789012345678';
 const OTHER_USER = '999999999999999999';
@@ -439,6 +456,79 @@ describe('handleDestructiveModalSubmit', () => {
 
     const call = interaction.editReply.mock.calls[0][0] as { content: string };
     expect(call.content.length).toBeGreaterThan(0);
+  });
+
+  describe('outcome-honest applied-fallback when the success render throws', () => {
+    beforeEach(() => {
+      mockLoggerError.mockClear();
+    });
+
+    it('renders the caller-supplied appliedNotice and logs once, without crashing', async () => {
+      const interaction = modalInteraction(modalId, 'DELETE');
+      interaction.editReply.mockRejectedValueOnce(new Error('Discord API blip'));
+      const executeOperation = vi.fn().mockResolvedValue({ success: true, successMessage: 'ok' });
+
+      await handleDestructiveModalSubmit(interaction, 'DELETE', executeOperation, {
+        appliedNotice: {
+          whatApplied: 'The memories were purged',
+          verifySteer: 'Use /memory browse to verify.',
+        },
+      });
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(2);
+      expect(interaction.editReply).toHaveBeenLastCalledWith({
+        content: expect.stringContaining(
+          'The memories were purged, but showing the result failed. Use /memory browse to verify.'
+        ),
+        embeds: [],
+        components: [],
+      });
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to generic copy when appliedNotice is omitted', async () => {
+      const interaction = modalInteraction(modalId, 'DELETE');
+      interaction.editReply.mockRejectedValueOnce(new Error('Discord API blip'));
+      const executeOperation = vi.fn().mockResolvedValue({ success: true, successMessage: 'ok' });
+
+      await handleDestructiveModalSubmit(interaction, 'DELETE', executeOperation);
+
+      expect(interaction.editReply).toHaveBeenLastCalledWith({
+        content: expect.stringContaining(
+          'The operation was applied, but showing the result failed. Re-run the command to verify.'
+        ),
+        embeds: [],
+        components: [],
+      });
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates the failure-arm rejection untouched — no destructiveApplied render', async () => {
+      const interaction = modalInteraction(modalId, 'DELETE');
+      interaction.editReply.mockRejectedValue(new Error('Discord API blip'));
+      const executeOperation = vi.fn().mockResolvedValue({ success: false });
+
+      await expect(
+        handleDestructiveModalSubmit(interaction, 'DELETE', executeOperation)
+      ).rejects.toThrow('Discord API blip');
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(1);
+      // The failure arm has no try/catch, so it never runs the applied-fallback
+      // logger.error path — only the SUCCESS branch's catch is instrumented.
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+
+    it('lets a double-failure (fallback editReply also throws) propagate', async () => {
+      const interaction = modalInteraction(modalId, 'DELETE');
+      interaction.editReply.mockRejectedValue(new Error('still broken'));
+      const executeOperation = vi.fn().mockResolvedValue({ success: true, successMessage: 'ok' });
+
+      await expect(
+        handleDestructiveModalSubmit(interaction, 'DELETE', executeOperation)
+      ).rejects.toThrow('still broken');
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('rejects a malformed modal customId before any work', async () => {
