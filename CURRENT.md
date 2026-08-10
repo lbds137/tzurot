@@ -1,10 +1,26 @@
 # Current
 
-> **Version**: v3.0.0-beta.197 — tooling/hooks/rules only (lossy-pipe-guard, session-mining hooks, the second rules economy pass, CURRENT.md release gate); ZERO runtime changes, no migrations. Owner intent on record: the LAST tooling-heavy beta — future process-layer work targets the plugin spinoff (doc-64) so Tzurot versions track the product again.
+> **Version**: v3.0.0-beta.198 — character tags (doc-60 complete): owner-authored tags, admin-configurable multi-character cap, tag-filtered /random + tag fan-out /chime-in with autocomplete; riders: mention-only truncation fix, settings terminology + cross-channel privacy note. One additive migration (premigrated to prod before merge). Released 2026-08-09 ~22:55 EDT via release:publish (flags verified: 198 = latest, 197 demoted).
 
 ---
 
-## 🔄 SESSION IN PROGRESS (2026-08-09 evening, Fable 5 driving)
+## 🔄 SESSION STATE (2026-08-09 late evening, Fable 5 driving — beta.198 SHIPPED)
+
+**beta.198 cut, merged, published, post-merge sequence COMPLETE** (2026-08-09 ~22:55 EDT): premigrate → merge #2036 → finalize (develop SHA-aligned) → publish (flags verified) → **TASK-501 dev→prod tag copy DONE** (35 rows, 34 hellaverse on prod, updated_at bumped so prod wins LWW — done hours before the 3am sync). Release DMs: webhook or the :41 reconcile delivers; if none arrives by ~23:45, check the prerelease flag first (beta.197 incident class — TASK-500 guard not yet built).
+
+**Open threads for next session:**
+
+- 🚨 glm-4.5-air reasoning mis-channel (now.md Production Issues) — fix-forward with design; debug log in docs/local/.
+- Waffles' venue-leak report: awaiting their Share Memories answer (doc-8 carries the venue-scoping design input either way; if they say OFF and never-talked holds, open an investigation with an /inspect evidence request).
+- TASK-498: codify the pre-commit review panel (trial data: #2034 caught 3 pre-commit, CI still found 1 mirror-branch Medium; 2 rounds vs #2032's 9). TASK-499/500/502 filed and open.
+- Owner-idea council queue: doc-70 (tag count/group-message), doc-71 (/tag management), doc-72 (dashboard index nav — council pass mandated) + the standing doc-64/65/66/67 set.
+- Next work: doc-64 council pass (consumes doc-69) or drain fill-in.
+
+_Session-per-release note: this session has spanned one release + a double compaction; a fresh session is a clean continuation point whenever convenient — owner's call._
+
+<details><summary>Shipped this session (compressed)</summary>
+
+## Previous session log (2026-08-09 evening)
 
 **Resume-sequence items ①–③ are DONE; doc-60 build is IN FLIGHT.**
 
@@ -29,6 +45,8 @@ Owner-idea docs awaiting promotion (council pass before plan-mode): doc-64 (meta
 **2026-08-09 PM-3 (Fable, release session): beta.197 CUT, MERGED, RELEASED.** Range verified mechanically: 57 commits / 16 PRs (#2013–#2028), zero runtime files (pathspec-excluded diff empty) → risk floor, no smoke items, no migrations, no advisories. Three holistic release reviews, zero blocking findings; finalize resynced develop onto main; v3.0.0-beta.197 tagged + published. Owner filings this session: **doc-66** (message coalescing — same-author runs concatenate, different author breaks the stack, memory/history rows untouched; hybrid room-reply shape gets a council pass at pickup) and **doc-67** (tag-scoped sharing theme + queue bullet — off/all/tag-set scope unified across context, memories, and facts, consuming doc-60 tags; "pantheon of characters that follow me around"). License question answered + recorded in doc-64. Process note: each develop push restarts a release PR's CI — the monitor was re-armed twice for doc nudges before switching to hold-and-batch local commits; batching is the default while a release PR is open.
 
 **2026-08-09 PM-2 (Fable): three process PRs merged + memory sweep.** **#2026** (bare-token + queued-receipt hooks; round-6 HIGH refuted by probe — 1,991/1,991 enqueues carry content, verbatim line is probe case 16) · **#2027** (token economy) · **#2028** (doc-61 economy pass: rules corpus 166,827 → 142,502 B ≈ 6k tok/session saved, first `--surface rules` DOWN-write, worktree-isolation mandate — shipped after I ran a same-tree file-mutating worker and branch-hopped under it). Memory Section 0 sweep: 6 deleted, 7 trimmed, 8 MIGRATE files await TASK-490; backup `../memory-backup-2026-08-09.tar.gz`. Honest-ledger: the TASK-470 weigh-in was missed during the pass (now TASK-490 rider 2).
+
+</details>
 
 ---
 
