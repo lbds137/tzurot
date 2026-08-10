@@ -179,7 +179,13 @@ export function deriveAvatarUrl(
   updatedAt: Date,
   logger: { warn: (obj: object, msg: string) => void }
 ): string | undefined {
-  const publicUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
+  // Reads raw process.env rather than getConfig(): the schema's localhost
+  // default would turn "no gateway configured" into an avatar URL Discord
+  // cannot fetch, where undefined correctly means "no avatar". That bypasses
+  // the env schema's trailing-slash strip, so mirror it here.
+  const rawUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
+  // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
+  const publicUrl = rawUrl?.replace(/\/{1,64}$/, '');
   if (publicUrl === undefined || publicUrl.length === 0) {
     logger.warn(
       {},
