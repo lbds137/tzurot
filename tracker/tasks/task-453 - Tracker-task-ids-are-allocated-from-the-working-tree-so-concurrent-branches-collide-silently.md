@@ -62,6 +62,20 @@ refused the allocation.
 Recovery was manual: rename the file, edit `id:` and `ordinal:` in frontmatter,
 re-run `pnpm ops backlog`.
 
+## PARTIALLY SHIPPED 2026-08-09 (commit 3322c7749)
+
+Fix shape 2 landed: `checkDuplicateTaskIds` (in-tree union hard fail) +
+`checkOriginIdCollisions` (new local file reusing an id already on
+origin/develop), both wired into `pnpm ops backlog` (backlogLint.ts:422-423)
+with tests. TASK-492 (filed later the same day, duplicate ask) was closed
+against that commit. What remains open here: the ALLOCATION side - the CLI
+still numbers off the working tree, so two in-flight branches can both claim
+an id and the gate only catches it at the second branch's post-merge push.
+Also absorbed from TASK-492's soft clause: a working-tree check that a task
+FILENAME's id token agrees with its frontmatter `id:` (today `fileIdToken` is
+only consulted inside the origin-collision path, so a hand-edited mismatch in
+the local tree passes the gate silently).
+
 SECOND, UNRELATED CLI GOTCHA found in the same sitting: repeated `-l` flags
 (`-l area:process -l size:S -l state:ready`) do NOT append - only the LAST one
 survives. Both tasks filed this session lost two of three labels that way. The
