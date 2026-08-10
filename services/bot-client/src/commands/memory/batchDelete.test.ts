@@ -454,5 +454,155 @@ describe('handleBatchDelete', () => {
         content: expect.stringContaining('Autocomplete was unavailable'),
       });
     });
+
+    it('an APPLIED-phase render throw never renders the timed-out/cancelled copy — the delete already committed', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 5,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
+        })
+      );
+      stub.batchDelete.mockResolvedValue(
+        makeOk({
+          deletedCount: 5,
+          skippedLocked: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          message: 'Deleted 5 memories.',
+        })
+      );
+
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
+      // The success-path editReply on the button interaction rejects AFTER
+      // the delete already applied.
+      buttonInteraction.editReply.mockRejectedValue(new Error('Discord API blip'));
+      mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
+
+      const context = createMockContext();
+      await handleBatchDelete(context);
+
+      expect(stub.batchDelete).toHaveBeenCalledTimes(1);
+      // renderSpec prefixes the severity emoji; pin the catalog copy itself.
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining(
+          'The memories were deleted, but showing the result failed. Use /memory browse to verify.'
+        ),
+        embeds: [],
+        components: [],
+      });
+      const allEditReplyContents = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.map(
+        call => (call[0] as { content?: string }).content
+      );
+      expect(allEditReplyContents).not.toContain('Deletion cancelled - confirmation timed out.');
+    });
+
+    it('a CANCELLED-phase ack throw confirms the cancellation — never a delete-failure or timed-out copy', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 5,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
+        })
+      );
+
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::cancel');
+      // The cancel ack itself fails — the cancellation is still effective
+      // (no write will run), so the fallback must confirm it.
+      buttonInteraction.update.mockRejectedValue(new Error('Discord API blip'));
+      mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
+
+      const context = createMockContext();
+      await handleBatchDelete(context);
+
+      expect(stub.batchDelete).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: 'Deletion cancelled.',
+        embeds: [],
+        components: [],
+      });
+      const cancelPathContents = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.map(
+        call => (call[0] as { content?: string }).content ?? ''
+      );
+      expect(cancelPathContents.some(c => c.includes('complete the deletion'))).toBe(false);
+      expect(cancelPathContents).not.toContain('Deletion cancelled - confirmation timed out.');
+    });
+
+    it('a CONFIRM-phase throw before the write renders a classified failure, never the timed-out copy, and never calls batchDelete', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 5,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
+        })
+      );
+
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
+      // ackUpdate() awaits interaction.deferUpdate() first — throw there so
+      // the failure happens before userClient.batchDelete is ever called.
+      buttonInteraction.deferUpdate.mockRejectedValue(new Error('Discord API blip'));
+      mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
+
+      const context = createMockContext();
+      await handleBatchDelete(context);
+
+      expect(stub.batchDelete).not.toHaveBeenCalled();
+      const reply = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        content: string;
+        embeds?: unknown[];
+        components?: unknown[];
+      };
+      expect(reply.content).not.toBe('Deletion cancelled - confirmation timed out.');
+      expect(reply.content).toContain('complete the deletion');
+      // The stale confirm embed/buttons must be cleared, like every other arm.
+      expect(reply.embeds).toEqual([]);
+      expect(reply.components).toEqual([]);
+    });
+
+    it('a CONFIRM-phase throw from the !ok failure render also clears the stale confirm UI', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 5,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
+        })
+      );
+      stub.batchDelete.mockResolvedValue(makeErr(500, 'internal error'));
+
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
+      // The !ok classified-failure render itself throws — the second trigger
+      // site that lands in the confirm-phase catch.
+      buttonInteraction.editReply.mockRejectedValue(new Error('Discord API blip'));
+      mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
+
+      const context = createMockContext();
+      await handleBatchDelete(context);
+
+      const reply = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        content: string;
+        embeds?: unknown[];
+        components?: unknown[];
+      };
+      expect(reply.content).not.toBe('Deletion cancelled - confirmation timed out.');
+      expect(reply.content).toContain('complete the deletion');
+      expect(reply.embeds).toEqual([]);
+      expect(reply.components).toEqual([]);
+    });
   });
 });
