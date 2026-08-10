@@ -5,6 +5,9 @@ on:
     # Run on all branches - simplest approach for one-person project
     # No pull_request trigger = no duplicate runs
     branches: ['**']
+  # Manual escape hatch: when GitHub webhook delivery degrades, pushes stop
+  # triggering runs and nothing can start CI by hand. Adds no automatic runs.
+  workflow_dispatch:
 
 # Cancel in-progress runs when new commits are pushed to same branch
 concurrency:
