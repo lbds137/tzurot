@@ -223,6 +223,42 @@ describe('handleDataDeleteModal', () => {
     expect(embed.data.description).toContain('fresh empty account');
   });
 
+  it('renders the applied-outcome copy when the success render throws after the deletion applied', async () => {
+    stub.issueAccountDeleteToken.mockResolvedValue(makeOk({ deleteToken: 'acctdel_tok' }));
+    stub.deleteAccount.mockResolvedValue(
+      makeOk({
+        success: true,
+        summary: {
+          personas: 2,
+          characters: 1,
+          conversationMessages: 10,
+          memories: 5,
+          facts: 3,
+          factsSweptByTag: 4,
+          pendingMemories: 1,
+          diagnosticLogs: 1,
+          characterNames: ['XBot'],
+        },
+      })
+    );
+    const interaction = makeModal('DELETE MY ACCOUNT');
+    mockEditReply.mockRejectedValueOnce(new Error('Discord API blip'));
+
+    await handleDataDeleteModal(interaction as unknown as ModalSubmitInteraction);
+
+    // The deletion already applied — the fallback must confirm it with this
+    // caller's copy, never a failure/retry framing over the applied write.
+    expect(stub.deleteAccount).toHaveBeenCalledTimes(1);
+    expect(mockEditReply).toHaveBeenCalledTimes(2);
+    expect(mockEditReply).toHaveBeenLastCalledWith({
+      content: expect.stringContaining(
+        'Your data was deleted, but showing the result failed. Message the bot again — a fresh account is created automatically.'
+      ),
+      embeds: [],
+      components: [],
+    });
+  });
+
   it('surfaces a failed deletion without a success embed', async () => {
     stub.issueAccountDeleteToken.mockResolvedValue(makeOk({ deleteToken: 'acctdel_tok' }));
     stub.deleteAccount.mockResolvedValue(makeErr(500, 'boom'));

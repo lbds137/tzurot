@@ -480,6 +480,41 @@ describe('handlePurgeModal (modal submission)', () => {
     );
   });
 
+  it('renders the applied-outcome copy when the success render throws after the purge applied', async () => {
+    stub.issuePurgeToken.mockResolvedValueOnce(
+      makeOk({
+        purgeToken: 'purge_test0000test0001',
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
+      })
+    );
+    stub.purge.mockResolvedValueOnce(
+      makeOk({
+        deletedCount: 8,
+        lockedPreserved: 2,
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
+        message: 'ok',
+      })
+    );
+    const interaction = createMockModalInteraction(EXPECTED_PHRASE);
+    interaction.editReply.mockRejectedValueOnce(new Error('Discord API blip'));
+
+    await handlePurgeModal(interaction);
+
+    // The purge already applied — the fallback must confirm it with this
+    // caller's copy, never a failure/retry framing over the applied write.
+    expect(stub.purge).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledTimes(2);
+    expect(interaction.editReply).toHaveBeenLastCalledWith({
+      content: expect.stringContaining(
+        'The memories were purged, but showing the result failed. Use /memory browse to verify.'
+      ),
+      embeds: [],
+      components: [],
+    });
+  });
+
   it('reports failure when token issuance fails (confirmation rejected server-side)', async () => {
     stub.issuePurgeToken.mockResolvedValueOnce(makeErr(400, 'Confirmation required'));
     const interaction = createMockModalInteraction(EXPECTED_PHRASE);

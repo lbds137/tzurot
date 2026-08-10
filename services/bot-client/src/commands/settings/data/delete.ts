@@ -258,6 +258,12 @@ export async function handleDataDeleteModal(interaction: ModalSubmitInteraction)
     interaction,
     ACCOUNT_DELETE_CONFIRMATION_PHRASE,
     enteredPhrase => executeDeleteHandshake(userClient, interaction.user.id, enteredPhrase),
-    { progressContent: 'Deleting your account…' }
+    {
+      progressContent: 'Deleting your account…',
+      appliedNotice: {
+        whatApplied: 'Your data was deleted',
+        verifySteer: 'Message the bot again — a fresh account is created automatically.',
+      },
+    }
   );
 }

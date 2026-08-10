@@ -228,7 +228,19 @@ describe('handleModal', () => {
 
     // The slug is read from the parent message's footer, not the customId.
     expect(mockParsePurgeSlugFromFooter).toHaveBeenCalledWith('slug:lilith');
-    expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
+    // Seam assertion: the appliedNotice copy must actually cross the mocked
+    // boundary — the mock cannot distinguish dropped or wrong copy otherwise.
+    expect(mockHandleDestructiveModalSubmit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.any(Function),
+      expect.objectContaining({
+        appliedNotice: {
+          whatApplied: 'The history was deleted',
+          verifySteer: 'Use /history stats to verify.',
+        },
+      })
+    );
   });
 
   it('should reply with error when the slug footer is missing in modal', async () => {

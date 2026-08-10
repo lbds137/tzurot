@@ -227,7 +227,19 @@ describe('handleVoicePurgeModal', () => {
 
     await handleVoicePurgeModal(interaction);
 
-    expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
+    // Seam assertion: the appliedNotice copy must actually cross the mocked
+    // boundary — the mock cannot distinguish dropped or wrong copy otherwise.
+    expect(mockHandleDestructiveModalSubmit).toHaveBeenCalledWith(
+      interaction,
+      expect.anything(),
+      expect.any(Function),
+      expect.objectContaining({
+        appliedNotice: {
+          whatApplied: 'The voices were purged',
+          verifySteer: 'Use /voice voices browse to verify.',
+        },
+      })
+    );
   });
 
   it('invokes clearVoices via the typed client when the destructive callback runs', async () => {
