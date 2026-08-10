@@ -1,9 +1,10 @@
 ---
 id: TASK-435
 title: Dedupe the catalogModel() test fixture (3 copies) into a shared builder
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 04:45'
+updated_date: '2026-08-10 12:05'
 labels:
   - 'area:bot-client'
   - 'size:S'
