@@ -48,7 +48,9 @@ import {
 
 const logger = createLogger('ReleaseReconcile');
 
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/lbds137/tzurot/releases?per_page=30';
+/** Single-page fetch size; the sweep's coverage tripwire keys off this. */
+const RELEASES_PAGE_SIZE = 30;
+const GITHUB_RELEASES_URL = `https://api.github.com/repos/lbds137/tzurot/releases?per_page=${RELEASES_PAGE_SIZE}`;
 
 export const DEFAULT_LOOKBACK_HOURS = 24;
 
@@ -62,8 +64,10 @@ export const MAX_ANNOUNCEMENTS_PER_RUN = 3;
 export type FetchGitHubReleases = () => Promise<GitHubRelease[]>;
 
 /**
- * One-page newest-first fetch: 30 releases always covers any allowed
- * lookback window at this repo's release cadence. Token optional —
+ * One-page newest-first fetch: a page of RELEASES_PAGE_SIZE is expected to
+ * cover any allowed lookback window at this repo's release cadence — the
+ * sweep warns when a full page's oldest item is still inside the window
+ * (older in-window releases could exist past the page). Token optional —
  * unauthenticated works, but Railway's shared egress IPs make the
  * per-IP anonymous rate limit unreliable.
  */
@@ -141,6 +145,29 @@ export async function reconcileReleaseAnnouncements(
       { version: newest.tag_name, publishedAt: newest.published_at },
       'Newest GitHub release is prerelease-flagged — release DMs are suppressed until it is demoted (release:publish flag choreography, or `gh release edit --prerelease=false`)'
     );
+  }
+
+  // Coverage tripwire: a full page whose OLDEST non-draft item is still
+  // inside the lookback window means older in-window releases could exist
+  // past this single page (see createGitHubReleasesFetcher's doc comment).
+  if (releases.length >= RELEASES_PAGE_SIZE) {
+    const oldestPublishedAt = releases
+      .map(release => release.published_at)
+      .filter(
+        (publishedAt): publishedAt is string => publishedAt !== null && publishedAt !== undefined
+      )
+      .reduce<string | null>((oldest, current) => {
+        if (oldest === null) {
+          return current;
+        }
+        return new Date(current).getTime() < new Date(oldest).getTime() ? current : oldest;
+      }, null);
+    if (oldestPublishedAt !== null && new Date(oldestPublishedAt).getTime() >= cutoff) {
+      logger.warn(
+        { pageSize: RELEASES_PAGE_SIZE, oldestPublishedAt, lookbackHours },
+        'Releases page is full and its oldest item is still inside the lookback window — older in-window releases may be missing from this single-page sweep'
+      );
+    }
   }
 
   const inWindow = releases

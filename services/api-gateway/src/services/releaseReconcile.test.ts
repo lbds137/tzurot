@@ -212,6 +212,80 @@ describe('reconcileReleaseAnnouncements', () => {
     expect(summary.newestPrerelease).toBeNull();
     expect(mockLogger.warn).not.toHaveBeenCalled();
   });
+
+  describe('single-page coverage tripwire', () => {
+    it('warns when the page is full and its oldest item is still inside the lookback window', async () => {
+      const releases = Array.from({ length: 30 }, (_unused, i) =>
+        makeRelease({ id: i, tag_name: `v-${i}`, published_at: hoursAgo(i + 1) })
+      );
+      await reconcileReleaseAnnouncements(
+        { ...deps, fetchReleases: withReleases(releases) },
+        { lookbackHours: 168 }
+      );
+
+      // The oldest item (id 29) sits at hoursAgo(30) — still inside a 168h window.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pageSize: 30,
+          oldestPublishedAt: hoursAgo(30),
+          lookbackHours: 168,
+        }),
+        expect.stringContaining('older in-window releases may be missing')
+      );
+    });
+
+    it('finds the oldest item regardless of API return order (order-independent min)', async () => {
+      // Oldest item deliberately NOT at the tail: GitHub return order is not
+      // trusted elsewhere in this module (inWindow re-sorts), so the tripwire
+      // must not assume it either. A tail-element shortcut would fail here.
+      const releases = Array.from({ length: 30 }, (_unused, i) =>
+        makeRelease({ id: i, tag_name: `v-${i}`, published_at: hoursAgo(i + 1) })
+      );
+      const oldest = releases.splice(29, 1)[0]; // published_at = hoursAgo(30)
+      releases.splice(10, 0, oldest); // bury it mid-array
+      await reconcileReleaseAnnouncements(
+        { ...deps, fetchReleases: withReleases(releases) },
+        { lookbackHours: 168 }
+      );
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ oldestPublishedAt: hoursAgo(30) }),
+        expect.stringContaining('older in-window releases may be missing')
+      );
+    });
+
+    it('does not warn when the page is full but the oldest item is outside the lookback window', async () => {
+      const releases = Array.from({ length: 30 }, (_unused, i) =>
+        makeRelease({ id: i, tag_name: `v-${i}`, published_at: hoursAgo(i + 1) })
+      );
+      await reconcileReleaseAnnouncements(
+        { ...deps, fetchReleases: withReleases(releases) },
+        { lookbackHours: 24 }
+      );
+
+      // The oldest item (id 29) sits at hoursAgo(30) — outside a 24h window,
+      // so the page's tail is proven to already be out of range.
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('older in-window releases may be missing')
+      );
+    });
+
+    it('does not warn on a short page even when every item is inside the window', async () => {
+      const releases = Array.from({ length: 5 }, (_unused, i) =>
+        makeRelease({ id: i, tag_name: `v-${i}`, published_at: hoursAgo(i + 1) })
+      );
+      await reconcileReleaseAnnouncements(
+        { ...deps, fetchReleases: withReleases(releases) },
+        { lookbackHours: 168 }
+      );
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('older in-window releases may be missing')
+      );
+    });
+  });
 });
 
 describe('sweepIncompleteBroadcasts', () => {
