@@ -10,8 +10,8 @@ import type {
 } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { CatalogModel } from '../../utils/modelCatalog.js';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
+import { catalogModel } from '../../test/catalogModel.js';
 import { mockListWalletKeysResponse, mockListLlmConfigsResponse } from '@tzurot/test-factories';
 
 vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
@@ -64,24 +64,6 @@ import {
   isModelsBrowseSelectInteraction,
 } from './browse.js';
 import { __resetBrowseUserCachesForTests } from './browseUserCache.js';
-
-function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
-  return {
-    name: overrides.id,
-    contextLength: 200_000,
-    supportsVision: false,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-    isZaiCoding: overrides.id.startsWith('z-ai/'),
-    docsUrl: null,
-    source: 'openrouter',
-    hasPricing: true,
-    ...overrides,
-  };
-}
 
 beforeEach(() => {
   vi.clearAllMocks();

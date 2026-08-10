@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AutocompleteInteraction } from 'discord.js';
-import type { CatalogModel } from './modelCatalog.js';
+import { catalogModel } from '../test/catalogModel.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -30,22 +30,6 @@ vi.mock('./modelCatalog.js', async importOriginal => {
 });
 
 import { respondWithCatalogAutocomplete } from './modelCatalogAutocomplete.js';
-
-function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
-  return {
-    name: overrides.id,
-    contextLength: 200_000,
-    supportsVision: false,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-    isZaiCoding: overrides.id.startsWith('z-ai/'),
-    source: overrides.id.startsWith('z-ai/') ? 'zai-catalog' : 'openrouter',
-    ...overrides,
-  } as CatalogModel;
-}
 
 function mockInteraction(): AutocompleteInteraction {
   return { respond: vi.fn() } as unknown as AutocompleteInteraction;
