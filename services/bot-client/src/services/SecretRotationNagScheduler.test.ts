@@ -37,7 +37,7 @@ const client = {} as Client;
 describe('SecretRotationNagScheduler runSecretRotationNagCheck', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPostOwnerChannelEmbed.mockResolvedValue(undefined);
+    mockPostOwnerChannelEmbed.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -61,6 +61,20 @@ describe('SecretRotationNagScheduler runSecretRotationNagCheck', () => {
       7 * 24 * 60 * 60,
       expect.any(String)
     );
+  });
+
+  it('does NOT arm the cooldown when the embed post reports non-delivery — the next tick retries', async () => {
+    mockSecretRotationStatus.mockResolvedValue({
+      ok: true,
+      data: { entries: [OVERDUE_ENTRY], overdueCount: 1 },
+    });
+    mockPostOwnerChannelEmbed.mockResolvedValue(false);
+    const redis = makeRedis(null);
+
+    await runSecretRotationNagCheck(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(redis.setex).not.toHaveBeenCalled();
   });
 
   it('does NOT post while the cooldown key exists (at most one nag per week)', async () => {
