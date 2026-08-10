@@ -1,10 +1,10 @@
 ---
 id: TASK-305
 title: Sweep routes/internal to sendContractSuccess
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-23 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-08-10 16:53'
 labels:
   - 'origin:review'
   - 'area:api-gateway'
