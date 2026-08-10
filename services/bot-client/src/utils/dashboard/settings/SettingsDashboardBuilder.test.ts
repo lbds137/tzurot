@@ -208,7 +208,7 @@ describe('SettingsDashboardBuilder', () => {
       expect(maxMessagesField?.value).toContain('Auto (from admin)');
     });
 
-    it('should show "Auto (from personality)" for personality-sourced values', () => {
+    it('should show "Auto (from character)" for personality-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
         maxMessages: {
@@ -223,7 +223,9 @@ describe('SettingsDashboardBuilder', () => {
       const fields = getEmbedFields(embed);
       const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
 
-      expect(maxMessagesField?.value).toContain('Auto (from personality)');
+      // The SOURCE enum stays 'personality' internally; the friendly label is
+      // the user-facing terminology, which standardized on 'character'.
+      expect(maxMessagesField?.value).toContain('Auto (from character)');
     });
 
     it('should show "Auto (from channel)" for channel-sourced values', () => {
@@ -838,6 +840,17 @@ describe('SettingsDashboardBuilder', () => {
       const embed = buildSettingEmbed(config(), staleSession, plainSetting).toJSON();
       const current = (embed.fields ?? []).find(f => f.name === 'Current Value');
       expect(current?.value).toContain('—');
+    });
+  });
+
+  describe('settings copy invariants', () => {
+    it('keeps the privacy note on cross-channel history — informed-consent copy a sweep must not drop', () => {
+      const setting = ALL_SETTINGS.find(s => s.id === 'crossChannelHistoryEnabled');
+      // Owner-mandated informed consent: the setting's risk (venue leakage —
+      // a character referencing private-channel talk somewhere more public)
+      // must stay named at the decision point.
+      expect(setting?.helpText).toContain('Privacy note');
+      expect(setting?.helpText).toContain('more public');
     });
   });
 });

@@ -64,23 +64,25 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
     emoji: '🔀',
     description:
       'Fill unused context budget with conversation history from other channels. ' +
-      'When enabled, personalities remember conversations from other channels with you.',
+      'When enabled, characters remember conversations from other channels with you.',
     type: SettingType.TRI_STATE,
     helpText:
       'When enabled, fills unused context with conversation history from other channels ' +
-      "where you've talked to this personality",
+      "where you've talked to this character. Privacy note: the character may reference " +
+      'those conversations anywhere it talks to you — including channels more public than ' +
+      'the one they happened in — so leave this disabled if you keep some conversations separate.',
   },
   {
     id: 'shareLtmAcrossPersonalities',
     label: 'Share Memories',
     emoji: '🧠',
     description:
-      'Share long-term memories across all personalities. ' +
-      'When enabled, what you tell one personality is remembered by all others.',
+      'Share long-term memories across all characters. ' +
+      'When enabled, what you tell one character is remembered by all others.',
     type: SettingType.TRI_STATE,
     helpText:
-      'When enabled, long-term memories are shared across all personalities ' +
-      'instead of being per-personality',
+      'When enabled, long-term memories are shared across all characters ' +
+      'instead of being per-character',
   },
   {
     id: 'memoryScoreThreshold',
