@@ -82,9 +82,15 @@ export async function runSecretRotationNagCheck(client: Client, redis: Redis): P
       })
       .setTimestamp();
 
-    await postOwnerChannelEmbed(client, embed);
-    await redis.setex(COOLDOWN_KEY, NAG_COOLDOWN_SECONDS, new Date().toISOString());
-    logger.info({ overdueCount }, 'Posted rotation nag');
+    // Arm the cooldown only on confirmed delivery: a swallowed post failure
+    // must not buy a week of silence — the next daily tick retries instead.
+    const delivered = await postOwnerChannelEmbed(client, embed);
+    if (delivered) {
+      await redis.setex(COOLDOWN_KEY, NAG_COOLDOWN_SECONDS, new Date().toISOString());
+      logger.info({ overdueCount }, 'Posted rotation nag');
+    } else {
+      logger.warn({ overdueCount }, 'Rotation nag embed was not delivered; will retry next tick');
+    }
   } catch (error) {
     // Nag failure must never affect anything else; next daily tick retries.
     logger.warn({ err: error }, 'Rotation nag check failed');

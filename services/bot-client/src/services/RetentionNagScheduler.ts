@@ -151,9 +151,18 @@ export async function runRetentionNagCheck(client: Client, redis: Redis): Promis
       return;
     }
 
-    await postOwnerChannelEmbed(client, buildRetentionNagEmbed(preview));
-    await redis.setex(COOLDOWN_KEY, NAG_COOLDOWN_SECONDS, new Date().toISOString());
-    logger.info({ eligibleCount: preview.totals.eligibleCount }, 'Posted retention nag');
+    // Arm the cooldown only on confirmed delivery: a swallowed post failure
+    // must not buy a week of silence — the next daily tick retries instead.
+    const delivered = await postOwnerChannelEmbed(client, buildRetentionNagEmbed(preview));
+    if (delivered) {
+      await redis.setex(COOLDOWN_KEY, NAG_COOLDOWN_SECONDS, new Date().toISOString());
+      logger.info({ eligibleCount: preview.totals.eligibleCount }, 'Posted retention nag');
+    } else {
+      logger.warn(
+        { eligibleCount: preview.totals.eligibleCount },
+        'Retention nag embed was not delivered; will retry next tick'
+      );
+    }
   } catch (error) {
     // Nag failure must never affect anything else; next daily tick retries.
     logger.warn({ err: error }, 'Retention nag check failed');
