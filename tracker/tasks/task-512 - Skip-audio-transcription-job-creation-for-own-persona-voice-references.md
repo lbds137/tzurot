@@ -1,9 +1,10 @@
 ---
 id: TASK-512
 title: Skip audio-transcription job creation for own-persona voice references
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 21:44'
+updated_date: '2026-08-10 22:54'
 labels:
   - 'area:api-gateway'
   - 'size:S'
