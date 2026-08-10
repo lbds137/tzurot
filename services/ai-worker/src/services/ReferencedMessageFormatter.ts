@@ -35,8 +35,9 @@ import {
 import { deriveRefRole } from './prompt/referenceRole.js';
 import { toStoredReference } from './prompt/storedReference.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
-import { isOwnPersonaVoice, redactOwnVoiceTranscript } from './voice/ownVoiceGuard.js';
+import { redactOwnVoiceTranscript } from './voice/ownVoiceGuard.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
+import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 
 const logger = createLogger('ReferencedMessageFormatter');
 

@@ -23,9 +23,10 @@ import {
   type BuiltAttachment,
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
-import { isOwnPersonaVoice, OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
+import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
 import { withRetry } from '../utils/retry.js';
 import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
+import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 
 const logger = createLogger('AttachmentProcessor');
 
@@ -51,7 +52,7 @@ interface ProcessSingleAttachmentOptions {
    * The REFERENCE's raw authorship stamp (not the derived render role) — used
    * only to gate voice STT. `'assistant'` means one of our own personas (self
    * or sibling); absent/`'user'`/`'bot'` leave today's behavior untouched. See
-   * `ownVoiceGuard.ts`.
+   * `@tzurot/common-types/utils/ownVoice` (`isOwnPersonaVoice`).
    */
   authorRole?: ReferenceAuthorRole;
   /** Diagnostic context for vision-failure logging (see VisionLoggingContext in VisionProcessor.ts) */
@@ -102,7 +103,7 @@ export interface ProcessAttachmentsOptions {
    * The REFERENCE's raw authorship stamp (not the derived render role) — used
    * only to gate voice STT. `'assistant'` means one of our own personas (self
    * or sibling); absent/`'user'`/`'bot'` leave today's behavior untouched. See
-   * `ownVoiceGuard.ts`.
+   * `@tzurot/common-types/utils/ownVoice` (`isOwnPersonaVoice`).
    */
   authorRole?: ReferenceAuthorRole;
   /** Diagnostic context for vision-failure logging */

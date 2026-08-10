@@ -625,6 +625,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       overrides: Partial<{
         content: string;
         attachments: any[];
+        authorRole: 'user' | 'assistant' | 'bot';
       }> = {}
     ) => ({
       referenceNumber,
@@ -637,6 +638,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       content: overrides.content ?? 'Test content',
       embeds: '', // Required field
       attachments: overrides.attachments,
+      authorRole: overrides.authorRole,
     });
 
     it('should create image preprocessing job for referenced message images', async () => {
@@ -1011,6 +1013,147 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
       // LLM parent should have 2 dependencies
       expect(flowCall.data.dependencies).toHaveLength(2);
+    });
+
+    describe('own-persona-voice reference skips audio dispatch', () => {
+      // A persona's own spoken delivery of its own message carries no
+      // information beyond that message's text — ai-worker's render side
+      // already discards the transcript for an assistant-authored reference,
+      // so dispatching STT here would run and bill (or load the self-hosted
+      // voice-engine) for output that's thrown away downstream.
+
+      it('does not create an audio job for an assistant-authored voice reference, but its image sibling still dispatches', async () => {
+        const context: JobContext = {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          channelId: 'channel-123',
+          referencedMessages: [
+            createReferencedMessage(1, {
+              content: 'Own voice reply',
+              authorRole: 'assistant',
+              attachments: [
+                {
+                  url: 'https://example.com/own-voice.ogg',
+                  name: 'own-voice.ogg',
+                  contentType: CONTENT_TYPES.AUDIO_OGG,
+                  size: 1024,
+                  isVoiceMessage: true,
+                  duration: 5,
+                },
+                {
+                  url: 'https://example.com/own-image.png',
+                  name: 'own-image.png',
+                  contentType: CONTENT_TYPES.IMAGE_PNG,
+                  size: 2048,
+                },
+              ],
+            }),
+          ],
+        };
+
+        await createJobChain({
+          requestId: 'req-own-voice-skip',
+          personality: mockPersonality,
+          message: 'What did the persona say?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        expect(flowProducer.add).toHaveBeenCalledTimes(1);
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+        // Only the image job survives — no AudioTranscription child.
+        expect(flowCall.children).toHaveLength(1);
+        expect(flowCall.children[0].name).toBe(JobType.ImageDescription);
+        expect(flowCall.children.some((c: any) => c.name === JobType.AudioTranscription)).toBe(
+          false
+        );
+      });
+
+      it.each([
+        ['user' as const, 'a human-authored reference'],
+        [undefined, 'a reference with no authorRole stamp at all'],
+      ])('still creates the audio job for %s (%s)', async (authorRole, _reason) => {
+        const context: JobContext = {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          channelId: 'channel-123',
+          referencedMessages: [
+            createReferencedMessage(1, {
+              content: 'Not own voice',
+              authorRole,
+              attachments: [
+                {
+                  url: 'https://example.com/other-voice.ogg',
+                  name: 'other-voice.ogg',
+                  contentType: CONTENT_TYPES.AUDIO_OGG,
+                  size: 1024,
+                  isVoiceMessage: true,
+                  duration: 5,
+                },
+              ],
+            }),
+          ],
+        };
+
+        await createJobChain({
+          requestId: `req-non-own-voice-${String(authorRole)}`,
+          personality: mockPersonality,
+          message: 'What did they say?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        expect(flowProducer.add).toHaveBeenCalledTimes(1);
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toHaveLength(1);
+        expect(flowCall.children[0].name).toBe(JobType.AudioTranscription);
+      });
+
+      it('also skips under the thin-envelope rawReferencedMessages fallback', async () => {
+        // Same fallback the image case exercises above — the ?? in
+        // collectPreprocessingJobs is attachment-type-agnostic, so the skip
+        // must apply on the raw-envelope arm too, not just the assembled one.
+        const context: JobContext = {
+          kind: 'envelope',
+          userId: 'user-123',
+          channelId: 'channel-123',
+          rawAssemblyInputs: {
+            rawMessageContent: 'What did the persona say?',
+            rawReferencedMessages: [
+              createReferencedMessage(1, {
+                content: 'Own voice reply',
+                authorRole: 'assistant',
+                attachments: [
+                  {
+                    url: 'https://example.com/own-voice-thin.ogg',
+                    name: 'own-voice-thin.ogg',
+                    contentType: CONTENT_TYPES.AUDIO_OGG,
+                    size: 1024,
+                    isVoiceMessage: true,
+                    duration: 5,
+                  },
+                ],
+              }),
+            ],
+          },
+        } as JobContext;
+
+        await createJobChain({
+          requestId: 'req-own-voice-skip-thin',
+          personality: mockPersonality,
+          message: 'What did the persona say?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        expect(flowProducer.add).toHaveBeenCalledTimes(1);
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeUndefined();
+        expect(flowCall.data.dependencies).toBeUndefined();
+      });
     });
   });
 

@@ -12,10 +12,10 @@ import {
   neutralizeWrapperClosingTags,
 } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
+import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 import { enrichmentKey } from '../../services/prompt/QuoteFormatter.js';
 import { dedupeReference, renderReference } from '../../services/prompt/RenderableReference.js';
 import { fromStoredReference } from '../../services/prompt/storedReference.js';
-import { isOwnPersonaVoice } from '../../services/voice/ownVoiceGuard.js';
 import type { InlineImageDescription, RawHistoryEntry } from './conversationTypes.js';
 import { resolveSpeakerInfo } from './participantUtils.js';
 

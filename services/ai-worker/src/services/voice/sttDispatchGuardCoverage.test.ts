@@ -8,10 +8,11 @@
  * reading code, not by a check that would fail on a missing one. This test
  * is that check: it scans ai-worker's source tree for every
  * `transcribeAudio(` call site and asserts each one either references the
- * shared `ownVoiceGuard` module or is named in the ALLOWLIST below with a
- * reason. A new call site added without consulting the guard fails here
- * until it does one or the other — exemption becomes a reviewed decision
- * instead of a silent gap.
+ * shared `isOwnPersonaVoice` predicate (`@tzurot/common-types/utils/ownVoice`)
+ * — directly, or via the render-side `ownVoiceGuard` redact — or is named in
+ * the ALLOWLIST below with a reason. A new call site added without
+ * consulting the guard fails here until it does one or the other —
+ * exemption becomes a reviewed decision instead of a silent gap.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -36,11 +37,15 @@ const ALLOWLIST: Record<string, string> = {
     'which is always the human user in-band upload, never a reference. authorRole cannot apply here ' +
     'because there is no reference to carry it.',
   'jobs/AudioTranscriptionJob.ts':
-    "The BullMQ preprocessing-job handler api-gateway's jobChainOrchestrator dispatches per reference " +
-    'voice attachment, unconditionally (api-gateway threads no authorRole and is out of this scan and ' +
-    "this fix's scope). The render-side guard in ReferencedMessageFormatter/storedReference still " +
-    'keeps the resulting transcript out of the prompt for an assistant-authored reference — this is a ' +
-    'known cost gap (STT still runs and is billed; tracked as TASK-512), not a render-correctness gap.',
+    "The BullMQ handler's reference-pipeline producer (api-gateway's jobChainOrchestrator) gates " +
+    'before dispatch: processAttachmentsForJobs consults isOwnPersonaVoice (from ' +
+    '@tzurot/common-types/utils/ownVoice) against the reference authorship and skips ' +
+    'createAudioTranscriptionJobs entirely for an assistant-authored reference (api-gateway is out ' +
+    "of this ai-worker-scoped scan). The second producer, api-gateway's routes/ai/transcribe.ts, is " +
+    'an explicit user-triggered transcription request with no reference authorship to gate on — ' +
+    'deliberately ungated. The render-side guard in ReferencedMessageFormatter/storedReference ' +
+    'remains as belt-and-suspenders for any transcript computed or persisted before this gate ' +
+    'existed.',
   'jobs/handlers/pipeline/steps/ContextStep.ts':
     'reTranscribeExtendedContextVoice is a plain STT callback with no role of its own; the guard runs ' +
     'one call frame up, in ContextAssembler.injectExtendedContextVoiceTranscripts, which returns before ' +
@@ -76,16 +81,18 @@ describe('transcribeAudio dispatch sites consult the shared own-voice guard', ()
   });
 
   it.each(callers.map(f => [path.relative(SRC_ROOT, f), f] as const))(
-    '%s references ownVoiceGuard, or is allowlisted with a reason',
+    '%s references isOwnPersonaVoice/ownVoiceGuard, or is allowlisted with a reason',
     (relPath, fullPath) => {
       const content = readFileSync(fullPath, 'utf-8');
-      const referencesGuard = content.includes('ownVoiceGuard');
+      const referencesGuard =
+        content.includes('isOwnPersonaVoice') || content.includes('ownVoiceGuard');
       const allowlistReason = ALLOWLIST[relPath];
       expect(
         referencesGuard || allowlistReason !== undefined,
-        `${relPath} calls transcribeAudio( but neither imports ownVoiceGuard nor is allowlisted above. ` +
-          "Either gate the call with isOwnPersonaVoice from './voice/ownVoiceGuard.js' (path relative to " +
-          'the caller), or add an ALLOWLIST entry here naming why the guard does not apply.'
+        `${relPath} calls transcribeAudio( but neither imports isOwnPersonaVoice/ownVoiceGuard nor is ` +
+          'allowlisted above. Either gate the call with isOwnPersonaVoice from ' +
+          "'@tzurot/common-types/utils/ownVoice', or add an ALLOWLIST entry here naming why the guard " +
+          'does not apply.'
       ).toBe(true);
     }
   );
