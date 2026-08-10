@@ -41,6 +41,75 @@ function formatTimeframe(timeframe: string | null): string {
   }
 }
 
+const CANCELLED_MESSAGE = 'Deletion cancelled.';
+
+/**
+ * Render the outer-catch outcome for `handleBatchDelete`, phase-aware so the
+ * message always matches what actually happened to the write. Extracted to
+ * keep the handler's own cognitive complexity within the lint budget —
+ * the branching lives here instead of inline in the catch block.
+ */
+async function renderBatchDeleteCatchOutcome(
+  phase: 'read' | 'cancelled' | 'confirm' | 'applied',
+  error: unknown,
+  userId: string,
+  context: DeferredCommandContext
+): Promise<void> {
+  if (phase === 'applied') {
+    // The delete already committed before this throw — the render/delivery
+    // step is what failed. Must NOT read as cancelled or failed, or the
+    // user retries a deletion that already happened.
+    logger.error({ err: error, userId, phase }, 'Batch delete applied but result render failed');
+    await context.editReply({
+      content: renderSpec(
+        CATALOG.error.destructiveApplied(
+          'The memories were deleted',
+          'Use /memory browse to verify.'
+        )
+      ),
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  if (phase === 'cancelled') {
+    // The user cancelled and no write will happen — only the cancel ack
+    // failed to render. Confirm the cancellation on the fallback surface
+    // (which also clears the stale confirm buttons); a failure message here
+    // would invite retrying a deletion the user just declined.
+    logger.error({ err: error, userId, phase }, 'Batch delete cancel ack render failed');
+    await context.editReply({
+      content: CANCELLED_MESSAGE,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  if (phase === 'confirm') {
+    // Confirmed but the flow around the write (ack, result render) threw
+    // before completing — nothing was written (the client itself never
+    // throws), so classify as a failure rather than a timeout/cancellation.
+    // Clear the stale confirm embed/buttons like the sibling branches.
+    logger.error({ err: error, userId, phase }, 'Unexpected error');
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'memories', { failedAction: 'complete the deletion' })
+      ),
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  // Still in the resolve/preview READ phase — nothing was written.
+  logger.error({ err: error, userId, phase }, 'Unexpected error');
+  await context.editReply({
+    content: renderSpec(classifyGatewayFailure(error, 'memories', { operation: 'read' })),
+  });
+}
+
 /**
  * Handle /memory delete
  * Shows preview and confirmation before batch deleting
@@ -52,6 +121,11 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
   const options = memoryDeleteOptions(context.interaction);
   const personalityInput = options.character();
   const timeframe = options.timeframe();
+
+  // Tracks how far the flow got before an outer-catch throw, so the catch
+  // can render an outcome-honest message: 'applied' means the delete already
+  // happened, so the catch must never claim it was cancelled or failed.
+  let phase: 'read' | 'cancelled' | 'confirm' | 'applied' = 'read';
 
   try {
     // resolveRequiredPersonality handles the sentinel, genuine-miss ("not found"),
@@ -129,95 +203,100 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       components,
     });
 
-    // Wait for button interaction
+    // Wait for button interaction. Narrowly scoped: only a collector-wait
+    // failure (an actual timeout) may render the "confirmation timed out"
+    // message — everything past this point has its own phase-aware handling.
+    let buttonInteraction: ButtonInteraction;
     try {
       // eslint-disable-next-line no-restricted-syntax -- Secondary collector inside an exported handler — documented exception in `.claude/rules/04-discord.md`. The customIds use the `command::action::id` format and the parent flow IS routed through CommandHandler; this collector is just the timeout-bounded confirmation wait.
-      const buttonInteraction = await response.awaitMessageComponent({
+      buttonInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.Button,
         filter: (i: ButtonInteraction) => i.user.id === userId,
         time: CONFIRMATION_TIMEOUT,
       });
-
-      if (buttonInteraction.customId === 'memory-batch-delete::cancel') {
-        await buttonInteraction.update({
-          content: 'Deletion cancelled.',
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-
-      // User confirmed - perform deletion
-      await ackUpdate(buttonInteraction);
-
-      const deleteResult = await userClient.batchDelete({ previewToken: preview.previewToken });
-
-      if (!deleteResult.ok) {
-        await buttonInteraction.editReply({
-          content: renderSpec(
-            classifyGatewayFailure(deleteResult, 'memories', {
-              failedAction: 'delete the memories',
-            })
-          ),
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-
-      const result = deleteResult.data;
-
-      // Show success. `personalityName` is schema-optional because the gateway
-      // returns the 0-result shape without it when nothing matched; in this
-      // branch the preview already confirmed >0 deletions, so the fallback is
-      // a defense-in-depth guard against the rare preview-to-execute race
-      // (memories deleted by another session between preview and execute).
-      const displayName = result.personalityName ?? preview.personalityName;
-      let successDescription = `Deleted **${result.deletedCount}** memories for **${escapeMarkdown(displayName)}**`;
-
-      if (timeframe !== null) {
-        successDescription += ` from the last **${timeframeDisplay}**`;
-      }
-
-      successDescription += '.';
-
-      if (result.skippedLocked > 0) {
-        successDescription += `\n\n**${result.skippedLocked}** locked memories were preserved.`;
-      }
-
-      const successEmbed = createSuccessEmbed('Memories Deleted', successDescription);
-
-      await buttonInteraction.editReply({
-        embeds: [successEmbed],
-        components: [],
-      });
-
-      logger.info(
-        {
-          userId,
-          personalityId,
-          timeframe,
-          deletedCount: result.deletedCount,
-          skippedLocked: result.skippedLocked,
-        },
-        'Batch delete completed'
-      );
     } catch {
-      // Timeout or error - clear components
+      // Timeout - clear components
       await context.editReply({
         content: 'Deletion cancelled - confirmation timed out.',
         embeds: [],
         components: [],
       });
+      return;
     }
-  } catch (error) {
-    logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({
-      content: renderSpec(
-        // The OUTER catch only fires for the resolve/preview READ phase — the
-        // delete write's failures are caught by the inner try above.
-        classifyGatewayFailure(error, 'memories', { operation: 'read' })
-      ),
+
+    if (buttonInteraction.customId === 'memory-batch-delete::cancel') {
+      // 'cancelled' before the ack: a throw during the ack must confirm the
+      // cancellation, never render a delete-failure (nothing will be written).
+      phase = 'cancelled';
+      await buttonInteraction.update({
+        content: CANCELLED_MESSAGE,
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // User confirmed - perform deletion
+    phase = 'confirm';
+    await ackUpdate(buttonInteraction);
+
+    const deleteResult = await userClient.batchDelete({ previewToken: preview.previewToken });
+
+    if (!deleteResult.ok) {
+      await buttonInteraction.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(deleteResult, 'memories', {
+            failedAction: 'delete the memories',
+          })
+        ),
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // The write has applied — from here on, a throw must never render as
+    // cancelled or failed; only the render/delivery step can still fail.
+    phase = 'applied';
+
+    const result = deleteResult.data;
+
+    // Show success. `personalityName` is schema-optional because the gateway
+    // returns the 0-result shape without it when nothing matched; in this
+    // branch the preview already confirmed >0 deletions, so the fallback is
+    // a defense-in-depth guard against the rare preview-to-execute race
+    // (memories deleted by another session between preview and execute).
+    const displayName = result.personalityName ?? preview.personalityName;
+    let successDescription = `Deleted **${result.deletedCount}** memories for **${escapeMarkdown(displayName)}**`;
+
+    if (timeframe !== null) {
+      successDescription += ` from the last **${timeframeDisplay}**`;
+    }
+
+    successDescription += '.';
+
+    if (result.skippedLocked > 0) {
+      successDescription += `\n\n**${result.skippedLocked}** locked memories were preserved.`;
+    }
+
+    const successEmbed = createSuccessEmbed('Memories Deleted', successDescription);
+
+    logger.info(
+      {
+        userId,
+        personalityId,
+        timeframe,
+        deletedCount: result.deletedCount,
+        skippedLocked: result.skippedLocked,
+      },
+      'Batch delete completed'
+    );
+
+    await buttonInteraction.editReply({
+      embeds: [successEmbed],
+      components: [],
     });
+  } catch (error) {
+    await renderBatchDeleteCatchOutcome(phase, error, userId, context);
   }
 }
