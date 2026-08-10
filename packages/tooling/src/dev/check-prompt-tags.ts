@@ -45,7 +45,7 @@ import { PROTECTED_TAGS } from '@tzurot/common-types/utils/promptSanitizer';
  * `<current_conversation>` in ContextWindowManager.ts, a real structural
  * wrapper emitted by an escaper-import-less file).
  */
-const SCAN_ROOTS = ['services/ai-worker/src', 'packages/common-types/src'] as const;
+export const SCAN_ROOTS = ['services/ai-worker/src', 'packages/common-types/src'] as const;
 
 /**
  * Structural tags proven to enclose ONLY system-generated content (hardcoded

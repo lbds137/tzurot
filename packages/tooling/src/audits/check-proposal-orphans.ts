@@ -72,7 +72,13 @@ const PROPOSALS_GLOB = 'docs/proposals/backlog';
 // either can legitimately host a proposal link. `tracker/docs` holds the
 // theme/idea docs (the themes/ideas→docs migration) — most proposals are
 // linked from their owning theme, so the doc store is a first-class root.
-const SEARCH_ROOTS = ['backlog', 'docs', 'tracker/docs', 'CURRENT.md', 'BACKLOG.md'];
+export const SEARCH_ROOTS = [
+  'backlog',
+  'docs',
+  'tracker/docs',
+  'CURRENT.md',
+  'BACKLOG.md',
+] as const;
 const EXCLUDED_PREFIXES = ['docs/proposals/'];
 
 /**

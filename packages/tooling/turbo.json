@@ -1,0 +1,50 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.claude/hooks/**",
+        "$TURBO_ROOT$/.claude/rules/**",
+        "$TURBO_ROOT$/.claude/skills/**",
+        "$TURBO_ROOT$/.husky/**",
+        "$TURBO_ROOT$/.github/workflows/ci.yml",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/docs/**",
+        "$TURBO_ROOT$/backlog/**",
+        "$TURBO_ROOT$/tracker/docs/**",
+        "$TURBO_ROOT$/CURRENT.md",
+        "$TURBO_ROOT$/BACKLOG.md",
+        "$TURBO_ROOT$/services/bot-client/src/**",
+        "$TURBO_ROOT$/services/ai-worker/src/**",
+        "$TURBO_ROOT$/services/api-gateway/src/**",
+        "$TURBO_ROOT$/tests/e2e/contracts/**",
+        "$TURBO_ROOT$/prisma/drift-ignore.json",
+        "$TURBO_ROOT$/packages/common-types/src/**"
+      ]
+    },
+    "test:coverage": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.claude/hooks/**",
+        "$TURBO_ROOT$/.claude/rules/**",
+        "$TURBO_ROOT$/.claude/skills/**",
+        "$TURBO_ROOT$/.husky/**",
+        "$TURBO_ROOT$/.github/workflows/ci.yml",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/docs/**",
+        "$TURBO_ROOT$/backlog/**",
+        "$TURBO_ROOT$/tracker/docs/**",
+        "$TURBO_ROOT$/CURRENT.md",
+        "$TURBO_ROOT$/BACKLOG.md",
+        "$TURBO_ROOT$/services/bot-client/src/**",
+        "$TURBO_ROOT$/services/ai-worker/src/**",
+        "$TURBO_ROOT$/services/api-gateway/src/**",
+        "$TURBO_ROOT$/tests/e2e/contracts/**",
+        "$TURBO_ROOT$/prisma/drift-ignore.json",
+        "$TURBO_ROOT$/packages/common-types/src/**"
+      ]
+    }
+  }
+}

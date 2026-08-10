@@ -11,8 +11,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const OUTPUT_REL_PATH = 'packages/common-types/src/generated/commandOptions.ts';
-const COMMANDS_REL_DIR = 'services/bot-client/src/commands';
+export const OUTPUT_REL_PATH = 'packages/common-types/src/generated/commandOptions.ts' as const;
+export const COMMANDS_REL_DIR = 'services/bot-client/src/commands' as const;
 
 interface ExtractedOption {
   name: string;
