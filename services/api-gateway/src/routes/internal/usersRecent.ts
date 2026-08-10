@@ -19,7 +19,7 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getOutboundDmAllowlist } from '@tzurot/common-types/utils/outboundDmAllowlist';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -127,6 +127,6 @@ export const handleRecentUsers = (deps: RouteDeps): RequestHandler => {
     // "rows may have been dropped" indicator, not an absolute truth.
     logger.info({ sinceDays, total: discordIds.length, atLimit }, 'Returning recent active users');
 
-    sendCustomSuccess(res, parsed, StatusCodes.OK);
+    sendContractSuccess(res, RecentUsersResponseSchema, parsed, StatusCodes.OK);
   });
 };

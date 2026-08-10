@@ -14,7 +14,7 @@ import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { SecretRotationStatusResponseSchema } from '@tzurot/common-types/schemas/api/internal';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -48,6 +48,6 @@ export const handleSecretRotationStatus = (deps: RouteDeps): RequestHandler => {
       overdueCount: entries.filter(entry => entry.overdueDays > 0).length,
     });
 
-    sendCustomSuccess(res, parsed, StatusCodes.OK);
+    sendContractSuccess(res, SecretRotationStatusResponseSchema, parsed, StatusCodes.OK);
   });
 };
