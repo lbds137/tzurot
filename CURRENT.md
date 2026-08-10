@@ -4,19 +4,19 @@
 
 ---
 
-## 🔄 SESSION STATE (2026-08-09 late evening, Fable 5 driving — beta.198 SHIPPED)
+## 🔄 SESSION STATE (2026-08-10 morning, Fable 5 driving — post-beta.198 mechanical drain batch)
 
-**beta.198 cut, merged, published, post-merge sequence COMPLETE** (2026-08-09 ~22:55 EDT): premigrate → merge #2036 → finalize (develop SHA-aligned) → publish (flags verified) → **TASK-501 dev→prod tag copy DONE** (35 rows, 34 hellaverse on prod, updated_at bumped so prod wins LWW — done hours before the 3am sync). Release DMs: webhook or the :41 reconcile delivers; if none arrives by ~23:45, check the prerelease flag first (beta.197 incident class — TASK-500 guard not yet built).
+**Sub-agent drain batch COMPLETE — 4 PRs merged, 2 tasks closed without code** (owner directive: offload mechanical work to cheaper tiers; Fable was ~39% weekly at kickoff). #2037 (workflow_dispatch escape hatch, TASK-446 — dispatch verified live post-merge) · #2038 (TASK-500 prerelease-flag guard: reconcile WARN + `newestPrerelease`, bot-client `ReleaseFlagNagScheduler` with version-scoped delivered-gated weekly cooldown, `GitHubReleaseSchema` → common-types) · #2039 (TASK-491: `ops health:post-webhook` chunks the weekly report, replacing the 1800-byte shell truncation; ENOENT-narrowed degrades + INCOMPLETE trailer) · #2040 (TASK-435: **seven** CatalogModel fixture copies → one membership-based shared builder — review found 4 copies the original enumeration missed; enumeration lesson: value-based repo-wide grep, not function-name grep). TASK-492 closed as already-shipped (`3322c7749` predated its filing); TASK-501 Done-flip committed. Filed: TASK-503 (both sibling nag schedulers adopt delivered-gated cooldown), TASK-504 (webhook inter-chunk pacing watch + 2 same-file members). Sonnet pilot units 2-4 recorded in TASK-487 (0 semantic defects; tally at 4/5 units, holding).
 
 **Open threads for next session:**
 
 - 🚨 glm-4.5-air reasoning mis-channel (now.md Production Issues) — fix-forward with design; debug log in docs/local/.
 - Waffles' venue-leak report: awaiting their Share Memories answer (doc-8 carries the venue-scoping design input either way; if they say OFF and never-talked holds, open an investigation with an /inspect evidence request).
-- TASK-498: codify the pre-commit review panel (trial data: #2034 caught 3 pre-commit, CI still found 1 mirror-branch Medium; 2 rounds vs #2032's 9). TASK-499/500/502 filed and open.
+- TASK-498: codify the pre-commit review panel (trial data: #2034 caught 3 pre-commit, CI still found 1 mirror-branch Medium; 2 rounds vs #2032's 9). TASK-499/502/503 filed and open.
 - Owner-idea council queue: doc-70 (tag count/group-message), doc-71 (/tag management), doc-72 (dashboard index nav — council pass mandated) + the standing doc-64/65/66/67 set.
 - Next work: doc-64 council pass (consumes doc-69) or drain fill-in.
 
-_Session-per-release note: this session has spanned one release + a double compaction; a fresh session is a clean continuation point whenever convenient — owner's call._
+_Session-per-release note: this session has spanned one release + multiple compactions; a fresh session is a clean continuation point whenever convenient — owner's call. beta.198 post-merge sequence fully complete (premigrate → merge → finalize → publish → tag copy → retention run); release DMs delivered._
 
 <details><summary>Shipped this session (compressed)</summary>
 
