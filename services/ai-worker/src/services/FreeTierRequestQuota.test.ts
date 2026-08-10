@@ -1,6 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import { CACHE_KEY_PREFIXES } from '@tzurot/common-types/constants/redis-keys';
+
+// Module-scope logger (not injectable), so asserting the once-per-instance
+// inverted-bounds warn requires mocking the logger module per package convention.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 import {
   FreeTierRequestQuota,
   FREE_TIER_ACTIVE_KEY,
@@ -67,6 +81,28 @@ describe('computeWindowCap', () => {
     [50, 5], // heavy contention → floor
   ])('N=%i → cap %i', (n, expected) => {
     expect(quota.computeWindowCap(n)).toBe(expected);
+  });
+});
+
+describe('computeWindowCap — inverted min/max guard (defense-in-depth)', () => {
+  it('clamps with the swapped pair when minPerWindow > maxPerWindow, and warns once', () => {
+    const invertedConfig: FreeTierQuotaConfig = { ...CONFIG, minPerWindow: 30, maxPerWindow: 5 };
+    const { quota } = build(undefined, invertedConfig);
+
+    // N=3 → raw 13, strictly between the swapped-pair bounds (floor 5, ceiling
+    // 30) — the old buggy `Math.max(min, Math.min(max, raw))` form would
+    // collapse this to the constant minPerWindow (30), losing the dynamic
+    // scaling; the corrected clamp lets 13 through.
+    expect(quota.computeWindowCap(3)).toBe(13);
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { minPerWindow: 30, maxPerWindow: 5 },
+      expect.stringContaining('inverted')
+    );
+
+    // A second call on the SAME instance must not warn again.
+    quota.computeWindowCap(1);
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
   });
 });
 
