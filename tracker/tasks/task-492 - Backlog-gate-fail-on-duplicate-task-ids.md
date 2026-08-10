@@ -1,9 +1,10 @@
 ---
 id: TASK-492
 title: 'Backlog gate: fail on duplicate task ids'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 17:01'
+updated_date: '2026-08-10 03:20'
 labels:
   - 'area:tooling'
   - 'size:S'
