@@ -20,6 +20,7 @@ import {
 } from '../utils/thinkingExtraction.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { unwrapUnknownWrapperTags } from '../utils/wrapperTagUnwrap.js';
+import { isSuspectReasoningMischannel } from '../utils/reasoningMischannel.js';
 
 const logger = createLogger('ResponsePostProcessor');
 
@@ -275,16 +276,41 @@ export class ResponsePostProcessor {
       );
     }
 
-    // Step 8: Reasoning-mode actual-vs-requested telemetry. Some models
-    // (notably `z-ai/glm-4.5-air:free`) accept a reasoning flag but don't
-    // always actually emit reasoning — the response comes back as if
-    // reasoning was disabled. When we're investigating model-inference
-    // stickiness that produces duplicate responses, knowing whether
-    // reasoning actually engaged for each turn is a load-bearing signal.
-    //
-    // Level split: engaged-as-expected is `info` (routine); ignored-flag
-    // is `warn` so incident correlation (`@level:warn` grep) surfaces it
-    // quickly without paging through every successful response.
+    // Steps 8-9: reasoning telemetry (log-only; never alters the result)
+    this.logReasoningTelemetry(cleanedContent, thinkingContent, apiReasoning, context);
+
+    return {
+      cleanedContent,
+      thinkingContent,
+      wasDeduplicated,
+      onlyThinkingProduced,
+    };
+  }
+
+  /**
+   * Emit reasoning telemetry for a processed response. Log-only — never
+   * alters the processed result.
+   *
+   * Step 8: actual-vs-requested engagement. Some models (notably
+   * `z-ai/glm-4.5-air:free`) accept a reasoning flag but don't always
+   * actually emit reasoning — the response comes back as if reasoning was
+   * disabled. When investigating model-inference stickiness that produces
+   * duplicate responses, knowing whether reasoning actually engaged for each
+   * turn is a load-bearing signal. Level split: engaged-as-expected is `info`
+   * (routine); ignored-flag is `warn` so incident correlation
+   * (`@level:warn` grep) surfaces it quickly.
+   *
+   * Step 9: suspect mis-channel watch (family scoping and never-gate
+   * rationale in `../utils/reasoningMischannel.ts`). Independent of
+   * `reasoningEnabled`: the signature is about what the model actually
+   * returned, not what was requested.
+   */
+  private logReasoningTelemetry(
+    cleanedContent: string,
+    thinkingContent: string | null,
+    apiReasoning: string | null,
+    context: ResponseProcessingContext
+  ): void {
     if (context.reasoningEnabled === true) {
       const reasoningActuallyEngaged = thinkingContent !== null && thinkingContent.length > 0;
       const apiReasoningLength = apiReasoning !== null ? apiReasoning.length : 0;
@@ -318,11 +344,23 @@ export class ResponsePostProcessor {
       }
     }
 
-    return {
-      cleanedContent,
-      thinkingContent,
-      wasDeduplicated,
-      onlyThinkingProduced,
-    };
+    if (
+      apiReasoning !== null &&
+      isSuspectReasoningMischannel({
+        modelName: context.modelName,
+        contentLength: cleanedContent.length,
+        reasoningLength: apiReasoning.length,
+      })
+    ) {
+      logger.warn(
+        {
+          modelName: context.modelName,
+          personalityName: context.personalityName,
+          apiReasoningLength: apiReasoning.length,
+          cleanedContentLength: cleanedContent.length,
+        },
+        'Suspect reasoning mis-channel: visible content is a small fraction of structured reasoning — confirm via the diagnostic row'
+      );
+    }
   }
 }
