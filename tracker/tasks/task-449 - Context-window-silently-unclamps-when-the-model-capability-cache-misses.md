@@ -40,5 +40,17 @@ So the real fix is upstream of the clamp: make the lookup distinguish "catalog s
 
 That makes this a SEMANTIC-class unit, not mechanical: the spec has to decide the distinguishing mechanism and what "fail closed" resolves to for a transient miss (last-known value, a conservative default, or deferring the turn). Do NOT hand it to a Sonnet worker as a precise edit until that call is made.
 
-Also re-verified the premise while grounding: TASK-447 (the trimming watch) is still To Do, so trimming has not been observed live and the swing remains latent rather than user-visible. The severity assumption in this entry still holds as of 2026-08-11.
+DESIGN QUESTION RESOLVED 2026-08-11 — the distinction is already available at the source, so this is now spec-able rather than needing a design pass.
+
+`resolveFromRedis` (services/ai-worker/src/services/ModelCapabilityChecker.ts:52-93) returns bare `null` from THREE places, and each one already knows which case it is in:
+
+- line 59 — the catalog key is absent or empty (Redis down, never populated, evicted). TRANSIENT.
+- line 66-68 — the cached catalog fails to JSON.parse. TRANSIENT (and already logged as a warn).
+- line 72 — the catalog parsed fine and `models.find(...)` did not match. PERMANENT: OpenRouter genuinely does not list this model.
+
+So the fix does not need new data or a new lookup — it needs the three returns to carry a tag instead of collapsing to one `null`, and `clampContextWindow` to treat only the transient tag as fail-closed. Permanent keeps today's behaviour, which is correct for non-OpenRouter providers.
+
+AMPLIFIER found in the same read, and it makes the bug worse than the entry above describes: on the fallback path, `getCapabilities` (line 120-126) writes `contextLength: null` INTO the 5-minute in-memory `capabilityCache`. So one transient Redis blip is not a single unclamped turn — it poisons the in-memory cache for the full TTL, and the window stays unclamped for five minutes AFTER Redis recovers. Any fix must also avoid caching a transient-null as though it were a settled answer; caching the permanent case is fine.
+
+Note the same three-way collapse feeds `supportsVision` and `supportsReasoning` on that path too — those degrade to pattern-matching, which is a deliberate documented fallback rather than a bug, so this task should not widen into them. Only the contextLength consumer treats null as "no constraint".
 <!-- SECTION:DESCRIPTION:END -->
