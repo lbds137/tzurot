@@ -7,6 +7,13 @@
  *  - `cold/queue.md` doc references (`doc-N`) all resolve to a real file in
  *    `tracker/docs/` (theme content lives there since the themes/ideas→docs
  *    migration; queue.md carries only the ordering).
+ *  - Relative markdown links (`[text](../foo.md)`) inside `tracker/docs/`,
+ *    `tracker/tasks/`, and `backlog/` (recursively) resolve on disk. The
+ *    migration that moved theme content into `tracker/docs/` depth-rewrote
+ *    every outbound relative link once; nothing gated future rot until this
+ *    check. `tracker/archive/` is deliberately NOT scanned — archived content
+ *    is frozen, so gating on it would block a PR over a document nobody is
+ *    going to fix.
  *  - `tracker/tasks/` integrity: every task file parses with an id, title, and
  *    created_date. A task that fails these silently vanishes from the digest,
  *    search, and the aging surface — the same content-destroying failure the
@@ -32,7 +39,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import chalk from 'chalk';
 import { loadTrackerTasks, openTasks, type TrackerTask } from './trackerTasks.js';
 
@@ -95,6 +102,87 @@ export function extractQueueDocRefs(queueMd: string): string[] {
   return refs;
 }
 
+/**
+ * Blank out fenced code blocks and inline code spans before link extraction.
+ *
+ * These files are documentation ABOUT documentation, so a doc explaining link
+ * conventions writes markdown-link syntax as an EXAMPLE. Extracting from those
+ * would report a dangling link against text that was never a link — a failure
+ * that looks like real rot and blocks everyone's `pnpm quality`, which is worse
+ * than any of the shapes this extractor merely fails to see.
+ */
+function stripCode(markdown: string): string {
+  return markdown.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+}
+
+/**
+ * True when `target` addresses a file relative to the document containing it.
+ *
+ * A dot prefix is NOT required — CommonMark treats `[t](foo.md)` as relative
+ * exactly like `[t](./foo.md)`, and the bare form is the dominant style for
+ * sibling cross-references in `tracker/docs/`. Scoping to the dotted forms
+ * alone made this check blind to that whole class.
+ *
+ * A bare target additionally has to look like a FILE — a `.ext` suffix
+ * carrying at least one LETTER. That is what keeps ordinary bracketed prose
+ * from being resolved as a path, and the letter requirement specifically keeps
+ * a version string out: `[v3](v3.0.0-beta.199)` ends in `.199`, which is
+ * extension-SHAPED but is not a file, and this corpus is release-note-heavy
+ * enough for that to be a plausible link. Ruled out entirely: bare fragments,
+ * root-relative paths, and anything carrying a URI scheme (`https:`, `mailto:`).
+ */
+function isRelativeFileTarget(target: string): boolean {
+  if (target === '' || target.startsWith('/')) return false;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return false;
+  if (target.startsWith('./') || target.startsWith('../')) return true;
+  const extension = /\.([a-z0-9]+)$/i.exec(target)?.[1];
+  return extension !== undefined && /[a-z]/i.test(extension);
+}
+
+/**
+ * Extract every markdown link target (`[text](target)`) that resolves relative
+ * to the containing document — dot-prefixed or bare — with any
+ * trailing `#fragment` stripped — the caller resolves the file, not the
+ * anchor. Absolute URLs, `mailto:`, and bare `#anchor` targets are skipped.
+ *
+ * Image links (`![alt](target)`) match the same `[…](…)` shape and are
+ * intentionally included — a dead image path rots the same way a dead doc
+ * link does, and tracker markdown carries no images today to special-case.
+ *
+ * Four known shapes this deliberately does not parse, none of which occurs in
+ * the scanned content today. Two fail LOUD, which is the tolerable direction —
+ * whoever writes one sees a confusing-but-visible report and can look here:
+ *
+ * - a TITLED link (`[t](../foo.md "Title")`) captures `../foo.md "Title"`;
+ * - a target containing a literal `)` (`[t](../notes (draft).md)`) truncates at
+ *   that paren, so it is reported dangling against a mangled path.
+ *
+ * The other two fail SILENT, which is worse, because a genuinely dead link in
+ * one of these shapes is simply never seen:
+ *
+ * - link text containing nested brackets (`[a [b]](../x.md)`) matches nothing;
+ * - reference-style links (`[t][ref]` with `[ref]: ../foo.md` elsewhere) are
+ *   not the inline shape this regex looks for at all.
+ *
+ * Closing the silent pair needs a real markdown-link parser rather than a
+ * wider regex, which is why the disclosure is here instead.
+ * @internal Exported for testing
+ */
+export function extractRelativeLinks(markdown: string): string[] {
+  const targets: string[] = [];
+  const prose = stripCode(markdown);
+  const pattern = /\[[^[\]]*\]\(([^)]+)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(prose)) !== null) {
+    // Strip the fragment first: `foo.md#section` has to be judged on `foo.md`.
+    const target = match[1].trim().split('#')[0];
+    if (isRelativeFileTarget(target)) {
+      targets.push(target);
+    }
+  }
+  return targets;
+}
+
 interface LintOptions {
   /** Repo root (defaults to cwd) */
   rootDir?: string;
@@ -116,20 +204,115 @@ function checkNowCaps(rootDir: string): string[] {
     .map(cap => `now.md: "${cap.section}" has ${cap.count} items (cap ${cap.cap})`);
 }
 
+/**
+ * The `doc-N` ids that currently exist as files in `tracker/docs/`.
+ *
+ * Filenames are `doc-N - Title.md`; matching on the space-delimited id prefix
+ * is what stops `doc-1` from matching `doc-14 - …`.
+ */
+function existingDocIds(rootDir: string): Set<string> {
+  const docsDir = join(rootDir, 'tracker/docs');
+  const files = existsSync(docsDir) ? readdirSync(docsDir) : [];
+  return new Set(files.map(f => String(f).split(' ')[0]));
+}
+
 /** queue.md doc references that don't resolve to a file in tracker/docs/. */
 function checkQueueDocRefs(rootDir: string): string[] {
   const queuePath = join(rootDir, 'backlog/cold/queue.md');
   if (!existsSync(queuePath)) {
     return [];
   }
-  const docsDir = join(rootDir, 'tracker/docs');
-  const files = existsSync(docsDir) ? readdirSync(docsDir) : [];
-  // Filenames are `doc-N - Title.md`; match on the space-delimited id prefix
-  // so `doc-1` never matches `doc-14 - ...`.
-  const existingIds = new Set(files.map(f => f.split(' ')[0]));
+  const existingIds = existingDocIds(rootDir);
   return extractQueueDocRefs(readFileSync(queuePath, 'utf-8'))
     .filter(ref => !existingIds.has(ref))
     .map(ref => `queue.md: dangling doc reference → ${ref} (no tracker/docs/ file)`);
+}
+
+/**
+ * `doc-N` references in the scanned bodies that no longer resolve.
+ *
+ * Cross-references between docs are written as a backticked `doc-N` token
+ * rather than a path — the filenames carry spaces and em-dashes, which make
+ * fragile link targets. That convention was previously validated ONLY inside
+ * `queue.md`, so every other `doc-N` mention could dangle silently through a
+ * renumber or a delete: the same rot class the relative-link check above
+ * closes, in the form the fix for it produces.
+ *
+ * Read from RAW markdown, not the code-stripped text the link extractor uses —
+ * backticks ARE the convention here, so stripping code spans would erase every
+ * reference this is meant to check.
+ */
+function checkDocIdRefs(rootDir: string): string[] {
+  const existingIds = existingDocIds(rootDir);
+  const problems: string[] = [];
+  for (const scanDir of RELATIVE_LINK_SCAN_DIRS) {
+    const dir = join(rootDir, scanDir);
+    if (!existsSync(dir)) {
+      continue;
+    }
+    for (const { abs, rel } of collectMarkdownFiles(dir, scanDir)) {
+      // queue.md has its own check above, with a message specific to the
+      // theme-ordering index; skip it rather than report it twice.
+      if (rel.endsWith('cold/queue.md')) continue;
+      for (const ref of extractQueueDocRefs(readFileSync(abs, 'utf-8'))) {
+        if (!existingIds.has(ref)) {
+          problems.push(`${rel}: dangling doc reference → ${ref} (no tracker/docs/ file)`);
+        }
+      }
+    }
+  }
+  return problems;
+}
+
+/**
+ * The directories whose markdown bodies carry outbound relative links.
+ * `backlog` is scanned recursively (`backlog/cold/` holds the queue and epic
+ * log); the tracker directories are flat but go through the same walk.
+ */
+const RELATIVE_LINK_SCAN_DIRS = ['tracker/docs', 'tracker/tasks', 'backlog'];
+
+/** Every `.md` file under `dir`, recursively, paired with its repo-relative path. */
+function collectMarkdownFiles(dir: string, relDir: string): { abs: string; rel: string }[] {
+  const found: { abs: string; rel: string }[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, entry.name);
+    const rel = join(relDir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...collectMarkdownFiles(abs, rel));
+    } else if (entry.name.endsWith('.md')) {
+      found.push({ abs, rel });
+    }
+  }
+  return found;
+}
+
+/**
+ * Relative markdown links in the scanned directories that don't resolve to a
+ * file on disk. Each target resolves against the directory of the file that
+ * contains it, not the scan root — `backlog/cold/epic-log.md` and
+ * `backlog/now.md` sit at different depths and their `../` means different
+ * things.
+ */
+function checkRelativeLinks(rootDir: string): string[] {
+  const problems: string[] = [];
+  for (const scanDir of RELATIVE_LINK_SCAN_DIRS) {
+    const dir = join(rootDir, scanDir);
+    if (!existsSync(dir)) {
+      continue;
+    }
+    for (const { abs, rel } of collectMarkdownFiles(dir, scanDir)) {
+      const content = readFileSync(abs, 'utf-8');
+      for (const target of extractRelativeLinks(content)) {
+        const resolved = join(dirname(abs), target);
+        if (!existsSync(resolved)) {
+          problems.push(
+            `${rel}: dangling relative link → ${target} (resolved: ${relative(rootDir, resolved)})`
+          );
+        }
+      }
+    }
+  }
+  return problems;
 }
 
 const AREA_LABEL_PREFIX = 'area:';
@@ -417,6 +600,8 @@ export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   const problems = [
     ...checkNowCaps(rootDir),
     ...checkQueueDocRefs(rootDir),
+    ...checkDocIdRefs(rootDir),
+    ...checkRelativeLinks(rootDir),
     ...trackerProblems,
     ...checkTaskTriage(tasks),
     ...checkDuplicateTaskIds(tasks),

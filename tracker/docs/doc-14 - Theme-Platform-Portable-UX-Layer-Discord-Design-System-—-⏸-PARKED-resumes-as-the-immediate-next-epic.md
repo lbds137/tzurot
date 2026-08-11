@@ -9,7 +9,7 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Platform-Portable UX Layer (Discord Design System) — ⏸ PARKED (resumes as the immediate next epic)
 
-**⏸ PARKED 2026-07-23** mid-Phase-3, to let the Automated Inactivity Retention epic ([`../../active-epic.md`](../active-epic.md)) through. **This is the beta-exit gate and resumes the moment retention ships** — it is next-up, not shelved. State below is current as of parking: Phase 3 Waves 0–3 shipped (beta.173/174), **Waves 4–6 remain** (see the Phase 3 row).
+**⏸ PARKED 2026-07-23** mid-Phase-3, to let the Automated Inactivity Retention epic ([`backlog/active-epic.md`](../../backlog/active-epic.md)) through. **This is the beta-exit gate and resumes the moment retention ships** — it is next-up, not shelved. State below is current as of parking: Phase 3 Waves 0–3 shipped (beta.173/174), **Waves 4–6 remain** (see the Phase 3 row).
 
 _Focus: lift the bot's UI + messaging vocabulary to the routing layer's standardization level — encode UX **intent** separately from its Discord expression, so the experience is consistent **by construction** (not reconciled by periodic audits) and portable via adapters. Promoted 2026-07-17 (owner re-sequence: the `/character alias` build deviated from the 04-discord subcommand standards despite the rules table being clear — "no more UX surface until consistency is by construction"; v2-parity PAUSED behind this). Memory System Overhaul parked mid-epic at a natural pause → `doc-8`._
 
@@ -52,7 +52,7 @@ The alias command (#1695) works but shipped action-multiplexed (`action: list|ad
 - **User-scoped aliases**: new tier — a user's personal `@mommy` → character mapping affecting only their own resolution. Schema: `userId` on the alias row (null = global) with per-user uniqueness; resolver step 2 checks the mentioning user's aliases before global ones. The bot-client resolution cache is already keyed `(userId, nameOrId)` — per-user resolution is the cache's natural grain.
 - **User-scoped, NOT persona-scoped** (owner-decided): persona-scoping gets messy AND makes aliases unstable across persona switches.
 - Verified 2026-07-17: **v2 had no scoping at all** — the tiers are new design, not parity.
-- Open product call for the design pass: #1695 lets any character owner add global-effect aliases to their own character; under the tiered model this likely goes away (owners get user-scoped like everyone else; global blessing is the bot owner's). Cross-check the reverse-shadow question in [v2-parity](v2-parity-legacy-retirement.md) Phase 1 — shadowing semantics change per-tier.
+- Open product call for the design pass: #1695 lets any character owner add global-effect aliases to their own character; under the tiered model this likely goes away (owners get user-scoped like everyone else; global blessing is the bot owner's). Cross-check the reverse-shadow question in v2-parity (`doc-27`) Phase 1 — shadowing semantics change per-tier.
 
 ### Owner design inputs (2026-07-18) — ALL RESOLVED at Phase 3 planning (2026-07-20)
 

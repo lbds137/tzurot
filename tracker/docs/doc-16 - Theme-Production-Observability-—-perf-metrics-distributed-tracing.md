@@ -7,7 +7,7 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Production Observability — perf metrics + distributed tracing
 
-_Focus: time-series metrics + distributed tracing for load-correlated production issues ONLY — continuous, deterministic performance insight + a foundation for scaling (the perf analog of `deterministic-test-quality-tooling.md`). Logs stay pino + Railway: structured-log/query improvements belong to the complementary [`observability-and-telemetry.md`](observability-and-telemetry.md) theme; this theme owns the metrics/tracing infrastructure (it may stand up OTel) that logs structurally can't provide._
+_Focus: time-series metrics + distributed tracing for load-correlated production issues ONLY — continuous, deterministic performance insight + a foundation for scaling (the perf analog of `deterministic-test-quality-tooling.md`). Logs stay pino + Railway: structured-log/query improvements belong to the complementary `doc-12` theme; this theme owns the metrics/tracing infrastructure (it may stand up OTel) that logs structurally can't provide._
 
 **Surfaced 2026-06-11 (user)** from the preset-PUT-timeout prod bug (tracked at the time in `now.md` § Production Issues; since resolved): intermittent, **load-correlated** issues can't be reproduced in dev and aren't visible in event logs — we log _what happened_ but have ~no aggregated _performance_ signal.
 
