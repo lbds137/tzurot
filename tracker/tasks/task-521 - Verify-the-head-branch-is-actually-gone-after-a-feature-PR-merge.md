@@ -27,8 +27,12 @@ ROOT CAUSE — observed live on the PR 2064 merge, no longer a hypothesis. When 
 
 The merge itself succeeds, so the PR closes as merged and only the branch survives. This explains the correlation the owner noticed with "lately": the orchestration skill MANDATES isolation worktree for any file-mutating worker, so every delegated unit now leaves its branch checked out in a worktree at merge time. PR 2061 (also a worktree unit) is the earlier instance.
 
+GENERALIZED 2026-08-11 (PR 2065): the worktree is not the only way to hit this. The blocker is simply that git refuses to delete a branch that is CHECKED OUT ANYWHERE — a worktree is one such place, and the orchestrator's own main checkout is another. An orchestrator that reviews a PR while still standing on its branch will fail the local delete for the same reason, with the same silent remote survivor. State the rule as "the branch must not be checked out anywhere when --delete-branch runs", not as a worktree-specific caveat; the worktree case is then just the instance that is easy to forget because the checkout is not the one you are looking at.
+
+Second path into the same failure, also observed 2026-08-11: resuming a worktree-isolated worker via SendMessage silently drops the isolation, so the resumed worker branches and edits in the MAIN tree — see the TASK-524 entry. That leaves the main checkout sitting on the feature branch at merge time, which is exactly the state described above.
+
 What: two halves.
-1. ORDER — remove the worktree (and its local branch) BEFORE gh pr merge, so --delete-branch can do its job. Belongs in the orchestration skill next to the worktree mandate, and in the git-workflow merge section.
+1. ORDER — ensure the branch is checked out nowhere before gh pr merge (remove the worktree; switch the main checkout back to develop), so --delete-branch can do its job. Belongs in the orchestration skill next to the worktree mandate, and in the git-workflow merge section.
 2. VERIFY — after any feature-PR merge, confirm the head ref is gone (git ls-remote --exit-code --heads origin BRANCH) and re-delete if not. The verify half stays worth having even with the ordering fixed: it is what turns any OTHER silent-delete-failure mode into a report instead of a discovery.
 
 Acceptance: a merged feature PR whose branch survived is surfaced at merge time or at the next session-start sweep, without anyone remembering to look; and a worktree-based unit does not produce a survivor in the first place.
