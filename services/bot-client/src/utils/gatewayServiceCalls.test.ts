@@ -278,6 +278,13 @@ describe('fire-and-forget helpers', () => {
     }
   });
 
+  it('reportNotifyOutcomes gives up immediately on a non-retryable 4xx', async () => {
+    mockServiceClient.retentionNotifyReport.mockResolvedValue(makeErr(400, 'bad request'));
+
+    await expect(reportNotifyOutcomes([{ userId: 'u-1', status: 'sent' }])).resolves.toBe(false);
+    expect(mockServiceClient.retentionNotifyReport).toHaveBeenCalledTimes(1);
+  });
+
   it('filterPendingDeliveries THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {
     mockServiceClient.releaseBroadcastPending.mockResolvedValue(makeErr(503, 'boom'));
     await expect(filterPendingDeliveries('release-1', ['a'])).rejects.toThrow(
@@ -391,11 +398,67 @@ describe('generate', () => {
     );
   });
 
-  it('throws on submission failure', async () => {
-    mockServiceClient.aiGenerate.mockResolvedValue(makeErr(500, 'boom'));
+  it('gives up immediately on a non-retryable 4xx', async () => {
+    mockServiceClient.aiGenerate.mockResolvedValue(makeErr(400, 'bad request'));
     await expect(
       generate({ slug: 'lila' } as never, { messageContent: 'hi' } as never)
     ).rejects.toThrow('Gateway request failed');
+    expect(mockServiceClient.aiGenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a transient failure, then succeeds', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.aiGenerate
+        .mockResolvedValueOnce({ ok: false, kind: 'network', error: 'x', status: 0 })
+        .mockResolvedValueOnce(ok({ jobId: 'j-2', requestId: 'r-2', status: JobStatus.Queued }));
+
+      const promise = generate({ slug: 'lila' } as never, { messageContent: 'hi' } as never);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toEqual({ jobId: 'j-2', requestId: 'r-2' });
+
+      expect(mockServiceClient.aiGenerate).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('throws after exhausting retries on a persistent connection failure (deploy window outlasts the backoff)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.aiGenerate.mockResolvedValue({
+        ok: false,
+        kind: 'network',
+        error: 'fetch failed',
+        status: 0,
+      });
+
+      const promise = generate({ slug: 'lila' } as never, { messageContent: 'hi' } as never);
+      const assertion = expect(promise).rejects.toThrow('Gateway request failed');
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      // SUBMIT_MAX_ATTEMPTS = 4.
+      expect(mockServiceClient.aiGenerate).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Submitting creates a paid job. A 5xx and a timeout both mean the request
+  // reached a gateway that may already have created one, and the gateway's
+  // request-dedup window is shorter than this backoff span — so repeating
+  // either could bill twice and post two replies to one message.
+  it.each([
+    ['a 5xx', () => makeErr(500, 'boom')],
+    ['a timeout', () => ({ ok: false, kind: 'timeout', error: 'timed out', status: 0 })],
+  ])('does NOT retry %s — the job may already exist', async (_label, failure) => {
+    mockServiceClient.aiGenerate.mockResolvedValue(failure());
+
+    await expect(
+      generate({ slug: 'lila' } as never, { messageContent: 'hi' } as never)
+    ).rejects.toThrow('Gateway request failed');
+    expect(mockServiceClient.aiGenerate).toHaveBeenCalledTimes(1);
   });
 });
 
