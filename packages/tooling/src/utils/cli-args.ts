@@ -19,6 +19,13 @@ import { UsageError } from './errors.js';
 /**
  * Read `--flag value` or `--flag=value` verbatim from an argv array.
  * Returns undefined when the flag is absent or has no value token.
+ *
+ * On a REPEATED flag this returns the first occurrence, while cac hands the
+ * action an ARRAY of every occurrence — so the two disagree, and cac's value
+ * does not even match its own declared `string` type there. Probe-verified
+ * against cac 7.0.0 (`--job-id aaa --job-id bbb` yields `["aaa","bbb"]`), and
+ * pinned by the repeated-flag tests below. No caller passes a flag twice, but
+ * the divergence is worth knowing before another flag adopts this.
  */
 export function rawOptionValue(argv: string[], flag: string): string | undefined {
   for (let i = 0; i < argv.length; i++) {

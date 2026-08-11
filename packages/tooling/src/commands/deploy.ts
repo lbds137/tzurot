@@ -4,7 +4,7 @@
 
 import type { CAC } from 'cac';
 
-import { parseIntFlag } from '../utils/cli-args.js';
+import { parseIntFlag, rawOptionValue } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
 
 const ENV_OPTION = '--env <env>';
@@ -119,8 +119,8 @@ export function registerDeployCommands(cli: CAC): void {
         service?: string;
         lines?: number;
         filter?: string;
-        requestId?: string;
-        jobId?: string;
+        // requestId / jobId are deliberately absent: they are read from argv
+        // below rather than from cac's parsed (and possibly truncated) values.
         since?: string;
         follow?: boolean;
       }) => {
@@ -137,10 +137,12 @@ export function registerDeployCommands(cli: CAC): void {
           // usage error for a flag whose cap is an external tool's limit.
           lines: parseIntFlag(options.lines, '--lines', { min: 1 }),
           filter: options.filter,
-          // CAC auto-casts all-digit values to Number; an unstringed ID would
-          // silently fail logs.ts's `typeof === 'string'` term filter.
-          requestId: options.requestId === undefined ? undefined : String(options.requestId),
-          jobId: options.jobId === undefined ? undefined : String(options.jobId),
+          // Read verbatim from argv: CAC auto-casts all-digit values to Number,
+          // which silently truncates a job id past 2^53 (a snowflake) to a
+          // different, still-snowflake-shaped id. Stringifying the parsed value
+          // is too late — the digits are gone before cac hands it over.
+          requestId: rawOptionValue(process.argv, '--request-id'),
+          jobId: rawOptionValue(process.argv, '--job-id'),
           since: options.since === undefined ? undefined : String(options.since),
           follow: options.follow,
         });
