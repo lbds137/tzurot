@@ -20,5 +20,7 @@ Why: user request from Xeo (Discord #general, 2026-08-11): "Is it possible to ch
 
 What: give each settings dashboard a one-line scope statement in the embed - who and what the tier covers, and which tier overrides it. Wording is owner taste; the mechanism is shared (utils/dashboard/settings/) so one edit covers every level. Consider also naming the tier that is currently winning for a given field, since the resolver already computes it.
 
+MODERATOR REFRAME (owner, 2026-08-11): the requester was asking as a server moderator, which makes the missing sentence sharper than "which tier is this". The moderator-relevant fact is that the channel tier is BELOW both user tiers, so a channel value is a default for users who never set the field and is silently overridden for everyone else. The scope line must therefore state the override direction, not only the scope - "applies to members who have not set their own" rather than "applies to this channel". Capability half is TASK-529.
+
 Acceptance: a user reading one dashboard can tell whether the value they are about to change affects only their own conversations, the channel, or everyone.
 <!-- SECTION:DESCRIPTION:END -->
