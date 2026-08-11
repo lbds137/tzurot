@@ -32,8 +32,8 @@ export async function loadPersonasAndResolveReferences(
     personality.id
   );
   if (participantPersonas.size > 0) {
-    const names = Array.from(participantPersonas.keys());
-    logger.debug({ count: participantPersonas.size, names }, 'Loaded participant personas');
+    const personaIds = Array.from(participantPersonas.keys());
+    logger.debug({ count: participantPersonas.size, personaIds }, 'Loaded participant personas');
   } else {
     logger.debug('No participant personas found in conversation history');
   }

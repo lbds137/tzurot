@@ -517,7 +517,7 @@ describe('PromptBuilder', () => {
         personality?: LoadedPersonality;
         participantPersonas?: Map<
           string,
-          { content: string; isActive: boolean; personaId: string }
+          { personaName: string; content: string; isActive: boolean; personaId: string }
         >;
         relevantMemories?: MemoryDocument[];
         facts?: { statement: string }[];
@@ -702,7 +702,15 @@ describe('PromptBuilder', () => {
 
         const { prefix } = buildContainers({
           participantPersonas: new Map([
-            ['Alice', { content: 'A tester', isActive: true, personaId: 'persona-alice' }],
+            [
+              'persona-alice',
+              {
+                personaName: 'Alice',
+                content: 'A tester',
+                isActive: true,
+                personaId: 'persona-alice',
+              },
+            ],
           ]),
           relevantMemories: [
             {
@@ -736,7 +744,15 @@ describe('PromptBuilder', () => {
         // the system message re-poisons the cacheable prefix.
         const { system } = buildContainers({
           participantPersonas: new Map([
-            ['Alice', { content: 'A tester', isActive: true, personaId: 'persona-alice' }],
+            [
+              'persona-alice',
+              {
+                personaName: 'Alice',
+                content: 'A tester',
+                isActive: true,
+                personaId: 'persona-alice',
+              },
+            ],
           ]),
           relevantMemories: [
             {
@@ -842,8 +858,19 @@ describe('PromptBuilder', () => {
 
     it('should include conversation participants with XML structure', () => {
       const participants = new Map([
-        ['Alice', { content: 'A software developer', isActive: true, personaId: 'persona-1' }],
-        ['Bob', { content: 'A designer', isActive: false, personaId: 'persona-2' }],
+        [
+          'persona-1',
+          {
+            personaName: 'Alice',
+            content: 'A software developer',
+            isActive: true,
+            personaId: 'persona-1',
+          },
+        ],
+        [
+          'persona-2',
+          { personaName: 'Bob', content: 'A designer', isActive: false, personaId: 'persona-2' },
+        ],
       ]);
 
       const { prefix: content } = buildContainers({ participantPersonas: participants });
@@ -863,7 +890,15 @@ describe('PromptBuilder', () => {
 
     it('should not show group note for single participant', () => {
       const participants = new Map([
-        ['Alice', { content: 'A software developer', isActive: true, personaId: 'persona-1' }],
+        [
+          'persona-1',
+          {
+            personaName: 'Alice',
+            content: 'A software developer',
+            isActive: true,
+            personaId: 'persona-1',
+          },
+        ],
       ]);
 
       const { prefix: content } = buildContainers({ participantPersonas: participants });
@@ -1470,56 +1505,76 @@ describe('PromptBuilder', () => {
         // This scenario triggered the >16 stop sequences bug with Google API
         const manyParticipants = new Map([
           [
-            'Alice',
+            'p-alice',
             {
+              personaName: 'Alice',
               content: 'Software developer who loves TypeScript',
               isActive: true,
               personaId: 'p-alice',
             },
           ],
           [
-            'Bob',
+            'p-bob',
             {
+              personaName: 'Bob',
               content: 'UX designer focused on accessibility',
               isActive: false,
               personaId: 'p-bob',
             },
           ],
           [
-            'Charlie',
+            'p-charlie',
             {
+              personaName: 'Charlie',
               content: 'DevOps engineer managing infrastructure',
               isActive: false,
               personaId: 'p-charlie',
             },
           ],
           [
-            'Diana',
+            'p-diana',
             {
+              personaName: 'Diana',
               content: 'Product manager setting priorities',
               isActive: false,
               personaId: 'p-diana',
             },
           ],
           [
-            'Eve',
+            'p-eve',
             {
+              personaName: 'Eve',
               content: 'Security researcher finding vulnerabilities',
               isActive: false,
               personaId: 'p-eve',
             },
           ],
           [
-            'Frank',
-            { content: 'Backend developer working on APIs', isActive: false, personaId: 'p-frank' },
+            'p-frank',
+            {
+              personaName: 'Frank',
+              content: 'Backend developer working on APIs',
+              isActive: false,
+              personaId: 'p-frank',
+            },
           ],
           [
-            'Grace',
-            { content: 'Data scientist building ML models', isActive: false, personaId: 'p-grace' },
+            'p-grace',
+            {
+              personaName: 'Grace',
+              content: 'Data scientist building ML models',
+              isActive: false,
+              personaId: 'p-grace',
+            },
           ],
           [
-            'Henry',
-            { content: 'QA engineer ensuring quality', isActive: false, personaId: 'p-henry' },
+            'p-henry',
+            {
+              personaName: 'Henry',
+              content: 'QA engineer ensuring quality',
+              isActive: false,
+              personaId: 'p-henry',
+            },
           ],
         ]);
 
@@ -1568,8 +1623,13 @@ describe('PromptBuilder', () => {
           context: contextWithGuild,
           participantPersonas: new Map([
             [
-              'TestUser',
-              { content: 'A developer testing the bot', isActive: true, personaId: 'p-test' },
+              'p-test',
+              {
+                personaName: 'TestUser',
+                content: 'A developer testing the bot',
+                isActive: true,
+                personaId: 'p-test',
+              },
             ],
           ]),
           relevantMemories: memories,
