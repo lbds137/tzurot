@@ -5,6 +5,7 @@
  */
 
 import type { ModelCapabilities } from '../types/ai.js';
+import { INTERVALS } from './timing.js';
 
 /**
  * AI model default configuration
@@ -128,6 +129,15 @@ export const AI_DEFAULTS = {
    * Short enough to pick up OpenRouter model updates within a session.
    */
   MODEL_CAPABILITY_CACHE_TTL_MS: 5 * 60 * 1000,
+  /**
+   * How long a successfully-resolved model context length stays memoized.
+   * Derived from the OpenRouter catalog's own Redis TTL rather than restated, so
+   * the memo cannot outlive the data it mirrors even if that TTL is retuned.
+   * A model's context length is effectively static, so keeping the last known
+   * value means a transient catalog outage (Redis blip, evicted key, corrupt
+   * payload) cannot unclamp a model whose real limit we have already seen.
+   */
+  MODEL_CONTEXT_LENGTH_MEMO_TTL_MS: INTERVALS.OPENROUTER_MODELS_TTL * 1000,
   /**
    * Maximum tokens for embedding input (text-embedding-3-small limit is 8191)
    * This is a hard limit from OpenAI's embedding API.
