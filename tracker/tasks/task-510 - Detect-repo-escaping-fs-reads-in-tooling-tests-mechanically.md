@@ -4,9 +4,10 @@ title: Detect repo-escaping fs reads in tooling tests mechanically
 status: To Do
 assignee: []
 created_date: '2026-08-10 20:43'
+updated_date: '2026-08-11 14:04'
 labels:
   - 'area:tooling'
-  - 'size:S'
+  - 'size:M'
   - 'state:ready'
 dependencies: []
 priority: medium
