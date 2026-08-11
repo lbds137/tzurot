@@ -131,6 +131,9 @@ jobs:
       - name: Check for export* barrels (re-mask knip)
         run: pnpm ops guard:no-export-star
 
+      - name: Check tsc-invoking build scripts clear dist + tsbuildinfo first
+        run: pnpm ops guard:build-scripts
+
       - name: Check prompt structural tags are classified (injection guard)
         run: pnpm ops guard:prompt-tags
 
