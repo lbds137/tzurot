@@ -136,7 +136,10 @@ export async function checkModelReasoningSupport(modelId: string): Promise<boole
  * This is a singleton wrapper that uses the shared ioredis client.
  *
  * @param modelId - The model ID to look up
- * @returns The context length in tokens, or null when unknown (cache miss, non-OpenRouter model)
+ * @returns The context length in tokens, or null when no limit is known — the catalog
+ *   loaded and does not list the model (a non-OpenRouter provider), or the catalog was
+ *   unavailable and no length had been resolved before. A catalog outage alone does NOT
+ *   yield null once a length has been seen: it is memoized for 24h and served instead.
  */
 export async function checkModelContextLength(modelId: string): Promise<number | null> {
   return getModelContextLength(modelId, redis);
