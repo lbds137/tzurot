@@ -1,10 +1,10 @@
 ---
 id: TASK-24
 title: 'backlog lint: verify outbound theme-to-docs relative links resolve'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-03 00:00'
-updated_date: '2026-07-28 11:28'
+updated_date: '2026-08-11 13:22'
 labels:
   - 'area:tooling'
   - 'size:S'
