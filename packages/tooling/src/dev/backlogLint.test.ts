@@ -6,6 +6,7 @@ import {
   checkOriginIdCollisions,
   checkTaskTriage,
   extractQueueDocRefs,
+  extractRelativeLinks,
   parseSectionCaps,
   runBacklogLint,
   type OriginTaskListing,
@@ -60,6 +61,100 @@ describe('extractQueueDocRefs', () => {
       'prose mentioning doc-99 without backticks is not a reference',
     ].join('\n');
     expect(extractQueueDocRefs(md)).toEqual(['doc-1', 'doc-27']);
+  });
+});
+
+describe('extractRelativeLinks', () => {
+  it('extracts ../ and ./ targets, stripping a trailing fragment', () => {
+    const md = ['[a](../foo.md)', '[b](./bar.md#section)', '[c](../../baz.md)'].join('\n');
+    expect(extractRelativeLinks(md)).toEqual(['../foo.md', './bar.md', '../../baz.md']);
+  });
+
+  it('skips absolute URLs, mailto, and bare anchors', () => {
+    const md = [
+      '[a](https://example.com/foo.md)',
+      '[b](http://example.com/foo.md)',
+      '[c](mailto:someone@example.com)',
+      '[d](#section)',
+    ].join('\n');
+    expect(extractRelativeLinks(md)).toEqual([]);
+  });
+
+  it('skips root-relative paths', () => {
+    expect(extractRelativeLinks('[a](/absolute/path.md)')).toEqual([]);
+  });
+
+  // CommonMark treats a bare target as relative exactly like a dotted one, and
+  // this is the dominant cross-reference style in tracker/docs/. Scoping to the
+  // dotted forms made the gate blind to it — and to 14 dead links written that
+  // way.
+  it('extracts a BARE relative target that looks like a file', () => {
+    expect(extractRelativeLinks('[a](bare-path.md)')).toEqual(['bare-path.md']);
+    expect(extractRelativeLinks('[a](themes/sub.md)')).toEqual(['themes/sub.md']);
+    expect(extractRelativeLinks('[a](img/diagram.png)')).toEqual(['img/diagram.png']);
+    expect(extractRelativeLinks('[a](bare.md#frag)')).toEqual(['bare.md']);
+  });
+
+  it('skips a bare target with no file extension, so prose in brackets is not a path', () => {
+    expect(extractRelativeLinks('[a](some-page)')).toEqual([]);
+    expect(extractRelativeLinks('[see the epic](whatever we call it)')).toEqual([]);
+  });
+
+  it('skips a version string, which is extension-shaped but not a file', () => {
+    // The corpus is release-note-heavy, so `[v3](v3.0.0-beta.199)` is a
+    // plausible future link; `.199` must not read as a file extension.
+    expect(extractRelativeLinks('[v3](v3.0.0-beta.199)')).toEqual([]);
+    expect(extractRelativeLinks('[a](thing.2026)')).toEqual([]);
+    // …while a real extension containing digits still counts.
+    expect(extractRelativeLinks('[a](archive.7z)')).toEqual(['archive.7z']);
+  });
+
+  it('includes image link targets — same rot class as a regular link', () => {
+    expect(extractRelativeLinks('![alt text](../images/diagram.png)')).toEqual([
+      '../images/diagram.png',
+    ]);
+  });
+
+  it('ignores link syntax inside a fenced code block', () => {
+    const md = ['Write links like this:', '', '```markdown', '[t](../made-up.md)', '```'].join(
+      '\n'
+    );
+    expect(extractRelativeLinks(md)).toEqual([]);
+  });
+
+  it('ignores link syntax inside an inline code span', () => {
+    expect(extractRelativeLinks('Use `[t](../made-up.md)` for a relative link.')).toEqual([]);
+  });
+
+  it('still extracts a real link that sits next to a code sample', () => {
+    const md = ['```', '[t](../not-real.md)', '```', '', 'See [the epic](../active-epic.md).'].join(
+      '\n'
+    );
+    expect(extractRelativeLinks(md)).toEqual(['../active-epic.md']);
+  });
+
+  // The four shapes the extractor's docstring says it does not parse. Each of
+  // those sentences is a claim about runtime behavior, so it is pinned here
+  // rather than left as prose (02-code-standards § "A Comment That Asserts
+  // Behavior Is a Claim"). These characterize the CURRENT behavior — if a real
+  // markdown-link parser ever replaces the regex, these are the cases to
+  // revisit, and they will fail loudly rather than drift silently.
+  describe('documented parse limitations', () => {
+    it('a titled link captures the title as part of the target (fails loud)', () => {
+      expect(extractRelativeLinks('[t](../foo.md "Title")')).toEqual(['../foo.md "Title"']);
+    });
+
+    it('a target containing a literal ) truncates at that paren (fails loud)', () => {
+      expect(extractRelativeLinks('[t](../notes (draft).md)')).toEqual(['../notes (draft']);
+    });
+
+    it('link text with nested brackets matches nothing (fails silent)', () => {
+      expect(extractRelativeLinks('[a [b]](../x.md)')).toEqual([]);
+    });
+
+    it('reference-style links match nothing (fails silent)', () => {
+      expect(extractRelativeLinks('[t][ref]\n\n[ref]: ../foo.md')).toEqual([]);
+    });
   });
 });
 
@@ -322,14 +417,27 @@ describe('runBacklogLint', () => {
     process.exitCode = undefined;
   });
 
+  /**
+   * Directory listings for the recursive `backlog/` walk, keyed by
+   * repo-relative directory. Empty by default, which makes `existsSync` report
+   * `backlog/` as absent so the walk skips it — that is what keeps every test
+   * predating the backlog scan unaffected.
+   */
+  type DirTree = Record<string, Array<{ name: string; dir?: boolean }>>;
+
   function mockFs(
     files: Record<string, string>,
     docFiles: string[],
-    trackerFiles: Record<string, string> = { 'task-1 - valid.md': VALID_TASK }
+    trackerFiles: Record<string, string> = { 'task-1 - valid.md': VALID_TASK },
+    docContents: Record<string, string> = {},
+    backlogTree: DirTree = {}
   ): void {
     vi.mocked(existsSync).mockImplementation(p => {
       const path = String(p);
       if (path.endsWith('tracker/docs') || path.endsWith('tracker/tasks')) {
+        return true;
+      }
+      if (Object.keys(backlogTree).some(d => path.endsWith(d))) {
         return true;
       }
       return Object.keys(files).some(suffix => path.endsWith(suffix));
@@ -340,14 +448,34 @@ describe('runBacklogLint', () => {
       if (tracker) {
         return tracker[1];
       }
+      const doc = Object.entries(docContents).find(([name]) => path.endsWith(name));
+      if (doc) {
+        return doc[1];
+      }
       const hit = Object.entries(files).find(([suffix]) => path.endsWith(suffix));
       return hit ? hit[1] : '';
     });
-    vi.mocked(readdirSync).mockImplementation(p => {
+    vi.mocked(readdirSync).mockImplementation(((p: unknown, options?: unknown) => {
       const path = String(p);
-      const listing = path.endsWith('tracker/tasks') ? Object.keys(trackerFiles) : docFiles;
-      return listing as unknown as ReturnType<typeof readdirSync>;
-    });
+      const treeKey = Object.keys(backlogTree).find(d => path.endsWith(d));
+      const entries: Array<{ name: string; dir?: boolean }> =
+        treeKey !== undefined
+          ? backlogTree[treeKey]
+          : (path.endsWith('tracker/tasks') ? Object.keys(trackerFiles) : docFiles).map(name => ({
+              name,
+            }));
+      const wantsFileTypes =
+        typeof options === 'object' &&
+        options !== null &&
+        (options as { withFileTypes?: boolean }).withFileTypes === true;
+      if (wantsFileTypes) {
+        return entries.map(e => ({
+          name: e.name,
+          isDirectory: () => e.dir === true,
+        })) as unknown as ReturnType<typeof readdirSync>;
+      }
+      return entries.map(e => e.name) as unknown as ReturnType<typeof readdirSync>;
+    }) as unknown as typeof readdirSync);
   }
 
   it('passes clean when caps respected, doc refs resolve, and tasks parse', async () => {
@@ -492,6 +620,228 @@ describe('runBacklogLint', () => {
     expect(out).toContain(`${ALLOW_ORIGIN_ID_COLLISION_ENV}=1`);
     expect(out).not.toContain('already used on origin/develop');
     expect(process.exitCode).not.toBe(1);
+  });
+
+  describe('relative link checking', () => {
+    it('passes when a tracker/docs relative link resolves on disk', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'docs/existing.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/existing.md)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('flags a tracker/docs relative link that does not resolve, naming file and target', async () => {
+      mockFs(
+        { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/missing.md)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain(
+        'tracker/docs/doc-1 - Foo.md: dangling relative link → ../../docs/missing.md'
+      );
+      expect(out).toContain('resolved: docs/missing.md');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('strips a trailing #fragment before resolving — passes when the file exists', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'docs/existing.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/existing.md#section)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('flags a #fragment link whose underlying file is missing', async () => {
+      mockFs(
+        { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/missing.md#section)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain('dangling relative link → ../../docs/missing.md');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('never reports absolute URLs, mailto, or bare anchors', async () => {
+      mockFs(
+        { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+        ['doc-1 - Foo.md'],
+        undefined,
+        {
+          'doc-1 - Foo.md': [
+            '[a](https://example.com/foo.md)',
+            '[b](mailto:someone@example.com)',
+            '[c](#section)',
+          ].join('\n'),
+        }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).not.toContain('dangling relative link');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('checks a ../ link inside tracker/tasks/ too — both directories are scanned', async () => {
+      const taskWithLink = VALID_TASK.replace(
+        'Body.',
+        'See [x](../../docs/missing-from-task.md) for detail.'
+      );
+      mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+        'task-1 - valid.md': taskWithLink,
+      });
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain(
+        'tracker/tasks/task-1 - valid.md: dangling relative link → ../../docs/missing-from-task.md'
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('resolves a sibling ./foo.md form against the same directory', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'tracker/docs/sibling.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](./sibling.md)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('scans backlog/ too, recursing into backlog/cold/', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'backlog/cold/epic-log.md': '[gone](../missing-target.md)',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        {},
+        { backlog: [{ name: 'cold', dir: true }], 'backlog/cold': [{ name: 'epic-log.md' }] }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      // Resolved against the FILE's directory (backlog/cold/../) rather than
+      // the scan root — the depth distinction the recursion introduces.
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain(
+        'backlog/cold/epic-log.md: dangling relative link → ../missing-target.md'
+      );
+      expect(out).toContain('resolved: backlog/missing-target.md');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('flags a dangling `doc-N` reference in a scanned body, not just in queue.md', async () => {
+      // The cross-reference convention that replaces fragile file links: a
+      // renumber or delete used to leave these dangling everywhere except
+      // queue.md, which is the same rot the relative-link check exists to close.
+      mockFs(
+        { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': 'Parked behind `doc-99`.' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain('dangling doc reference → doc-99');
+      expect(out).toContain('tracker/docs/doc-1 - Foo.md');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('accepts a `doc-N` reference that resolves', async () => {
+      mockFs(
+        { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': 'See `doc-1` for the theme.' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('does NOT scan tracker/archive/ — frozen content must not gate a PR', async () => {
+      // The exclusion is a stated design decision in the module docstring, so
+      // it gets pinned: this fixture is fully servable (the dir lists, the file
+      // reads, the link is dead), and stays unreported only because
+      // tracker/archive is absent from RELATIVE_LINK_SCAN_DIRS.
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'tracker/archive/old.md': '[gone](../nowhere.md)',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        {},
+        { 'tracker/archive': [{ name: 'old.md' }] }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).not.toContain('tracker/archive');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('passes when a backlog/ relative link resolves', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n[ref](../docs/real.md)\n',
+          'docs/real.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        {},
+        { backlog: [{ name: 'now.md' }] }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
   });
 });
 

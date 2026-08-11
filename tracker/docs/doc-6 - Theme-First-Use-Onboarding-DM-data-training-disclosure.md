@@ -28,7 +28,7 @@ _Focus: send every user a one-time onboarding DM on first bot use — orienting 
 
 #### Relationship to other themes
 
-- [`user-feedback-solicitation-revive-v2-release-notes-delivery.md`](user-feedback-solicitation-revive-v2-release-notes-delivery.md) — release-notes DMs are the SAME system-DM class (characters-ignore + clearable). Whichever theme goes first should build the shared system-DM primitive; the other consumes it.
+- the shipped user-feedback / release-notes-delivery theme — release-notes DMs are the SAME system-DM class (characters-ignore + clearable). Whichever theme goes first should build the shared system-DM primitive; the other consumes it.
 - The broader "port the remaining v2 features, then get rid of v2 for good" umbrella the user has mentioned — this + release notifications are both members. If more v2-port members accumulate, consider a dedicated umbrella theme.
 
 #### Phases (rough)
@@ -48,4 +48,4 @@ _Focus: send every user a one-time onboarding DM on first bot use — orienting 
 
 - [ ] Orientation copy + the data-training/BYOK disclosure
 - [ ] **BYOK-extraction-billing consent disclosure (owner 2026-07-10)**: when the BYOK-first extraction billing ships (`doc-43` — Idea: BYOK-first extraction billing), users whose own keys will be billed for background memory extraction learn it HERE — owner picked onboarding as the consent surface over a per-user toggle-only approach.
-- [ ] Quick-start slant: owner flags the command surface as overwhelming for new users ("a fuck ton of slash commands") — the onboarding DM is the first-touch slice of the broader discoverability theme ([`user-docs-and-discoverability.md`](user-docs-and-discoverability.md)); keep the DM short and point INTO whatever quick-start surface that theme builds.
+- [ ] Quick-start slant: owner flags the command surface as overwhelming for new users ("a fuck ton of slash commands") — the onboarding DM is the first-touch slice of the broader discoverability theme (`doc-25`); keep the DM short and point INTO whatever quick-start surface that theme builds.

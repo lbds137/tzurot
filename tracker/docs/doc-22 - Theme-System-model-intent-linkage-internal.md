@@ -7,7 +7,7 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: System model + intent linkage (internal)
 
-_Focus: restore and then MAINTAIN an accurate model of what the system is and why it's shaped that way — the internal counterpart to the user-facing surface owned by [`user-docs-and-discoverability.md`](user-docs-and-discoverability.md)._
+_Focus: restore and then MAINTAIN an accurate model of what the system is and why it's shaped that way — the internal counterpart to the user-facing surface owned by `doc-25`._
 
 #### Why (owner, 2026-07-25)
 
@@ -73,4 +73,4 @@ Researched 2026-07-20 (findings summarised here rather than linked — the full 
 
 - [ ] Only if the map is used and starts drifting: evaluate LID's spec-ID binding to tie intent to code. Re-check its maturity at that point — the numbers above are 2026-07 and it is young enough that a year changes the assessment materially.
 
-**Promote when**: the owner raised it unprompted while scoping the backlog-substrate boulder, so it competes for the next epic slot; Phase 0 alone is small enough to ride as a standalone slice. Related: [`user-docs-and-discoverability.md`](user-docs-and-discoverability.md) owns the user-facing half (its Phase 0 feature inventory is the external counterpart to this theme's Phase 0 map) and [`observability-and-telemetry.md`](observability-and-telemetry.md) addresses the runtime-blindness sibling of this design-time blindness. Surfaced 2026-07-25 (owner).
+**Promote when**: the owner raised it unprompted while scoping the backlog-substrate boulder, so it competes for the next epic slot; Phase 0 alone is small enough to ride as a standalone slice. Related: `doc-25` owns the user-facing half (its Phase 0 feature inventory is the external counterpart to this theme's Phase 0 map) and `doc-12` addresses the runtime-blindness sibling of this design-time blindness. Surfaced 2026-07-25 (owner).

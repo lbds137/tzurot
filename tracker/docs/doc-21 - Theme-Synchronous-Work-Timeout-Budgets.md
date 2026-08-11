@@ -67,7 +67,7 @@ three separate deferrals, each filed as its own row. There is no fourth raise.
 ### Phase 4 — Fast-pool residue
 
 Coherent sub-cluster from the fast-pool timeout work; overlaps
-[Database Performance Audit](database-performance-audit.md) — fold there if that
+Database Performance Audit (`doc-3`) — fold there if that
 theme is picked up first.
 
 - [ ] Type the `applyFastPoolDeadConnRetry` `$extends` result (2026-07-01)
