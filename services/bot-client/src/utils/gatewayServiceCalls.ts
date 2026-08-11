@@ -38,6 +38,7 @@ import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
 import { getValidatedServiceSecret } from '../startup.js';
 import { getServiceClient } from './gatewayClients.js';
+import { isConnectionFailure, withGatewayRetry } from './gatewayRetry.js';
 
 const logger = createLogger('gatewayServiceCalls');
 
@@ -255,6 +256,18 @@ export async function stampUserActivity(discordId: string): Promise<void> {
 }
 
 /**
+ * Submit retries absorb a deploy window: Railway redeploys services in
+ * parallel, so bot-client can be live for several seconds before the gateway
+ * answers. 2s/4s/8s backoff spans ~14s, comfortably past the ~8s gap observed
+ * at the beta.199 release. Every caller has already acked before reaching here
+ * — a webhook reply has no interaction deadline at all, and the slash-command
+ * path deferred long before this call, leaving a 15-minute follow-up window —
+ * so the wait is invisible unless it saves the response.
+ */
+const SUBMIT_MAX_ATTEMPTS = 4;
+const SUBMIT_RETRY_BASE_DELAY_MS = 2000;
+
+/**
  * Submit an async AI generation job. Returns the job/request IDs immediately;
  * the result is delivered later via the Redis result stream (JobTracker).
  * Throws on failure — the chat path needs to surface submission errors.
@@ -272,13 +285,26 @@ export async function generate(
     },
     'Submitting generation context'
   );
-  const result = await getServiceClient().aiGenerate({
-    personality,
-    message: context.messageContent,
-    context,
-  });
+  const { result, attempts } = await withGatewayRetry(
+    () =>
+      getServiceClient().aiGenerate({
+        personality,
+        message: context.messageContent,
+        context,
+      }),
+    {
+      maxAttempts: SUBMIT_MAX_ATTEMPTS,
+      baseDelayMs: SUBMIT_RETRY_BASE_DELAY_MS,
+      operation: 'submitting generation job',
+      // Submitting creates a paid job, so only a failed CONNECTION is safe to
+      // repeat — see isConnectionFailure. This also keeps the worst case at
+      // ~14s instead of four 60s timeouts.
+      isRetryable: isConnectionFailure,
+      context: { channelId: context.channelId, triggerMessageId: context.triggerMessageId },
+    }
+  );
   if (!result.ok) {
-    logger.error({ status: result.status, error: result.error }, 'Failed to submit job');
+    logger.error({ status: result.status, error: result.error, attempts }, 'Failed to submit job');
     throw new Error(`Gateway request failed: ${result.status} ${result.error}`);
   }
   logger.info({ jobId: result.data.jobId }, 'Job submitted successfully');
@@ -336,11 +362,6 @@ export interface DeliveryReport {
 const REPORT_MAX_ATTEMPTS = 3;
 const REPORT_RETRY_BASE_DELAY_MS = 500;
 
-/** Gateway failures worth retrying: infrastructure states, never 4xx rejections. */
-function isRetryableGatewayFailure(failure: { kind: string; status: number }): boolean {
-  return failure.kind === 'network' || failure.kind === 'timeout' || failure.status >= 500;
-}
-
 /** The slice of the deliveries response the worker acts on (ops report). */
 export interface DeliveryReportOutcome {
   /** True only on the report that flipped the announcement to completed. */
@@ -369,33 +390,30 @@ export async function reportDeliveries(
   if (results.length === 0) {
     return undefined;
   }
-  for (let attempt = 1; attempt <= REPORT_MAX_ATTEMPTS; attempt++) {
-    const result = await getServiceClient().releaseBroadcastDeliveries(releaseId, { results });
-    if (result.ok) {
-      logger.debug(
-        { releaseId, updated: result.data.updated, completed: result.data.completed },
-        'Delivery outcomes reported'
-      );
-      return {
-        completed: result.data.completed,
-        ...(result.data.summary !== undefined ? { summary: result.data.summary } : {}),
-      };
+  const { result, attempts } = await withGatewayRetry(
+    () => getServiceClient().releaseBroadcastDeliveries(releaseId, { results }),
+    {
+      maxAttempts: REPORT_MAX_ATTEMPTS,
+      baseDelayMs: REPORT_RETRY_BASE_DELAY_MS,
+      operation: 'reporting delivery outcomes',
+      context: { releaseId },
     }
-    if (!isRetryableGatewayFailure(result) || attempt === REPORT_MAX_ATTEMPTS) {
-      logger.error(
-        { status: result.status, releaseId, attempt },
-        'Failed to report delivery outcomes — rows stay pending (re-DM risk on stall-rerun)'
-      );
-      return undefined;
-    }
-    const delayMs = REPORT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-    logger.warn(
-      { status: result.status, releaseId, attempt, nextDelayMs: delayMs },
-      'Transient failure reporting delivery outcomes; retrying'
+  );
+  if (!result.ok) {
+    logger.error(
+      { status: result.status, releaseId, attempts },
+      'Failed to report delivery outcomes — rows stay pending (re-DM risk on stall-rerun)'
     );
-    await new Promise(resolve => setTimeout(resolve, delayMs));
+    return undefined;
   }
-  return undefined;
+  logger.debug(
+    { releaseId, updated: result.data.updated, completed: result.data.completed },
+    'Delivery outcomes reported'
+  );
+  return {
+    completed: result.data.completed,
+    ...(result.data.summary !== undefined ? { summary: result.data.summary } : {}),
+  };
 }
 
 /**
@@ -430,26 +448,22 @@ export async function reportNotifyOutcomes(outcomes: NotifyOutcomeReport[]): Pro
   if (outcomes.length === 0) {
     return true;
   }
-  for (let attempt = 1; attempt <= REPORT_MAX_ATTEMPTS; attempt++) {
-    const result = await getServiceClient().retentionNotifyReport({ outcomes });
-    if (result.ok) {
-      return true;
+  const { result, attempts } = await withGatewayRetry(
+    () => getServiceClient().retentionNotifyReport({ outcomes }),
+    {
+      maxAttempts: REPORT_MAX_ATTEMPTS,
+      baseDelayMs: REPORT_RETRY_BASE_DELAY_MS,
+      operation: 'reporting notify outcomes',
     }
-    if (!isRetryableGatewayFailure(result) || attempt === REPORT_MAX_ATTEMPTS) {
-      logger.error(
-        { status: result.status, attempt },
-        'Failed to report notify outcomes — un-stamped users ride the next run'
-      );
-      return false;
-    }
-    const delayMs = REPORT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-    logger.warn(
-      { status: result.status, attempt, nextDelayMs: delayMs },
-      'Transient failure reporting notify outcomes; retrying'
+  );
+  if (!result.ok) {
+    logger.error(
+      { status: result.status, attempts },
+      'Failed to report notify outcomes — un-stamped users ride the next run'
     );
-    await new Promise(resolve => setTimeout(resolve, delayMs));
+    return false;
   }
-  return false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
