@@ -6,6 +6,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type OpenRouterModel } from '@tzurot/common-types/types/ai';
+
+// Module-scope logger (not injectable), so asserting the degraded-data warn on
+// a transient catalog miss requires mocking the logger module per package convention.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 import {
   modelSupportsVision,
   modelSupportsReasoning,
@@ -413,12 +427,219 @@ describe('ModelCapabilityChecker', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null when Redis is unavailable (pattern fallback has no length)', async () => {
+    it('should return null when Redis is unavailable and the model was never resolved', async () => {
+      // The remaining hole: with nothing memoized there is no length to fall back
+      // on, so a transient outage still yields null. The precondition matters —
+      // after a prior successful resolve the memo answers instead (see below).
       vi.mocked(mockRedis.get).mockRejectedValue(new Error('Redis down'));
 
       const result = await getModelContextLength('openai/gpt-4o', mockRedis);
 
       expect(result).toBeNull();
+    });
+
+    describe('transient vs. absent catalog misses', () => {
+      const CATALOG_MODEL = 'openai/gpt-4o';
+
+      /** Resolve CATALOG_MODEL from a healthy catalog, populating both caches. */
+      const resolveFromHealthyCatalog = async (): Promise<void> => {
+        vi.mocked(mockRedis.get).mockResolvedValue(
+          JSON.stringify([createMockModel(CATALOG_MODEL, ['text', 'image'])])
+        );
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBe(4096);
+      };
+
+      /**
+       * Push CATALOG_MODEL out of the 5-minute capability cache while leaving the
+       * 24h context-length memo intact. clearCapabilityCache() clears both by
+       * design, and vitest's fake timers do not reach TTLCache's clock (probed:
+       * a value survived a 10-minute advance), so LRU pressure is the lever —
+       * the capability cache holds 500 entries and catalog-absent lookups fill it.
+       */
+      const evictFromCapabilityCache = async (): Promise<void> => {
+        vi.mocked(mockRedis.get).mockResolvedValue('[]');
+        for (let i = 0; i < 500; i++) {
+          await getModelContextLength(`filler/model-${i}`, mockRedis);
+        }
+      };
+
+      /** Read CATALOG_MODEL and assert the read actually reached Redis. */
+      const readExpectingRedisCall = async (): Promise<number | null> => {
+        const before = vi.mocked(mockRedis.get).mock.calls.length;
+        const result = await getModelContextLength(CATALOG_MODEL, mockRedis);
+        expect(vi.mocked(mockRedis.get).mock.calls.length).toBe(before + 1);
+        return result;
+      };
+
+      it('falls back to the memoized length when the catalog key is missing', async () => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+        expect(await readExpectingRedisCall()).toBe(4096);
+      });
+
+      it('falls back to the memoized length when the catalog payload is unparseable', async () => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+
+        vi.mocked(mockRedis.get).mockResolvedValue('{not json');
+
+        expect(await readExpectingRedisCall()).toBe(4096);
+      });
+
+      it('falls back to the memoized length when Redis throws', async () => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+
+        vi.mocked(mockRedis.get).mockRejectedValue(new Error('Redis down'));
+
+        expect(await readExpectingRedisCall()).toBe(4096);
+      });
+
+      it.each([
+        ['an unparseable payload', '{not json'],
+        ['a Redis throw', null],
+      ])('emits exactly one warn for %s, carrying the cause', async (_label, payload) => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+        mockLogger.warn.mockClear();
+
+        if (payload === null) {
+          vi.mocked(mockRedis.get).mockRejectedValue(new Error('Redis down'));
+        } else {
+          vi.mocked(mockRedis.get).mockResolvedValue(payload);
+        }
+        await getModelContextLength(CATALOG_MODEL, mockRedis);
+
+        // resolveFromRedis used to warn too, so the same failure logged twice.
+        expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.anything(), hasMemoizedContextLength: true }),
+          expect.stringContaining('degraded capability data')
+        );
+      });
+
+      it('does not cache a transient miss — the next read retries Redis', async () => {
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBeNull();
+        expect(mockRedis.get).toHaveBeenCalledTimes(1);
+
+        // Redis recovers well inside the 5-minute capability TTL: the fresh
+        // catalog value must win, which it only can if the miss was not cached.
+        vi.mocked(mockRedis.get).mockResolvedValue(
+          JSON.stringify([createMockModel(CATALOG_MODEL, ['text', 'image'])])
+        );
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBe(4096);
+        expect(mockRedis.get).toHaveBeenCalledTimes(2);
+      });
+
+      it('caches an absent result — a loaded catalog settles the question', async () => {
+        vi.mocked(mockRedis.get).mockResolvedValue(
+          JSON.stringify([createMockModel('some-other-model', ['text'])])
+        );
+
+        expect(await getModelContextLength('unknown/model', mockRedis)).toBeNull();
+        expect(await getModelContextLength('unknown/model', mockRedis)).toBeNull();
+        expect(mockRedis.get).toHaveBeenCalledTimes(1);
+      });
+
+      it('warns about degraded data on a transient miss with nothing memoized', async () => {
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBeNull();
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelId: CATALOG_MODEL,
+            contextLength: null,
+            hasMemoizedContextLength: false,
+          }),
+          expect.stringContaining('degraded capability data')
+        );
+      });
+
+      it('drops the memo once the catalog confirms the model is absent', async () => {
+        await resolveFromHealthyCatalog();
+        // Evict first, or the read below is answered from the capability cache
+        // and never reaches the catalog at all.
+        await evictFromCapabilityCache();
+
+        // The catalog reloads without the model (deprecated or renamed). That is
+        // a newer observation than the memo, so the memo must not survive it.
+        vi.mocked(mockRedis.get).mockResolvedValue(
+          JSON.stringify([createMockModel('some-other-model', ['text'])])
+        );
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBeNull();
+
+        // That absent result is itself cached, so evict again to force the
+        // transient path to consult the memo rather than the cached null.
+        await evictFromCapabilityCache();
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+        // Without the invalidation this would still report the stale 4096.
+        expect(await readExpectingRedisCall()).toBeNull();
+      });
+
+      it('drops the memo when a resolved entry carries no context length', async () => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+
+        // OpenRouterModel declares context_length as a number, but the catalog
+        // is parsed through an unchecked cast — so this is what a wire-level
+        // null looks like by the time it reaches the memo.
+        const nulled = {
+          ...createMockModel(CATALOG_MODEL, ['text', 'image']),
+          context_length: null,
+        } as unknown as OpenRouterModel;
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify([nulled]));
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBeNull();
+
+        await evictFromCapabilityCache();
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+        // Without the else-branch delete this would report the stale 4096.
+        expect(await readExpectingRedisCall()).toBeNull();
+      });
+
+      it('treats a missing context_length as unknown rather than leaking undefined', async () => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+
+        // A field absent from the wire arrives as undefined, not null — it would
+        // slip past every `!== null` guard and reach Math.floor(undefined * f).
+        const { context_length: _dropped, ...withoutLength } = createMockModel(CATALOG_MODEL, [
+          'text',
+        ]);
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify([withoutLength]));
+
+        expect(await getModelContextLength(CATALOG_MODEL, mockRedis)).toBeNull();
+
+        await evictFromCapabilityCache();
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+        expect(await readExpectingRedisCall()).toBeNull();
+      });
+
+      it('reports the memo backstop in the warn when one is present', async () => {
+        await resolveFromHealthyCatalog();
+        await evictFromCapabilityCache();
+        mockLogger.warn.mockClear();
+
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+        expect(await readExpectingRedisCall()).toBe(4096);
+
+        // The boolean is what on-call triage reads to tell "clamp still correct"
+        // from "running unclamped" — pin both of its states, not just false.
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelId: CATALOG_MODEL,
+            contextLength: 4096,
+            hasMemoizedContextLength: true,
+          }),
+          expect.stringContaining('degraded capability data')
+        );
+      });
     });
   });
 
@@ -437,6 +658,19 @@ describe('ModelCapabilityChecker', () => {
       // Should hit Redis again
       await modelSupportsVision('test-model', mockRedis);
       expect(mockRedis.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('should clear the context-length memo too', async () => {
+      const models = [createMockModel('test-model', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+      expect(await getModelContextLength('test-model', mockRedis)).toBe(4096);
+
+      clearCapabilityCache();
+
+      // A transient miss now has nothing to fall back on — if the memo had
+      // survived the clear, this would still report 4096.
+      vi.mocked(mockRedis.get).mockResolvedValue(null);
+      expect(await getModelContextLength('test-model', mockRedis)).toBeNull();
     });
   });
 });
