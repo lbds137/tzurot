@@ -22,5 +22,11 @@ Why not fixed in 2063: .claude/rules is review-gated (00-critical) and the Opus 
 
 What: add the two checks to that line. Rides the next .claude/rules PR.
 
-Acceptance: the 05-tooling.md description of pnpm ops backlog names every check the gate actually runs.
+SECOND STALENESS IN THE SAME FILE (PR 2066 round-6 review, 2026-08-11): the Commit Message Format section lists "Scopes: ai-worker, api-gateway, bot-client, common-types, ci, deps", which is a strict SUBSET of what commitlint actually accepts. The real scope-enum is built as allScopes in commitlint.config.cjs - dynamically generated from every workspace package and service directory, PLUS static root scopes the doc never mentions (skills, rules, hooks, backlog, docs, legal, prisma, repo, husky). PR 2066 itself legitimately committed as docs(skills), a scope the always-loaded doc says does not exist.
+
+The failure direction is the expensive one: an agent trusting the doc believes a valid scope is invalid, so it either omits the scope or picks a worse-fitting one from the short list - and never learns otherwise, because omitting the scope also passes. Wrong-but-passing is why this went unnoticed.
+
+Fix shape for both items: rather than re-listing a hand-maintained subset that will drift again, point the doc at commitlint.config.cjs as the source of truth and name only the rule (dynamic package scopes + a static root set), the same way the gate description should name its checks. Both edits ride the same .claude/rules PR.
+
+Acceptance: the 05-tooling.md description of pnpm ops backlog names every check the gate actually runs, AND its scope guidance no longer contradicts commitlint.config.cjs.
 <!-- SECTION:DESCRIPTION:END -->
