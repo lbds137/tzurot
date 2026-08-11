@@ -50,12 +50,27 @@ reasons under one label, so a healthy pipeline reads as broken:
   conversation history, so dropping it is the feature working. Labelling those as
   budget drops is what makes `Found: 20 / Included: 0` look like failed recall.
 
-Fix shape (revised): carry the drop REASON to the diagnostic rather than deriving
-it by subtraction — the counts needed already exist (`filterShippedMemories` logs
-`retrieved`/`kept`/`filtered`; `selectMemoriesWithinBudget` logs
-`dropped`/`droppedDueToSize`). Render them as distinct lines. This is the "make the
-drop reason visible" fix the original entry asked for, at the surface the owner
-actually reads, instead of log instrumentation nobody greps.
+Fix shape (revised, then narrowed again — the payload ALREADY carries the right
+number and the view ignores it, so this is a bot-client-only change):
+
+- `DiagnosticTokenBudget.memoriesDropped` is fed from `budgetResult.memoriesDroppedCount`
+  (`DiagnosticRecorders.ts:208`), which comes from
+  `selectMemoriesWithinBudget(dedupedMemories, ...)` — `ContentBudgetManager.ts:248`
+  builds `dedupedMemories` via `filterShippedMemories` and line 261 passes THAT into
+  `selectMemories`. So `memoriesDropped` is already the PURE budget-drop count.
+- `views.ts:331` ignores it and recomputes `allMemories.length - includedTotal`,
+  which spans dedup + budget.
+
+So: use `tokenBudget.memoriesDropped` for the budget figure, and derive the dedup
+figure as `max(0, allMemories.length - includedTotal - tokenBudget.memoriesDropped)`.
+Render them as separate labelled counts — something like
+`N total · M included · B dropped for budget · D already in history`. No ai-worker
+change, no new plumbing. Also fix the comment at views.ts:329-330, which asserts the
+subtraction is budget-only.
+
+Acceptance: a diagnostic where every candidate was dedup-dropped reads as
+"already in history", not "dropped for budget". Cover both drop reasons and the
+mixed case in the view test.
 
 STATUS OF THIS CLAIM: code-read, NOT runtime-confirmed. The mechanism (subtraction
 spans both filters) is established by reading both call sites. That the 2026-05-03
