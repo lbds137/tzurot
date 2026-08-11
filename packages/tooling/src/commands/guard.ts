@@ -126,6 +126,17 @@ function registerSyncGuards(cli: CAC): void {
 
   cli
     .command(
+      'guard:build-scripts',
+      'Fail if a tsc-invoking build script does not clear dist + tsconfig.tsbuildinfo first (turbo cache poisoning)'
+    )
+    .example('ops guard:build-scripts')
+    .action(async () => {
+      const { checkBuildScripts } = await import('../dev/check-build-scripts.js');
+      checkBuildScripts();
+    });
+
+  cli
+    .command(
       'guard:prompt-tags',
       'Fail if a structural prompt tag is emitted but not classified (protected vs known-unprotected)'
     )
