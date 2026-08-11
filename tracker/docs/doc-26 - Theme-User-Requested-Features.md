@@ -30,14 +30,12 @@ Per-user text injected into the system message, shaping how characters interact 
 - [ ] `/persona` dashboard upgrade to edit sidecar prompt
 - [ ] Migration: move shapes.inc imported `customFields.sidecarPrompt` to proper field
 
-#### ✨ Channel Allowlist/Denylist
+#### ➡️ Channel Allowlist/Denylist — MOVED to doc-75 (Guild / Server Management), Phase 3
 
-Prevents bot from spamming unwanted channels, reduces server kicks.
-
-- [ ] Add `mode` (allowlist/denylist) and `channels` array to ChannelSettings
-- [ ] `/channel restrict` command for server admins
-- [ ] Middleware check in message handler
-- [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
+Its rationale ("reduces server kicks") and its command scope ("for server
+admins") make it moderator-facing, not a one-off user request — it belongs with
+the rest of that surface rather than among unrelated feature asks. Full sketch
+lives in doc-75.
 
 #### ✅ Multi-Character Invocation Per Message — SHIPPED (MultiTagCoordinator: fan-out, slot-ordered delivery, crash recovery)
 
