@@ -35,5 +35,6 @@ Two things to decide while building it, not before:
 1. `check-build-scripts.ts` — surfaced by the PR #2062 review (the guard shipped with the two-root scope; its known limitation is stated in the PR body and the module docstring).
 2. `check-no-export-star.ts` — same hardcoded pair.
 3. `check-dockerfile-dist.ts` — same hardcoded pair.
+4. `TASK-178` — `findServiceFiles` in `packages/tooling/src/test/audit-unified.ts` hardcodes six `<pkg>/src` directories, so every new package escapes the coverage ratchet until someone remembers to add it. Same rot, one layer down: it needs `<pkg>/src` rather than the package root, and keeps its own Prisma-usage filter, but it would consume the same expanded root list. Filed separately and older than this doc; listed here so the sweep does not leave it behind.
 
 **Related.** `TASK-489` (archived as a duplicate of `TASK-32`) asked for the guard over "every **workspace** package" — broader than the two-root scope that actually shipped in #2062. This doc owns that remaining breadth, so the ask is not lost with the duplicate.

@@ -1,10 +1,10 @@
 ---
 id: TASK-32
 title: 'Guard: new packages must use clean-first build scripts'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-02 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-11 12:10'
 labels:
   - 'area:tooling'
   - 'area:ci'
