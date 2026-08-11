@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-09'
+lastUpdated: '2026-08-10'
 ---
 
 # Orchestrator Mode
@@ -40,20 +40,23 @@ TOOL-restriction frontmatter (`tools:`/`disallowedTools:`), so an override's
 read-only surface would rest on unenforced fields, and whether a project file
 can override a built-in agent name at all was never probed.
 
-**Worker model tier (measured pilot)**: a **mechanical-class** unit — one whose
-spec describes the edit precisely (renames, sweeps, fixture updates, applying a
-settled pattern across files) — may pass `model: sonnet` on the Agent call
-instead of the default Opus model (same `opus-implementer` contract, only the
-model overridden per-call); an edit that can be described precisely does not
-need Opus-tier judgment to execute, and the spec template produces
-exactly that. This is a pilot against the Opus-worker record observed so far
-(no repo-citable measurement — the baseline lives in session history): record
-each Sonnet unit's diff-review findings and CI cycles in the pilot's tracker
-task (`pnpm tracker task list --search 'Sonnet worker-tier pilot'` to find it;
-append by editing the task file's notes section directly — the CLI's `--notes`
-flag REPLACES the whole section and has destroyed notes before), and drop
-the tier back to Opus if defects appear. Semantic-class units (design judgment
-inside the diff) stay on Opus.
+**Worker model tier (settled)**: for a **mechanical-class** unit — one whose
+spec describes the edit precisely (renames, sweeps, fixture updates, applying
+a settled pattern across files) — the orchestrator passes `model: sonnet` on
+the Agent call instead of the default Opus model (same `opus-implementer`
+contract, only the model overridden per-call); an edit that can be described
+precisely does not need Opus-tier judgment to execute, and the spec template
+produces exactly that. Sonnet is the STANDING tier for mechanical-class units
+— settled by the TASK-487 record (11 units, 0 worker semantic defects; every
+review round attributable to reviewer polish or orchestrator-side scoping,
+never the worker tier). Semantic-class units (design judgment inside the
+diff) stay on Opus. If a Sonnet unit ships a semantic defect: append it to
+TASK-487's notes (that file is the tier's standing evidence ledger; its Done
+status does not bar appends, and appends are file edits only — the CLI's
+`--notes` flag REPLACES the whole section and has destroyed notes before)
+AND drop mechanical-class delegation back to Opus for subsequent units.
+Resume Sonnet only when the recorded analysis attributes the defect to
+spec/scope rather than the worker tier, or the owner calls it.
 
 ## The spec template
 
@@ -111,9 +114,13 @@ exist so waiting is never the activity (`10-working-posture.md` § Momentum).
 
 ## When the worker reports
 
-**Read the FULL diff before any commit.** This gate is the reason the split
-works; skipping it collapses orchestration back into a single context that
-reviewed nothing. Then:
+**Read the FULL diff before any commit — the orchestrator's OWN read, never
+delegated to a verifier subagent.** This gate is the reason the split works;
+skipping it collapses orchestration back into a single context that reviewed
+nothing, and delegating it re-collapses it from the other side (the judging
+context must be the one that carries the spec's intent). Opus 5 in particular
+delegates readily by documented tendency — Anthropic's own guidance: do not
+use subagents to verify or double-check your own work. Then:
 
 - A flagged stop or ambiguity is a good outcome, not a worker failure to work
   around. Resolve it and **resume the SAME worker** (`SendMessage` to its
@@ -132,7 +139,7 @@ reviewed nothing. Then:
 
 ## Opus-main-loop posture
 
-Three habits that matter more when Opus 5 drives the main loop than when it
+Four habits that matter more when Opus 5 drives the main loop than when it
 works behind a spec.
 
 - **Compact at unit boundaries, proactively.** Error quality degrades as the
@@ -148,6 +155,11 @@ works behind a spec.
   (`00-critical.md` § Don't Present Speculation as Fact). When challenged on a
   claim, re-verify at the source rather than defending it — the pull to defend
   is strongest exactly when the claim came from memory rather than a read.
+- **Calibrate written-deliverable length.** Opus 5's disk deliverables (docs,
+  backlog entries, PR bodies, CURRENT.md paragraphs) run longer than prior
+  models' by documented tendency. Match length to what the task needs — cover
+  the substance, no padded sections, no redundant summaries; the `lines:check`
+  budgets are the backstop, not the target.
 
 ## Relationship to the rules
 
