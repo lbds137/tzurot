@@ -29,7 +29,7 @@
 **Open threads for next session:**
 
 - ~~Own-voice post-release smoke~~ ✅ **CLOSED via retro-log 2026-08-11** (owner-supplied prod diagnostic, requestId `75407676`): all 31 persona `<voice>` tags in the assembled context render the static own-voice description with zero persona transcripts, while user voice messages keep their transcripts — both halves of the invariant runtime-verified in prod.
-- **TASK-513 is next** (owner-directed): Opus 5 orchestrator revisit — pre-trial tweak review + low-risk work slate.
+- **Opus 5 trial is STAGED (TASK-513)**: plan owner-approved 2026-08-11; tweaks PR #2059 merged (settled Sonnet tier citing the completed 11-unit TASK-487 ledger, never-delegate-the-diff-read, deliverable-length habit). The trial starts when the OWNER opens an Opus 5-driven session — open with /tzurot-orchestration + TASK-516, slate and kill criteria in TASK-513's notes. TASK-513 stays open as the trial's per-unit recording surface.
 - TASK-514: mis-channel WARN watch (state:observable) — Railway grep "Suspect reasoning mis-channel" on recurrence signals.
 - Waffles' venue-leak report: awaiting their Share Memories answer (doc-8 carries the venue-scoping design input either way; if they say OFF and never-talked holds, open an investigation with an /inspect evidence request).
 - TASK-498: codify the pre-commit review panel (trial data: #2034 caught 3 pre-commit, CI still found 1 mirror-branch Medium; 2 rounds vs #2032's 9). TASK-499/502/503 filed and open.
