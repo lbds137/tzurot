@@ -20,7 +20,16 @@ Why: gh pr merge --rebase --delete-branch prints nothing on success AND nothing 
 
 Not a settings fix: delete_branch_on_merge must stay false. It is the flag that deleted develop on 2026-08-07, it runs admin-privileged, and the develop deletion rule is fully bypassable, so auto-delete passes straight through it. guard:repo-settings asserts the false state.
 
-What: after a feature-PR merge, confirm the head ref is gone (git ls-remote --exit-code --heads origin BRANCH) and say so, or re-delete. Either a step in the git-workflow skill merge section, or folded into the existing repo-state sweep so survivors are reported rather than discovered.
+ROOT CAUSE — observed live on the PR 2064 merge, no longer a hypothesis. When the head branch is checked out in a git WORKTREE, gh pr merge --delete-branch fails on the LOCAL delete and the REMOTE branch is left behind too:
 
-Acceptance: a merged feature PR whose branch survived is surfaced at merge time or at the next session-start sweep, without anyone remembering to look.
+    failed to delete local branch feat/audit-servicedirs-discovery: failed to run git:
+    error: cannot delete branch ... used by worktree at .claude/worktrees/agent-...
+
+The merge itself succeeds, so the PR closes as merged and only the branch survives. This explains the correlation the owner noticed with "lately": the orchestration skill MANDATES isolation worktree for any file-mutating worker, so every delegated unit now leaves its branch checked out in a worktree at merge time. PR 2061 (also a worktree unit) is the earlier instance.
+
+What: two halves.
+1. ORDER — remove the worktree (and its local branch) BEFORE gh pr merge, so --delete-branch can do its job. Belongs in the orchestration skill next to the worktree mandate, and in the git-workflow merge section.
+2. VERIFY — after any feature-PR merge, confirm the head ref is gone (git ls-remote --exit-code --heads origin BRANCH) and re-delete if not. The verify half stays worth having even with the ordering fixed: it is what turns any OTHER silent-delete-failure mode into a report instead of a discovery.
+
+Acceptance: a merged feature PR whose branch survived is surfaced at merge time or at the next session-start sweep, without anyone remembering to look; and a worktree-based unit does not produce a survivor in the first place.
 <!-- SECTION:DESCRIPTION:END -->

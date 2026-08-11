@@ -1,10 +1,10 @@
 ---
 id: TASK-178
 title: 'test:audit serviceDirs is a hardcoded list'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-25 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-08-11 13:04'
 labels:
   - 'area:tooling'
   - 'area:conversation-history'
