@@ -1,10 +1,10 @@
 ---
 id: TASK-140
 title: 'extractRunnerDistCopies anchors to the LAST FROM stage, not AS runner by name'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-03 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-08-11 17:20'
 labels:
   - 'area:tooling'
   - 'size:S'
