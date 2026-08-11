@@ -204,8 +204,9 @@ describe.skipIf(!ready)('voice-consistency replay (REAL model spend)', () => {
     };
     const participantPersonas = new Map<string, ParticipantInfo>([
       [
-        probe.trigger.personaName,
+        probe.trigger.personaId,
         {
+          personaName: probe.trigger.personaName,
           content: personaAbout.get(probe.trigger.personaId) ?? '',
           isActive: true,
           personaId: probe.trigger.personaId,

@@ -32,7 +32,10 @@ const context: ConversationContext = {
 };
 
 const participants = new Map<string, ParticipantInfo>([
-  ['Vee', { content: 'A curious engineer', isActive: true, personaId: 'persona-1' }],
+  [
+    'persona-1',
+    { personaName: 'Vee', content: 'A curious engineer', isActive: true, personaId: 'persona-1' },
+  ],
 ]);
 
 const memories: MemoryDocument[] = [

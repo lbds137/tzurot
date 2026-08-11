@@ -246,12 +246,13 @@ export interface ProcessedInputs {
 
 /**
  * Participant info for prompt formatting
- * Keyed by personaName for display, includes personaId for ID binding
  *
  * Note: preferredName, pronouns, and content are structured fields from the persona.
  * The ParticipantFormatter renders these as separate XML elements for clear LLM parsing.
  */
 export interface ParticipantInfo {
+  /** The participant's display name (persona name or Discord display name). */
+  personaName: string;
   /** User's preferred display name (from persona) */
   preferredName?: string;
   /** User's pronouns (from persona) */
@@ -269,7 +270,15 @@ export interface ParticipantInfo {
   };
 }
 
-/** Result of loading personas and resolving user references */
+/**
+ * Result of loading personas and resolving user references.
+ *
+ * `participantPersonas` is keyed by resolvedPersonaId (a UUID), not by
+ * display name — two different users can share a persona name, and a
+ * name-keyed map would collide them into one entry. See the key-choice
+ * comment on `MemoryRetriever.getAllParticipantPersonas`, which builds this
+ * map, for the full rationale.
+ */
 export interface PersonaLoadResult {
   participantPersonas: Map<string, ParticipantInfo>;
   processedPersonality: LoadedPersonality;

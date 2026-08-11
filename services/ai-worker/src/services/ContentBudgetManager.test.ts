@@ -236,7 +236,15 @@ describe('ContentBudgetManager', () => {
     it('should pass participant personas to system prompt builder', () => {
       const options = createBaseOptions();
       options.participantPersonas = new Map([
-        ['Alice', { content: 'User persona', isActive: true, personaId: 'persona-alice' }],
+        [
+          'persona-alice',
+          {
+            personaName: 'Alice',
+            content: 'User persona',
+            isActive: true,
+            personaId: 'persona-alice',
+          },
+        ],
       ]);
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));

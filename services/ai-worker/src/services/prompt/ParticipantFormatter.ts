@@ -42,7 +42,7 @@ import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
  * </participants>
  * ```
  *
- * @param participantPersonas - Map of participant names to their ParticipantInfo
+ * @param participantPersonas - Map of resolvedPersonaId (UUID) to ParticipantInfo
  * @param activePersonaName - Name of the currently active speaker (for group conversation note)
  * @param collisionNote - Pre-escaped note text when a user shares the character's
  *   name; rendered as a `<note>` so the roster itself carries the
@@ -89,13 +89,13 @@ export function formatParticipantsContext(
     '<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>'
   );
 
-  for (const [personaName, info] of participantPersonas.entries()) {
+  for (const [, info] of participantPersonas.entries()) {
     // Build participant tag with id and optional active attribute
     const activeAttr = info.isActive ? ' active="true"' : '';
     parts.push(`<participant id="${escapeXml(info.personaId)}"${activeAttr}>`);
 
-    // Name element - use preferredName if available, otherwise fall back to personaName (map key)
-    const displayName = info.preferredName ?? personaName;
+    // Name element - use preferredName if available, otherwise fall back to personaName
+    const displayName = info.preferredName ?? info.personaName;
     parts.push(`<name>${escapeXml(displayName)}</name>`);
 
     // Pronouns element (if available)

@@ -19,6 +19,7 @@ import type {
   MemoryDocument,
   ConversationContext,
   ParticipantInfo,
+  ParticipantPersona,
 } from './ConversationalRAGTypes.js';
 import { PersonaResolver, type PersonaPromptData } from '@tzurot/identity';
 
@@ -47,6 +48,65 @@ export interface MemoryRetrievalResult {
  */
 export interface FreshModeChecker {
   isFreshActive(userId: string, personalityId: string): Promise<boolean>;
+}
+
+/**
+ * Decide whether a newly-seen sighting of an ALREADY-mapped resolvedPersonaId
+ * should be skipped in favor of the existing entry — a legitimate dedup (the
+ * SAME user seen under two different display names: persona name from DB
+ * history vs Discord display name from extended context). Returns true to
+ * keep `existingEntry` as-is; false means the caller should overwrite it with
+ * `participant`'s data (better name available).
+ */
+function shouldSkipDuplicateParticipant(
+  existingEntry: ParticipantInfo,
+  participant: ParticipantPersona,
+  resolvedPersonaId: string
+): boolean {
+  // These logs carry the resolvedPersonaId and name LENGTHS, never the names.
+  // Two reasons, and the second is the load-bearing one:
+  //   1. A personaName is sometimes the raw Discord display name (see this
+  //      function's docblock), and `00-critical.md` § Logging (No PII) lists
+  //      usernames.
+  //   2. A personaName does not IDENTIFY anyone — two different users can share
+  //      one, which is the whole reason this map is keyed by id. Logging a name
+  //      as though it named a person reproduces, in the logs, the ambiguity the
+  //      key change removes from the prompt. The id is the identifier.
+  // Nothing diagnostic is lost: the tie-break below is decided ON the lengths.
+
+  // Active speaker's name is authoritative — never displaced by a later sighting.
+  if (existingEntry.isActive === true) {
+    logger.debug(
+      { resolvedPersonaId },
+      `Skipping duplicate participant - active speaker takes precedence`
+    );
+    return true;
+  }
+
+  // Prefer shorter name (persona name "Lila" vs Discord display name "Lila
+  // Shabbat Nachiel") — this heuristic works because persona names are
+  // typically short.
+  if (existingEntry.personaName.length <= participant.personaName.length && !participant.isActive) {
+    logger.debug(
+      {
+        resolvedPersonaId,
+        skippedNameLength: participant.personaName.length,
+        keptNameLength: existingEntry.personaName.length,
+      },
+      `Skipping duplicate participant - preferring shorter name`
+    );
+    return true;
+  }
+
+  logger.debug(
+    {
+      resolvedPersonaId,
+      removedNameLength: existingEntry.personaName.length,
+      newNameLength: participant.personaName.length,
+    },
+    `Replacing duplicate participant with better name`
+  );
+  return false;
 }
 
 export class MemoryRetriever {
@@ -315,9 +375,13 @@ export class MemoryRetriever {
 
   /**
    * Get ALL participant personas from conversation
-   * Returns a Map of personaName -> ParticipantInfo for all users in the conversation
+   * Returns a Map of resolvedPersonaId (UUID) -> ParticipantInfo for all users
+   * in the conversation. Keyed by id, not name, so two different users who
+   * share a persona name both survive into the map (see the key-choice
+   * comment at the Map's declaration below for why).
    *
    * The map includes:
+   * - personaName: The display name to render for this participant
    * - content: User's persona description
    * - isActive: Whether this is the current speaker
    * - personaId: UUID for ID binding in chat_log
@@ -335,11 +399,20 @@ export class MemoryRetriever {
    * @param context - Conversation context with participants
    * @param personalityId - Personality ID for resolving per-personality persona overrides
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Resolves participant personas via per-personality overrides → user defaults → display name fallback for each participant
   async getAllParticipantPersonas(
     context: ConversationContext,
     personalityId: string
   ): Promise<Map<string, ParticipantInfo>> {
+    // Keyed by resolvedPersonaId (a UUID). Two DIFFERENT users can share a
+    // personaName (e.g. two Discord accounts both named "Alice") — keying by
+    // name would collide them into one map entry and silently drop one human
+    // from the <participants> block while chat_log from_id still points at
+    // their (now-vanished) participant id. The SAME user can also legitimately
+    // appear more than once under this key with different display names
+    // (persona name from DB history vs Discord display name from extended
+    // context) — that case is a genuine dedup, handled by the
+    // name-preference heuristic below, which only decides which NAME wins on
+    // an existing entry, never which entry survives.
     const personaMap = new Map<string, ParticipantInfo>();
 
     if (!context.participants || context.participants.length === 0) {
@@ -348,11 +421,6 @@ export class MemoryRetriever {
     }
 
     logger.debug({ count: context.participants.length }, 'Fetching participant content');
-
-    // Track resolved personaIds to deduplicate participants
-    // Same user may appear with different names (persona name vs Discord display name)
-    // e.g., "Lila" from DB history vs "Lila Shabbat Nachiel" from extended context
-    const resolvedIdToName = new Map<string, string>();
 
     // Fetch content for each participant
     for (const participant of context.participants) {
@@ -373,43 +441,21 @@ export class MemoryRetriever {
       // we just don't inject persona content for this participant.
       if (resolvedPersonaId === null) {
         logger.debug(
-          { personaId: participant.personaId, personaName: participant.personaName },
+          { personaId: participant.personaId },
           `Participant has no resolvable persona — skipping`
         );
         continue;
       }
 
-      // Check if we already have a participant with this resolved personaId
+      // Check if this SAME resolved personaId already has an entry (a real
+      // dedup — the same user seen under two different display names).
       // Prefer: active speaker's name > persona name (from DB) > Discord display name
-      const existingName = resolvedIdToName.get(resolvedPersonaId);
-      if (existingName !== undefined) {
-        // Skip if existing entry is from active speaker or is shorter (likely persona name)
-        // Active speaker's name is authoritative
-        const existingEntry = personaMap.get(existingName);
-        if (existingEntry?.isActive === true) {
-          logger.debug(
-            { resolvedPersonaId, skippedName: participant.personaName, keptName: existingName },
-            `Skipping duplicate participant - active speaker takes precedence`
-          );
-          continue;
-        }
-
-        // Prefer shorter name (persona name "Lila" vs Discord display name "Lila Shabbat Nachiel")
-        // This heuristic works because persona names are typically short
-        if (existingName.length <= participant.personaName.length && !participant.isActive) {
-          logger.debug(
-            { resolvedPersonaId, skippedName: participant.personaName, keptName: existingName },
-            `Skipping duplicate participant - preferring shorter name`
-          );
-          continue;
-        }
-
-        // New entry is better - remove old entry
-        personaMap.delete(existingName);
-        logger.debug(
-          { resolvedPersonaId, removedName: existingName, newName: participant.personaName },
-          `Replacing duplicate participant with better name`
-        );
+      const existingEntry = personaMap.get(resolvedPersonaId);
+      if (
+        existingEntry !== undefined &&
+        shouldSkipDuplicateParticipant(existingEntry, participant, resolvedPersonaId)
+      ) {
+        continue;
       }
 
       const personaData = await this.getPersonaData(resolvedPersonaId);
@@ -417,7 +463,7 @@ export class MemoryRetriever {
         // Truly no persona record found — can't include without identity data.
         // Warn so missing records don't stay silent.
         logger.warn(
-          { resolvedPersonaId, personaName: participant.personaName },
+          { resolvedPersonaId },
           `No persona record for participant — omitting from prompt`
         );
         continue;
@@ -432,7 +478,6 @@ export class MemoryRetriever {
         logger.warn(
           {
             resolvedPersonaId,
-            personaName: participant.personaName,
             isActive: participant.isActive,
           },
           `Persona has empty content — including with identity fields only`
@@ -451,7 +496,8 @@ export class MemoryRetriever {
         guildInfo = context.participantGuildInfo[participant.personaId];
       }
 
-      personaMap.set(participant.personaName, {
+      personaMap.set(resolvedPersonaId, {
+        personaName: participant.personaName,
         preferredName: personaData.preferredName ?? undefined,
         pronouns: personaData.pronouns ?? undefined,
         content: personaData.content,
@@ -459,11 +505,9 @@ export class MemoryRetriever {
         personaId: resolvedPersonaId, // Use resolved UUID for ID binding
         guildInfo,
       });
-      resolvedIdToName.set(resolvedPersonaId, participant.personaName);
 
       logger.debug(
         {
-          personaName: participant.personaName,
           resolvedPersonaId,
           contentPreview: personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
         },

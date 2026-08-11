@@ -31,7 +31,10 @@ function buildInputs(): ProbeInputs {
     userTimezone: 'UTC',
   };
   const participantPersonas = new Map<string, ParticipantInfo>([
-    ['Vee', { content: 'A curious engineer', isActive: true, personaId: 'persona-1' }],
+    [
+      'persona-1',
+      { personaName: 'Vee', content: 'A curious engineer', isActive: true, personaId: 'persona-1' },
+    ],
   ]);
   return {
     personality: createMockPersonality({ systemPrompt: '<rules>Stay wry with {user}.</rules>' }),
