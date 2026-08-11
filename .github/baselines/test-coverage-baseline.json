@@ -1,6 +1,6 @@
 {
-  "version": 12,
-  "lastUpdated": "2026-07-29T10:42:51.225Z",
+  "version": 14,
+  "lastUpdated": "2026-08-11T12:32:25.536Z",
   "services": {
     "detectedPrismaServices": [
       "packages/common-types/src/services/SystemSettingsService.ts",
@@ -9,6 +9,7 @@
       "packages/conversation-history/src/ConversationSyncService.ts",
       "packages/identity/src/UserService.ts",
       "packages/identity/src/personality/PersonalityLoader.ts",
+      "services/ai-worker/src/services/DescriptionPromptService.ts",
       "services/ai-worker/src/services/LongTermMemoryService.ts",
       "services/ai-worker/src/services/extraction/FactExtractionService.ts",
       "services/api-gateway/src/services/AccountDeletionService.ts",
@@ -28,9 +29,9 @@
   },
   "meta": {
     "toolVersion": "test-audit/1.0",
-    "configHash": "b97e8ab63c1f",
+    "configHash": "70640f4cfd05",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "e7b21540382657c75cbe6662788d47906a238daf",
-    "generatedAt": "2026-07-29T10:42:51.225Z"
+    "generatedFromSha": "63ee212b5b8ec66dc2096bfd554c46db16355986",
+    "generatedAt": "2026-08-11T12:32:25.536Z"
   }
 }

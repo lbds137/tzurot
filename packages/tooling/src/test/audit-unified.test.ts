@@ -244,10 +244,12 @@ export class SimpleService {
         if (path.includes('bot-client/src')) return true;
         if (path.includes('common-types/src')) return true;
         if (path.includes('tests/e2e')) return false;
+        if (path.endsWith('/services')) return true;
         return false;
       });
 
       mockReaddirSync.mockImplementation((dir: string) => {
+        if (dir.endsWith('/services')) return ['ai-worker'];
         if (dir.includes('ai-worker/src')) return ['KnownService.ts'];
         if (dir.includes('common-types/src/schemas/api')) return ['test-schema.ts'];
         if (dir.includes('common-types/src/types')) return [];
@@ -304,10 +306,12 @@ export class SimpleService {
         if (path.includes('bot-client/src')) return true;
         if (path.includes('common-types/src')) return true;
         if (path.includes('tests/e2e')) return false;
+        if (path.endsWith('/services')) return true;
         return false;
       });
 
       mockReaddirSync.mockImplementation((dir: string) => {
+        if (dir.endsWith('/services')) return ['ai-worker'];
         if (dir.includes('ai-worker/src')) return ['NewService.ts'];
         if (dir.includes('common-types/src/schemas/api')) return [];
         if (dir.includes('common-types/src/types')) return [];
@@ -346,25 +350,41 @@ export class SimpleService {
       expect(result).toBe(false);
     });
 
-    // Parameterized over EACH new serviceDirs entry independently: a Prisma
-    // service under the extracted package, with no component test and not in the
-    // baseline, must be flagged. If the dir weren't scanned (a path typo in
-    // serviceDirs), findServiceFiles would miss it and the audit would wrongly
-    // pass — so a `false` result proves THAT package is in scope. One case per
-    // dir so a typo in either entry fails its own case.
-    it.each(['packages/identity/src', 'packages/conversation-history/src'])(
-      'scans extracted package %s so its Prisma services are ratcheted',
+    // Parameterized over packages discovered under `packages/*\/src` — including
+    // one, `newly-extracted-package`, that was NEVER in the old hardcoded
+    // serviceDirs list. A Prisma service under each, with no component test and
+    // not in the baseline, must be flagged. Before this change, only a
+    // hand-maintained list decided which packages were scanned at all — a
+    // Prisma service under any OTHER package (like `newly-extracted-package`)
+    // would silently escape the ratchet. Discovery closes that: every
+    // `packages/*\/src` directory is scanned, so a `false` result here proves
+    // scanning isn't limited to a remembered list.
+    it.each([
+      'packages/identity/src',
+      'packages/conversation-history/src',
+      'packages/newly-extracted-package/src',
+      // Both roots get a never-in-the-old-list case: the loop body is shared,
+      // but "provably symmetric by inspection" is exactly the claim a test is
+      // supposed to replace.
+      'services/newly-extracted-service/src',
+    ])(
+      'scans package %s via directory discovery so its Prisma services are ratcheted',
       async (pkgDir: string) => {
+        const [root, pkgName] = pkgDir.split('/');
+
         mockExistsSync.mockImplementation((path: string) => {
           if (path.includes('.component.test.ts')) return false;
           if (path.includes('test-coverage-baseline')) return true;
+          if (path.endsWith(`/${root}`)) return true;
           if (path.includes(pkgDir)) return true;
           return false;
         });
 
-        mockReaddirSync.mockImplementation((dir: string) =>
-          dir.includes(pkgDir) ? ['ExtractedService.ts'] : []
-        );
+        mockReaddirSync.mockImplementation((dir: string) => {
+          if (dir.endsWith(`/${root}`)) return [pkgName];
+          if (dir.includes(pkgDir)) return ['ExtractedService.ts'];
+          return [];
+        });
 
         mockStatSync.mockImplementation((path: string) => ({
           isDirectory: () => !path.includes('.ts'),
@@ -409,10 +429,12 @@ export class SimpleService {
         if (path.includes('bot-client/src')) return true;
         if (path.includes('common-types/src')) return true;
         if (path.includes('tests/e2e')) return false;
+        if (path.endsWith('/services')) return true;
         return false;
       });
 
       mockReaddirSync.mockImplementation((dir: string) => {
+        if (dir.endsWith('/services')) return ['ai-worker'];
         if (dir.includes('ai-worker/src')) return ['SimpleService.ts'];
         if (dir.includes('common-types/src/schemas/api')) return [];
         if (dir.includes('common-types/src/types')) return [];
@@ -463,10 +485,12 @@ export class SimpleService {
         if (path.includes('bot-client/src')) return true;
         if (path.includes('common-types/src')) return true;
         if (path.includes('tests/e2e')) return false;
+        if (path.endsWith('/services')) return true;
         return false;
       });
 
       mockReaddirSync.mockImplementation((dir: string) => {
+        if (dir.endsWith('/services')) return ['ai-worker'];
         if (dir.includes('ai-worker/src')) return ['NewService.ts'];
         if (dir.includes('common-types/src/schemas/api')) return [];
         if (dir.includes('common-types/src/types')) return [];

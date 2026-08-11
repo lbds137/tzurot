@@ -54,23 +54,39 @@ const UNIFIED_BASELINE_PATH = '.github/baselines/test-coverage-baseline.json';
 // ============================================================================
 
 /**
+ * Discover scan directories via `packages/*\/src` and `services/*\/src`,
+ * rather than a hand-maintained list. Every package or service that has a
+ * `src/` directory is scanned automatically — so a newly-extracted package
+ * (a Prisma-backed service split out of an existing one, the way
+ * `packages/identity` and `packages/conversation-history` were) enters the
+ * component-test coverage ratchet the moment its `src/` exists, instead of
+ * silently escaping it until someone remembers to add it to a list.
+ */
+function discoverServiceDirs(projectRoot: string): string[] {
+  const dirs: string[] = [];
+
+  for (const root of ['packages', 'services']) {
+    const rootDir = join(projectRoot, root);
+    if (!existsSync(rootDir)) continue;
+
+    for (const entry of readdirSync(rootDir)) {
+      const srcDir = join(rootDir, entry, 'src');
+      if (existsSync(srcDir)) {
+        dirs.push(srcDir);
+      }
+    }
+  }
+
+  return dirs.sort();
+}
+
+/**
  * Find all service files in the project
  */
 function findServiceFiles(projectRoot: string): string[] {
   const services: string[] = [];
 
-  const serviceDirs = [
-    join(projectRoot, 'services/ai-worker/src'),
-    join(projectRoot, 'services/api-gateway/src'),
-    join(projectRoot, 'services/bot-client/src'),
-    join(projectRoot, 'packages/common-types/src'),
-    // Packages outside `services/` that hold Prisma-backed services. Scanned so
-    // their component-test coverage is ratcheted too — otherwise deleting one of
-    // their component tests would silently drop the gate. Add a package here when
-    // it gains a Prisma-using `*Service.ts`.
-    join(projectRoot, 'packages/identity/src'),
-    join(projectRoot, 'packages/conversation-history/src'),
-  ];
+  const serviceDirs = discoverServiceDirs(projectRoot);
 
   for (const dir of serviceDirs) {
     // Loader.ts included: delegation splits (Service orchestrates, Loader holds
