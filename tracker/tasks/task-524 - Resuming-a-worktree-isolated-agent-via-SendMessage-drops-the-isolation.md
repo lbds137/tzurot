@@ -1,9 +1,10 @@
 ---
 id: TASK-524
 title: Resuming a worktree-isolated agent via SendMessage drops the isolation
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 14:04'
+updated_date: '2026-08-11 20:09'
 labels:
   - 'area:tooling'
   - 'size:S'
