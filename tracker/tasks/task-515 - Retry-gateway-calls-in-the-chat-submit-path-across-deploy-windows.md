@@ -1,9 +1,10 @@
 ---
 id: TASK-515
 title: Retry gateway calls in the chat submit path across deploy windows
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 00:23'
+updated_date: '2026-08-11 02:51'
 labels:
   - 'area:bot-client'
   - 'size:S'
