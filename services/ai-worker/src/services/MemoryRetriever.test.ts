@@ -170,12 +170,14 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
-      expect(result.get('User One')).toEqual({
+      expect(result.get('persona-1')).toEqual({
+        personaName: 'User One',
         content: 'Persona 1 content',
         isActive: true,
         personaId: 'persona-1',
       });
-      expect(result.get('User Two')).toEqual({
+      expect(result.get('persona-2')).toEqual({
+        personaName: 'User Two',
         content: 'Persona 2 content',
         isActive: false,
         personaId: 'persona-2',
@@ -218,10 +220,10 @@ describe('MemoryRetriever', () => {
       );
       expect(result.size).toBe(2);
       // PersonaId should be the resolved UUID, not the discord: format
-      expect(result.get('Grace')?.personaId).toBe('resolved-uuid-1');
-      expect(result.get('Other User')?.personaId).toBe('resolved-uuid-2');
+      expect(result.get('resolved-uuid-1')?.personaId).toBe('resolved-uuid-1');
+      expect(result.get('resolved-uuid-2')?.personaId).toBe('resolved-uuid-2');
       // participantGuildInfo is keyed by original personaId
-      expect(result.get('Other User')?.guildInfo).toEqual({ roles: ['Member'] });
+      expect(result.get('resolved-uuid-2')?.guildInfo).toEqual({ roles: ['Member'] });
     });
 
     it('should skip participants with unresolvable discord: IDs (not registered)', async () => {
@@ -245,8 +247,7 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(1);
-      expect(result.has('Registered User')).toBe(true);
-      expect(result.has('Unregistered User')).toBe(false);
+      expect(result.has('resolved-uuid')).toBe(true);
     });
 
     it('should skip participants with no content', async () => {
@@ -268,12 +269,13 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(1);
-      expect(result.get('Has Content')).toEqual({
+      expect(result.get('persona-1')).toEqual({
+        personaName: 'Has Content',
         content: 'Has content',
         isActive: true,
         personaId: 'persona-1',
       });
-      expect(result.has('No Content')).toBe(false);
+      expect(result.has('persona-2')).toBe(false);
     });
 
     it('should apply activePersonaGuildInfo to active participant', async () => {
@@ -297,7 +299,8 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(1);
-      expect(result.get('User One')).toEqual({
+      expect(result.get('persona-1')).toEqual({
+        personaName: 'User One',
         preferredName: 'User',
         pronouns: 'they/them',
         content: 'Persona content',
@@ -349,12 +352,12 @@ describe('MemoryRetriever', () => {
 
       expect(result.size).toBe(2);
       // Active user gets activePersonaGuildInfo
-      expect(result.get('Active User')?.guildInfo).toEqual({
+      expect(result.get('resolved-uuid-1')?.guildInfo).toEqual({
         roles: ['Admin'],
         displayColor: '#FF0000',
       });
       // Inactive user gets info from participantGuildInfo (keyed by original personaId)
-      expect(result.get('Inactive User')?.guildInfo).toEqual({
+      expect(result.get('resolved-uuid-2')?.guildInfo).toEqual({
         roles: ['Member'],
         displayColor: '#00FF00',
       });
@@ -394,9 +397,9 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
-      expect(result.get('Active User')?.guildInfo).toBeDefined();
+      expect(result.get('resolved-uuid-1')?.guildInfo).toBeDefined();
       // DB history user has no guild info (not from extended context)
-      expect(result.get('DB History User')?.guildInfo).toBeUndefined();
+      expect(result.get('db-persona-uuid')?.guildInfo).toBeUndefined();
     });
 
     it('should handle missing participantGuildInfo gracefully', async () => {
@@ -428,8 +431,8 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
-      expect(result.get('Active User')?.guildInfo).toEqual({ roles: ['Admin'] });
-      expect(result.get('Inactive User')?.guildInfo).toBeUndefined();
+      expect(result.get('resolved-uuid-1')?.guildInfo).toEqual({ roles: ['Admin'] });
+      expect(result.get('resolved-uuid-2')?.guildInfo).toBeUndefined();
     });
 
     it('should include participant with empty persona content (identity-only)', async () => {
@@ -454,7 +457,7 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(1);
-      expect(result.get('New User')).toEqual(
+      expect(result.get('persona-empty')).toEqual(
         expect.objectContaining({
           content: '',
           isActive: true,
@@ -477,6 +480,209 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(0);
+    });
+
+    it('CANARY: two participants with distinct personaIds and identical names must both appear', async () => {
+      // Regression guard for TASK-528: two different Discord users sharing a
+      // persona name (different personaId) must both survive into the map —
+      // previously the map was keyed by personaName, so the second set()
+      // silently overwrote the first and one human vanished from the prompt.
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('persona-alice-1')
+        .mockResolvedValueOnce('persona-alice-2');
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Alice #1 content' })
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Alice #2 content',
+        });
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'persona-alice-1', personaName: 'Alice', isActive: false },
+          { personaId: 'persona-alice-2', personaName: 'Alice', isActive: false },
+        ],
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      expect(result.size).toBe(2);
+      const personaIds = Array.from(result.values()).map(v => v.personaId);
+      expect(personaIds).toContain('persona-alice-1');
+      expect(personaIds).toContain('persona-alice-2');
+    });
+
+    describe('same-personaId dedup (two sightings of the SAME user under different names)', () => {
+      it('keeps the active-speaker sighting even when the later sighting has a longer name', async () => {
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Lila content',
+        });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: true },
+            { personaId: 'persona-lila', personaName: 'Lila Shabbat Nachiel', isActive: false },
+          ],
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect(result.size).toBe(1);
+        expect(result.get('persona-lila')?.personaName).toBe('Lila');
+        expect(result.get('persona-lila')?.isActive).toBe(true);
+        // Second sighting was skipped before ever calling getPersonaForPrompt again
+        expect(mockPersonaResolver.getPersonaForPrompt).toHaveBeenCalledTimes(1);
+      });
+
+      it('keeps the shorter (persona) name over a longer (Discord display) name when neither sighting is active', async () => {
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Lila content',
+        });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: false },
+            { personaId: 'persona-lila', personaName: 'Lila Shabbat Nachiel', isActive: false },
+          ],
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect(result.size).toBe(1);
+        expect(result.get('persona-lila')?.personaName).toBe('Lila');
+      });
+
+      it('replaces a longer first-seen name when a shorter inactive name arrives second', async () => {
+        // The mirror of the shorter-name test above: there, the short name was
+        // seen FIRST and simply won by being kept. Here the long name lands
+        // first, so preferring the short one requires actually REPLACING the
+        // existing entry. Every other test in this block puts the short name
+        // first, which leaves this replace path unexercised.
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Lila v1' })
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Lila v2' });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila Shabbat Nachiel', isActive: false },
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: false },
+          ],
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect(result.size).toBe(1);
+        expect(result.get('persona-lila')?.personaName).toBe('Lila');
+      });
+
+      it('keeps the FIRST-seen name when both sightings are the same length', async () => {
+        // The tie-break is `<=`, so equal-length names leave the existing entry
+        // in place rather than churning it for an equally-good alternative.
+        // Pinned because `<` and `<=` are indistinguishable on every other case
+        // in this block.
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Lila content',
+        });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: false },
+            { personaId: 'persona-lila', personaName: 'Nyxa', isActive: false },
+          ],
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect(result.size).toBe(1);
+        expect(result.get('persona-lila')?.personaName).toBe('Lila');
+      });
+
+      it('replaces a shorter name with a longer one when the later sighting is the active speaker', async () => {
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt
+          .mockResolvedValueOnce({
+            preferredName: null,
+            pronouns: null,
+            content: 'Lila content v1',
+          })
+          .mockResolvedValueOnce({
+            preferredName: null,
+            pronouns: null,
+            content: 'Lila content v2',
+          });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: false },
+            { personaId: 'persona-lila', personaName: 'Lila Shabbat Nachiel', isActive: true },
+          ],
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect(result.size).toBe(1);
+        expect(result.get('persona-lila')?.personaName).toBe('Lila Shabbat Nachiel');
+        expect(result.get('persona-lila')?.isActive).toBe(true);
+        expect(result.get('persona-lila')?.content).toBe('Lila content v2');
+      });
+
+      it('keeps a replaced participant in its ORIGINAL roster position', async () => {
+        // Map iteration order is the <participants> render order. Overwriting an
+        // existing key preserves that key's first-insertion position, so a
+        // participant whose name is later replaced does not jump to the end of
+        // the roster. Pinned because it is easy to reintroduce a delete+set
+        // (which appends) while refactoring the dedup branch.
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-bob')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Lila v1' })
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Bob content' })
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Lila v2' });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: false },
+            { personaId: 'persona-bob', personaName: 'Bob', isActive: false },
+            // Third sighting is the active speaker, so it replaces Lila's entry
+            { personaId: 'persona-lila', personaName: 'Lila Shabbat Nachiel', isActive: true },
+          ],
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect([...result.keys()]).toEqual(['persona-lila', 'persona-bob']);
+        expect(result.get('persona-lila')?.personaName).toBe('Lila Shabbat Nachiel');
+      });
     });
   });
 

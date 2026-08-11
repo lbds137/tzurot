@@ -57,6 +57,7 @@ interface BuildSystemMessageOptions {
 interface BuildVolatilePrefixOptions {
   personality: LoadedPersonality;
   context: ConversationContext;
+  /** Keyed by resolvedPersonaId (a UUID) — see `ParticipantInfo`/`PersonaLoadResult` in ConversationalRAGTypes.ts. */
   participantPersonas: Map<string, ParticipantInfo>;
   referencedMessagesFormatted?: string;
   /** Distilled active facts for the `<facts>` block (empty/absent = no block). */
