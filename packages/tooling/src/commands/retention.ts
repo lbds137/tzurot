@@ -7,6 +7,7 @@
  */
 
 import type { CAC } from 'cac';
+import { rawOptionValue } from '../utils/cli-args.js';
 import type { Environment } from '../utils/env-runner.js';
 
 const ENV_OPTION = '--env <env>';
@@ -58,7 +59,7 @@ export function registerRetentionCommands(cli: CAC): void {
         env?: Environment;
         dryRun?: boolean;
         force?: boolean;
-        exclude?: string;
+        // exclude is read from argv below, not from cac's parsed value.
         breakerOverride?: boolean;
       }) => {
         const { retentionPurge } = await import('../retention/purge.js');
@@ -66,7 +67,12 @@ export function registerRetentionCommands(cli: CAC): void {
           env: options.env ?? 'dev',
           dryRun: options.dryRun,
           force: options.force,
-          exclude: options.exclude,
+          // A SINGLE all-digit id is number-coerced by cac's parser, and
+          // parseExcludes then calls .trim() on a number — so the one flag
+          // protecting an account from a purge run crashes on its documented
+          // single-user case. (A comma-list survives: the comma defeats the
+          // coercion.) Read verbatim, like every other id-valued flag.
+          exclude: rawOptionValue(process.argv, '--exclude'),
           breakerOverride: options.breakerOverride,
         });
       }

@@ -1,3 +1,4 @@
+import { cac } from 'cac';
 import { describe, it, expect } from 'vitest';
 import { rawOptionValue, parseIntFlag } from './cli-args.js';
 import { UsageError } from './errors.js';
@@ -18,6 +19,28 @@ describe('rawOptionValue', () => {
 
   it('returns undefined for an absent flag', () => {
     expect(rawOptionValue(['--other', 'x'], '--channel')).toBeUndefined();
+  });
+
+  it('returns the FIRST occurrence of a repeated flag', () => {
+    expect(rawOptionValue(['--channel', 'aaa', '--channel', 'bbb'], '--channel')).toBe('aaa');
+  });
+
+  it('diverges from cac on a repeated flag, which yields an array', () => {
+    // Pins the docblock's claim about cac rather than asserting it in prose:
+    // cac collects every occurrence, so its value is not even the `string` the
+    // option declares. rawOptionValue takes the first.
+    const cli = cac('test');
+    let parsed: unknown;
+    cli
+      .command('probe')
+      .option('--channel <id>', 'test flag')
+      .action((options: { channel?: unknown }) => {
+        parsed = options.channel;
+      });
+    cli.parse(['node', 'test', 'probe', '--channel', 'aaa', '--channel', 'bbb'], { run: true });
+
+    expect(parsed).toEqual(['aaa', 'bbb']);
+    expect(rawOptionValue(['--channel', 'aaa', '--channel', 'bbb'], '--channel')).toBe('aaa');
   });
 
   it('returns undefined when the flag has no value token', () => {

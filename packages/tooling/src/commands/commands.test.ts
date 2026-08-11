@@ -50,6 +50,10 @@ vi.mock('../inspect/dlq.js', () => ({
   viewDlq: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../retention/purge.js', () => ({
+  retentionPurge: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('command handlers', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
@@ -163,22 +167,78 @@ describe('command handlers', () => {
       });
     });
 
-    it('delivers an all-digit --job-id to fetchLogs as a STRING (CAC auto-casts to number)', async () => {
-      // CAC/mri parses `--job-id 42317` to the number 42317; without the
-      // String() coercion in deploy.ts, logs.ts's `typeof === 'string'` term
-      // filter silently drops it — the dig runs unfiltered while looking
-      // successful. This test crosses the real cli.parse() boundary the
-      // logs.test.ts unit tests bypass.
+    it('delivers a snowflake --job-id to fetchLogs digit-for-digit', async () => {
+      // CAC/mri coerces all-digit values to Number, and a snowflake exceeds
+      // 2^53: `--job-id 1536529216659792013` parses as ...792100, which still
+      // LOOKS like a job id, so the dig greps for an id nobody ever logged and
+      // reports a false-empty. Stringifying cac's value cannot recover the
+      // digits, so deploy.ts reads argv directly. A small id (the previous
+      // fixture) round-trips through Number unharmed and cannot catch this.
+      const snowflake = '1536529216659792013';
       const { registerDeployCommands } = await import('./deploy.js');
       const { fetchLogs } = await import('../deployment/logs.js');
       const cli = cac('test');
       registerDeployCommands(cli);
 
-      cli.parse(['node', 'test', 'logs', '--env', 'prod', '--job-id', '42317'], { run: true });
+      const priorArgv = process.argv;
+      process.argv = ['node', 'test', 'logs', '--env', 'prod', '--job-id', snowflake];
+      try {
+        cli.parse(process.argv, { run: true });
 
-      await vi.waitFor(() => {
-        expect(fetchLogs).toHaveBeenCalledWith(expect.objectContaining({ jobId: '42317' }));
-      });
+        await vi.waitFor(() => {
+          expect(fetchLogs).toHaveBeenCalledWith(expect.objectContaining({ jobId: snowflake }));
+        });
+      } finally {
+        process.argv = priorArgv;
+      }
+    });
+
+    it('delivers --request-id verbatim from argv', async () => {
+      const requestId = 'f333a5db-1234-5678-9abc-def012345678';
+      const { registerDeployCommands } = await import('./deploy.js');
+      const { fetchLogs } = await import('../deployment/logs.js');
+      const cli = cac('test');
+      registerDeployCommands(cli);
+
+      const priorArgv = process.argv;
+      process.argv = ['node', 'test', 'logs', '--env', 'prod', '--request-id', requestId];
+      try {
+        cli.parse(process.argv, { run: true });
+
+        await vi.waitFor(() => {
+          expect(fetchLogs).toHaveBeenCalledWith(expect.objectContaining({ requestId }));
+        });
+      } finally {
+        process.argv = priorArgv;
+      }
+    });
+  });
+
+  describe('retention commands', () => {
+    it('delivers a single --exclude id verbatim, as a string', async () => {
+      // --exclude takes a comma-separated list, and a list of ONE is a bare
+      // all-digit value: cac number-coerces it, and parseExcludes then calls
+      // .trim() on a number and throws. That is the only flag standing between
+      // an account and a purge run, so it must never come from parsed options.
+      const excluded = '900000000000000001';
+      const { registerRetentionCommands } = await import('./retention.js');
+      const { retentionPurge } = await import('../retention/purge.js');
+      const cli = cac('test');
+      registerRetentionCommands(cli);
+
+      const priorArgv = process.argv;
+      process.argv = ['node', 'test', 'retention:purge', '--dry-run', '--exclude', excluded];
+      try {
+        cli.parse(process.argv, { run: true });
+
+        await vi.waitFor(() => {
+          expect(retentionPurge).toHaveBeenCalledWith(
+            expect.objectContaining({ exclude: excluded })
+          );
+        });
+      } finally {
+        process.argv = priorArgv;
+      }
     });
   });
 
