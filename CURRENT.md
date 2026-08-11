@@ -6,7 +6,7 @@
 
 ## 🔄 SESSION STATE (2026-08-10 late, Fable 5 driving — beta.199 RELEASED)
 
-**v3.0.0-beta.199 is out** (2026-08-10 ~20:20 EDT): #2058 merged with owner approval after the holistic review ("no blocking findings"), `release:finalize` resynced develop (SHA-aligned at `8eb94ace6`+), `release:publish` tagged + flipped flags (verified: 199 latest, 198 demoted). No migrations, no advisories. **One open post-release check (owner accepted riding after the merge): the own-voice smoke** — reply to a persona's voice message (dev or prod), expect the static description ("The character's own voice message — its spoken text is the message content."), no transcript; a pre-fix-enriched reference replaying redacted also counts as pass. **Next per owner directive: TASK-513** (Opus 5 orchestrator revisit — pre-trial tweak review + low-risk work slate; owner at 59% weekly Fable <48h post-reset, wants Fable load shifted).
+**v3.0.0-beta.199 is out** (2026-08-10 ~20:20 EDT): #2058 merged with owner approval after the holistic review ("no blocking findings"), `release:finalize` resynced develop (SHA-aligned at `8eb94ace6`+), `release:publish` tagged + flipped flags (verified: 199 latest, 198 demoted). No migrations, no advisories. Own-voice smoke CLOSED via retro-log (open-threads below). Post-release incident: the deploy window caught one in-flight thread reply (~8s bot-client/gateway boot gap → immediate errored slot) — diagnosed, thread recovered with heal-on-read runtime-confirmed, TASK-515 (submit-path retry) + TASK-516 (ops logs snowflake mangle) filed. **Next per owner directive: TASK-513** (Opus 5 orchestrator revisit — pre-trial tweak review + low-risk work slate; owner at 59% weekly Fable <48h post-reset, wants Fable load shifted).
 
 <details><summary>Shipped in beta.199 (session log, compressed)</summary>
 
@@ -28,7 +28,7 @@
 
 **Open threads for next session:**
 
-- **Own-voice post-release smoke** (see SESSION STATE above) — the one item riding after the beta.199 merge, owner-accepted.
+- ~~Own-voice post-release smoke~~ ✅ **CLOSED via retro-log 2026-08-11** (owner-supplied prod diagnostic, requestId `75407676`): all 31 persona `<voice>` tags in the assembled context render the static own-voice description with zero persona transcripts, while user voice messages keep their transcripts — both halves of the invariant runtime-verified in prod.
 - **TASK-513 is next** (owner-directed): Opus 5 orchestrator revisit — pre-trial tweak review + low-risk work slate.
 - TASK-514: mis-channel WARN watch (state:observable) — Railway grep "Suspect reasoning mis-channel" on recurrence signals.
 - Waffles' venue-leak report: awaiting their Share Memories answer (doc-8 carries the venue-scoping design input either way; if they say OFF and never-talked holds, open an investigation with an /inspect evidence request).
