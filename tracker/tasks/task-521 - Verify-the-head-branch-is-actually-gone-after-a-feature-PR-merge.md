@@ -1,9 +1,10 @@
 ---
 id: TASK-521
 title: Verify the head branch is actually gone after a feature-PR merge
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 12:50'
+updated_date: '2026-08-11 20:09'
 labels:
   - 'area:tooling'
   - 'size:S'
