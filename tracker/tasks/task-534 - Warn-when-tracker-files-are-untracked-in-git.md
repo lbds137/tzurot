@@ -4,12 +4,13 @@ title: Warn when tracker files are untracked in git
 status: To Do
 assignee: []
 created_date: '2026-08-11 21:36'
+updated_date: '2026-08-11 23:56'
 labels:
   - 'area:tooling'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: medium
+priority: high
 ordinal: 534000
 ---
 
