@@ -22,5 +22,10 @@
  *   v4 — file glob widened to `*(Service|Loader).ts`: delegation splits put the
  *        actual Prisma calls in a Loader (identity's PersonalityLoader) that the
  *        Service-only glob never scanned.
+ *   v5 — serviceDirs replaced by discovery over `packages/*\/src` +
+ *        `services/*\/src`: a hand-maintained list requires remembering to add
+ *        every newly-extracted package (already missed once, for
+ *        packages/identity + packages/conversation-history); discovery closes
+ *        that class of omission structurally.
  */
-export const TEST_AUDIT_IMPL_VERSION = 4;
+export const TEST_AUDIT_IMPL_VERSION = 5;
