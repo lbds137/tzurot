@@ -25,6 +25,17 @@ Promote when: the beta.199 release lands.
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+STATUS 2026-08-11: plan owner-approved; tweaks SHIPPED (PR #2059 merged — settled Sonnet tier citing the completed 11-unit TASK-487 ledger, never-delegate-the-diff-read, deliverable-length habit, defect-revert guardrail). The trial is STAGED and starts when the owner opens an Opus 5-driven session.
+
+SESSION-START SEQUENCE for the Opus 5 driver (run in order, first turn):
+1. State the env-reported driver model in the first reply (driver-model-check memory; silent downgrades happen).
+2. Read THIS task's notes end to end — the boundaries and kill criteria below are binding.
+3. Normal session start per 06-backlog (CURRENT.md → now.md → digest), then invoke /tzurot-orchestration BEFORE any src edit.
+4. First unit: TASK-516 (safest slate item). Spec it per the skill template; worker = opus-implementer with model: sonnet, isolation: worktree.
+5. The full-diff read is YOUR OWN read — never a verifier subagent. Do not delegate handful-of-tool-call work.
+6. After each unit: append the outcome HERE (unit, orchestrator-diff-read findings vs reviewer findings, over-delegation events, escalation quality, CI cycles), then compact at the unit boundary.
+7. Hard boundaries, no exceptions: no release operations, no schema/migrations, no .claude/rules edits, no owner-taste calls (escalate via AskUserQuestion, one named question + recommendation).
+
 TRIAL PLAN (drafted 2026-08-11, research: Anthropic platform docs "Prompting Claude Opus 5" + "What's new in Claude Opus 5"; internal: orchestration skill, memory records, TASK-487 pilot).
 
 External findings (official docs): Opus 5 (a) delegates to subagents MORE readily than prior models — mitigation is explicit delegation criteria + never delegating self-verification; (b) self-verifies unprompted — generic "double-check" instructions cause over-verification (audited our rules/skills: clean, only procedure-specific conditionals); (c) writes LONGER responses and disk deliverables — needs explicit length calibration; (d) can expand task scope (our 10-working-posture Scope contract already matches the doc wording); (e) is strong at code review/bug-finding with accuracy holding at LOWER effort — good fit for the orchestrator diff-read gate; (f) coordinates subagent teams well (writer-verifier patterns); (g) low/medium effort gives strong quality per token, xhigh for the hardest moments; (h) priced at half Fable, so driving on Opus shifts weekly load off the Fable cap.
