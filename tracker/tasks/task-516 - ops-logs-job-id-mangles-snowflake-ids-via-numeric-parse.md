@@ -1,9 +1,10 @@
 ---
 id: TASK-516
 title: ops logs --job-id mangles snowflake ids via numeric parse
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 00:23'
+updated_date: '2026-08-11 02:33'
 labels:
   - 'area:tooling'
   - 'size:S'
