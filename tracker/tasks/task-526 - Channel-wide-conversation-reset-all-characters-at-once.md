@@ -28,5 +28,7 @@ Remaining work, in order: (1) an authorization path - the only caller today is P
 
 Note the blast radius this reframe introduces: a moderator clearing a channel deletes rows belonging to users who did not ask and are not present. That is a product decision the owner owns - whether to do it at all, whether affected users are told, and whether the moderator scope is the whole channel or only characters the server itself activated.
 
+THEME: member of doc-75 (Guild / Server Management), Phase 2. Read the theme before building - the moderator-authority question in its Phase 1 decides whether this clears only the invoker rows or everyone.
+
 Acceptance: one invocation clears a channel conversation across every character the scope covers, with the confirmation tier the owner picks.
 <!-- SECTION:DESCRIPTION:END -->

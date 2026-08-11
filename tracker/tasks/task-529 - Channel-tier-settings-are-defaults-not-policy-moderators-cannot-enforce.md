@@ -24,5 +24,7 @@ What, if the owner wants it: an enforce direction in the cascade. Options sketch
 
 Owner decision first, because this is product taste with a moderation dimension: does a server moderator get authority over settings a user set for themselves, in that server channel only. There is a real argument for no - the user tier represents the human own preference and their conversations are their own. Filed to make the gap visible, not to advocate for it.
 
+THEME: member of doc-75 (Guild / Server Management), Phase 1 - and the decision this task asks for is the theme cross-cutting question, so answering it unblocks Phase 2 as well. Owner framing 2026-08-11: most of the product is user-level; this is the moderator level.
+
 Acceptance: a recorded decision. If yes, the enforce mechanism plus the dashboard wording that explains it; if no, the answer to why moderators cannot enforce lives somewhere a user can read.
 <!-- SECTION:DESCRIPTION:END -->
