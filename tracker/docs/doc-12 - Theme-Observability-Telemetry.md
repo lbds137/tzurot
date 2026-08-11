@@ -7,7 +7,7 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Observability & Telemetry
 
-_Focus: structured-log quality, log-query improvements, and analytics — explicitly NOT metrics infrastructure. Codebase-wide decisions on retry counts, timeouts, cache TTLs, and feature adoption currently rely on guesswork. Vision-pipeline telemetry (2026-04-14) was the prototype; the rest extends that pattern. **Approach: this theme stays on Pino + structured logs + Railway query DSL. Time-series metrics + distributed tracing (which may stand up OTel) are the complementary [`production-observability-perf-metrics-tracing.md`](production-observability-perf-metrics-tracing.md) theme — load-correlated perf questions go there, log-shape questions come here.**_
+_Focus: structured-log quality, log-query improvements, and analytics — explicitly NOT metrics infrastructure. Codebase-wide decisions on retry counts, timeouts, cache TTLs, and feature adoption currently rely on guesswork. Vision-pipeline telemetry (2026-04-14) was the prototype; the rest extends that pattern. **Approach: this theme stays on Pino + structured logs + Railway query DSL. Time-series metrics + distributed tracing (which may stand up OTel) are the complementary `doc-16` theme — load-correlated perf questions go there, log-shape questions come here.**_
 
 #### ✨ Telemetry Strategy — Decision-Triggering Metrics
 

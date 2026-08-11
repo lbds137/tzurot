@@ -28,5 +28,5 @@ created_date: '2026-07-28 11:11'
 
 **Rider defect found while grounding**: `/memory delete`'s option description reads `'Only delete memories from this time period (e.g., 7d, 30d, 1y)'`, which promises free-form input — but the option is `addChoices`, a locked dropdown. The description was written for a free-form field that never shipped. Fixed for free if this lands; worth fixing regardless.
 
-**Also worth surfacing to users**: `/memory delete` (batch, filtered, skips locked, preview-then-confirm) already exists and the owner did not know it did. Whatever ships here should consider whether that command is discoverable enough — see [`user-docs-and-discoverability.md`](themes/user-docs-and-discoverability.md).
+**Also worth surfacing to users**: `/memory delete` (batch, filtered, skips locked, preview-then-confirm) already exists and the owner did not know it did. Whatever ships here should consider whether that command is discoverable enough — see `doc-25`.
 

@@ -20,8 +20,8 @@ The owner's stated staleness fear — "I've been avoiding it because it's gonna 
 - `docs/commands.md` EXISTS and is actively maintained (updated same-week with `/memory facts`) — the reference-layer problem is partly *reachability from Discord*, not absence.
 - `docs/reference/features/` is the designated home for user-facing feature docs (07-documentation); coverage unaudited.
 - The UX design-system spec (`docs/proposals/backlog/ux-design-system-spec.md`) has a discoverability section — check what it already decides before designing anew.
-- Sibling themes: `first-use-onboarding-dm.md` (`doc-6`) (the first-touch slice; keep its DM short, pointing into this theme's surfaces) and [`user-feedback-solicitation-revive-v2-release-notes-delivery.md`](user-feedback-solicitation-revive-v2-release-notes-delivery.md) (comms outbound; shares the system-DM primitive).
-- **Scope boundary** (owner raised the internal half 2026-07-25): this theme owns the **user-facing** surface — what the platform can do, and how a user finds it. The **internal** model (how 1,260 prod files relate, why the architecture is shaped as it is, intent↔code binding) is [`system-model-and-intent-linkage.md`](system-model-and-intent-linkage.md). Shared root cause, different audience and artifact; Phase 0 of each is the external vs. internal inventory and they should be sequenced together if both land.
+- Sibling themes: `first-use-onboarding-dm.md` (`doc-6`) (the first-touch slice; keep its DM short, pointing into this theme's surfaces) and the shipped user-feedback / release-notes-delivery theme (comms outbound; shares the system-DM primitive).
+- **Scope boundary** (owner raised the internal half 2026-07-25): this theme owns the **user-facing** surface — what the platform can do, and how a user finds it. The **internal** model (how 1,260 prod files relate, why the architecture is shaped as it is, intent↔code binding) is `doc-22`. Shared root cause, different audience and artifact; Phase 0 of each is the external vs. internal inventory and they should be sequenced together if both land.
 
 ### Phase 0 — Investigation (cheap, do first)
 

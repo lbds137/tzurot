@@ -1,6 +1,6 @@
 # Active Epic — Detailed Log
 
-_Per-PR slice detail for the current Active Focus (see [`../active-epic.md`](../active-epic.md)). Reset when the active epic/sweep changes — completed epics' logs live in git history (Memory System Overhaul's log: git history at the 2026-07-17 park; its state summary is in [`themes/memory-system-overhaul.md`](themes/memory-system-overhaul.md))._
+_Per-PR slice detail for the current Active Focus (see [`../active-epic.md`](../active-epic.md)). Reset when the active epic/sweep changes — completed epics' logs live in git history (Memory System Overhaul's log: git history at the 2026-07-17 park; its state summary is in `doc-8`)._
 
 ## Platform-Portable UX Layer (Active Epic)
 
