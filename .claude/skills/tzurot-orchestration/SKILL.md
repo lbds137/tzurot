@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-10'
+lastUpdated: '2026-08-11'
 ---
 
 # Orchestrator Mode
@@ -106,6 +106,27 @@ A stale base is the failure mode that reads as competence: the worker behaves
 correctly against the code it can see, and confidently "corrects" a spec that
 was right about the code it cannot.
 
+### Resuming a worktree-isolated worker
+
+**A `SendMessage` resume can silently drop the isolation.** Observed: a worker
+spawned with `isolation: "worktree"` (worktree confirmed — it reported a base
+SHA 26 commits stale and stopped on it) was resumed via `SendMessage`; the
+resumed run created its branch and made every edit in the ORCHESTRATOR's tree,
+and `.claude/worktrees/` was empty at completion. The tool result says
+"resumed from transcript" and nothing about isolation, so this fails silently
+in the direction the worktree mandate exists to prevent. A resume runs in the
+BACKGROUND — `SendMessage` returns while the worker's turn is still executing —
+so there is no checkpoint to gate on: the check below races the worker rather
+than preceding it. Run it as soon as the resume returns, and until it comes
+back clean, treat the resumed worker as same-tree and its diff as suspect,
+which means the freeze posture above applies to the orchestrator's own git
+operations:
+
+```bash
+git worktree list                 # the worker's worktree should still be listed
+git branch --show-current         # the orchestrator tree must NOT be on the worker's branch
+```
+
 ## While the worker runs
 
 Pre-stage the next unit's grounding — read the files, profile the data, draft
@@ -130,7 +151,9 @@ use subagents to verify or double-check your own work. Then:
   grounding is suspect (stale worktree base, confused state) — or when the
   worker's agent id did not survive a compaction boundary: ids cannot be
   enumerated afterward (same gap as Monitor ids, `CLAUDE.md` § Compaction
-  Instructions), so a lost id means fresh-spawn is the only path.
+  Instructions), so a lost id means fresh-spawn is the only path. **A resume is
+  not isolation-preserving** — re-verify per § Resuming a worktree-isolated
+  worker before the resumed worker edits anything.
 - Check every reported deviation against the spec's intent, not just its
   letter.
 - Re-run the gates yourself when the worker's verification tails are absent or

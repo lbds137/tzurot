@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-09'
+lastUpdated: '2026-08-11'
 ---
 
 # Git Workflow Procedures
@@ -127,6 +127,52 @@ The gate prints exactly one sentinel, and **only `CI_COMPLETE` means CI actually
 
 **Merge gate is green-only.** Per `.claude/rules/00-critical.md` "Never Merge PRs Without Completed CI": every check must be green before `gh pr merge` runs, including release PRs. If a check fails for what looks like infrastructure reasons (binary not found, missing secret, action-setup error), `gh run rerun <run-id> --failed` and re-arm the Monitor — don't merge through the red. The release procedure below assumes a green pipeline.
 
+### Before merging: the head branch must be checked out NOWHERE
+
+**`--delete-branch` fails silently when the head branch is checked out anywhere** — git refuses to delete a checked-out branch, `gh` reports the LOCAL failure, and the merge itself still succeeds. The PR closes as merged and nothing says a branch is still there; it surfaces later as a repo-state-sweep finding, or when someone notices the pile.
+
+**Observed, with the mechanism left open:** on the merges that hit this, the **remote** branch survived as well as the local one (PR #2064's live error text; PR #2061 found later in a sweep; PR #2063 clean once the worktree was removed first). Whether `gh` skips the remote delete _because_ the local one failed, or the two just fail together for a shared reason, is not established — the observation is that both survive, and `gh`'s internal ordering is not the kind of thing that stays fixed across versions. That is why the verification step below exists rather than a rule about what `gh` does: verify the ref, don't reason about the tool.
+
+"Anywhere" is the whole rule, and the easy-to-forget instance is the checkout you are not looking at: a **worktree** (the orchestration skill mandates one for every file-mutating worker, so every delegated unit lands in this state) or the **main checkout** still sitting on the branch after a local review.
+
+The worktree case is the confirmed, load-bearing one — `gh` cannot know about a checkout in another directory. For the main checkout, `gh` may well switch you away itself (the hotfix section below records it doing exactly that), so treat that half as defensive rather than load-bearing; it is unverified for the ordinary feature-PR path and costs nothing either way. Before the merge:
+
+```bash
+git status --short                        # check the main tree BEFORE moving off the branch
+git worktree list                         # find any worktree holding the branch
+git checkout develop                      # get the main checkout off it
+```
+
+`git checkout` refuses rather than discards, so the leading `status` is not protecting against loss — it is there because uncommitted work in the main tree at merge time means something is unfinished, and finding that out _before_ the merge is cheaper than after.
+
+**Check every worktree before removing it — `--force` or not.** Run this against each worktree the previous step listed, and do not skip it because you are using plain `remove`:
+
+```bash
+git fetch -p                                      # --remotes reads LOCAL tracking refs; refresh them first
+git -C <path> status --short                      # empty = no modified or untracked files
+git -C <path> log --oneline --not --remotes       # empty = every commit is on a remote
+git worktree remove <path>                        # only once BOTH are empty
+```
+
+**Plain `git worktree remove` does not protect you here.** It refuses only on a DIRTY worktree — modified or untracked files. A worktree whose work is **committed but never pushed** is clean by that definition, so plain removal takes it with exit 0, and `--delete-branch` at the merge step below then deletes the only ref holding those commits, leaving them reachable solely through a local reflog. Measured end to end in a scratch repo: commit-without-push → `git worktree remove` exit 0 → `git branch -D` → the commit is absent from `git log --all`. That is precisely the resumed-worker scenario in § Resuming a worktree-isolated worker in `/tzurot-orchestration`, which is why the check is unconditional rather than a `--force` caveat.
+
+**`--not --remotes`, not `@{u}..`** — measured: `@{u}` dies with `fatal: no upstream configured` (exit 128) on a branch that was created but never pushed, which is precisely the state you are checking for, so the check would abort exactly when it matters.
+
+**If either is non-empty, do NOT remove the worktree yet — get the work to safety first**, then re-run the check and remove:
+
+```bash
+git -C <path> add -A && git -C <path> commit -m "chore: snapshot before worktree cleanup"
+git -C <path> push -u origin HEAD                                       # if commits were unpushed
+```
+
+Uncommitted work in a worktree is the same hours-of-work class as anywhere else (`00-critical.md` § Destructive Commands): commit and push it, then decide what it was. A merge is never urgent enough to skip that. (`chore:`, not `wip:` — `wip` is not in commitlint's `type-enum`, so the hook rejects it at exactly the moment you need the commit to land.)
+
+**If that push happened, you are no longer ready to merge.** It put a commit on the PR's head branch that CI has never seen, so re-arm the Monitor and wait for a fresh green run before the merge below — `00-critical.md` § Never Merge PRs Without Completed CI requires green on the LATEST commit, and the green-only gate a few sections above applies here with no exception for a recovery commit. Then merge — this is the feature-PR invocation the sections above build up to, and `--delete-branch` is correct here precisely because the branch is disposable:
+
+```bash
+gh pr merge <N> --rebase --delete-branch
+```
+
 ### After PR Merged
 
 ```bash
@@ -134,6 +180,22 @@ git checkout develop
 git pull origin develop
 git branch -d feat/your-feature
 ```
+
+**Then verify the remote branch is actually gone** — the ordering step above makes the delete possible, not certain, and this is what turns any other silent-delete failure into a report instead of a discovery:
+
+```bash
+git ls-remote --exit-code --heads origin "<branch>"; case $? in
+  0) echo "SURVIVED — re-delete" ;;
+  2) echo "deleted ✓" ;;
+  *) echo "UNKNOWN — ls-remote itself failed; the branch's state was NOT checked" ;;
+esac
+```
+
+**This is not the push-verify `ls-remote` from the Commit Procedure above.** That one reads the ref's SHA out of stdout to prove a push landed _at a specific commit_; this one asks only whether the ref exists at all, which is why it wants `--exit-code` and ignores stdout. Same command, opposite questions — don't swap one form for the other.
+
+**Use the `case`, not `&& … || …`.** Measured: the `||` form prints `deleted ✓` immediately after a fatal `Could not read from remote repository`, because `||` catches every nonzero — a network blip, an auth failure or a wrong remote all report the branch gone. A verification step that reports success when it could not run is the failure it exists to catch. `--exit-code` distinguishes the cases (`0` found, `2` no match, anything else an error), so read the status rather than its truthiness.
+
+`git push origin --delete <branch>` re-deletes a survivor. **Never for `develop` or `main`** (`00-critical.md` § Long-Lived Branch Protection) — the `develop`→`main` release PR merges without `--delete-branch`, so nothing here applies to it. That carve-out is about the long-lived BRANCH, not about the word "release": the hotfix flow below cuts a disposable `chore/release-vX.Y.Z-beta.N` branch and does pass `--delete-branch`, so it can survive its merge like any other feature branch — verify it the same way.
 
 ## Dependabot PR Recovery
 
