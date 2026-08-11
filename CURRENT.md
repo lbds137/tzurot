@@ -26,6 +26,14 @@
 
 </details>
 
+## 🧪 OPUS 5 ORCHESTRATOR TRIAL — units 1-2 done (2026-08-11, Opus 5 driving)
+
+**Both units merged.** #2060 (TASK-516: `ops logs` snowflake truncation — cac/mri coerces all-digit values past 2^53, so an incident dig silently grepped a different id; fixed via the existing `rawOptionValue`, plus a source-scanning guard and a class sweep that also caught `retention:purge --exclude`, which CRASHED on its documented single-id case). #2061 (TASK-515: submit-path retry across a deploy window; retry narrowed to CONNECTION failures only because `generate()` creates a paid job and the gateway's 5s dedup window is shorter than the ~14s backoff; three duplicated retry loops extracted to `withGatewayRetry`).
+
+**Trial verdict is the owner's call** — full record in TASK-513's notes. Honest read: 2 substantive reviewer catches across 2 units, both traceable to the ORCHESTRATOR's spec framing (neither spec said the call was non-idempotent), none to the Sonnet worker (TASK-487 unit 12, still 0 worker semantic defects) and none to code the diff-read examined. Recommendation: continue to units 3-5 (TASK-32, 24, 178) with "does the spec state the invariants the code actually has?" added to the spec template, rather than declaring pass or kill at n=2.
+
+**Also this stretch**: two comments I wrote asserted external-library behavior as fact and were wrong both times (cac repeated-flag → returns an ARRAY; `AbortSignal.timeout` → clock starts at `fetch()`, so a timeout does NOT imply delivery). Both reviewer-caught. Operationalized: a memory carrying the code-comment trigger + TASK-520 for the rules wording. Filed this session: TASK-518 (owner: dedup window vs retry span), TASK-519 (guard's non-id-named flag gap), TASK-520.
+
 **Open threads for next session:**
 
 - ~~Own-voice post-release smoke~~ ✅ **CLOSED via retro-log 2026-08-11** (owner-supplied prod diagnostic, requestId `75407676`): all 31 persona `<voice>` tags in the assembled context render the static own-voice description with zero persona transcripts, while user voice messages keep their transcripts — both halves of the invariant runtime-verified in prod.
