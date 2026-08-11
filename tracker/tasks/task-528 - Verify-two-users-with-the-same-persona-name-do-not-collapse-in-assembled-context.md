@@ -1,10 +1,10 @@
 ---
 id: TASK-528
 title: Two users with the same persona name collapse into one participants entry
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 18:37'
-updated_date: '2026-08-11 18:48'
+updated_date: '2026-08-11 22:08'
 labels:
   - 'area:ai-worker'
   - 'size:S'
