@@ -4,13 +4,21 @@
 
 | Rule                     | Limit | Level | Fix Strategy           |
 | ------------------------ | ----- | ----- | ---------------------- |
-| `max-lines`              | 400   | Error | Split + move tests     |
-| `max-lines-per-function` | 100   | Warn  | Extract helpers        |
+| `max-lines`              | 400\* | Error | Split + move tests     |
+| `max-lines-per-function` | 100\* | Warn  | Extract helpers        |
 | `complexity`             | 20    | Warn  | Data-driven approach   |
 | `max-depth`              | 4     | Warn  | Early returns, extract |
 | `max-params`             | 5     | Warn  | Options object pattern |
 | `max-nested-callbacks`   | 3     | Warn  | Extract/flatten        |
 | `max-statements`         | 50    | Warn  | Extract helpers        |
+
+**\* Both line rules run with `skipBlankLines` + `skipComments`**
+(separate `max-lines` and `max-lines-per-function` blocks in `eslint.config.js`,
+carrying the same options), so `wc -l` is NOT the metric — a comment-heavy
+395-raw-line file counted 196, and an unnecessary extraction was justified on
+that false premise. `pnpm lint` is the only arbiter; to see the counted size,
+force it out with
+`npx eslint <file> --rule '{"max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}'`.
 
 **Note**: Test files (`*.test.ts`, `*.spec.ts`) are excluded from the
 size/complexity limits above but are still linted (vitest correctness + style
@@ -66,6 +74,14 @@ lookahead prevents backtracking") claim just as much. Naming a mechanism alone
 does not ("uses a lookahead to skip whitespace"), and neither does
 design-structure prose ("cannot be extracted"). Name the test, or hedge in the
 comment itself (`// not verified: assumes the caller already acked`).
+
+**A comment explaining code by what a DEPENDENCY does is an external-system
+claim** — `00-critical.md`'s probe-first rule applies at the moment you write
+the comment, not only when you state the claim in prose. "cac returns the last
+value for a repeated flag", "the timeout means it was delivered": probe (a
+`--help`, a one-line call) or hedge in the comment. Explaining a shape feels
+like documentation rather than assertion, which is exactly why this shape got
+past the rule twice in one session.
 
 In CODE files the VALUE half (`never null`, `always populated`, `cannot be
 <value>`) is caught mechanically by `claim-shape-guard.sh`, which skips `*.md`

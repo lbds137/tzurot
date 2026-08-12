@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-11'
+lastUpdated: '2026-08-12'
 ---
 
 # Git Workflow Procedures
@@ -37,7 +37,7 @@ EOF
 
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug`
 (`debug` = temporary diagnostic instrumentation, added then removed; see `.claude/rules/05-tooling.md` § "The `debug` type" for when to use it vs. `chore`/`feat`.)
-**Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
+**Scopes:** generated from every `packages/`+`services/` directory, plus `tests` and a static root set (`backlog`, `ci`, `deps`, `docs`, `hooks`, `husky`, `legal`, `prisma`, `repo`, `rules`, `skills`) — source of truth is `allScopes` in `commitlint.config.cjs`.
 
 **Command-shape rules for commit/push** (each class cost multiple cycles in practice):
 
