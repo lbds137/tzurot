@@ -29,6 +29,11 @@ if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
     fi
 fi
 
+# 1b. Uncommitted tracker/ files gate — decision logic (and its probe) live in
+# the hook script; this file stays a composer. Bypass:
+# TZUROT_ALLOW_UNCOMMITTED_TRACKER=1 git push ...
+.claude/hooks/tracker-dirty-push-gate.sh || exit 1
+
 # 2. Determine what files are being pushed
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "")
 
