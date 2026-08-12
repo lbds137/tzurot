@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, and step back at ~3 automated rounds (a rule of thumb, not a hard stop). Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-08-08'
+lastUpdated: '2026-08-12'
 ---
 
 # Review-Response Iteration
@@ -170,6 +170,14 @@ The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST ap
 - A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme-doc phase or idea doc now owns the pass.
 
 Without the tags both dispositions are invisible in the summary: a do-it-now fix reads as an ordinary trivial edit, and a filed batch reads as an ordinary deferral.
+
+**A correction EDITS the original sentence; it does not annotate it.** A round
+that falsifies a claim usually produces two edits — the code fix, reported
+above, and the claim itself, which is easy to leave behind. Appending "update:
+actually…" under a wrong sentence in a PR body, a comment, or a doc leaves that
+sentence leading the document, and the lead is what the next reader takes away.
+Rewrite it. (General to any corrected claim; it sits here because the round
+summary is where the falsification lands.)
 
 **Never present a raw unified diff.** Categorization IS the presentation — it lets the user bulk-confirm the auto-applied group and focus attention on the semantic asks without having to visually separate them.
 
