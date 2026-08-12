@@ -4,14 +4,29 @@ import {
   enrichWithModelContext,
   computeRequiresZaiKey,
 } from './modelValidation.js';
-import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
+import type { OpenRouterModelCache, ModelLookup } from '../services/OpenRouterModelCache.js';
 import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 
+/**
+ * `validateModelAndContextWindow` and `computeRequiresZaiKey` both need to
+ * tell an outage apart from a genuine miss, so both call `lookupModelById`;
+ * `enrichWithModelContext` only displays a cap and still calls `getModelById`.
+ * Both are mocked so either caller's real behavior is exercised —
+ * `lookupModelById` defaults to the resolved/absent shape implied by
+ * `getModelByIdResult` unless a test needs the `unavailable` case explicitly.
+ */
 function createMockModelCache(
-  getModelByIdResult: ModelAutocompleteOption | null = null
+  getModelByIdResult: ModelAutocompleteOption | null = null,
+  lookupModelByIdResult?: ModelLookup
 ): OpenRouterModelCache {
+  const lookup: ModelLookup =
+    lookupModelByIdResult ??
+    (getModelByIdResult === null
+      ? { kind: 'absent' }
+      : { kind: 'resolved', model: getModelByIdResult });
   return {
     getModelById: vi.fn().mockResolvedValue(getModelByIdResult),
+    lookupModelById: vi.fn().mockResolvedValue(lookup),
   } as unknown as OpenRouterModelCache;
 }
 
@@ -147,7 +162,7 @@ describe('validateModelAndContextWindow', () => {
       const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', undefined, true);
       expect(result.error).toBeUndefined();
       expect(result.contextWindowCap).toBe(500_000); // 50% of 1M
-      expect(cache.getModelById).not.toHaveBeenCalled();
+      expect(cache.lookupModelById).not.toHaveBeenCalled();
     });
 
     it('should cap (not skip) z.ai-accepted models — reject an oversized contextWindowTokens', async () => {
@@ -179,7 +194,7 @@ describe('validateModelAndContextWindow', () => {
       expect(result.error).toContain("Model 'z-ai/glm-5.2' is served by the z.ai Coding Plan");
       expect(result.error).toContain('/settings apikey set');
       expect(result.error).not.toContain('not found');
-      expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
+      expect(cache.lookupModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
     });
 
     it('should NOT falsely reject an OpenRouter-available z.ai model with no key', async () => {
@@ -194,7 +209,7 @@ describe('validateModelAndContextWindow', () => {
       const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.1', undefined, false);
       expect(result.error).toBeUndefined();
       expect(result.contextWindowCap).toBe(101376); // Math.floor(202752 / 2)
-      expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.1');
+      expect(cache.lookupModelById).toHaveBeenCalledWith('z-ai/glm-5.1');
     });
 
     it('should keep the generic not-found message for a genuinely unknown z-ai model', async () => {
@@ -220,7 +235,7 @@ describe('validateModelAndContextWindow', () => {
       const cache = createMockModelCache(null);
       const result = await validateModelAndContextWindow(cache, 'glm-5', undefined, true);
       expect(result.error).toContain("Model 'glm-5' not found");
-      expect(cache.getModelById).toHaveBeenCalledWith('glm-5');
+      expect(cache.lookupModelById).toHaveBeenCalledWith('glm-5');
     });
 
     it('should fall through to OpenRouter for non-catalog models even with a key', async () => {
@@ -236,7 +251,54 @@ describe('validateModelAndContextWindow', () => {
       );
       expect(result.error).toBeUndefined();
       expect(result.contextWindowCap).toBe(100000);
-      expect(cache.getModelById).toHaveBeenCalledWith('anthropic/claude-sonnet-4');
+      expect(cache.lookupModelById).toHaveBeenCalledWith('anthropic/claude-sonnet-4');
+    });
+  });
+
+  describe('catalog-unavailable vs. genuine-miss (TASK-539)', () => {
+    it('reports the catalog-unavailable error when the cache is unreachable', async () => {
+      const cache = createMockModelCache(null, { kind: 'unavailable' });
+      const result = await validateModelAndContextWindow(
+        cache,
+        'anthropic/claude-sonnet-4',
+        undefined
+      );
+      expect(result.error).toBe(
+        "Could not reach the model catalog to validate 'anthropic/claude-sonnet-4'. This is usually temporary — try saving again in a moment."
+      );
+    });
+
+    it('keeps the ORIGINAL not-found error, unchanged, for a genuine catalog miss', async () => {
+      const cache = createMockModelCache(null, { kind: 'absent' });
+      const result = await validateModelAndContextWindow(cache, 'nonexistent/model', undefined);
+      expect(result.error).toBe(
+        "Model 'nonexistent/model' not found in the available models list. " +
+          'Use the model autocomplete to select a valid model, or check if the model ID is correct.'
+      );
+    });
+
+    it('does not let the unavailable branch swallow the z.ai-only keyless error', async () => {
+      // The z.ai-only keyless branch lives inside the `absent` arm and must
+      // still fire on a genuine catalog miss — the new `unavailable` branch
+      // must not intercept it.
+      const cache = createMockModelCache(null, { kind: 'absent' });
+      const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', undefined, false);
+      expect(result.error).toContain("Model 'z-ai/glm-5.2' is served by the z.ai Coding Plan");
+      expect(result.error).toContain('/settings apikey set');
+    });
+
+    it('still REJECTS (returns an error) when the catalog is unavailable — stays fail-closed', async () => {
+      // The most important test in the set: this is the one that fails if
+      // the unavailable case is ever "simplified" into a pass-through. A
+      // catalog outage must never let an unvalidated model save silently.
+      const cache = createMockModelCache(null, { kind: 'unavailable' });
+      const result = await validateModelAndContextWindow(
+        cache,
+        'anthropic/claude-sonnet-4',
+        undefined
+      );
+      expect(result.error).toBeDefined();
+      expect(typeof result.error).toBe('string');
     });
   });
 });
@@ -247,7 +309,7 @@ describe('computeRequiresZaiKey', () => {
     // it (OpenRouter fallthrough would 404), so the badge fires.
     const cache = createMockModelCache(null);
     expect(await computeRequiresZaiKey('z-ai/glm-5.2', false, cache)).toBe(true);
-    expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
+    expect(cache.lookupModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
   });
 
   it('should NOT badge a z.ai model that IS on OpenRouter for a keyless viewer', async () => {
@@ -261,7 +323,7 @@ describe('computeRequiresZaiKey', () => {
     const cache = createMockModelCache(null);
     expect(await computeRequiresZaiKey('z-ai/glm-5.2', true, cache)).toBe(false);
     // Short-circuits on the key before any cache lookup.
-    expect(cache.getModelById).not.toHaveBeenCalled();
+    expect(cache.lookupModelById).not.toHaveBeenCalled();
   });
 
   it('should NOT badge a non-z.ai model', async () => {
@@ -280,11 +342,23 @@ describe('computeRequiresZaiKey', () => {
     const cache = createMockModelCache(null);
     expect(await computeRequiresZaiKey('z-ai/glm-nonexistent', false, cache)).toBe(false);
     // Short-circuits on the catalog-membership check, before the cache lookup.
-    expect(cache.getModelById).not.toHaveBeenCalled();
+    expect(cache.lookupModelById).not.toHaveBeenCalled();
   });
 
-  it('should NOT badge when the cache is unavailable (cannot confirm absence)', async () => {
+  // Renamed: this passes `undefined`, i.e. the cache was never WIRED. It never
+  // exercised an outage, despite previously being titled as if it did — which
+  // is how the unreachable-catalog path below reached zero coverage while
+  // looking covered.
+  it('should NOT badge when no model cache is wired at all', async () => {
     expect(await computeRequiresZaiKey('z-ai/glm-5.2', false, undefined)).toBe(false);
+  });
+
+  it('does NOT badge when the catalog is unreachable', async () => {
+    // A wired-but-unreachable catalog cannot confirm OpenRouter absence, so
+    // badging would be a false positive: the model may well be on OpenRouter
+    // and perfectly runnable for this keyless viewer.
+    const cache = createMockModelCache(null, { kind: 'unavailable' });
+    expect(await computeRequiresZaiKey('z-ai/glm-5.2', false, cache)).toBe(false);
   });
 
   it('should NOT badge when model is undefined', async () => {

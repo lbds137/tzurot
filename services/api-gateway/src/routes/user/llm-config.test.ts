@@ -331,6 +331,10 @@ describe('/user/llm-config routes', () => {
               }
             : null
         ),
+        // Stubbed for the same reason as the enrichment block's fake below —
+        // the cast means a missing method surfaces as a runtime crash, not a
+        // type error, the moment a z-ai/-prefixed model is used here.
+        lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
       const handler = buildHandler(handleListUserLlmConfigs, {
@@ -417,6 +421,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.userApiKey.findFirst.mockResolvedValue(null); // no z.ai-coding key
       const modelCache = {
         getModelById: vi.fn().mockResolvedValue(null), // glm-5.2 not on OpenRouter
+        lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
       const handler = buildHandler(handleGetUserLlmConfig, {
@@ -452,6 +457,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.userApiKey.findFirst.mockResolvedValue({ id: 'zai-key-1' }); // has key
       const modelCache = {
         getModelById: vi.fn().mockResolvedValue(null),
+        lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
       const handler = buildHandler(handleGetUserLlmConfig, {
@@ -665,6 +671,7 @@ describe('/user/llm-config routes', () => {
       });
       const modelCache = {
         getModelById: vi.fn().mockResolvedValue(null),
+        lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
       const handler = buildHandler(handleCreateUserLlmConfig, {
@@ -1083,6 +1090,7 @@ describe('/user/llm-config routes', () => {
       });
       const modelCache = {
         getModelById: vi.fn().mockResolvedValue(null),
+        lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
       const handler = buildHandler(handleUpdateUserLlmConfig, {
@@ -1523,8 +1531,13 @@ describe('/user/llm-config routes', () => {
   });
 
   describe('model context enrichment', () => {
+    // `lookupModelById` is stubbed even though these cases only exercise
+    // `getModelById`: the cast hides a missing method from the compiler, so the
+    // first z-ai/-prefixed model added here would crash with "not a function"
+    // rather than fail an assertion.
     const mockModelCache = {
       getModelById: vi.fn(),
+      lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
     } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
     beforeEach(() => {

@@ -147,11 +147,15 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
     // fixture validate the output schema AND keeps the llm-config handlers'
     // getModelById enrichment path working (it previously no-op'd because
     // modelCache was absent; now it resolves to a valid model). Implement every
-    // method handlers call (getFilteredModels, getModelById) so a partial fake
-    // can't silently bypass a `if (modelCache)` guard elsewhere.
+    // method handlers call (getFilteredModels, getModelById, lookupModelById)
+    // so a partial fake can't silently bypass a `if (modelCache)` guard
+    // elsewhere. The cast below defeats the compiler, so a method added to the
+    // real class surfaces here as a runtime "not a function" and nowhere
+    // earlier — this fake has to be updated by hand whenever the class grows.
     modelCache: {
       getFilteredModels: () => Promise.resolve([CONFORMANCE_SAMPLE_MODEL]),
       getModelById: () => Promise.resolve(CONFORMANCE_SAMPLE_MODEL),
+      lookupModelById: () => Promise.resolve({ kind: 'resolved', model: CONFORMANCE_SAMPLE_MODEL }),
     } as unknown as RouteDeps['modelCache'],
   };
 

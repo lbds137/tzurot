@@ -7,19 +7,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
 
-// Mock dependencies before imports
+// Mock dependencies before imports. `createLogger` is called ONCE at module
+// load inside OpenRouterModelCache.ts, so the mock must return the SAME
+// object every time (via vi.hoisted, evaluated before the mock factory) —
+// otherwise tests have no handle on the logger instance the cache actually
+// uses and can't assert on warn-call counts.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -487,6 +495,78 @@ describe('OpenRouterModelCache', () => {
       expect(result).not.toBeNull();
       expect(result?.supportsVision).toBe(true);
       expect(result?.contextLength).toBe(128000);
+    });
+  });
+
+  describe('lookupModelById', () => {
+    beforeEach(() => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify(sampleModels));
+    });
+
+    it('returns {kind: "resolved"} with the mapped option for a listed model', async () => {
+      const result = await cache.lookupModelById('anthropic/claude-sonnet-4');
+
+      expect(result.kind).toBe('resolved');
+      if (result.kind === 'resolved') {
+        expect(result.model.id).toBe('anthropic/claude-sonnet-4');
+        expect(result.model.contextLength).toBe(200000);
+      }
+    });
+
+    it('returns {kind: "absent"} when the catalog loads and does not list the model', async () => {
+      const result = await cache.lookupModelById('nonexistent/model');
+
+      expect(result).toEqual({ kind: 'absent' });
+    });
+
+    it('returns {kind: "unavailable"} when the underlying getModels() throws', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Redis down'));
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('API error'));
+
+      const result = await cache.lookupModelById('anthropic/claude-sonnet-4');
+
+      expect(result.kind).toBe('unavailable');
+    });
+
+    it('getModelById stays in lockstep with lookupModelById for all three outcomes', async () => {
+      // No-drift assertion: getModelById is reimplemented on top of
+      // lookupModelById specifically so the two cannot diverge. Exercise all
+      // three lookup outcomes and confirm getModelById collapses exactly the
+      // unavailable/absent pair to null while still returning the resolved
+      // option. Each outcome uses its own cache instance — the class's
+      // 5-minute in-memory cache would otherwise let the first (resolved)
+      // call mask the throwing behavior of the third.
+      const resolved = await cache.getModelById('anthropic/claude-sonnet-4');
+      expect(resolved?.id).toBe('anthropic/claude-sonnet-4');
+
+      const absentCache = new OpenRouterModelCache(mockRedis);
+      const absent = await absentCache.getModelById('nonexistent/model');
+      expect(absent).toBeNull();
+
+      const unavailableRedis = createMockRedis();
+      (unavailableRedis.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Redis down'));
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('API error'));
+      const unavailableCache = new OpenRouterModelCache(unavailableRedis);
+      const unavailable = await unavailableCache.getModelById('anthropic/claude-sonnet-4');
+      expect(unavailable).toBeNull();
+    });
+
+    it('fires the "Cache unavailable for lookup" warn exactly once on the throwing path', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Redis down'));
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('API error'));
+
+      await cache.lookupModelById('anthropic/claude-sonnet-4');
+
+      // "Failed to read Redis cache" also warns on this path (a separate,
+      // pre-existing log) — filter to the lookup-specific message so this
+      // assertion pins ONLY the warn this task is about.
+      const lookupWarnCalls = mockLogger.warn.mock.calls.filter(
+        call => call[1] === 'Cache unavailable for lookup'
+      );
+      expect(lookupWarnCalls).toHaveLength(1);
+      expect(lookupWarnCalls[0][0]).toEqual(
+        expect.objectContaining({ modelId: 'anthropic/claude-sonnet-4' })
+      );
     });
   });
 
