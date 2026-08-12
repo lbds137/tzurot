@@ -35,5 +35,9 @@ Two directions, not exclusive:
 
 Landmines: the PR-number walk and the flag walk have deliberately OPPOSITE strictness (the number must not over-collect, the flag must not under-collect), so any rewrite has to preserve both directions rather than unify them. The fallback paths (legacy_scan, adjacent_merge_scan, depth cap) deliberately over-arm the review gate and deliberately do NOT arm the guard - that asymmetry is load-bearing and is documented in the file.
 
+Round 13 addendum, and it changes the severity argument. The five cases above were BOUNDARY bugs (which tokens belong to an invocation) and all but one failed toward a false block. Round 13 found a different sub-class: INVOCATION RECOGNITION. SHELLS and WRAPPERS were exact-string sets, so `bash -lc "gh pr merge N --delete-branch"` and `/bin/bash -c "..."` were not recognised as shell wrappers at all - and `/usr/bin/env bash -lc "..."` failed one layer further out for the same reason. Measured: all three exited 0 with NO gate whatsoever - no review injected, no precondition, no release reminder - while the identical `bash -c` spelling blocked. The structural backstop cannot cover these because the merge is glued inside one quoted token, so `gh pr merge` never appears as three adjacent top-level tokens.
+
+Fixed in 2078 by comparing basenames through one command_name helper rather than exact strings, and by matching a clustered `-c` instead of literal equality. Recorded here because it undercuts the "false blocks are recoverable" half of option (a): making the guard ackable does nothing for a shape where the hook never runs at all. Any decision on this task has to cover recognition failures separately from boundary failures.
+
 Acceptance: either the exposure is reduced so a tokenizer gap is recoverable, or the parsing is replaced with something that models bash, or the class is ruled out on merit with the residual risk stated.
 <!-- SECTION:DESCRIPTION:END -->
