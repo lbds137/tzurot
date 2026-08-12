@@ -1,6 +1,6 @@
 ---
 name: tzurot-review-response
-description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, and step back at ~3 automated rounds (a rule of thumb, not a hard stop). Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
+description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
 lastUpdated: '2026-08-12'
 ---
 
@@ -203,6 +203,27 @@ Long review loops are usually a convergence failure rather than genuine quality 
 
 The cap resets on user intervention. **"User intervention" means the user explicitly answered an ASK, approved/rejected an auto-apply call, or directed the agent to take a specific action.** Merely reading a round summary without a response, acknowledging with a thumbs-up emoji, or a "continue" that doesn't address an open ASK does not count — those are light-touch signals the user is still present, but the decision-fatigue pressure the round cap exists to bound is about _active_ user engagement, not _passive_ presence. When in doubt: if the user said something that would differently route an item (answered an ASK, amended a fix, told the agent to do X), reset the counter; if they didn't, don't reset.
 
+### 5a. Hard cap at ~6 rounds: hand off, don't keep iterating
+
+The soft guideline above governs rounds where the residue is nits. **This cap
+governs everything, substantive findings included** (owner call, 2026-08-12):
+when a PR reaches **round 7 without user intervention** (i.e., past ~6
+automated rounds), stop iterating in the current context — even on a finding
+that would otherwise be FIXED under rule 5. Instead, hand off:
+
+- **Spawn a fresh-context implementer** with the open findings plus the round
+  history as its spec (the branch state carries the code; the spec carries the
+  intent), and review its diff as any worker's; or
+- **Escalate to the owner** with the round ledger when the loop's shape suggests
+  the PR's scope is wrong rather than its execution.
+
+Why a hard cap: both observed marathons (14 and 15 rounds, one PR each) had
+later rounds fixing regressions that EARLIER rounds introduced — past ~6
+rounds the iterating context is generating the defects it then fixes, because
+its checks inherit the assumptions accumulated across its own rounds. A fresh
+context is the countermeasure, not more care in the stale one. Same
+reset-on-user-intervention rule as the soft guideline.
+
 ### 6. Reviewer mode decay across rounds (aspirational)
 
 On round 1: reviewer runs a full audit (all severities, all categories).
@@ -214,7 +235,7 @@ On round 2+: reviewer should flag only:
 
 This is a constraint on the _reviewer's_ behavior, not the agent's — but since the reviewer is configured by the same project rules, it belongs here. Implementation: pass a `round_number` hint to the review prompt; round > 1 filters to blocking + regressions.
 
-**Current status: aspirational.** The existing `claude-review` GitHub Action is not round-aware. Until it is, the agent follows rules 1–5 regardless of what the reviewer surfaces — rule 5's round cap provides the backstop when reviewer keeps finding new nits.
+**Current status: aspirational.** The existing `claude-review` GitHub Action is not round-aware. Until it is, the agent follows rules 1–5a regardless of what the reviewer surfaces — rule 5's soft menu handles nit accumulation, and rule 5a's hard cap is the actual backstop when rounds keep producing findings.
 
 ## Edit-shape whitelist
 
@@ -267,6 +288,7 @@ Before each round's consolidated message:
 - [ ] Every auto-applied fixup commit has a green package-level test run (rule 3)
 - [ ] Round-N message contains all four sections, even empty ones (rule 4)
 - [ ] If this is round 4+, consolidated status menu presented instead of another iteration (rule 5)
+- [ ] If this is round 7+, findings handed off to a fresh-context implementer or the owner instead of fixed directly (rule 5a)
 
 ## Relationship to the rules
 
