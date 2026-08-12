@@ -22,5 +22,7 @@ Why: all latent at current report sizes, all in the #2039 path. (1) splitMessage
 
 Fix shape: line-aware split for line-oriented content (split on \n, never join across it), retry_after-aware retry or ~500ms inter-chunk sleep, ?wait=true, allowed_mentions: parse [].
 
+Rider (same subsystem): health.ts:174-176 still says the measuredRef placement survives "the Discord step's sed-from-the-header slice and its head -c tail truncation" — #2039 deleted that shell block; slicing is now health-webhook-post.ts indexOf and there is no tail truncation. Fix the comment in the same PR (health-ci reviewer F4, CONFIRMED).
+
 Acceptance: a newline-bearing oversized-section fixture survives chunking intact. Source: 2026-08-12 review (health-ci reviewer F1/F2/F3/F5).
 <!-- SECTION:DESCRIPTION:END -->
