@@ -1,9 +1,10 @@
 ---
 id: TASK-523
 title: Update the ops backlog gate description in 05-tooling.md
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 13:22'
+updated_date: '2026-08-12 07:44'
 labels:
   - 'area:tooling'
   - 'size:S'

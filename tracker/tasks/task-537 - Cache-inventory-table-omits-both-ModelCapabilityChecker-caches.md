@@ -1,9 +1,10 @@
 ---
 id: TASK-537
 title: Cache inventory table omits both ModelCapabilityChecker caches
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 22:55'
+updated_date: '2026-08-12 07:44'
 labels:
   - 'area:docs'
   - 'size:S'
