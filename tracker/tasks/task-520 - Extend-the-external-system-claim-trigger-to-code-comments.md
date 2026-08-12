@@ -1,9 +1,10 @@
 ---
 id: TASK-520
 title: Extend the external-system-claim trigger to code comments
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 02:45'
+updated_date: '2026-08-12 07:44'
 labels:
   - 'area:docs'
   - 'size:S'

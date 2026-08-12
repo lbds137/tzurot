@@ -1,9 +1,10 @@
 ---
 id: TASK-538
 title: Rules table lists max-lines 400 without saying blanks and comments are skipped
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 00:33'
+updated_date: '2026-08-12 07:44'
 labels:
   - 'area:docs'
   - 'size:S'
