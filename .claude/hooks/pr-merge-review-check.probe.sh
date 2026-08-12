@@ -115,7 +115,10 @@ cat >"$WORK/bin/gh" <<'SHIM'
 case "$*" in
   *"--json baseRefName"*)
     [ "${SHIM_BASE_EXIT:-0}" = "0" ] || exit "${SHIM_BASE_EXIT}"
-    printf '%s\n' "${SHIM_PR_BASE:-}"
+    # Post-`--jq` shape for `(.baseRefName // ""), (.headRefName // "")`: one
+    # ref per line, base first. A missing head is an EMPTY second line, not an
+    # absent one — that is what the hook's `sed -n 2p` reads.
+    printf '%s\n%s\n' "${SHIM_PR_BASE:-}" "${SHIM_PR_HEAD:-}"
     ;;
   *"/issues/"*"/comments"*)
     printf '%s\n' "$*" >>"${SHIM_API_LOG:-/dev/null}"
@@ -128,6 +131,39 @@ case "$*" in
 esac
 SHIM
 chmod +x "$WORK/bin/gh"
+
+# --- the git shim ----------------------------------------------------------
+# The delete-branch guard asks git two questions: which worktree am I in, and
+# which worktrees hold which branches. Both are shimmed so the cases can pose a
+# worktree layout that does not exist on this machine.
+#
+# The DEFAULT is an empty worktree list, not the real repo's. A probe that fell
+# through to real git would answer from whatever branches happen to be checked
+# out while it runs — so it would pass on this laptop and fail on the next one,
+# and the fixture cases would silently depend on the developer's tree.
+#
+# `SHIM_GIT_EXIT` makes both queries fail, which is how the fail-open case
+# proves the guard degrades to "allow" rather than "cannot merge".
+cat >"$WORK/bin/git" <<'SHIM'
+#!/bin/bash
+[ "${SHIM_GIT_EXIT:-0}" = "0" ] || exit "${SHIM_GIT_EXIT}"
+# Separate knob so `worktree list` can fail while `rev-parse` succeeds. The
+# combined SHIM_GIT_EXIT short-circuits on the empty-CURRENT_TREE check and
+# never reaches the worktree query, so it cannot cover that asymmetry.
+case "$*" in
+  "worktree list --porcelain")
+    [ "${SHIM_WORKTREE_EXIT:-0}" = "0" ] || exit "${SHIM_WORKTREE_EXIT}" ;;
+esac
+case "$*" in
+  # `${VAR-default}`, NOT `${VAR:-default}`: the colon form substitutes on an
+  # EMPTY value too, so a case setting SHIM_CURRENT_TREE='' to simulate a failed
+  # `rev-parse` would silently get `/repo` back and test nothing.
+  "rev-parse --show-toplevel") printf '%s\n' "${SHIM_CURRENT_TREE-/repo}" ;;
+  "worktree list --porcelain") printf '%s' "${SHIM_WORKTREES:-}" ;;
+  *) echo "git shim: unexpected invocation: $*" >&2; exit 64 ;;
+esac
+SHIM
+chmod +x "$WORK/bin/git"
 
 # --- the id shim -----------------------------------------------------------
 # Only `id -u` is intercepted; everything else goes to the real binary so a
@@ -154,8 +190,13 @@ ACK_FILE=''
 LAST_EXIT=0
 
 SHIM_PR_BASE='develop'
+SHIM_PR_HEAD='feat/example'
 SHIM_BASE_EXIT=0
 SHIM_REVIEW_JSON=''
+SHIM_CURRENT_TREE='/repo'
+SHIM_WORKTREES=''
+SHIM_GIT_EXIT=0
+SHIM_WORKTREE_EXIT=0
 
 # new_case — a fresh ack file, api log, and output captures. The ack file is
 # the hook's only cross-invocation state, so a stale one leaking between groups
@@ -180,8 +221,13 @@ invoke() {
     PATH="$WORK/bin:$PATH" \
     SHIM_API_LOG="$API_LOG" \
     SHIM_PR_BASE="$SHIM_PR_BASE" \
+    SHIM_PR_HEAD="$SHIM_PR_HEAD" \
     SHIM_BASE_EXIT="$SHIM_BASE_EXIT" \
     SHIM_REVIEW_JSON="$SHIM_REVIEW_JSON" \
+    SHIM_CURRENT_TREE="$SHIM_CURRENT_TREE" \
+    SHIM_WORKTREES="$SHIM_WORKTREES" \
+    SHIM_GIT_EXIT="$SHIM_GIT_EXIT" \
+    SHIM_WORKTREE_EXIT="$SHIM_WORKTREE_EXIT" \
     bash "$HOOK" >"$STDOUT_FILE" 2>"$STDERR_FILE"
   LAST_EXIT=$?
 }
@@ -197,8 +243,13 @@ invoke_in() {
       PATH="$WORK/bin:$PATH" \
       SHIM_API_LOG="$API_LOG" \
       SHIM_PR_BASE="$SHIM_PR_BASE" \
+      SHIM_PR_HEAD="$SHIM_PR_HEAD" \
       SHIM_BASE_EXIT="$SHIM_BASE_EXIT" \
       SHIM_REVIEW_JSON="$SHIM_REVIEW_JSON" \
+      SHIM_CURRENT_TREE="$SHIM_CURRENT_TREE" \
+      SHIM_WORKTREES="$SHIM_WORKTREES" \
+      SHIM_GIT_EXIT="$SHIM_GIT_EXIT" \
+      SHIM_WORKTREE_EXIT="$SHIM_WORKTREE_EXIT" \
       bash "$HOOK"
   ) >"$STDOUT_FILE" 2>"$STDERR_FILE"
   LAST_EXIT=$?
@@ -877,7 +928,523 @@ assert_exit "release path, unwritable ack: allows" 0
 assert_stderr_has "…and says why" 'release-reminder ack write failed'
 
 # ===========================================================================
-# 9. Leak guard — the live ack file must be untouched
+# 9. The --delete-branch precondition
+#
+# Scope note, because it is the whole design and a future edit will be tempted
+# to widen it: the guard fires on a worktree OTHER than the current one. gh
+# switches the CURRENT worktree off the head branch before deleting it, so that
+# case works and blocking it would block the ordinary "merge my feature branch"
+# invocation. Case 3 below pins exactly that, and it is the case most likely to
+# be broken by someone implementing the rule from its one-line description.
+# ===========================================================================
+printf '\n--- delete-branch precondition ---\n'
+
+# Two worktrees: the current one on develop, another holding the head branch.
+OTHER_TREE='/repo/../wt-a'
+WT_CONFLICT=$(printf 'worktree /repo\nHEAD aaa\nbranch refs/heads/develop\n\nworktree %s\nHEAD bbb\nbranch refs/heads/feat/example\n' "$OTHER_TREE")
+# The same two trees, except the head branch is held by the CURRENT one.
+WT_CURRENT_ONLY=$(printf 'worktree /repo\nHEAD aaa\nbranch refs/heads/feat/example\n\nworktree %s\nHEAD bbb\nbranch refs/heads/other\n' "$OTHER_TREE")
+# Nobody holds it, and one worktree is detached (no `branch` line at all).
+WT_CLEAN=$(printf 'worktree /repo\nHEAD aaa\nbranch refs/heads/develop\n\nworktree %s\nHEAD bbb\ndetached\n' "$OTHER_TREE")
+
+SHIM_PR_BASE='develop'
+SHIM_PR_HEAD='feat/example'
+SHIM_CURRENT_TREE='/repo'
+SHIM_REVIEW_JSON="$LGTM"
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_exit "another worktree holds the head branch: blocked" 2
+assert_stderr_has "…names the branch" 'feat/example'
+assert_stderr_has "…names the offending worktree path" "$OTHER_TREE"
+assert_stderr_has "…and gives a fix" 'git worktree remove'
+# Ordering: the guard runs BEFORE the review fetch, so a blocked merge costs no
+# review round trip and the agent reads the precondition alone rather than
+# hunting for it under an injected review.
+assert_no_fetch "…without fetching the review first"
+assert_ack_lacks "…and writes no review ack" '2002:777'
+
+# Not ackable, and this pair is what says so. The review gate's whole contract
+# is "block once, then allow"; inheriting that here would make the guard
+# decorative — the second attempt would delete the branch anyway.
+#
+# It runs with NO review fixture on a develop-based PR, which is the only
+# arrangement that can detect the failure. Under the LGTM fixture above, an
+# ackable guard falls through to the review gate, which blocks with the SAME
+# exit 2 — measured, by mutating the hook to write and honour a per-PR ack:
+# every assertion in this section stayed green. With no review to fall through
+# to, an acked second call exits 0 and the mutation is caught.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"; SHIM_REVIEW_JSON=''
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_exit "no-review fixture: first attempt blocked by the precondition" 2
+assert_stderr_has "…with the precondition banner" 'PR MERGE BLOCKED'
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_exit "retrying the same command is blocked again (no ack path)" 2
+assert_stderr_has "…still the precondition, not a spent gate" 'PR MERGE BLOCKED'
+SHIM_REVIEW_JSON="$LGTM"
+
+# THE REFINEMENT. gh switches the current worktree off the head branch and then
+# deletes it, so this is the ordinary merge and must pass straight through to
+# the review gate.
+new_case; SHIM_WORKTREES="$WT_CURRENT_ONLY"
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_stderr_lacks "current worktree on the head branch: not the guard's case" 'PR MERGE BLOCKED'
+assert_pr "…and control reaches the review gate normally" 2002
+
+new_case; SHIM_WORKTREES="$WT_CLEAN"
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_stderr_lacks "branch checked out nowhere: passes through" 'PR MERGE BLOCKED'
+assert_pr "…and reaches the review gate" 2002
+
+# Short forms. `-d` is the documented shorthand and pflag clusters booleans, so
+# `-rd` is a real invocation shape — matching only the long flag would leave a
+# silent hole that looks exactly like a correct pass.
+#
+# Both assert the BANNER, not just exit 2. Exit 2 alone was measured to pass
+# with the short-flag pattern deleted from the hook, because the review gate
+# blocks with the same code — a test that reported coverage while verifying
+# nothing about the flag it was named for.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase -d'
+assert_exit "short flag -d is the same flag: blocked" 2
+assert_stderr_has "…by the precondition, not the review gate" 'PR MERGE BLOCKED'
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 -rd'
+assert_exit "clustered short flags -rd: blocked" 2
+assert_stderr_has "…by the precondition, not the review gate" 'PR MERGE BLOCKED'
+
+# The negative half of the cluster pattern. A regex loose enough to match any
+# flag containing a `d` would block every merge on a repo with worktrees, which
+# would read as "the guard works" right up until someone merges without -d.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --admin'
+assert_stderr_lacks "no delete flag: guard does not fire" 'PR MERGE BLOCKED'
+assert_pr "…and the merge reaches the review gate" 2002
+
+# The flag must belong to the MERGE, not merely to the command line. Both of
+# these were live false positives under a raw whole-command match: the guard is
+# not ackable, so a false block told the agent to tear down a worktree that had
+# nothing to do with the command, under a banner explaining a flag that was
+# never passed. Found in review of this PR.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase && git branch -d old-feature'
+assert_stderr_lacks "a chained unrelated -d does not arm the guard" 'PR MERGE BLOCKED'
+assert_pr "…and the merge still reaches the review gate" 2002
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase && find . -delete'
+assert_stderr_lacks "a chained --delete-shaped flag does not arm the guard" 'PR MERGE BLOCKED'
+assert_pr "…and the merge still reaches the review gate" 2002
+
+# Quoted prose is ONE token, so an anchored full-token match cannot see a flag
+# inside it — the same property that keeps a quoted --body from arming the
+# PR-number extraction, now relied on by the flag check too.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --body "remove the -d flag from the config script"'
+assert_stderr_lacks "a -d inside a quoted --body does not arm the guard" 'PR MERGE BLOCKED'
+assert_pr "…and the merge still reaches the review gate" 2002
+
+# The other half of the same property: cross-attribution between two REAL merge
+# invocations. The gate arms on the first, so the second's flag is not its flag.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2001 --rebase && gh pr merge 2002 -d'
+assert_stderr_lacks "a LATER merge's flag is not attributed to the armed one" 'PR MERGE BLOCKED'
+assert_pr "…and the gate still arms on the first invocation" 2001
+
+# …and the converse, so the case above cannot pass by the flag check simply
+# being broken: when the ARMED invocation is the one carrying the flag, it fires.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 -d && echo done'
+assert_exit "the armed invocation's own flag still fires" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# pflag accepts `--flag=value` for BOOLEANS — measured against this `gh`:
+# `--draft=true` parses and `--draft=notabool` fails with strconv.ParseBool, so
+# the value really is being parsed as a bool. `--delete-branch=true` is
+# therefore a real shape, and anchoring the token match on `$` alone silently
+# let it through — an UNDER-arm, where the merge proceeds and deletes the
+# branch. Found in review; the eight-mutation canary table did not cover it,
+# which is what a missing shape looks like from the inside.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --delete-branch=true'
+assert_exit "explicit --delete-branch=true is the same flag: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# The negative that keeps the `=` boundary honest: `=false` is still the flag
+# being PRESENT as far as this guard is concerned. Over-arming on an explicit
+# opt-out is the safe direction (a block the reader can dismiss), and pretending
+# to parse the value would mean reimplementing pflag's bool grammar here.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --delete-branch=false'
+assert_exit "--delete-branch=false also blocks — the value is not parsed" 2
+# The banner, not just exit 2: the review gate blocks with the same code, so the
+# exit assertion alone stays green even with the `=` boundary removed. Third
+# time this shape has appeared in this file — see the -d/-rd pair above.
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# The asymmetric git failure: rev-parse fails, worktree list succeeds. Without
+# an explicit empty-CURRENT_TREE check the comparison is `path != ""`, true for
+# EVERY worktree, so a single failed command flips the guard from fail-open to
+# block-everything. The SHIM_GIT_EXIT case cannot see this — it fails both.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"; SHIM_CURRENT_TREE=''
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_stderr_lacks "unresolvable current worktree: fails open, not closed" 'PR MERGE BLOCKED'
+assert_pr "…and the review gate still runs" 2002
+SHIM_CURRENT_TREE='/repo'
+
+# The flag has to survive the RECURSION, not just the top-level scan. `bash -c`
+# and quoted `eval` arguments are one opaque token, so the invocation inside is
+# found by re-entering extract() — and the flag now rides back out of that call
+# alongside the PR number. Nothing else pins the flag half of that return, so a
+# future edit to the recursive branch could drop it and stay green: the PR
+# number would still resolve, the gate would still arm, and only the
+# delete-branch guard would silently stop firing.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'bash -c "gh pr merge 2002 --rebase --delete-branch"'
+assert_exit "flag propagates out of a bash -c recursion: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'eval "gh pr merge 2002 --rebase -d"'
+assert_exit "…and out of a quoted eval recursion" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# The negative half: recursion must not INVENT a flag either. Same nesting, no
+# delete flag — without this, a recursive branch hardcoding "flag=True" would
+# pass both cases above.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'bash -c "gh pr merge 2002 --rebase"'
+assert_stderr_lacks "recursion does not invent a flag that was not passed" 'PR MERGE BLOCKED'
+assert_pr "…and the gate still arms on the nested invocation" 2002
+
+# A redirection does not end a command's argument list in bash, but shlex hands
+# back `2>&1` as `2`, `>&`, `1` — and `>&` is an all-punctuation run, so the
+# generic boundary test reads it as a separator. That truncated the flag walk
+# before it reached the flag: an UNDER-arm, the direction this file must never
+# fail in. Found in review as a code-reading hypothesis and confirmed by
+# tokenizing the string directly.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase 2>&1 --delete-branch'
+assert_exit "a flag after a 2>&1 redirection is still seen: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase > out.log --delete-branch'
+assert_exit "…and after a plain > redirection" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# The PR-NUMBER walk must stay STRICT while the flag walk is loosened, and this
+# is the case that shows why they cannot share a helper. A redirection TARGET
+# that happens to be all digits is not a PR number; the strict walk stops at the
+# `>` and never sees it, while a redirection-tolerant number scan would collect
+# it and gate a completely unrelated PR — the wrong-PR failure the tokenizer
+# exists to prevent.
+#
+# The first version of this case used `gh pr merge 2>&1 --delete-branch` and
+# asserted no fetch. That passed VACUOUSLY: the guard blocked before the fetch
+# could happen, so the assertion never exercised the number walk at all — and
+# the claim in its name was false, since the `2` of `2>&1` precedes the
+# redirection and IS collected either way. This shape carries no delete flag, so
+# reaching the fetch (or not) depends only on the number scan.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge --rebase > 2'
+assert_no_fetch "an all-digit redirection TARGET is not read as a PR number"
+
+# A real separator still ends the walk, so loosening redirections did not
+# quietly re-open the chained-command false positive fixed in round 1.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase > out.log && git branch -d old-feature'
+assert_stderr_lacks "a chained -d past a redirection still does not arm" 'PR MERGE BLOCKED'
+assert_pr "…and the merge still reaches the review gate" 2002
+
+# A bare NEWLINE separates statements in bash, but shlex counts it as ordinary
+# whitespace and emits no token for it — so a walk over the invocation's args
+# strolls into the next statement. Same failure as the round-1 `&&` case,
+# reached through a shape that needs no operator at all: two commands on two
+# lines is how sequential work is ordinarily written.
+#
+# The existing "separator: newline" case does not cover this — it puts the
+# unrelated command BEFORE the merge, so nothing walks forward into it.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'gh pr merge 2002 --rebase\ngit branch -d old-feature')"
+assert_stderr_lacks "a -d on the NEXT line does not arm the guard" 'PR MERGE BLOCKED'
+assert_pr "…and the merge still reaches the review gate" 2002
+
+# The same boundary, on the PR-NUMBER walk: a bare digit belonging to a later
+# statement must not become the resolved PR. This is the wrong-PR failure the
+# tokenizer exists to prevent, reached through the newline instead of an
+# operator. No delete flag here, so the guard cannot mask the result.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'gh pr merge --rebase\necho 5')"
+assert_no_fetch "a digit on the NEXT line is not read as the PR number"
+
+# The exception that makes the boundary a line-CHANGE test rather than a
+# line-NUMBER test: shlex emits a literal newline TOKEN for a `\`-continuation
+# and bumps the line anyway, so by line number alone a continued invocation is
+# indistinguishable from a statement break. Stopping there would drop a real
+# flag — an under-arm. Measured, not assumed.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'gh pr merge 2002 --rebase \\\n  --delete-branch')"
+assert_exit "a flag past a backslash-continuation is still seen: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# A `\`-CONTINUATION is not a command break, and treating it as one made a
+# decoy read as a real invocation. Real bash runs the command below as ONE
+# `echo` — `gh` never executes — but the line change reset the command position
+# onto `gh`, the gate armed on 2002, and the NOT-ackable guard blocked it
+# permanently.
+#
+# Two things are asserted together because they are separate mechanisms: the
+# command-position reset now uses the same boundary as the arg walks, AND the
+# permissive backstop no longer reports a flag. Either alone still blocks —
+# measured, by applying them one at a time.
+#
+# Whitespace matters in the fixture and is easy to get wrong: with NO indent on
+# the continuation line, shlex glues the newline to the next word (`\ngh`), so
+# `gh` never appears as a bare token and nothing arms at all. The reviewer's
+# original repro had that shape and did not reproduce. The indent is what makes
+# this a real case.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'echo decoy \\\n  gh pr merge 2002 --delete-branch')"
+assert_stderr_lacks "a backslash-continued decoy does not block" 'PR MERGE BLOCKED'
+# The REVIEW gate still arms on 2002 here, and that is correct rather than a
+# leftover: the backstop's over-arm costs one retry past an unrelated review,
+# which is the trade it was built for. Only the non-ackable guard had to stop.
+assert_stderr_has "…while the review gate still over-arms, as designed" 'PR MERGE GATE'
+
+# The strict PR-number walk stops at the first redirection, so a number placed
+# AFTER one is never found — which disarms the hook completely, review gate
+# included, not just the delete-branch guard. Documented here rather than fixed:
+# collecting past the redirection is what would let `> 2` become a PR number,
+# and the number virtually always follows `merge` directly.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge --rebase > out.log 2002'
+assert_no_fetch "a PR number after a redirection disarms the whole hook"
+
+# A redirection TARGET is never a flag, however it is spelled. Stepping over
+# the operator but not its target left the target scannable, so a file named
+# `-d` read as the flag — a false, unretryable block on a command carrying no
+# delete flag at all. The existing redirection cases all used non-flag-shaped
+# targets (`out.log`, `1`, `2`), which is exactly why six rounds of mutation
+# testing did not surface it.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase > -d'
+assert_stderr_lacks "a redirection target named -d is not the flag" 'PR MERGE BLOCKED'
+assert_pr "…and the merge reaches the review gate" 2002
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase > --delete-branch'
+assert_stderr_lacks "…nor is a target named --delete-branch" 'PR MERGE BLOCKED'
+assert_pr "…and the merge reaches the review gate" 2002
+
+# The converse, so consuming the target cannot quietly swallow a REAL flag that
+# follows it — which would be an under-arm, the worse direction.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase > -d --delete-branch'
+assert_exit "…while a real flag AFTER that target is still seen: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# A MULTI-LINE QUOTED ARGUMENT sits inside one invocation, and the boundary
+# check must not read it as a statement break. `shlex.lineno` counts newlines
+# consumed inside a quoted token but reports each token's START line, so a
+# `--title "a\nb"` leaves the following token on a later line than the value
+# began on. Comparing start lines read that as a break, mid-invocation.
+#
+# Both severities are pinned because they are different failures. With the
+# value before the FLAG the guard silently does not fire (an under-arm — the
+# branch is deleted despite the conflict). With it before the NUMBER nothing
+# resolves at all, which disarms the review gate and the release reminder too,
+# not just this guard.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'gh pr merge 2002 --rebase --title "line one\nline two" --delete-branch')"
+assert_exit "a flag past a multi-line quoted value is still seen: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+new_case; SHIM_WORKTREES="$WT_CLEAN"
+invoke "$(printf 'gh pr merge --title "line one\nline two" 2002 --rebase')"
+assert_pr "a PR number past a multi-line quoted value still resolves" 2002
+
+# The control that keeps the pair honest: the same command with a single-line
+# value behaved correctly even while the multi-line form was broken, so a
+# fixture without the embedded newline proves nothing about this boundary.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --title "one line" --delete-branch'
+assert_exit "control: single-line value, same command shape" 2
+
+# A `\`-continuation between a redirection operator and its target is not the
+# target. Consuming it as one left the real target scannable, re-opening the
+# `> -d` false block one line down — the round-8 bug reached through the
+# round-6/7 boundary. The suite tested continuation-without-redirection and
+# redirection-without-continuation, but not their intersection.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'gh pr merge 2002 --rebase > \\\n  --delete-branch')"
+assert_stderr_lacks "a continuation before a redirection target is not the flag" 'PR MERGE BLOCKED'
+assert_pr "…and the merge reaches the review gate" 2002
+
+# The converse: consuming the target across a continuation must not swallow a
+# REAL flag that follows it, which would be an under-arm.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke "$(printf 'gh pr merge 2002 --rebase > \\\n  out.log --delete-branch')"
+assert_exit "…while a real flag after that target is still seen: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# `git worktree list` failing ALONE, with `rev-parse` succeeding. The combined
+# SHIM_GIT_EXIT case cannot reach this: the empty-CURRENT_TREE check short-
+# circuits first, so the worktree query never runs. The script sets `pipefail`
+# but not `errexit`, so the failed pipeline yields an empty result rather than
+# aborting — which is the fail-open guarantee, now pinned rather than assumed.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"; SHIM_WORKTREE_EXIT=128
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_stderr_lacks "worktree list failing alone: fails open" 'PR MERGE BLOCKED'
+assert_pr "…and the review gate still runs" 2002
+SHIM_WORKTREE_EXIT=0
+
+# A SHELL WRAPPER spelled any way bash accepts. Exact equality on both the
+# shell name and the `-c` flag missed two ordinary shapes, and each disarmed
+# EVERY gate — no review injected, no precondition, no release reminder —
+# because the merge sits inside one opaque quoted token where even the
+# structural backstop cannot see it. Measured before the fix: `bash -c` blocked
+# while `bash -lc` and `/bin/bash -c` exited 0.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'bash -lc "gh pr merge 2002 --rebase --delete-branch"'
+assert_exit "clustered shell flag (-lc) still recurses: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke '/bin/bash -c "gh pr merge 2002 --rebase --delete-branch"'
+assert_exit "path-qualified shell still recurses: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# The gate half, not just the guard half: without the flag the review gate must
+# still arm on the nested PR, which is what "disarmed EVERY gate" meant.
+new_case; SHIM_WORKTREES="$WT_CLEAN"
+invoke '/usr/bin/env bash -lc "gh pr merge 2002 --rebase"'
+assert_pr "…and the review gate arms on the nested PR" 2002
+
+# The negative: a non-shell with a -c flag must NOT recurse, or `grep -c` and
+# friends start arming the gate on whatever digit follows.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'grep -c "gh pr merge 1 --delete-branch" file.txt'
+assert_no_fetch "a non-shell -c does not recurse into its argument"
+
+# `eval` as a bare ARGUMENT to something else is not an eval invocation. The
+# ungated token match fired wherever the word appeared: measured, this command
+# — which real bash runs as `echo` and nothing more — recursed into echo's own
+# argument and blocked, against a guard that cannot be acked past.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'echo eval "gh pr merge 2002 --delete-branch"'
+assert_stderr_lacks "eval as another command's argument does not block" 'PR MERGE BLOCKED'
+assert_no_fetch "…and resolves no PR at all"
+
+# The converse, so gating eval did not simply disable it: the real quoted form
+# still recurses and still arms.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'eval "gh pr merge 2002 --rebase --delete-branch"'
+assert_exit "a genuine quoted eval still recurses: blocked" 2
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+
+# pflag GLUES a value onto a short flag — measured, `gh pr list -L2` behaves
+# identically to `-L 2` — so in a cluster everything after the first
+# value-taking letter is that value. `-bd` is a body of "d", not a delete flag,
+# and reading it as one produced a false block on a merge that would never
+# delete anything.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase -bd'
+assert_stderr_lacks "-bd is a body value, not the delete flag" 'PR MERGE BLOCKED'
+assert_pr "…and the merge reaches the review gate" 2002
+
+# The two neighbours that keep that rule from being a blanket exemption: a
+# boolean before the `d` still carries it, and a `d` BEFORE the value-taker
+# does too.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 -rd'
+assert_exit "-rd: a boolean before d still carries the flag" 2
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 -db some-body'
+assert_exit "-db: d precedes the value-taker, so it carries" 2
+
+# A KNOWN GAP, pinned so it is a decision rather than a surprise. `gh pr merge`
+# with no PR number is valid — gh resolves the PR from the checked-out branch —
+# and it is arguably the most natural moment to pass --delete-branch, since you
+# are sitting on the branch you are retiring. But PR-number extraction requires
+# a literal digit, so the hook exits before EITHER gate: no review injected, no
+# worktree precondition. This case asserts the bypass rather than the fix,
+# because closing it changes the review gate for every merge and needs its own
+# probe matrix — tracked as TASK-554. Delete this case when that lands.
+new_case; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge --rebase --delete-branch'
+assert_exit "numberless merge: no gate fires at all (known gap, TASK-554)" 0
+assert_no_fetch "…not even the review fetch"
+
+# The release-PR shape: base main, no flag. This is why the guard needs no
+# special-casing for releases.
+new_case; SHIM_PR_BASE='main'; SHIM_PR_HEAD='develop'
+# SHIM_CURRENT_TREE is set explicitly rather than inherited, for
+# self-containment (02-code-standards § Core Principles). Measured, so the
+# reason is not overstated: this case is currently INSENSITIVE to the value —
+# the command carries no delete flag, so the guard never runs and never asks
+# git for the current worktree. Poisoning the inherited value upstream changes
+# nothing. The explicit line is hygiene against a future flag-carrying variant
+# of this case, not a fix for a live fragility.
+SHIM_CURRENT_TREE='/repo'
+SHIM_WORKTREES=$(printf 'worktree /repo\nHEAD aaa\nbranch refs/heads/develop\n')
+SHIM_REVIEW_JSON=''
+invoke 'gh pr merge 2010 --rebase'
+assert_stderr_lacks "release PR without the flag: guard silent" 'PR MERGE BLOCKED'
+assert_stderr_has "…and the release reminder still fires" 'release:finalize'
+
+# The inverse, and the highest-value case the guard can catch: a release PR
+# that DOES carry the flag. Its head branch is `develop`, which is checked out
+# by definition — 00-critical § Long-Lived Branch Protection, and the
+# 2026-08-07 post-mortem where develop was actually deleted.
+new_case; SHIM_PR_BASE='main'; SHIM_PR_HEAD='develop'
+SHIM_CURRENT_TREE='/repo/../wt-a'
+SHIM_WORKTREES=$(printf 'worktree /repo\nHEAD aaa\nbranch refs/heads/develop\n')
+invoke 'gh pr merge 2010 --rebase --delete-branch'
+assert_exit "release PR carrying --delete-branch: blocked" 2
+# Again the banner rather than the exit code: with no review fixture in play a
+# release PR already exits 2 to deliver its finalize reminder, and that reminder
+# mentions `develop` too — so both weaker assertions would pass with the guard
+# removed entirely.
+assert_stderr_has "…by the precondition" 'PR MERGE BLOCKED'
+assert_stderr_has "…naming develop as the branch at risk" 'develop'
+
+# Fail-open, both halves. A guard that blocks when its own lookups break is
+# worse than no guard: it stops merges for reasons unrelated to the merge.
+SHIM_PR_BASE='develop'; SHIM_CURRENT_TREE='/repo'; SHIM_REVIEW_JSON="$LGTM"
+
+new_case; SHIM_PR_HEAD=''; SHIM_WORKTREES="$WT_CONFLICT"
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_stderr_lacks "unresolvable head ref: fails open" 'PR MERGE BLOCKED'
+assert_pr "…and the review gate still runs" 2002
+
+new_case; SHIM_PR_HEAD='feat/example'; SHIM_GIT_EXIT=128
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_stderr_lacks "git unavailable (not a repo): fails open" 'PR MERGE BLOCKED'
+assert_pr "…and the review gate still runs" 2002
+SHIM_GIT_EXIT=0
+
+# A worktree path with a space. The porcelain format is line-oriented, so the
+# path must be read as the rest of the line — field-splitting would truncate it
+# at the space and print a path the reader cannot act on.
+new_case
+SHIM_WORKTREES=$(printf 'worktree /repo\nHEAD aaa\nbranch refs/heads/develop\n\nworktree /tmp/my worktree\nHEAD bbb\nbranch refs/heads/feat/example\n')
+invoke 'gh pr merge 2002 --rebase --delete-branch'
+assert_exit "worktree path containing a space: blocked" 2
+assert_stderr_has "…and the path is printed whole" '/tmp/my worktree'
+# The path appearing is NOT enough — the message also offers two commands to
+# paste, and unquoted they break on exactly the shape the detection was hardened
+# for: `git worktree remove /tmp/my worktree` takes an extra positional, and
+# `-C /tmp/my` leaves `worktree` parsed as the subcommand. Asserting the raw path
+# alone let that through.
+assert_stderr_has "…and the remove suggestion is quoted" "git worktree remove '/tmp/my worktree'"
+assert_stderr_has "…as is the detach suggestion" "git -C '/tmp/my worktree' checkout --detach"
+
+SHIM_WORKTREES=''
+
+# ===========================================================================
+# 10. Leak guard — the live ack file must be untouched
 # ===========================================================================
 printf '\n--- leak guard ---\n'
 
