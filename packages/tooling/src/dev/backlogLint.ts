@@ -126,6 +126,12 @@ export function extractQueueDocRefs(queueMd: string): string[] {
  * would report a dangling link against text that was never a link — a failure
  * that looks like real rot and blocks everyone's `pnpm quality`, which is worse
  * than any of the shapes this extractor merely fails to see.
+ *
+ * Assumes BALANCED delimiters, and fails SILENTLY when they are not. An odd
+ * number of inline backticks makes the span regex pair the wrong two, so a run
+ * of real prose is blanked along with any links inside it — measured: in
+ * ``a `span here and [t](../real.md) then `another` tail``, the real
+ * `../real.md` link is swallowed and never checked. Pinned in backlogLint.test.ts § `documented parse limitations`.
  */
 function stripCode(markdown: string): string {
   return markdown.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
@@ -182,6 +188,20 @@ function isRelativeFileTarget(target: string): boolean {
  *
  * Closing the silent pair needs a real markdown-link parser rather than a
  * wider regex, which is why the disclosure is here instead.
+ *
+ * A fifth shape fails loud in the OTHER direction — an over-match, not a miss.
+ * `isRelativeFileTarget` accepts any bare target ending in `.letters`, so a
+ * bracket-paren pair wrapped around a bare domain or a dotted product name is
+ * resolved as a sibling path and reported dangling: measured, `[docs](example.com)`
+ * yields `example.com` and `[runtime](Node.js)` yields `Node.js`. Narrowing is
+ * not available, because the accepting rule is the same one that admits
+ * `[t](foo.md)` — the dominant sibling-link style in this corpus — and `js`,
+ * `io`, and `sh` are real file extensions as much as they are real TLDs.
+ * Backticking the text is the workaround (`stripCode` blanks it), and it works
+ * whether the backticks wrap the whole link or just the target; both measured.
+ * Demonstrated rather than hypothetical: the first draft of the task that filed
+ * this limitation wrote those two examples in link form, and the gate reported
+ * both as dangling within minutes. Pinned in backlogLint.test.ts § `documented parse limitations`.
  * @internal Exported for testing
  */
 export function extractRelativeLinks(markdown: string): string[] {
@@ -239,9 +259,18 @@ function checkQueueDocRefs(rootDir: string): string[] {
     return [];
   }
   const existingIds = existingDocIds(rootDir);
+  // Repo-relative, matching checkDocIdRefs below — the two checks report the
+  // same finding about the same convention, and a bare `queue.md` prefix reads
+  // as a different kind of location than its sibling's full path. Derived from
+  // queuePath rather than written out again, so the message cannot drift away
+  // from the file actually read. (checkRelativeLinks reaches the same repo-
+  // relative form by a different route — its `rel` accumulates down the
+  // directory walk — so the shared property is "derived from the real path",
+  // not a shared mechanism.)
+  const queueRel = relative(rootDir, queuePath);
   return extractQueueDocRefs(readFileSync(queuePath, 'utf-8'))
     .filter(ref => !existingIds.has(ref))
-    .map(ref => `queue.md: dangling doc reference → ${ref} (no tracker/docs/ file)`);
+    .map(ref => `${queueRel}: dangling doc reference → ${ref} (no tracker/docs/ file)`);
 }
 
 /**
