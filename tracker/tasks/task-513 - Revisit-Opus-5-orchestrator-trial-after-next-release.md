@@ -1,9 +1,10 @@
 ---
 id: TASK-513
 title: Revisit Opus 5 orchestrator trial after next release
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 23:03'
+updated_date: '2026-08-12 12:01'
 labels:
   - 'area:process'
   - 'size:S'
@@ -105,4 +106,14 @@ Work slate (mechanical-class, spec-driven, bounded; ordered safest-first):
 5. TASK-178 test:audit serviceDirs discovery (drop hardcoded list) — tooling.
 6. TASK-139 + TASK-140 dockerfile-dist test hardening — tooling tests.
 Excluded from trial: wording/UX-taste items (TASK-235/247/278), release ops, anything schema-touching.
+
+OWNER VERDICT 2026-08-12: **KEEP — Opus 5 is the DEFAULT driver for drain sessions.** Fable reserved for design, semantic, and taste-heavy work. Release operations are unchanged and NOT model-scoped: they are already gated on explicit per-release owner approval, which is model-independent and worked as designed today.
+
+Evidence the verdict was taken on, INCLUDING the parts against it — recorded because a verdict summarizing only the clean units would misinform the next revisit:
+- Six slate units, worker tier 6/6 clean, 0 semantic defects (TASK-487 at 16 units). Over-delegation events 0; unverified git-state claims accepted 0.
+- **The letter of the kill criterion was met at unit 2** ("two units where the reviewer catches a semantic defect the diff-read missed" — unit 1's `retention --exclude` High, unit 2's dedup-window Medium). The argument for not counting them (neither was a WORKER defect, neither was in code the diff-read had examined; both were orchestrator spec-framing gaps) is the agent's own judgment call embedded in its own recommendation. Surfaced to the owner as such before the decision.
+- **Post-slate negative data the 6-unit record does not contain**: #2072 ran 14 review rounds, and rounds 6-9 caught real regressions the ORCHESTRATOR introduced — the largest defect cluster of the trial, in inline (non-delegated) work, postdating the verdict-at-6.
+- **The trial's stated boundaries were owner-widened twice during the final session** — the `.claude/rules` batch (#2071) and then a full release (#2074, beta.200) — so "Opus 5 drives a release" is observed, not hypothetical: clean holistic review, correct finalize/publish sequence, develop preserved.
+
+Consequence to propagate: the orchestration skill's mode-decision table still frames Opus-main-loop as a posture rather than the default. That edit is review-gated (`.claude/skills`), so it rides the next skills PR alongside TASK-542 and TASK-547 rather than landing direct.
 <!-- SECTION:NOTES:END -->
