@@ -1,9 +1,10 @@
 ---
 id: TASK-551
 title: 'Orchestration skill: record Opus 5 as the settled default drain driver'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 12:01'
+updated_date: '2026-08-12 12:44'
 labels:
   - 'area:process'
   - 'size:S'

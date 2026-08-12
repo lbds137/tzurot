@@ -1,9 +1,10 @@
 ---
 id: TASK-542
 title: Orchestrator must verify worktree isolation actually applied
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 07:03'
+updated_date: '2026-08-12 12:44'
 labels:
   - 'area:docs'
   - 'size:S'
