@@ -1,9 +1,10 @@
 ---
 id: TASK-550
 title: Backlog gate does not catch a task present in both tasks and archive
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 10:07'
+updated_date: '2026-08-12 14:02'
 labels:
   - 'area:tooling'
   - 'size:S'
