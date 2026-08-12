@@ -65,8 +65,13 @@ function checkContextWindowCap(
  *    provider.
  *
  * 2. **OpenRouter cache** (everything else): validate against the cache and
- *    reject on miss. Gracefully degrades: if the cache is unavailable (e.g.,
- *    OpenRouter is down), validation is skipped and the request proceeds.
+ *    reject BOTH on a genuine miss (unknown model) and on an unreachable
+ *    catalog (e.g. OpenRouter is down) — the two produce distinct error
+ *    messages so an outage isn't misdiagnosed as a typo. Pinned by the
+ *    `modelValidation.test.ts` describe block "catalog-unavailable vs.
+ *    genuine-miss (TASK-539)". The ONLY case that skips validation entirely
+ *    is `modelCache === undefined` (the cache was never wired), handled
+ *    below.
  *
  * @param modelCache - OpenRouter model cache (may be undefined if not wired)
  * @param modelId - The model ID to validate (e.g., "anthropic/claude-sonnet-4")
@@ -108,11 +113,20 @@ export async function validateModelAndContextWindow(
     return {};
   }
 
-  const model = await modelCache.getModelById(modelId);
+  const lookup = await modelCache.lookupModelById(modelId);
 
-  // Model not found in cache — could be a new model or cache is stale
-  // Reject with a helpful message
-  if (model === null) {
+  // Catalog unreachable (e.g. OpenRouter is down) — reject, but with a
+  // message that points at the outage rather than the model ID, so the user
+  // isn't sent hunting a typo that doesn't exist.
+  if (lookup.kind === 'unavailable') {
+    return {
+      error: `Could not reach the model catalog to validate '${modelId}'. This is usually temporary — try saving again in a moment.`,
+    };
+  }
+
+  // Model genuinely absent from the catalog — could be a new model or a typo.
+  // Reject with a helpful message.
+  if (lookup.kind === 'absent') {
     // A `z-ai/`-prefixed catalog model that reached the OpenRouter lookup means
     // the saving user has no z.ai-coding key (the keyed path returns earlier) AND
     // this model isn't carried on OpenRouter either — i.e. a z.ai-only model like
@@ -138,7 +152,7 @@ export async function validateModelAndContextWindow(
     };
   }
 
-  return checkContextWindowCap(modelId, contextWindowTokens, model.contextLength);
+  return checkContextWindowCap(modelId, contextWindowTokens, lookup.model.contextLength);
 }
 
 /**
@@ -157,9 +171,14 @@ export async function validateModelAndContextWindow(
  * - model is z.ai-only (absent from OpenRouter, e.g. glm-5.2) → BADGE: a keyless
  *   viewer's OpenRouter fallthrough would 404 at runtime
  *
- * When the cache is unavailable we can't confirm OpenRouter absence, so we
+ * When the catalog is unavailable we can't confirm OpenRouter absence, so we
  * return `false` (no badge) rather than risk a false positive — same
- * graceful-degrade stance as `enrichWithModelContext`.
+ * graceful-degrade stance as `enrichWithModelContext`. That requires the
+ * TAGGED lookup: `getModelById` reports an outage and a genuine absence as the
+ * same `null`, so branching on it showed the badge during an outage, which is
+ * the opposite of what this paragraph promised. Pinned by the
+ * `computeRequiresZaiKey` test "does NOT badge when the catalog is
+ * unreachable".
  */
 export async function computeRequiresZaiKey(
   model: string | undefined,
@@ -175,8 +194,9 @@ export async function computeRequiresZaiKey(
   if (modelCache === undefined) {
     return false;
   }
-  const onOpenRouter = (await modelCache.getModelById(model)) !== null;
-  return !onOpenRouter;
+  // Only a CONFIRMED absence earns the badge; `resolved` means it runs on
+  // OpenRouter, and `unavailable` means we don't know.
+  return (await modelCache.lookupModelById(model)).kind === 'absent';
 }
 
 /** Object with optional model context fields, set by enrichWithModelContext */

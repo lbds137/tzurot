@@ -26,6 +26,18 @@ const logger = createLogger('OpenRouterModelCache');
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 
 /**
+ * Tagged result of a single-model lookup, distinguishing a genuine catalog
+ * miss from an unreachable catalog — `getModelById` collapses both to
+ * `null`, which is correct for its own callers (display-only, fail-closed by
+ * omission) but wrong for a caller that needs to tell a user why their save
+ * was rejected. See `lookupModelById`.
+ */
+export type ModelLookup =
+  | { kind: 'resolved'; model: ModelAutocompleteOption }
+  | { kind: 'unavailable' }
+  | { kind: 'absent' };
+
+/**
  * Filter options for querying models
  */
 interface ModelFilterOptions {
@@ -192,22 +204,42 @@ export class OpenRouterModelCache {
   }
 
   /**
-   * Look up a single model by ID.
-   * Returns the autocomplete option if found, null if not found.
-   * Returns null (no error) if the cache is unavailable.
+   * Look up a single model by ID, tagging the result so a caller can tell a
+   * genuine catalog miss (`absent`) apart from an unreachable catalog
+   * (`unavailable`) — the two collapse to the same `null` in `getModelById`,
+   * which is fine for display-only callers but wrong for anything that must
+   * report the difference to a user (e.g. the save-validation error message).
    */
-  async getModelById(modelId: string): Promise<ModelAutocompleteOption | null> {
+  async lookupModelById(modelId: string): Promise<ModelLookup> {
     try {
       const allModels = await this.getModels();
       const model = allModels.find(m => m.id === modelId);
       if (model === undefined) {
-        return null;
+        return { kind: 'absent' };
       }
-      return this.toAutocompleteOption(model);
+      return { kind: 'resolved', model: this.toAutocompleteOption(model) };
     } catch (error) {
+      // The error is logged here rather than carried on the result: no caller
+      // needs to re-handle it, and an unread `cause` field is dead surface.
       logger.warn({ err: error, modelId }, 'Cache unavailable for lookup');
-      return null;
+      return { kind: 'unavailable' };
     }
+  }
+
+  /**
+   * Look up a single model by ID.
+   * Returns the autocomplete option if found, null if not found.
+   * Returns null (no error) if the cache is unavailable.
+   *
+   * Built on `lookupModelById` so the two cannot drift — this collapses
+   * `absent` and `unavailable` to the same `null`, which is correct for this
+   * method's existing callers (display-only enrichment, badge computation)
+   * but loses the distinction; use `lookupModelById` directly when the
+   * caller needs to report WHY a model didn't resolve.
+   */
+  async getModelById(modelId: string): Promise<ModelAutocompleteOption | null> {
+    const result = await this.lookupModelById(modelId);
+    return result.kind === 'resolved' ? result.model : null;
   }
 
   /**
