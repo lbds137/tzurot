@@ -1,10 +1,10 @@
 ---
 id: TASK-534
 title: Warn when tracker files are untracked in git
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 21:36'
-updated_date: '2026-08-11 23:56'
+updated_date: '2026-08-12 04:46'
 labels:
   - 'area:tooling'
   - 'size:S'
