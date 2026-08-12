@@ -3,9 +3,10 @@ id: TASK-539
 title: >-
   api-gateway ModelCapabilityService collapses cache-unavailable into
   model-not-found
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 00:38'
+updated_date: '2026-08-12 03:26'
 labels:
   - 'area:api-gateway'
   - 'size:S'
