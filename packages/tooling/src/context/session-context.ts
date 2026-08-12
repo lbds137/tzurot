@@ -120,23 +120,115 @@ function getCurrentWorkSummary(cwd: string): string | null {
 }
 
 /**
+ * Migration status, with "could not determine" kept distinct from "this repo
+ * has no migrations". Collapsing them into one `null` made a DB hang render
+ * identically to a repo with no `prisma/` directory — total silence — which is
+ * the one degradation a session-startup warning must not choose.
+ */
+type MigrationStatus =
+  { kind: 'absent' } | { kind: 'unknown'; reason: string } | { kind: 'known'; pending: string[] };
+
+/** A status the display function can actually render — everything but `absent`. */
+type ResolvedMigrationStatus = Exclude<MigrationStatus, { kind: 'absent' }>;
+
+const PENDING_MARKER = 'have not yet been applied';
+
+/** Migration names listed under prisma's pending-migrations marker. */
+function parsePendingNames(output: string): string[] {
+  const pending: string[] = [];
+  let inPendingSection = false;
+
+  for (const line of output.split('\n')) {
+    if (line.includes(PENDING_MARKER)) {
+      inPendingSection = true;
+      continue;
+    }
+    if (inPendingSection && line.trim().startsWith('-')) {
+      pending.push(line.trim().substring(1).trim());
+    }
+    if (inPendingSection && line.trim() === '') {
+      break;
+    }
+  }
+
+  return pending;
+}
+
+/**
+ * Everything a failed run wrote, both streams, or `null` when neither is
+ * readable.
+ *
+ * BOTH streams, because prisma splits them and the half that matters is the
+ * one a stdout-only read misses. Probed against a real unreachable database:
+ * stdout carries `Datasource "db": PostgreSQL database …` while stderr carries
+ * `Error: P1001: Can't reach database server at …`. Reading stdout alone
+ * therefore does not fail loudly — it produces a plausible-looking reason
+ * naming the datasource while the actual error goes unread.
+ *
+ * `'stdout' in error` is also true when stdout is the EMPTY STRING (probed),
+ * so a presence check on it cannot be used to fall through to another source.
+ *
+ * And on a SPAWN failure the keys are present with the value `undefined`
+ * (probed against a missing binary: `code` is `ENOENT`, both streams are
+ * `undefined`, and the identifying text lives only on `message`). `String()`
+ * over that yields the literal `"undefined"` — a non-empty string that would
+ * pass a length check and render as `failed: undefined` while suppressing the
+ * `message` fallback that carries the real answer. Hence a nullish check on
+ * the VALUE, not a presence check on the key.
+ */
+function streamText(error: unknown, key: 'stdout' | 'stderr'): string {
+  if (error === null || typeof error !== 'object') return '';
+  const value = (error as Record<string, unknown>)[key];
+  // `encoding: 'utf-8'` on the call makes both streams strings when they hold
+  // anything at all; every other shape (undefined on a spawn failure, a Buffer
+  // if the encoding is ever dropped) is treated as absent so the caller falls
+  // through to `message` — the direction that yields a real answer rather than
+  // a stringified placeholder.
+  return typeof value === 'string' ? value : '';
+}
+
+function capturedOutput(error: unknown): string | null {
+  const streams = [streamText(error, 'stdout'), streamText(error, 'stderr')].filter(
+    text => text.trim().length > 0
+  );
+  if (streams.length > 0) return streams.join('\n');
+  if (error !== null && typeof error === 'object' && 'message' in error) {
+    return String(error.message);
+  }
+  return null;
+}
+
+const REASON_MAX_LENGTH = 160;
+
+/**
+ * The line of a failure's output most likely to identify it, bounded.
+ *
+ * One line because this is rendered into the session banner and prisma's
+ * failures run to many lines of hints and connection detail. The
+ * error-looking line is preferred over the first non-empty one for the same
+ * reason both streams are read: the first line of a prisma failure is
+ * routinely a benign datasource echo, and the identifying `Error: P1001…` sits
+ * several lines below it.
+ */
+function failureLine(output: string): string {
+  const lines = output.split('\n').filter(candidate => candidate.trim().length > 0);
+  const line = (lines.find(candidate => /error/i.test(candidate)) ?? lines[0] ?? '').trim();
+  return line.length > REASON_MAX_LENGTH ? `${line.slice(0, REASON_MAX_LENGTH)}…` : line;
+}
+
+/**
  * Check for pending migrations
  */
-function getPendingMigrations(cwd: string): string[] | null {
+function getPendingMigrations(cwd: string): MigrationStatus {
   // Check if prisma migrations directory exists
   const migrationsDir = join(cwd, 'prisma', 'migrations');
-  if (!existsSync(migrationsDir)) return null;
+  if (!existsSync(migrationsDir)) return { kind: 'absent' };
 
   // Try to get migration status via prisma CLI
   // Using execFileSync with npx to avoid shell injection
-  let result: string;
   try {
-    result = execFileSync('npx', ['prisma', 'migrate', 'status'], {
-      encoding: 'utf-8',
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: MIGRATION_STATUS_TIMEOUT_MS,
-    });
+    // Exit 0 is the only output this function trusts as a complete answer.
+    return { kind: 'known', pending: parsePendingNames(execSuccessOutput(cwd)) };
   } catch (error) {
     // A timeout kill must NOT fall through to the stdout branch below. Node
     // still attaches whatever stdout was captured before the SIGTERM, and
@@ -144,41 +236,60 @@ function getPendingMigrations(cwd: string): string[] | null {
     // so the partial (usually empty) output would fail the content match and
     // return [], reporting "no migrations pending" when the truth is unknown.
     // `code` is the discriminator: `killed` is undefined on this path.
-    if (isTimeoutKill(error)) return null;
-    // Prisma migrate status exits with non-zero when migrations are pending
-    // We need to capture the output from stderr/stdout
-    if (error && typeof error === 'object' && 'stdout' in error) {
-      result = String(error.stdout);
-    } else if (error && typeof error === 'object' && 'message' in error) {
-      result = String(error.message);
-    } else {
-      return null;
+    if (isTimeoutKill(error)) {
+      return {
+        kind: 'unknown',
+        reason: `prisma migrate status timed out after ${MIGRATION_STATUS_TIMEOUT_MS / 1000}s`,
+      };
     }
-  }
-
-  // Look for "Following migration(s) have not yet been applied"
-  if (result.includes('have not yet been applied')) {
-    const lines = result.split('\n');
-    const pending: string[] = [];
-    let inPendingSection = false;
-
-    for (const line of lines) {
-      if (line.includes('have not yet been applied')) {
-        inPendingSection = true;
-        continue;
-      }
-      if (inPendingSection && line.trim().startsWith('-')) {
-        pending.push(line.trim().substring(1).trim());
-      }
-      if (inPendingSection && line.trim() === '') {
-        break;
-      }
+    // Prisma migrate status exits with non-zero when migrations are pending,
+    // so a non-zero exit's output is the answer — when it is the pending shape.
+    //
+    // Two different reads of the same failure, deliberately: the pending LIST
+    // is structured data and comes from stdout alone, while the failure REASON
+    // is diagnostic prose and may come from either stream. Parsing the list out
+    // of the merged blob would let a stderr warning that lands next to the
+    // marker be absorbed as a migration name — and the merge exists only for
+    // the reason, which is the half that was demonstrably on the wrong stream.
+    // If prisma ever moved the list to stderr, the marker check below fails and
+    // the answer degrades to `unknown`, never to a false all-clear.
+    const stdout = streamText(error, 'stdout');
+    const output = capturedOutput(error);
+    if (output === null) {
+      return { kind: 'unknown', reason: 'prisma migrate status failed with no readable output' };
     }
 
-    return pending;
+    // A non-zero exit is only a COMPLETE answer when it is the pending-migrations
+    // exit. Every other non-zero shape — an unreachable database (P1001), schema
+    // drift, a permission error, a spawn failure — carries output that simply
+    // does not contain the marker, and reading that as "no marker, therefore
+    // nothing pending" is the same confident-wrong all-clear this function's
+    // timeout branch exists to prevent. A refused connection fails FAST, so it
+    // is the likelier trigger of the two.
+    if (!stdout.includes(PENDING_MARKER)) {
+      // The fallback keeps the reason a complete sentence when both streams are
+      // whitespace-only — otherwise it renders as a dangling colon.
+      const detail = failureLine(output);
+      return {
+        kind: 'unknown',
+        reason:
+          detail === ''
+            ? 'prisma migrate status failed with no readable output'
+            : `prisma migrate status failed: ${detail}`,
+      };
+    }
+    return { kind: 'known', pending: parsePendingNames(stdout) };
   }
+}
 
-  return [];
+/** The success-path invocation, split out so the `try` above wraps one call. */
+function execSuccessOutput(cwd: string): string {
+  return execFileSync('npx', ['prisma', 'migrate', 'status'], {
+    encoding: 'utf-8',
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: MIGRATION_STATUS_TIMEOUT_MS,
+  });
 }
 
 interface CIStatus {
@@ -316,9 +427,19 @@ function displayRoadmapItems(items: string[]): void {
 /**
  * Display migrations section
  */
-function displayMigrations(pending: string[]): void {
+function displayMigrations(status: ResolvedMigrationStatus): void {
   console.log(chalk.yellow('🗄️  Migrations'));
   console.log(chalk.dim('─'.repeat(50)));
+  if (status.kind === 'unknown') {
+    console.log(`   ${chalk.yellow(`Status unknown — ${status.reason}`)}`);
+    // Deliberately cause-agnostic: an unknown can be a timeout, an unreachable
+    // database, schema drift, or a permission error, and naming reachability
+    // for all of them points a reader at the wrong thing three times out of four.
+    console.log(chalk.dim('     Re-run `pnpm ops context` once the cause is cleared'));
+    console.log('');
+    return;
+  }
+  const { pending } = status;
   if (pending.length > 0) {
     console.log(`   ${chalk.yellow(`${pending.length} pending migration(s)`)}`);
     for (const migration of pending) {
@@ -424,9 +545,9 @@ export async function getSessionContext(options: ContextOptions = {}): Promise<v
   }
 
   if (!skipMigrations) {
-    const pending = getPendingMigrations(cwd);
-    if (pending !== null) {
-      displayMigrations(pending);
+    const migrations = getPendingMigrations(cwd);
+    if (migrations.kind !== 'absent') {
+      displayMigrations(migrations);
     }
   }
 
