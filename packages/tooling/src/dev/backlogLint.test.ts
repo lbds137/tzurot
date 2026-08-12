@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import {
   ALLOW_ORIGIN_ID_COLLISION_ENV,
   checkDuplicateTaskIds,
@@ -17,6 +18,12 @@ vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   readdirSync: vi.fn(),
+}));
+
+// The runBacklogLint suite's beforeEach sets a clean-tree default (''); tests
+// that exercise the warning path override it with their own porcelain output.
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
 }));
 
 describe('parseSectionCaps', () => {
@@ -408,6 +415,9 @@ describe('runBacklogLint', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    // Clean tracker tree unless a test says otherwise — `resetAllMocks` drops
+    // the implementation, so this has to be re-set every time.
+    vi.mocked(execFileSync).mockReturnValue('');
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     process.exitCode = undefined;
   });
@@ -494,12 +504,71 @@ describe('runBacklogLint', () => {
     expect(process.exitCode).not.toBe(1);
   });
 
+  it('warns on an uncommitted tracker file but does not set a non-zero exit code', async () => {
+    mockFs(
+      {
+        'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n2. b\n',
+        'backlog/cold/queue.md': '- **Foo** (`doc-1`)\n',
+      },
+      ['doc-1 - Foo.md']
+    );
+    // NUL-terminated: readTrackerGitStatus passes `-z` (see trackerGitStatus.ts).
+    vi.mocked(execFileSync).mockReturnValue('?? tracker/tasks/task-537 - new.md\0');
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('Backlog layout in sync');
+    expect(out).toContain('Uncommitted tracker files');
+    expect(out).toContain('tracker/tasks/task-537 - new.md (untracked)');
+    expect(process.exitCode).not.toBe(1);
+  });
+
+  it('prints nothing extra and stays exit-neutral when the git read fails', async () => {
+    // The documented contract at the seam that matters — the CLI's own output,
+    // not readTrackerGitStatus in isolation. In CI the tracker tree is clean
+    // and an unresolvable git call is uninteresting, so silence is correct.
+    mockFs(
+      {
+        'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n2. b\n',
+        'backlog/cold/queue.md': '- **Foo** (`doc-1`)\n',
+      },
+      ['doc-1 - Foo.md']
+    );
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('not a git repository');
+    });
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('Backlog layout in sync');
+    expect(out).not.toContain('Uncommitted tracker files');
+    expect(process.exitCode).not.toBe(1);
+  });
+
   it('flags a cap violation and sets a non-zero exit code', async () => {
     mockFs({ 'backlog/now.md': '### ⚡ Quick Wins (max 2)\n- a\n- b\n- c\n' }, []);
 
     await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
     expect(logSpy.mock.calls.flat().join('\n')).toContain('has 3 items (cap 2)');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('prints the advisory warning alongside a real structural problem', async () => {
+    // The two blocks are independent — gating problems set the exit code, the
+    // warning never does — but every other test exercises one branch with the
+    // other quiet. This pins that a failing run still names the uncommitted
+    // file rather than the warning being swallowed by the problem report.
+    mockFs({ 'backlog/now.md': '### ⚡ Quick Wins (max 2)\n- a\n- b\n- c\n' }, []);
+    vi.mocked(execFileSync).mockReturnValue('?? tracker/tasks/task-537 - new.md\0');
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('has 3 items (cap 2)');
+    expect(out).toContain('tracker/tasks/task-537 - new.md (untracked)');
     expect(process.exitCode).toBe(1);
   });
 
@@ -845,14 +914,18 @@ describe('runBacklogLint', () => {
   });
 });
 
-// The one real git/OS seam this module introduces. A parse bug here fails
-// toward a false positive that sets process.exitCode = 1, tripping everyone's
-// quality gate — so the shell-out is mocked and its parse/trim/filter exercised
-// directly, the way ci-gate.test.ts covers fetchRuns' execFileSync.
+// The only git/OS seam left in this module — the other one moved to
+// trackerGitStatus.ts with its own colocated tests. It is also the
+// higher-stakes of the two: a parse bug here fails toward a false positive that
+// sets process.exitCode = 1, tripping everyone's quality gate — so the
+// shell-out is mocked and its parse/trim/filter exercised directly, the way
+// ci-gate.test.ts covers fetchRuns' execFileSync.
 describe('readOriginTaskFiles', () => {
-  // Reset BEFORE each test, not only after: the top-level static import already
-  // cached this module with the real child_process, so without a reset the
-  // FIRST test's doMock would not apply and it would shell out to real git.
+  // Reset BEFORE each test, not only after: this file's hoisted
+  // `vi.mock('node:child_process')` already bound the static import to a shared
+  // `vi.fn()`, so without a reset the FIRST test's doMock would not apply and
+  // the call would hit that stub (returning undefined) instead of the per-test
+  // ls-tree fixture.
   beforeEach(() => {
     vi.resetModules();
   });

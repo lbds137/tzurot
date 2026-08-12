@@ -27,6 +27,12 @@
  *    "no such work", never as "the label is missing". Done tasks are exempt:
  *    they're finished work awaiting archive.
  *
+ * Separately, and NOT gating: a warning naming any uncommitted file under
+ * `tracker/`. Everything above parses the tracker tree off disk, so a task git
+ * has never seen passes every check — green while invisible to the digest and
+ * to every query. That one is advisory because a half-written task file is a
+ * legitimate working state.
+ *
  * Run via `pnpm ops backlog`. Exits non-zero on a structural problem so it can
  * gate in `pnpm quality` and CI. This is a binary "is the layout in sync?"
  * check, NOT an audit-class tool — no baseline / WHY.md / canary
@@ -41,6 +47,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import chalk from 'chalk';
+import { checkUncommittedTrackerFiles, readTrackerGitStatus } from './trackerGitStatus.js';
 import { loadTrackerTasks, openTasks, type TrackerTask } from './trackerTasks.js';
 
 /** @internal Exported for testing */
@@ -624,6 +631,21 @@ export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
     );
   }
   reportProblems(problems);
+
+  const trackerGitStatus = readTrackerGitStatus(rootDir);
+  if (trackerGitStatus !== null) {
+    const uncommitted = checkUncommittedTrackerFiles(trackerGitStatus);
+    if (uncommitted.length > 0) {
+      console.log(
+        chalk.yellow(
+          '⚠ Uncommitted tracker files — these are invisible to every query until committed:'
+        )
+      );
+      for (const warning of uncommitted) {
+        console.log(chalk.yellow(`   - ${warning}`));
+      }
+    }
+  }
 
   if (problems.length > 0) {
     process.exitCode = 1;
