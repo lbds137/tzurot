@@ -102,19 +102,247 @@ describe('getSessionContext', () => {
       const { getSessionContext } = await import('./session-context.js');
       await getSessionContext({});
 
-      // `null` skips the section entirely. Without the guard the empty stdout
-      // parses as an empty pending list, which prints the all-clear — the
-      // exact wrong answer, so that string is what this asserts against.
+      // Without the guard the empty stdout parses as an empty pending list,
+      // which prints the all-clear — the exact wrong answer.
       const output = consoleLogSpy.mock.calls.flat().join(' ');
       expect(output).not.toContain('All migrations applied');
-      // Pin the null path specifically, not merely the absence of one string:
-      // the whole section is skipped. Without this, a regression that dropped
-      // the migration block entirely would still satisfy the assertion above.
+      // ...and silence is the other wrong answer: an unknown must be VISIBLE,
+      // otherwise a DB hang renders identically to a repo with no migrations.
+      expect(output).toContain('Migrations');
+      expect(output).toContain('Status unknown');
+      expect(output).toContain('timed out');
+    });
+
+    it('reports UNKNOWN when the failure carries no readable output at all', async () => {
+      // The third `null` path pre-fix: a thrown value with neither stdout nor
+      // message. Same epistemic state as the timeout — nothing was learned —
+      // so it must degrade the same way rather than to silence.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') throw 'not an Error object';
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('Status unknown');
+      expect(output).not.toContain('All migrations applied');
+    });
+
+    it('renders the pending list parsed out of a non-zero prisma exit', async () => {
+      // The KNOWN path, which had no test before this change touched its
+      // return shape: prisma exits non-zero precisely when migrations are
+      // pending, so the names arrive on the error's stdout.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('exit 1') as Error & { stdout: string };
+          error.stdout = [
+            'Following migration(s) have not yet been applied:',
+            '- 20260101000000_add_widgets',
+            '- 20260102000000_add_gadgets',
+            '',
+          ].join('\n');
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('2 pending migration(s)');
+      expect(output).toContain('20260101000000_add_widgets');
+      expect(output).toContain('20260102000000_add_gadgets');
+      expect(output).not.toContain('Status unknown');
+    });
+
+    it('reports UNKNOWN for a non-zero exit that is not the pending-migrations one', async () => {
+      // The likelier failure of the two this function guards: a refused DB
+      // connection fails FAST rather than hanging, so it never reaches the
+      // timeout branch. Its output carries no pending marker, and reading
+      // "no marker" as "nothing pending" is the same all-clear the timeout
+      // branch exists to prevent.
+      // Fixture copied from a REAL probe against an unreachable database, not
+      // invented: prisma splits the two halves across streams, putting a benign
+      // datasource echo on stdout and the identifying error on stderr. A
+      // synthetic fixture that puts P1001 on stdout passes while the code reads
+      // only stdout — green, and blind to the actual shape.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('command failed') as Error & {
+            stdout: string;
+            stderr: string;
+          };
+          error.stdout = 'Datasource "db": PostgreSQL database "nope" at "127.0.0.1:59999"\n';
+          error.stderr = [
+            'Prisma schema loaded from prisma/schema.prisma.',
+            "Error: P1001: Can't reach database server at `127.0.0.1:59999`",
+            '',
+            'Please make sure your database server is running.',
+          ].join('\n');
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).not.toContain('All migrations applied');
+      expect(output).toContain('Status unknown');
+      // The identifying line, from STDERR — not the datasource echo that a
+      // stdout-only read would surface as a plausible-looking wrong reason.
+      expect(output).toContain('P1001');
+      expect(output).not.toContain('Datasource');
+      // ...and only that line, not prisma's whole essay.
+      expect(output).not.toContain('Please make sure your database server');
+    });
+
+    it('surfaces the spawn-failure message instead of the string "undefined"', async () => {
+      // Probed shape for a missing binary: both stream KEYS are present with
+      // the value `undefined`, and the identifying text lives only on
+      // `message`. A presence check on the key plus `String()` yields the
+      // literal "undefined" — non-empty, so it wins over the message fallback
+      // and renders as `failed: undefined`.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('spawnSync npx ENOENT') as Error & {
+            code: string;
+            stdout: undefined;
+            stderr: undefined;
+          };
+          error.code = 'ENOENT';
+          error.stdout = undefined;
+          error.stderr = undefined;
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('Status unknown');
+      expect(output).toContain('ENOENT');
+      expect(output).not.toContain('undefined');
+    });
+
+    it('does not absorb stderr noise into the pending-migration list', async () => {
+      // The pending LIST is read from stdout alone. Merging the streams for the
+      // list would let a stderr warning sitting next to the marker be parsed as
+      // a migration name; the merge exists only for the failure REASON.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('exit 1') as Error & { stdout: string; stderr: string };
+          // NO trailing blank line on stdout: the parser stops at the first
+          // blank after the marker, so a fixture that ends with one can never
+          // reach stderr and passes whether the streams are merged or not.
+          // (Written that way first; the canary caught it staying green.)
+          error.stdout = [
+            'Following migration(s) have not yet been applied:',
+            '- 20260101000000_add_widgets',
+          ].join('\n');
+          error.stderr = '- warning: a deprecation notice shaped like a list item';
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('1 pending migration(s)');
+      expect(output).toContain('20260101000000_add_widgets');
+      expect(output).not.toContain('deprecation notice');
+    });
+
+    it('says so plainly when both streams are empty, rather than trailing a colon', async () => {
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('') as Error & { stdout: string; stderr: string };
+          error.stdout = '';
+          error.stderr = '   \n';
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('failed with no readable output');
+      expect(output).not.toContain('failed: ');
+    });
+
+    it('truncates a very long failure line instead of flooding the banner', async () => {
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('boom') as Error & { stdout: string; stderr: string };
+          error.stdout = '';
+          error.stderr = `Error: ${'x'.repeat(400)}`;
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('…');
+      expect(output).not.toContain('x'.repeat(200));
+    });
+
+    it('renders the all-clear when prisma reports the schema up to date', async () => {
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) =>
+        cmd === 'npx' ? 'Database schema is up to date!' : ''
+      );
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('All migrations applied');
+      expect(output).not.toContain('Status unknown');
+    });
+
+    it('prints NO migrations section when the repo has no migrations directory', async () => {
+      // The distinction the unknown line exists to preserve: absent stays
+      // silent. If this went to the unknown branch, every non-Prisma repo
+      // would get a spurious warning at session start.
+      fsMock.existsSync.mockReturnValue(false);
+      execFileSyncMock.mockReturnValue('');
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
       expect(output).not.toContain('Migrations');
-      // ...and prove the run still completed, so "section skipped" is
-      // distinguishable from "died before printing anything". (Git state is
-      // also absent here — this fixture returns '' for git, so that section
-      // legitimately skips too; the banner is what proves the run finished.)
+      expect(output).not.toContain('Status unknown');
+      // Prove the run completed, so "section skipped" is distinguishable from
+      // "died before printing anything".
       expect(output).toContain('SESSION CONTEXT');
     });
 
