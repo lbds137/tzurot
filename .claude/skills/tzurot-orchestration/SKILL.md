@@ -184,6 +184,13 @@ use subagents to verify or double-check your own work. Then:
 - Re-run the gates yourself when the worker's verification tails are absent or
   truncated; a claim without command output is unverified.
 - Then the normal commit → PR → monitor cycle per `/tzurot-git-workflow`.
+- **Review-round hard cap (~6 rounds/PR)**: past it, stop iterating in this
+  context — hand the open findings to a fresh-context implementer or the owner
+  (`/tzurot-review-response` § 5a carries the procedure and the evidence; both
+  observed 14–15-round marathons were self-fed — later rounds fixing
+  regressions earlier rounds introduced; the 14-round one occurred in inline,
+  non-delegated orchestrator work, which is why this skill carries its own
+  pointer).
 
 ## Opus-main-loop posture
 
