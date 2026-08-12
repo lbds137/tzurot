@@ -27,7 +27,7 @@ _Focus: a hosted, read-only dashboard over the tracker/backlog so the owner (and
 
 Tzurot (prod site) renders the backlog from **main**; Rotzot (dev brand) renders from **develop** — "that would line up with how the website already works / gets deployed." With the static-gen approach this is free: each deployment builds from its own branch's checkout, so the branch keying needs no fetch layer at all.
 
-**Known asymmetry to decide deliberately at design time**: the backlog's living truth is on develop (tracker filings/status changes are develop-direct commits; main receives them only at release merges). So the prod/Tzurot view lags by release cadence while Rotzot updates within minutes of every filing — the view the owner personally uses is the Rotzot one. Options at pickup: accept as a feature (prod = stable released-state of the plan, Rotzot = living board — leading candidate), or have the prod page runtime-fetch develop's files via raw.githubusercontent (public repo, cacheable) at the cost of a fetch layer the static approach otherwise avoids.
+**Staleness asymmetry: SETTLED (owner, 2026-08-12) — accepted as a feature.** The backlog's living truth is on develop (tracker filings/status changes are develop-direct commits; main receives them only at release merges), so the prod/Tzurot view lags by release cadence while Rotzot updates within minutes of every filing. Owner call: that's fine — prod = stable released-state of the plan, Rotzot = the living board (the one the owner personally uses). No runtime-fetch layer; pure static-gen per branch. Do not reopen at pickup.
 
 #### Phases (rough)
 
