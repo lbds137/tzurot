@@ -1,9 +1,10 @@
 ---
 id: TASK-530
 title: 'Hook: block gh pr merge --delete-branch while the head branch is checked out'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 19:27'
+updated_date: '2026-08-12 19:23'
 labels:
   - 'area:tooling'
   - 'size:M'

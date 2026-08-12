@@ -1,9 +1,10 @@
 ---
 id: TASK-553
 title: 'git-workflow: verify a referenced task is COMMITTED before claiming it filed'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 13:46'
+updated_date: '2026-08-12 19:23'
 labels:
   - 'area:process'
   - 'size:S'
