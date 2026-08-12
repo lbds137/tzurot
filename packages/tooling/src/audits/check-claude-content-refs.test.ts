@@ -429,6 +429,7 @@ describe('findContentRefs (against real repo)', () => {
       'release:finalize',
       'release:premigrate',
       'release:publish',
+      'release:range',
       'release:verify-notes',
       'run',
       'session:clear',

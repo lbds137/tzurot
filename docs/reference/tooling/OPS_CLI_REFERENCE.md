@@ -241,6 +241,8 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 | `pnpm ops release:draft-notes`                                       | Draft release-notes skeleton from PRs merged since the previous tag                                               |
 | `pnpm ops release:draft-notes --from v3.0.0-beta.103`                | Draft starting from a specific tag (else auto-discovered via `git describe`)                                      |
 | `cat /tmp/notes.md \| pnpm ops release:verify-notes`                 | Verify a notes draft references every merged PR in range exactly once (exits 1 on missing/extra/duplicate refs)   |
+| `pnpm ops release:range`                                             | List PRs merged since the previous tag, classified runtime vs. non-runtime, with a total trailer                  |
+| `pnpm ops release:range --from v3.0.0-beta.103`                      | Range starting from a specific tag (else auto-discovered via `git describe`)                                      |
 | `pnpm ops release:premigrate --dry-run`                              | Preview the prod migrations in the release range without applying                                                 |
 | `pnpm ops release:premigrate`                                        | Apply the release range's migrations to prod BEFORE merging the release PR (refuses destructive shapes)           |
 | `pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md` | Tag + publish the GitHub Release with correct latest/prerelease flags                                             |
@@ -253,6 +255,7 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 - `release:bump` — before cutting the release PR, bump the monorepo version so it ships tagged correctly. It also gates the PREVIOUS release's close-out: CURRENT.md's `> **Version**: vX` header must equal package.json's current version, which is exactly what a skipped CURRENT.md reset looks like. The reset itself stays human judgment; `--allow-stale-current` bypasses the check for a deliberate exception.
 - `release:draft-notes` — generate the skeleton for the release PR body; edit as needed before submitting.
 - `release:verify-notes` — CI/pre-publish gate: confirms every merged PR in the tag-to-HEAD range appears in the notes exactly once.
+- `release:range` — the deterministic answer to "how many PRs since the last release, and how many touch runtime?" Reuses `release:draft-notes`'s enumeration, so it can never disagree with it; use this instead of a hand-rolled `gh pr list` query.
 - `release:premigrate` — run BEFORE merging the release PR so auto-deploy lands into a ready schema; destructive shapes need `--allow-destructive` inside a maintenance window (see `.claude/rules/03-database.md` § Deployment).
 - `release:publish` — after the release merge, tag and publish the GitHub Release from the verified notes file.
 - `release:finalize` — run after the release PR merges to main. Keeps develop's SHAs aligned with main's so the next release PR doesn't show phantom "conflicts with main."

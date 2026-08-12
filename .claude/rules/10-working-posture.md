@@ -116,10 +116,12 @@ or the release notes would need more than two themes, propose a cut — accumula
 dilutes the holistic release-review's second look. **Count merged PRs, not
 commits**: rebase-only merging makes those diverge badly enough to change the
 answer. **Runtime is everything except `packages/{tooling,test-utils,test-factories}`,
-`.claude/`, `docs/`, `backlog/`, `tracker/`, and `CURRENT.md`** — stated as an
+`.claude/`, `docs/`, `backlog/`, `tracker/`, `.github/`, `.husky/`, and root
+markdown files (`CURRENT.md`, `BACKLOG.md`, `README.md`, ...)** — stated as an
 exclusion because most workspace packages are runtime `dependencies` of a
 deployed service, so an allowlist under-counts by default and a new package
-joins the wrong side silently. A tooling- or docs-only batch dilutes nothing — the second look
+joins the wrong side silently. `pnpm ops release:range` derives the count
+mechanically from this list. A tooling- or docs-only batch dilutes nothing — the second look
 earns its keep on runtime risk headed for prod — so cut those at convenience.
 The same instinct applies down-stack: one package per rollout PR, one campaign
 slice per PR, fix-forward for a release review's non-blocking finding rather
