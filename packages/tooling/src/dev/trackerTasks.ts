@@ -20,8 +20,14 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
-/** Store location relative to the repo root. Matches `backlog.config.yml`. */
-const TRACKER_TASKS_DIR = 'tracker/tasks';
+/**
+ * Store location relative to the repo root. Matches `backlog.config.yml`.
+ *
+ * Exported because `backlogLint` also addresses this directory (to compare it
+ * against the archive); a second local copy of the literal would be a second
+ * source of truth kept in step by hand.
+ */
+export const TRACKER_TASKS_DIR = 'tracker/tasks';
 
 /** @internal Exported for testing */
 export interface TrackerTask {

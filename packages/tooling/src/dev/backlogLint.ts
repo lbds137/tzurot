@@ -26,6 +26,10 @@
  *    task is filed into a blind spot: a filter that returns nothing reads as
  *    "no such work", never as "the label is missing". Done tasks are exempt:
  *    they're finished work awaiting archive.
+ *  - `tracker/tasks/` and `tracker/archive/tasks/` are disjoint by id, and the
+ *    archive itself holds one file per id. An archived task whose live copy
+ *    survived still answers every open-pool query while the operator believes
+ *    it superseded, and both halves parse cleanly, so nothing else surfaces it.
  *
  * Separately, and NOT gating: a warning naming any uncommitted file under
  * `tracker/`. Everything above parses the tracker tree off disk, so a task git
@@ -48,7 +52,12 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import chalk from 'chalk';
 import { checkUncommittedTrackerFiles, readTrackerGitStatus } from './trackerGitStatus.js';
-import { loadTrackerTasks, openTasks, type TrackerTask } from './trackerTasks.js';
+import {
+  loadTrackerTasks,
+  openTasks,
+  TRACKER_TASKS_DIR,
+  type TrackerTask,
+} from './trackerTasks.js';
 
 /** @internal Exported for testing */
 export interface SectionCap {
@@ -276,7 +285,7 @@ function checkDocIdRefs(rootDir: string): string[] {
  * `backlog` is scanned recursively (`backlog/cold/` holds the queue and epic
  * log); the tracker directories are flat but go through the same walk.
  */
-const RELATIVE_LINK_SCAN_DIRS = ['tracker/docs', 'tracker/tasks', 'backlog'];
+const RELATIVE_LINK_SCAN_DIRS = ['tracker/docs', TRACKER_TASKS_DIR, 'backlog'];
 
 /** Every `.md` file under `dir`, recursively, paired with its repo-relative path. */
 function collectMarkdownFiles(dir: string, relDir: string): { abs: string; rel: string }[] {
@@ -521,6 +530,101 @@ export function checkDuplicateTaskIds(tasks: TrackerTask[]): string[] {
     );
 }
 
+const ARCHIVE_TASKS_DIR = 'tracker/archive/tasks';
+
+/**
+ * Markdown filenames in one task directory, or `[]` when it does not exist.
+ *
+ * Deliberately a directory listing rather than a projection of the parsed
+ * `tasks`: a file that fails to parse is absent from that list, and an
+ * unparseable live copy of an archived task is exactly as invisible as a
+ * parseable one — more so, since the parse failure gives no hint that a
+ * second copy exists.
+ */
+function readTaskFileNames(rootDir: string, dir: string): string[] {
+  const abs = join(rootDir, dir);
+  if (!existsSync(abs)) {
+    return [];
+  }
+  // Sorted to match `loadTrackerTasks`, so findings come out in the same order
+  // run to run — `readdirSync` makes no ordering guarantee on a real filesystem.
+  return readdirSync(abs)
+    .filter(name => name.endsWith('.md'))
+    .sort();
+}
+
+/** @internal Exported for testing */
+export function readArchivedTaskFiles(rootDir: string): string[] {
+  return readTaskFileNames(rootDir, ARCHIVE_TASKS_DIR);
+}
+
+/** @internal Exported for testing */
+export function readLiveTaskFiles(rootDir: string): string[] {
+  return readTaskFileNames(rootDir, TRACKER_TASKS_DIR);
+}
+
+/**
+ * Any task id answered by more than one file: across `tracker/tasks/` and
+ * `tracker/archive/tasks/`, or twice within the archive itself.
+ *
+ * The archive is how an item exits the pool, so the two directories must be
+ * disjoint and the archive must hold one file per id — and each copy parses
+ * fine on its own, so nothing else surfaces the overlap. This is
+ * `06-backlog.md`'s "a missing label is indistinguishable from absent work"
+ * read in reverse.
+ *
+ * Compared by id token rather than by full filename, so a rename on either
+ * side cannot hide it — and because the id, not the title, is what every CLI
+ * lookup resolves.
+ *
+ * Two causes, both real, hence a message naming both remedies. A live copy can
+ * SURVIVE an archive move (delete it), or a genuinely new task can be handed a
+ * RECYCLED id (renumber it): the allocator numbers from the live directory
+ * only — probed, `task-9001` in the archive still yielded `TASK-552` — so
+ * archiving the highest-numbered task frees its id for the next create.
+ *
+ * No bypass env var, unlike `checkOriginIdCollisions`: a rename can make that
+ * check spurious, while nothing makes two files answering one id harmless.
+ * @internal Exported for testing
+ */
+export function checkArchiveIdConflicts(liveFiles: string[], archivedFiles: string[]): string[] {
+  const archivedById = new Map<string, string[]>();
+  for (const name of archivedFiles) {
+    const id = fileIdToken(name);
+    archivedById.set(id, [...(archivedById.get(id) ?? []), name]);
+  }
+  // Two files under one id INSIDE the archive is the same failure shape one
+  // directory over: each looks correct alone, and a last-writer-wins map would
+  // compare only one of them and report neither. Accumulating the list closes
+  // that cell as a side effect of not overwriting.
+  const archiveInternal = [...archivedById.entries()]
+    .filter(([, names]) => names.length > 1)
+    .map(
+      ([id, names]) =>
+        `${id} appears ${names.length} times inside ${ARCHIVE_TASKS_DIR}/: ${names.join(', ')} — ` +
+        'the archive is meant to hold one file per id. Delete or renumber the duplicates.'
+    );
+
+  return archiveInternal.concat(
+    liveFiles
+      .map(name => ({ name, archived: archivedById.get(fileIdToken(name)) }))
+      .filter((hit): hit is { name: string; archived: string[] } => hit.archived !== undefined)
+      .map(
+        hit =>
+          `${fileIdToken(hit.name)} is BOTH live and archived: ${TRACKER_TASKS_DIR}/${hit.name} ` +
+          // Prefixed PER FILE, not once before the join: every path in this
+          // message has to be copy-pasteable, and an id with two archived
+          // copies would otherwise print the second as a bare filename.
+          `and ${hit.archived.map(name => `${ARCHIVE_TASKS_DIR}/${name}`).join(', ')} — ` +
+          'the live copy answers every ' +
+          'open-pool query, and every id lookup is ambiguous. If the live copy is a leftover ' +
+          'from an archive move, delete it; if it is genuinely new work that was handed a ' +
+          'recycled id (the allocator numbers from the live directory only), renumber it ' +
+          '(file, `id:`, and `ordinal:`).'
+      )
+  );
+}
+
 /** Escape hatch for the legitimate-rename false positive; mirrors `--allow-stale-current`. */
 export const ALLOW_ORIGIN_ID_COLLISION_ENV = 'TZUROT_ALLOW_ORIGIN_ID_COLLISION';
 
@@ -590,7 +694,8 @@ function reportProblems(problems: string[]): void {
   if (problems.length === 0) {
     console.log(
       chalk.green(
-        '✓ Backlog layout in sync (caps respected, links resolve, tracker store parses, open tasks triaged)'
+        '✓ Backlog layout in sync (caps respected, links resolve, tracker store parses, ' +
+          'open tasks triaged, archive disjoint from the live pool)'
       )
     );
     return;
@@ -604,7 +709,8 @@ function reportProblems(problems: string[]): void {
 /**
  * CLI entry point. Sets a non-zero exit code on any structural problem (cap
  * exceeded, dangling doc reference, unreadable tracker task, untriaged open
- * task, duplicated or origin-colliding task id).
+ * task, duplicated or origin-colliding task id, a task that is both live and
+ * archived).
  */
 export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   const rootDir = options.rootDir ?? process.cwd();
@@ -625,6 +731,7 @@ export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
     ...trackerProblems,
     ...checkTaskTriage(tasks),
     ...checkDuplicateTaskIds(tasks),
+    ...checkArchiveIdConflicts(readLiveTaskFiles(rootDir), readArchivedTaskFiles(rootDir)),
     ...(bypassOriginCollision ? [] : checkOriginIdCollisions(tasks, origin)),
   ];
   if (bypassOriginCollision) {
