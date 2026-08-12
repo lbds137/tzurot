@@ -20,3 +20,5 @@ _Focus: time-series metrics + distributed tracing for load-correlated production
 **Interim (cheaper, directly cracks the preset bug)**: targeted timing instrumentation shipped to the **prod** llm-config PUT path — breakdown log: validate / DB write / cache-invalidation / total. Ship the probe to prod, read the runtime observation, then fix.
 
 **Method (REQUIRED)**: actual web research — current OTel-on-Node maturity, auto-instrumentation coverage for our stack, real cost/effort of backends. **Outcome**: pick a LEAN starting point (likely OTel + auto-instrumentation + one free-tier backend, focused first on gateway request latency + Prisma query times), wire it, build a latency dashboard + a p99 alert.
+
+**2026-08-12 sequencing input (external Fable brief, via doc-12's intake)**: explicit recommendation to **defer** this whole theme — at ~12 weekly users, doc-12's event tables + SQL likely cover the questions indefinitely. Revisit when user count grows ~5x or infra debugging starts consuming real time. Doesn't change this theme's content, only reinforces that doc-12 goes first.
