@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
+import { isTimeoutKill } from '../utils/timeoutKill.js';
 
 /* eslint-disable sonarjs/cognitive-complexity, sonarjs/no-duplicate-string -- CLI orchestrator: git state collection → migration status → service health with decorative output separators */
 
@@ -25,6 +26,25 @@ interface GitState {
 }
 
 /**
+ * Bound on everything `execFileSafe` runs — the local git probes AND
+ * `getCIStatus`'s `gh` calls, one of which (`gh run list`) is a network round
+ * trip. Deliberately one value despite that split, unlike
+ * `check-workflow-sync.ts`, which gives its network `git fetch` a larger
+ * bound: there, a spurious timeout silently skips a guard whose whole job is
+ * catching drift, so the cost is asymmetric. Here every failure already
+ * degrades to `null` and the caller just omits a display section, and 15s on
+ * a `gh` call matches `ci-gate.ts`'s existing `HEAD_FETCH_TIMEOUT_MS`.
+ */
+export const SESSION_CONTEXT_TIMEOUT_MS = 15_000;
+
+/**
+ * Separate, larger bound for the migration check. That call spawns npx, boots
+ * the Prisma CLI and opens a database connection, so it is legitimately far
+ * slower than a git probe — the git value would make a working check flaky.
+ */
+export const MIGRATION_STATUS_TIMEOUT_MS = 60_000;
+
+/**
  * Execute a command safely with array arguments (no shell injection)
  */
 function execFileSafe(command: string, args: string[], cwd: string): string | null {
@@ -33,6 +53,7 @@ function execFileSafe(command: string, args: string[], cwd: string): string | nu
       encoding: 'utf-8',
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: SESSION_CONTEXT_TIMEOUT_MS,
     }).trim();
   } catch {
     return null;
@@ -114,8 +135,16 @@ function getPendingMigrations(cwd: string): string[] | null {
       encoding: 'utf-8',
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: MIGRATION_STATUS_TIMEOUT_MS,
     });
   } catch (error) {
+    // A timeout kill must NOT fall through to the stdout branch below. Node
+    // still attaches whatever stdout was captured before the SIGTERM, and
+    // prisma typically hangs on the DB connection before printing anything —
+    // so the partial (usually empty) output would fail the content match and
+    // return [], reporting "no migrations pending" when the truth is unknown.
+    // `code` is the discriminator: `killed` is undefined on this path.
+    if (isTimeoutKill(error)) return null;
     // Prisma migrate status exits with non-zero when migrations are pending
     // We need to capture the output from stderr/stdout
     if (error && typeof error === 'object' && 'stdout' in error) {

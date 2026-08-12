@@ -26,7 +26,12 @@ vi.mock('node:fs', () => ({
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
-import { saveSession, loadSession, clearSession } from './session-state.js';
+import {
+  saveSession,
+  loadSession,
+  clearSession,
+  SESSION_STATE_TIMEOUT_MS,
+} from './session-state.js';
 
 describe('session-state', () => {
   let consoleLogSpy: MockInstance;
@@ -59,6 +64,16 @@ describe('session-state', () => {
   });
 
   describe('saveSession', () => {
+    it('bounds every execFileSafe shell-out with SESSION_STATE_TIMEOUT_MS', async () => {
+      await saveSession();
+
+      const gitCalls = vi.mocked(execFileSync).mock.calls.filter(call => call[0] === 'git');
+      expect(gitCalls.length).toBeGreaterThan(0);
+      for (const call of gitCalls) {
+        expect(call[2]).toMatchObject({ timeout: SESSION_STATE_TIMEOUT_MS });
+      }
+    });
+
     it('should save session state to file', async () => {
       await saveSession();
 

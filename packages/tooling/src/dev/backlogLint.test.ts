@@ -972,4 +972,22 @@ describe('readOriginTaskFiles', () => {
 
     expect(readOriginTaskFiles('/repo')).toEqual({ resolvable: false, files: [] });
   });
+
+  it('bounds both git calls with ORIGIN_TASKS_TIMEOUT_MS', async () => {
+    const calls: { args: string[]; options: unknown }[] = [];
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[], options: unknown) => {
+        calls.push({ args, options });
+        return '';
+      },
+    }));
+    const { readOriginTaskFiles, ORIGIN_TASKS_TIMEOUT_MS } = await import('./backlogLint.js');
+
+    readOriginTaskFiles('/repo');
+
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.options).toMatchObject({ timeout: ORIGIN_TASKS_TIMEOUT_MS });
+    }
+  });
 });

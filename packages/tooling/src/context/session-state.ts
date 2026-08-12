@@ -22,6 +22,13 @@ interface SessionState {
 const SESSION_FILE = '.claude-session.json';
 
 /**
+ * Bound on every shell-out this module makes. `execFileSafe` already treats
+ * any failure as `null` — bounded, a stall degrades into that same answer
+ * instead of hanging a session save/load.
+ */
+export const SESSION_STATE_TIMEOUT_MS = 15_000;
+
+/**
  * Execute a command safely with array arguments
  */
 function execFileSafe(command: string, args: string[], cwd: string): string | null {
@@ -30,6 +37,7 @@ function execFileSafe(command: string, args: string[], cwd: string): string | nu
       encoding: 'utf-8',
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: SESSION_STATE_TIMEOUT_MS,
     }).trim();
   } catch {
     return null;

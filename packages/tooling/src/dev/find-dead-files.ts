@@ -51,6 +51,14 @@ export function filterFalsePositives(files: string[]): string[] {
 }
 
 /**
+ * Bound on the importer-verification grep, so a stall degrades instead of
+ * hanging the caller. The catch below treats ONLY grep's exit-1 as "no
+ * matches": a timeout or any other failure answers "unknown", because "no
+ * importers" is what promotes a file onto the dead list.
+ */
+export const DEAD_FILES_GREP_TIMEOUT_MS = 15_000;
+
+/**
  * Check if a file has any non-test importers using grep.
  * Returns true if the file is imported by at least one non-test file
  * (other than itself).
@@ -74,7 +82,11 @@ export function hasNonTestImporters(filePath: string, searchDirs: string[]): boo
         `/${name}\\.js['"]`,
         ...searchDirs,
       ],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: DEAD_FILES_GREP_TIMEOUT_MS,
+      }
     );
 
     // Filter out the file itself from results
@@ -84,9 +96,15 @@ export function hasNonTestImporters(filePath: string, searchDirs: string[]): boo
       .filter(line => line.length > 0 && line !== filePath);
 
     return importers.length > 0;
-  } catch {
-    // grep returns exit code 1 when no matches found
-    return false;
+  } catch (error) {
+    // Only grep's exit 1 actually means "no matches". Exit 2 (unreadable dir,
+    // bad pattern), a timeout kill, or a spawn failure all mean "we did not
+    // find out" — and here the two answers are not equally safe, because a
+    // wrong `false` promotes a live file onto the dead-file list. Anything
+    // that is not a definite no-match answers `true`, so an unknown never
+    // becomes a deletion candidate.
+    const status = (error as { status?: unknown }).status;
+    return status !== 1;
   }
 }
 
@@ -106,6 +124,8 @@ export function findDeadFiles(): FindDeadFilesResult {
   // Run knip in production mode
   let knipOutput: string;
   try {
+    // Deliberately unbounded: a full-repo knip pass legitimately runs for
+    // minutes, so a short timeout would turn this working gate flaky.
     knipOutput = execFileSync('pnpm', ['knip', '--production', '--include', 'files'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],

@@ -78,9 +78,18 @@ export function evaluateMutationGate(
   return { run: reasons.length > 0, reasons };
 }
 
+/**
+ * Bound on both shell-outs below. This gate is FAIL-OPEN (see the module
+ * doc): a bounded stall throws into the existing `catch` in `runMutationGate`
+ * and yields `run: true`, same as any other evaluation error, instead of
+ * hanging the CI step.
+ */
+export const MUTATION_GATE_TIMEOUT_MS = 15_000;
+
 function gitChangedFiles(base: string): string[] {
   const out = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], {
     encoding: 'utf-8',
+    timeout: MUTATION_GATE_TIMEOUT_MS,
   });
   return out
     .split('\n')
@@ -94,6 +103,7 @@ function turboAffectedPackages(base: string): string[] {
     ['exec', 'turbo', 'ls', '--filter', `...[${base}]`, '--output=json'],
     {
       encoding: 'utf-8',
+      timeout: MUTATION_GATE_TIMEOUT_MS,
     }
   );
   // turbo's version banner goes to stderr, but be defensive about any

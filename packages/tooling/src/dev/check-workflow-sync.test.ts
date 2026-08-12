@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Every other test here injects `runGit`, so this mock is reached only by the
+// default-path test below — the one case that exercises the real `execFileSync`.
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn(() => '') }));
+
+import { execFileSync } from 'node:child_process';
 import {
   checkWorkflowSync,
   diffWorkflowsAgainstMain,
   isMainCutBranch,
   resolveExplicitBase,
+  WORKFLOW_SYNC_TIMEOUT_MS,
+  WORKFLOW_FETCH_TIMEOUT_MS,
 } from './check-workflow-sync.js';
 
 /** Build a runGit stub from a handler map keyed on the git subcommand. */
@@ -28,6 +36,46 @@ describe('resolveExplicitBase', () => {
     // Push-only CI never sets GITHUB_BASE_REF, and GITHUB_REF is the branch\'s
     // own name — deliberately NOT used as a target signal.
     expect(resolveExplicitBase({ env: { GITHUB_REF: 'refs/heads/fix/ci-typo' } })).toBeNull();
+  });
+});
+
+describe('defaultRunGit (no injected runGit)', () => {
+  it('bounds the LOCAL git shell-outs with WORKFLOW_SYNC_TIMEOUT_MS', () => {
+    vi.mocked(execFileSync).mockClear();
+    vi.mocked(execFileSync).mockReturnValue('');
+
+    // No `runGit` in the options, so the guard falls through to defaultRunGit.
+    // Every ref resolves here, so no fetch is reached — all calls are local.
+    checkWorkflowSync({ env: {} });
+
+    const calls = vi.mocked(execFileSync).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call[1]).not.toContain('fetch');
+      expect(call[2]).toMatchObject({ timeout: WORKFLOW_SYNC_TIMEOUT_MS });
+    }
+  });
+
+  it('gives the NETWORK fetch its own larger bound', () => {
+    // A local-probe value is the wrong scale for a round trip to GitHub, and
+    // this guard fails open — so a spurious timeout would silently skip the
+    // check that catches workflow drift.
+    vi.mocked(execFileSync).mockClear();
+    vi.mocked(execFileSync).mockImplementation(((_cmd: string, args: string[]) => {
+      // Missing ref (the shallow-checkout case) is what drives ensureRef to fetch.
+      if (args[0] === 'rev-parse') throw new Error('unknown revision');
+      return '';
+    }) as unknown as typeof execFileSync);
+
+    checkWorkflowSync({ env: {} });
+
+    const fetches = vi.mocked(execFileSync).mock.calls.filter(c => c[1]?.[0] === 'fetch');
+    expect(fetches.length).toBeGreaterThan(0);
+    for (const call of fetches) {
+      expect(call[2]).toMatchObject({ timeout: WORKFLOW_FETCH_TIMEOUT_MS });
+    }
+
+    vi.mocked(execFileSync).mockReturnValue('');
   });
 });
 
