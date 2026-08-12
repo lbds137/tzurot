@@ -141,12 +141,19 @@ describe('extractRelativeLinks', () => {
     expect(extractRelativeLinks(md)).toEqual(['../active-epic.md']);
   });
 
-  // The four shapes the extractor's docstring says it does not parse. Each of
-  // those sentences is a claim about runtime behavior, so it is pinned here
-  // rather than left as prose (02-code-standards § "A Comment That Asserts
-  // Behavior Is a Claim"). These characterize the CURRENT behavior — if a real
-  // markdown-link parser ever replaces the regex, these are the cases to
-  // revisit, and they will fail loudly rather than drift silently.
+  // The shapes the extractor's docstring says it mishandles. Each of those
+  // sentences is a claim about runtime behavior, so it is pinned here rather
+  // than left as prose (02-code-standards § "A Comment That Asserts Behavior Is
+  // a Claim"). These characterize the CURRENT behavior — if a real markdown-link
+  // parser ever replaces the regex, these are the cases to revisit, and they
+  // will fail loudly rather than drift silently.
+  //
+  // The first four are misses. The last two run the other way: an OVER-match
+  // that reports non-paths as dangling, and a stripCode assumption that
+  // swallows real links. Both directions belong here — a limitation that
+  // produces a spurious CI failure is as much a documented behavior as one that
+  // produces a blind spot, and it is the direction that actually costs someone
+  // a red `pnpm quality` on text that was never a path.
   describe('documented parse limitations', () => {
     it('a titled link captures the title as part of the target (fails loud)', () => {
       expect(extractRelativeLinks('[t](../foo.md "Title")')).toEqual(['../foo.md "Title"']);
@@ -162,6 +169,31 @@ describe('extractRelativeLinks', () => {
 
     it('reference-style links match nothing (fails silent)', () => {
       expect(extractRelativeLinks('[t][ref]\n\n[ref]: ../foo.md')).toEqual([]);
+    });
+
+    // Not hypothetical: the first draft of the task that filed this limitation
+    // wrote these two examples in link form, and the gate reported both as
+    // dangling within minutes of them being written down.
+    it('over-matches a bare domain-like target (fails loud, wrong direction)', () => {
+      expect(extractRelativeLinks('see [docs](example.com) here')).toEqual(['example.com']);
+      expect(extractRelativeLinks('the [runtime](Node.js) version')).toEqual(['Node.js']);
+    });
+
+    // The workaround the docstring offers, in both spellings a writer would
+    // reach for. Documenting an escape hatch that does not work would be worse
+    // than documenting none.
+    it('backticking suppresses the over-match, around the link or the target', () => {
+      expect(extractRelativeLinks('see `[docs](example.com)` here')).toEqual([]);
+      expect(extractRelativeLinks('see [docs](`example.com`) here')).toEqual([]);
+    });
+
+    it('stripCode drops a real link when inline backticks are unbalanced', () => {
+      expect(extractRelativeLinks('a `span here and [t](../real.md) then `another` tail')).toEqual(
+        []
+      );
+      // Balanced, same link: it survives. Without this half the assertion above
+      // would pass for any reason at all — including the link never being seen.
+      expect(extractRelativeLinks('a `span` and [t](../real.md) tail')).toEqual(['../real.md']);
     });
   });
 });
@@ -651,7 +683,12 @@ describe('runBacklogLint', () => {
 
     await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
 
-    expect(logSpy.mock.calls.flat().join('\n')).toContain('dangling doc reference → doc-1');
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('dangling doc reference → doc-1');
+    // Repo-relative, the same convention checkDocIdRefs uses. A bare `queue.md:`
+    // prefix reads as a different kind of location than its sibling's full path,
+    // for a finding about the same convention.
+    expect(out).toContain('backlog/cold/queue.md: dangling doc reference → doc-1');
     expect(process.exitCode).toBe(1);
   });
 
