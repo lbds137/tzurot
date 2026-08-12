@@ -97,6 +97,35 @@ The same check applies to any exhaustiveness claim in the body ("every call
 site", "all N modules", "the whole module"): name the enumeration command whose
 output backs it, or scope the sentence to what was actually swept.
 
+**A FORWARD reference — "filed as TASK-N", "tracked in doc-N" — is the same
+claim pointing the other way, and it needs `git ls-files`, not `existsSync`.**
+A task file that exists only in the working tree does not exist from any other
+vantage point: not `git log`, not another checkout, not the reviewer, not the
+next session. Before the body claims something was filed:
+
+```bash
+git ls-files --error-unmatch 'tracker/tasks/task-N*.md'   # non-zero = not tracked
+```
+
+**`git ls-files` answers for the CURRENT branch only.** Tracker tasks are
+committed straight to `develop`, so one filed mid-PR is absent from a feature
+branch cut before it — the command reports "not tracked" for a task that is
+perfectly well tracked on the branch the PR merges into. Check the base ref
+when the two differ, or the check produces a false alarm exactly when it is
+being used properly:
+
+```bash
+git ls-tree -r --name-only origin/develop -- tracker/tasks/ | grep task-N
+```
+
+Commit it first, then write the sentence. `pnpm ops backlog` already prints a
+non-gating warning naming any uncommitted `tracker/` file — that warning is
+deliberately soft (a half-written task is a legitimate working state), so it
+cannot be promoted to a hard failure, which is exactly why the check belongs
+here at the moment of the claim. It has been read past: a PR body said "Filed
+as TASK-552" over an untracked file after the warning printed twice, and the
+reviewer searched and correctly reported the task missing.
+
 ### Arm CI monitor (required)
 
 Immediately after `gh pr create` — and after any subsequent `git push` to an open PR — start a `Monitor` that waits for CI to complete and reports new review comments back. **Do not skip this step and do not wait for the user to ask about CI status.**

@@ -66,7 +66,7 @@ if ! [[ "$COMMAND" =~ $MERGE_PHRASE_RE ]]; then
     exit 0
 fi
 
-PR_NUM=$(COMMAND="$COMMAND" python3 << 'PYEOF'
+MERGE_EXTRACT=$(COMMAND="$COMMAND" python3 << 'PYEOF'
 import os, re, shlex, sys
 
 raw_command = os.environ.get("COMMAND", "")
@@ -98,6 +98,38 @@ WRAPPERS = {"env", "nohup", "time", "command", "exec", "sudo", "stdbuf",
 # `grep -c "<the phrase> N" file` would otherwise arm the gate on N.
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish"}
 
+# `-c` as bash actually spells it. Exact equality on both the shell name and
+# the flag missed two ordinary shapes, each of which disarmed EVERY gate:
+# `bash -lc "gh pr merge N --delete-branch"` (pflag-style clustering — `-lc`
+# is not `-c`) and `/bin/bash -c "..."` (the command word is a path, not a
+# bare name). Measured: both exited 0 with no review injected, no precondition,
+# and no release reminder, while the identical `bash -c` form blocked.
+#
+# The merge lives inside one opaque quoted token in those shapes, so the
+# structural backstop cannot save them either — its premise is that `gh pr
+# merge` survived as three ADJACENT top-level tokens, and here they are glued
+# inside a string.
+#
+# Both checks over-arm rather than under-arm: a non-shell whose command word
+# basenames to `sh`, or a cluster containing `c` that bash would read
+# differently, costs a recursion into a string that usually resolves nothing.
+def command_name(word):
+    """The bare program name of a command word, which may be path-qualified.
+
+    `/bin/bash` and `bash` are the same program to everything that matters
+    here, and so are `/usr/bin/env` and `env`. Matching the sets by exact
+    string missed every path-qualified spelling — measured, `/bin/bash -c
+    "gh pr merge N --delete-branch"` exited 0 with no gate at all.
+    """
+    return "" if word is None else word.rsplit("/", 1)[-1]
+
+
+def is_shell_command(word):
+    return command_name(word) in SHELLS
+
+
+CLUSTERED_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+
 
 def opens_command(token):
     # `token and` is load-bearing: `all()` over an empty string is True, so an
@@ -108,6 +140,204 @@ def opens_command(token):
 # `str.isdigit()` is true for superscripts and Arabic-Indic digits; the bash
 # regex it replaced was strictly ASCII.
 ASCII_DIGITS = re.compile(r"[0-9]+")
+
+# `--delete-branch` and its shorthand. ANCHORED to a whole token, which is what
+# scopes it: `--body "remove the -d flag"` is one token carrying spaces, so it
+# cannot match, and `-delete` from a chained `find . -delete` is a different
+# token belonging to a different command entirely.
+#
+# `-[A-Za-z]*d[A-Za-z]*` covers the cluster form (`-rd`) because pflag packs
+# boolean shorthands. It cannot match `--delete-branch` itself — after the lead
+# `-` the class admits letters only, and the second `-` stops it — so the two
+# patterns never double-count.
+#
+# The cluster pattern accepts any letter run containing a `d`, which is exact
+# only while `-d` is the sole `gh pr merge` shorthand containing that letter.
+# Read off `gh pr merge --help` (gh 2.65.0): -A -b -F -d -m -r -s -t, plus the
+# inherited -R. Only `-d` qualifies today. A future gh adding another `d`-
+# bearing shorthand would make this over-arm — the accepted direction here, but
+# this list is what a reader should re-check rather than re-derive.
+#
+# The trailing `(?:=|$)` is load-bearing, not decoration. pflag accepts
+# `--flag=value` for BOOLEANS, measured against this `gh`: `--draft=true`
+# parses, and `--draft=notabool` fails with strconv.ParseBool — so
+# `--delete-branch=true` is a real invocation shape. Anchoring on `$` alone let
+# it through, which is an UNDER-arm: the merge proceeds ungated and deletes the
+# branch, the one direction this file must never fail in. It was also strictly
+# worse than the raw fallback that used to sit below this, which already
+# allowed `=`.
+DELETE_FLAG_LONG = re.compile(r"^--delete-branch(?:=|$)")
+SHORT_CLUSTER = re.compile(r"^-([A-Za-z]+)$")
+
+# `gh pr merge`'s VALUE-taking shorthands. pflag glues a value onto a short
+# flag — measured, `gh pr list -L2` behaves identically to `-L 2` — so in a
+# single-dash cluster everything after the first value-taking letter is that
+# value, not more flags. Without this, `-bd` (a body of "d") read as carrying
+# `-d` and produced a false block on a merge that would never delete anything.
+#
+# From `gh pr merge --help` (gh 2.65.0): -A author-email, -b body, -F body-file,
+# -t subject, plus the inherited -R repo. The booleans are -d, -m, -r, -s.
+VALUE_TAKING_SHORTS = set("AbFtR")
+
+
+def carries_delete_flag(token):
+    """Whether one argument token is `--delete-branch` or a cluster holding -d.
+
+    Scans a short cluster left to right and stops at the first value-taking
+    letter, because pflag stops treating the rest as flags there. `-rd` carries
+    the flag (`r` is boolean); `-bd` does not (`d` is `-b`'s value); `-db` does
+    (`d` precedes the value-taker).
+
+    Known gap, unfixed: a value passed as a SEPARATE token (`-t -drafty`) is
+    still scanned as an argument, because the walk has no notion of a token
+    consumed by the previous one. pflag rejects a `-`-leading token as a value
+    in most shapes, and the failure direction is an over-arm.
+    """
+    if DELETE_FLAG_LONG.match(token):
+        return True
+    cluster = SHORT_CLUSTER.match(token)
+    if cluster is None:
+        return False
+    for letter in cluster.group(1):
+        if letter == "d":
+            return True
+        if letter in VALUE_TAKING_SHORTS:
+            return False
+    return False
+
+# THE FALLBACK PATHS REPORT NO FLAG, and that asymmetry is deliberate.
+#
+# legacy_scan, adjacent_merge_scan, and the depth cap all exist to OVER-arm:
+# when the position logic cannot model a command's shape, they resolve a PR
+# number anyway so the review gate still fires. That trade is right for the
+# review gate, whose over-arm costs one retry past an unrelated review.
+#
+# It is wrong for the delete-branch guard, which is NOT ackable. Measured:
+# `echo decoy \<newline>  gh pr merge 2002 --delete-branch` is ONE echo in real
+# bash, but shlex leaves `gh pr merge` adjacent, so the backstop resolves PR
+# 2002 — and with a flag read off the same text the guard blocked permanently
+# on a command that never runs `gh`. An earlier version of this file scanned
+# raw text for the flag on exactly these paths for the stated reason that they
+# "already choose over-arming as the safe direction"; that reasoning does not
+# survive hanging a non-recoverable check off the same extraction.
+#
+# So the guard acts only on a PR the precise command-position scan resolved.
+# On a fallback the flag reads false and the merge proceeds — a missed block
+# leaves an orphaned local branch, which `git branch -D` fixes, while a false
+# block on a mis-parsed command has no way out at all.
+
+
+def starts_new_statement(tokens, linenos, idx):
+    r"""True when `tokens[idx]` begins a new statement because of a NEWLINE.
+
+    A bare newline separates commands in bash, but shlex emits no token for it,
+    so a walk over `tokens[start:]` strolls from one statement into the next.
+    Measured: `gh pr merge 2002 --rebase\ngit branch -d old` puts `-d` on line
+    2, and the flag walk found it, producing a false block for a merge that
+    never carried the flag. The line numbers are the only evidence available.
+
+    The comparison is against where the previous token ENDS, not where it
+    starts, and that distinction is the whole correctness of this function.
+    `shlex.lineno` counts every newline it consumes INCLUDING those inside a
+    quoted token, while the number it reports for a token is where that token
+    BEGAN. So a multi-line quoted argument — `--title "line one\nline two"`,
+    an ordinary thing to pass a merge commit — leaves the next token on a
+    later line than the value started on, and a start-line comparison reads
+    that as a statement break INSIDE one invocation. Measured, both halves:
+    the flag walk stopped before `--delete-branch` (an under-arm: the guard
+    silently does not fire), and with the value placed before the number the
+    PR-number walk stopped too, resolving nothing and disarming the review
+    gate and the release reminder along with it.
+
+    Adding the token's own embedded newline count fixes that, and subsumes the
+    `\`-continuation case that previously needed an explicit exception: shlex
+    emits a literal `"\n"` TOKEN for an escaped newline, whose span carries
+    the newline that the following token's line number reflects. One rule now
+    covers both instead of a rule plus a special case.
+    """
+    if idx == 0:
+        return False
+    return linenos[idx] != linenos[idx - 1] + tokens[idx - 1].count("\n")
+
+
+def is_redirection(token):
+    """A punctuation run that REDIRECTS rather than separates.
+
+    Bash ends a command at `&&`, `;`, `|`; it does not end one at `>`, `<`, or
+    `2>&1` — `cmd a > f b` still passes both `a` and `b`. shlex hands back
+    `2>&1` as `2`, `>&`, `1`, and `>&` is all-punctuation, so the generic
+    boundary test cannot tell the two apart. Containing `<` or `>` is what
+    separates them, and it is why `>&` does not count as a separator despite
+    carrying an `&`.
+    """
+    return bool(token) and all(ch in PUNCTUATION for ch in token) and any(ch in "<>" for ch in token)
+
+
+def has_delete_flag(tokens, linenos, start):
+    """Whether the invocation at `start` carries the delete-branch flag.
+
+    Deliberately NOT reusing invocation_args, whose strictness the PR-number
+    scan depends on: `gh pr merge 2>&1` tokenizes as `2`, `>&`, `1`, and a
+    redirection-tolerant walk would read that `2` as the PR number and gate a
+    completely unrelated PR — the wrong-PR failure this file's whole tokenizer
+    exists to prevent.
+
+    The flag search has the opposite risk profile: collecting too FEW tokens
+    misses a real `--delete-branch` and lets the merge through ungated (the one
+    direction this hook must never fail in), while collecting too many can only
+    over-arm. So this walk steps over redirections and stops only at a real
+    separator.
+
+    Whether a token IS the flag is `carries_delete_flag`'s question, including
+    the separate-token gap it documents; this walk only decides which tokens
+    get asked.
+    """
+    skip_target = False
+    for idx in range(start, len(tokens)):
+        if starts_new_statement(tokens, linenos, idx):
+            break
+        token = tokens[idx]
+        if is_redirection(token):
+            # A redirection operator consumes exactly the NEXT token as its
+            # target, and a target is never a flag no matter what it looks
+            # like. Skipping only the operator left the target scannable, so
+            # `gh pr merge N --rebase > -d` — a file literally named `-d` —
+            # read as the flag and produced a false, unretryable block.
+            skip_target = True
+            continue
+        if skip_target:
+            # A `\`-continuation between the operator and its target is not the
+            # target. Consuming it as one left the real target scannable, which
+            # re-opened the `> -d` false block one line down.
+            if token != "\n":
+                skip_target = False
+            continue
+        if opens_command(token):
+            break
+        if carries_delete_flag(token):
+            return True
+    return False
+
+
+def invocation_args(tokens, linenos, start):
+    """The argument tokens of the invocation beginning at `start`.
+
+    Stops at the first operator, which is the same boundary the PR-number scan
+    uses — so `gh pr merge 2002 --rebase && git branch -d x` yields only
+    `--rebase`. Scoping the flag search to THIS range is the whole fix: a raw
+    match over the command text reported `-d` from the chained `git branch`,
+    and since the guard is not ackable that false block told the agent to tear
+    down an unrelated worktree.
+    """
+    args = []
+    for idx in range(start, len(tokens)):
+        if starts_new_statement(tokens, linenos, idx):
+            break
+        token = tokens[idx]
+        if opens_command(token):
+            break
+        args.append(token)
+    return args
 
 
 def strip_heredocs(text):
@@ -179,11 +409,11 @@ def legacy_scan(text):
     """
     after = re.split(r"gh\s+pr\s+merge", text, maxsplit=1)
     if len(after) < 2:
-        return ""
+        return "", False
     for token in after[1].split():
         if ASCII_DIGITS.fullmatch(token):
-            return token
-    return ""
+            return token, False
+    return "", False
 
 
 def tokenize(command):
@@ -223,7 +453,7 @@ def tokenize(command):
         return None
 
 
-def adjacent_merge_scan(tokens):
+def adjacent_merge_scan(tokens, linenos):
     """The PR number after the first ADJACENT `gh` `pr` `merge` token triple.
 
     Scans the TOKENS, not raw text. `legacy_scan` reads the first textual
@@ -234,12 +464,10 @@ def adjacent_merge_scan(tokens):
     """
     for i in range(len(tokens)):
         if tokens[i : i + 3] == ["gh", "pr", "merge"]:
-            for candidate in tokens[i + 3 :]:
-                if opens_command(candidate):
-                    break
+            for candidate in invocation_args(tokens, linenos, i + 3):
                 if ASCII_DIGITS.fullmatch(candidate):
-                    return candidate
-    return ""
+                    return candidate, False
+    return "", False
 
 
 def extract(text, depth=0):
@@ -270,8 +498,9 @@ def extract(text, depth=0):
         # is pathological, so over-arming on the first textual match (even a
         # decoy's) is the safe direction. Pinned by the 5- and 7-level nesting
         # cases in pr-merge-review-check.probe.sh.
-        match = re.search(r"gh\s+pr\s+merge\s+[\"']*(\d+)", strip_heredocs(text))
-        return match.group(1) if match else ""
+        capped = strip_heredocs(text)
+        match = re.search(r"gh\s+pr\s+merge\s+[\"']*(\d+)", capped)
+        return (match.group(1) if match else ""), False
     command = strip_heredocs(text)
     tokenized = tokenize(command)
     if tokenized is None:
@@ -296,7 +525,18 @@ def extract(text, depth=0):
     # direction — but arming on the wrong PR shows an unrelated review.
     candidates = []
     for i, token in enumerate(tokens):
-        if i > 0 and linenos[i] != linenos[i - 1]:
+        # Same newline boundary the two arg walks use, and for the same
+        # reason: a `\`-continuation is not a command break. Resetting the
+        # command position on one made `echo decoy \<newline>  gh pr merge N
+        # --delete-branch` — ONE echo invocation in real bash — read as a real
+        # merge, arm the gate on N, and then hit the NOT-ACKABLE delete-branch
+        # guard: a permanent block on a command that never runs `gh` at all.
+        #
+        # Over-arming here used to be harmless, because the only consequence
+        # was the review gate showing an unrelated review and the agent
+        # retrying past it. Hanging a non-ackable precondition off the same
+        # extraction is what changed that, so the two checks have to agree.
+        if starts_new_statement(tokens, linenos, i):
             at_command_start = True
             current_command = None
         if opens_command(token):
@@ -312,28 +552,43 @@ def extract(text, depth=0):
         # --version; grep -c "<phrase> N"` recurse into grep's PATTERN, and the
         # immediately-preceding check missed `bash -x -c "..."`, where a flag
         # sits between the shell and its own `-c`.
-        if i + 1 < len(tokens) and token == "-c" and current_command in SHELLS:
+        if i + 1 < len(tokens) and CLUSTERED_C.match(token) and is_shell_command(current_command):
             candidates.append((i, "nested", tokens[i + 1]))
         # `eval` is in WRAPPERS, which handles its UNQUOTED form (bash joins the
         # args and runs them). The quoted form is one opaque token, so it needs
         # the recursion as well.
-        if i + 1 < len(tokens) and token == "eval":
+        #
+        # Gated on the COMMAND POSITION, exactly like the `-c` check above. The
+        # bare-token form fired wherever the word `eval` appeared, including as
+        # an argument to something else: measured, `echo eval "gh pr merge 2002
+        # --delete-branch"` recursed into echo's own argument and blocked — on a
+        # command real bash runs as `echo` and nothing more, against a guard
+        # that cannot be acked past.
+        if (
+            i + 1 < len(tokens)
+            and at_command_start
+            and command_name(token) == "eval"
+        ):
             candidates.append((i, "nested", tokens[i + 1]))
         # `FOO=bar gh pr merge 5` — an assignment prefix does not consume the
         # command position. Missing this made the gate silently skip that shape.
         # A wrapper runs what follows, so it is not the command word itself.
-        if at_command_start and token in WRAPPERS:
+        if at_command_start and command_name(token) in WRAPPERS:
             continue
         if at_command_start and current_command is None:
             current_command = token
         if at_command_start and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", token):
             continue
         if at_command_start and token == "gh" and tokens[i + 1 : i + 3] == ["pr", "merge"]:
-            for candidate in tokens[i + 3 :]:
-                if opens_command(candidate):
-                    break
+            args = invocation_args(tokens, linenos, i + 3)
+            # The flag is read from THIS invocation's arguments only. Whether a
+            # later merge, a chained command, or quoted prose carries one is
+            # irrelevant — the gate arms on this PR, so it must answer for this
+            # PR's flags.
+            flag = has_delete_flag(tokens, linenos, i + 3)
+            for candidate in args:
                 if ASCII_DIGITS.fullmatch(candidate):
-                    candidates.append((i, "pr", candidate))
+                    candidates.append((i, "pr", (candidate, flag)))
                     break
             # This occurrence yielded no PR number — a bare `gh pr merge`, or
             # its arguments ran into an operator first. KEEP SCANNING: `gh pr
@@ -346,9 +601,9 @@ def extract(text, depth=0):
     for _, kind, value in sorted(candidates, key=lambda c: c[0]):
         if kind == "pr":
             return value
-        found = extract(value, depth + 1)
-        if found:
-            return found
+        found_pr, found_flag = extract(value, depth + 1)
+        if found_pr:
+            return found_pr, found_flag
 
     # STRUCTURAL BACKSTOP. Everything above decides WHICH invocation is real,
     # and every bug this file has had was the same shape: that logic failed to
@@ -374,20 +629,31 @@ def extract(text, depth=0):
     # fallback when the position logic can't model the shape — but shares no
     # code with it: at the cap there is no reliable tokenization to run
     # adjacency over, so it uses a raw-text regex instead.
-    return adjacent_merge_scan(tokens)
+    return adjacent_merge_scan(tokens, linenos)
 
 
 try:
-    print(extract(raw_command))
+    # Two lines: the PR number, then 1/0 for "this invocation carries the
+    # delete-branch flag". The shell reads them positionally.
+    pr_number, delete_flag = extract(raw_command)
+    print(pr_number)
+    print("1" if delete_flag else "0")
 except Exception:
     # The whole extraction, not just the tokenizer. Anything escaping here
     # would exit non-zero, hit the shell's `|| PR_NUM=""`, and silently arm
     # nothing — the direction this design refuses. Now structurally true
     # rather than true-by-current-code-shape.
-    print(legacy_scan(raw_command))
+    pr_number, delete_flag = legacy_scan(raw_command)
+    print(pr_number)
+    print("1" if delete_flag else "0")
 
 PYEOF
-) || PR_NUM=""
+) || MERGE_EXTRACT=""
+
+# Line 1: the PR number. Line 2: 1 when THAT invocation carries the
+# delete-branch flag. Both empty when the extraction produced nothing.
+PR_NUM=$(printf '%s\n' "$MERGE_EXTRACT" | sed -n '1p')
+MERGE_DELETES_BRANCH=$(printf '%s\n' "$MERGE_EXTRACT" | sed -n '2p')
 
 # No PR number → bare `gh pr merge`, or the command only mentioned the phrase
 # without invoking it. Either way there is nothing to gate on.
@@ -428,11 +694,28 @@ RELEASE_KEY="RELEASE:${PR_NUM}"
 # API call.
 #
 # Fails open to "": an unreadable base skips the release block rather than
-# blocking a merge on a `gh` blip.
+# blocking a merge on a `gh` blip. The head ref fails open the same way, which
+# is what makes the delete-branch guard below degrade to "allow" on a `gh`
+# outage rather than to "cannot merge".
+#
+# Both refs come from ONE call because the delete-branch guard needs the head
+# and the release reminder needs the base, and every gated merge already paid
+# this round trip for the base alone.
+#
+# The resolved-flag is separate from the values: either field can legitimately
+# come back empty (a `gh` failure, a null field), and keying the cache on
+# emptiness would re-issue the call on every subsequent use.
 PR_BASE=""
-resolve_pr_base() {
-    [ -n "$PR_BASE" ] && return 0
-    PR_BASE=$(gh pr view "$PR_NUM" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "")
+PR_HEAD=""
+PR_VIEW_RESOLVED=0
+resolve_pr_view() {
+    [ "$PR_VIEW_RESOLVED" = 1 ] && return 0
+    PR_VIEW_RESOLVED=1
+    local view
+    view=$(gh pr view "$PR_NUM" --json baseRefName,headRefName \
+        --jq '(.baseRefName // ""), (.headRefName // "")' 2>/dev/null || echo "")
+    PR_BASE=$(printf '%s\n' "$view" | sed -n '1p')
+    PR_HEAD=$(printf '%s\n' "$view" | sed -n '2p')
     return 0
 }
 
@@ -466,10 +749,129 @@ release_reminder_due() {
     if [ -f "$ACK_FILE" ] && grep -qxF "$RELEASE_KEY" "$ACK_FILE" 2>/dev/null; then
         return 1
     fi
-    resolve_pr_base
+    resolve_pr_view
     [ "$PR_BASE" = "main" ] || return 1
     return 0
 }
+
+# --- delete-branch precondition --------------------------------------------
+#
+# `--delete-branch` deletes the LOCAL branch by first switching the CURRENT
+# worktree off it, then running the equivalent of `git branch -D`. (Both halves
+# read off the `gh` binary's own strings: "and switched to branch %s", then
+# "Deleted local branch %s" or "failed to delete local branch %s: %w".)
+#
+# That second half fails outright when some OTHER worktree still holds the
+# branch — git's refusal, probed directly in a scratch repo, is "cannot delete
+# branch 'X' used by worktree at '<path>'". By then the merge has already
+# landed, so the result is: PR merged, remote branch gone, local branch alive,
+# and a non-zero `gh` exit that reads like the merge itself failed. The branch
+# then looks live to every later `git branch` and survives silently.
+#
+# Hence the scope is OTHER worktrees only. The current worktree sitting on the
+# head branch is the ORDINARY case — it is what "merge my feature branch" looks
+# like — and gh resolves it by switching away, so refusing it would block the
+# project's most common merge invocation. TASK-530 asked for "checked out
+# anywhere"; reading what gh actually does narrowed it to this.
+#
+# This guard is deliberately NOT ackable, unlike the review gate. An ack exists
+# so a merge can proceed once the agent has READ something; here nothing has
+# been read — a precondition is unmet, and retrying without fixing it must keep
+# failing or the guard is decorative.
+#
+# Release PRs are excluded for free: they merge without the flag.
+#
+# Do NOT read this hook as protection for `develop`. If a release PR ever
+# carried `--delete-branch`, this fires only when `develop` is held by a
+# worktree OTHER than the one running the merge — and the routine release is
+# merged from the same checkout that has `develop` current, where the guard
+# finds no conflict and the merge proceeds. So the catch is COINCIDENTAL, and
+# must not be described as this hook's headline protection.
+#
+# The systematic backstop is `pnpm ops guard:repo-settings`
+# (dev/check-repo-settings.ts): it asserts a non-bypassable `deletion` ruleset
+# rule on the long-lived branches, which is what actually stops the
+# admin-privileged delete path. That is the thing to fix if it ever regresses,
+# not this hook.
+
+# The flag comes from the TOKENIZER, scoped to the armed invocation's own
+# arguments — not from a second raw pass over the command text.
+#
+# A raw pass over the whole command is WRONG here, and not obviously so: it
+# matches any dash-token containing a `d` anywhere in the command, so
+# `gh pr merge N --rebase && git branch -d old` and
+# `... && find . -delete` both armed it, as did a `-d` inside a quoted `--body`.
+# That is precisely the quoted-prose false-positive class the tokenizer above
+# exists to eliminate, reintroduced one check later — and because this guard is
+# NOT ackable, a false block is not a recoverable annoyance: it tells the agent
+# to tear down a worktree unrelated to the command, under a banner explaining a
+# flag that was never passed.
+if [ "$MERGE_DELETES_BRANCH" = "1" ]; then
+    resolve_pr_view
+    # Every step below fails open to "no conflict": no head ref (gh blip), not
+    # a git repo, no worktree holds the branch. Blocking a merge on a broken
+    # lookup would be a worse failure than the one being prevented.
+    CURRENT_TREE=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    # An empty CURRENT_TREE is checked EXPLICITLY rather than left to fall
+    # through. Without this the comparison below is `path != ""`, which is true
+    # for every worktree including the one running the merge — so a failure of
+    # this one command turns the guard from fail-open into block-everything,
+    # exactly inverting the property the comment above claims. The SHIM_GIT_EXIT
+    # probe case only covers BOTH git calls failing together; this is the
+    # asymmetric case, and it now holds structurally instead of incidentally.
+    if [ -n "$PR_HEAD" ] && [ -n "$CURRENT_TREE" ]; then
+        # `git worktree list --porcelain` lists the MAIN checkout as a worktree
+        # too, so this one command covers both trees the task names — no
+        # separate `git branch --show-current`. A detached worktree emits
+        # `detached` instead of a `branch` line and simply never matches.
+        # Paths are read with substr rather than by field-splitting so a
+        # worktree path containing spaces survives.
+        # `cur` comes through the ENVIRONMENT, not `-v`. awk interprets
+        # C-style escapes in a `-v` assignment, so a worktree path containing a
+        # literal backslash (valid on Linux, unlike in a git ref name) would be
+        # rewritten before the comparison — `\t` collapsing to a tab, turning an
+        # equal path unequal. ENVIRON is not escape-processed. `want` stays on
+        # `-v` because git ref names cannot contain a backslash at all.
+        CONFLICT_TREE=$(git worktree list --porcelain 2>/dev/null | CUR_TREE="$CURRENT_TREE" awk \
+            -v want="branch refs/heads/$PR_HEAD" '
+            BEGIN { cur = ENVIRON["CUR_TREE"] }
+            /^worktree / { path = substr($0, 10); next }
+            $0 == want   { if (path != cur) { print path; exit } }
+        ')
+        if [ -n "$CONFLICT_TREE" ]; then
+            {
+                printf '%s\n' "$RULE"
+                printf 'PR MERGE BLOCKED — head branch is checked out in another worktree\n'
+                printf '%s\n\n' "$RULE"
+                printf 'PR #%s head branch:  %s\n' "$PR_NUM" "$PR_HEAD"
+                printf 'Held by worktree:    %s\n\n' "$CONFLICT_TREE"
+                printf 'With --delete-branch (or -d), gh merges FIRST and then deletes the local\n'
+                printf 'branch. git refuses that delete while another worktree holds the branch,\n'
+                printf 'so the merge lands, the remote branch goes away, and the local branch\n'
+                printf 'survives looking live — while gh exits non-zero as if nothing merged.\n\n'
+                # Both paths are single-quoted so the suggestions stay
+                # copy-paste-safe. The detection side was hardened for a
+                # worktree path containing a space; printing an unquoted path
+                # would break the remediation on that exact case —
+                # `git worktree remove /tmp/my worktree` takes an extra
+                # positional, and `-C /tmp/my` leaves `worktree` parsed as the
+                # subcommand. A path containing a single quote would still
+                # mangle these, which is why they are suggestions to read, not
+                # commands the hook runs.
+                printf 'Fix one of these, then re-run the same command:\n'
+                printf "  git worktree remove '%s'\n" "$CONFLICT_TREE"
+                printf '  # refuses on a dirty tree — that means uncommitted work lives there.\n'
+                printf '  # Look before forcing; the option below needs no --force at all.\n'
+                printf '  # or, if that worktree is still needed, move it off the branch:\n'
+                printf "  git -C '%s' checkout --detach\n\n" "$CONFLICT_TREE"
+                printf 'Retrying without doing one of those will be blocked again — this is a\n'
+                printf 'precondition, not a review gate, so there is nothing to acknowledge.\n'
+                printf '%s\n' "$RULE"
+            } >&2
+            exit 2
+        fi
+    fi
+fi
 
 # The reminder body. Written to stderr by both call paths below — beside the
 # review on the normal path, alone when no review exists. FORWARD-looking (it
