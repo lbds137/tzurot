@@ -13,6 +13,11 @@
  * follow-ups (readable text never ships as a file download; house pattern:
  * /inspect's chunked views). When the stash is unavailable the report falls
  * back to the pre-button inline delivery, so details are never silently lost.
+ *
+ * The report RENDERER itself lives in `utils/dbSyncSummary.ts` — the nightly
+ * scheduler attaches the same report to its owner-channel post, and a
+ * `services/` module must not import from `commands/`. Which of the two
+ * deliveries the summary embed promises is passed in as `ReportDelivery`.
  */
 
 import {
@@ -30,106 +35,18 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { adminDbSyncOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
-import { buildSyncSummary, type SyncResult, type TableStats } from '../../utils/dbSyncSummary.js';
+import {
+  buildSyncReportText,
+  buildSyncSummary,
+  type ReportDelivery,
+  type SyncResult,
+} from '../../utils/dbSyncSummary.js';
 import { storeDbSyncReport, fetchDbSyncReport } from './dbSyncReportStore.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('admin-db-sync');
-
-/** The `## Per-table stats` section — every table, active or not. Fixed-width
- * rows in a code fence: Discord doesn't render markdown pipe-tables, and the
- * fence keeps columns aligned on mobile (same solve as /inspect's memory
- * inspector). */
-function buildStatsSection(stats: Record<string, TableStats>): string[] {
-  const entries = Object.entries(stats);
-  const lines = ['', '## Per-table stats', ''];
-  if (entries.length === 0) {
-    lines.push('_No table stats returned._');
-    return lines;
-  }
-  const tableWidth = Math.max(5, ...entries.map(([table]) => table.length));
-  lines.push('```');
-  lines.push(`${'Table'.padEnd(tableWidth)} dev→prod prod→dev conflicts deleted`);
-  for (const [table, s] of entries) {
-    lines.push(
-      `${table.padEnd(tableWidth)} ${String(s.devToProd ?? 0).padStart(8)} ${String(s.prodToDev ?? 0).padStart(8)} ${String(s.conflicts ?? 0).padStart(9)} ${String(s.deleted ?? 0).padStart(7)}`
-    );
-  }
-  lines.push('```');
-  return lines;
-}
-
-/** The row-level deletions section, with dry-run framing and cap notes. */
-function buildDeletionsSection(result: SyncResult, dryRun: boolean): string[] {
-  const deletions = result.deletions ?? [];
-  const heading = dryRun ? 'Deletions that would propagate' : 'Deletions queued for propagation';
-  const capped = result.deletionsTruncated === true;
-  const lines = ['', `## ${heading} (${deletions.length}${capped ? '+' : ''})`, ''];
-  if (deletions.length === 0) {
-    lines.push('None.');
-    return lines;
-  }
-  for (const d of deletions) {
-    // rowKeys are UUID surrogates today; the escape neutralizes 3+ backtick
-    // runs (fence opens / splitMessage mis-pairing). A future free-text pk
-    // with SINGLE backticks could still end the inline-code span early —
-    // cosmetic only, revisit if a non-UUID pk ever joins SYNC_CONFIG.
-    lines.push(`- \`${d.table}\` · \`${escapeFenceBreaks(d.rowKey)}\` → ${d.target}`);
-  }
-  if (capped) {
-    lines.push(
-      '',
-      '_Row detail capped by the gateway; the per-table Deleted counts above are complete._'
-    );
-  }
-  if (!dryRun) {
-    lines.push(
-      '',
-      '_Rows listed were queued; the per-table Deleted counts reflect what actually executed (a propagation warning explains any gap)._'
-    );
-  }
-  return lines;
-}
-
-/** A counted `## <title> (N)` bullet-list section; explicit `None.` when empty. */
-function buildListSection(title: string, items: string[]): string[] {
-  const lines = ['', `## ${title} (${items.length})`, ''];
-  if (items.length === 0) {
-    lines.push('None.');
-    return lines;
-  }
-  for (const item of items) {
-    // Warnings/info carry table names and row detail — content-derived text
-    lines.push(`- ${escapeFenceBreaks(item)}`);
-  }
-  return lines;
-}
-
-/**
- * The full untruncated report sent inline below the summary embed: every
- * table's stats row, row-level deletion detail, and the complete
- * warnings/info lists. Exported for unit tests.
- */
-export function buildSyncReportText(result: SyncResult, dryRun: boolean): string {
-  const lines: string[] = [`# Database Sync Report${dryRun ? ' (dry run)' : ''}`, ''];
-
-  lines.push(`- Run: ${result.timestamp ?? new Date().toISOString()}`);
-  lines.push(`- Mode: ${dryRun ? 'DRY RUN — no changes applied' : 'LIVE'}`);
-  if (result.schemaVersion !== undefined && result.schemaVersion.length > 0) {
-    lines.push(`- Schema version: ${result.schemaVersion}`);
-  }
-
-  lines.push(...buildStatsSection(result.stats ?? {}));
-  lines.push(...buildDeletionsSection(result, dryRun));
-  lines.push(...buildListSection('Warnings', result.warnings ?? []));
-  lines.push(...buildListSection('Info', result.info ?? []));
-
-  lines.push('');
-  return lines.join('\n');
-}
 
 /** Custom-id prefix for the details reveal (command::action::id per 04-discord). */
 const DB_SYNC_DETAILS_PREFIX = 'admin-dbsync::details::';
@@ -211,19 +128,23 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
     // so the render guards read naturally.
     const result: SyncResult = apiResult.data;
 
-    const embed = new EmbedBuilder()
-      .setColor(dryRun ? DISCORD_COLORS.WARNING : DISCORD_COLORS.SUCCESS)
-      .setTitle(dryRun ? '🔍 Database Sync Preview (Dry Run)' : '✅ Database Sync Complete')
-      .setTimestamp()
-      .setDescription(buildSyncSummary(result, dryRun));
-
     // Default view is the embed alone; the full report hides behind a
     // "Show details" button (owner call: it should stay out of the way unless
     // wanted). The report text is stashed in Redis and the button carries the
     // key — a failed stash falls back to the pre-button inline delivery so
     // the details are never silently lost.
+    //
+    // The stash attempt comes BEFORE the embed because it decides which
+    // delivery the summary's "see the report …" sentences may promise.
     const reportText = buildSyncReportText(result, dryRun);
     const reportKey = await storeDbSyncReport(reportText);
+    const delivery: ReportDelivery = reportKey !== null ? 'button' : 'below';
+
+    const embed = new EmbedBuilder()
+      .setColor(dryRun ? DISCORD_COLORS.WARNING : DISCORD_COLORS.SUCCESS)
+      .setTitle(dryRun ? '🔍 Database Sync Preview (Dry Run)' : '✅ Database Sync Complete')
+      .setTimestamp()
+      .setDescription(buildSyncSummary(result, dryRun, delivery));
 
     if (reportKey !== null) {
       const detailsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(

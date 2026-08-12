@@ -30,7 +30,7 @@
  * fires a sync at noon.
  */
 
-import { EmbedBuilder, type Client } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { getConfig } from '@tzurot/common-types/config/config';
@@ -41,6 +41,7 @@ import { getOwnerClient } from '../utils/gatewayClients.js';
 import { createIntervalScheduler } from '../utils/intervalScheduler.js';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import {
+  buildSyncReportText,
   buildSyncSummary,
   hasSyncChanges,
   sumSyncCounters,
@@ -124,8 +125,8 @@ function buildNightlySyncEmbed(result: SyncResult, rowsMoved: boolean): EmbedBui
         ? '🌙 Nightly database sync applied changes'
         : '⚠️ Nightly database sync completed with warnings'
     )
-    .setDescription(buildSyncSummary(result, false))
-    .setFooter({ text: 'Full per-table report: /admin db-sync' })
+    .setDescription(buildSyncSummary(result, false, 'attachment'))
+    .setFooter({ text: 'Full per-table report attached' })
     .setTimestamp();
 }
 
@@ -218,7 +219,16 @@ export async function runNightlyDbSync(client: Client, redis: Redis): Promise<vo
       return;
     }
 
-    await postOwnerChannelEmbed(client, buildNightlySyncEmbed(result.data, rowsMoved));
+    // The embed carries only totals and active tables; the unattended run has
+    // no "Show details" button to fall back on, so the full report ships as a
+    // file alongside it.
+    const reportText = buildSyncReportText(result.data, false);
+    await postOwnerChannelEmbed(client, buildNightlySyncEmbed(result.data, rowsMoved), [
+      new AttachmentBuilder(Buffer.from(reportText, 'utf-8'), {
+        name: 'nightly-db-sync-report.md',
+        description: 'Full nightly db-sync report',
+      }),
+    ]);
     logger.info({ ...totals, warningCount }, 'Nightly sync reportable — posted owner summary');
   } catch (error) {
     logger.error({ err: error }, 'Nightly db sync threw');
