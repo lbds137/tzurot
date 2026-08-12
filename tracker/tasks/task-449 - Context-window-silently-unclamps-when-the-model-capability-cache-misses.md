@@ -1,10 +1,10 @@
 ---
 id: TASK-449
 title: Context window silently unclamps when the model-capability cache misses
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-06 23:46'
-updated_date: '2026-08-07 16:23'
+updated_date: '2026-08-12 00:53'
 labels:
   - 'area:ai-worker'
   - 'size:M'
