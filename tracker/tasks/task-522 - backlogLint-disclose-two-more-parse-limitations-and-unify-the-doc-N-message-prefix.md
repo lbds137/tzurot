@@ -3,10 +3,10 @@ id: TASK-522
 title: >-
   backlogLint: disclose two more parse limitations and unify the doc-N message
   prefix
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 13:21'
-updated_date: '2026-08-11 13:23'
+updated_date: '2026-08-12 15:45'
 labels:
   - 'area:tooling'
   - 'size:S'
