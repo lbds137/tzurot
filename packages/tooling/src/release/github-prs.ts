@@ -106,7 +106,7 @@ export function listMergedPrsSince(since: string, base: string = DEFAULT_BASE_BR
         '--limit',
         '200',
         '--json',
-        'number,title,mergedAt',
+        'number,title,mergedAt,files',
       ],
       { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
@@ -138,7 +138,30 @@ export function listMergedPrsSince(since: string, base: string = DEFAULT_BASE_BR
     );
   }
 
-  return (parsed as MergedPr[]).sort(
-    (a, b) => new Date(a.mergedAt).getTime() - new Date(b.mergedAt).getTime()
-  );
+  return (parsed as RawGhPr[])
+    .map(normalizeGhPr)
+    .sort((a, b) => new Date(a.mergedAt).getTime() - new Date(b.mergedAt).getTime());
+}
+
+/**
+ * Raw shape of one `gh pr list --json number,title,mergedAt,files` element.
+ * `files` entries carry `path` + line-change counts; only `path` is used
+ * downstream (release:range classification), so the rest is discarded in
+ * `normalizeGhPr`.
+ */
+interface RawGhPr {
+  number: number;
+  title: string;
+  mergedAt: string;
+  files?: { path: string }[];
+}
+
+/** Flatten `gh`'s `files: [{path, additions, deletions}]` down to `files: string[]`. */
+function normalizeGhPr(raw: RawGhPr): MergedPr {
+  return {
+    number: raw.number,
+    title: raw.title,
+    mergedAt: raw.mergedAt,
+    files: raw.files?.map(f => f.path),
+  };
 }

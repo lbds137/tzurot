@@ -341,6 +341,13 @@ Write release notes following the Conventional Changelog format defined in `.cla
 CURRENT.md tracks session work; release notes track what shipped between tags.
 Using CURRENT.md caused duplicate entries in beta.94 (items from beta.93 re-listed).
 
+**Any count or list of "PRs merged since the last release"** — in a release
+proposal, a PR body, or a status message — comes from `pnpm ops release:range`,
+never a hand-rolled `gh pr list`/date-window query: a tag-date window silently
+double-counted already-shipped PRs once. It also classifies each PR
+runtime/non-runtime and flags when the runtime count hits the release-cadence
+threshold.
+
 **Backlog sweep — same pass, same commit as the notes.** The release range
 enumerates every shipped PR anyway, which is the one deterministic moment the
 full shipped-list exists. For each PR in the range, grep `backlog/` (recursive,
