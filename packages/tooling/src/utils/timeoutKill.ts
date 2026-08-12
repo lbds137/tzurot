@@ -33,8 +33,9 @@
  * Whether a thrown `execFileSync`/`spawnSync` error is a timeout kill.
  *
  * Call this FIRST in any catch that inspects `stdout`/`stderr` content, and
- * answer "unknown" on true. `getPendingMigrations` (returns `null`) and
- * `fetchRegisteredCommands` (rethrows) are the two shapes that answer takes.
+ * answer "unknown" on true. `getPendingMigrations` (returns a tagged
+ * `{ kind: 'unknown', reason }` status) and `fetchRegisteredCommands`
+ * (rethrows) are the two shapes that answer takes.
  *
  * Not every site needs this helper: where a catch already discriminates on
  * the exit code, a timeout falls out for free — `hasNonTestImporters` treats
