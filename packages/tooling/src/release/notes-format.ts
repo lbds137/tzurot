@@ -14,6 +14,14 @@ export interface MergedPr {
   number: number;
   title: string;
   mergedAt: string;
+  /**
+   * Changed file paths, relative to repo root. Populated by
+   * `listMergedPrsSince` via `gh pr list --json ...,files`; consumed by
+   * `release:range` for runtime/non-runtime classification. Optional so
+   * existing `MergedPr` fixtures (draft-notes, verify-notes) that don't
+   * need the field stay valid.
+   */
+  files?: string[];
 }
 
 export interface ConventionalParts {

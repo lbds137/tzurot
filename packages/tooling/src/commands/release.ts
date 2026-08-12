@@ -8,6 +8,18 @@ import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
 import { UsageError } from '../utils/errors.js';
 
+/**
+ * Shared option help text for the three commands built on the same
+ * `discoverPrevTag` / `tagTimestamp` / `listMergedPrsSince` enumeration
+ * (draft-notes, verify-notes, range) — kept as one constant so the three
+ * copies can't drift and so a fourth `.option('--from ...)` doesn't trip
+ * `sonarjs/no-duplicate-string`.
+ */
+const FROM_TAG_FLAG = '--from <tag>';
+const FROM_TAG_HELP = 'Previous release tag (auto-discovered via `git describe` if omitted)';
+const BASE_BRANCH_FLAG = '--base <branch>';
+const BASE_BRANCH_HELP = 'Base branch to query for merged PRs (default: develop)';
+
 export function registerReleaseCommands(cli: CAC): void {
   // Bump version across all package.json files
   cli
@@ -30,8 +42,8 @@ export function registerReleaseCommands(cli: CAC): void {
       'release:draft-notes',
       'Draft release-notes skeleton from PRs merged since the previous tag'
     )
-    .option('--from <tag>', 'Previous release tag (auto-discovered via `git describe` if omitted)')
-    .option('--base <branch>', 'Base branch to query for merged PRs (default: develop)')
+    .option(FROM_TAG_FLAG, FROM_TAG_HELP)
+    .option(BASE_BRANCH_FLAG, BASE_BRANCH_HELP)
     .option('--repo-url <url>', 'GitHub repo URL for the compare-link trailer')
     .example('pnpm ops release:draft-notes')
     .example('pnpm ops release:draft-notes --from v3.0.0-beta.103')
@@ -41,14 +53,31 @@ export function registerReleaseCommands(cli: CAC): void {
       draftNotes(options);
     });
 
+  // Deterministic ship-inventory: PRs merged since the previous tag,
+  // classified runtime vs. non-runtime. Reuses the same enumeration as
+  // release:draft-notes so the two can never disagree on the PR list.
+  cli
+    .command(
+      'release:range',
+      'List PRs merged since the previous tag, classified runtime vs. non-runtime'
+    )
+    .option(FROM_TAG_FLAG, FROM_TAG_HELP)
+    .option(BASE_BRANCH_FLAG, BASE_BRANCH_HELP)
+    .example('pnpm ops release:range')
+    .example('pnpm ops release:range --from v3.0.0-beta.103')
+    .action(async (options: { from?: string; base?: string }) => {
+      const { releaseRange } = await import('../release/range.js');
+      releaseRange(options);
+    });
+
   // Verify a release-notes draft against the actual merged-PR list
   cli
     .command(
       'release:verify-notes',
       'Verify release notes (on stdin) reference all merged PRs in the range exactly once'
     )
-    .option('--from <tag>', 'Previous release tag (auto-discovered via `git describe` if omitted)')
-    .option('--base <branch>', 'Base branch to query for merged PRs (default: develop)')
+    .option(FROM_TAG_FLAG, FROM_TAG_HELP)
+    .option(BASE_BRANCH_FLAG, BASE_BRANCH_HELP)
     .example('cat /tmp/notes.md | pnpm ops release:verify-notes')
     .example('cat /tmp/notes.md | pnpm ops release:verify-notes --from v3.0.0-beta.103')
     .action(async (options: { from?: string; base?: string }) => {

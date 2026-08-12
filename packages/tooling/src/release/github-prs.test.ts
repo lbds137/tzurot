@@ -78,8 +78,13 @@ describe('listMergedPrsSince', () => {
   it('invokes `gh pr list` with the expected search + json flags', () => {
     mockedExec.mockReturnValueOnce(
       JSON.stringify([
-        { number: 870, title: 'feat(api): X', mergedAt: '2026-04-22T12:00:00Z' },
-        { number: 869, title: 'feat(ai): Y', mergedAt: '2026-04-22T11:00:00Z' },
+        {
+          number: 870,
+          title: 'feat(api): X',
+          mergedAt: '2026-04-22T12:00:00Z',
+          files: [{ path: 'services/api-gateway/src/index.ts', additions: 1, deletions: 0 }],
+        },
+        { number: 869, title: 'feat(ai): Y', mergedAt: '2026-04-22T11:00:00Z', files: [] },
       ])
     );
 
@@ -99,7 +104,7 @@ describe('listMergedPrsSince', () => {
         '--limit',
         '200',
         '--json',
-        'number,title,mergedAt',
+        'number,title,mergedAt,files',
       ],
       expect.objectContaining({ encoding: 'utf-8' })
     );
@@ -107,6 +112,10 @@ describe('listMergedPrsSince', () => {
     // Sorted chronologically — the earlier mergedAt comes first even though
     // it was second in the raw response.
     expect(prs.map(p => p.number)).toEqual([869, 870]);
+
+    // `files` is flattened from `{path, additions, deletions}` objects to
+    // bare path strings — the shape `release:range` classification consumes.
+    expect(prs.find(p => p.number === 870)?.files).toEqual(['services/api-gateway/src/index.ts']);
   });
 
   it('returns an empty array when gh returns no PRs', () => {
