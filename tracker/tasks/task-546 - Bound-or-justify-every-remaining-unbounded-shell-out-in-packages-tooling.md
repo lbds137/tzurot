@@ -26,5 +26,11 @@ Why this is not a mechanical follow-on: the release and deployment scripts have 
 
 Precedent from 2072 on values: 15s for local git and grep probes, 60s for spawns that boot a CLI or open a DB connection, and a conditional bound where one branch is deliberately a long wait (runChecks bounds the report pass and leaves the watch pass unbounded). Value per site, not one global number.
 
-Acceptance: every execFileSync and spawnSync in packages/tooling either carries a timeout or carries a comment saying why it does not — at which point TASK-541 can close honestly.
+READ THIS BEFORE BOUNDING ANYTHING — adding a timeout introduces a NEW failure mode into a catch that was written when timeouts were impossible. PR 2072 shipped exactly this bug twice and the review caught it on round 6. On a timeout kill Node still attaches whatever stdout was captured before the SIGTERM, so any catch that branches on stdout CONTENT reads that partial output as a real answer. getPendingMigrations went from hanging visibly to confidently reporting "no migrations pending" during a DB hang; hasNonTestImporters went from hanging to reporting a live file as a deletion candidate.
+
+The check for every site in this task: does its catch inspect stdout, stderr, or an exit code to decide WHAT the answer is, rather than merely that it failed? If yes, guard the timeout first with isTimeoutKill from packages/tooling/src/utils/timeoutKill.ts and answer "unknown" — and pick the unknown value by which wrong answer is dangerous, not by which is convenient (null rather than empty-array, true rather than false).
+
+Note the discriminator is error.code === ETIMEDOUT. It is NOT error.killed, which is undefined on that path — a killed guard type-checks, reads correctly, and silently never fires. Measured by probe; pinned by timeoutKill.test.ts, which drives a real bounded child rather than a synthetic fixture.
+
+Acceptance: every execFileSync and spawnSync in packages/tooling either carries a timeout or carries a comment saying why it does not, AND every newly-bounded site whose catch is content-sensitive distinguishes the timeout — at which point TASK-541 can close honestly.
 <!-- SECTION:DESCRIPTION:END -->
