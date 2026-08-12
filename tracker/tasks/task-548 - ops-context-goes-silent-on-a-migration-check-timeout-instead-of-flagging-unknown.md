@@ -3,9 +3,10 @@ id: TASK-548
 title: >-
   ops context goes silent on a migration-check timeout instead of flagging
   unknown
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 09:45'
+updated_date: '2026-08-12 13:18'
 labels:
   - 'area:tooling'
   - 'size:S'
