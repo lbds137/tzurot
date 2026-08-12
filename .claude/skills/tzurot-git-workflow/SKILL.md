@@ -81,6 +81,22 @@ git push -u origin feat/your-feature
 gh pr create --base develop --title "feat: description" --assignee @me
 ```
 
+### Before writing a closing reference in the PR body
+
+**The moment before typing `Closes TASK-N` (or "completes doc-N", "finishes the
+X sweep") is the trigger — re-open the referenced task file and QUOTE its
+acceptance line verbatim into the PR body, then state per clause whether it is
+met.** Recalling the acceptance from memory is what fails: an overclaim survives
+paraphrase easily and rarely survives being placed next to the words it
+contradicts. If any clause is unmet, the PR says **partial** and names the task
+that carries the remainder — `00-critical.md` § Completion claims required the
+re-read already and was cited back by a reviewer on a PR that skipped it, so
+what this adds is the moment, not the standard.
+
+The same check applies to any exhaustiveness claim in the body ("every call
+site", "all N modules", "the whole module"): name the enumeration command whose
+output backs it, or scope the sentence to what was actually swept.
+
 ### Arm CI monitor (required)
 
 Immediately after `gh pr create` — and after any subsequent `git push` to an open PR — start a `Monitor` that waits for CI to complete and reports new review comments back. **Do not skip this step and do not wait for the user to ask about CI status.**
