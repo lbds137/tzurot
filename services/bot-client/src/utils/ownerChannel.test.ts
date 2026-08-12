@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedBuilder, type Client } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -45,6 +45,34 @@ describe('postOwnerChannelEmbed', () => {
     await expect(postOwnerChannelEmbed(client, embed)).resolves.toBe(true);
 
     expect(send).toHaveBeenCalledWith({ embeds: [embed], allowedMentions: { parse: [] } });
+  });
+
+  it('forwards attachments to channel.send when files are passed', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const client = makeClient({ isTextBased: () => true, send });
+    const file = new AttachmentBuilder(Buffer.from('report body', 'utf-8'), {
+      name: 'report.md',
+    });
+
+    await expect(postOwnerChannelEmbed(client, embed, [file])).resolves.toBe(true);
+
+    expect(send).toHaveBeenCalledWith({
+      embeds: [embed],
+      allowedMentions: { parse: [] },
+      files: [file],
+    });
+  });
+
+  it('omits the files key entirely when no attachments are passed', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const client = makeClient({ isTextBased: () => true, send });
+
+    await postOwnerChannelEmbed(client, embed);
+
+    // Not just `files: undefined` — the key must be absent, so the six
+    // embed-only call sites keep sending a byte-identical payload.
+    const payload = send.mock.calls[0][0] as Record<string, unknown>;
+    expect('files' in payload).toBe(false);
   });
 
   it('is a silent no-op (not delivered) when the channel id is unset', async () => {

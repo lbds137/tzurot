@@ -98,6 +98,12 @@ function postedTitle(): string {
   return title ?? '';
 }
 
+/** The attachments third argument of the Nth postOwnerChannelEmbed call. */
+function postedFiles(index = 0): { attachment: Buffer; name?: string }[] | undefined {
+  const call = mockPostOwnerChannelEmbed.mock.calls[index] as unknown[];
+  return call[2] as { attachment: Buffer; name?: string }[] | undefined;
+}
+
 const client = {} as Client;
 
 describe('startNightlyDbSyncScheduler boot guard', () => {
@@ -300,6 +306,44 @@ describe('NightlyDbSyncScheduler runNightlyDbSync', () => {
     expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
     expect(postedTitle()).toContain('completed with warnings');
     expect(postedDescription()).toContain('1 warning(s)');
+  });
+
+  it('attaches the full report, carrying the warning TEXT the embed only counts', async () => {
+    mockDbSync.mockResolvedValue(okResult(QUIET_STATS, ['deletion propagation skipped: users']));
+
+    await runNightlyDbSync(client, makeRedis(null));
+
+    // The embed promises an attached report — the promise is only true if the
+    // warning body actually reaches the file.
+    expect(postedDescription()).toContain('full list in the attached report');
+    const files = postedFiles();
+    expect(files).toHaveLength(1);
+    const body = files?.[0].attachment.toString('utf-8') ?? '';
+    expect(body).toContain('# Database Sync Report');
+    expect(body).toContain('- deletion propagation skipped: users');
+    expect(files?.[0].name).toBe('nightly-db-sync-report.md');
+  });
+
+  it('sends the failure posts without an attachment (no report exists)', async () => {
+    mockDbSync.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      status: 503,
+      error: 'schema version mismatch',
+    });
+
+    await runNightlyDbSync(client, makeRedis(null));
+
+    expect(postedFiles()).toBeUndefined();
+
+    // The throw path is the second failure post shape.
+    vi.clearAllMocks();
+    mockGetSystemSettings.mockResolvedValue(okSettings());
+    mockDbSync.mockRejectedValue(new Error('gateway unreachable'));
+
+    await runNightlyDbSync(client, makeRedis(null));
+
+    expect(postedFiles()).toBeUndefined();
   });
 
   it('posts an owner-channel summary carrying the per-table counts when rows moved', async () => {

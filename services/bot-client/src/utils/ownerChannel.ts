@@ -11,15 +11,23 @@
  * Returns whether the embed was actually delivered, so callers that arm a
  * suppression window (nag cooldowns) can skip arming it on a failed post —
  * fire-and-forget callers may ignore the return value.
+ *
+ * Optional `files` ride along for callers whose detail does not fit an embed
+ * (the nightly db-sync attaches its full per-table report). Omitting them
+ * sends the same embed-only payload as before — the key is not added at all.
  */
 
-import { type Client, type EmbedBuilder } from 'discord.js';
+import { type AttachmentBuilder, type Client, type EmbedBuilder } from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('owner-channel');
 
-export async function postOwnerChannelEmbed(client: Client, embed: EmbedBuilder): Promise<boolean> {
+export async function postOwnerChannelEmbed(
+  client: Client,
+  embed: EmbedBuilder,
+  files?: AttachmentBuilder[]
+): Promise<boolean> {
   const channelId = getConfig().FEEDBACK_CHANNEL_ID;
   if (channelId === undefined) {
     return false;
@@ -30,7 +38,11 @@ export async function postOwnerChannelEmbed(client: Client, embed: EmbedBuilder)
       logger.warn({ channelId }, 'FEEDBACK_CHANNEL_ID is not a sendable text channel');
       return false;
     }
-    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    await channel.send({
+      embeds: [embed],
+      allowedMentions: { parse: [] },
+      ...(files !== undefined && { files }),
+    });
     return true;
   } catch (error) {
     logger.warn({ err: error, channelId }, 'Failed to post embed to owner channel');
