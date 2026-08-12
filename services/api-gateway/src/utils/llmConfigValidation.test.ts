@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { validateLlmConfigModelFields } from './llmConfigValidation.js';
+import { ensureVisionCapableModel, validateLlmConfigModelFields } from './llmConfigValidation.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 import type { LlmConfigService } from '../services/LlmConfigService.js';
 
@@ -26,6 +26,73 @@ vi.mock('./errorResponses.js', () => ({
     validationError: (msg: string) => ({ error: 'VALIDATION', message: msg }),
   },
 }));
+
+describe('ensureVisionCapableModel', () => {
+  const mockRes = {} as never;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  // `ModelCapabilityService.resolve()` returns the same null for "the catalog
+  // does not list this model" and "the catalog could not be reached", so the
+  // rejection message must not assert either cause. It previously claimed "it
+  // isn't in the model catalog" — false during an outage, and untested, which
+  // is how it survived.
+  it('does not assert a cause when capability cannot be resolved', async () => {
+    const modelCache = {
+      getModelById: vi.fn().mockResolvedValue(null),
+    } as unknown as OpenRouterModelCache;
+
+    const ok = await ensureVisionCapableModel(mockRes, modelCache, 'anthropic/claude-sonnet-4');
+
+    expect(ok).toBe(false);
+    const [, body] = mockSendError.mock.calls[0] as [unknown, { message: string }];
+    expect(body.message).toContain("Couldn't confirm");
+    expect(body.message).toContain('temporarily unreachable');
+    // The specific regression: naming absence as THE reason.
+    expect(body.message).not.toMatch(/isn't in the model catalog/);
+  });
+
+  it('rejects a resolvable model that genuinely lacks vision, and says so plainly', async () => {
+    const modelCache = {
+      getModelById: vi.fn().mockResolvedValue({
+        id: 'some/text-only',
+        supportsVision: false,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        contextLength: 128_000,
+      }),
+    } as unknown as OpenRouterModelCache;
+
+    const ok = await ensureVisionCapableModel(mockRes, modelCache, 'some/text-only');
+
+    expect(ok).toBe(false);
+    const [, body] = mockSendError.mock.calls[0] as [unknown, { message: string }];
+    expect(body.message).toContain("doesn't support image input");
+    // This one CAN name its cause — capability was resolved, not guessed.
+    expect(body.message).not.toContain('unreachable');
+  });
+
+  it('accepts a resolvable vision-capable model', async () => {
+    const modelCache = {
+      getModelById: vi.fn().mockResolvedValue({
+        id: 'anthropic/claude-sonnet-4',
+        supportsVision: true,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        contextLength: 200_000,
+      }),
+    } as unknown as OpenRouterModelCache;
+
+    expect(await ensureVisionCapableModel(mockRes, modelCache, 'anthropic/claude-sonnet-4')).toBe(
+      true
+    );
+    expect(mockSendError).not.toHaveBeenCalled();
+  });
+});
 
 describe('validateLlmConfigModelFields', () => {
   const mockRes = {} as never;

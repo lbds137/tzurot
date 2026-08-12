@@ -119,11 +119,16 @@ export async function ensureVisionCapableModel(
   // instance only because it resolves N rows in a loop.
   const capabilities = await new ModelCapabilityService(modelCache).resolve(model);
   if (capabilities === null) {
+    // `resolve()` returns the same null whether the catalog lists no such model
+    // or the catalog could not be reached, so the message must not assert
+    // either cause — claiming "it isn't in the catalog" during an outage sends
+    // the user hunting a replacement for a model that is perfectly fine.
     sendError(
       res,
       ErrorResponses.validationError(
-        `Couldn't confirm '${model}' supports image input (vision) — it isn't in the model catalog. ` +
-          `Choose a vision-capable model for a vision preset.`
+        `Couldn't confirm '${model}' supports image input (vision) — it is either absent from ` +
+          `the model catalog or the catalog is temporarily unreachable. Choose a known ` +
+          `vision-capable model, or try again shortly.`
       )
     );
     return false;
