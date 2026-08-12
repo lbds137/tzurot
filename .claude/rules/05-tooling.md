@@ -154,13 +154,20 @@ All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code
 ### Backlog lint + digest
 
 ```bash
-pnpm ops backlog                     # Gate: now.md caps + queue.md doc references + task-file integrity + open-task triage labels
+pnpm ops backlog                     # Gate: structural checks over now.md, cross-references, and tracker task files
 pnpm backlog:lint                    # Same check (root-level shortcut)
 pnpm ops backlog:digest              # Session-start briefing from tracker/: per-area counts, oldest 20, newest 10
 pnpm tracker task list --search <t> --plain   # Query the small-item pool (Backlog.md CLI)
 ```
 
 Gate details and the triage axes live in `06-backlog.md`. The digest never gates — it's the session-start aging surface.
+
+**The check list is `backlogLint.ts`'s `problems` array, not this line** — three
+additions landed without this description moving, so read the array rather than
+trusting an enumeration here. `pnpm ops backlog` ALSO prints a **non-gating**
+warning naming any uncommitted file under `tracker/` (invisible to every query
+until committed); it never sets the exit code, so an uncommitted task file does
+not fail CI.
 
 ### Audit-tool infrastructure (Layers 1-3)
 
@@ -186,7 +193,7 @@ EOF
 ```
 
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug` (+ standard `build`, `ci`, `revert`, `style`; every valid type is also a valid branch prefix)
-**Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
+**Scopes:** every `packages/` + `services/` directory name (generated), plus `tests` and the static root set — `backlog`, `ci`, `deps`, `docs`, `hooks`, `husky`, `legal`, `prisma`, `repo`, `rules`, `skills`. Source of truth is `allScopes` in `commitlint.config.cjs`; read it rather than trusting a list here.
 
 **Commitlint gotchas** (the hook catches these, but every trip costs a retry): the **full header must be ≤100 chars** (`header-max-length` — the most-tripped rule in practice; count before writing a long subject), the subject must start **lowercase** (`subject-case`), and the scope must be in the configured enum **or omitted entirely** — an unknown scope is rejected, no scope is fine.
 
