@@ -50,8 +50,28 @@ export interface WorkflowSyncOptions {
   runGit?: (args: string[]) => string;
 }
 
+/**
+ * Bound on the LOCAL git calls this guard makes (`rev-parse`, `merge-base`,
+ * `diff`). Runs inside `pnpm quality` and CI, and the failure path already
+ * fails open with a warning — bounded, a stall lands in that same path
+ * instead of hanging the gate.
+ */
+export const WORKFLOW_SYNC_TIMEOUT_MS = 15_000;
+
+/**
+ * Separate, larger bound for the one NETWORK call — `ensureRef`'s
+ * `git fetch`. A local-probe value is the wrong scale for a round trip to
+ * GitHub, and the cost of getting it wrong is asymmetric here: this guard
+ * fails OPEN, so a spurious timeout skips the check silently, and the thing
+ * it checks is whether a workflow-file drift has silently disabled
+ * claude-review on every PR. A slow network must not look like "no drift".
+ */
+export const WORKFLOW_FETCH_TIMEOUT_MS = 60_000;
+
 function defaultRunGit(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf-8' });
+  // `fetch` is the only network op in this module; everything else is local.
+  const timeout = args[0] === 'fetch' ? WORKFLOW_FETCH_TIMEOUT_MS : WORKFLOW_SYNC_TIMEOUT_MS;
+  return execFileSync('git', args, { encoding: 'utf-8', timeout });
 }
 
 /**

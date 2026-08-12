@@ -17,6 +17,13 @@ interface FocusRunnerOptions {
 }
 
 /**
+ * Bound on every git call this runner makes. Each call already degrades to a
+ * fallback or `null`/`false` on failure — bounded, a stall lands in that same
+ * degradation path instead of hanging a local `pnpm focus:*` invocation.
+ */
+export const FOCUS_RUNNER_TIMEOUT_MS = 15_000;
+
+/**
  * Detect the appropriate git base for comparison
  */
 function detectGitBase(): string | null {
@@ -24,6 +31,7 @@ function detectGitBase(): string | null {
     const branch = execFileSync('git', ['branch', '--show-current'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: FOCUS_RUNNER_TIMEOUT_MS,
     }).trim();
 
     if (branch === 'main' || branch === 'master') {
@@ -35,6 +43,7 @@ function detectGitBase(): string | null {
       execFileSync('git', ['rev-parse', '--verify', 'origin/develop'], {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: FOCUS_RUNNER_TIMEOUT_MS,
       });
       return 'origin/develop';
     } catch {
@@ -43,6 +52,7 @@ function detectGitBase(): string | null {
         execFileSync('git', ['rev-parse', '--verify', 'origin/main'], {
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: FOCUS_RUNNER_TIMEOUT_MS,
         });
         return 'origin/main';
       } catch {
@@ -62,6 +72,7 @@ function hasUncommittedChanges(): boolean {
     const status = execFileSync('git', ['status', '--porcelain'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: FOCUS_RUNNER_TIMEOUT_MS,
     }).trim();
     return status.length > 0;
   } catch {
@@ -98,6 +109,9 @@ export function runFocusedTask(options: FocusRunnerOptions): void {
   console.log(`\x1b[36m› Running focused ${task}...\x1b[0m`);
   console.log(`\x1b[90m› turbo ${turboArgs.join(' ')}\x1b[0m\n`);
 
+  // Deliberately unbounded: this is the actual lint/test/build run, not a
+  // probe, so it legitimately runs for minutes — a bound would turn a working
+  // command flaky. Same reasoning as the knip spawn in find-dead-files.ts.
   const result = spawnSync('turbo', turboArgs, {
     stdio: 'inherit',
     shell: false,

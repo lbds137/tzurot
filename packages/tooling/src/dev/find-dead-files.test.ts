@@ -162,11 +162,47 @@ describe('find-dead-files', () => {
       ]);
 
       expect(result).toBe(true);
+      const { DEAD_FILES_GREP_TIMEOUT_MS } = await import('./find-dead-files.js');
       expect(mockExecFileSync).toHaveBeenCalledWith(
         'grep',
         expect.arrayContaining(['/foo\\.js[\'"]', 'services/', 'packages/']),
-        expect.anything()
+        expect.objectContaining({ timeout: DEAD_FILES_GREP_TIMEOUT_MS })
       );
+    });
+
+    it('answers TRUE on a timeout kill, so an unknown is never called dead', async () => {
+      // The two failures are not symmetric: grep's exit-1 means "no importers"
+      // (below), but a timeout means "we did not find out". Answering false
+      // there would promote a live file onto the deletion-candidate list.
+      const { hasNonTestImporters } = await import('./find-dead-files.js');
+
+      mockExecFileSync.mockImplementation(() => {
+        const error = new Error('timed out') as Error & { code: string; stdout: string };
+        error.code = 'ETIMEDOUT';
+        error.stdout = ''; // partial/empty, exactly as a real kill leaves it
+        throw error;
+      });
+
+      expect(
+        hasNonTestImporters('services/bot-client/src/utils/live.ts', ['services/', 'packages/'])
+      ).toBe(true);
+    });
+
+    it('answers TRUE on a grep ERROR (exit 2), not "no importers"', async () => {
+      // Exit 2 is grep's "I could not do the search" (unreadable dir, bad
+      // pattern) — distinct from exit 1's definite no-match. Only exit 1 may
+      // send a file to the deletion-candidate list.
+      const { hasNonTestImporters } = await import('./find-dead-files.js');
+
+      mockExecFileSync.mockImplementation(() => {
+        const error = new Error('grep error') as Error & { status: number };
+        error.status = 2;
+        throw error;
+      });
+
+      expect(
+        hasNonTestImporters('services/bot-client/src/utils/live.ts', ['services/', 'packages/'])
+      ).toBe(true);
     });
 
     it('should return false when grep finds no matches', async () => {
@@ -260,9 +296,13 @@ describe('find-dead-files', () => {
         throw error;
       });
 
-      // Second call: grep for deadCode importers (no matches = dead)
+      // Second call: grep for deadCode importers (no matches = dead).
+      // `status: 1` is what grep actually sets for no-match; only that exit
+      // code means "definitely no importers".
       mockExecFileSync.mockImplementationOnce(() => {
-        throw new Error('No matches');
+        const error = new Error('No matches') as Error & { status: number };
+        error.status = 1;
+        throw error;
       });
 
       const result = findDeadFiles();
@@ -308,9 +348,11 @@ describe('find-dead-files', () => {
         throw error;
       });
 
-      // grep: no importers
+      // grep: no importers — `status: 1` is grep's real no-match exit code.
       mockExecFileSync.mockImplementationOnce(() => {
-        throw new Error('No matches');
+        const error = new Error('No matches') as Error & { status: number };
+        error.status = 1;
+        throw error;
       });
 
       runFindDeadFiles();

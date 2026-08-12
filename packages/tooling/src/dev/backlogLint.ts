@@ -458,12 +458,20 @@ function fileIdToken(path: string): string {
   return name.split(' ')[0].replace(/\.md$/i, '').toLowerCase();
 }
 
+/**
+ * Bound on both origin reads below. This runs inside `pnpm quality` and CI;
+ * a stalled git must degrade to the documented `resolvable: false` answer
+ * rather than hang the gate.
+ */
+export const ORIGIN_TASKS_TIMEOUT_MS = 15_000;
+
 /** Read the origin listing via git; unresolvable is a normal, non-fatal answer. */
 export function readOriginTaskFiles(rootDir: string): OriginTaskListing {
   try {
     execFileSync('git', ['rev-parse', '--verify', 'origin/develop'], {
       cwd: rootDir,
       stdio: 'ignore',
+      timeout: ORIGIN_TASKS_TIMEOUT_MS,
     });
   } catch {
     return { resolvable: false, files: [] };
@@ -472,7 +480,12 @@ export function readOriginTaskFiles(rootDir: string): OriginTaskListing {
     const raw = execFileSync(
       'git',
       ['ls-tree', '-r', '--name-only', 'origin/develop', '--', 'tracker/tasks/'],
-      { cwd: rootDir, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }
+      {
+        cwd: rootDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: ORIGIN_TASKS_TIMEOUT_MS,
+      }
     );
     return {
       resolvable: true,

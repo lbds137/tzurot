@@ -16,6 +16,7 @@ import {
   extractDeferredRefs,
   matchFiles,
   checkDeferredRefs,
+  DEFERRED_REFS_TIMEOUT_MS,
 } from './check-deferred-refs.js';
 import type { TrackerTask } from './trackerTasks.js';
 
@@ -331,6 +332,19 @@ describe('checkDeferredRefs (CLI entry)', () => {
 
     expect(readdirSync).not.toHaveBeenCalled();
     expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it('bounds the staged-file git read with DEFERRED_REFS_TIMEOUT_MS', async () => {
+    mockStore(SAMPLE_TASKS);
+    vi.mocked(execFileSync).mockReturnValue('README.md\n');
+
+    await checkDeferredRefs({ staged: true });
+
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['diff', '--cached', '--name-only'],
+      expect.objectContaining({ timeout: DEFERRED_REFS_TIMEOUT_MS })
+    );
   });
 
   it('accepts an explicit file list without touching git', async () => {

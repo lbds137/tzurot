@@ -2,15 +2,37 @@
  * Tests for the baseline metadata helpers.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// The only shell-out in this module is the SHA read inside buildBaselineMeta.
+// Returns a well-formed 40-hex SHA so the shape assertion below still means
+// what it did when this test read the real repo.
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(() => `${'a1b2c3d4'.repeat(5)}\n`),
+}));
+
+import { execFileSync } from 'node:child_process';
 import {
   buildBaselineMeta,
   checkMetaDrift,
   hashConfigSlice,
+  BASELINE_SHA_TIMEOUT_MS,
   type BaselineMeta,
 } from './baseline-meta.js';
 
 describe('buildBaselineMeta', () => {
+  it('bounds the git SHA read with BASELINE_SHA_TIMEOUT_MS', () => {
+    vi.mocked(execFileSync).mockClear();
+
+    buildBaselineMeta('1.0.0', 'abc123def456');
+
+    const calls = vi.mocked(execFileSync).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call[2]).toMatchObject({ timeout: BASELINE_SHA_TIMEOUT_MS });
+    }
+  });
+
   it('returns a populated meta block', () => {
     const meta = buildBaselineMeta('1.0.0', 'abc123def456');
     expect(meta.toolVersion).toBe('1.0.0');
