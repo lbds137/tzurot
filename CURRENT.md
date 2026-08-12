@@ -4,7 +4,17 @@
 
 ---
 
-## 🔄 SESSION STATE (2026-08-12, Opus 5 orchestrator — beta.200 RELEASED)
+## 🔄 POST-RELEASE DRAIN (2026-08-12, Opus 5 orchestrator)
+
+**#2075 MERGED** — TASK-542/547/551 Done: post-dispatch `git worktree list` check in the orchestration skill (passing `isolation: "worktree"` is not proof it applied); the quote-the-acceptance-line trigger before any closing reference in a PR body; Opus-5-as-settled-default recorded in the mode table, not only in a Done task.
+
+**Two open, both in review:** **#2076** (TASK-548, `ops context` silent on a migration-status timeout) and **#2077** (TASK-550, backlog gate for a task that is both live and archived).
+
+**Two probes settled claims neither reviewer nor I could have reasoned to.** (a) `'stdout' in error` is TRUE when stdout is `''`, and prisma splits a P1001 across streams — a benign datasource echo on stdout, the identifying error on stderr — so a stdout-only read fails QUIETLY with a plausible wrong reason. My own test fixture had P1001 on stdout and passed against the broken read. (b) The tracker id allocator ignores `tracker/archive/tasks/`: with `task-9001` in the archive, `task create` allocated `TASK-552`. Archiving the highest-numbered task therefore frees its id for reuse — the gate is still right to fire, only the remedy differs, so its message names both causes.
+
+**Next unit: TASK-530** (hook blocking `gh pr merge --delete-branch` while the head branch is checked out). Design settled: EXTEND `pr-merge-review-check.sh` rather than add a sibling — that file already carries the hardened argument-vector parsing, and its 895-line probe extends with it.
+
+## 🔄 RELEASE STATE (2026-08-12 — beta.200 RELEASED)
 
 **v3.0.0-beta.200 is out.** #2074 merged with owner approval after a holistic review with no blocking findings (it verified the cross-PR seams: #2068/#2070's catalog tags consistent end-to-end across two services, #2067's participant re-keying with no stale untyped fixture, #2073's optional `files` param leaving all 9 other call sites untouched). `release:finalize` resynced develop, `release:publish` tagged + flipped flags. **15 PRs, 5 runtime.** No migrations, no advisories, no dependabot queue.
 
