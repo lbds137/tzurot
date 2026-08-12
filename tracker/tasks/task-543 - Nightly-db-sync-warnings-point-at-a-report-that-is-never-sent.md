@@ -1,9 +1,10 @@
 ---
 id: TASK-543
 title: Nightly db-sync warnings point at a report that is never sent
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 07:09'
+updated_date: '2026-08-12 11:15'
 labels:
   - 'area:bot-client'
   - 'size:S'
