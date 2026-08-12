@@ -8,12 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
-import {
-  handleDbSync,
-  handleDbSyncDetailsButton,
-  isDbSyncDetailsButton,
-  buildSyncReportText,
-} from './db-sync.js';
+import { handleDbSync, handleDbSyncDetailsButton, isDbSyncDetailsButton } from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -255,6 +250,26 @@ describe('handleDbSync', () => {
     expect(description).not.toContain('Table mismatch detected');
   });
 
+  it('promises the BUTTON when the stash succeeded (the report is not below)', async () => {
+    mockStoreReport.mockResolvedValue('key-123');
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: {},
+        warnings: ['Table mismatch detected'],
+      })
+    );
+
+    const context = createMockContext(false);
+    await handleDbSync(context);
+
+    const description = replyPayload(context).embeds?.[0].data.description ?? '';
+    expect(description).toContain('⚠️ 1 warning(s) — tap **Show details** for the full list');
+    expect(description).not.toContain('report below');
+  });
+
   it('should handle HTTP errors', async () => {
     stub.dbSync.mockResolvedValue(makeErr(500, 'Database not configured'));
 
@@ -351,86 +366,6 @@ describe('handleDbSync', () => {
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('❌ Database sync failed'),
     });
-  });
-});
-
-describe('buildSyncReportText', () => {
-  const baseResult = {
-    timestamp: '2026-07-11T00:00:00.000Z',
-    schemaVersion: '20260710230428_add_sync_tombstones',
-    stats: {
-      users: { devToProd: 3, prodToDev: 1, conflicts: 0, deleted: 0 },
-      personas: { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 2 },
-    },
-    warnings: ['personas: 2 conflicts resolved using last-write-wins'],
-    info: ["Table 'audit_log' excluded: local-only audit trail"],
-    deletions: [
-      { table: 'personas', rowKey: 'aaaa-1111', target: 'prod' as const },
-      { table: 'personas', rowKey: 'bbbb-2222', target: 'dev' as const },
-    ],
-    deletionsTruncated: false,
-  };
-
-  it('includes EVERY table in the stats table, active or not', () => {
-    const report = buildSyncReportText(baseResult, false);
-
-    // Fixed-width rows in a code fence (Discord renders no pipe-tables)
-    expect(report).toContain('```');
-    expect(report).toMatch(/^users\s+3\s+1\s+0\s+0$/m);
-    expect(report).toMatch(/^personas\s+0\s+0\s+0\s+2$/m);
-  });
-
-  it('lists each deletion row with its losing side', () => {
-    const report = buildSyncReportText(baseResult, false);
-
-    expect(report).toContain('## Deletions queued for propagation (2)');
-    expect(report).toContain('- `personas` · `aaaa-1111` → prod');
-    expect(report).toContain('- `personas` · `bbbb-2222` → dev');
-  });
-
-  it('uses would-propagate framing under dry run', () => {
-    const report = buildSyncReportText(baseResult, true);
-
-    expect(report).toContain('# Database Sync Report (dry run)');
-    expect(report).toContain('- Mode: DRY RUN — no changes applied');
-    expect(report).toContain('## Deletions that would propagate (2)');
-  });
-
-  it('marks a gateway-capped deletion list loudly', () => {
-    const report = buildSyncReportText({ ...baseResult, deletionsTruncated: true }, false);
-
-    expect(report).toContain('## Deletions queued for propagation (2+)');
-    expect(report).toContain('Row detail capped by the gateway');
-  });
-
-  it('carries full warnings and info without truncation', () => {
-    const manyWarnings = Array.from({ length: 60 }, (_, i) => `warning line ${i}`);
-    const report = buildSyncReportText({ ...baseResult, warnings: manyWarnings }, false);
-
-    expect(report).toContain('## Warnings (60)');
-    expect(report).toContain('- warning line 0');
-    expect(report).toContain('- warning line 59');
-    expect(report).toContain("- Table 'audit_log' excluded: local-only audit trail");
-  });
-
-  it('neutralizes triple-backticks in warnings (content-derived text)', () => {
-    const report = buildSyncReportText(
-      { ...baseResult, warnings: ['table dump contained ```sql DROP``` fragment'] },
-      false
-    );
-
-    // Raw fences: exactly the stats table's own pair — the warning's run is neutralized
-    expect(report.match(/```/g)).toHaveLength(2);
-    expect(report.replace(/\u200b/g, '')).toContain('```sql DROP```');
-  });
-
-  it('renders explicit None sections for an empty result', () => {
-    const report = buildSyncReportText({}, false);
-
-    expect(report).toContain('_No table stats returned._');
-    expect(report).toContain('## Deletions queued for propagation (0)');
-    expect(report).toContain('## Warnings (0)');
-    expect(report).toContain('None.');
   });
 });
 
