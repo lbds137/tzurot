@@ -35,8 +35,9 @@ The owner's stated staleness fear — "I've been avoiding it because it's gonna 
 
 ### Phase 2 — Help revamp + doc pipeline
 
-- [ ] Rebuild `/help` per Phase 0 findings (likely: task-oriented entry points over alphabetical command dump; house browse/pagination patterns).
+- [ ] Rebuild `/help` per Phase 0 findings (likely: task-oriented entry points over alphabetical command dump; house browse/pagination patterns). 2026-08-12 intake (external Fable brief, via `doc-12`): progressive shape — top ~5 commands + a "more" path, instead of exhaustive listing.
 - [ ] Feature docs for the dormant-but-supported set, so "still works if someone wants it" is discoverable rather than folklore.
 - [ ] Wire the parity guard chosen in Phase 0 so docs can't silently rot.
+- [ ] One-time contextual ephemeral hints at natural moments (e.g. first significant memory accrual → "you can browse/correct/export with /…"), and a 2-sentence feature spotlight per release-notes DM — cheap, matches a non-docs-reading Discord-native user base. Sequence after `doc-12`'s P1.1 discoverability report identifies which features are actually dark (data-driven, not guessed).
 
 **Promote when**: owner said "not too far in the future — this problem is just gonna get worse as we build more stuff." Natural slot: after the beta.157 memory chain lands (it's the current focus), possibly interleaved with UX Phase 2 (which absorbs view/browse unification). Surfaced 2026-07-10 (owner dictation).
