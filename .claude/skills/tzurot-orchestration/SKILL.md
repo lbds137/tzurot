@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-11'
+lastUpdated: '2026-08-12'
 ---
 
 # Orchestrator Mode
@@ -22,11 +22,19 @@ gate that stops worker defects before CI does.
 Who drives the main loop determines the delegation posture. The mechanism is
 quality — fresh context plus an independent diff review — not budget.
 
-| Driver                       | Posture                                                                                                                                                                                                                                                                                   |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop**          | Delegate implementation to `opus-implementer` by DEFAULT. "It's small" is not an inline justification. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit.                 |
-| **Opus main loop**           | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).               |
-| **Bulk reading/exploration** | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table). |
+**Opus 5 orchestrating Sonnet workers is the SETTLED DEFAULT for drain
+sessions** (owner verdict, TASK-513) — Fable is reserved for design, semantic,
+and taste-heavy work, not held as the ordinary driver. Release operations are
+**not** model-scoped: release safety rests on the per-release owner-approval
+gate (`00-critical.md` § Merge Approval), which is model-independent. Schema and
+migration work, and any owner-taste call, still escalate to the owner regardless
+of driver.
+
+| Driver                                                 | Posture                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop** _(design / semantic / taste work)_ | Delegate implementation to `opus-implementer` by DEFAULT. "It's small" is not an inline justification. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit.                 |
+| **Opus main loop** _(DEFAULT — drain sessions)_        | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).               |
+| **Bulk reading/exploration**                           | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table). |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
 the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
@@ -94,6 +102,23 @@ yanked mid-edit). Same-tree spawns are for read-only analysis only. Should the
 rule nonetheless be violated and a file-mutating worker found sharing the tree,
 the damage-control posture is: the orchestrator FREEZES its own git operations
 (checkout, pull, rebase, merge) until the worker reports.
+
+**Passing the flag is not proof it took effect — verify the tree immediately
+after dispatch**, before the orchestrator does anything else with git:
+
+```bash
+git worktree list        # a NEW tree must be listed for the worker
+```
+
+Only the main tree listed means the worker is in the SHARED tree despite
+`isolation: "worktree"` (observed: a spawn silently got no worktree, the worker
+ran `git checkout -b` in the shared tree, and the orchestrator's branch moved
+mid-turn — a review fixup landed on the worker's branch and cost a cherry-pick
+to recover). Why the flag can be ignored is **unknown and unprobed** — do not
+record a cause. The response is the damage-control freeze above: no checkout,
+pull, rebase, or merge until the worker reports. The weaker universal guard is
+worth having too — re-read `git branch --show-current` immediately before any
+commit, since a background agent can move it under you.
 
 Before trusting any code-grounded output from a worktree-isolated worker,
 verify the worktree's base against the intended SHA:
