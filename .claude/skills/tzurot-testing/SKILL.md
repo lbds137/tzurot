@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-08-09'
+lastUpdated: '2026-08-12'
 ---
 
 # Testing Procedures
@@ -159,6 +159,27 @@ it mocked — add the seam assertion per `02-code-standards.md` § Assert what
 crosses a mocked seam before writing more cases. This is the coverage-illusion
 class: a mock missing one property leaves the dependent branch green and
 untested; a feature flag can no-op silently under a fully green suite.
+
+## Stacked gates: make upstream gates inert
+
+When asserting gate N in a multi-gate pipeline — a hook with several checks, a
+validator chain, a new guard stacked in front of an older one — an exit code or
+shared failure result is NOT attribution: the new gate inherits the older
+gate's failure, so `assert_exit 2` (or `.toThrow()`, or "returns false") passes
+whether YOUR gate fired or the one behind it did. Two obligations:
+
+1. **Construct the fixture so every upstream gate is inert** (would pass on its
+   own), leaving the gate under test as the only possible failure source.
+   Asserting a distinctive banner/message helps but is secondary — an inert-
+   upstream fixture proves attribution even when messages change.
+2. **Canary THIS gate**: mutate the gate under test and confirm the specific
+   assertion reddens (Core Principle 9, `02-code-standards.md`). A canary
+   against the pipeline as a whole proves nothing about which gate you pinned.
+
+Anatomy to fear: a cluster of vacuous assertions shipped in one hook PR
+(#2078) with exactly this shape — including one whose test NAME was false,
+passing only because a different gate blocked first. Reading had already
+passed every one of them; per-gate canaries are what caught them.
 
 ## Integration Tests with PGLite
 
