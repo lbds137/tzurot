@@ -30,7 +30,9 @@ READ THIS BEFORE BOUNDING ANYTHING — adding a timeout introduces a NEW failure
 
 Roughly a quarter of the bounded sites had this shape, so assume it is common rather than exceptional in the remaining set.
 
-The check for every site in this task: does its catch inspect stdout, stderr, or an exit code to decide WHAT the answer is, rather than merely that it failed? If yes, guard the timeout first with isTimeoutKill from packages/tooling/src/utils/timeoutKill.ts and answer "unknown" — and pick the unknown value by which wrong answer is dangerous, not by which is convenient (null rather than empty-array, true rather than false).
+The check for every site in this task, in its sharpest form: is the catch's answer a neutral UNKNOWN, or is it a CLAIM? Returning null or rethrowing is neutral. Returning false ("does not exist"), an empty array ("nothing pending"), or a parsed result ("here is the data") is a claim, and a timeout must not be allowed to make it. Where the answer is a claim, guard first with isTimeoutKill from packages/tooling/src/utils/timeoutKill.ts, then pick the unknown value by which wrong answer is dangerous rather than which is convenient — null over empty-array, true over false.
+
+Do not narrow this to "catches that inspect stdout". PR 2072 found three of those and then a fourth site with NO content branch at all: gitHasCommit uses stdio ignore and its whole catch is `return false`, which reads as "that SHA names no commit" and hard-aborts CI-gate arming right after a push, telling the caller to use the exact command they already used. A catch that maps every failure to one answer is fine when that answer means "gave up"; it is a bug when that answer means something specific.
 
 Note the discriminator is error.code === ETIMEDOUT. It is NOT error.killed, which is undefined on that path — a killed guard type-checks, reads correctly, and silently never fires. Measured by probe; pinned by timeoutKill.test.ts, which drives a real bounded child rather than a synthetic fixture.
 
