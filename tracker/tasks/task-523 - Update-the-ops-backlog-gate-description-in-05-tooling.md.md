@@ -28,5 +28,7 @@ The failure direction is the expensive one: an agent trusting the doc believes a
 
 Fix shape for both items: rather than re-listing a hand-maintained subset that will drift again, point the doc at commitlint.config.cjs as the source of truth and name only the rule (dynamic package scopes + a static root set), the same way the gate description should name its checks. Both edits ride the same .claude/rules PR.
 
-Acceptance: the 05-tooling.md description of pnpm ops backlog names every check the gate actually runs, AND its scope guidance no longer contradicts commitlint.config.cjs.
+THIRD OMISSION, same line (PR 2069, 2026-08-11): the gate now also prints a NON-gating warning naming any uncommitted file under tracker/. It is deliberately advisory — it never sets the exit code — so the description should say that rather than list it beside the gating checks; a reader who takes it for a gate will assume an uncommitted task file fails CI, which is exactly backwards. Note the trend: three separate additions to one command have now landed without the always-loaded description moving, which is the argument for naming the source of truth instead of re-listing checks by hand.
+
+Acceptance: the 05-tooling.md description of pnpm ops backlog names every check the gate actually runs AND distinguishes the advisory warning from the gating checks, AND its scope guidance no longer contradicts commitlint.config.cjs.
 <!-- SECTION:DESCRIPTION:END -->
