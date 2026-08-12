@@ -1,9 +1,10 @@
 ---
 id: TASK-547
 title: Give the completion-claim rule a mechanical trigger at PR-body time
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 08:12'
+updated_date: '2026-08-12 12:44'
 labels:
   - 'area:docs'
   - 'size:S'
