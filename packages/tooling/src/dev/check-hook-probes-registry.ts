@@ -57,6 +57,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/claim-shape-guard.probe.sh',
   },
   {
+    hook: '.claude/hooks/context-size-reminder.sh',
+    probe: '.claude/hooks/context-size-reminder.probe.sh',
+  },
+  {
     hook: '.claude/hooks/cwd-drift-guard.sh',
     probe: '.claude/hooks/cwd-drift-guard.probe.sh',
   },
@@ -88,6 +92,13 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   {
     hook: '.claude/hooks/queued-message-receipt.sh',
     probe: '.claude/hooks/queued-message-receipt.probe.sh',
+  },
+  {
+    // Decision logic for the pre-push tracker gate lives here (probeable)
+    // rather than inline in .husky/pre-push, which stays a composer per its
+    // own unprobedReason.
+    hook: '.claude/hooks/tracker-dirty-push-gate.sh',
+    probe: '.claude/hooks/tracker-dirty-push-gate.probe.sh',
   },
   {
     hook: '.claude/hooks/eslint-on-edit.sh',
