@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import {
   ALLOW_ORIGIN_ID_COLLISION_ENV,
+  checkArchiveIdConflicts,
   checkDuplicateTaskIds,
   checkOriginIdCollisions,
   checkTaskTriage,
@@ -402,6 +403,71 @@ describe('checkTaskTriage', () => {
   });
 });
 
+describe('checkArchiveIdConflicts', () => {
+  it('passes when the two directories are disjoint', () => {
+    expect(checkArchiveIdConflicts(['task-10 - live.md'], ['task-9 - archived.md'])).toEqual([]);
+  });
+
+  it('flags a task present in both directories, naming the id and both paths', () => {
+    const [problem] = checkArchiveIdConflicts(
+      ['task-544 - Some-task.md'],
+      ['task-544 - Some-task.md']
+    );
+    expect(problem).toContain('task-544 is BOTH live and archived');
+    expect(problem).toContain('tracker/tasks/task-544 - Some-task.md');
+    expect(problem).toContain('tracker/archive/tasks/task-544 - Some-task.md');
+  });
+
+  it('catches the overlap when the two copies were renamed apart', () => {
+    // Comparing full filenames would miss this: the archive move and a later
+    // title edit leave the same id under two different names, and the live copy
+    // still answers every open-pool query.
+    const [problem] = checkArchiveIdConflicts(
+      ['task-544 - Renamed-after-the-move.md'],
+      ['task-544 - Original-title.md']
+    );
+    expect(problem).toContain('task-544 is BOTH live and archived');
+  });
+
+  it('reports every overlapping id, not just the first', () => {
+    const problems = checkArchiveIdConflicts(
+      ['task-1 - a.md', 'task-2 - b.md', 'task-3 - c.md'],
+      ['task-1 - a.md', 'task-3 - c.md']
+    );
+    expect(problems).toHaveLength(2);
+    expect(problems.join('\n')).toContain('task-1 is BOTH');
+    expect(problems.join('\n')).toContain('task-3 is BOTH');
+    expect(problems.join('\n')).not.toContain('task-2');
+  });
+
+  it('is empty when the archive is empty — the ordinary state', () => {
+    expect(checkArchiveIdConflicts(['task-1 - a.md'], [])).toEqual([]);
+  });
+
+  it('flags two files sharing an id INSIDE the archive, naming every copy', () => {
+    // Same failure shape one directory over: each file looks correct alone, and
+    // a last-writer-wins map would compare one and report neither.
+    const problems = checkArchiveIdConflicts([], ['task-7 - original.md', 'task-7 - a-copy.md']);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('task-7 appears 2 times');
+    expect(problems[0]).toContain('task-7 - original.md');
+    expect(problems[0]).toContain('task-7 - a-copy.md');
+  });
+
+  it('names every archived copy when a live file collides with duplicated ones', () => {
+    const [, liveProblem] = checkArchiveIdConflicts(
+      ['task-7 - live.md'],
+      ['task-7 - one.md', 'task-7 - two.md']
+    );
+    // FULL paths, asserted with their directory prefix — a bare-filename
+    // assertion passes whether or not the second copy is prefixed, which is
+    // exactly how the missing prefix survived into review.
+    expect(liveProblem).toContain('tracker/archive/tasks/task-7 - one.md');
+    expect(liveProblem).toContain('tracker/archive/tasks/task-7 - two.md');
+    expect(liveProblem).toContain('tracker/tasks/task-7 - live.md');
+  });
+});
+
 describe('runBacklogLint', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
@@ -654,6 +720,41 @@ describe('runBacklogLint', () => {
     const out = logSpy.mock.calls.flat().join('\n');
     expect(out).toContain('id TASK-1 is already used on origin/develop');
     expect(process.exitCode).toBe(1);
+  });
+
+  it('gates when a task is live and archived at once', async () => {
+    // Wiring, not logic: the pure check has its own suite. What this pins is
+    // that the archive directory is actually read and its findings reach the
+    // exit code — the whole failure was a state nothing looked at.
+    // The backlogTree entry alone makes the archive directory exist AND supplies
+    // its listing — a `files` entry for the same path would be dead weight.
+    mockFs(
+      { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+      [],
+      { 'task-1 - valid.md': VALID_TASK },
+      {},
+      { 'tracker/archive/tasks': [{ name: 'task-1 - valid.md' }] }
+    );
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('task-1 is BOTH live and archived');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('stays clean when the archive directory does not exist at all', async () => {
+    // The ordinary shape for any checkout without an archive: absent must read
+    // as "nothing archived", never as a crash or a finding.
+    mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+      'task-1 - valid.md': VALID_TASK,
+    });
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('Backlog layout in sync');
+    expect(process.exitCode).not.toBe(1);
   });
 
   it('notes the skip and stays clean when origin/develop is unresolvable', async () => {
