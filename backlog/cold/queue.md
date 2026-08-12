@@ -36,6 +36,7 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 - **Type-Assertion Audit + Deterministic Ratchet** (`doc-23`) — triage untyped casts + deterministic gate against new unsafe assertions
 - **PGLite Fidelity + Real-Postgres Integration Tier** (`doc-13`) — harvest the remaining DDL gaps into the shared PGLite schema, provision Postgres for the integration tier, then test what PGLite structurally can't model (trigger→NOTIFY, concurrency/locking, pg.Pool)
 - **Production Observability — perf metrics + distributed tracing** (`doc-16`) — time-series metrics + tracing for load-correlated prod issues
+- **Read-only backlog browser on the website** (`doc-76`) — hosted, read-only dashboard over tracker/backlog (board, task detail, digest/aging views) so navigating project state doesn't mean poking around GitHub's file browser; static-gen at website build is the leading shape _(owner idea 2026-08-12; primarily for the owner's own visualization)_
 - **Export/Import/Template/Clone Field Completeness** (`doc-5`) — derive serialize field sets from Zod schema, not hard-coded lists
 - **Quota, Billing & Key Identity** (`doc-18`) — make "whose key is this, and whose budget does it spend?" one answered question; its Phase 1 is a single wrong-identity bug filed five separate times
 - **Synchronous Work & Timeout Budgets** (`doc-21`) — operations whose duration scales with data belong on a queue, not an HTTP request; `db-sync` has already consumed three timeout raises and the manifest caps the fourth

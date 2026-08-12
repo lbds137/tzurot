@@ -4,15 +4,17 @@
 
 ---
 
-## 🔄 POST-RELEASE DRAIN (2026-08-12, Opus 5 orchestrator)
+## 🔄 POST-RELEASE DRAIN (2026-08-12) — ALL MERGED
 
-**#2075 MERGED** — TASK-542/547/551 Done: post-dispatch `git worktree list` check in the orchestration skill (passing `isolation: "worktree"` is not proof it applied); the quote-the-acceptance-line trigger before any closing reference in a PR body; Opus-5-as-settled-default recorded in the mode table, not only in a Done task.
+**#2075/#2076/#2077/#2078/#2079 merged**; TASK-530/542/547/548/550/551/553 Done. Carry-forward finding from #2076: prisma splits a P1001 across streams (benign echo on stdout, identifying error on stderr) — a stdout-only read fails quietly with a plausible wrong reason. From #2077: the tracker id allocator ignores `tracker/archive/tasks/`, so archiving the highest-numbered task frees its id for reuse.
 
-**Two open, both in review:** **#2076** (TASK-548, `ops context` silent on a migration-status timeout) and **#2077** (TASK-550, backlog gate for a task that is both live and archived).
+## 🧭 2026-08-12 EVENING (Fable): mining run + shipped-work audit + Opus-setup ops
 
-**Two probes settled claims neither reviewer nor I could have reasoned to.** (a) `'stdout' in error` is TRUE when stdout is `''`, and prisma splits a P1001 across streams — a benign datasource echo on stdout, the identifying error on stderr — so a stdout-only read fails QUIETLY with a plausible wrong reason. My own test fixture had P1001 on stdout and passed against the broken read. (b) The tracker id allocator ignores `tracker/archive/tasks/`: with `task-9001` in the archive, `task create` allocated `TASK-552`. Archiving the highest-numbered task therefore frees its id for reuse — the gate is still right to fire, only the remedy differs, so its message names both causes.
+**Mining run complete** (SYNTHESIS-2026-08-12, R1–R7, machine-local). Driver timeline runtime-pinned: Fable+Sonnet through 08-11 01:17Z, then Opus 5 orchestrator ~45h. **Defect review of beta.198–200's ~30 PRs (6 fresh-context reviewers): 0 High · 11 Med · 32 Low — ALL tracked (TASK-556–577; Meds 556-565).** Verdict: merged-output quality driver-comparable (Meds ~6/14 Opus-window vs ~4/18 Fable-window PRs); the Opus gap is process cost (review marathons, orchestrator error volume), not shipped defects. **Owner decisions**: Opus stays drain-orchestrator default WITH a ~6-round hard cap (shipped to skills, #2080); org model = owner → Fable (second-in-command: design/taste/verification passes over Opus output) → Opus (drain engineering manager) → Sonnet workers+reviewers, Haiku for Explore fan-outs. Ops shipped/in-flight: #2080 (round cap + stacked-gate fixture rule), #2081 (context-size reminder hook + tracker-dirty push gate), `release:range` (worker, in flight). Brief intake: observability → doc-12/16/25. New theme: **doc-76** (read-only backlog browser on the website).
 
-**Next unit: TASK-530** (hook blocking `gh pr merge --delete-branch` while the head branch is checked out). Design settled: EXTEND `pr-merge-review-check.sh` rather than add a sibling — that file already carries the hardened argument-vector parsing, and its 895-line probe extends with it.
+**OPUS DRAIN QUEUE (curated 2026-08-12 by Fable — mechanical-first, precise fix shapes; work top-down):**
+Wave 1 (high): 558 → 557 → 556. Wave 2 (medium): 560, 564, 562, 565, 561, 533, 535, 545, 563, 546-continuation. Wave 3 (low picks): 324, 336, 354, 486, 304, 271.
+**Held for Fable/owner (do NOT pick up in a drain): 527 (product copy), 540 (HTTP contract), 559 (owner pick: redraw vs document), 531 (process design).** Net-shrink reporting per /tzurot-docs applies: every batch report states closed-vs-filed.
 
 ## 🔄 RELEASE STATE (2026-08-12 — beta.200 RELEASED)
 
