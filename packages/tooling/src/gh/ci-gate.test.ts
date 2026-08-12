@@ -213,6 +213,67 @@ describe('describeHeadMismatch', () => {
   });
 });
 
+describe('gitHasCommit timeout wiring', () => {
+  it('passes COMMIT_CHECK_TIMEOUT_MS to the underlying git call', async () => {
+    // The tests below run real git, so nothing there observes the option.
+    vi.resetModules();
+    const opts: Record<string, unknown>[] = [];
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, _args: string[], o: Record<string, unknown>) => {
+        opts.push(o);
+        return '';
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    mod.gitHasCommit('a'.repeat(40));
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+
+    expect(opts).toHaveLength(1);
+    expect(opts[0].timeout).toBe(mod.COMMIT_CHECK_TIMEOUT_MS);
+  });
+
+  it('answers TRUE on a timeout, so a busy git does not read as a bad SHA', async () => {
+    // `false` here hard-aborts gate arming with "does not name a commit",
+    // telling the caller to use `$(git rev-parse HEAD)` — which the mandated
+    // invocation already does. Unknown must not impersonate not-found.
+    vi.resetModules();
+    vi.doMock('node:child_process', () => ({
+      execFileSync: () => {
+        const error = new Error('timed out') as Error & { code: string };
+        error.code = 'ETIMEDOUT';
+        throw error;
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    const result = mod.gitHasCommit('a'.repeat(40));
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+
+    expect(result).toBe(true);
+  });
+
+  it('still answers FALSE for a genuinely absent commit', async () => {
+    // The check's actual purpose: a hand-completed SHA must still be rejected
+    // before the gate burns its full timeout polling for a commit that isn't
+    // there. The timeout carve-out must not weaken this.
+    vi.resetModules();
+    vi.doMock('node:child_process', () => ({
+      execFileSync: () => {
+        const error = new Error('not found') as Error & { status: number };
+        error.status = 1;
+        throw error;
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    const result = mod.gitHasCommit('b'.repeat(40));
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+
+    expect(result).toBe(false);
+  });
+});
+
 describe('gitHasCommit', () => {
   it('resolves HEAD of this repo', () => {
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
@@ -641,6 +702,27 @@ describe('the argv that actually reaches gh', () => {
     const warnings: string[] = [];
     await captureArgv(mod => mod.fetchRuns('a'.repeat(40), m => warnings.push(m)), full);
     expect(warnings[0]).toContain('page ceiling');
+  });
+
+  it('bounds the report pass but leaves the watch pass unbounded', async () => {
+    // The watch pass is deliberately a long wait; a bound there would defeat
+    // it. Only the single report call the agent reads carries a timeout.
+    vi.resetModules();
+    const opts: Record<string, unknown>[] = [];
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, _args: string[], o: Record<string, unknown>) => {
+        opts.push(o);
+        return '';
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    mod.runChecks(1992, true);
+    mod.runChecks(1992, false);
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+
+    expect(opts[0].timeout).toBeUndefined();
+    expect(opts[1].timeout).toBe(mod.CHECKS_REPORT_TIMEOUT_MS);
   });
 
   it('watches with an explicit interval, then reports without watching', async () => {

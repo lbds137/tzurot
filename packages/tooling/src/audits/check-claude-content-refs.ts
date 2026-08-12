@@ -19,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { emitSummary } from './summary.js';
+import { isTimeoutKill } from '../utils/timeoutKill.js';
 
 /**
  * Threshold beyond which a file's `lastUpdated` frontmatter triggers a
@@ -225,6 +226,15 @@ export function parseRegisteredCommands(helpOutput: string): Set<string> {
 }
 
 /**
+ * Bound on the help spawn. This guard runs inside `pnpm quality`, so an
+ * unbounded stall blocks the gate outright. Generous because the call boots
+ * pnpm, tsx and the whole CLI — a short bound would redden a working gate,
+ * and a timeout here lands in the existing throw path below rather than
+ * silently yielding an empty command set.
+ */
+export const OPS_HELP_TIMEOUT_MS = 60_000;
+
+/**
  * Fetch the registered command set by invoking `pnpm ops --help` and
  * parsing the output. Spawns the actual CLI so the audit catches the
  * same commands `pnpm ops` would surface in interactive use.
@@ -236,6 +246,7 @@ function fetchRegisteredCommands(repoRoot: string): Set<string> {
       cwd: repoRoot,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: OPS_HELP_TIMEOUT_MS,
     });
   } catch (err) {
     // pnpm ops --help may exit non-zero on the unsupported-engine warning,
@@ -248,6 +259,16 @@ function fetchRegisteredCommands(repoRoot: string): Set<string> {
     // pnpm ops reference looks dangling, masking the real cause behind
     // a confusing avalanche of false-positive findings. Throw with the
     // original error attached so the failure is attributable.
+    // A TIMEOUT kill also carries stdout — partial, whatever the CLI had
+    // written before the SIGTERM — and non-empty partial help text would pass
+    // the length check below and parse as the COMPLETE command set. Every
+    // command past the truncation point would then read as dangling, reddening
+    // `pnpm quality` on a clean commit for no reason a reader could find.
+    // Same guard as `getPendingMigrations` in `session-context.ts`; see
+    // `utils/timeoutKill.ts` for the measurement behind it.
+    if (isTimeoutKill(err)) {
+      throw new Error('Timed out fetching the pnpm ops command list', { cause: err });
+    }
     const rawStdout = (err as { stdout?: unknown }).stdout;
     if (typeof rawStdout === 'string' && rawStdout.length > 0) {
       output = rawStdout;

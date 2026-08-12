@@ -25,6 +25,7 @@
 import { execFileSync } from 'node:child_process';
 import { UsageError } from '../utils/errors.js';
 import { REPO } from './github-api.js';
+import { isTimeoutKill } from '../utils/timeoutKill.js';
 
 /** Full 40-char hex. The API silently returns nothing for an abbreviated SHA. */
 const FULL_SHA = /^[0-9a-f]{40}$/i;
@@ -113,6 +114,13 @@ export interface GateArgs {
 }
 
 /**
+ * Bound on the local existence check. Unlike the fetches below, a timeout
+ * here is answered as "exists" rather than folded into the not-found path —
+ * see the catch for why the two answers must differ.
+ */
+export const COMMIT_CHECK_TIMEOUT_MS = 15_000;
+
+/**
  * Whether the SHA names a commit in this repo.
  *
  * The format check alone is not enough, and the gap is not hypothetical: a SHA
@@ -124,9 +132,21 @@ export interface GateArgs {
  */
 export function gitHasCommit(sha: string): boolean {
   try {
-    execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], { stdio: 'ignore' });
+    execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], {
+      stdio: 'ignore',
+      timeout: COMMIT_CHECK_TIMEOUT_MS,
+    });
     return true;
-  } catch {
+  } catch (error) {
+    // A TIMEOUT is "could not check", not "does not exist" — and the two must
+    // not share an answer, because `false` here hard-aborts gate arming with a
+    // message telling the caller to use `$(git rev-parse HEAD)`, which is
+    // exactly what they did. Answer true and let the runs-API polling be the
+    // arbiter, matching how `fetchPrHeadSha`/`classifyHeadSha` treat their own
+    // "could not tell" below. A genuinely absent object fails this check fast;
+    // a slow one means git is busy (repack/gc, disk contention), not that the
+    // commit is missing.
+    if (isTimeoutKill(error)) return true;
     return false;
   }
 }
@@ -456,6 +476,18 @@ export async function waitForCi(sha: string, deps: WaitDeps): Promise<WaitOutcom
   }
 }
 
+/**
+ * Bound on the REPORT pass only. The watch pass is deliberately a long wait —
+ * bounding it would defeat its purpose — so it stays unbounded and the bound
+ * applies solely to the single `gh pr checks` call the agent reads.
+ *
+ * Deliberately looser than the 15s `gh api` bounds above: those fetch one JSON
+ * document, while this renders the whole check list, and losing it costs the
+ * agent the report the gate exists to produce. The bound is here to stop a
+ * hang, not to enforce a latency budget.
+ */
+export const CHECKS_REPORT_TIMEOUT_MS = 60_000;
+
 export function runChecks(prNumber: number, watch: boolean, log = console.log): void {
   const args = ['pr', 'checks', String(prNumber)];
   if (watch) args.push('--watch', '--interval=30');
@@ -464,6 +496,7 @@ export function runChecks(prNumber: number, watch: boolean, log = console.log): 
       encoding: 'utf-8',
       // The watch pass is only a wait; the final pass is the report the agent reads.
       stdio: watch ? ['pipe', 'ignore', 'ignore'] : ['pipe', 'inherit', 'inherit'],
+      timeout: watch ? undefined : CHECKS_REPORT_TIMEOUT_MS,
     });
   } catch (error) {
     // A NONZERO EXIT is expected and must be ignored: `gh pr checks` exits

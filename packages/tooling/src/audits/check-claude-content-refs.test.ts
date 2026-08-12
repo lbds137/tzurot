@@ -3,6 +3,12 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+
+// Every other test here injects `validCommands`, so this mock is reached only
+// by the default-path test below — the one case that spawns `pnpm ops --help`.
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn(() => '') }));
+
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -10,6 +16,7 @@ import {
   findContentRefs,
   parseRegisteredCommands,
   checkClaudeContentRefs,
+  OPS_HELP_TIMEOUT_MS,
 } from './check-claude-content-refs.js';
 import { parseSummary } from './summary.js';
 
@@ -268,6 +275,51 @@ describe('checkClaudeContentRefs (CLI entry point with --summary)', () => {
       expect(summary.findings).toBe(0);
       expect(exitSpy).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('fetchRegisteredCommands (no injected validCommands)', () => {
+  it('bounds the `pnpm ops --help` spawn with OPS_HELP_TIMEOUT_MS', async () => {
+    vi.mocked(execFileSync).mockClear();
+
+    await withTempRepo(async root => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        // No `validCommands`, so the guard falls through to the real spawn.
+        await checkClaudeContentRefs({ repoRoot: root, summary: true });
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    const calls = vi.mocked(execFileSync).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call[2]).toMatchObject({ timeout: OPS_HELP_TIMEOUT_MS });
+    }
+  });
+});
+
+describe('fetchRegisteredCommands timeout handling', () => {
+  it('throws on a timeout kill rather than parsing the partial help text', async () => {
+    // Non-empty partial stdout is the hazard: without the guard it passes the
+    // length check and parses as the COMPLETE command set, so every command
+    // past the truncation point reads as a dangling reference and reddens
+    // `pnpm quality` on a clean commit.
+    vi.mocked(execFileSync).mockImplementation(() => {
+      const error = new Error('timed out') as Error & { code: string; stdout: string };
+      error.code = 'ETIMEDOUT';
+      error.stdout = 'Commands:\n  db:status   Show migration status\n  db:mig';
+      throw error;
+    });
+
+    await withTempRepo(async root => {
+      await expect(checkClaudeContentRefs({ repoRoot: root, summary: true })).rejects.toThrow(
+        /Timed out fetching/
+      );
+    });
+
+    vi.mocked(execFileSync).mockImplementation(() => '');
   });
 });
 

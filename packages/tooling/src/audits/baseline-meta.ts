@@ -123,11 +123,21 @@ export function hashConfigSlice(slice: unknown): string {
   return createHash('sha256').update(serialized).digest('hex').slice(0, 12);
 }
 
+/**
+ * Bound on the SHA read. Only the manual `*:update-baseline` commands reach
+ * this — not the gate — so the stake is a developer watching a stalled
+ * command rather than a blocked pipeline. Bounded anyway: it is the same
+ * catch-and-degrade shape as every other probe, and the catch below already
+ * answers `unknown`.
+ */
+export const BASELINE_SHA_TIMEOUT_MS = 15_000;
+
 function getGitSha(): string {
   try {
     return execFileSync('git', ['rev-parse', 'HEAD'], {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: BASELINE_SHA_TIMEOUT_MS,
     }).trim();
   } catch {
     return 'unknown';

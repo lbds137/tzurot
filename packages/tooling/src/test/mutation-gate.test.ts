@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { evaluateMutationGate, runMutationGate } from './mutation-gate.js';
+import {
+  evaluateMutationGate,
+  runMutationGate,
+  MUTATION_GATE_TIMEOUT_MS,
+} from './mutation-gate.js';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 
@@ -103,12 +107,12 @@ describe('runMutationGate', () => {
     expect(mockExec).toHaveBeenCalledWith(
       'git',
       ['diff', '--name-only', 'origin/main...HEAD'],
-      expect.anything()
+      expect.objectContaining({ timeout: MUTATION_GATE_TIMEOUT_MS })
     );
     expect(mockExec).toHaveBeenCalledWith(
       'pnpm',
       ['exec', 'turbo', 'ls', '--filter', '...[origin/main]', '--output=json'],
-      expect.anything()
+      expect.objectContaining({ timeout: MUTATION_GATE_TIMEOUT_MS })
     );
   });
 

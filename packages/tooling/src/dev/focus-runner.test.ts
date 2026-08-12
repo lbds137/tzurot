@@ -81,6 +81,22 @@ describe('focus-runner', () => {
       );
     });
 
+    it('bounds every git call with FOCUS_RUNNER_TIMEOUT_MS', async () => {
+      mockExecFileSync
+        .mockReturnValueOnce('feature-branch\n') // git branch --show-current
+        .mockReturnValueOnce('abc123\n') // git rev-parse origin/develop
+        .mockReturnValueOnce(''); // git status --porcelain
+
+      const { runFocusedTask, FOCUS_RUNNER_TIMEOUT_MS } = await import('./focus-runner.js');
+
+      runFocusedTask({ task: 'test' });
+
+      expect(mockExecFileSync).toHaveBeenCalledTimes(3);
+      for (const call of mockExecFileSync.mock.calls) {
+        expect(call[2]).toMatchObject({ timeout: FOCUS_RUNNER_TIMEOUT_MS });
+      }
+    });
+
     it('should use HEAD^1 when on main branch', async () => {
       // Setup git commands for main branch
       mockExecFileSync

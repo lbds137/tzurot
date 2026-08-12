@@ -46,6 +46,78 @@ describe('getSessionContext', () => {
   });
 
   describe('git state', () => {
+    it('bounds every execFileSafe shell-out with SESSION_CONTEXT_TIMEOUT_MS', async () => {
+      execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === 'git' && args.includes('rev-parse')) return 'main';
+        if (cmd === 'git' && args.includes('status')) return '';
+        if (cmd === 'git' && args.includes('log')) return '';
+        return '';
+      });
+
+      const { getSessionContext, SESSION_CONTEXT_TIMEOUT_MS } =
+        await import('./session-context.js');
+      await getSessionContext({ skipMigrations: true });
+
+      const gitCalls = execFileSyncMock.mock.calls.filter(call => call[0] === 'git');
+      expect(gitCalls.length).toBeGreaterThan(0);
+      for (const call of gitCalls) {
+        expect(call[2]).toMatchObject({ timeout: SESSION_CONTEXT_TIMEOUT_MS });
+      }
+    });
+
+    it('bounds the prisma migration check with its own larger timeout', async () => {
+      // The migration check only runs when the migrations directory exists and
+      // skipMigrations is not set — the default path for `pnpm ops context`.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockReturnValue('');
+
+      const { getSessionContext, MIGRATION_STATUS_TIMEOUT_MS } =
+        await import('./session-context.js');
+      await getSessionContext({});
+
+      const npxCalls = execFileSyncMock.mock.calls.filter(call => call[0] === 'npx');
+      expect(npxCalls.length).toBeGreaterThan(0);
+      for (const call of npxCalls) {
+        expect(call[2]).toMatchObject({ timeout: MIGRATION_STATUS_TIMEOUT_MS });
+      }
+    });
+
+    it('reports migrations as UNKNOWN on a timeout kill, not as "none pending"', async () => {
+      // The regression this guards: a killed prisma still carries stdout, and
+      // the content branch below would read the empty/partial text as "no
+      // pending migrations" — a confident wrong answer in session startup.
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFileSync.mockReturnValue('');
+      execFileSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === 'npx') {
+          const error = new Error('timed out') as Error & { code: string; stdout: string };
+          error.code = 'ETIMEDOUT';
+          error.stdout = '';
+          throw error;
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({});
+
+      // `null` skips the section entirely. Without the guard the empty stdout
+      // parses as an empty pending list, which prints the all-clear — the
+      // exact wrong answer, so that string is what this asserts against.
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).not.toContain('All migrations applied');
+      // Pin the null path specifically, not merely the absence of one string:
+      // the whole section is skipped. Without this, a regression that dropped
+      // the migration block entirely would still satisfy the assertion above.
+      expect(output).not.toContain('Migrations');
+      // ...and prove the run still completed, so "section skipped" is
+      // distinguishable from "died before printing anything". (Git state is
+      // also absent here — this fixture returns '' for git, so that section
+      // legitimately skips too; the banner is what proves the run finished.)
+      expect(output).toContain('SESSION CONTEXT');
+    });
+
     it('should show current branch', async () => {
       execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
         if (cmd === 'git' && args.includes('rev-parse')) return 'feature/test-branch';

@@ -218,10 +218,19 @@ export function matchFiles(files: string[], refs: DeferredRef[]): DeferredMatch[
   return matches;
 }
 
+/**
+ * Bound on the staged-file read. This tool is wired into pre-commit and
+ * pre-push and is informational-only — the outer `checkDeferredRefs` catch
+ * already treats any failure as "skip the reminder", so a bounded stall
+ * degrades into that same silent skip instead of hanging the hook.
+ */
+export const DEFERRED_REFS_TIMEOUT_MS = 15_000;
+
 /** Resolve the staged file list from git */
 function getStagedFiles(): string[] {
   const output = execFileSync('git', ['diff', '--cached', '--name-only'], {
     encoding: 'utf-8',
+    timeout: DEFERRED_REFS_TIMEOUT_MS,
   });
   return output.split('\n').filter(line => line.length > 0);
 }
