@@ -130,16 +130,23 @@ export function collectTagVocabulary(pool: PersonalitySummary[]): TagVocabularyE
  */
 export function emptyTagPoolDetail(tag: string, extraClause = ''): string {
   return (
-    `No characters carry the tag \`${escapeMarkdown(echoableNeedle(tag))}\`${extraClause}. ` +
+    `No characters carry the tag \`${escapeMarkdown(boundedTag(tag))}\`${extraClause}. ` +
     'Try a different tag — autocomplete lists the ones in use.'
   );
 }
 
 /**
- * The normalized needle, cut to the longest length a real tag could have.
+ * The normalized tag, cut to the longest length a real tag could have.
+ *
+ * Every tag surface reads a free-typed Discord string option that declares no
+ * `setMaxLength`, so Discord's 6000-character ceiling is the only bound and
+ * `normalizeTag` does not truncate. Use this before ANY output sink — a reply
+ * body or a log line — not just the ones with a hard ceiling: anything longer
+ * than `TAG_LIMITS.MAX_LENGTH` could never have matched a stored tag, so the
+ * cut costs no diagnostic value at either sink.
  *
  * Sliced by code point rather than by `.slice`, which would cut an astral
- * character (emoji, some CJK) mid-surrogate and echo a lone surrogate back.
+ * character (emoji, some CJK) mid-surrogate and emit a lone surrogate.
  *
  * Not built on `truncateByCodePoints` (utils/modal/toolkit.ts), which does the
  * same slice: that module's own docstring scopes it to EDITABLE prefill rather
@@ -149,7 +156,7 @@ export function emptyTagPoolDetail(tag: string, extraClause = ''): string {
  * budgeted cut `truncateForSelect` needs) is tracked on TASK-581, where all
  * three exist at once and the right signature is actually decidable.
  */
-function echoableNeedle(tag: string): string {
+export function boundedTag(tag: string): string {
   const normalized = normalizeTag(tag);
   const codePoints = [...normalized];
   return codePoints.length > TAG_LIMITS.MAX_LENGTH
