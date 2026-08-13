@@ -3,9 +3,10 @@ id: TASK-560
 title: >-
   Participant-keying sweep left a vacuous privacy assertion and a name-keyed
   untyped fixture
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:33'
+updated_date: '2026-08-13 12:14'
 labels:
   - 'area:ai-worker'
   - 'size:S'
