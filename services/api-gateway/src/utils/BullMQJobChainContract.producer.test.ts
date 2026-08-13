@@ -201,6 +201,11 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
                 name: 'ref-voice.ogg',
                 contentType: CONTENT_TYPES.AUDIO_OGG,
                 size: 1024,
+                // bot-client's attachmentExtractor stamps isVoiceMessage on
+                // EVERY attachment it emits, so a payload omitting it is a shape
+                // the producer never ships. `true` here matches the caption: a
+                // genuine voice note, which the reference-path STT gate allows.
+                isVoiceMessage: true,
               },
             ],
           },
@@ -259,6 +264,11 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
           name: 'direct-voice.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
+          // Same producer contract as the reference fixture: bot-client stamps
+          // isVoiceMessage on every attachment, so omitting it is a shape the
+          // producer never ships. The direct path bills STT either way; this
+          // keeps the fixture honest, not the routing different.
+          isVoiceMessage: true,
         },
         {
           url: 'https://cdn.example/direct-photo.png',

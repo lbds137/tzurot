@@ -63,7 +63,8 @@
                 "url": "https://cdn.example/ref-voice.ogg",
                 "name": "ref-voice.ogg",
                 "contentType": "audio/ogg",
-                "size": 1024
+                "size": 1024,
+                "isVoiceMessage": true
               }
             ]
           }
@@ -151,7 +152,8 @@
           "url": "https://cdn.example/ref-voice.ogg",
           "name": "ref-voice.ogg",
           "contentType": "audio/ogg",
-          "size": 1024
+          "size": 1024,
+          "isVoiceMessage": true
         },
         "context": {
           "userId": "900000000000000700",

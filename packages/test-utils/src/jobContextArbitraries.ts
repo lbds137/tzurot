@@ -26,6 +26,12 @@ export interface ArbAttachment {
   contentType: string;
   name: string;
   size: number;
+  /**
+   * Always present on real producer output: bot-client stamps this on every
+   * attachment it emits. True only for genuine Discord voice messages, which
+   * the producer detects as `audio/*` carrying a duration.
+   */
+  isVoiceMessage: boolean;
 }
 
 export interface ArbReferencedMessage {
@@ -78,12 +84,22 @@ export function attachmentArb(options: AttachmentArbOptions = {}): fc.Arbitrary<
     options.describableOnly === true
       ? DESCRIBABLE_CONTENT_TYPES
       : [...DESCRIBABLE_CONTENT_TYPES, ...IGNORED_CONTENT_TYPES];
-  return fc.record({
-    url: snowflakeArb.map(id => `https://cdn.example/${id}/file`),
-    contentType: fc.constantFrom(...contentTypes),
-    name: fc.constantFrom('file.png', 'file.jpg', 'voice.ogg', 'clip.mp3', 'doc.pdf'),
-    size: fc.integer({ min: 1, max: 5_000_000 }),
-  });
+  return fc
+    .record({
+      url: snowflakeArb.map(id => `https://cdn.example/${id}/file`),
+      contentType: fc.constantFrom(...contentTypes),
+      name: fc.constantFrom('file.png', 'file.jpg', 'voice.ogg', 'clip.mp3', 'doc.pdf'),
+      size: fc.integer({ min: 1, max: 5_000_000 }),
+      voiceFlag: fc.boolean(),
+    })
+    .map(({ voiceFlag, ...rest }) => ({
+      ...rest,
+      // Correlated with contentType rather than free: the producer derives this
+      // from `audio/*` plus a duration, so a non-audio attachment flagged as a
+      // voice message is a combination bot-client cannot emit. Both values stay
+      // reachable on audio types, which is where the STT gate discriminates.
+      isVoiceMessage: rest.contentType.startsWith('audio/') && voiceFlag,
+    }));
 }
 
 /**
@@ -192,15 +208,20 @@ export function hasDescribableDirectAttachment(context: ArbJobContext): boolean 
 
 /**
  * The set of reference numbers a coherent producer MUST emit preprocessing
- * children for: references carrying at least one describable (image/audio)
- * attachment. The oracle half of the no-drop property.
+ * children for: references carrying at least one image attachment, or an audio
+ * attachment that is a voice message. The oracle half of the no-drop property.
  */
 export function describableReferenceNumbers(context: ArbJobContext): number[] {
   const references = context.rawAssemblyInputs?.rawReferencedMessages ?? [];
   return references
     .filter(ref =>
-      (ref.attachments ?? []).some(
-        att => att.contentType.startsWith('image/') || att.contentType.startsWith('audio/')
+      (ref.attachments ?? []).some(att =>
+        att.contentType.startsWith('audio/')
+          ? // Reference-path audio dispatches STT only for a genuine voice
+            // message: an ordinary audio upload on a referenced message renders
+            // as a bare file, so its transcript would be billed and discarded.
+            att.isVoiceMessage === true
+          : att.contentType.startsWith('image/')
       )
     )
     .map(ref => ref.referenceNumber);

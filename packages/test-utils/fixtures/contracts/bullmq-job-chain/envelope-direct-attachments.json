@@ -31,7 +31,8 @@
           "url": "https://cdn.example/direct-voice.ogg",
           "name": "direct-voice.ogg",
           "contentType": "audio/ogg",
-          "size": 1024
+          "size": 1024,
+          "isVoiceMessage": true
         },
         {
           "url": "https://cdn.example/direct-photo.png",
@@ -79,7 +80,8 @@
           "url": "https://cdn.example/direct-voice.ogg",
           "name": "direct-voice.ogg",
           "contentType": "audio/ogg",
-          "size": 1024
+          "size": 1024,
+          "isVoiceMessage": true
         },
         "context": {
           "userId": "900000000000000700",

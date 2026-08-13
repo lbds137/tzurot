@@ -32,14 +32,16 @@ describe('jobContextArbitraries', () => {
     );
   });
 
-  it('describableReferenceNumbers selects exactly the image/audio-bearing references', () => {
+  it('describableReferenceNumbers selects image references and voice-message audio references', () => {
     fc.assert(
       fc.property(envelopeContextArb(), context => {
         const refs = context.rawAssemblyInputs?.rawReferencedMessages ?? [];
         const oracle = describableReferenceNumbers(context);
         for (const ref of refs) {
-          const hasDescribable = (ref.attachments ?? []).some(
-            a => a.contentType.startsWith('image/') || a.contentType.startsWith('audio/')
+          const hasDescribable = (ref.attachments ?? []).some(a =>
+            a.contentType.startsWith('audio/')
+              ? a.isVoiceMessage === true
+              : a.contentType.startsWith('image/')
           );
           expect(oracle.includes(ref.referenceNumber)).toBe(hasDescribable);
         }
@@ -53,6 +55,17 @@ describe('jobContextArbitraries', () => {
         expect(att.contentType.startsWith('image/') || att.contentType.startsWith('audio/')).toBe(
           true
         );
+      })
+    );
+  });
+
+  it('attachmentArb never flags a non-audio attachment as a voice message', () => {
+    fc.assert(
+      fc.property(attachmentArb(), att => {
+        expect(typeof att.isVoiceMessage).toBe('boolean');
+        if (!att.contentType.startsWith('audio/')) {
+          expect(att.isVoiceMessage).toBe(false);
+        }
       })
     );
   });

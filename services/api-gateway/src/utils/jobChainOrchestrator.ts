@@ -232,6 +232,40 @@ function createImageDescriptionJob(params: ImageJobParams): PreprocessingJobsRes
 }
 
 /**
+ * Narrow the audio bucket to what the consuming renderer can actually show.
+ *
+ * Reference attachments are rendered by ai-worker's `classifyAttachment`, which
+ * keys voice on `isVoiceMessage` alone: an ordinary `audio/*` upload on a
+ * referenced message renders as a bare `<file/>`, and `RenderableFile` has no
+ * enrichment slot, so a transcript for it is billed and then dropped. Pinned on
+ * the render side by QuoteFormatter's "classifies on isVoiceMessage, not on
+ * audio/*" test, and on this side by "skips the STT job for a non-voice audio
+ * attachment on a referenced message".
+ *
+ * The triggering message's own attachments keep the wider `audio/*` bucket —
+ * RAGUtils renders any `AttachmentType.Audio` transcript there, so that spend
+ * reaches the prompt. `referenceNumber` is the discriminator: only the
+ * referenced-message call site sets it.
+ */
+function audioWorthTranscribing(
+  audio: AttachmentMetadata[],
+  referenceNumber: number | undefined,
+  requestId: string
+): AttachmentMetadata[] {
+  if (referenceNumber === undefined) {
+    return audio;
+  }
+  const voice = audio.filter(attachment => attachment.isVoiceMessage === true);
+  if (voice.length < audio.length) {
+    logger.info(
+      { requestId, referenceNumber, skippedCount: audio.length - voice.length },
+      'Skipped audio transcription jobs for non-voice reference attachments'
+    );
+  }
+  return voice;
+}
+
+/**
  * Process attachments and create preprocessing jobs for them
  */
 function processAttachmentsForJobs(
@@ -261,7 +295,8 @@ function processAttachmentsForJobs(
   // synchronous, so every read lands in one tick and they cannot observe a
   // mid-request flip — the hazard `keepStickersIf`'s explicit-boolean form
   // exists to prevent elsewhere.
-  const { audio, images } = categorizeAttachments(filterStickersBySetting(attachments));
+  const { audio: allAudio, images } = categorizeAttachments(filterStickersBySetting(attachments));
+  const audio = audioWorthTranscribing(allAudio, params.referenceNumber, params.requestId);
   const children: FlowJob[] = [];
   const dependencies: JobDependency[] = [];
 

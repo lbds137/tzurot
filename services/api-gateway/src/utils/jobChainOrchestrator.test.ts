@@ -1165,6 +1165,202 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
         expect(flowCall.data.dependencies).toBeUndefined();
       });
     });
+
+    describe('non-voice reference audio skips STT dispatch', () => {
+      // ai-worker's reference renderer classifies voice on `isVoiceMessage`
+      // alone, so an ordinary audio upload on a referenced message renders as a
+      // bare <file/> and its transcript has nowhere to go. Dispatching STT for
+      // it bills for output the prompt never shows.
+
+      it('skips the STT job for a non-voice audio attachment on a referenced message', async () => {
+        const context: JobContext = {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          channelId: 'channel-123',
+          referencedMessages: [
+            createReferencedMessage(1, {
+              content: 'Here is a track',
+              attachments: [
+                {
+                  url: 'https://example.com/ref-song.mp3',
+                  name: 'ref-song.mp3',
+                  contentType: CONTENT_TYPES.AUDIO_MP3,
+                  size: 4096,
+                },
+              ],
+            }),
+          ],
+        };
+
+        await createJobChain({
+          requestId: 'req-ref-music-skip',
+          personality: mockPersonality,
+          message: 'What is this song?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        expect(flowProducer.add).toHaveBeenCalledTimes(1);
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeUndefined();
+        expect(flowCall.data.dependencies).toBeUndefined();
+      });
+
+      it('still dispatches STT for a real voice message on a referenced message', async () => {
+        const context: JobContext = {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          channelId: 'channel-123',
+          referencedMessages: [
+            createReferencedMessage(1, {
+              content: 'Voice note',
+              attachments: [
+                {
+                  url: 'https://example.com/ref-note.ogg',
+                  name: 'ref-note.ogg',
+                  contentType: CONTENT_TYPES.AUDIO_OGG,
+                  size: 1024,
+                  isVoiceMessage: true,
+                  duration: 5,
+                },
+              ],
+            }),
+          ],
+        };
+
+        await createJobChain({
+          requestId: 'req-ref-voice-kept',
+          personality: mockPersonality,
+          message: 'What did they say?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toHaveLength(1);
+        expect(flowCall.children[0].name).toBe(JobType.AudioTranscription);
+        expect(flowCall.children[0].data.attachment.url).toBe('https://example.com/ref-note.ogg');
+        expect(flowCall.children[0].data.sourceReferenceNumber).toBe(1);
+      });
+
+      it('drops only the non-voice audio when a reference carries both', async () => {
+        const context: JobContext = {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          channelId: 'channel-123',
+          referencedMessages: [
+            createReferencedMessage(1, {
+              content: 'A note and a track',
+              attachments: [
+                {
+                  url: 'https://example.com/ref-note.ogg',
+                  name: 'ref-note.ogg',
+                  contentType: CONTENT_TYPES.AUDIO_OGG,
+                  size: 1024,
+                  isVoiceMessage: true,
+                  duration: 5,
+                },
+                {
+                  url: 'https://example.com/ref-song.mp3',
+                  name: 'ref-song.mp3',
+                  contentType: CONTENT_TYPES.AUDIO_MP3,
+                  size: 4096,
+                },
+              ],
+            }),
+          ],
+        };
+
+        await createJobChain({
+          requestId: 'req-ref-mixed-audio',
+          personality: mockPersonality,
+          message: 'What is going on here?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        const audioJobs = flowCall.children.filter(
+          (c: any) => c.name === JobType.AudioTranscription
+        );
+        expect(audioJobs).toHaveLength(1);
+        expect(audioJobs[0].data.attachment.url).toBe('https://example.com/ref-note.ogg');
+      });
+
+      it('skips under the thin-envelope rawReferencedMessages fallback too', async () => {
+        const context = {
+          kind: 'envelope',
+          userId: 'user-123',
+          channelId: 'channel-123',
+          rawAssemblyInputs: {
+            rawMessageContent: 'What is this song?',
+            rawReferencedMessages: [
+              createReferencedMessage(1, {
+                content: 'Here is a track',
+                attachments: [
+                  {
+                    url: 'https://example.com/ref-song-thin.mp3',
+                    name: 'ref-song-thin.mp3',
+                    contentType: CONTENT_TYPES.AUDIO_MP3,
+                    size: 4096,
+                  },
+                ],
+              }),
+            ],
+          },
+        } as JobContext;
+
+        await createJobChain({
+          requestId: 'req-ref-music-skip-thin',
+          personality: mockPersonality,
+          message: 'What is this song?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeUndefined();
+        expect(flowCall.data.dependencies).toBeUndefined();
+      });
+
+      it('leaves the triggering message own non-voice audio dispatching', async () => {
+        // The current-message path has a consumer for any audio transcript
+        // (RAGUtils renders every AttachmentType.Audio entry), so the gate must
+        // not leak onto it.
+        const context: JobContext = {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          channelId: 'channel-123',
+          attachments: [
+            {
+              url: 'https://example.com/own-song.mp3',
+              name: 'own-song.mp3',
+              contentType: CONTENT_TYPES.AUDIO_MP3,
+              size: 4096,
+            },
+          ],
+        };
+
+        await createJobChain({
+          requestId: 'req-direct-music',
+          personality: mockPersonality,
+          message: 'What is this song?',
+          context,
+          responseDestination: mockResponseDestination,
+        });
+
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toHaveLength(1);
+        expect(flowCall.children[0].name).toBe(JobType.AudioTranscription);
+        expect(flowCall.children[0].data.attachment.url).toBe('https://example.com/own-song.mp3');
+        expect(flowCall.children[0].data.attachment.isVoiceMessage).toBeUndefined();
+        expect(flowCall.children[0].data.sourceReferenceNumber).toBeUndefined();
+      });
+    });
   });
 
   describe('config resolution stamping', () => {
