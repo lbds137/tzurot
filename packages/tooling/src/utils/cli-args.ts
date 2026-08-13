@@ -20,25 +20,74 @@ import { UsageError } from './errors.js';
  * Read `--flag value` or `--flag=value` verbatim from an argv array.
  * Returns undefined when the flag is absent or has no value token.
  *
- * On a REPEATED flag this returns the first occurrence, while cac hands the
- * action an ARRAY of every occurrence — so the two disagree, and cac's value
- * does not even match its own declared `string` type there. Probe-verified
- * against cac 7.0.0 (`--job-id aaa --job-id bbb` yields `["aaa","bbb"]`), and
- * pinned by the repeated-flag tests below. No caller passes a flag twice, but
- * the divergence is worth knowing before another flag adopts this.
+ * Matches cac's camelCase spelling of the same option as well as the kebab one
+ * (`--jobId` alongside `--job-id`). cac normalizes every option name to
+ * camelCase, so both spellings parse to the same key and NEITHER is rejected as
+ * unknown — which means a scan for the literal kebab token alone returns
+ * undefined for a camelCase invocation, and the command then runs with the
+ * filter silently absent while looking entirely successful. Probe-verified
+ * against cac 7.0.0: `--job-id abc` and `--jobId abc` both yield
+ * `{ jobId: 'abc' }`.
+ *
+ * @throws UsageError when the flag appears more than once. cac collects
+ *   repeated occurrences into an ARRAY, so returning the first here would
+ *   silently disagree with the parser — and on `retention:purge --exclude`
+ *   that disagreement is a quietly NARROWED protection list on an irreversible
+ *   purge. Refusing is the fail-closed reading.
  */
 export function rawOptionValue(argv: string[], flag: string): string | undefined {
+  const spellings = new Set([flag, camelCaseSpelling(flag)]);
+  const values: (string | undefined)[] = [];
+
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === flag) {
+    if (spellings.has(arg)) {
       const next = argv[i + 1];
-      return next !== undefined && !next.startsWith('--') ? next : undefined;
+      values.push(next !== undefined && !next.startsWith('--') ? next : undefined);
+      continue;
     }
-    if (arg.startsWith(`${flag}=`)) {
-      return arg.slice(flag.length + 1);
+    // Compare the segment BEFORE the `=` rather than prefix-matching the whole
+    // arg, so `--channel-id=1` still does not answer a scan for `--channel`.
+    const equals = arg.indexOf('=');
+    if (equals > 0 && spellings.has(arg.slice(0, equals))) {
+      values.push(arg.slice(equals + 1));
     }
   }
-  return undefined;
+
+  if (values.length > 1) {
+    // Deliberately says nothing about list syntax: only `--exclude` accepts
+    // several values, and its own option help already calls itself
+    // comma-separated. Mentioning lists here would send the operator of the
+    // other six single-value flags looking for a syntax they do not have.
+    throw new UsageError(`${flag} was given ${values.length} times; pass it once`);
+  }
+  return values[0];
+}
+
+/**
+ * cac's camelCase spelling of a kebab-case flag (`--job-id` → `--jobId`).
+ *
+ * A single-word flag comes back unchanged, which is harmless: the scan walks
+ * argv and tests each element for membership, so a spelling listed twice is
+ * still one match per argument. (The `Set` is for lookup, not deduplication —
+ * an array behaves identically here, confirmed by canary.)
+ *
+ * Hyphen-only on purpose. cac does NOT treat `_` as a word separator: probed
+ * against cac 7.0.0, `--job_id` on an option declared `--job-id <id>` throws
+ * ``Unknown option `--job_id` `` rather than parsing to `jobId`. Widening this
+ * to `[-_]` would make the scan answer for a spelling the parser rejects,
+ * which is this bug's own failure mode pointed the other way.
+ *
+ * `codegen/command-types.ts` has a similar-looking `toCamelCase`. They are NOT
+ * interchangeable and should not be merged: that one turns an option name into
+ * a TypeScript property name, this one reconstructs a spelling the PARSER will
+ * accept, so its character class is answerable to cac's behavior rather than to
+ * what makes a valid identifier.
+ *
+ * Takes the `--`-prefixed form every call site passes.
+ */
+function camelCaseSpelling(flag: string): string {
+  return `--${flag.slice(2).replace(/-([a-z0-9])/g, match => match[1].toUpperCase())}`;
 }
 
 /** Accepted range for a numeric flag. `max` is omitted when none applies. */

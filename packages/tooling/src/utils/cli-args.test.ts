@@ -21,26 +21,91 @@ describe('rawOptionValue', () => {
     expect(rawOptionValue(['--other', 'x'], '--channel')).toBeUndefined();
   });
 
-  it('returns the FIRST occurrence of a repeated flag', () => {
-    expect(rawOptionValue(['--channel', 'aaa', '--channel', 'bbb'], '--channel')).toBe('aaa');
+  it('refuses a repeated flag rather than picking one occurrence', () => {
+    expect(() => rawOptionValue(['--channel', 'aaa', '--channel', 'bbb'], '--channel')).toThrow(
+      UsageError
+    );
+    // The message names the flag and the count, so the operator can see which
+    // of their own arguments to drop.
+    expect(() => rawOptionValue(['--channel', 'aaa', '--channel', 'bbb'], '--channel')).toThrow(
+      '--channel was given 2 times'
+    );
   });
 
-  it('diverges from cac on a repeated flag, which yields an array', () => {
+  it('refuses a repeat spelled two different ways, since cac sees one option', () => {
+    expect(() => rawOptionValue(['--job-id', 'aaa', '--jobId', 'bbb'], '--job-id')).toThrow(
+      UsageError
+    );
+  });
+
+  it('refuses a repeat in the equals form', () => {
+    expect(() => rawOptionValue(['--channel=aaa', '--channel=bbb'], '--channel')).toThrow(
+      UsageError
+    );
+  });
+
+  it('refuses a mixed-spelling repeat in the equals form', () => {
+    // The two forms are matched by separate branches, so the space-form
+    // mixed-spelling case above does not cover this one.
+    expect(() => rawOptionValue(['--job-id=aaa', '--jobId=bbb'], '--job-id')).toThrow(UsageError);
+  });
+
+  it('would silently narrow an --exclude list if repeats were tolerated', () => {
     // Pins the docblock's claim about cac rather than asserting it in prose:
-    // cac collects every occurrence, so its value is not even the `string` the
-    // option declares. rawOptionValue takes the first.
+    // cac collects every occurrence into an array, so a first-occurrence-wins
+    // raw scan disagrees with the parser. On retention:purge that disagreement
+    // drops protected ids from an irreversible run, so this refuses instead.
     const cli = cac('test');
     let parsed: unknown;
     cli
       .command('probe')
-      .option('--channel <id>', 'test flag')
-      .action((options: { channel?: unknown }) => {
-        parsed = options.channel;
+      .option('--exclude <ids>', 'test flag')
+      .action((options: { exclude?: unknown }) => {
+        parsed = options.exclude;
       });
-    cli.parse(['node', 'test', 'probe', '--channel', 'aaa', '--channel', 'bbb'], { run: true });
+    cli.parse(['node', 'test', 'probe', '--exclude', 'aaa', '--exclude', 'bbb'], { run: true });
 
     expect(parsed).toEqual(['aaa', 'bbb']);
-    expect(rawOptionValue(['--channel', 'aaa', '--channel', 'bbb'], '--channel')).toBe('aaa');
+    expect(() => rawOptionValue(['--exclude', 'aaa', '--exclude', 'bbb'], '--exclude')).toThrow(
+      UsageError
+    );
+  });
+
+  it('reads the camelCase spelling cac accepts for a kebab-case flag', () => {
+    // cac normalizes both spellings to the same option, so a scan that only
+    // knew the kebab token would run unfiltered on a --jobId dig while the
+    // command still reported success.
+    expect(rawOptionValue(['--jobId', '123456789012345678'], '--job-id')).toBe(
+      '123456789012345678'
+    );
+    expect(rawOptionValue(['--jobId=123456789012345678'], '--job-id')).toBe('123456789012345678');
+  });
+
+  it('parses both spellings of a kebab flag to one cac option', () => {
+    // The premise of the case above, pinned against the real parser rather
+    // than restated in a comment.
+    const parse = (arg: string): unknown => {
+      const cli = cac('test');
+      let parsed: unknown;
+      cli
+        .command('probe')
+        .option('--job-id <id>', 'test flag')
+        .action((options: { jobId?: unknown }) => {
+          parsed = options.jobId;
+        });
+      cli.parse(['node', 'test', 'probe', arg, 'abc'], { run: true });
+      return parsed;
+    };
+
+    expect(parse('--job-id')).toBe('abc');
+    expect(parse('--jobId')).toBe('abc');
+  });
+
+  it('reads a hyphen-free flag unchanged, whose camelCase spelling is itself', () => {
+    // Regression guard on the alias change rather than on a double-count risk:
+    // the scan tests argv elements for membership, so a spelling listed twice
+    // still matches once per argument (canaried — an array behaves the same).
+    expect(rawOptionValue(['--channel', 'aaa'], '--channel')).toBe('aaa');
   });
 
   it('returns undefined when the flag has no value token', () => {
