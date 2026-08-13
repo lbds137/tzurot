@@ -149,7 +149,8 @@ export function extractParticipants(
   logger.debug(
     {
       activePersonaId: activePersonaId ?? null,
-      activePersonaName: activePersonaName ?? null,
+      // Persona display names are user-chosen self-identity — ids only.
+      hasActivePersonaName: activePersonaName !== undefined && activePersonaName.length > 0,
       historyLength: history.length,
       userMessagesWithPersona,
     },
@@ -181,8 +182,8 @@ export function extractParticipants(
 
   // Single summary log instead of per-iteration logging
   if (uniquePersonas.size > 0) {
-    const participantNames = Array.from(uniquePersonas.values()).join(', ');
-    logger.debug({ count: uniquePersonas.size, participantNames }, 'Found participants');
+    const participantIds = Array.from(uniquePersonas.keys());
+    logger.debug({ count: uniquePersonas.size, participantIds }, 'Found participants');
   }
 
   // Convert to array with isActive flag

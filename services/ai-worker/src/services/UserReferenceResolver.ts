@@ -70,17 +70,14 @@ export class UserReferenceResolver {
     // Self-reference - mark as seen but don't add to participants
     if (persona.personaId === ctx.activePersonaId) {
       logger.debug(
-        { ...logContext, personaName: persona.personaName },
+        { ...logContext, personaId: persona.personaId },
         `Resolved ${refType} self-reference (not adding to participants)`
       );
       return { updatedText, persona: null, markAsSeen: persona.personaId };
     }
 
     // Normal case - add persona and mark as seen
-    logger.debug(
-      { ...logContext, personaName: persona.personaName },
-      `Resolved ${refType} reference`
-    );
+    logger.debug({ ...logContext, personaId: persona.personaId }, `Resolved ${refType} reference`);
     return { updatedText, persona, markAsSeen: persona.personaId };
   }
 
@@ -216,7 +213,9 @@ export class UserReferenceResolver {
           ctx,
           fullMatch: match.fullMatch,
           persona,
-          logContext: { username: match.username },
+          // A username-keyed match has no non-PII correlator of its own; the
+          // persona-resolved logs below carry personaId.
+          logContext: {},
           refType: 'username',
         })
       );
@@ -226,7 +225,7 @@ export class UserReferenceResolver {
       logger.info(
         {
           count: ctx.resolvedPersonas.length,
-          personas: ctx.resolvedPersonas.map(p => p.personaName),
+          personaIds: ctx.resolvedPersonas.map(p => p.personaId),
         },
         'Resolved user references in prompt'
       );
@@ -327,7 +326,7 @@ export class UserReferenceResolver {
         {
           personalityId: personality.id,
           count: allResolvedPersonas.length,
-          personas: allResolvedPersonas.map(p => p.personaName),
+          personaIds: allResolvedPersonas.map(p => p.personaId),
         },
         'Resolved user references across personality fields'
       );

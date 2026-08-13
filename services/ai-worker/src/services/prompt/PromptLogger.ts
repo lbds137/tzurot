@@ -28,6 +28,15 @@ export interface PromptAssemblyLogOptions {
  * Log detailed prompt assembly info in development mode.
  */
 export function logDetailedPromptAssembly(opts: PromptAssemblyLogOptions): void {
+  // SCOPED EXCEPTION to 00-critical § Logging (No PII), recorded here rather
+  // than only in review history. This function logs the persona display name
+  // below AND the assembled system prompt itself, which carries the persona
+  // bio — both user-authored. The rule states no carve-out for NODE_ENV; this
+  // guard is the exception, not the rule permitting it. It is deliberate: the
+  // function exists to dump prompt assembly for local debugging, and scrubbing
+  // one name while printing the prompt that contains it would be theatre.
+  // Anything that could run outside local development belongs in a different
+  // function, not behind this guard.
   if (config.NODE_ENV !== 'development') {
     return;
   }
@@ -94,7 +103,9 @@ export function detectNameCollision(
   // Collision detected but can't disambiguate without discordUsername
   if (username.length === 0) {
     logger.error(
-      { personalityId, activePersonaName },
+      // The colliding persona name is the user's own display name — the
+      // personality name it matched is recoverable from personalityId.
+      { personalityId },
       'Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
     );
     return undefined;
