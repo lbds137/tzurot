@@ -2,19 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
-// Mock the logger
+// Mock the logger — a hoisted singleton so log-field assertions can inspect it
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: vi.fn(() => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    })),
+    createLogger: vi.fn(() => mockLogger),
   };
 });
 
@@ -817,6 +819,146 @@ describe('UserReferenceResolver', () => {
       expect(callCount).toBe(3);
       expect(maxInFlight).toBe(3);
       expect(result.resolvedPersonality.systemPrompt).toBe('Resolved');
+    });
+  });
+
+  describe('logging omits user-authored identity text', () => {
+    const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
+
+    /** Flatten every field object passed to the logger into one array. */
+    const loggedFields = (): Record<string, unknown>[] =>
+      [...mockLogger.debug.mock.calls, ...mockLogger.info.mock.calls]
+        .map(call => call[0])
+        .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null);
+
+    const resolveOne = async (activePersonaId?: string): Promise<void> => {
+      mockPrisma.shapesPersonaMapping.findMany.mockResolvedValue([
+        {
+          shapesUserId,
+          persona: {
+            id: 'persona-uuid',
+            name: 'lbds137',
+            preferredName: 'Lila',
+            pronouns: 'she/her',
+            content: 'A magical being',
+          },
+        },
+      ]);
+      await resolver.resolveUserReferences(
+        `Hello @[lbds137](user:${shapesUserId})`,
+        activePersonaId
+      );
+    };
+
+    it('logs personaId, not personaName, when resolving a reference', async () => {
+      await resolveOne();
+
+      const fields = loggedFields();
+      expect(fields.some(f => f.personaId === 'persona-uuid')).toBe(true);
+      for (const f of fields) {
+        expect(f).not.toHaveProperty('personaName');
+      }
+    });
+
+    it('logs personaId, not personaName, on the self-reference path', async () => {
+      await resolveOne('persona-uuid');
+
+      const fields = loggedFields();
+      expect(fields.some(f => f.personaId === 'persona-uuid')).toBe(true);
+      for (const f of fields) {
+        expect(f).not.toHaveProperty('personaName');
+      }
+    });
+
+    it('summarises resolved references by id and count, never by name', async () => {
+      await resolveOne();
+
+      const summary = mockLogger.info.mock.calls
+        .map(call => call[0] as Record<string, unknown>)
+        .find(f => typeof f === 'object' && f !== null && 'count' in f);
+
+      expect(summary).toBeDefined();
+      expect(summary).toMatchObject({ count: 1, personaIds: ['persona-uuid'] });
+      expect(summary).not.toHaveProperty('personas');
+    });
+
+    it('summarises the PERSONALITY-field sweep by id too, at info level', async () => {
+      // resolvePersonalityReferences is a separate method from
+      // resolveUserReferences and logs its own aggregate summary. It runs on
+      // every personality prompt build (personaReferenceLoader) at info level,
+      // which is the default LOG_LEVEL — so a name here reaches production
+      // logs, unlike the debug-level sites.
+      mockPrisma.shapesPersonaMapping.findMany.mockResolvedValue([
+        {
+          shapesUserId,
+          persona: {
+            id: 'persona-uuid',
+            name: 'lbds137',
+            preferredName: 'Lila',
+            pronouns: 'she/her',
+            content: 'A magical being',
+          },
+        },
+      ]);
+
+      await resolver.resolvePersonalityReferences({
+        id: 'personality-id',
+        name: 'Test Personality',
+        displayName: 'Test',
+        slug: 'test',
+        ownerId: 'owner-uuid-test',
+        systemPrompt: `You are talking to @[lbds137](user:${shapesUserId})`,
+        model: 'gpt-4',
+        provider: 'openrouter',
+        temperature: 0.7,
+        maxTokens: 1000,
+        contextWindowTokens: 8000,
+        characterInfo: '',
+        personalityTraits: '',
+        voiceEnabled: false,
+      } as unknown as Parameters<typeof resolver.resolvePersonalityReferences>[0]);
+
+      // Discriminated on `personalityId`, which ONLY the aggregate log carries
+      // — resolvePersonalityReferences calls resolveUserReferences per field,
+      // and that emits its own `{ count, personaIds }` info log first. A bare
+      // `'count' in f` predicate would match that one instead, so this test
+      // would inspect the sibling method's log while its title claims the
+      // aggregate.
+      const summary = mockLogger.info.mock.calls
+        .map(call => call[0] as Record<string, unknown>)
+        .find(f => typeof f === 'object' && f !== null && 'personalityId' in f && 'count' in f);
+
+      expect(summary).toBeDefined();
+      expect(summary).toMatchObject({ count: 1, personaIds: ['persona-uuid'] });
+
+      // Asserted on the VALUE, not on a field name: the sibling assertions
+      // above check `not.toHaveProperty('personas')`, and a leak under any
+      // other key would pass that. The resolved display name must not appear
+      // anywhere in any logged field object.
+      expect(JSON.stringify(loggedFields())).not.toContain('Lila');
+    });
+
+    it('does not log the raw username when resolving a plain-username reference', async () => {
+      // The username reaches the log only via logContext on the RESOLVED path —
+      // an unresolved username match logs nothing at all, so it must resolve here.
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          username: 'lbds137',
+          defaultPersona: {
+            id: 'persona-uuid',
+            name: 'lbds137',
+            preferredName: 'Lila',
+            pronouns: null,
+            content: '',
+          },
+        },
+      ]);
+
+      await resolver.resolveUserReferences('Hey @lbds137 are you there?');
+
+      const fields = loggedFields();
+      expect(fields.some(f => f.personaId === 'persona-uuid')).toBe(true);
+      expect(JSON.stringify(fields)).not.toContain('lbds137');
     });
   });
 });

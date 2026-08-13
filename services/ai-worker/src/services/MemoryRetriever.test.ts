@@ -27,6 +27,21 @@ const mockPersonaResolver = {
 // never called through this object.
 const mockPrismaClient = {} as unknown as PrismaClient;
 
+// Hoisted singleton so log-field assertions can inspect what was emitted.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: vi.fn(() => mockLogger) };
+});
+
 // Mock PersonaResolver constructor (now imported directly from @tzurot/identity)
 vi.mock('@tzurot/identity', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/identity')>();
@@ -120,6 +135,28 @@ describe('MemoryRetriever', () => {
         }
         return Promise.resolve(null);
       });
+    });
+
+    it('logs the loaded persona by id and content length, never its bio text', async () => {
+      mockPersonaResolver.resolveToUuid.mockResolvedValueOnce('persona-1');
+      mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+        preferredName: null,
+        pronouns: null,
+        content: 'I am a sysadmin from Lisbon who keeps bees on the weekend.',
+      });
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [{ personaId: 'persona-1', personaName: 'User One', isActive: true }],
+      };
+
+      await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      const loaded = mockLogger.debug.mock.calls.find(call => call[1] === 'Loaded persona');
+      expect(loaded).toBeDefined();
+      expect(loaded?.[0]).toEqual({ resolvedPersonaId: 'persona-1', contentLength: 58 });
+      expect(loaded?.[0]).not.toHaveProperty('contentPreview');
+      expect(JSON.stringify(mockLogger.debug.mock.calls)).not.toContain('sysadmin');
     });
 
     it('should return empty map if no participants provided', async () => {

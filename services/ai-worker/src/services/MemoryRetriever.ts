@@ -9,7 +9,6 @@
 
 import { type PgvectorMemoryAdapter, type MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
-import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -509,10 +508,12 @@ export class MemoryRetriever {
         guildInfo,
       });
 
+      // The persona bio is user-authored self-description — never logged.
+      // resolvedPersonaId correlates to the DB row when the content matters.
       logger.debug(
         {
           resolvedPersonaId,
-          contentPreview: personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+          contentLength: personaData.content.length,
         },
         'Loaded persona'
       );
