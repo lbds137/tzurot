@@ -411,8 +411,11 @@ export class MemoryRetriever {
     // appear more than once under this key with different display names
     // (persona name from DB history vs Discord display name from extended
     // context) — that case is a genuine dedup, handled by the
-    // name-preference heuristic below, which only decides which NAME wins on
-    // an existing entry, never which entry survives.
+    // name-preference heuristic below. The key (and therefore the
+    // participant) is never displaced: the winning sighting supplies the
+    // WHOLE replacement entry, including its own guildInfo — see
+    // MemoryRetriever.test.ts for the pin on the losing sighting's guildInfo
+    // being discarded rather than merged.
     const personaMap = new Map<string, ParticipantInfo>();
 
     if (!context.participants || context.participants.length === 0) {

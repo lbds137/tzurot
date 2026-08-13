@@ -11,7 +11,7 @@ import { loadPersonasAndResolveReferences } from './personaReferenceLoader.js';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { UserReferenceResolver } from './UserReferenceResolver.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
-import type { ConversationContext } from './ConversationalRAGTypes.js';
+import type { ConversationContext, ParticipantInfo } from './ConversationalRAGTypes.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -65,7 +65,17 @@ describe('loadPersonasAndResolveReferences', () => {
   });
 
   it('returns the participant personas and the reference-resolved personality', async () => {
-    const participantPersonas = new Map([['Lila', { content: 'persona content' }]]);
+    const participantPersonas = new Map([
+      [
+        'persona-lila-uuid',
+        {
+          personaName: 'Lila',
+          content: 'persona content',
+          isActive: false,
+          personaId: 'persona-lila-uuid',
+        } satisfies ParticipantInfo,
+      ],
+    ]);
     mockGetAllParticipantPersonas.mockResolvedValue(participantPersonas);
     const processedPersonality = { ...personality, systemPrompt: 'resolved' };
     mockResolvePersonalityReferences.mockResolvedValue({

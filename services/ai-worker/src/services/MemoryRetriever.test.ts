@@ -653,6 +653,53 @@ describe('MemoryRetriever', () => {
         expect(result.get('persona-lila')?.content).toBe('Lila content v2');
       });
 
+      it("replaces the losing sighting's guildInfo wholesale rather than merging it", async () => {
+        // The map SLOT survives a replace (same key), but the stored object is
+        // rebuilt from scratch — the winning (second) sighting supplies its own
+        // guildInfo, and the losing (first) sighting's guildInfo is discarded,
+        // not merged in. Pins the key-choice comment on the personaMap
+        // declaration in MemoryRetriever.ts.
+        mockPersonaResolver.resolveToUuid
+          .mockResolvedValueOnce('persona-lila')
+          .mockResolvedValueOnce('persona-lila');
+        mockPersonaResolver.getPersonaForPrompt
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Lila v1' })
+          .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Lila v2' });
+
+        const context: ConversationContext = {
+          userId: 'user-123',
+          participants: [
+            { personaId: 'persona-lila', personaName: 'Lila', isActive: false },
+            // Second sighting is the active speaker, so it wins and replaces
+            // the first sighting's entry (including guildInfo).
+            { personaId: 'persona-lila', personaName: 'Lila Shabbat Nachiel', isActive: true },
+          ],
+          participantGuildInfo: {
+            // The losing, non-active first sighting's guildInfo. This fixture
+            // cannot show WHICH id the lookup uses — resolveToUuid is mocked as
+            // identity here, so pre-resolution and resolved are the same string.
+            // (The source indexes by participant.personaId; that is not what
+            // this test proves, and it is not what this test is for.)
+            'persona-lila': { roles: ['Member'] },
+          },
+          activePersonaGuildInfo: { roles: ['Admin'], displayColor: '#FF0000' },
+        };
+
+        const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+        expect(result.size).toBe(1);
+        // Winning (active) sighting's guildInfo — not a merge of both.
+        expect(result.get('persona-lila')?.guildInfo).toEqual({
+          roles: ['Admin'],
+          displayColor: '#FF0000',
+        });
+        // guildInfo alone would still pass if a future change merged the OTHER
+        // fields from the losing sighting. content proves the whole entry was
+        // rebuilt, which is what the personaMap comment now claims.
+        expect(result.get('persona-lila')?.content).toBe('Lila v2');
+        expect(result.get('persona-lila')?.personaName).toBe('Lila Shabbat Nachiel');
+      });
+
       it('keeps a replaced participant in its ORIGINAL roster position', async () => {
         // Map iteration order is the <participants> render order. Overwriting an
         // existing key preserves that key's first-insertion position, so a

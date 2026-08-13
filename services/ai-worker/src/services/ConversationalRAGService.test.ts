@@ -571,8 +571,13 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should include participant personas in system prompt', async () => {
+      // Key matches personaId, as the real map does. This test only asserts the
+      // same Map reference is forwarded, so the key carries no weight here — but
+      // a fixture whose shape has drifted from production reads as an example,
+      // and the drifted one two tests down is what let a display-name assertion
+      // look correct.
       const participantMap = new Map([
-        ['user-123', { personaId: 'persona-1', personaName: 'Alice', isActive: true }],
+        ['persona-1', { personaId: 'persona-1', personaName: 'Alice', isActive: true }],
       ]);
       getMemoryRetrieverMock().getAllParticipantPersonas.mockResolvedValue(participantMap);
 
@@ -598,8 +603,12 @@ describe('ConversationalRAGService', () => {
       // actually present in the live conversation (chat-log scan + current-message
       // @mentions) should appear there. Including a referenced user's `about_user`
       // content in another user's prompt context is a privacy leak.
+      // Keyed by personaId, matching what getAllParticipantPersonas really
+      // returns. The mock is wholesale here, so any key would "work" — but a
+      // fixture whose shape differs from production is how the assertion below
+      // came to test a display name in the first place.
       const activeOnly = new Map([
-        ['active-speaker', { personaId: 'persona-active', personaName: 'Speaker', isActive: true }],
+        ['persona-active', { personaId: 'persona-active', personaName: 'Speaker', isActive: true }],
       ]);
       getMemoryRetrieverMock().getAllParticipantPersonas.mockResolvedValue(activeOnly);
 
@@ -627,14 +636,20 @@ describe('ConversationalRAGService', () => {
         { participantPersonas: Map<string, { personaId: string; content?: string }> } | undefined;
       expect(call).toBeDefined();
       const participants = call!.participantPersonas;
-      expect(participants.has('Foreign')).toBe(false);
-      // Defense in depth: foreign content must not appear under any key
+      // This map is keyed by resolvedPersonaId (a UUID), never by personaName —
+      // 'Foreign' is the fixture's personaName and can NEVER be a key, so a
+      // 'Foreign' key-presence check passes whether or not the leak exists. A
+      // real leak would insert the foreign persona under its personaId
+      // ('persona-foreign'), so that is the key this test pins.
+      expect(participants.has('persona-foreign')).toBe(false);
+      // Defense in depth: foreign content must not appear under any key, in
+      // case a leak inserts under some OTHER key than personaId.
       const allContent = Array.from(participants.values())
         .map(p => p.content ?? '')
         .join('|');
       expect(allContent).not.toContain('PRIVATE about_user content');
       // Active speaker is still present (sanity)
-      expect(participants.get('active-speaker')?.personaId).toBe('persona-active');
+      expect(participants.get('persona-active')?.personaId).toBe('persona-active');
     });
 
     it('should handle empty memory results gracefully', async () => {
