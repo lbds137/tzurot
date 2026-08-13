@@ -140,6 +140,14 @@ export function emptyTagPoolDetail(tag: string, extraClause = ''): string {
  *
  * Sliced by code point rather than by `.slice`, which would cut an astral
  * character (emoji, some CJK) mid-surrogate and echo a lone surrogate back.
+ *
+ * Not built on `truncateByCodePoints` (utils/modal/toolkit.ts), which does the
+ * same slice: that module's own docstring scopes it to EDITABLE prefill rather
+ * than display text — hence no ellipsis — and importing it here would drag the
+ * modal builder's discord.js surface into a services module for three lines.
+ * A shared home for the three variants (prefill, this one, and the UTF-16
+ * budgeted cut `truncateForSelect` needs) is tracked on TASK-581, where all
+ * three exist at once and the right signature is actually decidable.
  */
 function echoableNeedle(tag: string): string {
   const normalized = normalizeTag(tag);
