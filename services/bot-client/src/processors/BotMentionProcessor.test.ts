@@ -110,8 +110,8 @@ describe('BotMentionProcessor', () => {
       expect(message.reply).toHaveBeenCalledTimes(1);
 
       const replyArg = vi.mocked(message.reply).mock.calls[0][0] as { content: string };
-      expect(replyArg.content).toContain('multiple AI personalities');
-      expect(replyArg.content).toContain('@personality');
+      expect(replyArg.content).toContain('multiple AI characters');
+      expect(replyArg.content).toContain('@character');
       expect(replyArg.content).toContain('/character browse');
       expect(replyArg.content).toContain('/chat');
     });
@@ -122,7 +122,7 @@ describe('BotMentionProcessor', () => {
       await processor.process(message);
 
       const replyArg = vi.mocked(message.reply).mock.calls[0][0] as { content: string };
-      expect(replyArg.content).toContain('@personality your message');
+      expect(replyArg.content).toContain('@character your message');
     });
   });
 
