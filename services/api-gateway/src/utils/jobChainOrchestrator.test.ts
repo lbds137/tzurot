@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createJobChain } from './jobChainOrchestrator.js';
+import { createJobChain, llmJobIdFor } from './jobChainOrchestrator.js';
 import { flowProducer } from '../queue.js';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { JobType } from '@tzurot/common-types/constants/queue';
@@ -40,6 +40,16 @@ vi.mock('@tzurot/common-types/config/config', async () => {
     ...actual,
     getConfig: () => ({ QUEUE_NAME: 'test-queue' }),
   };
+});
+
+describe('llmJobIdFor', () => {
+  // Pinned here, next to the derivation's own call site, rather than only
+  // through the route test: the helper exists so the dedup reservation and the
+  // enqueued job share ONE derivation, and that contract should survive any
+  // change to how generate.test.ts mocks this module.
+  it('is the literal wire form the reservation records', () => {
+    expect(llmJobIdFor('abc')).toBe('llm-abc');
+  });
 });
 
 describe('jobChainOrchestrator (FlowProducer)', () => {

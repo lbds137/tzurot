@@ -391,6 +391,17 @@ function collectPreprocessingJobs(
 }
 
 /**
+ * Derive the LLM generation job id for a request id.
+ *
+ * The dedup reservation is written before the chain is built, so the route needs
+ * the same derivation `createJobChain` uses — one source of truth keeps the two
+ * call sites from drifting.
+ */
+export function llmJobIdFor(requestId: string): string {
+  return `${JOB_PREFIXES.LLM_GENERATION}${requestId}`;
+}
+
+/**
  * Orchestrate job chain creation using BullMQ FlowProducer
  *
  * Flow:
@@ -449,7 +460,7 @@ export async function createJobChain(params: {
   });
 
   // Create LLM generation job as parent (runs after all children complete)
-  const llmJobId = `${JOB_PREFIXES.LLM_GENERATION}${requestId}`;
+  const llmJobId = llmJobIdFor(requestId);
   const llmJobData: LLMGenerationJobData = {
     requestId,
     jobType: JobType.LLMGeneration,
@@ -493,6 +504,16 @@ export async function createJobChain(params: {
     children: children.length > 0 ? children : undefined,
   });
 
+  // Residual exposure, documented rather than fenced: the enqueue has already
+  // succeeded, so anything that throws from here to the return propagates into
+  // the caller's catch, which reads it as an enqueue failure and releases the
+  // dedup reservation for a job that really exists. The generate route scopes
+  // its try to this function precisely to avoid that shape at its own level;
+  // this is the same shape one layer down. Left as-is on a cost argument, not
+  // an impossibility one: the only statement in the gap is a pino log of
+  // well-formed primitives, and the alternative — swallowing logger errors in
+  // a catch — hides a real failure permanently in exchange. Unverified in both
+  // directions: no test covers a throwing logger here.
   logger.info(
     { jobId: llmJobId, requestId, personalityName: personality.name, childCount: children.length },
     'Created flow - LLM will wait for all children to complete'
