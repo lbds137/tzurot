@@ -35,4 +35,10 @@ Two constraints for whoever builds it:
 - **BullMQ add-with-existing-jobId as a second layer is UNPROBED.** Kimi proposed it as a structural backstop beneath the cache, and it is nearly free since custom ids are already passed — but that is an external-system claim. Probe against real Redis before relying on it.
 
 Once the endpoint is genuinely idempotent, the client may also safely retry timeouts and 5xx, which it deliberately does not today.
+
+### Third motivation, added at PR 2085 (owner decision: absorb it here rather than build a bespoke signal)
+
+The 2085 review found that the new fail-closed 503 is structurally unretryable by bot-client. isConnectionFailure returns only kind === network (utils/gatewayRetry.ts) and deliberately excludes every 5xx, on the reasoning that a 5xx comes from a gateway that had already begun handling the request. That reasoning does not hold for a reservation-failure 503: reserve() throws before createJobChain, so nothing was enqueued and the retry is unconditionally safe — but the client cannot distinguish it from any other 5xx. Net effect until this task ships: a transient blip scoped to the dedup Redis connection, which previously failed open and was invisible, surfaces as a hard user-facing error.
+
+The owner chose to absorb this here rather than add a distinguishing error code in 2085, because making the endpoint genuinely idempotent lets the client retry 5xx generally and fixes this case for free — a bespoke dedup-unavailable-safe-to-retry code would be deleted the moment this lands. Whoever builds this should verify the fix lands: after the idempotency key ships, confirm the reservation-503 path is retried.
 <!-- SECTION:DESCRIPTION:END -->
