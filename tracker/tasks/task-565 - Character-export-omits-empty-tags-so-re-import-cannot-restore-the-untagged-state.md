@@ -3,9 +3,10 @@ id: TASK-565
 title: >-
   Character export omits empty tags so re-import cannot restore the untagged
   state
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:34'
+updated_date: '2026-08-13 18:56'
 labels:
   - 'area:bot-client'
   - 'size:S'
