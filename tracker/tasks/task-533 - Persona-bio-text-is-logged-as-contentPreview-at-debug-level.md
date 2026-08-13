@@ -1,9 +1,10 @@
 ---
 id: TASK-533
 title: Persona bio text is logged as contentPreview at debug level
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 21:31'
+updated_date: '2026-08-13 23:01'
 labels:
   - 'area:ai-worker'
   - 'size:S'
