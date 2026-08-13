@@ -41,6 +41,10 @@ The filing and the council prompt both treated "a reservation written before enq
 - **The key must NOT be the Discord message id alone.** Qwen rightly prefers a stable Discord identifier over an ephemeral UUID (survives a bot-client restart), and `triggerMessageId` is already threaded into the submit's retry context. But one user message fans out to N characters through MultiTagCoordinator, and one `/chime-in tag:` invocation runs N independent turns — keying on the message alone would collapse a fan-out into a single reply, turning a billing fix into a feature outage. The key needs the personality dimension.
 - **BullMQ's add-with-existing-jobId no-op is UNPROBED.** Kimi proposes it as a structural second layer beneath the cache, and it is nearly free since we already pass custom ids — but that is an external-system claim. Probe against real Redis before relying on it.
 
+### Owner decision 2026-08-12: FAIL CLOSED
+
+The reservation fails closed — a Redis error on the reserve write returns 503 and enqueues nothing. Grounding that narrowed the question before it was asked: the dedup cache's client (`index.ts:166`, `new Redis(envConfig.REDIS_URL)`) and BullMQ's connection (`queue.ts:26`, `parseRedisUrl(config.REDIS_URL)`) are separate clients against the SAME Redis server, so during a full Redis outage `createJobChain` (a BullMQ add) errors regardless — fail-closed changes nothing user-visible there. It differs only under PARTIAL degradation (one client's command times out, the other's does not), which is exactly the case where fail-open double-bills. The council's stated cost for this option ("rejects live traffic during a Redis incident") does not apply as strongly here as it assumed.
+
 ### Recommended delivery split
 
 Gateway-only atomic reserve-before-enqueue ships first: it stops the double-bill, has zero user-visible surface, and needs no schema change — that is this task, and it stays size:S. The idempotency key (bot-client → gateway schema, keying change, client retry-policy widening) is its own follow-on and should be filed separately when the owner picks it up. Do not attempt both in one PR.
