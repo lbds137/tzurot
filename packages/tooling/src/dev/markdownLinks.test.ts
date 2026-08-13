@@ -99,6 +99,16 @@ describe('extractRelativeLinks', () => {
       ]);
     });
 
+    // The routing check and the segment split have to agree on what whitespace
+    // is. A tab-bearing destination reaches the same outcome at GitHub as a
+    // space-bearing one — probed, `[t](foo<TAB>bar.md)` comes back as literal
+    // text — so routing on `' '` alone sent it down the resolvable branch to be
+    // reported dangling: the right verdict for the wrong reason.
+    it('routes on any whitespace, not just a literal space', () => {
+      expect(extractNonRenderingLinks('[t](foo\tbar.md)')).toEqual(['foo\tbar.md']);
+      expect(extractRelativeLinks('[t](foo\tbar.md)')).toEqual([]);
+    });
+
     // A scheme-qualified target with a space is a broken EXTERNAL url, not a
     // repo-relative path — advising percent-encoding would misframe it. This
     // gate passes over external urls entirely, as isRelativeFileTarget does.
