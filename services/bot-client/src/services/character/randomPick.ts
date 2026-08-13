@@ -9,6 +9,7 @@
  */
 
 import { randomInt } from 'node:crypto';
+import { escapeMarkdown } from 'discord.js';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -163,7 +164,10 @@ export async function finalizeDeferredReply(
   isRandomPick: boolean
 ): Promise<void> {
   if (isRandomPick) {
-    const pickedDisplayName = personality.displayName ?? personality.name;
+    // Escaped for the same reason the tag fan-out's notice escapes its names:
+    // display names are author-authored, and this notice is bold-wrapped, so an
+    // unescaped `**` in a name reformats the whole sentence.
+    const pickedDisplayName = escapeMarkdown(personality.displayName ?? personality.name);
     await context.editReply({ content: `🎲 Picked **${pickedDisplayName}** at random!` });
     return;
   }

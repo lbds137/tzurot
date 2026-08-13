@@ -21,6 +21,7 @@ import { randomInt } from 'node:crypto';
 import { escapeMarkdown } from 'discord.js';
 import {
   normalizeTag,
+  TAG_LIMITS,
   type PersonalitySummary,
 } from '@tzurot/common-types/schemas/api/personality';
 
@@ -119,12 +120,33 @@ export function collectTagVocabulary(pool: PersonalitySummary[]): TagVocabularyE
  * `extraClause` (e.g. ` with \`only-mine\` also active`) is folded into the
  * first sentence, so a caller that stacks other filters on top of the tag says
  * so before the advice rather than after it.
+ *
+ * The echo is length-capped: `tag` arrives from a free-typed Discord string
+ * option, so nothing upstream bounds it, and escaping can roughly double what
+ * the user typed — an unbounded echo pushes this very error past Discord's
+ * message ceiling and the reply throws instead of explaining anything. Anything
+ * longer than a storable tag could never have matched, so `TAG_LIMITS.MAX_LENGTH`
+ * loses no diagnostic value.
  */
 export function emptyTagPoolDetail(tag: string, extraClause = ''): string {
   return (
-    `No characters carry the tag \`${escapeMarkdown(normalizeTag(tag))}\`${extraClause}. ` +
+    `No characters carry the tag \`${escapeMarkdown(echoableNeedle(tag))}\`${extraClause}. ` +
     'Try a different tag — autocomplete lists the ones in use.'
   );
+}
+
+/**
+ * The normalized needle, cut to the longest length a real tag could have.
+ *
+ * Sliced by code point rather than by `.slice`, which would cut an astral
+ * character (emoji, some CJK) mid-surrogate and echo a lone surrogate back.
+ */
+function echoableNeedle(tag: string): string {
+  const normalized = normalizeTag(tag);
+  const codePoints = [...normalized];
+  return codePoints.length > TAG_LIMITS.MAX_LENGTH
+    ? `${codePoints.slice(0, TAG_LIMITS.MAX_LENGTH).join('')}…`
+    : normalized;
 }
 
 /** Display label for one character in a fan-out notice. */

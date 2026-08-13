@@ -7,7 +7,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { TAG_LIMITS, type PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 
 // Partial-mock node:crypto so the sample's draw sequence is controllable while
 // every other crypto function keeps its real implementation.
@@ -191,6 +192,22 @@ describe('emptyTagPoolDetail', () => {
     // write-time [a-z0-9-] guarantee does not cover it: a backtick would
     // break out of the inline-code span without escaping.
     expect(emptyTagPoolDetail('sci`fi')).toContain('sci\\`fi');
+  });
+
+  it('caps the echoed needle so an over-long tag cannot overrun the reply', () => {
+    // `tag` is a free-typed Discord string option — nothing upstream bounds it,
+    // and escaping can roughly double what the user typed.
+    const detail = emptyTagPoolDetail('a'.repeat(4000));
+
+    expect(detail.length).toBeLessThanOrEqual(DISCORD_LIMITS.MESSAGE_LENGTH);
+    expect(detail).toContain(`\`${'a'.repeat(TAG_LIMITS.MAX_LENGTH)}…\``);
+  });
+
+  it('cuts the echoed needle on a code-point boundary', () => {
+    // A UTF-16 `.slice` at the cap would end on a lone surrogate.
+    const detail = emptyTagPoolDetail('🎲'.repeat(TAG_LIMITS.MAX_LENGTH + 5));
+
+    expect(detail).toContain(`\`${'🎲'.repeat(TAG_LIMITS.MAX_LENGTH)}…\``);
   });
 });
 

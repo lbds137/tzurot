@@ -433,6 +433,22 @@ describe('finalizeDeferredReply', () => {
     expect(ctx.deleteReply).not.toHaveBeenCalled();
   });
 
+  it('escapes markdown in the author-controlled display name', async () => {
+    const ctx = makeContext();
+    const loudName = {
+      name: 'fallback-name',
+      displayName: '**Loud**',
+    } as unknown as LoadedPersonality;
+
+    await finalizeDeferredReply(ctx, loudName, true);
+
+    // The notice bold-wraps the name, so an unescaped `**` reformats the
+    // sentence around it.
+    expect(ctx.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('\\*\\*Loud\\*\\*'),
+    });
+  });
+
   it('falls back to personality.name when displayName is null', async () => {
     const ctx = makeContext();
     const noDisplayName = {
