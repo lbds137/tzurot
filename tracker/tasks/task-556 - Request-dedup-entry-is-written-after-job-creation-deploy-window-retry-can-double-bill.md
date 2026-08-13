@@ -23,4 +23,25 @@ Why: #2061 retries kind=network submits across deploy windows, but the gateway o
 Fix shape: reserve the dedup entry (SET NX) BEFORE createJobChain, or carry a client-generated idempotency key; raise REQUEST_DEDUP_WINDOW to >= 20s so it spans the full backoff.
 
 Acceptance: a test pinning that a retry after kill-between-enqueue-and-cache hits dedup; window covers the retry span. Source: 2026-08-12 fresh-context review of beta.198-200 (bot-client reviewer F1/F2, mechanism CONFIRMED by code order + constants).
+
+## Council pass 2026-08-12 (GLM 5.2 / Kimi K3 / Qwen 3.8 Max) — UNANIMOUS, no split
+
+Verdict: **the content hash is the wrong identity, and that is the real bug.** A hash of message text cannot distinguish a retried submit from a user repeating themselves, so every policy built on it trades one against the other and no window length resolves it. All three converged on: client-generated idempotency key, atomic reserve-before-enqueue keyed on that key, and a retry-spanning TTL **on the idempotency key** rather than on the content hash.
+
+Kimi appears to dissent by endorsing the wider window; it does not. Its wider window is on the idempotency key, which is exactly what the other two endorse. **All three reject widening the CONTENT-hash TTL** — which means the user-visible regression that made this an owner decision (identical short message twice in the window collapsing to one reply) does not occur under the recommended design. That concern is resolved, not traded away.
+
+Unanimous secondary finding, NOT in the original filing: **checkDuplicate failing open on Redis errors is wrong on a billing path.** The reservation should fail closed (503, nothing enqueued). Two of the three note that once the endpoint is genuinely idempotent, the client may also safely retry timeouts and 5xx, which it deliberately does not today. **Owner decision required** — this rejects live traffic during a Redis incident.
+
+### Premise correction (mine, found while grounding the council's answers)
+
+The filing and the council prompt both treated "a reservation written before enqueue has no jobId yet" as a hard constraint. It is not true here. `jobChainOrchestrator.ts:452` already supplies a custom BullMQ id, `${JOB_PREFIXES.LLM_GENERATION}${requestId}`, and `requestId` is minted in `generate.ts` before `createJobChain` runs — so the jobId is already derivable pre-enqueue and the reservation can be written COMPLETE. No pending state, no polling, no JobTracker refactor. GLM spent its answer solving this non-problem (it proposed retiring the jobId-keyed JobTracker, a five-call-site change); disregard that portion.
+
+### Two constraints the council could not know
+
+- **The key must NOT be the Discord message id alone.** Qwen rightly prefers a stable Discord identifier over an ephemeral UUID (survives a bot-client restart), and `triggerMessageId` is already threaded into the submit's retry context. But one user message fans out to N characters through MultiTagCoordinator, and one `/chime-in tag:` invocation runs N independent turns — keying on the message alone would collapse a fan-out into a single reply, turning a billing fix into a feature outage. The key needs the personality dimension.
+- **BullMQ's add-with-existing-jobId no-op is UNPROBED.** Kimi proposes it as a structural second layer beneath the cache, and it is nearly free since we already pass custom ids — but that is an external-system claim. Probe against real Redis before relying on it.
+
+### Recommended delivery split
+
+Gateway-only atomic reserve-before-enqueue ships first: it stops the double-bill, has zero user-visible surface, and needs no schema change — that is this task, and it stays size:S. The idempotency key (bot-client → gateway schema, keying change, client retry-policy widening) is its own follow-on and should be filed separately when the owner picks it up. Do not attempt both in one PR.
 <!-- SECTION:DESCRIPTION:END -->
