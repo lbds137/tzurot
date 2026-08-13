@@ -3,9 +3,10 @@ id: TASK-564
 title: >-
   Multi-tag truncation notice says personalities post-terminology-sweep; tag
   token styling drifts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:34'
+updated_date: '2026-08-13 13:08'
 labels:
   - 'area:bot-client'
   - 'size:S'
