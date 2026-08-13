@@ -1,9 +1,10 @@
 ---
 id: TASK-535
 title: participantUtils logs raw persona display names
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 21:58'
+updated_date: '2026-08-13 23:01'
 labels:
   - 'area:ai-worker'
   - 'size:S'
