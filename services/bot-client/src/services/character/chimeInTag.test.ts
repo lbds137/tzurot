@@ -167,7 +167,7 @@ describe('runTagChimeIn', () => {
 
     expect(mockRunCharacterTurn).toHaveBeenCalledTimes(2);
     expect(ctx.editReply).toHaveBeenCalledWith({
-      content: '🎲 4 characters carry fantasy — picked 2 at random: Ana, Di',
+      content: '🎲 4 characters carry `fantasy` — picked 2 at random: Ana, Di',
     });
     expect(ctx.deleteReply).not.toHaveBeenCalled();
   });
@@ -188,7 +188,7 @@ describe('runTagChimeIn', () => {
     // The needle that MATCHED is the normalized one — echoing the raw input
     // would show a tag string that was never actually searched for.
     expect(ctx.editReply).toHaveBeenCalledWith({
-      content: '🎲 2 characters carry sci-fi — picked 1 at random: Ana',
+      content: '🎲 2 characters carry `sci-fi` — picked 1 at random: Ana',
     });
   });
 

@@ -105,10 +105,13 @@ export function sharedReplyContext(context: DeferredCommandContext): DeferredCom
  * is the caller-normalized needle (`runTagChimeIn` normalizes on entry, pinned
  * by the "echoes the normalized form" test): a needle that MATCHED anything is
  * byte-equal to a stored tag, which `PersonalityTagSchema` constrains to
- * `[a-z0-9-]` — so the echo carries no markdown to escape.
+ * `[a-z0-9-]` — so the echo carries no markdown to escape, and no backtick that
+ * could close the code span early. `emptyTagPoolDetail` renders the tag the same
+ * way but must escape, because its needle matched nothing and so inherits none
+ * of that guarantee.
  */
 function buildSamplingNotice(tag: string, poolSize: number, sampled: PersonalitySummary[]): string {
-  const head = `🎲 ${poolSize} characters carry ${tag} — picked ${sampled.length} at random: `;
+  const head = `🎲 ${poolSize} characters carry \`${tag}\` — picked ${sampled.length} at random: `;
   const names = sampled.map(p => escapeMarkdown(tagPoolDisplayName(p)));
   return head + joinNamesWithinBudget(names, DISCORD_LIMITS.MESSAGE_LENGTH - head.length);
 }

@@ -162,7 +162,7 @@ To chat with me, I need confirmation that you're 18+. This is a one-time verific
 
 **How to verify:**
 1. Go to any Discord server with an **NSFW (age-restricted) channel**
-2. Send me a message there — either \`@personality_name hello\` or just ping me directly
+2. Send me a message there — either \`@character_name hello\` or just ping me directly
 3. Once verified, you can chat with me anywhere!
 
 *Note: Discord only shows NSFW channels to users who have confirmed they're 18+ in their Discord settings.*

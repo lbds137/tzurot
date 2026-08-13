@@ -388,7 +388,7 @@ describe('deliverGroup', () => {
     await deliverGroup(entry, deps);
 
     expect(entry.message.reply).toHaveBeenCalledWith(
-      `_(Only the first ${MULTI_TAG.MAX_TAGS} tagged personalities respond.)_`
+      `_(Only the first ${MULTI_TAG.MAX_TAGS} tagged characters respond.)_`
     );
   });
 
@@ -401,7 +401,7 @@ describe('deliverGroup', () => {
     await deliverGroup(entry, deps);
 
     expect(entry.message.reply).toHaveBeenCalledWith(
-      '_(Only the first 3 tagged personalities respond.)_'
+      '_(Only the first 3 tagged characters respond.)_'
     );
   });
 
@@ -411,7 +411,7 @@ describe('deliverGroup', () => {
     await deliverGroup(entry, deps);
 
     expect(entry.message.reply).toHaveBeenCalledWith(
-      '_(Only the first 1 tagged personality responds.)_'
+      '_(Only the first 1 tagged character responds.)_'
     );
   });
 
