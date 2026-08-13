@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
 description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches.'
-lastUpdated: '2026-08-04'
+lastUpdated: '2026-08-13'
 ---
 
 # Council MCP Procedures
@@ -87,18 +87,20 @@ End the failed session, call `list_models` to find a replacement with similar ca
 
 ### Recommended models by task
 
-| Task Type        | Recommended Models                                                                             | Notes                                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Reasoning/Design | **GLM 5.2 · Kimi K3 · Qwen 3.8 Max** (run all three in parallel) → Claude Sonnet/Opus fallback | **Avoid DeepSeek R1** — dated; design needs SOTA. Verify IDs via `list_models` (they drift) |
-| Coding/Review    | Claude Sonnet 4, Claude Opus 4                                                                 | Tool-use variants of Gemini also work for structured refactor tasks                         |
-| Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                                                               | (verify availability with `list_models`)                                                    |
-| Long Documents   | Gemini (1M token context)                                                                      | (verify availability with `list_models`)                                                    |
+| Task Type        | Recommended Models                                                                                              | Notes                                                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Reasoning/Design | **GLM 5.2 · Kimi K3 · Qwen 3.8 Max · DeepSeek v4 Pro** (run all four in parallel) → Claude Sonnet/Opus fallback | **Avoid DeepSeek R1** — dated, and a different generation from v4 Pro. Verify IDs via `list_models` (they drift) |
+| Coding/Review    | Claude Sonnet 4, Claude Opus 4                                                                                  | Tool-use variants of Gemini also work for structured refactor tasks                                              |
+| Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                                                                                | (verify availability with `list_models`)                                                                         |
+| Long Documents   | Gemini (1M token context)                                                                                       | (verify availability with `list_models`)                                                                         |
 
-**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback — R1 is dated; design questions need SOTA. For open design decisions, run the current preferred trio in parallel — **GLM 5.2 · Kimi K3 · Qwen 3.8 Max** (`qwen/qwen3.8-max` on OpenRouter — GA successor to 3.7 Max, 1M context, multimodal reasoning) — and verify each ID via `list_models` first (the registry can lag a new release; fall back to the prior version of the same family). If those are unavailable, fall back to Claude Sonnet / Opus, **not** R1.
+**The roster is four**: for open design decisions, run **GLM 5.2 · Kimi K3 · Qwen 3.8 Max · DeepSeek v4 Pro** in parallel (`z-ai/glm-5.2` — 1M context; `moonshotai/kimi-k3` — see the Kimi note below; `qwen/qwen3.8-max` — GA successor to 3.7 Max, 1M context, multimodal reasoning; `deepseek/deepseek-v4-pro` — 1M context, owner addition) and verify each ID via `list_models` first (the registry can lag a new release; fall back to the prior version of the same family). If those are unavailable, fall back to Claude Sonnet / Opus.
+
+**DeepSeek R1 is still off the roster**, on explicit user feedback — it is dated and design questions need SOTA. That is a judgment about R1, not about the vendor: v4 Pro is a later generation and carries none of R1's exclusion. Don't read "avoid DeepSeek" as a family-wide ban, and don't reinstate R1 as a v4 Pro fallback. Fall back to the family's cheaper tier instead; failing that, to Claude. That cheaper tier is real — `deepseek/deepseek-v4-flash` was listed alongside v4 Pro when this line was written, and "flash" is the registry's own branding here rather than a Gemini-ism borrowed by mistake. Re-resolve its exact ID via `list_models` anyway rather than trusting this string.
 
 **Kimi specifically**: `moonshotai/kimi-k3` is the current SOTA pick (verify via `list_models` — this line will go stale exactly the way `kimi-k2.7-code` did); `kimi-k2.7-code` is superseded and should not be the default. K3 has **capacity pressure under demand** — expect occasional long waits (a council call has exceeded the 120s foreground window and backgrounded) — so falling back to the prior K2.x is a sanctioned practical compromise when K3 is unavailable, not a preference.
 
-**An empty response body is a distinct failure from a 404.** A superseded or overloaded model can return a well-formed response whose content is empty — observed on `kimi-k2.7-code`, and separately explainable by that family's reasoning-tag quirks. Treat an empty body as "this model did not answer": re-run once on the CURRENT model for that family before spending a tiebreaker slot, and never count it as a verdict. Two verdicts plus a silent third is a split, not a consensus.
+**An empty response body is a distinct failure from a 404.** A superseded or overloaded model can return a well-formed response whose content is empty — observed on `kimi-k2.7-code`, and separately explainable by that family's reasoning-tag quirks. Treat an empty body as "this model did not answer": re-run once on the CURRENT model for that family before spending a tiebreaker slot, and never count it as a verdict. A silent member shrinks the panel rather than abstaining. Say how many actually answered, then read the outcome against the RESPONDING panel as though that were the whole panel — the general rule, of which these are only examples: three answering 2-1 is a three-model split, not a 3-1 majority; three answering 3-0 is a three-model consensus, not a 4-0. Silence never reads as a "split" in the sense the section below means; that word is reserved for models that actually disagreed. **Below three respondents, report the count and drop the shape word** — "both models that answered agreed", not "consensus"; "the one model that answered said X", not "unanimous". Consensus implies a panel wide enough to have disagreed, and at N≤2 that breadth is exactly what is missing; this is a floor on the vocabulary, not an exception to the rule above. The 2-2 / 3-1 / 4-0 shapes below assume all four answered.
 
 ### Per-call model specification
 
@@ -148,10 +150,19 @@ user asks to "re-council with the full picture," that's this failure.
 ## When the Council Splits
 
 Don't silently pick a side. Run a tiebreaker pass with a model from a different
-family than the split participants (e.g., Gemini Pro when the trio splits), give
-it both positions verbatim, and report the split + tiebreaker reasoning to the
-user. Cost is not a blocker for council usage — the user's standing position is
-that a better decision is worth the tokens.
+family than the split participants (e.g., Gemini Pro), give it both positions
+verbatim, and report the split + tiebreaker reasoning to the user. Cost is not a
+blocker for council usage — the user's standing position is that a better
+decision is worth the tokens.
+
+**A four-model panel is even, so 2-2 is a real outcome** — the trio could always
+produce a majority, and this one cannot. Do NOT resolve a 2-2 by counting a
+tiebreaker as a fifth vote and declaring 3-2; the tiebreaker's job is to give the
+REASON one position beats the other, and it earns its keep by argument, not by
+arithmetic. Report the split as a split, name which argument the tiebreaker found
+stronger and why, and if it finds neither decisive, say so and hand the owner the
+two positions rather than a manufactured winner. The majority-shaped outcomes
+(3-1, 4-0) are read the same as before.
 
 ## When Council and Claude Disagree
 
