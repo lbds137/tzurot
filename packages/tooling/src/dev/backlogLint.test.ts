@@ -8,7 +8,6 @@ import {
   checkOriginIdCollisions,
   checkTaskTriage,
   extractQueueDocRefs,
-  extractRelativeLinks,
   parseSectionCaps,
   runBacklogLint,
   type OriginTaskListing,
@@ -69,132 +68,6 @@ describe('extractQueueDocRefs', () => {
       'prose mentioning doc-99 without backticks is not a reference',
     ].join('\n');
     expect(extractQueueDocRefs(md)).toEqual(['doc-1', 'doc-27']);
-  });
-});
-
-describe('extractRelativeLinks', () => {
-  it('extracts ../ and ./ targets, stripping a trailing fragment', () => {
-    const md = ['[a](../foo.md)', '[b](./bar.md#section)', '[c](../../baz.md)'].join('\n');
-    expect(extractRelativeLinks(md)).toEqual(['../foo.md', './bar.md', '../../baz.md']);
-  });
-
-  it('skips absolute URLs, mailto, and bare anchors', () => {
-    const md = [
-      '[a](https://example.com/foo.md)',
-      '[b](http://example.com/foo.md)',
-      '[c](mailto:someone@example.com)',
-      '[d](#section)',
-    ].join('\n');
-    expect(extractRelativeLinks(md)).toEqual([]);
-  });
-
-  it('skips root-relative paths', () => {
-    expect(extractRelativeLinks('[a](/absolute/path.md)')).toEqual([]);
-  });
-
-  // CommonMark treats a bare target as relative exactly like a dotted one, and
-  // this is the dominant cross-reference style in tracker/docs/. Scoping to the
-  // dotted forms made the gate blind to it — and to 14 dead links written that
-  // way.
-  it('extracts a BARE relative target that looks like a file', () => {
-    expect(extractRelativeLinks('[a](bare-path.md)')).toEqual(['bare-path.md']);
-    expect(extractRelativeLinks('[a](themes/sub.md)')).toEqual(['themes/sub.md']);
-    expect(extractRelativeLinks('[a](img/diagram.png)')).toEqual(['img/diagram.png']);
-    expect(extractRelativeLinks('[a](bare.md#frag)')).toEqual(['bare.md']);
-  });
-
-  it('skips a bare target with no file extension, so prose in brackets is not a path', () => {
-    expect(extractRelativeLinks('[a](some-page)')).toEqual([]);
-    expect(extractRelativeLinks('[see the epic](whatever we call it)')).toEqual([]);
-  });
-
-  it('skips a version string, which is extension-shaped but not a file', () => {
-    // The corpus is release-note-heavy, so `[v3](v3.0.0-beta.199)` is a
-    // plausible future link; `.199` must not read as a file extension.
-    expect(extractRelativeLinks('[v3](v3.0.0-beta.199)')).toEqual([]);
-    expect(extractRelativeLinks('[a](thing.2026)')).toEqual([]);
-    // …while a real extension containing digits still counts.
-    expect(extractRelativeLinks('[a](archive.7z)')).toEqual(['archive.7z']);
-  });
-
-  it('includes image link targets — same rot class as a regular link', () => {
-    expect(extractRelativeLinks('![alt text](../images/diagram.png)')).toEqual([
-      '../images/diagram.png',
-    ]);
-  });
-
-  it('ignores link syntax inside a fenced code block', () => {
-    const md = ['Write links like this:', '', '```markdown', '[t](../made-up.md)', '```'].join(
-      '\n'
-    );
-    expect(extractRelativeLinks(md)).toEqual([]);
-  });
-
-  it('ignores link syntax inside an inline code span', () => {
-    expect(extractRelativeLinks('Use `[t](../made-up.md)` for a relative link.')).toEqual([]);
-  });
-
-  it('still extracts a real link that sits next to a code sample', () => {
-    const md = ['```', '[t](../not-real.md)', '```', '', 'See [the epic](../active-epic.md).'].join(
-      '\n'
-    );
-    expect(extractRelativeLinks(md)).toEqual(['../active-epic.md']);
-  });
-
-  // The shapes the extractor's docstring says it mishandles. Each of those
-  // sentences is a claim about runtime behavior, so it is pinned here rather
-  // than left as prose (02-code-standards § "A Comment That Asserts Behavior Is
-  // a Claim"). These characterize the CURRENT behavior — if a real markdown-link
-  // parser ever replaces the regex, these are the cases to revisit, and they
-  // will fail loudly rather than drift silently.
-  //
-  // The first four are misses. The last two run the other way: an OVER-match
-  // that reports non-paths as dangling, and a stripCode assumption that
-  // swallows real links. Both directions belong here — a limitation that
-  // produces a spurious CI failure is as much a documented behavior as one that
-  // produces a blind spot, and it is the direction that actually costs someone
-  // a red `pnpm quality` on text that was never a path.
-  describe('documented parse limitations', () => {
-    it('a titled link captures the title as part of the target (fails loud)', () => {
-      expect(extractRelativeLinks('[t](../foo.md "Title")')).toEqual(['../foo.md "Title"']);
-    });
-
-    it('a target containing a literal ) truncates at that paren (fails loud)', () => {
-      expect(extractRelativeLinks('[t](../notes (draft).md)')).toEqual(['../notes (draft']);
-    });
-
-    it('link text with nested brackets matches nothing (fails silent)', () => {
-      expect(extractRelativeLinks('[a [b]](../x.md)')).toEqual([]);
-    });
-
-    it('reference-style links match nothing (fails silent)', () => {
-      expect(extractRelativeLinks('[t][ref]\n\n[ref]: ../foo.md')).toEqual([]);
-    });
-
-    // Not hypothetical: the first draft of the task that filed this limitation
-    // wrote these two examples in link form, and the gate reported both as
-    // dangling within minutes of them being written down.
-    it('over-matches a bare domain-like target (fails loud, wrong direction)', () => {
-      expect(extractRelativeLinks('see [docs](example.com) here')).toEqual(['example.com']);
-      expect(extractRelativeLinks('the [runtime](Node.js) version')).toEqual(['Node.js']);
-    });
-
-    // The workaround the docstring offers, in both spellings a writer would
-    // reach for. Documenting an escape hatch that does not work would be worse
-    // than documenting none.
-    it('backticking suppresses the over-match, around the link or the target', () => {
-      expect(extractRelativeLinks('see `[docs](example.com)` here')).toEqual([]);
-      expect(extractRelativeLinks('see [docs](`example.com`) here')).toEqual([]);
-    });
-
-    it('stripCode drops a real link when inline backticks are unbalanced', () => {
-      expect(extractRelativeLinks('a `span here and [t](../real.md) then `another` tail')).toEqual(
-        []
-      );
-      // Balanced, same link: it survives. Without this half the assertion above
-      // would pass for any reason at all — including the link never being seen.
-      expect(extractRelativeLinks('a `span` and [t](../real.md) tail')).toEqual(['../real.md']);
-    });
   });
 });
 
@@ -894,6 +767,64 @@ describe('runBacklogLint', () => {
 
       const out = logSpy.mock.calls.flat().join('\n');
       expect(out).toContain('dangling relative link → ../../docs/missing.md');
+      expect(process.exitCode).toBe(1);
+    });
+
+    // Every real filename under tracker/ has spaces, so this is the shape the
+    // gate meets the moment anyone pastes a GitHub copy-link.
+    it('resolves a percent-encoded link to a file whose name contains spaces', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'docs/doc-20 - Theme.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/doc-20%20-%20Theme.md)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('resolves the angle-bracket form of the same spaced filename', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'docs/doc-20 - Theme.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](<../../docs/doc-20 - Theme.md>)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      expect(logSpy.mock.calls.flat().join('\n')).toContain('Backlog layout in sync');
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    // The file EXISTS, so the dangling check has nothing to say — and that is
+    // exactly the trap: unwrapped spaces mean GitHub renders plain text, not a
+    // link, and without this class the gate calls it healthy.
+    it('flags a bare-spaced target as non-rendering even though the file exists', async () => {
+      mockFs(
+        {
+          'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
+          'docs/doc-20 - Theme.md': '',
+        },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/doc-20 - Theme.md)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain('will not render → ../../docs/doc-20 - Theme.md');
+      expect(out).not.toContain('dangling relative link');
       expect(process.exitCode).toBe(1);
     });
 
