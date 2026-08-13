@@ -7,6 +7,10 @@ import { EmbedBuilder } from 'discord.js';
 import type { Attachment } from 'discord.js';
 import { handleImport, CHARACTER_JSON_TEMPLATE, REQUIRED_IMPORT_FIELDS } from './import.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import {
+  PersonalityCreateSchema,
+  PersonalityUpdateSchema,
+} from '@tzurot/common-types/schemas/api/personality';
 
 // Mock dependencies
 const { mockNormalizeSlug } = vi.hoisted(() => ({
@@ -790,6 +794,98 @@ describe('handleImport', () => {
         'test-character',
         expect.objectContaining({ tags: ['fantasy'] })
       );
+    });
+
+    it("carries an export's explicit clear forms through to the update payload", async () => {
+      // The round-trip acceptance: /character export emits '' / [] for a
+      // character whose optional fields are empty, and buildImportPayload maps
+      // every optional field through `?? undefined`. '' and [] are not nullish
+      // so they survive; null would be collapsed to "no change" and the
+      // cleared state would silently fail to restore.
+      const context = createMockContext();
+      const exportedShape = createValidCharacterData({
+        personalityTone: '',
+        personalityLikes: '',
+        errorMessage: '',
+        tags: [],
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(exportedShape)),
+      });
+      mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
+
+      await handleImport(context, mockConfig);
+
+      expect(stub.updatePersonality).toHaveBeenCalledWith(
+        'test-character',
+        expect.objectContaining({
+          personalityTone: '',
+          personalityLikes: '',
+          errorMessage: '',
+          tags: [],
+        })
+      );
+
+      // ...and the gateway schema reads those forms as clears, which is what
+      // makes the surviving values restore the empty state rather than pass
+      // validation and do nothing.
+      const sent = stub.updatePersonality.mock.calls[0][1] as Record<string, unknown>;
+      const parsed = PersonalityUpdateSchema.parse(sent);
+      expect(parsed.personalityTone).toBeNull();
+      expect(parsed.personalityLikes).toBeNull();
+      expect(parsed.errorMessage).toBeNull();
+      expect(parsed.tags).toEqual([]);
+    });
+
+    it("carries an export's clear forms through the CREATE path too", async () => {
+      // Re-importing an old export under a NEW slug validates against
+      // PersonalityCreateSchema, not the update schema — a clear form that
+      // worked on only one of the two would 400 half the restores.
+      const context = createMockContext();
+      const exportedShape = createValidCharacterData({
+        personalityTone: '',
+        errorMessage: '',
+        tags: [],
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(exportedShape)),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(context, mockConfig);
+
+      expect(stub.createPersonality).toHaveBeenCalledWith(
+        expect.objectContaining({ personalityTone: '', errorMessage: '', tags: [] })
+      );
+
+      const sent = stub.createPersonality.mock.calls[0][0] as Record<string, unknown>;
+      const parsed = PersonalityCreateSchema.parse(sent);
+      expect(parsed.personalityTone).toBeNull();
+      expect(parsed.errorMessage).toBeNull();
+      expect(parsed.tags).toEqual([]);
+    });
+
+    it("omits a cleared field from the success embed's Imported Fields list", async () => {
+      const context = createMockContext();
+      const exportedShape = createValidCharacterData({ personalityTone: '', tags: [] });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(exportedShape)),
+      });
+      mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
+
+      await handleImport(context, mockConfig);
+
+      const embed = vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { fields?: { name: string; value: string }[] } }[];
+      };
+      const importedFields = embed.embeds[0].data.fields?.find(
+        f => f.name === 'Imported Fields'
+      )?.value;
+      expect(importedFields).not.toContain('Tone');
+      expect(importedFields).not.toContain('Tags');
     });
 
     it('surfaces the per-field validation list when the JSON fails the API schema', async () => {

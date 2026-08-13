@@ -71,6 +71,11 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
  * JSON template for character import
  * This is shown to users when they need help with the format
  * Note: Avatar is uploaded separately as an image file, not in JSON
+ *
+ * Every value is a placeholder the user is expected to replace. `tags` is
+ * empty rather than illustrative because tags are validated, not prose: a
+ * left-untouched example would import tags the user never chose, and a
+ * parenthesized "(optional)" hint would fail TAG_PATTERN and 400 the import.
  */
 export const CHARACTER_JSON_TEMPLATE = `{
   "name": "Character Name",
@@ -88,7 +93,7 @@ export const CHARACTER_JSON_TEMPLATE = `{
   "conversationalGoals": "What conversations should achieve... (optional)",
   "conversationalExamples": "Example dialogues to guide AI... (optional)",
   "errorMessage": "Custom error message when AI fails (optional)",
-  "tags": ["fantasy", "sci-fi"]
+  "tags": []
 }`;
 
 /**

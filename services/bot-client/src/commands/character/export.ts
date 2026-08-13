@@ -48,12 +48,47 @@ const EXPORT_FIELDS = [
   'conversationalGoals',
   'conversationalExamples',
   'errorMessage',
-  // Import accepts customFields; omitting it here silently lost the data on
-  // an export → re-import round-trip.
+  // Import accepts customFields, but neither USER personality route (create.ts
+  // buildCreateData / update.ts buildUpdateData) writes the column, so the
+  // value is dropped gateway-side and the round-trip still loses it. Exported
+  // anyway so the file is a faithful snapshot; TASK-590 owns the gateway gap.
   'customFields',
-  // Same round-trip reason: import accepts a tag array.
+  // Import accepts a tag array.
   'tags',
 ] as const;
+
+/**
+ * Fields whose EMPTY form is a clear instruction on re-import rather than an
+ * absence, so omitting them makes the export unable to restore a cleared
+ * character. Each is `nullableString` (empty string → null) in both the create
+ * and update schemas, except `tags`, whose clear is `[]`.
+ *
+ * Not here, deliberately:
+ * - `displayName` — both user routes rewrite an empty displayName to the
+ *   character's `name`, so it has no cleared state to restore; emitting `''`
+ *   would overwrite a stored null instead of preserving it.
+ * - `name` / `characterInfo` / `personalityTraits` — declared `.min(1)` in both
+ *   PersonalityCreateSchema and PersonalityUpdateSchema, so no write path can
+ *   store an empty one.
+ * - `isPublic` / `definitionPublic` — booleans; `false` is not empty and
+ *   already survives the filter below.
+ * - `customFields` — its clear is `null`, which `buildImportPayload`'s
+ *   `?? undefined` collapses back to "no change" (and see TASK-590 above).
+ */
+export const CLEARABLE_FIELDS: readonly (typeof EXPORT_FIELDS)[number][] = [
+  'personalityTone',
+  'personalityAge',
+  'personalityAppearance',
+  'personalityLikes',
+  'personalityDislikes',
+  'conversationalGoals',
+  'conversationalExamples',
+  'errorMessage',
+  'tags',
+];
+
+/** Membership form of {@link CLEARABLE_FIELDS} — the list is what's exported. */
+const CLEARABLE_FIELD_SET = new Set(CLEARABLE_FIELDS);
 
 /**
  * Build exportable character data (matching import format)
@@ -64,15 +99,27 @@ function buildExportData(character: ExportCharacterData): Record<string, unknown
 
   for (const field of EXPORT_FIELDS) {
     const value = character[field];
-    // Only include non-empty values. An empty array (an untagged character)
-    // is the list-valued analogue of '' and is omitted for the same reason.
-    if (value === null || value === undefined || value === '') {
+    const isEmpty =
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      (Array.isArray(value) && value.length === 0);
+
+    if (!isEmpty) {
+      exportData[field] = value;
       continue;
     }
-    if (Array.isArray(value) && value.length === 0) {
+    // An empty non-clearable field carries no information — omit it.
+    if (!CLEARABLE_FIELD_SET.has(field)) {
       continue;
     }
-    exportData[field] = value;
+    // Emit the explicit clear form so a re-import restores the empty state.
+    // `''` and `[]` both parse to a clear AND survive the import builder's
+    // `?? undefined`; `null` would parse to a clear but get collapsed there,
+    // which is why this emits '' / [] and not null. Pinned by the per-field
+    // `emits %s: ""` cases in export.test.ts and by the update-payload
+    // survival test in import.test.ts.
+    exportData[field] = field === 'tags' ? [] : '';
   }
 
   return exportData;
