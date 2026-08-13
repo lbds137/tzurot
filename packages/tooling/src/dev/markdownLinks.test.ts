@@ -63,6 +63,15 @@ describe('extractRelativeLinks', () => {
 
     // Unwrapping has to precede the fragment strip: the other order leaves
     // `<doc-20 - Theme.md`, closing bracket gone, resolving against nothing.
+    // GitHub strips padding inside the brackets and renders href="doc.md"
+    // (probed), so the padding is not part of the path. Untrimmed, the trailing
+    // space defeated the $-anchored extension test and — the angled branch
+    // having skipped the whitespace branch — the target vanished from both.
+    it('trims padding inside the angle brackets', () => {
+      expect(extractRelativeLinks('[t](< doc.md >)')).toEqual(['doc.md']);
+      expect(extractNonRenderingLinks('[t](< doc.md >)')).toEqual([]);
+    });
+
     it('unwraps before stripping the fragment', () => {
       expect(extractRelativeLinks('[t](<doc-20 - Theme.md#sec>)')).toEqual(['doc-20 - Theme.md']);
       expect(extractRelativeLinks('[t](doc-20%20-%20Theme.md#sec)')).toEqual(['doc-20 - Theme.md']);
@@ -225,6 +234,19 @@ describe('extractRelativeLinks', () => {
     // the target no longer reads as angle-wrapped, and the truncation leaves no
     // file-shaped segment for looksLikeIntendedPath to recognize. Pinned so the
     // silence is visible rather than discovered.
+    // The non-rendering branch over-matches in the same direction its sibling
+    // does: a bracketed description naming a file has one file-shaped segment.
+    // Narrowing the segment test would lose `doc-20 - Theme.md`, which is the
+    // case the gate exists for. Backticking suppresses it, as on the other side.
+    it('over-matches a bracketed description that names a file (loud, wrong direction)', () => {
+      expect(
+        extractNonRenderingLinks('[see the config](tsconfig.json for the compiler options)')
+      ).toEqual(['tsconfig.json for the compiler options']);
+      expect(
+        extractNonRenderingLinks('see `[the config](tsconfig.json for the options)` here')
+      ).toEqual([]);
+    });
+
     it('an angle-wrapped target with a space AND a literal ) vanishes entirely', () => {
       expect(extractRelativeLinks('[t](<foo (bar).md>)')).toEqual([]);
       expect(extractNonRenderingLinks('[t](<foo (bar).md>)')).toEqual([]);
