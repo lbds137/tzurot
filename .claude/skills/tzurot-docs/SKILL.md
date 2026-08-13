@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-08-09'
+lastUpdated: '2026-08-13'
 ---
 
 # Documentation & Session Workflow
@@ -10,12 +10,9 @@ lastUpdated: '2026-08-09'
 
 ## Session Start Procedure
 
-The backlog is HOT/COLD split — load only the HOT surface at start (see `BACKLOG.md`, the manifest):
+**Canonical, single-sourced in `.claude/rules/06-backlog.md` § Starting a Session** — follow it there, not a copy here. It is always-loaded, so every session already has it.
 
-1. Read `CURRENT.md` - What's the active task?
-2. Read `backlog/now.md` - 🚨 Production Issues (fix first) → 🎯 Current Focus (continue) → ⚡ Quick Wins
-3. Read `backlog/active-epic.md` - the current major initiative + its current phase
-4. Do NOT load `backlog/cold/` — grep it only when a task points you there
+This section previously carried its own shorter copy, which fell three steps behind the canonical list (`backlog:digest`, the freshness-check, and the repo-state sweep). Two checklists describing the same moment will keep diverging; the pointer is the fix.
 
 ## Session End Procedure
 
