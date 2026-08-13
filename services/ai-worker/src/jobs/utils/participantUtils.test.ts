@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageRole } from '@tzurot/common-types/constants/message';
+
+// Hoisted singleton so log-field assertions can inspect what was emitted.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: vi.fn(() => mockLogger) };
+});
+
 import { resolveSpeakerInfo, extractParticipants } from './participantUtils.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
@@ -105,5 +121,66 @@ describe('extractParticipants', () => {
   it('includes the active persona even when absent from history', () => {
     const result = extractParticipants([], 'p9', 'Newcomer');
     expect(result).toEqual([{ personaId: 'p9', personaName: 'Newcomer', isActive: true }]);
+  });
+
+  describe('logging omits persona display names', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    const run = (): void => {
+      extractParticipants(
+        [
+          { role: MessageRole.User, content: 'a', personaId: 'p1', personaName: 'Robin' },
+          { role: MessageRole.User, content: 'c', personaId: 'p2', personaName: 'Lila' },
+        ],
+        'p2',
+        'Lila'
+      );
+    };
+
+    const debugFields = (): Record<string, unknown>[] =>
+      mockLogger.debug.mock.calls.map(call => call[0] as Record<string, unknown>);
+
+    it('logs participant ids and a count, not their names', () => {
+      run();
+
+      const found = debugFields().find(f => 'participantIds' in f);
+      expect(found).toMatchObject({ count: 2, participantIds: ['p1', 'p2'] });
+      expect(found).not.toHaveProperty('participantNames');
+    });
+
+    it('reports the active persona by id and name-presence, never by name', () => {
+      run();
+
+      const extracting = debugFields().find(f => 'activePersonaId' in f);
+      expect(extracting).toMatchObject({ activePersonaId: 'p2', hasActivePersonaName: true });
+      expect(extracting).not.toHaveProperty('activePersonaName');
+    });
+
+    it('reports hasActivePersonaName false when there is no active name', () => {
+      // The true branch alone would leave the condition unguarded — flipping
+      // `&&` to `||`, or dropping the length check, still passes a test that
+      // only ever supplies a name. Both inputs that should read false:
+      // undefined, and the empty string.
+      extractParticipants([{ role: MessageRole.User, content: 'a', personaId: 'p1' }], 'p1');
+      expect(debugFields().find(f => 'activePersonaId' in f)).toMatchObject({
+        hasActivePersonaName: false,
+      });
+
+      vi.clearAllMocks();
+      extractParticipants([{ role: MessageRole.User, content: 'a', personaId: 'p1' }], 'p1', '');
+      expect(debugFields().find(f => 'activePersonaId' in f)).toMatchObject({
+        hasActivePersonaName: false,
+      });
+    });
+
+    it('emits no persona display name in any log field', () => {
+      run();
+
+      const serialised = JSON.stringify(debugFields());
+      expect(serialised).not.toContain('Robin');
+      expect(serialised).not.toContain('Lila');
+    });
   });
 });
