@@ -67,8 +67,11 @@ function isRelativeFileTarget(target: string): boolean {
  * These fail LOUD, the tolerable direction — whoever writes one sees a
  * confusing-but-visible report and can look here:
  *
- * - a target containing a literal `)` (`[t](../notes (draft).md)`) truncates at
- *   that paren, so it is reported dangling against a mangled path.
+ * - a target containing a literal `)` (`[t](../notes(draft).md)`) truncates at
+ *   that paren, so it is reported dangling against a mangled path. The example
+ *   is deliberately UNSPACED: add a space before the paren and the destination
+ *   routes to the non-rendering bucket instead, because a space is what decides
+ *   that branch. Both halves are pinned in the limitations test.
  *
  * These fail SILENT, which is worse, because a genuinely dead link in one of
  * these shapes is simply never seen:
