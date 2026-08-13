@@ -37,4 +37,6 @@ BLOCKER - two enforced tests encode the pre-fix behavior, and both fixtures are 
 2. jobChainOrchestrator.property.test.ts - the oracle lives in packages/test-utils/src/jobContextArbitraries.ts. ArbAttachment has no isVoiceMessage field at all, and describableReferenceNumbers counts any reference audio/* as describable.
 
 Both need STRENGTHENING (making the fixtures match what the producer actually emits) rather than weakening, and ArbAttachment must generate the flag BOTH ways so the property still exercises the distinction. That is cross-package test-infrastructure work well beyond the size:S label - relabel to size:M when picked up.
+
+THE IMPLEMENTATION ALREADY EXISTS - do not rewrite it from scratch. The gate plus five tests are committed as 0f7d16d00 on the LOCAL branch fix/task-563-reference-audio-voice-gate. It is deliberately unpushed: the two enforced tests above are red, so the pre-push gate would reject it and skipping hooks is not an option. The branch is local-only, which means it survives worktree removal but not a branch deletion - if it ever goes missing, git reflog or git fsck --lost-found will still hold the commit. Its base is 10 commits stale (the beta.200 bump), so rebase onto develop before resuming. Resuming means: rebase, fix the two fixtures per the blocker above, then the branch is pushable.
 <!-- SECTION:DESCRIPTION:END -->
