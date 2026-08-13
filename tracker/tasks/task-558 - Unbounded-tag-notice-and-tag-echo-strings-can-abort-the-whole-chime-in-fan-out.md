@@ -1,9 +1,10 @@
 ---
 id: TASK-558
 title: Unbounded tag-notice and tag-echo strings can abort the whole chime-in fan-out
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:33'
+updated_date: '2026-08-13 00:57'
 labels:
   - 'area:bot-client'
   - 'size:S'
