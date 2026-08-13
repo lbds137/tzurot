@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -240,6 +241,47 @@ describe('runTagChimeIn', () => {
 
     const content = vi.mocked(ctx.editReply).mock.calls[0][0] as { content: string };
     expect(content.content).toContain('\\*\\*Loud\\*\\*');
+  });
+
+  it('keeps the sampling notice inside the Discord message ceiling', async () => {
+    // Display names are author-authored up to 255 chars; cap-many of them
+    // overrun the 2000-char ceiling, which rejects the edit outright.
+    const longName = 'N'.repeat(255);
+    mockGetMultiTagCap.mockResolvedValue(9);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: Array.from({ length: 12 }, (_unused, i) =>
+        makeSummary(`slug-${i}`, { displayName: `${longName}${i}`, tags: ['fantasy'] })
+      ),
+    });
+    const ctx = makeContext();
+
+    await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+    const { content } = vi.mocked(ctx.editReply).mock.calls[0][0] as { content: string };
+    expect(content.length).toBeLessThanOrEqual(DISCORD_LIMITS.MESSAGE_LENGTH);
+    // The dropped names are accounted for rather than silently vanishing.
+    expect(content).toMatch(/…and \d+ more$/u);
+    // Every sampled character still gets its turn — trimming is a display
+    // concern, not a change to who responds.
+    expect(mockRunCharacterTurn).toHaveBeenCalledTimes(9);
+  });
+
+  it('still runs the turns when the sampling notice fails to post', async () => {
+    mockGetMultiTagCap.mockResolvedValue(1);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+    });
+    const ctx = makeContext();
+    vi.mocked(ctx.editReply).mockRejectedValue(new Error('Invalid Form Body'));
+
+    await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+    // The notice is context, not the answer: a rejected edit must not abort the
+    // fan-out before any character has spoken.
+    expect(mockRunCharacterTurn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalled();
   });
 
   it('still runs the turns when deleting the stale thinking indicator fails', async () => {
