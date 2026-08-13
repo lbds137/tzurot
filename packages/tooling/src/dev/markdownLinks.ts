@@ -198,7 +198,7 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
 }
 
 /**
- * True when a spaced destination was plausibly MEANT to be a path.
+ * True when a whitespace-bearing destination was plausibly MEANT to be a path.
  *
  * The resolvable branch is gated by `isRelativeFileTarget`, which is what keeps
  * ordinary bracketed prose from being reported as rot — `[see the epic](whatever
@@ -207,7 +207,7 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
  * the other side, with a message about angle-wrapping a filename that is not one.
  *
  * `isRelativeFileTarget` can't be applied to the whole string: it sees the
- * spaces and nothing else changes, so `whatever we call it` and
+ * whitespace and nothing else changes, so `whatever we call it` and
  * `doc-20 - Theme.md` both fail its extension test. Testing each
  * whitespace-delimited SEGMENT is what separates them — `Theme.md` is
  * file-shaped, `it` is not. The dot-prefix check is separate because
@@ -217,7 +217,8 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
  * Per-segment testing needs the scheme check applied to the WHOLE string,
  * though: in `https://example.com/some page.md` the scheme segment is correctly
  * rejected, but `page.md` still matches, so the target would be reported as a
- * repo-relative path and advised to percent-encode its spaces. It is a broken
+ * repo-relative path and advised to percent-encode its whitespace. It is a
+ * broken
  * external URL. This gate never checks external URLs, so it is passed over
  * here for the same reason `isRelativeFileTarget` passes over them.
  *

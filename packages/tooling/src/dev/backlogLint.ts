@@ -268,7 +268,7 @@ function checkRelativeLinks(rootDir: string): string[] {
         // for exactly the destinations that need it most.
         problems.push(
           `${rel}: link target has unbracketed whitespace so it will not render → ${target} ` +
-            `(wrap the destination in angle brackets or percent-encode the spaces)`
+            `(wrap the destination in angle brackets or percent-encode the whitespace)`
         );
       }
     }
