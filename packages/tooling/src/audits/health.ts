@@ -171,10 +171,12 @@ const STATUS_ICON = { ok: '✅', warn: '⚠️', fail: '❌' } as const;
 export function formatHealthReport(report: HealthReport, measuredRef?: string): string {
   const lines: string[] = [];
   lines.push(`## Audit health: ${STATUS_ICON[report.overall]} ${report.overall.toUpperCase()}`);
-  // Directly under the header, so it survives both the Discord step's
-  // `sed`-from-the-header slice and its `head -c` tail truncation. Every
-  // number below is measured against THIS tree; the scheduled run's trigger
-  // ref (always the default branch) says nothing about which tree that is.
+  // Directly under the header, so it survives the webhook poster's
+  // slice-from-the-header (`sliceFromHealthHeader`, which keeps everything at
+  // and after `## Audit health`); the tail is chunked across messages rather
+  // than truncated, so position no longer decides survival. Every number
+  // below is measured against THIS tree; the scheduled run's trigger ref
+  // (always the default branch) says nothing about which tree that is.
   if (measuredRef !== undefined) {
     lines.push(measuredRef);
   }

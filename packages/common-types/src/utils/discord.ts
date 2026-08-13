@@ -265,6 +265,109 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
 }
 
 /**
+ * Line-oriented chunker for content whose newlines are load-bearing —
+ * markdown bullet lists, generated report sections, anything a reader parses
+ * by line.
+ *
+ * Why this exists next to {@link splitMessage}: `splitMessage` splits on
+ * paragraphs (`/\n\n+/`), so a blank-line-free block over the cap falls
+ * through to its sentence- and word-splitting passes, which re-join fragments
+ * with SPACES — every internal newline in that block is lost. This function
+ * accumulates whole lines and joins them only with the `\n` that separated
+ * them in the source. The newline-loss difference between the two is pinned
+ * by the `splitMessageByLines` vs `splitMessage` pair in `discord.test.ts`
+ * ('keeps every newline in a blank-line-free bullet block over the cap' and
+ * 'differs from splitMessage, which flattens the same fixture').
+ *
+ * Unlike {@link splitMessage}, this does NOT protect or rebalance triple-
+ * backtick code fences across chunk boundaries — a fenced block split between
+ * two chunks renders as broken markdown in the second. Line-oriented report
+ * content has no fences; a caller whose content might should use
+ * `splitMessage` or re-close the fence itself.
+ *
+ * A chunk may be the empty string, when a blank source line lands alone at a
+ * forced boundary. That is content, not noise: callers that cannot transmit
+ * an empty string filter at their own boundary rather than having this drop
+ * the line.
+ *
+ * A single source line longer than `maxLength` cannot be preserved intact, so
+ * it is delegated to the same natural-boundary splitter `splitMessage` uses
+ * (newline-flattening is moot within one line). That fallback re-flows
+ * whitespace the way `splitMessage` does — it word-splits and rejoins with
+ * single spaces, trimming each fragment — so an individually over-cap line
+ * loses its indentation and internal runs of whitespace. Whole-line
+ * preservation below is what this function guarantees; the fallback is a
+ * last resort, pinned by 'force-splits a single over-cap line, re-flowing
+ * its whitespace' in `discord.test.ts`. One case in that fallback loses the
+ * line rather than re-flowing it: an over-cap line of ONLY whitespace splits
+ * into empty words, so the shared splitter emits nothing for it. There is no
+ * content to preserve and no way to emit it under the cap, so it is dropped —
+ * stated here because the whole-line guarantee above otherwise reads as
+ * absolute. Pinned by 'drops an over-cap whitespace-only line'.
+ *
+ * @param content - The content to split
+ * @param maxLength - Maximum length per chunk (default: Discord's 2000 char limit)
+ */
+export function splitMessageByLines(
+  content: string,
+  maxLength = DISCORD_MAX_MESSAGE_LENGTH
+): string[] {
+  // Same defensive contract as splitMessage: bad input yields no chunks.
+  if (!content || typeof content !== 'string') {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  // A buffer of LINES rather than a joined string, so "no lines yet" stays
+  // distinguishable from "one blank line so far" — a blank line landing on a
+  // chunk boundary is content and must not be swallowed.
+  let pending: string[] = [];
+  let pendingLength = 0;
+
+  const flush = (): void => {
+    if (pending.length > 0) {
+      chunks.push(pending.join('\n'));
+      pending = [];
+      pendingLength = 0;
+    }
+  };
+
+  for (const line of content.split('\n')) {
+    if (line.length > maxLength) {
+      // Unrepresentable as a whole line — flush, then force-split just it.
+      flush();
+      chunks.push(...splitAtNaturalBoundaries(line, maxLength));
+      continue;
+    }
+    // +1 for the '\n' that would rejoin this line to the pending ones.
+    const separatorCost = pending.length > 0 ? 1 : 0;
+    if (pendingLength + separatorCost + line.length > maxLength) {
+      flush();
+    }
+    // Recomputed, NOT reused from `separatorCost` — `flush()` above may have
+    // just emptied `pending`, in which case this line starts a chunk and costs
+    // no separator. Collapsing these two into one variable overcounts
+    // `pendingLength` by 1 after every flush, desyncing it from the real
+    // `pending.join('\n').length` and cutting chunks early.
+    pendingLength += (pending.length > 0 ? 1 : 0) + line.length;
+    pending.push(line);
+  }
+
+  flush();
+
+  // Returned unfiltered, deliberately — splitMessage drops empty chunks here,
+  // but this function must not. A blank line that triggers a flush lands alone
+  // in `pending`, and a second flush (end of input, or a following over-cap
+  // line) emits it as a chunk whose whole content is ''. Filtering that away
+  // deletes a source line, breaking the whole-line guarantee above. `flush()`
+  // already refuses to push an EMPTY buffer, so nothing spurious reaches
+  // `chunks` for a filter to remove. Callers that cannot transmit an empty
+  // string filter at their own boundary. Pinned by 'keeps a blank line that
+  // lands alone at a forced chunk boundary'.
+  return chunks;
+}
+
+/**
  * Re-balance code fences across the FRAGMENTS of one force-split oversized
  * chunk. A fragment with an ODD number of ``` markers ends inside a fence
  * (the re-split cut it): close the fence at that fragment's end and re-open
