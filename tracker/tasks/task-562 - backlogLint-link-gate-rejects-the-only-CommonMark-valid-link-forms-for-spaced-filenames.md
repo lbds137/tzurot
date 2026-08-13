@@ -3,9 +3,10 @@ id: TASK-562
 title: >-
   backlogLint link gate rejects the only CommonMark-valid link forms for spaced
   filenames
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:33'
+updated_date: '2026-08-13 17:24'
 labels:
   - 'area:tooling'
   - 'size:S'
