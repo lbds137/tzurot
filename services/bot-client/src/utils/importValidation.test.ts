@@ -32,8 +32,23 @@ describe('getImportedFieldsList', () => {
     expect(getImportedFieldsList(payload, fieldDefs)).toEqual([]);
   });
 
-  it('should include fields with falsy but non-null/undefined values', () => {
-    const payload = { name: '', description: 0, model: false };
+  it('should include falsy values that still carry information', () => {
+    const payload = { name: 'test', description: 0, model: false };
+    expect(getImportedFieldsList(payload, fieldDefs)).toEqual(['Name', 'Description', 'Model']);
+  });
+
+  it('should exclude empty strings (an export\'s explicit "clear this field")', () => {
+    const payload = { name: 'test', description: '', model: 'gpt-4' };
+    expect(getImportedFieldsList(payload, fieldDefs)).toEqual(['Name', 'Model']);
+  });
+
+  it('should exclude empty arrays (the list-valued clear, e.g. an untagged export)', () => {
+    const payload = { name: 'test', description: [], model: 'gpt-4' };
+    expect(getImportedFieldsList(payload, fieldDefs)).toEqual(['Name', 'Model']);
+  });
+
+  it('should include a non-empty array', () => {
+    const payload = { name: 'test', description: ['a'], model: 'gpt-4' };
     expect(getImportedFieldsList(payload, fieldDefs)).toEqual(['Name', 'Description', 'Model']);
   });
 });
