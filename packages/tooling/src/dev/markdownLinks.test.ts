@@ -89,6 +89,24 @@ describe('extractRelativeLinks', () => {
       expect(extractNonRenderingLinks('the [runtime](Node js version)')).toEqual([]);
     });
 
+    // The likeliest real shape in this corpus: every tracker filename has
+    // spaces, so linking to a heading inside one is natural. An anchor makes
+    // the last segment `Theme.md#the-fix`, which no extension test can match,
+    // so judging the unstripped form dropped it from BOTH buckets.
+    it('flags a bare-spaced target carrying a fragment, reporting it whole', () => {
+      expect(extractNonRenderingLinks('[see the fix](doc-20 - Theme.md#the-fix)')).toEqual([
+        'doc-20 - Theme.md#the-fix',
+      ]);
+    });
+
+    // A scheme-qualified target with a space is a broken EXTERNAL url, not a
+    // repo-relative path — advising percent-encoding would misframe it. This
+    // gate passes over external urls entirely, as isRelativeFileTarget does.
+    it('does not flag a scheme-qualified target as a relative path', () => {
+      expect(extractNonRenderingLinks('[a](https://example.com/some page.md)')).toEqual([]);
+      expect(extractNonRenderingLinks('[a](mailto:someone@example.com x)')).toEqual([]);
+    });
+
     // A spaced destination qualifies on a file-shaped SEGMENT, not on the whole
     // string — `isRelativeFileTarget` rejects `doc-20 - Theme.md` outright, so
     // testing the segments is what separates it from `whatever we call it`.

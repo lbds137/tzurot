@@ -177,7 +177,11 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
     const raw = stripLinkTitle(match[1].trim());
     const angled = raw.startsWith('<') && raw.endsWith('>');
     if (!angled && raw.includes(' ')) {
-      if (looksLikeIntendedPath(raw)) {
+      // Judged on the fragment-stripped form, reported whole. The resolvable
+      // branch below strips before judging for the same reason: an anchor makes
+      // the last segment `Theme.md#sec`, which no extension test can match, so
+      // judging the raw form drops a heading link to a spaced file entirely.
+      if (looksLikeIntendedPath(raw.split('#')[0])) {
         nonRendering.push(raw);
       }
       continue;
@@ -206,8 +210,18 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
  * file-shaped, `it` is not. The dot-prefix check is separate because
  * `../notes (draft` (the literal-paren truncation) has no file-shaped segment
  * at all, and dropping it would trade this false positive for a silent miss.
+ *
+ * Per-segment testing needs the scheme check applied to the WHOLE string,
+ * though: in `https://example.com/some page.md` the scheme segment is correctly
+ * rejected, but `page.md` still matches, so the target would be reported as a
+ * repo-relative path and advised to percent-encode its spaces. It is a broken
+ * external URL. This gate never checks external URLs, so it is passed over
+ * here for the same reason `isRelativeFileTarget` passes over them.
+ *
+ * Expects the fragment already stripped — see the call site.
  */
 function looksLikeIntendedPath(raw: string): boolean {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return false;
   if (raw.startsWith('./') || raw.startsWith('../')) return true;
   return raw.split(/\s+/).some(isRelativeFileTarget);
 }
