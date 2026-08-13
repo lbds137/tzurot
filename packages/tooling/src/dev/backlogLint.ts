@@ -243,6 +243,13 @@ function collectMarkdownFiles(dir: string, relDir: string): { abs: string; rel: 
  * fine on disk, which is exactly why it needs its own report — the file is
  * there, so the existence check has nothing to say, and the reference is
  * silently plain text on GitHub.
+ *
+ * Non-rendering targets are deliberately NOT existence-checked, so a
+ * doubly-broken reference reports only its form. The bucket holds raw captures,
+ * some of them truncation artifacts (`../notes (draft`) that never named a real
+ * path — appending "and the file is missing" to those would be wrong exactly
+ * where the report is already approximate. Fix the form and the next run
+ * resolves the target properly.
  */
 function checkRelativeLinks(rootDir: string): string[] {
   const problems: string[] = [];

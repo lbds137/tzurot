@@ -189,7 +189,12 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
       }
       continue;
     }
-    const target = decodePath((angled ? raw.slice(1, -1) : raw).split('#')[0]);
+    // The unwrapped form is trimmed: CommonMark permits padding inside the
+    // brackets and GitHub strips it (probed — `[t](< doc.md >)` comes back as
+    // `href="doc.md"`), so the padding is not part of the path. Untrimmed, the
+    // trailing space defeated the `$`-anchored extension test and the target
+    // vanished from both buckets, the angled branch having skipped the other one.
+    const target = decodePath((angled ? raw.slice(1, -1).trim() : raw).split('#')[0]);
     if (isRelativeFileTarget(target)) {
       resolvable.push(target);
     }
@@ -218,9 +223,16 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
  * though: in `https://example.com/some page.md` the scheme segment is correctly
  * rejected, but `page.md` still matches, so the target would be reported as a
  * repo-relative path and advised to percent-encode its whitespace. It is a
- * broken
- * external URL. This gate never checks external URLs, so it is passed over
- * here for the same reason `isRelativeFileTarget` passes over them.
+ * broken external URL. This gate never checks external URLs, so it is passed
+ * over here for the same reason `isRelativeFileTarget` passes over them.
+ *
+ * Over-matches in the same direction its sibling does, and for the same reason:
+ * a bracketed description that happens to name a file — `[see the config](tsconfig.json
+ * for the compiler options)` — has one file-shaped segment, so it is reported as
+ * a non-rendering link. The segment test is what makes `doc-20 - Theme.md` work
+ * at all, so it cannot be narrowed without losing the case this gate exists for.
+ * Backticking suppresses it, `stripCode` running before the split. Pinned in
+ * markdownLinks.test.ts § `documented parse limitations`.
  *
  * Expects the fragment already stripped — see the call site.
  */
