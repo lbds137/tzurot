@@ -9,7 +9,8 @@ import { JobStatus } from '@tzurot/common-types/constants/queue';
 import { generateRequestSchema } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
-import { createJobChain } from '../../utils/jobChainOrchestrator.js';
+import type { ReserveResult } from '../../utils/RedisDeduplicationCache.js';
+import { createJobChain, llmJobIdFor } from '../../utils/jobChainOrchestrator.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendSuccess, sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -43,18 +44,6 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
 
     const request = validationResult.data;
 
-    // Check for duplicate requests
-    const deduplicationCache = getDeduplicationCache();
-    const duplicate = await deduplicationCache.checkDuplicate(request);
-    if (duplicate !== null) {
-      logger.info({ jobId: duplicate.jobId }, 'Returning cached job for duplicate request');
-      return sendSuccess(res, {
-        jobId: duplicate.jobId,
-        requestId: duplicate.requestId,
-        status: JobStatus.Queued,
-      });
-    }
-
     const requestId = randomUUID();
 
     // The job schemas require kind:'envelope' (the legacy tolerance is
@@ -81,11 +70,49 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
       );
     }
 
+    // Claim the deduplication window BEFORE anything is enqueued: a gateway that
+    // dies between enqueue and reservation would otherwise leave a billable job
+    // with no dedup entry, and the client's retry would create a second chain.
+    const deduplicationCache = getDeduplicationCache();
+    // Held so `release` can prove the reservation it deletes is this request's
+    // — see the compare-and-delete rationale on `release`.
+    const reservedJobId = llmJobIdFor(requestId);
+    let reservation: ReserveResult;
+    try {
+      reservation = await deduplicationCache.reserve(request, requestId, reservedJobId);
+    } catch (error) {
+      logger.error({ err: error, requestId }, 'Deduplication reservation failed; refusing request');
+      return sendError(
+        res,
+        ErrorResponses.serviceUnavailable(
+          'Request deduplication is unavailable; please retry shortly',
+          requestId
+        )
+      );
+    }
+
+    if (reservation.kind === 'duplicate') {
+      logger.info(
+        { jobId: reservation.cached.jobId },
+        'Returning cached job for duplicate request'
+      );
+      return sendSuccess(res, {
+        jobId: reservation.cached.jobId,
+        requestId: reservation.cached.requestId,
+        status: JobStatus.Queued,
+      });
+    }
+
+    // Scoped to the enqueue alone. A wider try would release the reservation
+    // when a statement AFTER a successful createJobChain throws, deleting the
+    // entry for a job that genuinely exists — a narrower version of the race
+    // this reservation was added to close.
+    let jobId: string;
     try {
       // Attachment URLs flow through unchanged. Bytes are downloaded inside
       // ai-worker's DownloadAttachmentsStep so this handler never blocks on
       // network I/O regardless of attachment size or count.
-      const jobId = await createJobChain({
+      jobId = await createJobChain({
         requestId,
         personality: request.personality,
         message: request.message,
@@ -95,16 +122,17 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
         llmConfigResolver: deps.llmConfigResolver,
         visionConfigResolver: deps.visionConfigResolver,
       });
-
-      await deduplicationCache.cacheRequest(request, requestId, jobId);
-      const creationTime = Date.now() - startTime;
-      logger.info(
-        { jobId, personalityName: request.personality.name, creationTimeMs: creationTime },
-        'Created job chain'
-      );
-
-      sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);
     } catch (error) {
+      // The reservation points at a job that never made it into the queue —
+      // drop it so the client's retry isn't blocked for the whole window.
+      //
+      // This covers the THROWN path only. A process-level kill (the hardExitMs
+      // backstop in processLifecycle, an OOM-kill, a SIGKILL) never reaches
+      // here, so the reservation survives to its TTL and a duplicate arriving
+      // in that window receives a job id that was never enqueued. The bound on
+      // that case is REQUEST_DEDUP_WINDOW, not this handler's latency.
+      await deduplicationCache.release(request, reservedJobId);
+
       const processingTime = Date.now() - startTime;
       logger.error(
         {
@@ -117,4 +145,12 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
       );
       throw error;
     }
+
+    const creationTime = Date.now() - startTime;
+    logger.info(
+      { jobId, personalityName: request.personality.name, creationTimeMs: creationTime },
+      'Created job chain'
+    );
+
+    sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);
   });
