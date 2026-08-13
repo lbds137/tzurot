@@ -35,4 +35,11 @@ So: export emits `''` for the 9 nullableString fields and `[]` for tags. No impo
 customFields is the one member not settled: its clear is `null` (nullish, so it would be collapsed), and `{}` sets an empty object rather than null. Decide at build time whether `{}` is an acceptable equivalent or whether this single field needs import-side handling.
 
 Also fix CHARACTER_JSON_TEMPLATE's `"tags": ["fantasy","sci-fi"]` to be placeholder-shaped like every other line.
+
+BUILD OUTCOME (2026-08-13) - two members dropped from the class after reading the gateway routes:
+
+- displayName is NOT clearable. Both user routes rewrite an empty displayName to the character's `name` (create.ts:46-52, update.ts:79-82), so there is no cleared state to restore; emitting `''` would overwrite a stored null instead of preserving it. Omitting it, as today, round-trips correctly.
+- customFields is NOT fixable here. Neither user route writes the column at all - create.ts buildCreateData has no customFields key and update.ts buildUpdateData omits it from simpleFields - so the value is dropped gateway-side whatever the export emits. Filed as TASK-590 (owner call: forward it or stop advertising it).
+
+Shipped class: the 8 nullableString fields in the update route's simpleFields (personalityTone, personalityAge, personalityAppearance, personalityLikes, personalityDislikes, conversationalGoals, conversationalExamples, errorMessage) emit `''`, plus tags emitting `[]`. Template tags became `[]` rather than illustrative: a left-untouched example imports tags the user never chose, and a `"(optional)"` hint fails TAG_PATTERN and 400s the whole import (probed). Rider: getImportedFieldsList now excludes empty strings/arrays, or the success embed would list every cleared field as imported.
 <!-- SECTION:DESCRIPTION:END -->

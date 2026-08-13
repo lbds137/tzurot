@@ -11,15 +11,26 @@ export interface ImportFieldDef {
 }
 
 /**
- * Get list of field labels present in the import payload.
+ * Get list of field labels that CARRIED A VALUE in the import payload.
  * Used to build "imported fields" summary in success messages.
+ *
+ * Empty strings and empty arrays are excluded: character exports emit those
+ * as explicit clear instructions for fields the character doesn't have, and
+ * listing a cleared field under "Imported Fields" tells the user content
+ * arrived when none did.
  */
 export function getImportedFieldsList(
   payload: Record<string, unknown>,
   fieldDefs: ImportFieldDef[]
 ): string[] {
   return fieldDefs
-    .filter(({ key }) => payload[key] !== undefined && payload[key] !== null)
+    .filter(({ key }) => {
+      const value = payload[key];
+      if (value === undefined || value === null || value === '') {
+        return false;
+      }
+      return !(Array.isArray(value) && value.length === 0);
+    })
     .map(({ label }) => label);
 }
 

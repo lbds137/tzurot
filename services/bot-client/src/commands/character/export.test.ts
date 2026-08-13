@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleExport } from './export.js';
+import { handleExport, CLEARABLE_FIELDS } from './export.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { UserClient } from '@tzurot/clients';
 import { AttachmentBuilder } from 'discord.js';
@@ -61,8 +61,53 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+/**
+ * The string-valued members of the export's clearable class — fields whose
+ * empty form is a clear instruction on re-import rather than an absence.
+ * `tags` is the list-valued member and is asserted separately.
+ *
+ * Deliberately hand-written rather than derived from the production set: a
+ * list derived from the code under test can only catch a MISSING entry, never
+ * a wrong one. The parity test below closes the drift the duplication opens,
+ * so a field added to production without a case here fails rather than
+ * silently going untested.
+ */
+const CLEARABLE_STRING_FIELDS = [
+  'personalityTone',
+  'personalityAge',
+  'personalityAppearance',
+  'personalityLikes',
+  'personalityDislikes',
+  'conversationalGoals',
+  'conversationalExamples',
+  'errorMessage',
+] as const;
+
+describe('clearable-field parity', () => {
+  it('covers every production clearable field with a per-field case', () => {
+    const productionStringFields = CLEARABLE_FIELDS.filter(field => field !== 'tags').sort();
+    expect([...CLEARABLE_STRING_FIELDS].sort()).toEqual(productionStringFields);
+  });
+
+  it('treats tags as the only list-valued clearable field', () => {
+    // The `field === 'tags' ? [] : ''` branch in buildExportData is correct
+    // only while this holds; a second list field would need it extended.
+    expect(CLEARABLE_FIELDS).toContain('tags');
+    expect(CLEARABLE_FIELDS).toHaveLength(CLEARABLE_STRING_FIELDS.length + 1);
+  });
+});
+
 describe('Character Export', () => {
   const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
+
+  /** Parse the JSON attachment from the first editReply call. */
+  const exportedJson = (context: Parameters<typeof handleExport>[0]): Record<string, unknown> => {
+    const args = vi.mocked(context.editReply).mock.calls[0][0] as { files: AttachmentBuilder[] };
+    return JSON.parse((args.files[0].attachment as Buffer).toString('utf-8')) as Record<
+      string,
+      unknown
+    >;
+  };
 
   const createMockContext = () =>
     ({
@@ -182,12 +227,7 @@ describe('Character Export', () => {
       const mockContext = createMockContext();
       await handleExport(mockContext, mockConfig);
 
-      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
-        files: AttachmentBuilder[];
-      };
-      const json = JSON.parse(
-        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
-      ) as Record<string, unknown>;
+      const json = exportedJson(mockContext);
       expect(json.definitionPublic).toBe(true);
       expect(json.customFields).toEqual({ lore: 'deep' });
     });
@@ -204,16 +244,10 @@ describe('Character Export', () => {
       const mockContext = createMockContext();
       await handleExport(mockContext, mockConfig);
 
-      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
-        files: AttachmentBuilder[];
-      };
-      const json = JSON.parse(
-        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
-      ) as Record<string, unknown>;
-      expect(json.tags).toEqual(['fantasy', 'sci-fi']);
+      expect(exportedJson(mockContext).tags).toEqual(['fantasy', 'sci-fi']);
     });
 
-    it('omits tags entirely for an untagged character (empty array is the list-valued "")', async () => {
+    it('emits tags: [] for an untagged character so a re-import restores the untagged state', async () => {
       stub.getPersonality.mockResolvedValue({
         ok: true,
         data: { personality: { ...mockCharacterData, tags: [] }, canEdit: true },
@@ -222,13 +256,69 @@ describe('Character Export', () => {
       const mockContext = createMockContext();
       await handleExport(mockContext, mockConfig);
 
-      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
-        files: AttachmentBuilder[];
-      };
-      const json = JSON.parse(
-        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
-      ) as Record<string, unknown>;
-      expect('tags' in json).toBe(false);
+      const json = exportedJson(mockContext);
+      expect(json.tags).toEqual([]);
+    });
+
+    it.each(CLEARABLE_STRING_FIELDS)(
+      'emits %s: "" when the stored value is null (the explicit clear form)',
+      async field => {
+        stub.getPersonality.mockResolvedValue({
+          ok: true,
+          data: { personality: { ...mockCharacterData, [field]: null }, canEdit: true },
+        });
+
+        const mockContext = createMockContext();
+        await handleExport(mockContext, mockConfig);
+
+        // Not null: `buildImportPayload` maps every optional field through
+        // `?? undefined`, so an exported null would collapse to "no change"
+        // and silently fail to clear anything.
+        expect(exportedJson(mockContext)[field]).toBe('');
+      }
+    );
+
+    it('keeps populated clearable fields verbatim', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: {
+          personality: { ...mockCharacterData, personalityTone: 'Casual', tags: ['fantasy'] },
+          canEdit: true,
+        },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      const json = exportedJson(mockContext);
+      expect(json.personalityTone).toBe('Casual');
+      expect(json.tags).toEqual(['fantasy']);
+    });
+
+    it('still omits a null displayName rather than emitting a clear form', async () => {
+      // Both user routes rewrite an empty displayName to the character's name,
+      // so `''` here would overwrite the stored null instead of preserving it.
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: { personality: { ...mockCharacterData, displayName: null }, canEdit: true },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      expect('displayName' in exportedJson(mockContext)).toBe(false);
+    });
+
+    it('still omits a null customFields (its clear is nullish and gateway-dropped)', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: { personality: { ...mockCharacterData, customFields: null }, canEdit: true },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      expect('customFields' in exportedJson(mockContext)).toBe(false);
     });
 
     it('exports definitionPublic: false explicitly (boolean false survives the non-null filter)', async () => {
@@ -243,13 +333,7 @@ describe('Character Export', () => {
       const mockContext = createMockContext();
       await handleExport(mockContext, mockConfig);
 
-      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
-        files: AttachmentBuilder[];
-      };
-      const json = JSON.parse(
-        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
-      ) as Record<string, unknown>;
-      expect(json.definitionPublic).toBe(false);
+      expect(exportedJson(mockContext).definitionPublic).toBe(false);
     });
 
     it('should use character name when displayName is null', async () => {
