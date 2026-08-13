@@ -35,10 +35,30 @@ file and no drift meta.
 
 ## Known limitation — renames
 
-Survivorship blames the paths a debug commit ITSELF touched. If such a file is
-later renamed while the scaffolding is still live, blame on the old path fails
-as "no such path" — indistinguishable from full removal, a silent false
-negative. Accepted for v1: it requires a rename of a file carrying live
+The `diff-tree` call that discovers a debug commit's touched files is pinned
+with `--no-renames`, which closes the gap one step earlier than the remaining
+limitation below: without it, a debug commit that itself renamed a file (under
+`diff.renames=true`) would surface as a rename-descriptor path
+("{old => new}.ts") that blame then fails to resolve — a false negative
+dependent on ambient git config rather than on anything this repo does.
+
+`--no-renames` has a second-order cost worth naming, since it shares this
+root cause. Without rename detection git reports a rename as a full delete of
+the old path plus a full add of the new one, each counted at the file's whole
+length, rather than as a small rename-plus-delta. A debug commit that both
+renamed and edited a file could therefore shift `numstat.added` against
+`numstat.deleted` far enough to flip the `added >= deleted` adding-commit
+classification, in either direction depending on file size. Untested by
+construction: a fake git runner cannot produce real rename-detection output,
+so the test pins the flags rather than the arithmetic. Accepted because
+rename-plus-edit is not a debug-instrumentation shape — scaffolding is added
+and removed in place.
+
+What survives is the LATER case: survivorship blames the paths a debug commit
+ITSELF touched at the time of that commit. If such a file is renamed by a
+DIFFERENT, later commit while the scaffolding is still live, blame on the old
+path fails as "no such path" — indistinguishable from full removal, a silent
+false negative. Accepted for v1: it requires a rename of a file carrying live
 scaffolding inside the ≤14-day window before the audit flags it, the per-branch
 token grep remains the first line of defense, and rename-following
 (`git log --follow` per file) would multiply the tool's git traffic for a rare
