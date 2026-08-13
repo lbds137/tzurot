@@ -303,6 +303,17 @@ Prefer "the evidence shows X; the remaining candidates for why Y are A / B / C �
 
 Before modifying config/infrastructure: Search ALL instances → List affected files → Justify exclusions.
 
+**Positive-control the pattern before trusting its absence.** Run it against one
+instance you KNOW is present and confirm it matches; if you cannot name a
+known-present instance, the sweep has no floor and an empty result means
+nothing. Trigger: before writing "the enumeration is N sites" into any PR body,
+commit message, or backlog entry. This is not the 3-variant vocabulary rule
+above — variants don't help when all of them share a broken boundary
+assumption. Observed misses: `\bpersonalit(y|ies)\b` cannot match
+`personality_name` (`_` is a word character, so there is no `\b`);
+`.user.login=="claude"` matches nothing because the login is `claude[bot]`.
+Each returned empty and read as "clean".
+
 ### Fix Recurring Failures Structurally
 
 When a failure pattern surfaces — a missed verification step, a skimmed review, a wrong tool default, an incorrect assumption that recurs — the first response should be to prevent recurrence at the system level, not just promise to try harder next time. Ask three questions in order:
