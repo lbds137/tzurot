@@ -3,9 +3,10 @@ id: TASK-556
 title: >-
   Request dedup entry is written after job creation - deploy-window retry can
   double-bill
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:32'
+updated_date: '2026-08-13 11:59'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -44,6 +45,8 @@ The filing and the council prompt both treated "a reservation written before enq
 ### Owner decision 2026-08-12: FAIL CLOSED
 
 The reservation fails closed — a Redis error on the reserve write returns 503 and enqueues nothing. Grounding that narrowed the question before it was asked: the dedup cache's client (`index.ts:166`, `new Redis(envConfig.REDIS_URL)`) and BullMQ's connection (`queue.ts:26`, `parseRedisUrl(config.REDIS_URL)`) are separate clients against the SAME Redis server, so during a full Redis outage `createJobChain` (a BullMQ add) errors regardless — fail-closed changes nothing user-visible there. It differs only under PARTIAL degradation (one client's command times out, the other's does not), which is exactly the case where fail-open double-bills. The council's stated cost for this option ("rejects live traffic during a Redis incident") does not apply as strongly here as it assumed.
+
+**Caveat found after shipping (PR 2085 review round 6) — see TASK-585.** The fail-closed guarantee is only half-delivered. The route returns 503 when reserve() REJECTS, but the dedup Redis client is constructed with no commandTimeout, so a partially degraded Redis can leave the SET or GET hanging indefinitely and the request never reaches the catch at all. Partial degradation is exactly the scenario this decision was made for, so the gap sits where the guarantee is supposed to hold. TASK-585 carries the fix and the hazard (that client is shared with eight pub/sub invalidation services, so a blanket timeout on it is NOT the right shape).
 
 ### Recommended delivery split
 
