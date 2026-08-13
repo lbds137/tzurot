@@ -107,11 +107,17 @@ export function extractRelativeLinks(markdown: string): string[] {
 /**
  * Raw destinations that CommonMark will not render as links at all.
  *
- * Verified against `marked`: `[t](doc - x.md)` renders as the literal text
- * `[t](doc - x.md)`, while both `[t](<doc - x.md>)` and `[t](doc%20-%20x.md)`
- * render as anchors. Every filename under `tracker/` carries spaces, so the
- * unwrapped form is the one an author reaches for first and the one that
- * silently produces no link.
+ * Verified against GitHub's own renderer via the `/markdown` API — the system
+ * that actually renders these files, rather than a second CommonMark
+ * implementation that merely ought to agree: `[t](doc - x.md)` comes back as
+ * the literal text `[t](doc - x.md)`, while both `[t](<doc - x.md>)` and
+ * `[t](doc%20-%20x.md)` come back as anchors. Every filename under `tracker/`
+ * carries spaces, so the unwrapped form is the one an author reaches for first
+ * and the one that silently produces no link.
+ *
+ * The same probe settles `+`: GitHub returns `href="my+notes.md"` unchanged, so
+ * `+` is a literal character in a path segment, not an encoded space. Decoding
+ * it would break a file genuinely named that way.
  * @internal Exported for testing
  */
 export function extractNonRenderingLinks(markdown: string): string[] {

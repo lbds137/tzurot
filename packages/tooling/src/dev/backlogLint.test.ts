@@ -789,6 +789,25 @@ describe('runBacklogLint', () => {
       expect(process.exitCode).not.toBe(1);
     });
 
+    // The seam the unit tests can't reach: that the DECODED target is what
+    // reaches existsSync and what the message names. A report echoing the raw
+    // `%20` string would be the pre-fix behavior wearing the post-fix label.
+    it('reports a dangling encoded link against the decoded path, not the raw one', async () => {
+      mockFs(
+        { 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' },
+        ['doc-1 - Foo.md'],
+        undefined,
+        { 'doc-1 - Foo.md': '[text](../../docs/doc-20%20-%20Missing.md)' }
+      );
+
+      await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+      const out = logSpy.mock.calls.flat().join('\n');
+      expect(out).toContain('dangling relative link → ../../docs/doc-20 - Missing.md');
+      expect(out).not.toContain('%20');
+      expect(process.exitCode).toBe(1);
+    });
+
     it('resolves the angle-bracket form of the same spaced filename', async () => {
       mockFs(
         {
