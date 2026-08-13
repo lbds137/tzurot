@@ -3,9 +3,10 @@ id: TASK-557
 title: >-
   rawOptionValue misses cac-accepted camelCase spellings and fails open on
   repeated --exclude
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:32'
+updated_date: '2026-08-13 01:35'
 labels:
   - 'area:tooling'
   - 'size:S'
