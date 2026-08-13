@@ -3,9 +3,10 @@ id: TASK-561
 title: >-
   Health webhook chunker: newline flattening, no 429 handling, no wait=true, no
   allowed_mentions
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:33'
+updated_date: '2026-08-13 23:11'
 labels:
   - 'area:tooling'
   - 'size:S'
