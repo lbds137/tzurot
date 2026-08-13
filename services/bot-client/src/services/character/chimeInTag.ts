@@ -32,6 +32,7 @@
  */
 
 import { escapeMarkdown, MessageFlags } from 'discord.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   normalizeTag,
   type PersonalitySummary,
@@ -101,8 +102,40 @@ export function sharedReplyContext(context: DeferredCommandContext): DeferredCom
  * `[a-z0-9-]` — so the echo carries no markdown to escape.
  */
 function buildSamplingNotice(tag: string, poolSize: number, sampled: PersonalitySummary[]): string {
-  const names = sampled.map(p => escapeMarkdown(tagPoolDisplayName(p))).join(', ');
-  return `🎲 ${poolSize} characters carry ${tag} — picked ${sampled.length} at random: ${names}`;
+  const head = `🎲 ${poolSize} characters carry ${tag} — picked ${sampled.length} at random: `;
+  const names = sampled.map(p => escapeMarkdown(tagPoolDisplayName(p)));
+  return head + joinNamesWithinBudget(names, DISCORD_LIMITS.MESSAGE_LENGTH - head.length);
+}
+
+/**
+ * Join `names` into at most `budget` characters, replacing whatever doesn't fit
+ * with an `…and N more` tail.
+ *
+ * Display names are author-authored and stored up to 255 characters each, and
+ * markdown-escaping can roughly double that — so cap-many of them overrun
+ * Discord's 2000-character message ceiling, which rejects the edit and (before
+ * the caller's guard) aborted the fan-out before any character had spoken.
+ *
+ * Shrinks one name at a time and re-measures rather than budgeting up front,
+ * because dropping a name lengthens the tail it is replaced by; the pool here
+ * is cap-bounded (≤10), so the repeated join costs nothing.
+ *
+ * The `kept === 0` floor returns the bare tail with no further truncation. That
+ * is safe on the strength of the CALLER's budget, not of anything this function
+ * enforces: `buildSamplingNotice`'s head is bounded by the tag (≤32 — a needle
+ * that matched is byte-equal to a stored tag) plus two counts, leaving far more
+ * than the tail's dozen-odd characters. A caller passing a tight budget would
+ * need its own floor.
+ */
+function joinNamesWithinBudget(names: string[], budget: number): string {
+  let kept = names.length;
+  let joined = names.join(', ');
+  while (kept > 0 && joined.length > budget) {
+    kept -= 1;
+    const tail = `…and ${names.length - kept} more`;
+    joined = kept > 0 ? `${names.slice(0, kept).join(', ')}, ${tail}` : tail;
+  }
+  return joined;
 }
 
 /** Fetch the accessible pool, or a rendered error to surface to the user. */
@@ -163,7 +196,17 @@ export async function runTagChimeIn(
   // Claim the deferred reply BEFORE any turn runs — from here on every turn
   // uses the shared-reply view, which can no longer reach this message.
   if (sampled.length < pool.length) {
-    await context.editReply({ content: buildSamplingNotice(tag, pool.length, sampled) });
+    try {
+      await context.editReply({ content: buildSamplingNotice(tag, pool.length, sampled) });
+    } catch (error) {
+      // Same posture as the delete branch below: the notice is context, not the
+      // answer. Losing it must not abort N turns that have not run yet — they
+      // deliver through the push path, which never touches this interaction.
+      logger.warn(
+        { err: error, tag, userId: context.user.id },
+        'Could not post the tag fan-out sampling notice'
+      );
+    }
   } else {
     // Whole pool responds: no sampling happened, so there is nothing to
     // announce. Drop the "thinking..." indicator the way an explicit-pick
