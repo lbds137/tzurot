@@ -164,7 +164,22 @@ function selectAddingCommits(
   const touchedFiles = new Set<string>();
   for (const commit of commits) {
     const numstat = parseNumstat(
-      runGit(['diff-tree', '--no-commit-id', '--numstat', '-r', commit.sha])
+      runGit([
+        'diff-tree',
+        '--no-commit-id',
+        '--numstat',
+        '-r',
+        // Pinned against ambient git config, not left to the environment's
+        // defaults: with diff.renames=true a renaming debug commit emits a
+        // rename-descriptor path ("{old => new}.ts") that later blame calls
+        // then fail on, and isMissingPathError silently swallows that as "no
+        // surviving lines" — a false negative. --root guards the theoretical
+        // parentless-commit case: without it a root commit diffs as empty
+        // against no parent, which would also read as no surviving lines.
+        '--no-renames',
+        '--root',
+        commit.sha,
+      ])
     );
     // >= not >: a probe inserted by REPLACING a line (1 del + 1 add) is
     // net-zero, and excluding it would hide that scaffolding from

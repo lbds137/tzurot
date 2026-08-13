@@ -117,11 +117,15 @@ export const HOOK_PROBES: HookProbeEntry[] = [
       'probe it only if the branching grows past the current source switch.',
   },
   {
+    // Was unprobed ("a miss degrades to a missing suggestion, never a wrong
+    // action") until the review-response branch's regex went through three
+    // wrong shapes in a row — an unanchored match, a gap whitelist that
+    // dropped real positives, and a whole-prompt exclusion that let an
+    // unrelated clause veto a genuine trigger. The unprobed reasoning covered
+    // the hook's ACTION but not its regex CORRECTNESS. Full history lives in
+    // skill-eval.sh above the branch; do not restate the count here.
     hook: '.claude/hooks/skill-eval.sh',
-    probe: null,
-    unprobedReason:
-      'Keyword→skill regex table. A miss degrades to a missing suggestion, never to a ' +
-      'wrong action, and the table changes far more often than its shape does.',
+    probe: '.claude/hooks/skill-eval.probe.sh',
   },
   {
     // Partial by design, and the probe's own header says so: it pins the
