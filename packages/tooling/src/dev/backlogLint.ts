@@ -239,7 +239,7 @@ function collectMarkdownFiles(dir: string, relDir: string): { abs: string; rel: 
  * things.
  *
  * Reports a second class alongside the dangling ones: a destination whose
- * unbracketed spaces stop it rendering as a link at all. That one resolves
+ * unbracketed whitespace stops it rendering as a link at all. That one resolves
  * fine on disk, which is exactly why it needs its own report — the file is
  * there, so the existence check has nothing to say, and the reference is
  * silently plain text on GitHub.
@@ -267,7 +267,7 @@ function checkRelativeLinks(rootDir: string): string[] {
         // truncates at a literal `)`, so a constructed `<…>` fix would be wrong
         // for exactly the destinations that need it most.
         problems.push(
-          `${rel}: link target has unbracketed spaces so it will not render → ${target} ` +
+          `${rel}: link target has unbracketed whitespace so it will not render → ${target} ` +
             `(wrap the destination in angle brackets or percent-encode the spaces)`
         );
       }
