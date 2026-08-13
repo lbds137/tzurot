@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   truncateText,
   splitMessage,
+  splitMessageByLines,
   stripBotFooters,
   stripDmPrefix,
   normalizeMessageForContext,
@@ -189,6 +190,157 @@ Another paragraph here with more content.`;
       result.forEach(chunk => {
         expect(chunk.length).toBeLessThanOrEqual(40);
       });
+    });
+  });
+
+  describe('splitMessageByLines', () => {
+    /**
+     * A blank-line-free markdown bullet block over Discord's cap — the shape
+     * of one health-report SECTION body. The full report separates its
+     * sections with blank lines; it is an individual over-cap section that
+     * `splitMessage` sees as one paragraph and flattens, which is why the
+     * differential fixture below is deliberately blank-line-free.
+     */
+    function bulletBlock(): string {
+      return Array.from(
+        { length: 120 },
+        (_, i) => `- ✅ **audit-tool-${i}** — ${i} finding(s) (baseline ${i})`
+      ).join('\n');
+    }
+
+    it('keeps every newline in a blank-line-free bullet block over the cap', () => {
+      const content = bulletBlock();
+      expect(content.length).toBeGreaterThan(2000);
+      const sourceLines = content.split('\n');
+
+      const chunks = splitMessageByLines(content);
+
+      expect(chunks.length).toBeGreaterThan(1);
+      // Newline accounting: every source separator survives either inside a
+      // chunk or as a chunk boundary.
+      const newlinesInChunks = chunks.reduce(
+        (sum, chunk) => sum + (chunk.match(/\n/g) ?? []).length,
+        0
+      );
+      expect(newlinesInChunks + (chunks.length - 1)).toBe(sourceLines.length - 1);
+      // No two source lines were joined by a space.
+      const emitted = chunks.flatMap(chunk => chunk.split('\n'));
+      expect(emitted).toEqual(sourceLines);
+    });
+
+    it('differs from splitMessage, which flattens the same fixture', () => {
+      const content = bulletBlock();
+      const sourceNewlines = (content.match(/\n/g) ?? []).length;
+
+      const flattened = splitMessage(content);
+      const preserved = splitMessageByLines(content);
+
+      const countNewlines = (chunks: string[]): number =>
+        chunks.reduce((sum, chunk) => sum + (chunk.match(/\n/g) ?? []).length, 0) +
+        (chunks.length - 1);
+
+      // splitMessage loses newlines (they come back as spaces); the
+      // line-aware splitter loses none.
+      expect(countNewlines(flattened)).toBeLessThan(sourceNewlines);
+      expect(flattened.some(chunk => /finding\(s\) \(baseline \d+\) - /.test(chunk))).toBe(true);
+      expect(countNewlines(preserved)).toBe(sourceNewlines);
+    });
+
+    it('keeps every chunk within maxLength', () => {
+      const chunks = splitMessageByLines(bulletBlock(), 200);
+      expect(chunks.length).toBeGreaterThan(1);
+      chunks.forEach(chunk => {
+        expect(chunk.length).toBeLessThanOrEqual(200);
+      });
+    });
+
+    it('force-splits a single over-cap line instead of dropping it', () => {
+      const longLine = 'x'.repeat(150);
+      const chunks = splitMessageByLines(`head\n${longLine}\ntail`, 50);
+
+      chunks.forEach(chunk => {
+        expect(chunk.length).toBeLessThanOrEqual(50);
+      });
+      expect(chunks[0]).toBe('head');
+      expect(chunks.at(-1)).toBe('tail');
+      expect(chunks.join('')).toContain('xxxxx');
+    });
+
+    it('force-splits a single over-cap line, re-flowing its whitespace', () => {
+      // The fallback delegates to the same natural-boundary splitter
+      // splitMessage uses, which word-splits and rejoins with single spaces.
+      // A line that cannot fit therefore LOSES its indentation and internal
+      // whitespace runs — the documented limit of this function's
+      // whole-line-preservation guarantee, pinned here so the header comment
+      // is not an unbacked claim.
+      const overCap = `    indented    ${'word '.repeat(40)}tail`;
+      expect(overCap.length).toBeGreaterThan(60);
+
+      const chunks = splitMessageByLines(`fits\n${overCap}`, 60);
+
+      expect(chunks[0]).toBe('fits');
+      const reflowed = chunks.slice(1);
+      expect(reflowed.length).toBeGreaterThan(0);
+      // Indentation gone, double spaces collapsed to single.
+      expect(reflowed[0].startsWith(' ')).toBe(false);
+      expect(reflowed.join(' ')).toContain('indented word');
+      reflowed.forEach(chunk => {
+        expect(chunk).not.toMatch(/ {2}/);
+      });
+
+      // Contrast: the SAME text under the cap keeps its indentation verbatim,
+      // which is what makes this a fallback-only limitation.
+      expect(splitMessageByLines('    indented    text', 60)).toEqual(['    indented    text']);
+    });
+
+    it('keeps a blank line that lands alone at a forced chunk boundary', () => {
+      // The blank line is pushed out of `pending` by the line before it, then
+      // flushed ALONE when the next line is individually over-cap — so the
+      // chunk it produces is the empty string. Dropping empty chunks here
+      // would delete a source line outright.
+      const content = `${'x'.repeat(10)}\n\n${'y'.repeat(15)}`;
+
+      const chunks = splitMessageByLines(content, 10);
+
+      // Reassembly recovers every source line, blank included.
+      expect(chunks.flatMap(chunk => chunk.split('\n')).filter(l => l === '')).toHaveLength(1);
+      expect(chunks[0]).toBe('x'.repeat(10));
+      expect(chunks).toContain('');
+    });
+
+    it('keeps a trailing blank line that is flushed alone at end of input', () => {
+      // Same hole, other trigger: the blank is the last source line and the
+      // final flush() emits it by itself.
+      const chunks = splitMessageByLines(`${'x'.repeat(10)}\n`, 10);
+
+      expect(chunks[0]).toBe('x'.repeat(10));
+      expect(chunks).toContain('');
+    });
+
+    it('drops an over-cap whitespace-only line', () => {
+      // The documented exception to whole-line preservation: the shared
+      // fallback splits on /\s+/, so a whitespace-only line yields only empty
+      // words and emits nothing. Nothing to preserve, and no way to emit it
+      // under the cap — pinned so the JSDoc caveat is not an unbacked claim.
+      const chunks = splitMessageByLines(`head\n${' '.repeat(150)}\ntail`, 50);
+
+      expect(chunks).toEqual(['head', 'tail']);
+    });
+
+    it('preserves blank lines between sections', () => {
+      const content = 'section one\n\nsection two\n\n\nsection three';
+      expect(splitMessageByLines(content)).toEqual([content]);
+    });
+
+    it('preserves leading indentation on nested bullets', () => {
+      const content = '- parent\n  - child\n    - grandchild';
+      expect(splitMessageByLines(content, 20)).toEqual(['- parent\n  - child', '    - grandchild']);
+    });
+
+    it('returns [] for empty or non-string input', () => {
+      expect(splitMessageByLines('')).toEqual([]);
+      expect(splitMessageByLines(null as unknown as string)).toEqual([]);
+      expect(splitMessageByLines(undefined as unknown as string)).toEqual([]);
     });
   });
 
