@@ -23,4 +23,16 @@ Why: buildExportData omits tags when the array is empty (deliberate, the list-va
 Fix shape: export tags: [] explicitly (it IS meaningful), or document the asymmetry; make template values placeholder-shaped.
 
 Acceptance: export/import round-trip restores the untagged state. Source: 2026-08-12 review (tags reviewer F6/F8, CONFIRMED).
+
+GROUNDING (2026-08-13, corrects the scope above; owner approved the wider fix):
+
+Tags is one member of a class of 11, not a standalone bug. buildExportData omits any null/undefined/empty-string/empty-array value, and every field whose update-schema form treats empty as a CLEAR has the same broken round-trip. The class: the 9 nullableString fields (displayName, personalityTone, personalityAge, personalityAppearance, personalityLikes, personalityDislikes, conversationalGoals, conversationalExamples, errorMessage - shared.ts nullableString converts empty string to null, which clears), plus customFields and tags. NOT in the class: name/characterInfo/personalityTraits (min(1), never empty), slug (required), isPublic/definitionPublic (booleans; false is not omitted by the export filter).
+
+The fix is EXPORT-SIDE ONLY, but only if the right clearing form is chosen - and the wrong choice looks equally correct at the export site. buildImportPayload maps every optional field through `data.field ?? undefined`, so the exported value has to survive `??` to reach the gateway at all. Probed against both schemas: `''` and `[]` each parse to a clear (tone -> null, tags -> []) on PersonalityUpdateSchema AND PersonalityCreateSchema, and neither is nullish, so both pass `??` untouched. `null` also parses to a clear but is nullish, so exporting null would be collapsed back to undefined at the `??` and change nothing - an export-side fix that silently does not work.
+
+So: export emits `''` for the 9 nullableString fields and `[]` for tags. No import-side change needed, and `''` is already the form the dashboard sends. The CREATE path is covered by the same probe, which matters because a re-import into a NEW slug validates against PersonalityCreateSchema (validatePayloadFields), not the update schema.
+
+customFields is the one member not settled: its clear is `null` (nullish, so it would be collapsed), and `{}` sets an empty object rather than null. Decide at build time whether `{}` is an acceptable equivalent or whether this single field needs import-side handling.
+
+Also fix CHARACTER_JSON_TEMPLATE's `"tags": ["fantasy","sci-fi"]` to be placeholder-shaped like every other line.
 <!-- SECTION:DESCRIPTION:END -->
