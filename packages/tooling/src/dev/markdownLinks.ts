@@ -69,9 +69,9 @@ function isRelativeFileTarget(target: string): boolean {
  *
  * - a target containing a literal `)` (`[t](../notes(draft).md)`) truncates at
  *   that paren, so it is reported dangling against a mangled path. The example
- *   is deliberately UNSPACED: add a space before the paren and the destination
- *   routes to the non-rendering bucket instead, because a space is what decides
- *   that branch. Both halves are pinned in the limitations test.
+ *   is deliberately UNSPACED: add whitespace before the paren and the
+ *   destination routes to the non-rendering bucket instead, because whitespace
+ *   is what decides that branch. Both halves are pinned in the limitations test.
  *
  * These fail SILENT, which is worse, because a genuinely dead link in one of
  * these shapes is simply never seen:
@@ -155,7 +155,7 @@ function stripLinkTitle(raw: string): string {
 export interface ParsedLinks {
   /** Destinations to resolve against the filesystem. */
   readonly resolvable: string[];
-  /** Destinations whose unbracketed spaces stop them being links. */
+  /** Destinations whose unbracketed whitespace stops them being links. */
   readonly nonRendering: string[];
 }
 
@@ -179,7 +179,7 @@ export function parseLinkDestinations(markdown: string): ParsedLinks {
   while ((match = pattern.exec(prose)) !== null) {
     const raw = stripLinkTitle(match[1].trim());
     const angled = raw.startsWith('<') && raw.endsWith('>');
-    if (!angled && raw.includes(' ')) {
+    if (!angled && /\s/.test(raw)) {
       // Judged on the fragment-stripped form, reported whole. The resolvable
       // branch below strips before judging for the same reason: an anchor makes
       // the last segment `Theme.md#sec`, which no extension test can match, so
