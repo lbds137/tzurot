@@ -251,6 +251,33 @@ describe('findStaleDebugCommits', () => {
     ).toThrow(/shallow/);
   });
 
+  it('pins the diff-tree invocation against ambient git config (--no-renames, --root)', () => {
+    // Without --no-renames, an environment with diff.renames=true turns a
+    // renaming debug commit's diff-tree entry into a rename-descriptor path
+    // ("{old => new}.ts") that the later blame call then fails on, and
+    // isMissingPathError silently reads that as "no surviving lines" — a
+    // false negative dependent on config outside this tool's control.
+    // --root guards the parentless-commit case the same way. Both must be
+    // present regardless of what git is configured to do by default.
+    const seenArgs: string[][] = [];
+    const runGit: GitRunner = args => {
+      if (args[0] === 'diff-tree') {
+        seenArgs.push(args);
+      }
+      return fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(20)}|debug: add probe`,
+        diffTree: { [SHA_ADD]: '3\t0\ta.ts\n' },
+        blame: { 'a.ts': `${SHA_ADD} 1) probe();` },
+      })(args);
+    };
+
+    findStaleDebugCommits({ nowMs: NOW_MS, runGit });
+
+    expect(seenArgs).toHaveLength(1);
+    expect(seenArgs[0]).toContain('--no-renames');
+    expect(seenArgs[0]).toContain('--root');
+  });
+
   it('anchors the age threshold at STALE_DEBUG_MAX_AGE_DAYS exactly (at-threshold is not stale)', () => {
     const result = findStaleDebugCommits({
       nowMs: NOW_MS,
