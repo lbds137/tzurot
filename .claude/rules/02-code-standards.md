@@ -88,6 +88,25 @@ In CODE files the VALUE half (`never null`, `always populated`, `cannot be
 and the `.claude/` tree — so a value claim in prose is this rule's too. The
 rest (behavioral, algorithmic, security) is judgment.
 
+## A New Branch Beside an Old One Needs a Two-Way Sweep
+
+Trigger, at AUTHORING time: adding a branch, case, or handler beside an existing
+one that classifies the same input. The sibling is the specification — sweep
+both directions from the branch point:
+
+- **Outbound** — enumerate every guard, filter, and normalization the sibling
+  applies before it acts, and justify each one the new branch omits. Silence is
+  not a justification; an omission is either deliberate with a reason or a bug.
+- **Inbound** — enumerate which inputs now reach a DIFFERENT branch than before,
+  then re-check every comment, docstring, and test written about their OLD
+  routing. Adding a branch re-routes inputs without editing a line of the prose
+  that describes them, so this half has no other tripwire.
+
+Both halves are mechanically findable from the branch point alone. The
+inbound half is the one nothing else in this corpus covers — the Grep Rule
+searches for a known pattern, and `/tzurot-bug-remediation`'s class sweep fires
+on a BUG, while this class is created while writing new code that works.
+
 ## TypeScript Strict Rules
 
 - TypeScript `strict: true`, no `any` types
