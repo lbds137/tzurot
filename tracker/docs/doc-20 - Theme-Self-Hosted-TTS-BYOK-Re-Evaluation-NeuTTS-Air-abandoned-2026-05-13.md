@@ -165,3 +165,42 @@ If we end up needing this 2+ more times, promote to `pnpm ops voice-refs:export 
 - **vLLM-Omni serving** (2026-06-23 blog) — serving-layer speedups (VoxCPM2 +172%, Qwen3-TTS +61.5%) — matters for any self-hosted pick's hosting math.
 
 When this theme activates, start the bake-off from VoxCPM2 (license + quality + vLLM path) with MisoTTS as the emotive-quality comparison point.
+
+#### Candidate: Soprano (owner link, 2026-08-13) — https://github.com/ekwek1/soprano
+
+**Not the same project as SoproTTS**, which this theme probed and dropped on
+2026-05-13. Different repo, different vendor; the name collision is the only
+relationship, and a future session reading "we already tried Sopro-something"
+would be wrong.
+
+Fetched from the repo page 2026-08-13; every number below is the project's own
+claim and none is probed:
+
+- **80M parameters, <1 GB memory**, Apache-2.0 for **both code and weights** —
+  the cleanest license position of anything in this theme.
+- **Up to 20× real-time on CPU**, <250 ms latency on CPU (2000× / <15 ms GPU).
+- **Infinite generation length** via automatic text splitting; recommends
+  2–30 s sentences.
+- Latest release shown: Soprano-1.1-80M (January 2026) — roughly seven months
+  before this entry, so re-check activity before spending probe time.
+
+**The disqualifying fact, stated up front: Soprano does NOT do voice cloning.**
+Its README says so outright, and it is English-only. Text in, speech out, fixed
+voices. Every engine this theme has probed was measured against a reference clip
+(`personality.voiceReferenceData`, the emily / lila / lilith listen-test), and
+the 2026-05-14 verdict — CPU-only + cloning + quality is structurally
+unachievable — is a statement about the three-way tradeoff. Soprano is very good
+on the two legs that were never binding and absent on the one that was. It does
+not answer the question this theme is asking.
+
+That does not automatically make it useless, but it changes what a probe would
+be FOR, and that question is the owner's, not a technical call: **is there any
+surface that wants TTS without a reference clip?** If yes (a system/narrator
+register, a character with no reference uploaded, a fallback when cloning
+synthesis fails), Soprano is a strong, cheap, permissively-licensed candidate
+for exactly that surface and worth the 30-minute probe pattern above. If no,
+it is out on the same structural ground as everything else that cannot clone,
+and should be recorded as such rather than re-surfacing on the next link ingest.
+
+Do not fold it into the VoxCPM2-first bake-off — that bake-off is scored on
+cloning fidelity, which Soprano would score zero on by design.
