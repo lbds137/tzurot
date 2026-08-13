@@ -193,14 +193,21 @@ unachievable — is a statement about the three-way tradeoff. Soprano is very go
 on the two legs that were never binding and absent on the one that was. It does
 not answer the question this theme is asking.
 
-That does not automatically make it useless, but it changes what a probe would
-be FOR, and that question is the owner's, not a technical call: **is there any
-surface that wants TTS without a reference clip?** If yes (a system/narrator
-register, a character with no reference uploaded, a fallback when cloning
-synthesis fails), Soprano is a strong, cheap, permissively-licensed candidate
-for exactly that surface and worth the 30-minute probe pattern above. If no,
-it is out on the same structural ground as everything else that cannot clone,
-and should be recorded as such rather than re-surfacing on the next link ingest.
+**RULED OUT 2026-08-13 — owner decision, same day it was filed.** The open
+question was whether any surface wants TTS without a reference clip (a
+system/narrator register, a character with no reference uploaded, a cloning
+fallback). Owner's answer: _"if it doesn't do cloning then it's useless to me."_
+There is no such surface, so no probe is warranted and the license and speed
+advantages are moot.
+
+This entry stays as a NEGATIVE result rather than being deleted, because the
+disqualifier is not obvious from the repo's own pitch — Soprano reads as a
+strong self-hosted TTS candidate on every axis a reader would check first, and
+the cloning requirement is ours, not something the project claims to fail. Left
+here so the next link ingest that surfaces it stops at this paragraph instead of
+re-running the fetch. Generalizes: **any candidate that cannot clone from a
+reference clip is out of this theme by definition**, regardless of quality,
+license, or speed.
 
 Do not fold it into the VoxCPM2-first bake-off — that bake-off is scored on
 cloning fidelity, which Soprano would score zero on by design.
