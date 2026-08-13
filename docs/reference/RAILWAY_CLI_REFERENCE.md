@@ -693,7 +693,12 @@ DEV_DB_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
 mkdir -p backups/csv
 
 # Export all tables as CSV
-# Note: Adjust table list based on your schema
+# Note: Adjust table list based on your schema.
+# Caution: channel_settings is deliberately excluded from DatabaseSyncService
+# (dev and prod point at different bot instances, so channel/guild ids do not
+# correspond). Copying it dev -> prod below will activate personalities in
+# channels that do not exist in the target environment — drop it from both the
+# export and the import unless you specifically intend that.
 psql "$DEV_DB_URL" << 'EOF'
 \copy users TO 'backups/csv/users.csv' CSV HEADER
 \copy personalities TO 'backups/csv/personalities.csv' CSV HEADER
@@ -701,8 +706,8 @@ psql "$DEV_DB_URL" << 'EOF'
 \copy system_prompts TO 'backups/csv/system_prompts.csv' CSV HEADER
 \copy llm_configs TO 'backups/csv/llm_configs.csv' CSV HEADER
 \copy personality_owners TO 'backups/csv/personality_owners.csv' CSV HEADER
-\copy user_personality_settings TO 'backups/csv/user_personality_settings.csv' CSV HEADER
-\copy activated_channels TO 'backups/csv/activated_channels.csv' CSV HEADER
+\copy user_personality_configs TO 'backups/csv/user_personality_configs.csv' CSV HEADER
+\copy channel_settings TO 'backups/csv/channel_settings.csv' CSV HEADER
 \copy conversation_history TO 'backups/csv/conversation_history.csv' CSV HEADER
 EOF
 
@@ -727,7 +732,7 @@ SET session_replication_role = replica;
 
 -- Clear existing data (if any)
 TRUNCATE users, personalities, personas, system_prompts, llm_configs,
-         personality_owners, user_personality_settings, activated_channels,
+         personality_owners, user_personality_configs, channel_settings,
          conversation_history CASCADE;
 
 -- Import in order (base tables first, then dependent tables)
@@ -737,8 +742,8 @@ TRUNCATE users, personalities, personas, system_prompts, llm_configs,
 \copy personalities FROM 'backups/csv/personalities.csv' CSV HEADER
 \copy personas FROM 'backups/csv/personas.csv' CSV HEADER
 \copy personality_owners FROM 'backups/csv/personality_owners.csv' CSV HEADER
-\copy user_personality_settings FROM 'backups/csv/user_personality_settings.csv' CSV HEADER
-\copy activated_channels FROM 'backups/csv/activated_channels.csv' CSV HEADER
+\copy user_personality_configs FROM 'backups/csv/user_personality_configs.csv' CSV HEADER
+\copy channel_settings FROM 'backups/csv/channel_settings.csv' CSV HEADER
 \copy conversation_history FROM 'backups/csv/conversation_history.csv' CSV HEADER
 
 -- Re-enable foreign key checks
