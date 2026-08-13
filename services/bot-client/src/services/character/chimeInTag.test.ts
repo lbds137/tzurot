@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { TAG_LIMITS } from '@tzurot/common-types/schemas/api/personality';
 import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -282,6 +283,22 @@ describe('runTagChimeIn', () => {
     // fan-out before any character has spoken.
     expect(mockRunCharacterTurn).toHaveBeenCalledTimes(1);
     expect(mockLogger.warn).toHaveBeenCalled();
+  });
+
+  it('bounds the tag it writes to logs, which the option itself never bounds', async () => {
+    // The Discord `tag` option declares no setMaxLength, so an unbounded log
+    // field writes up to 6000 user-controlled characters on EVERY fan-out.
+    const longTag = 'a'.repeat(4000);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('a', { tags: [longTag] })],
+    });
+
+    await runTagChimeIn(makeContext(), { tag: longTag, incognitoOption: null });
+
+    const [fields] = mockLogger.info.mock.calls[0] as [{ tag: string }];
+    expect(fields.tag.length).toBeLessThanOrEqual(TAG_LIMITS.MAX_LENGTH + 1);
+    expect(fields.tag).toBe(`${'a'.repeat(TAG_LIMITS.MAX_LENGTH)}…`);
   });
 
   it('still runs the turns when deleting the stale thinking indicator fails', async () => {
