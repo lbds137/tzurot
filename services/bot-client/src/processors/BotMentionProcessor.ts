@@ -2,7 +2,7 @@
  * Bot Mention Processor
  *
  * Handles generic bot mentions (not a specific personality).
- * Sends a help message guiding users on how to interact with personalities.
+ * Sends a help message guiding users on how to interact with characters.
  * Last processor in the chain - fallback for unhandled mentions.
  */
 
@@ -61,14 +61,14 @@ export class BotMentionProcessor implements IMessageProcessor {
     // Send a helpful guide message
     await message.reply({
       content: [
-        `👋 Hi! I'm a bot that hosts multiple AI personalities.`,
+        `👋 Hi! I'm a bot that hosts multiple AI characters.`,
         ``,
         `**How to chat:**`,
-        `• Mention a personality: \`${mentionChar}personality your message\``,
-        `• Reply to a personality's message to continue the conversation`,
+        `• Mention a character: \`${mentionChar}character your message\``,
+        `• Reply to a character's message to continue the conversation`,
         `• Use \`/chat\` to start a conversation via slash command`,
         ``,
-        `Use \`/character browse\` to see available personalities.`,
+        `Use \`/character browse\` to see available characters.`,
       ].join('\n'),
     });
 

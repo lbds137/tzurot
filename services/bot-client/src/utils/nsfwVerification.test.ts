@@ -328,7 +328,7 @@ describe('NSFW Verification Utilities', () => {
     it('should contain key information', () => {
       expect(NSFW_VERIFICATION_MESSAGE).toContain('Age Verification');
       expect(NSFW_VERIFICATION_MESSAGE).toContain('NSFW');
-      expect(NSFW_VERIFICATION_MESSAGE).toContain('@personality_name');
+      expect(NSFW_VERIFICATION_MESSAGE).toContain('@character_name');
       expect(NSFW_VERIFICATION_MESSAGE).toContain('18+');
       // Both verification paths must be documented: personality ping AND direct bot ping.
       // The direct-ping path is what BotMentionProcessor's handleNsfwVerification wiring

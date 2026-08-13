@@ -169,12 +169,16 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
 
   // If the resolver's cap dropped tagged personalities, append a one-line
   // notice so the user knows fewer characters responded than tagged.
+  // The mixed vocabulary is deliberate and matches the sibling comments in
+  // MultiTagCoordinator / MultiTagPersistence / multiTagCoordinatorHelpers:
+  // the resolver drops slots carrying `LoadedPersonality`, which is what the
+  // type is actually called, while `character` is the word the user is shown.
   // Sent AFTER the slot burst so it appears in correct order in the
   // channel. Best-effort — log on failure but don't impact cleanup.
   if (entry.truncated) {
     try {
       // The cap floor is 1, so the singular is a reachable admin choice.
-      const subject = entry.maxTags === 1 ? 'personality responds' : 'personalities respond';
+      const subject = entry.maxTags === 1 ? 'character responds' : 'characters respond';
       await entry.message.reply(`_(Only the first ${entry.maxTags} tagged ${subject}.)_`);
     } catch (err) {
       logger.warn({ err, groupId: entry.groupId }, 'Failed to send multi-tag truncation notice');
