@@ -1,7 +1,7 @@
 ---
 name: tzurot-design-boulder
 description: 'The design-boulder process: grounded, council-reviewed architecture design sessions producing an ACCEPTED artifact. Invoke with /tzurot-design-boulder when starting a design session for a feature or subsystem too large to plan inline.'
-lastUpdated: '2026-07-05'
+lastUpdated: '2026-08-13'
 ---
 
 # Design Boulder Procedures
@@ -56,19 +56,24 @@ Proven across the full accepted-artifact set in `docs/proposals/backlog/`.
 - Plans touching schema or user-visible behavior: restate user-visible
   semantics in plain terms (per `00-critical.md` § Before Code Changes).
 
-### 3. Council (full trio, adversarial)
+### 3. Council (full panel, adversarial)
 
 - **Load `/tzurot-council-mcp` first** and use its CURRENT roster + model IDs —
-  a from-memory roster runs short and wastes the pass.
+  a from-memory roster runs short and wastes the pass. Never state a panel SIZE
+  here: the roster is that skill's to change (it went from three to four), and a
+  number written down in this file is a number that silently goes stale.
 - One adversarial brief per model (identical text): compressed verified
   context + the decisions + numbered open calls + "attack: wrong X, missed Y;
-  verdict per call; top 3 misses." Send all trio calls in ONE message
+  verdict per call; top 3 misses." Send every panel call in ONE message
   (parallel).
 - **Fold verdicts honestly**: unanimous-accept → confirm; split → the split IS
   the owner question (present all positions); council catches a real flaw →
   rebuild that section and SAY SO in the doc ("council-rebuilt", "the draft
-  was self-contradictory — all three caught it"). Add a **§ Council record**:
-  what was adopted, what was declined and why, per-model attribution.
+  was self-contradictory — the panel caught it unanimously"). Add a
+  **§ Council record**: what was adopted, what was declined and why, per-model
+  attribution. **Read the outcome shapes through `/tzurot-council-mcp`'s own
+  splits section** rather than assuming a majority exists — an even panel can
+  deadlock, and a silent model shrinks the panel rather than abstaining.
 - Councils earn their tokens on implementation truth (wire contracts,
   fan-out math, phase ordering) — feed them implementation-grade context,
   not vision statements.
@@ -100,7 +105,7 @@ All in one commit (docs-only → direct develop commit is sanctioned):
 ## Variants
 
 - **Sibling boulders, shared grounding**: two related designs can share one
-  grounding wave; draft both, run ONE trio pass covering both (verdicts per
+  grounding wave; draft both, run ONE council pass covering both (verdicts per
   open call of each), land together.
 - **Owner-input mid-flight**: owners drop links/notes/voice-dictated scoping
   models during grounding — treat as grounding input, cite as "owner
