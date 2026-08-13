@@ -1,9 +1,10 @@
 ---
 id: TASK-436
 title: RAILWAY_CLI_REFERENCE CSV snippets name dead tables
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 04:58'
+updated_date: '2026-08-13 23:54'
 labels:
   - 'area:docs'
   - 'size:S'

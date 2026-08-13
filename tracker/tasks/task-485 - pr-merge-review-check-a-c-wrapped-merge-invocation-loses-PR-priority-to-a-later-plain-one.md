@@ -3,9 +3,10 @@ id: TASK-485
 title: >-
   pr-merge-review-check: a -c-wrapped merge invocation loses PR priority to a
   later plain one
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 14:55'
+updated_date: '2026-08-13 23:52'
 labels:
   - 'area:tooling'
   - 'size:S'

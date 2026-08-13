@@ -1,10 +1,10 @@
 ---
 id: TASK-336
 title: pr-monitor-reminder.sh lacks a probe harness
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-27 00:00'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-08-13 23:52'
 labels:
   - 'origin:review'
   - 'area:process'
