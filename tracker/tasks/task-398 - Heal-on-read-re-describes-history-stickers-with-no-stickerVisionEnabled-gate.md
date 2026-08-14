@@ -4,10 +4,11 @@ title: Heal-on-read re-describes history stickers with no stickerVisionEnabled g
 status: To Do
 assignee: []
 created_date: '2026-08-02 00:52'
+updated_date: '2026-08-14 22:31'
 labels:
-  - 'size:S'
   - 'area:ai-worker'
-  - 'state:owner'
+  - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 398000
@@ -29,4 +30,6 @@ ordinal: 398000
 **Acceptance**: whichever is chosen, the `stickerVisionGate` module doc stops listing this as a known ungated path and states the decision instead.
 
 **Promote when**: sticker vision is actually switched off in prod and the spend does not drop as expected — that is the observation that turns this from tidy-up into a real gap. Until then the switch has never been flipped, so the path has never mattered.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): option (b) - leave heal-on-read ungated and state the decision in the stickerVisionGate module doc; revisit only if the switch is flipped and spend does not drop.**
 <!-- SECTION:DESCRIPTION:END -->

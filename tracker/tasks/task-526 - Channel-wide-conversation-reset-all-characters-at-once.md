@@ -4,10 +4,11 @@ title: Channel-wide conversation reset (all characters at once)
 status: To Do
 assignee: []
 created_date: '2026-08-11 18:37'
+updated_date: '2026-08-14 22:31'
 labels:
   - 'area:bot-client'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 526000
@@ -31,4 +32,6 @@ Note the blast radius this reframe introduces: a moderator clearing a channel de
 THEME: member of doc-75 (Guild / Server Management), Phase 2. Read the theme before building - the moderator-authority question in its Phase 1 decides whether this clears only the invoker rows or everyone.
 
 Acceptance: one invocation clears a channel conversation across every character the scope covers, with the confirmation tier the owner picks.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): build as scoped - Manage Messages gate + Tier B typed-phrase confirmation, whole-channel scope (every user rows), no per-user notification (same authority as mods bulk-deleting the channel actual messages). TASK-529 answered no-enforcement, so the theme Phase 1 gate is cleared.**
 <!-- SECTION:DESCRIPTION:END -->
