@@ -65,14 +65,27 @@ long as the path has existed. **This is user-facing and costs money**: a config
 set to `none` still generates and bills reasoning tokens the owner explicitly
 asked not to have, and `high`/`xhigh` cannot buy more.
 
-**Residual ambiguity, stated because the test cannot separate it.** We send
-`{effort:"none", enabled:true}` — self-contradictory even in OpenRouter's own
-vocabulary. So this run cannot distinguish "z.ai ignores the whole `reasoning`
-object" from "z.ai honours `enabled:true` and ignores `effort`". Both predict
-what we saw, because GLM-5.2 also thinks by default. The first is far more
-likely (z.ai documents `thinking`, not `reasoning`), and the actionable
-conclusion is identical either way. To settle it: one more run with
-`enabled:false`. Cheap, owner-driven, not required before Phase 2.
+**RESIDUAL AMBIGUITY RESOLVED — third run, `enabled:false` with `effort`
+absent (requestId `55b4994a-…ae6a9b`).** Same three log lines pin it to the
+direct path, and `ModelFactory` printed the outbound payload verbatim:
+`modelKwargs={"reasoning":{"exclude":false,"enabled":false}}`. Result:
+**1776 chars of reasoning** — the LARGEST of the three runs.
+
+| sent | reasoning returned |
+| --- | --- |
+| `{effort:"none", enabled:true}` | 1571 |
+| `{effort:"high", enabled:true}` | 1722 |
+| `{enabled:false}` (no `effort`) | **1776** |
+
+So `enabled` is inert too. **z.ai ignores the entire `reasoning` object** —
+not just the `effort` value — and the ordering is anti-correlated with intent,
+which is what "ignored" looks like. Nothing we currently send about thinking
+has ever reached z.ai.
+
+This makes the Phase 2 fix unambiguous: there is no partial capability to
+preserve, no "enabled works, effort doesn't" path to special-case. The whole
+object needs translating to z.ai's `thinking` field, and until it is, the
+z.ai-direct path runs at z.ai's default with no control surface at all.
 
 Note the response direction is fine and always was — `ResponsePostProcessor`
 logs "Found reasoning in additional_kwargs.reasoning_content (z.ai
