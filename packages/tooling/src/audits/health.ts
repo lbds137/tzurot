@@ -36,11 +36,10 @@ import { describeMeasuredRef, formatMeasuredRef } from './measured-ref.js';
  * its bare (argument-less) run is meaningful as a recurring health signal.
  *
  * Deliberately absent (with follow-ups filed to tune their bare-run modes):
- * - `lint:complexity-report` — a repo-wide run includes the deliberately-
- *   broken audit-canary fixture, so it structurally always fails; needs a
- *   fixture exclusion + a baseline before it can gate weekly.
- * - `db:check-safety` — a bare run re-flags HISTORICAL (applied, reviewed)
- *   migrations forever; needs a recent/unapplied-range mode.
+ * - `lint:complexity-report` — a repo-wide run OOMs the eslint child process,
+ *   which leaves empty stdout and surfaces as a JSON parse error rather than
+ *   as a memory failure. It also scans the deliberately-broken audit-canary
+ *   fixture. Both need closing before it can gate weekly.
  * A perma-red row is alert-fatigue poison — the weekly report only earns
  * trust if red means "act now."
  */
@@ -51,6 +50,7 @@ export const HEALTH_TOOLS = [
   'guard:claude-content-refs',
   'commands:audit',
   'dev:stale-debug',
+  'db:check-safety',
 ] as const;
 
 export interface ToolHealth {
