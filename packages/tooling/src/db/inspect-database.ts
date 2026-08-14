@@ -17,6 +17,7 @@ import {
   showEnvironmentBanner,
   getRailwayDatabaseUrl,
 } from '../utils/env-runner.js';
+import { PROTECTED_INDEX_ENTRIES, type ProtectedIndexEntry } from './protectedIndexRegistry.js';
 
 /**
  * Safely extract host from DATABASE_URL using URL parser
@@ -40,34 +41,14 @@ function getDatabaseHost(): string {
 /**
  * Known drift patterns - indexes that Prisma can't represent in schema.prisma.
  * These are EXPECTED to exist but will show as "drift" if Prisma detects them.
- * The name set must agree with prisma/drift-ignore.json `protectedIndexes` and
- * check-migration-safety.ts — protectedIndexRegistries.test.ts enforces the
- * agreement. Exported for that guard test only.
+ * Derived from prisma/drift-ignore.json `protectedIndexes` — the single source
+ * of truth shared with check-migration-safety.ts. The name, description and
+ * recreate SQL printed below all come from that file; edit an entry there.
+ * Exported for protectedIndexRegistries.test.ts only.
  *
  * @internal
  */
-export const PROTECTED_INDEXES = [
-  {
-    name: 'idx_memories_embedding',
-    table: 'memories',
-    description: 'IVFFlat vector index for BGE similarity search (384 dims, pgvector)',
-    recreateSQL:
-      'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
-  },
-  {
-    name: 'idx_memory_facts_embedding',
-    table: 'memory_facts',
-    description: 'IVFFlat vector index for fact similarity retrieval (384 dims, pgvector)',
-    recreateSQL:
-      'CREATE INDEX "idx_memory_facts_embedding" ON "memory_facts" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
-  },
-  {
-    name: 'memories_chunk_group_id_idx',
-    table: 'memories',
-    description: 'Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL)',
-    recreateSQL: `CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL;`,
-  },
-];
+export const PROTECTED_INDEXES: ProtectedIndexEntry[] = PROTECTED_INDEX_ENTRIES;
 
 interface IndexRow {
   indexname: string;

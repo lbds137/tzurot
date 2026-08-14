@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbds137/tzurot/prisma/drift-ignore.schema.json",
+  "title": "Prisma drift-ignore registry",
+  "description": "Registry of Prisma drift the migration tooling must handle: indexes Prisma cannot represent and must never silently lose (protectedIndexes), and generated SQL fragments to strip from a freshly-diffed migration (ignorePatterns). ENFORCEMENT BOUNDARY: this schema is advisory — it describes the file FORMAT for an editor, and nothing runs it in CI. The mechanically-enforced subset is whatever protectedIndexRegistry.ts validates at load time, which is narrower: `type` is required here but never read there, so omitting it breaks this schema while every automated gate stays green.",
+  "type": "object",
+  "required": ["description", "protectedIndexes", "ignorePatterns", "documentation"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this schema, so editors validate the file as you type."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-line statement of what this file is for."
+    },
+    "protectedIndexes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The single source of truth for indexes that must never be dropped without a recreate in the same migration. Loaded and validated at module load by packages/tooling/src/db/protectedIndexRegistry.ts; an empty array is rejected there, because checking zero indexes looks identical to \"all migrations are safe\".",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "table",
+          "type",
+          "description",
+          "recreateSQL",
+          "dropPattern",
+          "createPattern"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact Postgres index name. Reported verbatim when a violation is found, so it must not be empty."
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Table the index is defined on. Reported by db:inspect."
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why Prisma cannot represent the index — e.g. \"ivfflat\" (pgvector operator class) or \"partial\" (WHERE clause)."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the index is for and what breaks without it. Reported verbatim by both db:check-safety and db:inspect, so it must not be empty."
+          },
+          "recreateSQL": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Complete CREATE INDEX statement that restores the index, ready to paste into psql. Printed by db:inspect when the index is missing from a live database."
+          },
+          "dropPattern": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Case-insensitive regular expression matching a DROP of this index in migration SQL. Must compile; an empty pattern would match every file, so it is rejected."
+          },
+          "createPattern": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Case-insensitive regular expression matching a CREATE of this index in migration SQL. A drop is a violation only when this does NOT also match the same file. Must compile; an empty pattern would make every drop look balanced."
+          }
+        }
+      }
+    },
+    "ignorePatterns": {
+      "type": "array",
+      "description": "SQL fragments to strip from Prisma's generated migration before it is written. Consumed by db:safe-migrate (create-safe-migration.ts).",
+      "items": {
+        "type": "object",
+        "required": ["pattern", "reason", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Regular expression matched against each line of the generated migration."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why this generated SQL must not survive — the reader's only explanation for a line silently disappearing."
+          },
+          "action": {
+            "enum": ["remove"],
+            "description": "What to do with a matching line. Only \"remove\" is implemented by the sanitizer."
+          }
+        }
+      }
+    },
+    "documentation": {
+      "type": "object",
+      "description": "Repo-relative pointers to the prose that explains this file.",
+      "required": ["driftIssuesDoc", "vectorSkill"],
+      "additionalProperties": false,
+      "properties": {
+        "driftIssuesDoc": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The drift-issues reference doc."
+        },
+        "vectorSkill": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The pgvector / migration skill."
+        }
+      }
+    }
+  }
+}
