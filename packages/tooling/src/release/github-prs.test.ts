@@ -8,7 +8,12 @@ vi.mock('node:child_process', () => ({
 const mockedExec = vi.mocked(execFileSync);
 
 // Import AFTER mock so the module binding captures the vi.mock version.
-import { discoverPrevTag, tagTimestamp, listMergedPrsSince } from './github-prs.js';
+import {
+  discoverPrevTag,
+  tagTimestamp,
+  listMergedPrsSince,
+  countRangeChangedFiles,
+} from './github-prs.js';
 
 describe('discoverPrevTag', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -166,5 +171,42 @@ describe('listMergedPrsSince', () => {
     expect(() => listMergedPrsSince('2026-04-21T00:00:00Z')).toThrow(
       /Expected a JSON array.*got object/
     );
+  });
+});
+
+describe('countRangeChangedFiles', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('counts the files in the two-dot range diff', () => {
+    mockedExec.mockReturnValueOnce('a.ts\nb.ts\nc.ts\n');
+    expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(3);
+    expect(mockedExec).toHaveBeenCalledWith(
+      'git',
+      ['diff', '--name-only', 'v3.0.0-beta.103..develop'],
+      expect.objectContaining({ encoding: 'utf-8' })
+    );
+  });
+
+  it('returns 0 for an empty diff rather than 1', () => {
+    // The whole point of the trimmed === '' guard: ''.split('\n') is [''],
+    // length 1, so a range with no changes would report one file. Deleting
+    // that ternary must fail here.
+    mockedExec.mockReturnValueOnce('\n');
+    expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(0);
+  });
+
+  it('counts a single-file diff as 1, not 0 — the guard must not over-reach', () => {
+    mockedExec.mockReturnValueOnce('only.ts\n');
+    expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(1);
+  });
+
+  it('returns undefined rather than throwing when git cannot answer', () => {
+    // Missing tag, shallow clone, absent local base ref. The ship inventory
+    // must still print; failing a release report over an advisory metric
+    // would be the wrong trade.
+    mockedExec.mockImplementationOnce(() => {
+      throw new Error("fatal: bad revision 'v9.9.9..develop'");
+    });
+    expect(countRangeChangedFiles('v9.9.9', 'develop')).toBeUndefined();
   });
 });

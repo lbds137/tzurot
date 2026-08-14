@@ -304,6 +304,31 @@ describe('releaseRange', () => {
     expect(stdout).not.toContain('Diff size:');
   });
 
+  it('warns on stderr when the diff size is unmeasurable, so a skip cannot read as a pass', () => {
+    mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
+    mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');
+    mockedListMergedPrsSince.mockReturnValueOnce([]);
+    mockedCountRangeChangedFiles.mockReturnValueOnce(undefined);
+
+    releaseRange({});
+
+    expect(stderr).toContain('SKIPPED, not passed');
+    expect(stdout).not.toContain('Diff size:');
+  });
+
+  it('stays quiet on stderr when the diff size IS measurable', () => {
+    mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
+    mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');
+    mockedListMergedPrsSince.mockReturnValueOnce([
+      { number: 1, title: 'feat: x', mergedAt: '2026-04-22T11:00:00Z', files: ['services/a.ts'] },
+    ]);
+    mockedCountRangeChangedFiles.mockReturnValueOnce(12);
+
+    releaseRange({});
+
+    expect(stderr).not.toContain('SKIPPED');
+  });
+
   it('writes a stderr note and still prints the zero-count report when no PRs are in range', () => {
     mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
     mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');

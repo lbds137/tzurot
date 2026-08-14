@@ -203,6 +203,16 @@ export function releaseRange(options: RangeOptions): void {
   }
 
   const changedFiles = countRangeChangedFiles(fromTag, base);
+  if (changedFiles === undefined) {
+    // Say so rather than just omitting the line. A missing advisory reads
+    // identically to a passing one, and this check exists precisely because a
+    // threshold nobody computes is a threshold nobody applies.
+    process.stderr.write(
+      chalk.yellow(
+        `Could not measure the diff size for ${fromTag}..${base} (missing tag, shallow clone, or absent local base ref). The review-capacity check was SKIPPED, not passed.\n`
+      )
+    );
+  }
   const report = formatRangeReport(prs, { fromTag, fromTimestamp, base, changedFiles });
   process.stdout.write(report);
   process.stdout.write('\n');
