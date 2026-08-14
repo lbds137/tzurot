@@ -23,5 +23,7 @@ Not tightened in the same PR, deliberately: check-migration-safety matches whole
 
 Fix shape: needs statement-level awareness rather than a whole-file regex. Options: normalize whitespace before matching, use [\s\S] with a bounded window, or split the file on semicolons and match per statement. Whichever is chosen must be validated against the existing correct migration as a negative control.
 
-Acceptance: a migration dropping memories_chunk_group_id_idx and recreating it without a WHERE clause is rejected, AND the existing 20251218140000 migration still passes.
+SECOND DIRECTION, folded in from the PR 2101 round-3 review (which scoped it "pre-existing"; origin is not a verdict, so it gets a disposition on merit): the same missing s flag means a DROP INDEX whose statement is split across lines does not match dropPattern at all, so the drop is never detected and the file reads as safe. That is a FALSE NEGATIVE on the gate this whole task exists to sharpen, and it is strictly worse than the WHERE gap above, which only relaxes a check. Both close under the one fix — statement-level matching — which is why this is folded in here rather than filed as a second task that would fragment the same work.
+
+Acceptance: a migration dropping memories_chunk_group_id_idx and recreating it without a WHERE clause is rejected; a migration whose DROP INDEX statement spans two lines is still detected as a drop; AND the existing 20251218140000 migration still passes as the negative control.
 <!-- SECTION:DESCRIPTION:END -->
