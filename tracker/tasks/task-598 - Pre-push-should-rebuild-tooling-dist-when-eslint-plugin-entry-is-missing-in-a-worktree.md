@@ -35,7 +35,13 @@ MECHANISM CORRECTED — live repro captured on hit 6 (PR 2101 push). The premise
 
 So there is no poisoned or partial cache artifact to detect, and the outputs declaration is fine — root turbo.json declares `outputs: ["dist/**"]` for build, and dist/eslint/index.js is ordinary tsc output from src/eslint/. Checked both, neither is the bug.
 
-HYPOTHESIS (not yet confirmed): the shared cache is keyed such that turbo believes the outputs are already materialized because they exist in the MAIN checkout, so it reports a hit and skips the restore into the worktree. This explains every observation — main has dist, worktree does not, turbo says cached, only --force fixes it, and a direct filter-lint "succeeding minutes earlier" was in fact running in the main checkout. Confirm before building on it.
+HYPOTHESIS A (weakened by hit 7): the shared cache is keyed such that turbo believes the outputs are already materialized because they exist in the MAIN checkout, so it reports a hit and skips the restore into the worktree. Weakened because hit 7 occurred with dist present in the worktree beforehand — it was not a skipped restore into an empty tree, it was a REMOVAL.
+
+HYPOTHESIS B (leading, from hit 7): the cache entry itself is empty for some build hashes, and a turbo restore CLEARS the output directory before extracting, so restoring an empty entry deletes dist rather than filling it. Hit 7 is the discriminating observation: lint-staged ran `eslint --fix` successfully during the commit (which loads eslint.config.js, which imports dist/eslint/index.js — so dist existed), then a rebase and a turbo run later, dist was gone with build reported cached. Something actively removed it, and the only actor touching build outputs is turbo. Editing src produces a new hash, which is why a --force that fixes one hash does not protect the next push.
+
+Discriminating test for B: pick a build hash, note the cache entry, inspect turbo cache contents for that hash (the shared cache lives at the MAIN repo root, not node_modules/.cache/turbo — verified absent there), and confirm whether the archive is empty. If B holds, the fix is cache hygiene plus possibly turbo config, and the hook guard is a workaround, not the fix.
+
+RECURRENCE: 7 hits over three days. Hits 6 and 7 were in the same PR (2101), both after a rebase.
 
 FIX SHAPE, REVISED: a presence check for packages/tooling/dist/eslint/index.js is still the right guard, but the trigger is "no dist at all after a reported cache hit", and it must run AFTER the turbo invocation that reports the hit. Note .husky/pre-push:146 runs `build lint test` in ONE invocation, so nothing can be inserted between the restore and the lint — the check either splits that invocation or wraps it as a retry-once-on-ERR_MODULE_NOT_FOUND. Prefer investigating the shared-cache hypothesis first: if turbo has a config for per-worktree output materialization, that is the real fix and the hook guard becomes unnecessary.
 
