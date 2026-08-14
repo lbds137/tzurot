@@ -71,6 +71,13 @@ export function isNonRuntimeFile(path: string): boolean {
  * a 166-file PR returned exactly 100 entries). At or past the cap the
  * unseen files could be runtime, so classification fails toward `runtime`
  * — the conservative direction for a release-cadence trigger.
+ *
+ * The cap is EMPIRICAL, from a single probe, and only the at-or-past case is
+ * safe. If gh ever LOWERS its truncation point, lists shorter than 100 become
+ * truncated too and this check stops firing on them — they would classify
+ * `non-runtime` on a partial view, the one direction that under-counts the
+ * cut trigger. A raised cap is harmless. Re-probe with a known-large PR if
+ * the runtime count ever looks implausibly low.
  */
 const GH_FILES_LIST_CAP = 100;
 

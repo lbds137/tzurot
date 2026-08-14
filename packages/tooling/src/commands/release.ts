@@ -59,7 +59,7 @@ export function registerReleaseCommands(cli: CAC): void {
   cli
     .command(
       'release:range',
-      'List PRs merged since the previous tag, classified runtime vs. non-runtime'
+      'List PRs merged since the previous tag, classified runtime vs. non-runtime, with the range diff size'
     )
     .option(FROM_TAG_FLAG, FROM_TAG_HELP)
     .option(BASE_BRANCH_FLAG, BASE_BRANCH_HELP)

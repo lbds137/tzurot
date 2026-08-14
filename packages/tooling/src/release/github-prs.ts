@@ -172,6 +172,12 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
  * runtime classification: those measure prod risk, this measures how much
  * diff the release reviewer has to read.
  *
+ * `git diff` does not detect renames by default (this repo sets no
+ * `diff.renames`), so a pure rename counts as a delete plus an add — two
+ * entries where GitHub's own Files-changed view shows one. The skew is
+ * therefore always an OVER-count, never under, which is the safe direction
+ * for a threshold whose job is to warn early.
+ *
  * Returns `undefined` rather than throwing when git can't answer (a missing
  * tag, a shallow clone, no such ref) — the ship inventory is still useful
  * without a size line, and this command runs at release time where failing

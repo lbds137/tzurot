@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-12'
+lastUpdated: '2026-08-13'
 ---
 
 # Git Workflow Procedures
@@ -345,8 +345,15 @@ Using CURRENT.md caused duplicate entries in beta.94 (items from beta.93 re-list
 proposal, a PR body, or a status message — comes from `pnpm ops release:range`,
 never a hand-rolled `gh pr list`/date-window query: a tag-date window silently
 double-counted already-shipped PRs once. It also classifies each PR
-runtime/non-runtime and flags when the runtime count hits the release-cadence
-threshold.
+runtime/non-runtime and prints **two independent cut triggers** — read both:
+
+- **Runtime-PR count** (~10) — prod risk. A tooling/docs-only batch does not
+  move it.
+- **Range diff size** (advisory ~250 files, against GitHub's 300-file
+  rendering ceiling) — review capacity. The release reviewer reads every file
+  regardless of which side of the runtime line it sits on, so a mostly
+  non-runtime range can trip this one alone. If the size cannot be measured
+  the command says so on stderr; a SKIPPED check is not a passing one.
 
 **Backlog sweep — same pass, same commit as the notes.** The release range
 enumerates every shipped PR anyway, which is the one deterministic moment the
