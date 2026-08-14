@@ -31,5 +31,13 @@ Fix shape: in .husky/pre-push, after the turbo build/lint step is set up but bef
 
 Acceptance: pushing from a worktree whose cache restore lacked the eslint dist succeeds without a manual rebuild; the main checkout path is unchanged and adds no measurable time. Probe the hook per the after-editing-any-hook rule.
 
+MECHANISM CORRECTED — live repro captured on hit 6 (PR 2101 push). The premise above is WRONG in a way that changes the fix. dist is not INCOMPLETE in the worktree, it is ENTIRELY ABSENT: `ls packages/tooling/dist/` returned "No such file or directory" while the same turbo run reported `Tasks: 4 successful, 7 total / Cached: 4 cached, 7 total` — so turbo counted build as a cache HIT and put nothing on disk. The main checkout had a complete dist at the same moment. Turbo also printed "Remote caching disabled, using shared worktree cache".
+
+So there is no poisoned or partial cache artifact to detect, and the outputs declaration is fine — root turbo.json declares `outputs: ["dist/**"]` for build, and dist/eslint/index.js is ordinary tsc output from src/eslint/. Checked both, neither is the bug.
+
+HYPOTHESIS (not yet confirmed): the shared cache is keyed such that turbo believes the outputs are already materialized because they exist in the MAIN checkout, so it reports a hit and skips the restore into the worktree. This explains every observation — main has dist, worktree does not, turbo says cached, only --force fixes it, and a direct filter-lint "succeeding minutes earlier" was in fact running in the main checkout. Confirm before building on it.
+
+FIX SHAPE, REVISED: a presence check for packages/tooling/dist/eslint/index.js is still the right guard, but the trigger is "no dist at all after a reported cache hit", and it must run AFTER the turbo invocation that reports the hit. Note .husky/pre-push:146 runs `build lint test` in ONE invocation, so nothing can be inserted between the restore and the lint — the check either splits that invocation or wraps it as a retry-once-on-ERR_MODULE_NOT_FOUND. Prefer investigating the shared-cache hypothesis first: if turbo has a config for per-worktree output materialization, that is the real fix and the hook guard becomes unnecessary.
+
 Note: assistant-generated tooling-friction task - counts against the session net.
 <!-- SECTION:DESCRIPTION:END -->
