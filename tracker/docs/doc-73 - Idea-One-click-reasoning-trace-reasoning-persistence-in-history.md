@@ -94,8 +94,19 @@ this command is pure routing.
   sees all; others only their own) via the `X-User-Id` header — the new
   command inherits them by calling the same client.
 - **Render**: call `buildReasoningView()` (`inspect/views.ts:228`) directly —
-  chunked ephemeral output, 10-chunk cap, `reasoning-full.txt` overflow — then
-  `renderViewResult()`. No new renderer, no new components.
+  chunked ephemeral output, 10-chunk cap, `reasoning-full.txt` overflow. No new
+  renderer, no new components.
+  **Correction (grounded 2026-08-14, build session)**: the line above originally
+  said "then `renderViewResult()`". That function is **private to
+  `inspect/index.ts:70`** and typed
+  `StringSelectMenuInteraction | ButtonInteraction`, so a
+  `MessageContextMenuCommandInteraction` does not fit it. Two honest options —
+  export it and widen its interaction type (it only forwards to
+  `sendChunkedReply` / `editReply`, both of which accept the wider type), or
+  call `sendChunkedReply` directly from the new command. Prefer widening and
+  exporting: `buildReasoningView` returns a `DebugViewResult`, and duplicating
+  the branch that unpacks it is exactly the two-places-that-can-disagree shape
+  `/tzurot-reuse-scout` targets.
 - **Empty case** (5% of generations, plus expired diagnostics until part 2):
   a friendly ephemeral "No reasoning trace for this message" naming the reason
   when known (`thinking_extraction: skipped` vs diagnostic-not-found), with a
