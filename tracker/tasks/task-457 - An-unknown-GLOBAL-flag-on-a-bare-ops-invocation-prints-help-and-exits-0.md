@@ -1,10 +1,10 @@
 ---
 id: TASK-457
 title: An unknown GLOBAL flag on a bare ops invocation prints help and exits 0
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 02:32'
-updated_date: '2026-08-07 12:33'
+updated_date: '2026-08-14 12:30'
 labels:
   - 'area:tooling'
   - 'size:S'
