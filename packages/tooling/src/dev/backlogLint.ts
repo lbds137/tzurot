@@ -300,10 +300,15 @@ interface LabelAxis {
 }
 
 const SIZE_AXIS: LabelAxis = { name: 'size', prefix: 'size:', values: ['S', 'M', 'L'] };
+// `unreachable` was retired: its definition — the only trigger is "next time
+// someone touches this" — describes exactly the case the admission bar says to
+// do NOW rather than file, so the value only ever collected items that should
+// not have been filed. Closed tasks keep the old label harmlessly; this axis
+// is validated on open tasks only.
 const STATE_AXIS: LabelAxis = {
   name: 'state',
   prefix: 'state:',
-  values: ['ready', 'observable', 'dependent', 'owner', 'unreachable'],
+  values: ['ready', 'observable', 'dependent', 'owner'],
 };
 
 const vocabularyOf = (axis: LabelAxis): string =>
