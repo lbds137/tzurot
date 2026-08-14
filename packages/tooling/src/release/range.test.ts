@@ -200,6 +200,15 @@ describe('formatRangeReport', () => {
     expect(report).not.toContain('Runtime count at release-cadence threshold');
   });
 
+  it('does NOT advise at one file below the threshold — pins the >= boundary from below', () => {
+    const prs: MergedPr[] = [
+      { number: 1, title: 'docs: a', mergedAt: '2026-04-22T11:00:00Z', files: ['docs/a.md'] },
+    ];
+    const report = formatRangeReport(prs, { ...baseOptions, changedFiles: 249 });
+    expect(report).toContain('Diff size: 249 files changed');
+    expect(report).not.toContain('review-capacity threshold');
+  });
+
   it('omits the diff-size line entirely when the count is unavailable', () => {
     // countRangeChangedFiles returns undefined rather than throwing when git
     // cannot answer; the report must degrade to silence, not to "0 files".

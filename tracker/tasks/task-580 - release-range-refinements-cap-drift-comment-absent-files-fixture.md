@@ -1,9 +1,10 @@
 ---
 id: TASK-580
 title: 'release:range refinements: cap-drift comment + absent-files fixture'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 23:43'
+updated_date: '2026-08-14 02:38'
 labels:
   - 'area:tooling'
   - 'size:S'
