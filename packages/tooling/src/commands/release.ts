@@ -18,7 +18,8 @@ import { UsageError } from '../utils/errors.js';
 const FROM_TAG_FLAG = '--from <tag>';
 const FROM_TAG_HELP = 'Previous release tag (auto-discovered via `git describe` if omitted)';
 const BASE_BRANCH_FLAG = '--base <branch>';
-const BASE_BRANCH_HELP = 'Base branch to query for merged PRs (default: develop)';
+const BASE_BRANCH_HELP =
+  'Base branch to query for merged PRs, and to diff as origin/<base> for range size (default: develop)';
 
 export function registerReleaseCommands(cli: CAC): void {
   // Bump version across all package.json files

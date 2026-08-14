@@ -187,13 +187,22 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
  * early.
  *
  * Returns `undefined` rather than throwing when git can't answer (a missing
- * tag, a shallow clone, no such ref) — the ship inventory is still useful
+ * tag, a shallow clone, no such ref, an unreachable remote) — the ship inventory is still useful
  * without a size line, and this command runs at release time where failing
  * the whole report over an advisory metric would be the wrong trade.
  */
 export function countRangeChangedFiles(fromTag: string, base: string): number | undefined {
   try {
-    const out = execFileSync('git', ['diff', '--name-only', `${fromTag}..${base}`], {
+    // Refresh first, then diff the REMOTE-tracking ref — never the local
+    // branch. A stale local `develop` still resolves, so `git diff` succeeds
+    // and simply returns a number that is too low: a silently wrong result,
+    // where every other failure here degrades to `undefined` and announces
+    // itself on stderr. Under-reporting is the one outcome this advisory must
+    // not produce, because it reads as "comfortably under the threshold" and
+    // that is indistinguishable from a real pass. Same risk and same remedy
+    // as premigrate.ts, one file over.
+    execFileSync('git', ['fetch', 'origin'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const out = execFileSync('git', ['diff', '--name-only', `${fromTag}..origin/${base}`], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
