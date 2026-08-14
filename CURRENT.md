@@ -1,56 +1,34 @@
 # Current
 
-> **Version**: v3.0.0-beta.200 — nightly db-sync now attaches its report (#2073), catalog-outage clarity across two services (#2068/#2070), participant keying by personaId (#2067), deploy-window submit retry (#2061), + 10 tooling/rules PRs. No migrations. Released 2026-08-12 ~07:42 EDT (flags verified: 200 latest, 199 demoted; all three prod services SUCCESS).
+> **Version**: v3.0.0-beta.201 — spend + prod-log privacy (#2085 fail-closed dedup reservation, #2092 id-only persona logging), character UX (#2090 export clear-forms, #2087, #2083), health/observability + release tooling (#2091, #2086, #2082/#2097, #2095). 23 PRs / 8 runtime / 186 files. No migrations. Merged to main 2026-08-14 ~10:53 UTC.
 
 ---
 
-## 🔄 POST-RELEASE DRAIN (2026-08-12) — ALL MERGED
+## 🚀 beta.201 SHIPPED (2026-08-14) — smoke item open
 
-**#2075/#2076/#2077/#2078/#2079 merged**; TASK-530/542/547/548/550/551/553 Done. Carry-forward finding from #2076: prisma splits a P1001 across streams (benign echo on stdout, identifying error on stderr) — a stdout-only read fails quietly with a plausible wrong reason. From #2077: the tracker id allocator ignores `tracker/archive/tasks/`, so archiving the highest-numbered task frees its id for reuse.
+Cut and merged in one sitting: 23 PRs / 8 runtime / 186 files, no migrations, no advisories, holistic review clean (it read #2085 and #2090 in full and reached the same conclusions independently). `release:range` drove every count; `verify-notes` confirmed all 23 PRs referenced exactly once.
 
-## 🧭 2026-08-12 EVENING (Fable): mining run + shipped-work audit + Opus-setup ops
+### Smoke checklist — beta.201 (one item, after prod deploy settles)
 
-**Mining run complete** (SYNTHESIS-2026-08-12, R1–R7, machine-local). Driver timeline runtime-pinned: Fable+Sonnet through 08-11 01:17Z, then Opus 5 orchestrator ~45h. **Defect review of beta.198–200's ~30 PRs (6 fresh-context reviewers): 0 High · 11 Med · 32 Low — ALL tracked (TASK-556–577; Meds 556-565).** Verdict: merged-output quality driver-comparable (Meds ~6/14 Opus-window vs ~4/18 Fable-window PRs); the Opus gap is process cost (review marathons, orchestrator error volume), not shipped defects. **Owner decisions**: Opus stays drain-orchestrator default WITH a ~6-round hard cap (shipped to skills, #2080); org model = owner → Fable (second-in-command: design/taste/verification passes over Opus output) → Opus (drain engineering manager) → Sonnet workers+reviewers, Haiku for Explore fan-outs. **All three ops PRs MERGED**: #2080 (round cap + stacked-gate fixture rule), #2081 (context-size reminder hook + tracker-dirty push gate — both fired live same evening), #2082 (`release:range` — dogfooding it added `.husky/` to the exclusion list, rule text updated in-PR; residual nits → TASK-580). **Owner widened Opus scope to ALL ROUTINE work** (budget: $200/mo ceiling, no overage; Fable = planning/design/verification, weekly session reset Sundays — in memory). Brief intake: observability → doc-12/16/25. New themes/records: **doc-76** (backlog browser), TASK-496 (stacked PRs: researched, not-yet verdict + promote-when). Drain-campaign data (owner ask): open tasks 319→292 over Jul 28–Aug 9 (drain worked), then +28 net Aug 9–12 from audit/review filings at ~2× filing rate — closure held ~15/day throughout.
+- [ ] **S1 — #2090 export-clear round-trip** (needs-smoke): export a character that has an **empty** field → re-import it → confirm the field stays empty rather than reverting to its pre-export value. The one user-visible flow in the range whose failure would be **silent** rather than logged. Fail: the field comes back populated with the old value.
 
-**DRAIN QUEUE — waves 1-2 done; batch by THEME, not by wave.** Remaining from the curated list: 563 (parked, size:M), 546-continuation, 304 (leave filed — the task argues against itself: "only worth it if the assumption actually breaks"), 271. **Next batch pre-grounded:** 199+200 ship together (both are "tool fails a bare run → was pulled from `HEALTH_TOOLS` → fix bare-run mode → re-add"); 349 and 457 each want their own PR (349 by its own request, 457 carries an unsettled global-flag design call that is mine to make). **Held for Fable/owner: 527** (product copy), **540** (HTTP contract), **559** (owner pick), **531** (process design).
+Everything else is log-observable on first real use (#2085's fail-closed dedup, #2092's id-only persona logging) — observability-instead-of-smoke by choice, not an untested gap. Known gap left OUT of `CLEARABLE_FIELDS` on purpose and tracked: **TASK-590** (`customFields` still lossy gateway-side).
 
-## 🔧 2026-08-13 → 08-14 DRAIN (Opus): batching replaced one-task-per-PR
+**GitHub diff ceiling (owner question, answered):** GitHub stops rendering a diff at **300 files**; this range was 186 (62%), largest single file 569 lines against a 20k/500KB per-file limit, zero binaries. Not the binding constraint — reviewer attention is, which is what #2097 operationalizes.
 
-**Merged:** #2083/2084/2085/2086/2087/2090/2091/2092 (earlier), then #2094 (486/588/589/399), #2095 (545), #2096 (retire `state:unreachable`). **13 tasks closed, 5 filed** (597 Discord file-type filter · 598 worktree pre-push dist · 599 owner-decision digest, owner-approved) — first net-negative drain session.
+## 🔧 DRAIN CAMPAIGN — batching replaced one-task-per-PR (carry forward)
 
-**The reorder that worked, and should continue.** Per-PR ceremony was the bottleneck, not task selection: each PR closed ~1 task for a full gate+CI+review cycle. Themed batches (docs / rules / tooling) close 4-5 per cycle. **Backlog composition, measured:** 321 open = 107 `ready` · 97 `observable` · 57 `dependent` · 45 `owner` · 15 `unreachable`. Only ~1/3 is agent-drainable, so the headline number can only grow during normal operation — watches are instrumentation, not debt. Owner then overrode all 15 `unreachable` (relabelled `ready`) and **approved retiring that state entirely** (#2096): its definition _is_ the admission bar's do-it-now case, so it only ever collected items that should not have been filed.
+**The reorder that worked, and should continue.** Per-PR ceremony was the bottleneck, not task selection: one PR per task burned a full gate+CI+review cycle to close ~1 item. Themed batches (docs / rules / tooling) close 4-5 per cycle. **Backlog composition, measured:** 321 open = 107 `ready` · 97 `observable` · 57 `dependent` · 45 `owner`. Only ~1/3 is agent-drainable, so the headline number can only grow during normal operation — watches are instrumentation, not debt. **Staleness is NOT the growth driver** (measured against my own hypothesis: 60 oldest sweep flagged 5 shipped, only 2 survived verification — ~3%, not 8%). Filing rate is.
 
-**Staleness is NOT the growth driver — measured, against my own hypothesis.** A sweep of the 60 oldest tasks flagged 5 as already-shipped; only 2 survived verification (87, 88). TASK-6's evidence predated it by 6 months, 27's guard still scans the wrong dirs, 82's "proof" was the test its own task names as not-the-fix. ~3%, not 8%. Filing rate is the real driver.
+**Next batch pre-grounded:** 199+200 ship together (both "tool fails a bare run → pulled from `HEALTH_TOOLS` → fix bare-run mode → re-add"); 349 and 457 each want their own PR (457 carries an unsettled global-flag design call). 304 stays filed — the task argues against itself. Also open: 563 (parked, size:M), 546-continuation, 271. **Held for Fable/owner: 527** (product copy), **540** (HTTP contract), **559** (owner pick), **531** (process design). **TASK-599** = the batched owner-decision pass over the 45 `state:owner` tasks (owner-approved, council as escape valve).
 
-**Carry-forward — the counting failure, five instances in one batch.** 30→48→53 assertions · 12 vs 14 probes (twice) · 24 vs 22 files. Every one true when written, stale one round later; the reviewer caught all five. Fix applied: stop publishing the number, publish the command (`grep -c '^PASS'`). Both structural PRs this session are the same idea — a fact restated by hand drifts, a fact derived at read time cannot (#2095 guards commit scopes against `allScopes`; #2097 derives release diff size).
+**Carry-forwards, all three the same shape — a check that cannot distinguish _measured and fine_ from _didn't measure_:** (1) counting failures, five in one batch (30→48→53 assertions; 12 vs 14 probes twice; 24 vs 22 files) — fix: publish the command (`grep -c '^PASS'`), never the number; (2) negative-control a FIX, not just a grep — the skill-eval regex took five shapes, four falsified only by running them, including the reviewer's own proposal; (3) a probe that swallows stderr certifies broken code green — `skill-eval.probe.sh` had `2>/dev/null` in `invoke()`; an unbalanced paren yielded "All probes passed". **Check other probes for that shape.** Both structural PRs of that session are the same idea: a fact restated by hand drifts, a fact derived at read time cannot (#2095, #2097).
 
-**Carry-forward — negative-control a FIX, not just a grep.** The skill-eval regex took FIVE shapes (unanchored → gap whitelist → whole-prompt exclusion → front-anchor → suffix-anchor + clause scoping). Each was believed correct because its _explanation_ sounded right; four were falsified only by running them. Notably the reviewer's own proposed fix (`\baddress`) did not work — "addressee" starts at a word boundary too. #2094's positive-control rule is the mirror of this and shipped the same evening.
+**Open rule-shaped gap, not yet drafted:** five of #2097's last six defects entered _while fixing a previous finding_. Every countermeasure in this corpus fires at authoring time; none at correction time. Wants a council pass.
 
-**Carry-forward — a probe that swallows stderr certifies broken code green.** `skill-eval.probe.sh` had `2>/dev/null` in its `invoke()`; measured, an unbalanced paren in the regex yields 20 failures with stderr captured and **"All probes passed"** without. Fixed + `assert_no_stderr` on every assertion. Check other probes for the same shape.
+**Release-counting method (carry forward).** Derive the runtime-PR count from the **git range**, never `gh pr list --json mergedAt` against the tag date — the tag commit on `main` predates several develop merges, so that filter re-counts shipped PRs. `pnpm ops release:range` is the mechanical answer.
 
 **Slip logged:** ran `git checkout <file>` to restore a canary — that is `git restore`, on the ASK-FIRST list, and it discarded my own uncommitted work. Use a `.bak` copy for canaries.
-
-## 🚀 RELEASE beta.201 — PR #2098 OPEN, awaiting owner merge approval
-
-**Cut 2026-08-14.** Version bumped (`039c32486`), notes drafted + `verify-notes` green (all 23 PRs referenced exactly once), release PR #2098 open develop → main. **Merge needs explicit per-release owner approval** (`00-critical.md`) — CI green is not approval.
-
-**Final range:** 23 PRs — **8 runtime, 15 non-runtime, 186 files** (`release:range`; #2095 classifies runtime only because it touched root `package.json`). Three runtime themes: (1) spend + prod-log privacy (#2085, #2092), (2) character UX (#2090, #2087, #2083), (3) health/observability + release tooling (#2091, #2086, #2082/#2097, #2095).
-
-**Risk: low.** No migrations in range → **no premigrate step**. No open advisories, no dependabot queue, `guard:repo-settings` clean (`delete_branch_on_merge: false`). Doc sweep done (commands.md has zero stale entity terminology; no legal-doc impact). Backlog sweep clean.
-
-### Smoke checklist — beta.201 (one item, run after prod deploy)
-
-- [ ] **S1 — #2090 export-clear round-trip** (needs-smoke): export a character that has an **empty** field → re-import it → confirm the field stays empty rather than reverting to its pre-export value. This is the one user-visible flow in the range whose failure would be **silent** rather than logged. Fail: the field comes back populated with the old value.
-
-Everything else is log-observable on first real use (#2085's fail-closed dedup, #2092's id-only persona logging) — offered deliberately as observability-instead-of-smoke, not as an untested gap.
-
-**GitHub diff ceiling (owner question, answered):** GitHub stops rendering a diff at **300 files**; we are at 186 (62%), largest single file 569 lines against a 20k/500KB per-file limit, zero binaries. Not the binding constraint — reviewer attention is, which is what #2097 operationalizes.
-
-## 🔄 PREVIOUS RELEASE (2026-08-12 — beta.200 RELEASED)
-
-**v3.0.0-beta.200 shipped** — 15 PRs, 5 runtime, no migrations, owner-approved after a holistic review with no blocking findings. Its one post-release check ran itself (#2073's nightly db-sync either posts its report or does not). Full detail: the GitHub release notes.
-
-**Release-counting method (carry forward).** Derive the runtime-PR count from the **git range**, never from `gh pr list --json mergedAt` against the tag date — the tag commit on `main` predates several develop merges, so that filter re-counts already-shipped PRs. It inflated a count to 7-8 against a real 5, and the cut trigger reads exactly this number. `pnpm ops release:range` is the mechanical answer.
 
 ## 🧪 OPUS 5 ORCHESTRATOR TRIAL — CONCLUDED (2026-08-11); full record in TASK-513 + TASK-487 notes
 
