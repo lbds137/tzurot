@@ -1,10 +1,10 @@
 ---
 id: TASK-200
 title: 'Add a recent/unapplied-range mode to db:check-safety for the ops:health roster'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-03 00:00'
-updated_date: '2026-08-14 11:22'
+updated_date: '2026-08-14 12:58'
 labels:
   - 'area:tooling'
   - 'area:db'

@@ -1,10 +1,10 @@
 ---
 id: TASK-349
 title: Derive check-migration-safety patterns from drift-ignore.json
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 01:18'
-updated_date: '2026-07-29 01:18'
+updated_date: '2026-08-14 12:58'
 labels:
   - 'area:tooling'
   - 'size:S'
