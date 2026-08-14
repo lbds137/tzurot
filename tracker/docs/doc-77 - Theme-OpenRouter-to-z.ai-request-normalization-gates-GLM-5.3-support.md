@@ -197,6 +197,51 @@ Remaining Phase 1 work:
 ### Phase 3 — Validate at config time, not just request time
 
 - [ ] An LLM config that pins an effort level unsupported by its provider should be rejected or warned about when it is SAVED, not silently degraded on every generation. Today the levels are a single global union (`REASONING_EFFORT_LEVELS`, `packages/common-types/src/schemas/llmAdvancedParams.ts`) with no provider dimension.
+- [ ] **Collapse `reasoning.enabled` vs `reasoning.effort: 'none'`** — see the census below. Owner-flagged as redundant 2026-08-14; prod data confirms it has already produced split encodings of one intent.
+
+## Prod config census (read-only query, 2026-08-14) — 39 `llm_configs`
+
+**Every z.ai-routed config is identical and every one is affected by the no-op.**
+All 5 are global, all carry `{effort: "medium", enabled: true, exclude: false}`:
+`GLM 4.5 Air`, `GLM 4.7`, `GLM 5`, `GLM 5.1`, `GLM 5.2` — each named
+"(Reasoning: medium)". So every GLM preset in the system advertises `medium` in
+its own name while actually running whatever z.ai's default is. The blast
+radius of the Phase 0 finding is 5/5, not a subset.
+
+**The `enabled` / `effort` redundancy is real and has already split the data.**
+Two encodings of "no reasoning" are both in active use:
+
+| Encoding | Count | Examples |
+| --- | --- | --- |
+| `{enabled: false}`, no `effort` | 5 | `Kimi K2.5 (Reasoning: none)`, `Kimi K2.6 (Reasoning: none)`, `Cogito v2.1 671B`, `OpenRouter Free Router`, `Qwen 3.7 Plus` |
+| `{enabled: true, effort: 'none'}` | 4 | all four `Gemma 4 …(Reasoning: none)` variants |
+
+Six of those nine are literally named **"(Reasoning: none)"** — the same
+user-visible intent, stored two incompatible ways, and one of the two is
+internally contradictory (`enabled: true` alongside a zero budget). This is not
+a theoretical tidiness concern; it is drift that already happened.
+
+Note this also means the Phase 0 residual ambiguity **cannot** be settled from
+prod data: no z.ai-routed config uses `enabled: false`, so there is no existing
+config whose generation would separate "z.ai ignores the whole object" from
+"z.ai honours `enabled`". Settling it still needs one purpose-made config.
+
+**`show_thinking` is switched on by nobody.** Of 39 configs: 23 explicitly
+`false`, 16 absent, **0 true**. Scope of that claim: `llm_configs` only — I did
+not sweep per-user overrides.
+
+It is NOT dead code, and the distinction matters for the removal decision. The
+chain is fully wired and terminates in a real external effect: preset UI /
+import-export write it → `LlmConfigResolver:264` → `RAGUtils:459` →
+`GenerationStep:274/311` → result metadata → `SlotDeliveryService:137` →
+`DiscordResponseSender:177`, where `options.showThinking === true` gates an
+actual extra Discord message. So this is an unused *capability*, not orphaned
+code — removing it is a product call about whether inline reasoning display
+should be offered at all, not a dead-code cleanup. Owner leaning toward removal
+2026-08-14 ("probably a bit redundant… might be a dead feature"), reasoning that
+`/inspect` already covers the need. Related: **doc-73** part 1 wants reasoning
+one click away via a context-menu command — if that ships, inline display has
+even less reason to exist, so the two decisions belong together.
 
 ### Phase 4 — GLM-5.3 enablement
 
