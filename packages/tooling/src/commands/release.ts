@@ -18,8 +18,18 @@ import { UsageError } from '../utils/errors.js';
 const FROM_TAG_FLAG = '--from <tag>';
 const FROM_TAG_HELP = 'Previous release tag (auto-discovered via `git describe` if omitted)';
 const BASE_BRANCH_FLAG = '--base <branch>';
-const BASE_BRANCH_HELP =
-  'Base branch to query for merged PRs, and to diff as origin/<base> for range size (default: develop)';
+const BASE_BRANCH_HELP = 'Base branch to query for merged PRs (default: develop)';
+
+/**
+ * `release:range` alone also diffs `origin/<base>` to size the range, so the
+ * range-specific wording lives here rather than widening the shared constant.
+ * That constant is shared by three commands precisely so their `--help` cannot
+ * drift; putting range-only text inside it makes the description false for
+ * `draft-notes` and `verify-notes` — the same drift, entered through the
+ * content instead of through copies.
+ */
+const RANGE_BASE_BRANCH_HELP =
+  'Base branch to query for merged PRs, also diffed as origin/<base> to size the range (fetches origin; default: develop)';
 
 export function registerReleaseCommands(cli: CAC): void {
   // Bump version across all package.json files
@@ -63,7 +73,7 @@ export function registerReleaseCommands(cli: CAC): void {
       'List PRs merged since the previous tag, classified runtime vs. non-runtime, with the range diff size (fetches origin)'
     )
     .option(FROM_TAG_FLAG, FROM_TAG_HELP)
-    .option(BASE_BRANCH_FLAG, BASE_BRANCH_HELP)
+    .option(BASE_BRANCH_FLAG, RANGE_BASE_BRANCH_HELP)
     .example('pnpm ops release:range')
     .example('pnpm ops release:range --from v3.0.0-beta.103')
     .action(async (options: { from?: string; base?: string }) => {
