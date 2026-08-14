@@ -35,7 +35,56 @@ Code-reading says we send a `reasoning` object to an API that documents `thinkin
 
 This is code-reading, not runtime observation, so none of the three may be asserted yet. **Phase 0 exists to distinguish them**, and the answer changes the whole shape of the work: (a) is a live silent-misconfiguration bug, (b) means the z.ai path is less exercised than assumed, (c) means the documented contract is wrong and our strip list is over-broad.
 
-## Phase 0 RESULT (prod logs, 2026-08-14) — (b) falsified, (c) confirmed, (a) still open
+## ⚠️ PHASE 0 CLOSED (owner discriminator, 2026-08-14) — (a) CONFIRMED: thinking control on z.ai-direct is a live no-op
+
+The owner ran the discriminator on dev: the same character, two configs
+differing only in `reasoning.effort`, one minute apart. Result below; the
+earlier prod-log section is kept underneath because it establishes the
+context this rests on.
+
+| | effort `none` | effort `high` |
+| --- | --- | --- |
+| requestId | `e6ae070b-…0285ef` | `74c8c2dd-…33a620` |
+| `effectiveProvider` | `zai-coding` | `zai-coding` |
+| sent `modelKwargs` | `{"reasoning":{"effort":"none","exclude":false,"enabled":true}}` | `{"reasoning":{"effort":"high","exclude":false,"enabled":true}}` |
+| **reasoning returned** | **1571 chars** | **1722 chars** |
+
+Three independent dev log lines pin each request to the direct path —
+`ProviderRouter` "Auto-promoting…", `AuthStep` `effectiveProvider="zai-coding"
+wasAutoPromoted=true fallthroughTriggered=false`, and `ModelFactory` "Creating
+z.ai coding model" printing the exact outbound `modelKwargs`. This is not
+inference from a config label.
+
+**`effort: "none"` is documented in our own schema as "0% (reasoning
+disabled)". It produced 1571 characters of reasoning.** If the parameter were
+honoured that number must be zero. The 1571 → 1722 delta is ~10% across two
+different prompts — run-to-run variance, not a dose-response curve.
+
+So thinking control on the z.ai-direct path does nothing, and has not for as
+long as the path has existed. **This is user-facing and costs money**: a config
+set to `none` still generates and bills reasoning tokens the owner explicitly
+asked not to have, and `high`/`xhigh` cannot buy more.
+
+**Residual ambiguity, stated because the test cannot separate it.** We send
+`{effort:"none", enabled:true}` — self-contradictory even in OpenRouter's own
+vocabulary. So this run cannot distinguish "z.ai ignores the whole `reasoning`
+object" from "z.ai honours `enabled:true` and ignores `effort`". Both predict
+what we saw, because GLM-5.2 also thinks by default. The first is far more
+likely (z.ai documents `thinking`, not `reasoning`), and the actionable
+conclusion is identical either way. To settle it: one more run with
+`enabled:false`. Cheap, owner-driven, not required before Phase 2.
+
+Note the response direction is fine and always was — `ResponsePostProcessor`
+logs "Found reasoning in additional_kwargs.reasoning_content (z.ai
+convention)". We already speak z.ai's response protocol. Only the request
+direction never learned it.
+
+Phase 1's audit is also confirmed live by the same lines: `filteredParams=["top_k","min_p"]`
+shows the strip list working, while `reasoning` passes straight through beside it.
+
+---
+
+## Phase 0 RESULT (prod logs, 2026-08-14) — (b) falsified, (c) confirmed, (a) then still open
 
 Evidence is a single fully-correlated prod job, `llm-842a8368-9b8d-47ca-8ea7-99fd6a66322d`,
 plus a wider sweep of the same deployment. Runtime observation, not code-reading.
