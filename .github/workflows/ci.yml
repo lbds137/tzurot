@@ -146,6 +146,9 @@ jobs:
       - name: Check the CI-monitor command is identical across its three surfaces
         run: pnpm ops guard:monitor-command
 
+      - name: Check commit-scope prose matches allScopes in commitlint.config.cjs
+        run: pnpm ops guard:commit-scope-sync
+
       - name: Run the hook probe harnesses (and check every hook has one)
         run: pnpm ops guard:hook-probes
 
