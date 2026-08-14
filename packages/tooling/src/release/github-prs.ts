@@ -217,7 +217,7 @@ export function countRangeChangedFiles(fromTag: string, base: string): number | 
     // not produce, because it reads as "comfortably under the threshold" and
     // that is indistinguishable from a real pass. Same risk and same remedy
     // as premigrate.ts, one file over.
-    execFileSync('git', ['fetch', 'origin'], {
+    execFileSync('git', ['fetch', 'origin', base], {
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: RANGE_GIT_TIMEOUT_MS,
     });
