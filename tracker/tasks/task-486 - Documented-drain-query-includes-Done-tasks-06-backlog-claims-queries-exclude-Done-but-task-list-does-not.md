@@ -3,9 +3,10 @@ id: TASK-486
 title: >-
   Documented drain query includes Done tasks - 06-backlog claims queries exclude
   Done but task list does not
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 15:31'
+updated_date: '2026-08-14 00:17'
 labels:
   - 'area:docs'
   - 'size:S'
