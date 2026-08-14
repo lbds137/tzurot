@@ -6,19 +6,19 @@
       "name": "idx_memories_embedding",
       "table": "memories",
       "type": "ivfflat",
-      "description": "IVFFlat vector index for BGE embeddings (384 dims) - Prisma can't represent Unsupported type indexes",
+      "description": "IVFFlat vector index for BGE similarity search (384 dims). Dropping it degrades memory retrieval to sequential scans; Prisma can't represent Unsupported-type indexes, so it regenerates the DROP every time.",
       "recreateSQL": "CREATE INDEX \"idx_memories_embedding\" ON \"memories\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50);",
-      "dropPattern": "DROP INDEX.*idx_memories_embedding",
-      "createPattern": "CREATE INDEX.*idx_memories_embedding"
+      "dropPattern": "DROP\\s+INDEX.*idx_memories_embedding",
+      "createPattern": "CREATE\\s+INDEX.*idx_memories_embedding"
     },
     {
       "name": "memories_chunk_group_id_idx",
       "table": "memories",
       "type": "partial",
-      "description": "Partial index with WHERE clause - Prisma generates non-partial version causing conflicts",
+      "description": "Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL). Prisma generates a non-partial version, causing conflicts.",
       "recreateSQL": "CREATE INDEX \"memories_chunk_group_id_idx\" ON \"memories\"(\"chunk_group_id\") WHERE \"chunk_group_id\" IS NOT NULL;",
-      "dropPattern": "DROP INDEX.*memories_chunk_group_id_idx",
-      "createPattern": "CREATE INDEX.*memories_chunk_group_id_idx"
+      "dropPattern": "DROP\\s+INDEX.*memories_chunk_group_id_idx",
+      "createPattern": "CREATE\\s+INDEX.*memories_chunk_group_id_idx"
     },
     {
       "name": "idx_memory_facts_embedding",
@@ -26,8 +26,8 @@
       "type": "ivfflat",
       "description": "IVFFlat vector index for fact similarity retrieval (memory Phase 2). Dropping it silently degrades fact queries to sequential scans as the table grows.",
       "recreateSQL": "CREATE INDEX \"idx_memory_facts_embedding\" ON \"memory_facts\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50)",
-      "dropPattern": "DROP INDEX.*idx_memory_facts_embedding",
-      "createPattern": "CREATE INDEX.*idx_memory_facts_embedding"
+      "dropPattern": "DROP\\s+INDEX.*idx_memory_facts_embedding",
+      "createPattern": "CREATE\\s+INDEX.*idx_memory_facts_embedding"
     }
   ],
   "ignorePatterns": [
