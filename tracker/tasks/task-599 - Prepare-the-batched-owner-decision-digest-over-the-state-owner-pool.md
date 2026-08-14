@@ -1,9 +1,10 @@
 ---
 id: TASK-599
 title: 'Prepare the batched owner-decision digest over the state:owner pool'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 01:05'
+updated_date: '2026-08-14 22:48'
 labels:
   - 'area:backlog'
   - 'size:M'
