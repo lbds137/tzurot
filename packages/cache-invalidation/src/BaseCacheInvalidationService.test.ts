@@ -269,6 +269,18 @@ describe('BaseCacheInvalidationService', () => {
       expect(mockSubscriber.subscribe).toHaveBeenCalledWith('test:channel');
     });
 
+    it('should never put the shared client into subscriber mode', async () => {
+      await service.subscribe(vi.fn());
+
+      // Load-bearing for the caller, not just tidy: api-gateway hands this same
+      // client to the dedup cache and rate limiters and configures it with a
+      // commandTimeout. A connection in subscriber mode accepts only pub/sub
+      // commands, so subscribing HERE instead of on the duplicate would break
+      // every other consumer of the shared client.
+      expect(mockRedis.subscribe).not.toHaveBeenCalled();
+      expect(mockSubscriber.subscribe).toHaveBeenCalled();
+    });
+
     it('should register a message handler', async () => {
       await service.subscribe(vi.fn());
 
