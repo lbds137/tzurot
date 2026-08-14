@@ -245,7 +245,7 @@ describe('checkTaskTriage', () => {
     const [problem] = checkTaskTriage([task({ labels: ['area:db', 'size:S'] })]);
     expect(problem).toBe(
       'tracker/tasks/task-1 - a-task.md: open task has no state label ' +
-        '(state:ready | state:observable | state:dependent | state:owner | state:unreachable)'
+        '(state:ready | state:observable | state:dependent | state:owner)'
     );
   });
 
@@ -259,12 +259,26 @@ describe('checkTaskTriage', () => {
   });
 
   it('accepts every state in the vocabulary', () => {
-    for (const state of ['ready', 'observable', 'dependent', 'owner', 'unreachable']) {
+    for (const state of ['ready', 'observable', 'dependent', 'owner']) {
       expect(
         checkTaskTriage([task({ labels: ['area:db', 'size:S', `state:${state}`] })]),
         `state:${state} should be accepted`
       ).toEqual([]);
     }
+  });
+
+  it('rejects the retired state:unreachable on an open task', () => {
+    // Retired rather than merely undocumented: the gate must actively refuse
+    // it, or a filer copying an older closed task's frontmatter reintroduces
+    // a value no selection query can reach. Closed tasks keep it — this axis
+    // is only validated on open ones.
+    const problems = checkTaskTriage([
+      task({ labels: ['area:db', 'size:S', 'state:unreachable'] }),
+    ]);
+    expect(problems).toEqual([
+      "tracker/tasks/task-1 - a-task.md: open task has unknown state label 'state:unreachable' — " +
+        'must be one of state:ready | state:observable | state:dependent | state:owner',
+    ]);
   });
 
   it('names an out-of-vocabulary state and does NOT also call it missing', () => {
@@ -275,7 +289,7 @@ describe('checkTaskTriage', () => {
     const problems = checkTaskTriage([task({ labels: ['area:db', 'size:S', 'state:blocked'] })]);
     expect(problems).toEqual([
       "tracker/tasks/task-1 - a-task.md: open task has unknown state label 'state:blocked' — " +
-        'must be one of state:ready | state:observable | state:dependent | state:owner | state:unreachable',
+        'must be one of state:ready | state:observable | state:dependent | state:owner',
     ]);
   });
 
