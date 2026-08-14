@@ -4,11 +4,11 @@ title: 'DebugViewResult: make chunkedText vs content exclusivity compiler-enforc
 status: To Do
 assignee: []
 created_date: '2026-07-11 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-14 01:04'
 labels:
   - 'area:bot-client'
   - 'size:M'
-  - 'state:unreachable'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 17000

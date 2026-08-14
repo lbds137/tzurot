@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 23:18'
+updated_date: '2026-08-14 01:04'
 labels:
   - 'area:hooks'
   - 'size:S'
-  - 'state:unreachable'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 579000

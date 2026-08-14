@@ -4,13 +4,13 @@ title: Schema-type unification
 status: To Do
 assignee: []
 created_date: '2026-06-26 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-08-14 01:04'
 labels:
   - 'area:common-types'
   - 'area:tooling'
   - 'area:jobs'
   - 'size:L'
-  - 'state:unreachable'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 49000
