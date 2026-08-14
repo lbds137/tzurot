@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { vol } from 'memfs';
 
@@ -18,6 +19,50 @@ vi.mock('chalk', () => ({
   },
 }));
 
+// The module under test resolves prisma/drift-ignore.json relative to its own
+// file location (not process.cwd()) — see DEFAULT_DRIFT_IGNORE_PATH in
+// check-migration-safety.ts. Compute the identical absolute path here so the
+// mocked memfs volume has a file at the exact location the loader will read.
+const DRIFT_IGNORE_PATH = fileURLToPath(
+  new URL('../../../../prisma/drift-ignore.json', import.meta.url)
+);
+
+/** Minimal, real-shaped protectedIndexes fixture seeded into every test's memfs volume. */
+const DRIFT_IGNORE_FIXTURE = JSON.stringify({
+  protectedIndexes: [
+    {
+      name: 'idx_memories_embedding',
+      table: 'memories',
+      type: 'ivfflat',
+      description: 'IVFFlat vector index for BGE embeddings (384 dims)',
+      recreateSQL:
+        'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+      dropPattern: 'DROP\\s+INDEX.*idx_memories_embedding',
+      createPattern: 'CREATE\\s+INDEX.*idx_memories_embedding',
+    },
+    {
+      name: 'memories_chunk_group_id_idx',
+      table: 'memories',
+      type: 'partial',
+      description: 'Partial index with WHERE clause',
+      recreateSQL:
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL;',
+      dropPattern: 'DROP\\s+INDEX.*memories_chunk_group_id_idx',
+      createPattern: 'CREATE\\s+INDEX.*memories_chunk_group_id_idx',
+    },
+    {
+      name: 'idx_memory_facts_embedding',
+      table: 'memory_facts',
+      type: 'ivfflat',
+      description: 'IVFFlat vector index for fact similarity retrieval (384 dims)',
+      recreateSQL:
+        'CREATE INDEX "idx_memory_facts_embedding" ON "memory_facts" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50)',
+      dropPattern: 'DROP\\s+INDEX.*idx_memory_facts_embedding',
+      createPattern: 'CREATE\\s+INDEX.*idx_memory_facts_embedding',
+    },
+  ],
+});
+
 describe('checkMigrationSafety', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -26,6 +71,7 @@ describe('checkMigrationSafety', () => {
   beforeEach(() => {
     vi.resetModules();
     vol.reset();
+    vol.fromJSON({ [DRIFT_IGNORE_PATH]: DRIFT_IGNORE_FIXTURE });
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
@@ -204,6 +250,149 @@ describe('checkMigrationSafety', () => {
       expect(summary.status).toBe('fail');
       expect(summary.findings).toBe(1);
       expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('protected-index registry loading (fail-loud)', () => {
+    // Each of these clears the beforeEach-seeded good fixture and replaces it
+    // with a malformed one — the module computes PROTECTED_INDEXES at import
+    // time, so a bad drift-ignore.json must make the import itself reject
+    // rather than silently loading zero protected indexes.
+
+    it('throws when drift-ignore.json is missing entirely', async () => {
+      vol.reset();
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(
+        /could not read drift-ignore\.json/
+      );
+    });
+
+    it('throws when drift-ignore.json is not valid JSON', async () => {
+      vol.reset();
+      vol.fromJSON({ [DRIFT_IGNORE_PATH]: '{ not valid json' });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(/is not valid JSON/);
+    });
+
+    it('throws when protectedIndexes is an empty array', async () => {
+      vol.reset();
+      vol.fromJSON({ [DRIFT_IGNORE_PATH]: JSON.stringify({ protectedIndexes: [] }) });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(
+        /empty or missing "protectedIndexes"/
+      );
+    });
+
+    it('throws when protectedIndexes is missing from the file', async () => {
+      vol.reset();
+      vol.fromJSON({ [DRIFT_IGNORE_PATH]: JSON.stringify({ ignorePatterns: [] }) });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(
+        /empty or missing "protectedIndexes"/
+      );
+    });
+
+    // Both directions: the source check is symmetric, so the tests are too —
+    // an asymmetric pair here would leave one half of a symmetric guard
+    // uncovered for no reason.
+    it.each([['dropPattern'], ['createPattern']])(
+      'throws when a protectedIndexes entry is missing %s entirely',
+      async omitted => {
+        const entry: Record<string, string> = {
+          name: 'idx_x',
+          description: 'x',
+          dropPattern: 'DROP\\s+INDEX.*idx_x',
+          createPattern: 'CREATE\\s+INDEX.*idx_x',
+        };
+        delete entry[omitted];
+
+        vol.reset();
+        vol.fromJSON({ [DRIFT_IGNORE_PATH]: JSON.stringify({ protectedIndexes: [entry] }) });
+
+        await expect(import('./check-migration-safety.js')).rejects.toThrow(/is malformed/);
+      }
+    );
+
+    it('throws a named error when the file parses to bare null', async () => {
+      vol.reset();
+      // Valid JSON, no properties to read — without the object guard this
+      // throws a bare TypeError naming neither the file nor the problem.
+      vol.fromJSON({ [DRIFT_IGNORE_PATH]: 'null' });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(/is not a JSON object/);
+    });
+
+    it('throws a named error when an entry is null rather than an object', async () => {
+      vol.reset();
+      vol.fromJSON({
+        [DRIFT_IGNORE_PATH]: JSON.stringify({ protectedIndexes: [null] }),
+      });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(
+        /protectedIndexes\[0\].*is not an object/s
+      );
+    });
+
+    it.each([
+      ['dropPattern', { dropPattern: '', createPattern: 'CREATE\\s+INDEX.*idx_x' }],
+      ['createPattern', { dropPattern: 'DROP\\s+INDEX.*idx_x', createPattern: '' }],
+    ])('rejects an empty %s — an empty pattern matches every file', async (_label, patterns) => {
+      vol.reset();
+      vol.fromJSON({
+        [DRIFT_IGNORE_PATH]: JSON.stringify({
+          protectedIndexes: [{ name: 'idx_x', description: 'x', ...patterns }],
+        }),
+      });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(
+        /idx_x.*empty dropPattern or createPattern/s
+      );
+    });
+
+    it.each([['name'], ['description']])(
+      'rejects an empty %s — both are interpolated into the violation message',
+      async field => {
+        vol.reset();
+        vol.fromJSON({
+          [DRIFT_IGNORE_PATH]: JSON.stringify({
+            protectedIndexes: [
+              {
+                name: 'idx_x',
+                description: 'x',
+                dropPattern: 'DROP\\s+INDEX.*idx_x',
+                createPattern: 'CREATE\\s+INDEX.*idx_x',
+                [field]: '',
+              },
+            ],
+          }),
+        });
+
+        await expect(import('./check-migration-safety.js')).rejects.toThrow(
+          /empty name or description/
+        );
+      }
+    );
+
+    it('names the offending entry when a pattern is not a valid regex', async () => {
+      vol.reset();
+      vol.fromJSON({
+        [DRIFT_IGNORE_PATH]: JSON.stringify({
+          protectedIndexes: [
+            {
+              name: 'idx_unclosed_group',
+              description: 'x',
+              // Well-typed string, uncompilable pattern — the type checks above
+              // pass, so only the compile guard catches this.
+              dropPattern: 'DROP\\s+INDEX.*(idx_x',
+              createPattern: 'CREATE\\s+INDEX.*idx_x',
+            },
+          ],
+        }),
+      });
+
+      await expect(import('./check-migration-safety.js')).rejects.toThrow(
+        /idx_unclosed_group.*not a valid regular expression/s
+      );
     });
   });
 });

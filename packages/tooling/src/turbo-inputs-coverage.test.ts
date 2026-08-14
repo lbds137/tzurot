@@ -43,7 +43,10 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  *   test files (listed explicitly even though other guards' constants
  *   currently require the same roots — this reader's coverage must not
  *   rest on another guard's shrink-only allowlist staying non-empty)
- * - db/protectedIndexRegistries.test.ts: prisma/drift-ignore.json
+ * - db/protectedIndexRegistries.test.ts: prisma/drift-ignore.json — also read
+ *   at module load by db/check-migration-safety.ts itself (the SOURCE, not
+ *   just a test), so this root gates the checker's own behaviour, not only a
+ *   fixture it reads
  */
 const INLINE_LITERAL_ROOTS = [
   '.github/workflows/ci.yml',
