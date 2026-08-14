@@ -4,13 +4,13 @@ title: Incognito toggle (#1252)
 status: To Do
 assignee: []
 created_date: '2026-06-18 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-08-14 01:04'
 labels:
   - 'area:ai-worker'
   - 'area:bot-client'
   - 'area:testing'
   - 'size:M'
-  - 'state:unreachable'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 58000
