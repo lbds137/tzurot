@@ -406,6 +406,15 @@ should be offered at all, not a dead-code cleanup. Owner leaning toward removal
 one click away via a context-menu command — if that ships, inline display has
 even less reason to exist, so the two decisions belong together.
 
+**✅ DECIDED 2026-08-14 (owner, structured choice, after the doc-73 design
+closed)**: **retire `show_thinking`**, sequenced **strictly after doc-73 PR 1**
+(the View Reasoning context-menu command) ships, so trace access never
+regresses to slash-command-only. Scope of the removal: the config knob, its
+preset-UI field, and the `sendThinkingBlock` display arm — **the job-result
+`thinkingContent` metadata channel survives** (doc-73 PR 2's persistence
+depends on it). With this, every owner decision in this theme is closed; the
+remaining work is build.
+
 ### Phase 4 — GLM-5.3 enablement
 
 - [ ] Only after PRs A+B: add 5.3, with its effort vocabulary expressed through PR B's translation table. Probe the "thinking cannot be disabled" claim directly rather than trusting launch coverage — and note PR C's save-time validation is where an unsupported `off` gets surfaced.
