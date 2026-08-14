@@ -4,13 +4,13 @@ title: Feedback gate values are code constants
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:common-types'
   - 'area:docs'
   - 'area:backlog'
   - 'size:S'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 284000

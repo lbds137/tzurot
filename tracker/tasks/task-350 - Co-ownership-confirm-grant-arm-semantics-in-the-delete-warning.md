@@ -4,11 +4,11 @@ title: 'Co-ownership: confirm grant-arm semantics in the delete warning'
 status: To Do
 assignee: []
 created_date: '2026-07-29 02:04'
-updated_date: '2026-07-29 02:04'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:api-gateway'
   - 'size:S'
-  - 'state:owner'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 350000

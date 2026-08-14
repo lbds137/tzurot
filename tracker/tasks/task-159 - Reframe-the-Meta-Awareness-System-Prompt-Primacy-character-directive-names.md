@@ -4,11 +4,11 @@ title: Reframe the Meta-Awareness / System Prompt Primacy character-directive na
 status: To Do
 assignee: []
 created_date: '2026-06-23 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:ai-worker'
   - 'size:S'
-  - 'state:owner'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 159000
