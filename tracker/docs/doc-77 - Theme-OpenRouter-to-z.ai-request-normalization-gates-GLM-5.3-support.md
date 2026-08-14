@@ -205,8 +205,9 @@ Remaining Phase 1 work:
 
 Owner: _"exclude reasoning is also redundant imho. I feel like we should look
 at that config stuff holistically and figure out what makes the most sense
-without being confusing."_ This supersedes the piecemeal framing in Phase 3
-below — the collapse is now a design deliverable, not a cleanup item.
+without being confusing."_ This superseded the original piecemeal Phase 3
+(knob-by-knob cleanup) — the collapse became a design deliverable, now the
+BUILD SPEC section below.
 
 ### What exists today: five knobs for two questions
 
@@ -239,7 +240,13 @@ deviate. It is a user-facing knob whose interesting setting we must never pick.
    lever for this: it discards at the API boundary, killing `/inspect` too.
    `show_thinking` is the right lever, and nobody has ever enabled it.
 
-### Proposed shape (design, needs owner sign-off before build)
+### ✅ Proposed shape — SIGNED OFF (owner, 2026-08-14, structured choice)
+
+Owner selected **"One knob"** from the three-option AskUserQuestion: adopt the
+single canonical level; `exclude` leaves the user surface; **`show_thinking`
+stays for now** and gets its own decision alongside doc-73's context menu (the
+"drop it in this cluster" variant was offered and not chosen). Design → spec is
+the current Fable session's deliverable; Opus builds the PRs from the spec.
 
 - **ONE user-facing knob**: a canonical thinking level — `off · minimal · low ·
   medium · high · max`. Absorbs `enabled` (≡ `off`) and `max_tokens` (drop, or
@@ -258,16 +265,102 @@ canonical level → OpenRouter `reasoning{}` or z.ai `thinking{}`. The redesign
 and the bug fix are the same work, which is what the owner's instinct was
 tracking.
 
-### Phase 2 — A real translation seam
+## BUILD SPEC (Fable design session 2026-08-14, from the signed-off shape)
 
-- [ ] Introduce a provider-normalization step that owns OpenRouter-shape → z.ai-shape, replacing the name-only strip list. The existing seam boundary (`ProviderRouter` resolves the route; `ModelFactory` builds the client) is the natural place for it.
-- [ ] Map our effort vocabulary (`xhigh`/`high`/`medium`/`low`/`minimal`/`none`) onto whatever z.ai actually accepts, including the reported 5.3 trio. Decide per level whether it maps, rounds, or is rejected — and make rejection visible rather than silent.
-- [ ] Do NOT let a value we cannot represent reach z.ai. The owner's requirement: "ensure that we don't make it possible to pass an invalid value to z.ai."
+### Provider ground truth (doc-grounded 2026-08-14; one live probe still owed at build)
 
-### Phase 3 — Validate at config time, not just request time
+- **OpenRouter** (docs/use-cases/reasoning-tokens): `reasoning.effort` accepts
+  `max · xhigh · high · medium · low · minimal · none` — seven levels, `max`
+  and `xhigh` distinct. `effort` and `max_tokens` are mutually exclusive.
+- **z.ai** (docs.z.ai chat-completion): `thinking: {type: 'enabled'|'disabled'}`
+  PLUS a separate **`reasoning_effort`** param with the SAME seven-level
+  vocabulary, **default `max`**. Full supported-param list now: temperature,
+  top_p, max_tokens, stop, response_format, do_sample, stream, thinking,
+  reasoning_effort, tools, tool_choice, tool_stream, request_id, user_id.
+  Model caveats: GLM-4.7/4.5V "think compulsorily" (off unsupported);
+  5.x "automatically determine".
+- The default-`max` explains Phase 0: we send neither field, so z.ai runs its
+  own default regardless of our knobs.
+- **Both tables are doc-reads, not probes** (`00-critical.md` § external-system
+  claims). Build step 0 of PR B runs the live probe.
 
-- [ ] An LLM config that pins an effort level unsupported by its provider should be rejected or warned about when it is SAVED, not silently degraded on every generation. Today the levels are a single global union (`REASONING_EFFORT_LEVELS`, `packages/common-types/src/schemas/llmAdvancedParams.ts`) with no provider dimension.
-- [ ] **Collapse `reasoning.enabled` vs `reasoning.effort: 'none'`** — see the census below. Owner-flagged as redundant 2026-08-14; prod data confirms it has already produced split encodings of one intent.
+### The canonical field
+
+`thinking: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'max'` — optional,
+top-level in `AdvancedParamsSchema` (sibling of `show_thinking`). **Absent =
+send nothing, provider default** (preserves today's 15 knobless configs
+exactly). Replaces the whole `reasoning` object. Recorded tradeoff: OpenRouter
+distinguishes `xhigh` from `max`; our scale collapses them (migration maps
+legacy `xhigh` → `max`) — simplicity won, owner-signed.
+
+### Translation table (ONE module owns it — the source both provider builders read)
+
+| canonical | OpenRouter request | z.ai-direct request |
+| --- | --- | --- |
+| _(unset)_ | nothing | nothing |
+| `off` | `reasoning: {effort: 'none'}` | `thinking: {type: 'disabled'}` |
+| `minimal`…`high` | `reasoning: {effort: <same>}` | `thinking: {type: 'enabled'}, reasoning_effort: <same>` |
+| `max` | `reasoning: {effort: 'max'}` | `thinking: {type: 'enabled'}, reasoning_effort: 'max'` |
+
+`exclude` is never sent (both providers default to returning the trace, which
+is the only behavior we want — `/inspect` depends on it).
+
+### Data migration (SQL over `llm_configs.advanced_parameters`, dev + prod)
+
+Mapping, in precedence order: `enabled:false` → `'off'` (explicit off wins over
+any effort) · `effort:'none'` → `'off'` · `effort:'xhigh'` → `'max'` · other
+efforts → same name · **max_tokens-only (1 config, 16384) → `'high'`** (schema
+documented high ≈ 80% budget; flag in the PR body) · absent/empty `reasoning` →
+no `thinking` key. Then delete the `reasoning` object everywhere;
+`show_thinking` untouched. Deterministic → dev/prod converge under db-sync;
+raw SQL, so no `updated_at` bump (LWW-neutral). Dev: `db:migrate` promptly;
+prod: rides the release premigrate (data-only, additive-safe).
+
+**Legacy inbound payloads**: preset JSON export/import carries
+`advancedParameters` (`preset/import.ts`), so old export files on disk hold the
+4-knob shape. Ship `upgradeLegacyReasoningShape()` in common-types — the same
+mapping as the migration, applied as a preprocess at the validation boundary —
+and pin a test that the two mappings agree. Without it, Zod strip-mode would
+**silently drop** a legacy `reasoning` object on import.
+
+### PR split
+
+- **PR A — canonical schema + full sweep + migration.** New field; delete
+  `ReasoningConfigSchema` / `REASONING_EFFORT_LEVELS` / `ConvertedReasoningConfig`
+  / `validateReasoningConstraints` (+ gateway `reasoningConstraintCheck.ts`);
+  `hasReasoningEnabled` → `thinking !== undefined && thinking !== 'off'`;
+  `LLM_CONFIG_OVERRIDE_KEYS`: `'reasoning'` → `'thinking'`. Consumers (Explore
+  sweep 2026-08-14): `config-resolver/LlmConfigResolver`, `identity/PersonalityDefaults.getReasoningConfig`,
+  `types/schemas/personality.ts` (LoadedPersonality), `preset/config.ts` (4 modal
+  fields → one `thinking` field), `preset/presetValidation.ts`,
+  `preset/import.ts` (+ legacy upgrade), `inspect/embed.ts` `buildReasoningField`,
+  ai-worker `ModelFactory.buildReasoningParams` (canonical → OpenRouter row of the
+  table), `scaleMaxTokensForReasoning` (re-express its effort→scale map from
+  canonical levels), `CacheKeyBuilder` (4 hashed fields → 1). z.ai behavior
+  deliberately unchanged in A. Test-sweep obligation: Core Principle 8 — grep
+  distinctive OLD tokens (`reasoning.effort`, `reasoning_effort` modal ids,
+  `enabled`) across every tier incl. `tests/e2e`; type fixtures with `satisfies`.
+- **PR B — z.ai translation + allowlist flip.** Step 0: live probe on the dev
+  path (thinking.type honored? reasoning_effort accepted on GLM-5.x? trace-size
+  discriminates low vs high?). Then: provider branch emitting the z.ai row of
+  the table; **flip `ZAI_DIRECT_UNSUPPORTED_PARAMS` denylist → allowlist** from
+  the documented param set; parity test asserting every `AdvancedParamsSchema`
+  key has a declared z.ai disposition (translate / send / drop) so a
+  future-added field defaults to NOT sent. This PR closes the false-advertising
+  bug — after it, the five "(Reasoning: medium)" GLM presets are true.
+- **PR C — config-time validation (was Phase 3).** Warn/reject at SAVE for a
+  level the target provider/model can't honor (e.g. `off` on compulsory-thinking
+  GLM-4.7), instead of silent per-request degradation. May consume
+  `ModelCapabilityChecker`.
+- Docs rider (either PR): update `docs/reference/REASONING_MODEL_FORMATS.md`.
+
+### What the user sees differently (restated per 00-critical § Before Code Changes)
+
+1. The preset dashboard shows **one "Thinking" field** (off/minimal/low/medium/high/max) where four reasoning fields were; `show_thinking` stays.
+2. Every existing config keeps its effective intent (mapped by the table above); the one max_tokens config becomes `high`.
+3. Old preset export files still import — auto-upgraded, not rejected, not silently stripped.
+4. After PR B, a GLM preset's advertised level is actually enforced on z.ai for the first time.
+5. `/inspect` displays the canonical level.
 
 ## Prod config census (read-only query, 2026-08-14) — 39 `llm_configs`
 
@@ -315,7 +408,7 @@ even less reason to exist, so the two decisions belong together.
 
 ### Phase 4 — GLM-5.3 enablement
 
-- [ ] Only after the above: add 5.3, with its effort vocabulary expressed through the Phase 2 mapping. Probe the "thinking cannot be disabled" claim directly rather than trusting launch coverage.
+- [ ] Only after PRs A+B: add 5.3, with its effort vocabulary expressed through PR B's translation table. Probe the "thinking cannot be disabled" claim directly rather than trusting launch coverage — and note PR C's save-time validation is where an unsupported `off` gets surfaced.
 
 ## Related
 
