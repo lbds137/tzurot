@@ -93,10 +93,24 @@ export function extractDocScopes(file: string, contents: string): SurfaceScopes 
 
 /**
  * The scope names every prose copy must enumerate: everything in `allScopes`
- * that is NOT a generated `packages/`/`services/` directory name. This
- * includes `tests` — it's generated too (conditional on the directory
- * existing), but prose calls it out by name rather than folding it into
- * "every packages/+services/ directory", so it belongs in the expected set.
+ * that is NOT a generated `packages/`/`services/` directory name.
+ *
+ * `tests` survives this filter simply because it is not a `packages/` or
+ * `services/` directory name — there is no `tests`-specific handling here.
+ * Whether `tests` is in `allScopes` at all is decided in
+ * `commitlint.config.cjs` (conditional on that directory existing); this
+ * function never sees that decision. It is included in the expected set
+ * because the prose names it explicitly rather than folding it into
+ * "every packages/+services/ directory".
+ *
+ * Known edge, the one path in this guard that degrades to a plausible wrong
+ * answer rather than a loud one: membership is the only signal separating
+ * generated from static, so a workspace directory sharing a name with a
+ * static root scope (a hypothetical `packages/docs`) would be stripped as
+ * generated, and both correct prose copies would then be reported as
+ * carrying an extra scope. Closing it needs the static and generated sets as
+ * separate inputs, which is exactly what the merged `allScopes` array does
+ * not expose — hence the recomputation here. Left open deliberately.
  */
 export function computeExpectedDocScopes(
   allScopes: readonly string[],
