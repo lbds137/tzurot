@@ -240,6 +240,18 @@ describe('countRangeChangedFiles', () => {
     expect(diffArgs[0]).toContain('v3.0.0-beta.103..origin/develop');
   });
 
+  it('bounds both git calls with a timeout so a stalled fetch cannot hang the report', () => {
+    // A clean network failure already degrades to undefined. This guards the
+    // STALL: without a timeout the fetch blocks forever and the operator
+    // cannot tell "still fetching" from "hung" — the same indistinguishable
+    // state the whole advisory exists to avoid.
+    mockedExec.mockReturnValueOnce('').mockReturnValueOnce('a.ts\n');
+    countRangeChangedFiles('v3.0.0-beta.103', 'develop');
+    for (const call of mockedExec.mock.calls) {
+      expect(call[2]).toEqual(expect.objectContaining({ timeout: expect.any(Number) }));
+    }
+  });
+
   it('returns undefined when the fetch itself fails, rather than diffing a stale ref', () => {
     mockedExec.mockImplementationOnce(() => {
       throw new Error('fatal: unable to access remote');

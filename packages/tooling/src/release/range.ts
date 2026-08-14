@@ -216,7 +216,7 @@ export function releaseRange(options: RangeOptions): void {
     // threshold nobody computes is a threshold nobody applies.
     process.stderr.write(
       chalk.yellow(
-        `Could not measure the diff size for ${fromTag}..${base} (missing tag, shallow clone, or absent local base ref). The review-capacity check was SKIPPED, not passed.\n`
+        `Could not measure the diff size for ${fromTag}..origin/${base} — the fetch failed or timed out, the tag is missing, origin/${base} does not exist (check --base), or this is a shallow clone. The review-capacity check was SKIPPED, not passed.\n`
       )
     );
   }
