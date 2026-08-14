@@ -14,7 +14,7 @@
 
 import express, { type Express } from 'express';
 import helmet from 'helmet';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 import { createRequire } from 'module';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
@@ -26,6 +26,7 @@ import {
 } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
+import { createIORedisClient } from '@tzurot/common-types/utils/redis';
 import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
@@ -163,11 +164,19 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   if (envConfig.REDIS_URL === undefined) {
     throw new Error('REDIS_URL is required but was not provided');
   }
-  const cacheRedis = new Redis(envConfig.REDIS_URL);
-  cacheRedis.on('error', err => {
-    logger.error({ err }, 'Cache Redis connection error');
-  });
-  logger.info('Redis client initialized for cache invalidation');
+  // Uses the shared factory rather than a bare `new Redis(url)`: this client
+  // backs the dedup cache and the rate limiters, which fail CLOSED and return
+  // 503 on a Redis error. That contract needs every command to either resolve
+  // or reject, so an unbounded command (no commandTimeout) would let a
+  // partially-degraded Redis hang the request instead of 503ing it. The factory
+  // also supplies connectTimeout, keepAlive, Railway's IPv6 family, and the
+  // connection-lifecycle logging that was hand-rolled here.
+  //
+  // Safe despite the pub/sub services below: they each subscribe on
+  // `redis.duplicate()`, so this client itself never enters subscriber mode
+  // (pinned by the "never enters subscriber mode" tests in
+  // packages/cache-invalidation).
+  const cacheRedis = createIORedisClient(envConfig.REDIS_URL, 'GatewayCacheRedis', logger);
 
   // Initialize deduplication cache with Redis (enables horizontal scaling)
   initializeDeduplicationCache(cacheRedis);

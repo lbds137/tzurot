@@ -38,6 +38,11 @@ describe('CacheInvalidationService', () => {
     mockRedis = {
       duplicate: vi.fn().mockReturnValue(mockSubscriber),
       publish: vi.fn().mockResolvedValue(1), // Returns number of subscribers
+      // Present so the "never enters subscriber mode" test below asserts rather
+      // than crashes: without it, a regression to this.redis.subscribe() would
+      // fail as a TypeError on an undefined method instead of as a clear
+      // expectation failure.
+      subscribe: vi.fn().mockResolvedValue(undefined),
     } as unknown as Redis;
 
     // Stub the personality cache target — the service depends only on the
@@ -62,6 +67,18 @@ describe('CacheInvalidationService', () => {
       expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
       expect(mockSubscriber.subscribe).toHaveBeenCalledWith(REDIS_CHANNELS.CACHE_INVALIDATION);
       expect(mockSubscriber.on).toHaveBeenCalledWith('message', expect.any(Function));
+    });
+
+    it('should never put the shared client into subscriber mode', async () => {
+      await service.subscribe();
+
+      // Load-bearing for the caller, not just tidy: api-gateway hands this same
+      // client to the dedup cache and rate limiters and configures it with a
+      // commandTimeout. A connection in subscriber mode accepts only pub/sub
+      // commands, so subscribing HERE instead of on the duplicate would break
+      // every other consumer of the shared client.
+      expect(mockRedis.subscribe).not.toHaveBeenCalled();
+      expect(mockSubscriber.subscribe).toHaveBeenCalled();
     });
 
     it('should handle subscription errors', async () => {
