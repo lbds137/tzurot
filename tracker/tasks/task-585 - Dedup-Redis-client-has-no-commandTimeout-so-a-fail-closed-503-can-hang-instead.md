@@ -3,9 +3,10 @@ id: TASK-585
 title: >-
   Dedup Redis client has no commandTimeout, so a fail-closed 503 can hang
   instead
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 11:54'
+updated_date: '2026-08-14 19:16'
 labels:
   - 'area:api-gateway'
   - 'size:M'
