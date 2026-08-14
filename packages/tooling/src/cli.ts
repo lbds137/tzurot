@@ -38,7 +38,11 @@ import { registerCodegenCommands } from './commands/codegen.js';
 import { registerTopologyCommands } from './commands/topology.js';
 import { registerPromptCommands } from './commands/prompt.js';
 import { UsageError, reportUsageError } from './utils/errors.js';
-import { classifyNoMatch, unknownCommandMessage } from './utils/unknown-command.js';
+import {
+  classifyNoMatch,
+  unknownCommandMessage,
+  unknownFlagsMessage,
+} from './utils/unknown-command.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -90,6 +94,7 @@ try {
   // print nothing and exit 0 — a typo indistinguishable from success.
   const action = classifyNoMatch(cli);
   if (action.kind === 'unknown') throw new UsageError(unknownCommandMessage(action.name));
+  if (action.kind === 'unknown-flag') throw new UsageError(unknownFlagsMessage(action.flags));
   if (action.kind === 'help') cli.outputHelp();
   else await cli.runMatchedCommand();
 } catch (error) {
