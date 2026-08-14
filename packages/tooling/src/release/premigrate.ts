@@ -56,13 +56,20 @@ const DESTRUCTIVE_PATTERNS: { label: string; re: RegExp }[] = [
   { label: 'ALTER COLUMN TYPE', re: /\bALTER\s+COLUMN\b[^;]*\bTYPE\b/i },
 ];
 
+/** Upper bound for every git call here; the `fetch` is the one that can stall. */
+const GIT_TIMEOUT_MS = 30_000;
+
 /**
  * Run a git subcommand with array args (no shell interpolation — see
  * `.claude/rules/00-critical.md` § "Shell Command Safety"). Returns trimmed
  * stdout; throws on non-zero exit.
  */
 function git(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf-8' }).trim();
+  // Bounded because one of these calls is `fetch origin`, which touches the
+  // network. A STALLED connection (not a clean failure) would otherwise hang
+  // premigrate indefinitely — and this runs in the pre-merge migration path,
+  // where an operator waiting on a silent hang is worse than a clear error.
+  return execFileSync('git', args, { encoding: 'utf-8', timeout: GIT_TIMEOUT_MS }).trim();
 }
 
 /**

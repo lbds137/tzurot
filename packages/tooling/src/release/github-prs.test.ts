@@ -200,7 +200,7 @@ describe('countRangeChangedFiles', () => {
     expect(mockedExec).toHaveBeenNthCalledWith(
       1,
       'git',
-      ['fetch', 'origin'],
+      ['fetch', 'origin', 'develop'],
       expect.objectContaining({ stdio: expect.anything() })
     );
     expect(mockedExec).toHaveBeenNthCalledWith(
@@ -259,13 +259,18 @@ describe('countRangeChangedFiles', () => {
     expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBeUndefined();
   });
 
-  it('returns undefined rather than throwing when git cannot answer', () => {
-    // Missing tag, shallow clone, absent local base ref. The ship inventory
-    // must still print; failing a release report over an advisory metric
-    // would be the wrong trade.
-    mockedExec.mockImplementationOnce(() => {
-      throw new Error("fatal: bad revision 'v9.9.9..develop'");
+  it('returns undefined when the DIFF fails after a successful fetch', () => {
+    // Distinct from the fetch-failure case above, and the distinction is the
+    // point: mockImplementationOnce intercepts the NEXT call, so without the
+    // leading mockReturnValueOnce this would throw on the fetch and silently
+    // duplicate that test. Missing tag / shallow clone / bad revision all
+    // surface here, at the diff, and are only covered if the fetch succeeds
+    // first. Splitting the shared try/catch would break this and not the
+    // other.
+    mockedExec.mockReturnValueOnce('').mockImplementationOnce(() => {
+      throw new Error("fatal: bad revision 'v9.9.9..origin/develop'");
     });
     expect(countRangeChangedFiles('v9.9.9', 'develop')).toBeUndefined();
+    expect(mockedExec).toHaveBeenCalledTimes(2);
   });
 });
