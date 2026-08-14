@@ -141,6 +141,7 @@ pnpm ops guard:workflow-sync         # claude workflow files must be byte-identi
 pnpm ops guard:gate-parity           # pnpm-quality chain and CI lint job must not drift (allowlisted asymmetries excepted)
 pnpm ops guard:ops-doc               # every registered ops CLI command has a row in OPS_CLI_REFERENCE.md
 pnpm ops guard:hook-probes           # runs every .claude/hooks/*.probe.sh; every hook needs a probe or a written reason
+pnpm ops guard:commit-scope-sync     # commit-scope prose in this file / the git-workflow skill must match allScopes in commitlint.config.cjs
 pnpm ops lines:check                 # always-loaded surfaces (.claude/rules total, CURRENT.md) within their LINE and BYTE budgets
 pnpm ops lines:update-baseline       # make budget growth explicit (same --update contract as cpd/test:audit); --surface <name> scopes the write
 ```

@@ -402,6 +402,7 @@ describe('findContentRefs (against real repo)', () => {
       'guard:audit-tool-docs',
       'guard:boundaries',
       'guard:claude-content-refs',
+      'guard:commit-scope-sync',
       'guard:dockerfile-dist',
       'guard:duplicate-exports',
       'guard:gate-parity',
