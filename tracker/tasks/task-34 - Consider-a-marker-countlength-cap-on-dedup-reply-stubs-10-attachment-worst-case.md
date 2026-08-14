@@ -6,12 +6,12 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
-updated_date: '2026-07-31 16:15'
+updated_date: '2026-08-14 22:45'
 labels:
   - 'origin:review'
   - 'area:ai-worker'
   - 'size:S'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 34000

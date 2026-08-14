@@ -4,13 +4,13 @@ title: Reminder DM about one week before grace-end
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:jobs'
   - 'area:api-gateway'
   - 'area:bot-client'
   - 'size:M'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 331000

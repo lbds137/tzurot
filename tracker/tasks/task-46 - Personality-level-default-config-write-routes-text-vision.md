@@ -4,11 +4,11 @@ title: Personality-level default config write routes (text + vision)
 status: To Do
 assignee: []
 created_date: '2026-06-28 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:owner'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 46000

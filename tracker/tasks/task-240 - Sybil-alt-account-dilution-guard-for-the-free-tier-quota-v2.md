@@ -4,11 +4,11 @@ title: Sybil / alt-account dilution guard for the free-tier quota (v2)
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-14 22:45'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 240000

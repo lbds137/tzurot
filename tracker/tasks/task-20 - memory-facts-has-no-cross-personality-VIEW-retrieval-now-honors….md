@@ -4,12 +4,12 @@ title: '/memory facts: cross-personality view with per-character attribution'
 status: To Do
 assignee: []
 created_date: '2026-07-10 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:bot-client'
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:owner'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 20000

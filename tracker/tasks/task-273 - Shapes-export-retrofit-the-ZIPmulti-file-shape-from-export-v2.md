@@ -4,11 +4,11 @@ title: 'Shapes export: retrofit the ZIP/multi-file shape from export v2'
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 273000
@@ -21,4 +21,6 @@ ordinal: 273000
 Shapes export: retrofit the ZIP/multi-file shape from export v2 — Owner 2026-07-15: shapes export is "a bit better [than the giant account JSON] but might need work too." Once export v2 proves the ZIP-with-per-section-files + both-formats shape, consider retrofitting shapes export to match (drop its format toggle, reuse the zip assembly + markdown formatters). **Promote when**: export v2 ships and the owner confirms the shape works in practice. Surfaced 2026-07-15 (account-export smoke debrief).
 
 **Why:** One export UX across the bot beats two divergent ones.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): retrofit approved, low priority - owner confirmed the export-v2 ZIP shape works in practice, so the gate is met; shapes export drops its format toggle and reuses the zip assembly + markdown formatters.**
 <!-- SECTION:DESCRIPTION:END -->

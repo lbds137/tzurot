@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 17:23'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:tooling'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 555000
@@ -40,4 +41,6 @@ Round 13 addendum, and it changes the severity argument. The five cases above we
 Fixed in 2078 by comparing basenames through one command_name helper rather than exact strings, and by matching a clustered `-c` instead of literal equality. Recorded here because it undercuts the "false blocks are recoverable" half of option (a): making the guard ackable does nothing for a shape where the hook never runs at all. Any decision on this task has to cover recognition failures separately from boundary failures.
 
 Acceptance: either the exposure is reduced so a tokenizer gap is recoverable, or the parsing is replaced with something that models bash, or the class is ruled out on merit with the residual risk stated.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): measure bashlex import cost first; adopt if cheap (~<50ms - the hook runs on every Bash call) since ackability cannot help the recognition-failure shape; if expensive, accept + document residual risk keeping the current fixes.**
 <!-- SECTION:DESCRIPTION:END -->

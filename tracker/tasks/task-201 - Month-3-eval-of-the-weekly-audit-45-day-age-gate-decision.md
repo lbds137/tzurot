@@ -4,11 +4,11 @@ title: Month-3 eval of the weekly audit + 45-day age-gate decision
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-08-14 22:45'
 labels:
   - 'area:process'
   - 'size:S'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 201000

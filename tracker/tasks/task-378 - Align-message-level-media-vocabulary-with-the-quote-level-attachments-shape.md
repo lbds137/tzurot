@@ -4,11 +4,11 @@ title: Align message-level media vocabulary with the quote-level <attachments> s
 status: To Do
 assignee: []
 created_date: '2026-07-31 12:21'
-updated_date: '2026-07-31 12:21'
+updated_date: '2026-08-14 22:44'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 378000
