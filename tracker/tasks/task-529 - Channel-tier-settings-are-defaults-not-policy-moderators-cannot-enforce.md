@@ -4,10 +4,11 @@ title: 'Channel-tier settings are defaults, not policy - moderators cannot enfor
 status: To Do
 assignee: []
 created_date: '2026-08-11 18:41'
+updated_date: '2026-08-14 22:31'
 labels:
   - 'area:common-types'
   - 'size:M'
-  - 'state:owner'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 529000
@@ -27,4 +28,6 @@ Owner decision first, because this is product taste with a moderation dimension:
 THEME: member of doc-75 (Guild / Server Management), Phase 1 - and the decision this task asks for is the theme cross-cutting question, so answering it unblocks Phase 2 as well. Owner framing 2026-08-11: most of the product is user-level; this is the moderator level.
 
 Acceptance: a recorded decision. If yes, the enforce mechanism plus the dashboard wording that explains it; if no, the answer to why moderators cannot enforce lives somewhere a user can read.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): NO enforcement - the channel tier stays a default and user autonomy is supreme. The user-readable "why" ships via TASK-527 scope wording ("applies to members who have not set their own"). Relabeled state:dependent on TASK-527; revisit only on real moderator demand.**
 <!-- SECTION:DESCRIPTION:END -->

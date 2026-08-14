@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-13 18:08'
+updated_date: '2026-08-14 22:31'
 labels:
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 590000
@@ -25,4 +26,6 @@ Fix shape: decide whether users may write arbitrary JSONB at all (owner call - i
 Acceptance: either a user create+update round-trip persists customFields, or no user-facing surface mentions it.
 
 Source: found while building TASK-565 (export clear-form fix); export.ts EXPORT_FIELDS carries a comment pointing here.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): FORWARD customFields in both user routes (mirror admin/updatePersonality) with a size bound; PGLite route test per path.**
 <!-- SECTION:DESCRIPTION:END -->

@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 17:32'
-updated_date: '2026-08-01 17:32'
+updated_date: '2026-08-14 22:31'
 labels:
-  - 'size:M'
   - 'area:ai-worker'
-  - 'state:owner'
+  - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 391000
@@ -32,4 +32,6 @@ Surfaced 2026-08-01 by the TASK-375 prod log sweep (10 ai-worker deployments, 36
 **Fix shape (needs a decision, not just code)**: options are (a) leave it, the retry already recovers; (b) treat empty-visible-with-reasoning as a fast retry that skips the remaining backoff, since the outcome is known-bad the moment it is detected; (c) surface the reasoning as the reply when all attempts come back empty, rather than failing. The `visibleLength=1` case suggests any threshold should be a minimum length, not an emptiness check.
 
 **Verify before building**: 2 events is a thin base rate. Re-grep a wider window for `Empty response after post-processing` and confirm the glm-4.5-air concentration holds before sizing this.
+
+**DECIDED 2026-08-14 (owner, TASK-599 digest): option (b) fast-retry + a minimum-visible-length threshold; build gated on the wider log re-grep confirming the glm-4.5-air concentration.**
 <!-- SECTION:DESCRIPTION:END -->
