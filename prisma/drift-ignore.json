@@ -25,7 +25,7 @@
       "table": "memory_facts",
       "type": "ivfflat",
       "description": "IVFFlat vector index for fact similarity retrieval (memory Phase 2). Dropping it silently degrades fact queries to sequential scans as the table grows.",
-      "recreateSQL": "CREATE INDEX \"idx_memory_facts_embedding\" ON \"memory_facts\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50)",
+      "recreateSQL": "CREATE INDEX \"idx_memory_facts_embedding\" ON \"memory_facts\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50);",
       "dropPattern": "DROP\\s+INDEX.*idx_memory_facts_embedding",
       "createPattern": "CREATE\\s+INDEX.*idx_memory_facts_embedding"
     }
@@ -133,7 +133,7 @@
     }
   ],
   "documentation": {
-    "driftIssuesDoc": "docs/database/PRISMA_DRIFT_ISSUES.md",
+    "driftIssuesDoc": "docs/reference/database/PRISMA_DRIFT_ISSUES.md",
     "vectorSkill": ".claude/skills/tzurot-db-vector/SKILL.md"
   }
 }

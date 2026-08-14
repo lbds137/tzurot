@@ -10,13 +10,14 @@
  * an index to one registry without the others fails the suite with the
  * missing names in the diff.
  *
- * The two halves no longer carry equal weight. `check-migration-safety.ts`
- * now DERIVES its registry from `drift-ignore.json` at load time, so that
- * assertion compares the JSON against a value computed from the same JSON —
- * it can only fail on a bug inside the loader's own mapping, not on someone
- * editing one list and forgetting the other. The `inspect-database.ts`
- * comparison is the half still doing the original job, because that list
- * remains independently hand-maintained (TASK-603 tracks converting it).
+ * Both halves now DERIVE from `drift-ignore.json` through the shared
+ * `protectedIndexRegistry.ts` loader, so neither name-set assertion can fail
+ * on someone editing one list and forgetting another — there is only one list
+ * left to edit. What they still catch is a bug inside the loader's own mapping
+ * or a consumer that re-narrows the set on its way through. The remaining two
+ * assertions are the ones doing independent work: they check the JSON's own
+ * internal coupling, where `protectedIndexes` and `ignorePatterns` are still
+ * two hand-maintained arrays that have to agree.
  */
 
 import { readFileSync } from 'node:fs';
