@@ -174,6 +174,21 @@ describe('listMergedPrsSince', () => {
   });
 });
 
+describe('normalizeGhPr — absent files key', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('survives a gh response that omits files entirely, leaving files undefined', () => {
+    // Distinct from `files: []`: an omitted key exercises the `raw.files?.map`
+    // optional chain, and `undefined` is what makes classifyPr fail toward
+    // runtime. A `[]` fixture cannot reach that branch.
+    mockedExec.mockReturnValueOnce(
+      JSON.stringify([{ number: 1, title: 'feat: x', mergedAt: '2026-04-22T12:00:00Z' }])
+    );
+    const [pr] = listMergedPrsSince('2026-04-22T10:00:00Z', 'develop');
+    expect(pr.files).toBeUndefined();
+  });
+});
+
 describe('countRangeChangedFiles', () => {
   beforeEach(() => vi.clearAllMocks());
 
