@@ -172,11 +172,19 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
  * runtime classification: those measure prod risk, this measures how much
  * diff the release reviewer has to read.
  *
- * `git diff` does not detect renames by default (this repo sets no
- * `diff.renames`), so a pure rename counts as a delete plus an add — two
- * entries where GitHub's own Files-changed view shows one. The skew is
- * therefore always an OVER-count, never under, which is the safe direction
- * for a threshold whose job is to warn early.
+ * Rename handling matches GitHub's, which is worth stating because the
+ * opposite was assumed here first: `diff.renames` defaults to TRUE (Git 2.9+)
+ * and this repo sets no override, so a pure rename is ONE entry — the new
+ * path — not a delete plus an add. Probed rather than reasoned: a scratch
+ * repo with a single `git mv` returns 1 path from `--name-only`, identical
+ * with and without an explicit `-M`.
+ *
+ * The two-dot form assumes `fromTag` is an ancestor of `base`. That holds
+ * because `release:finalize` rebases `develop` onto `main` after every
+ * release, keeping tags reachable. If it were ever broken — a hotfix landing
+ * on `main` outside that flow — the count would OVER-state relative to what
+ * GitHub renders, never under, so the advisory still fails toward warning
+ * early.
  *
  * Returns `undefined` rather than throwing when git can't answer (a missing
  * tag, a shallow clone, no such ref) — the ship inventory is still useful
