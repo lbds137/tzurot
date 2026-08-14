@@ -3,9 +3,10 @@ id: TASK-589
 title: >-
   Adding a branch beside an existing one needs a two-way sweep of the branch
   point
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 16:47'
+updated_date: '2026-08-14 00:17'
 labels:
   - 'area:rules'
   - 'size:S'

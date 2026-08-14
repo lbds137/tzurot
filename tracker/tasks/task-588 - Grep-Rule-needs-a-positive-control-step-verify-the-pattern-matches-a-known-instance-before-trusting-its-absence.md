@@ -3,9 +3,10 @@ id: TASK-588
 title: >-
   Grep Rule needs a positive-control step: verify the pattern matches a known
   instance before trusting its absence
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 13:32'
+updated_date: '2026-08-14 00:17'
 labels:
   - 'area:rules'
   - 'size:S'

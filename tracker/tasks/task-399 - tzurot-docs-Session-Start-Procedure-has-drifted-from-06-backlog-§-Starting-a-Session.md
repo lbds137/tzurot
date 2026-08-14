@@ -3,10 +3,10 @@ id: TASK-399
 title: >-
   tzurot-docs Session Start Procedure has drifted from 06-backlog § Starting a
   Session
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 14:03'
-updated_date: '2026-08-04 13:50'
+updated_date: '2026-08-14 00:17'
 labels:
   - 'size:S'
   - 'area:docs'
