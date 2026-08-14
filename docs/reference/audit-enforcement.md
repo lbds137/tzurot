@@ -14,7 +14,9 @@ Diagnostic tools that are user-invoked for inspection (`inspect:queue`, `inspect
 
 `memory:analyze` is a borderline case: it has a measurement (duplicate memories) but is one-shot remediation, not a periodic audit. It's intentionally **not** registered in `AUDIT_TOOL_REGISTRY` even though it has a `WHY.md`.
 
-Likewise `guard:duplicate-exports`, `guard:dockerfile-dist`, `guard:hook-probes`, and `guard:gate-parity`: all four are CI gates but deliberately unregistered (no WHY.md, no canary, no `--summary`) because they are binary "is this in sync?" checks, not measurements with thresholds — the answer to "why doesn't `guard:gate-parity` have a WHY.md like the others."
+Likewise `guard:duplicate-exports`, `guard:dockerfile-dist`, `guard:hook-probes`, `guard:gate-parity`, `guard:monitor-command`, and `guard:commit-scope-sync`: all CI gates but deliberately unregistered (no WHY.md, no canary, no `--summary`) because they are binary "is this in sync?" checks, not measurements with thresholds — the answer to "why doesn't `guard:gate-parity` have a WHY.md like the others."
+
+This list is illustrative prose, not an enforced set — nothing fails when a new binary sync-check is added without appearing here. Add yours anyway: this paragraph is what someone consults to decide whether their new guard needs a registry entry, so an incomplete list reads as "your guard is not in the exempt category" and produces registry entries for tools that shouldn't have them.
 
 ## The registered audit tools (16)
 

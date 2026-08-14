@@ -3,9 +3,10 @@ id: TASK-545
 title: >-
   Commit-scope prose is duplicated across 05-tooling and the git-workflow skill
   with no sync guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 07:43'
+updated_date: '2026-08-14 01:11'
 labels:
   - 'area:tooling'
   - 'size:S'
