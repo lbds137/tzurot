@@ -21,6 +21,7 @@ import {
   discoverPrevTag,
   tagTimestamp,
   listMergedPrsSince,
+  countRangeChangedFiles,
   DEFAULT_BASE_BRANCH,
 } from './github-prs.js';
 import type { MergedPr } from './notes-format.js';
@@ -95,10 +96,40 @@ export interface RangeReportOptions {
   fromTag: string;
   fromTimestamp: string;
   base: string;
+  /**
+   * Files in the whole-range diff. Optional because the report stays useful
+   * without it — an unavailable git call degrades to omitting the diff-size
+   * line rather than failing the command.
+   */
+  changedFiles?: number;
 }
 
 /** Threshold at which the trailer suggests proposing a release cut. */
 const RUNTIME_CUT_THRESHOLD = 10;
+
+/**
+ * GitHub stops rendering a diff past this many files, documented under
+ * "Repository limits". Past it the release PR's Files-changed tab is
+ * unreadable and the review action cannot see the whole change.
+ */
+const GITHUB_DIFF_FILE_CEILING = 300;
+
+/**
+ * Advisory threshold for REVIEW capacity, a different axis from the runtime
+ * count above.
+ *
+ * The runtime count measures prod RISK, so a tooling- or docs-only batch adds
+ * nothing to it. But the release reviewer reads the whole diff regardless of
+ * which side of that line a file sits on — a range can be 60% non-runtime by
+ * PR count and still put every one of those files in front of the review. The
+ * two triggers answer different questions and neither substitutes for the
+ * other.
+ *
+ * Set below the hard ceiling rather than at it: observed ranges run ~170
+ * files, so crossing this leaves roughly one more typical range of headroom
+ * to act in before GitHub itself stops rendering.
+ */
+const REVIEW_CAPACITY_FILE_ADVISORY = 250;
 
 /**
  * Render the deterministic ship-inventory report. Pure function — takes
@@ -136,9 +167,21 @@ export function formatRangeReport(prs: MergedPr[], options: RangeReportOptions):
     `Total: ${prs.length} ${prNoun} — ${runtimeCount} runtime, ${nonRuntimeCount} non-runtime`
   );
 
+  if (options.changedFiles !== undefined) {
+    lines.push(
+      `Diff size: ${options.changedFiles} files changed (GitHub stops rendering a diff at ${GITHUB_DIFF_FILE_CEILING}).`
+    );
+  }
+
   if (runtimeCount >= RUNTIME_CUT_THRESHOLD) {
     lines.push(
       `Runtime count at release-cadence threshold (~${RUNTIME_CUT_THRESHOLD}) — consider proposing a cut (.claude/rules/10-working-posture.md § Ship in bounded units).`
+    );
+  }
+
+  if (options.changedFiles !== undefined && options.changedFiles >= REVIEW_CAPACITY_FILE_ADVISORY) {
+    lines.push(
+      `Diff size at review-capacity threshold (~${REVIEW_CAPACITY_FILE_ADVISORY} files) — consider proposing a cut even if the runtime count is low; the release reviewer reads non-runtime files too (.claude/rules/10-working-posture.md § Ship in bounded units).`
     );
   }
 
@@ -159,7 +202,8 @@ export function releaseRange(options: RangeOptions): void {
     process.stderr.write(chalk.yellow(`No PRs merged since ${fromTag} (${fromTimestamp}).\n`));
   }
 
-  const report = formatRangeReport(prs, { fromTag, fromTimestamp, base });
+  const changedFiles = countRangeChangedFiles(fromTag, base);
+  const report = formatRangeReport(prs, { fromTag, fromTimestamp, base, changedFiles });
   process.stdout.write(report);
   process.stdout.write('\n');
 }
