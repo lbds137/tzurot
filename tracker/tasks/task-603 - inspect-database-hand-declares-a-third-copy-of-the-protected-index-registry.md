@@ -1,9 +1,10 @@
 ---
 id: TASK-603
 title: inspect-database hand-declares a third copy of the protected-index registry
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 11:51'
+updated_date: '2026-08-14 16:37'
 labels:
   - 'area:tooling'
   - 'area:db'

@@ -3,9 +3,10 @@ id: TASK-604
 title: >-
   Protected-index drop check is unwired: pre-commit hand-rolls an incomplete
   copy
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 12:02'
+updated_date: '2026-08-14 16:37'
 labels:
   - 'area:tooling'
   - 'area:db'
