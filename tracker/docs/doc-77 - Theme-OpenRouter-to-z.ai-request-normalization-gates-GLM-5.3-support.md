@@ -201,6 +201,63 @@ Remaining Phase 1 work:
       here rather than rediscovered. Partly answered by Phase 0: the response
       arrives as `reasoning_content` in `additional_kwargs` and IS extracted.
 
+## ⭐ OWNER DIRECTIVE 2026-08-14 — redesign the thinking config holistically, don't patch knob-by-knob
+
+Owner: _"exclude reasoning is also redundant imho. I feel like we should look
+at that config stuff holistically and figure out what makes the most sense
+without being confusing."_ This supersedes the piecemeal framing in Phase 3
+below — the collapse is now a design deliverable, not a cleanup item.
+
+### What exists today: five knobs for two questions
+
+| Knob | Type | Prod usage (39 configs) |
+| --- | --- | --- |
+| `reasoning.enabled` | bool | 13 set (5 false, 8 true) |
+| `reasoning.effort` | 6-level enum incl. `none` | 17 set |
+| `reasoning.max_tokens` | int | **1** config (16384) |
+| `reasoning.exclude` | bool | 21 set — **all `false`, zero `true`** |
+| `show_thinking` | bool | 23 set — **all `false`, zero `true`** |
+
+That is **9 distinct knob-shapes across 39 configs**, and 15 configs set nothing
+at all. For what is semantically two questions.
+
+**`exclude` is worse than redundant — its non-default value is hostile to us.**
+`exclude: true` tells the provider not to return the trace, which would blank
+`/inspect`'s reasoning view — the surface the owner uses often (doc-73's whole
+premise). So the only value we ever want is the default, and 0/39 configs
+deviate. It is a user-facing knob whose interesting setting we must never pick.
+
+### The two questions actually being asked
+
+1. **How hard should the model think?** — `enabled`, `effort`, and `max_tokens`
+   are three encodings of this one axis. `enabled:false` ≡ `effort:'none'`
+   (already split 5/4 in prod, six configs literally named "(Reasoning: none)"
+   across both encodings), and `max_tokens` is a parallel budget expression
+   with one user.
+2. **Where does the trace go?** — `exclude` (does the provider return it) and
+   `show_thinking` (do we render it inline in Discord). `exclude` is the wrong
+   lever for this: it discards at the API boundary, killing `/inspect` too.
+   `show_thinking` is the right lever, and nobody has ever enabled it.
+
+### Proposed shape (design, needs owner sign-off before build)
+
+- **ONE user-facing knob**: a canonical thinking level — `off · minimal · low ·
+  medium · high · max`. Absorbs `enabled` (≡ `off`) and `max_tokens` (drop, or
+  demote to an advanced override).
+- **`exclude` stops being user-facing** — pinned internally to "always return
+  the trace", because every consumer we have wants it.
+- **`show_thinking`** is the only display question, and doc-73's context-menu
+  command may replace it entirely. Owner leaning removal; sequence the
+  replacement first.
+
+**Why this ACCELERATES the z.ai fix rather than delaying it.** A translation
+layer needs a canonical internal representation as its input — right now
+`effort` IS OpenRouter's vocabulary, so "translate to z.ai" has no neutral
+source to translate *from*. Defining our own level is the natural seam: one
+canonical level → OpenRouter `reasoning{}` or z.ai `thinking{}`. The redesign
+and the bug fix are the same work, which is what the owner's instinct was
+tracking.
+
 ### Phase 2 — A real translation seam
 
 - [ ] Introduce a provider-normalization step that owns OpenRouter-shape → z.ai-shape, replacing the name-only strip list. The existing seam boundary (`ProviderRouter` resolves the route; `ModelFactory` builds the client) is the natural place for it.
