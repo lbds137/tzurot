@@ -1,9 +1,10 @@
 ---
 id: TASK-605
 title: drift-ignore.json $schema points at a file that does not exist
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 12:03'
+updated_date: '2026-08-14 16:37'
 labels:
   - 'area:db'
   - 'size:S'
