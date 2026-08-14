@@ -30,15 +30,21 @@
 
 **Slip logged:** ran `git checkout <file>` to restore a canary — that is `git restore`, on the ASK-FIRST list, and it discarded my own uncommitted work. Use a `.bak` copy for canaries.
 
-## 🚀 NEXT RELEASE — beta.201 APPROVED, NOT YET CUT
+## 🚀 RELEASE beta.201 — PR #2098 OPEN, awaiting owner merge approval
 
-**Owner approved the cut (2026-08-13), to happen once #2093 and #2097 land.** Both were green-pending at session end; nothing else is in flight.
+**Cut 2026-08-14.** Version bumped (`039c32486`), notes drafted + `verify-notes` green (all 23 PRs referenced exactly once), release PR #2098 open develop → main. **Merge needs explicit per-release owner approval** (`00-critical.md`) — CI green is not approval.
 
-**Range as of approval:** 21 PRs — **8 runtime by `release:range`, ~7 real** (#2095 classifies runtime only because it touched root `package.json`). **175 files.** Three themes, which is what tripped the trigger rather than the PR count: (1) prod-log privacy + spend correctness (#2092, #2085), (2) character/tag UX (#2083, #2087, #2090), (3) health/observability + tooling (#2091, #2086, #2095).
+**Final range:** 23 PRs — **8 runtime, 15 non-runtime, 186 files** (`release:range`; #2095 classifies runtime only because it touched root `package.json`). Three runtime themes: (1) spend + prod-log privacy (#2085, #2092), (2) character UX (#2090, #2087, #2083), (3) health/observability + release tooling (#2091, #2086, #2082/#2097, #2095).
 
-**Risk: low.** No migrations in range. No open advisories. No dependabot queue. **One smoke item worth a manual pass:** #2090's export-clear round-trip — export a character with an empty field, re-import, confirm the field stays empty. Everything else is log-observable rather than click-observable.
+**Risk: low.** No migrations in range → **no premigrate step**. No open advisories, no dependabot queue, `guard:repo-settings` clean (`delete_branch_on_merge: false`). Doc sweep done (commands.md has zero stale entity terminology; no legal-doc impact). Backlog sweep clean.
 
-**GitHub diff ceiling (owner question, answered):** GitHub stops rendering a diff at **300 files**; we are at 175 (58%), largest single file 569 lines against a 20k/500KB per-file limit, zero binaries, and the `compare` API serves all 175 without a 406. Not the binding constraint — reviewer attention is, which is what #2097 operationalizes.
+### Smoke checklist — beta.201 (one item, run after prod deploy)
+
+- [ ] **S1 — #2090 export-clear round-trip** (needs-smoke): export a character that has an **empty** field → re-import it → confirm the field stays empty rather than reverting to its pre-export value. This is the one user-visible flow in the range whose failure would be **silent** rather than logged. Fail: the field comes back populated with the old value.
+
+Everything else is log-observable on first real use (#2085's fail-closed dedup, #2092's id-only persona logging) — offered deliberately as observability-instead-of-smoke, not as an untested gap.
+
+**GitHub diff ceiling (owner question, answered):** GitHub stops rendering a diff at **300 files**; we are at 186 (62%), largest single file 569 lines against a 20k/500KB per-file limit, zero binaries. Not the binding constraint — reviewer attention is, which is what #2097 operationalizes.
 
 ## 🔄 PREVIOUS RELEASE (2026-08-12 — beta.200 RELEASED)
 
