@@ -2,14 +2,19 @@
  * Migration Safety Checker
  *
  * Scans migration files for dangerous patterns that could break the database:
- * - Dropping protected indexes (idx_memories_embedding) without recreating
- * - Other patterns can be added here
+ * dropping a protected index without recreating it in the same migration. The
+ * protected list is derived from prisma/drift-ignore.json — add entries there,
+ * not here.
  *
- * This runs in CI and pre-commit to prevent accidental index drops.
+ * Reached via the weekly `pnpm ops health` roster and manual
+ * `pnpm ops db:check-safety`. It is NOT wired into `pnpm quality`, CI, or
+ * `.husky/pre-commit` — the hook hand-rolls its own narrower grep check.
+ * See check-migration-safety.WHY.md § "Where it actually runs".
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { emitSummary } from '../audits/summary.js';
 
@@ -20,34 +25,152 @@ interface ProtectedIndex {
   description: string;
 }
 
+/** Raw shape of one `protectedIndexes[]` entry in prisma/drift-ignore.json. */
+interface DriftIgnoreProtectedIndexEntry {
+  name: string;
+  description: string;
+  dropPattern: string;
+  createPattern: string;
+}
+
+/** Minimal shape of drift-ignore.json this loader cares about. */
+interface DriftIgnoreFile {
+  protectedIndexes: DriftIgnoreProtectedIndexEntry[];
+}
+
 /**
- * Indexes that must be recreated if dropped. The name set must agree with
- * prisma/drift-ignore.json `protectedIndexes` and inspect-database.ts —
- * protectedIndexRegistries.test.ts enforces the agreement. Exported for that
- * guard test only.
+ * Default location of prisma/drift-ignore.json, resolved from this module's
+ * own file location rather than `process.cwd()`. The two invocation paths run
+ * from different working directories — `pnpm ops` from the repo root, vitest
+ * from the package directory — so a cwd-relative default would resolve for
+ * one and not the other; a module-relative one resolves for both. Pinned by
+ * the loader tests, which run under the vitest cwd.
+ */
+const DEFAULT_DRIFT_IGNORE_PATH = fileURLToPath(
+  new URL('../../../../prisma/drift-ignore.json', import.meta.url)
+);
+
+/**
+ * Load the protected-index registry from prisma/drift-ignore.json's
+ * `protectedIndexes` array — the single source of truth for which indexes
+ * must never be dropped without a recreate in the same migration.
+ *
+ * Fails loudly (throws) on a missing file, invalid JSON, or a missing/empty
+ * `protectedIndexes` array. This is a safety checker: silently checking zero
+ * indexes would look identical to "all migrations are safe," which is
+ * precisely the failure this tool exists to prevent.
+ *
+ * Module-local and parameterless on purpose: the tests reach this through
+ * `vi.mock('node:fs')` with memfs seeded at the resolved path, so a path
+ * override would be flexibility with no consumer.
+ */
+function loadProtectedIndexes(): ProtectedIndex[] {
+  const driftIgnorePath = DEFAULT_DRIFT_IGNORE_PATH;
+  let raw: string;
+  try {
+    raw = readFileSync(driftIgnorePath, 'utf-8');
+  } catch (error) {
+    throw new Error(
+      `check-migration-safety: could not read drift-ignore.json at ${driftIgnorePath}: ${String(error)}`,
+      { cause: error }
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `check-migration-safety: drift-ignore.json at ${driftIgnorePath} is not valid JSON: ${String(error)}`,
+      { cause: error }
+    );
+  }
+
+  // `JSON.parse` accepts bare `null` and every scalar, none of which have a
+  // `.protectedIndexes` — reading through them would throw a TypeError naming
+  // no file, which is the one failure shape the messages below exist to avoid.
+  if (parsed === null || typeof parsed !== 'object') {
+    throw new Error(
+      `check-migration-safety: drift-ignore.json at ${driftIgnorePath} is not a JSON object`
+    );
+  }
+
+  const entries = (parsed as Partial<DriftIgnoreFile>).protectedIndexes;
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error(
+      `check-migration-safety: drift-ignore.json at ${driftIgnorePath} has an empty or missing ` +
+        `"protectedIndexes" array — refusing to run with zero protected indexes`
+    );
+  }
+
+  return entries.map((entry, i) => {
+    // A null/scalar array element would throw on the first property read below,
+    // losing the index number that makes the error actionable.
+    if (entry === null || typeof entry !== 'object') {
+      throw new Error(
+        `check-migration-safety: protectedIndexes[${i}] in ${driftIgnorePath} is not an object`
+      );
+    }
+    if (
+      typeof entry.name !== 'string' ||
+      typeof entry.description !== 'string' ||
+      typeof entry.dropPattern !== 'string' ||
+      typeof entry.createPattern !== 'string'
+    ) {
+      throw new Error(
+        `check-migration-safety: protectedIndexes[${i}] in ${driftIgnorePath} is malformed ` +
+          `(expected string name/description/dropPattern/createPattern)`
+      );
+    }
+    // An empty pattern compiles fine and matches EVERY file, so neither
+    // direction fails safe: an empty dropPattern flags all ~120 migrations as
+    // dangerous, and an empty createPattern makes every drop look balanced —
+    // silently unprotecting the index. Same class as the empty-array check
+    // above, one level down.
+    if (entry.dropPattern.length === 0 || entry.createPattern.length === 0) {
+      throw new Error(
+        `check-migration-safety: protectedIndexes[${i}] ("${entry.name}") in ${driftIgnorePath} ` +
+          `has an empty dropPattern or createPattern — an empty pattern matches every file`
+      );
+    }
+    // name and description are both interpolated into the violation message,
+    // so an empty one degrades it to "Drops  without recreating ()" — useless
+    // at exactly the moment someone is reading it.
+    if (entry.name.length === 0 || entry.description.length === 0) {
+      throw new Error(
+        `check-migration-safety: protectedIndexes[${i}] in ${driftIgnorePath} has an empty ` +
+          `name or description — both are reported verbatim when a violation is found`
+      );
+    }
+    // Type-checking the strings above says nothing about whether they compile.
+    // An uncatchable SyntaxError here would name neither the file nor the
+    // entry, so a typo'd pattern would read as an unrelated crash.
+    try {
+      return {
+        name: entry.name,
+        description: entry.description,
+        dropPattern: new RegExp(entry.dropPattern, 'i'),
+        createPattern: new RegExp(entry.createPattern, 'i'),
+      };
+    } catch (error) {
+      throw new Error(
+        `check-migration-safety: protectedIndexes[${i}] ("${entry.name}") in ${driftIgnorePath} ` +
+          `has a pattern that is not a valid regular expression: ${String(error)}`,
+        { cause: error }
+      );
+    }
+  });
+}
+
+/**
+ * Indexes that must be recreated if dropped. Derived from
+ * prisma/drift-ignore.json `protectedIndexes` — the single source of truth
+ * shared with inspect-database.ts; protectedIndexRegistries.test.ts enforces
+ * the name-set agreement across both. Exported for that guard test only.
  *
  * @internal
  */
-export const PROTECTED_INDEXES: ProtectedIndex[] = [
-  {
-    name: 'idx_memories_embedding',
-    dropPattern: /DROP\s+INDEX.*idx_memories_embedding/i,
-    createPattern: /CREATE\s+INDEX.*idx_memories_embedding/i,
-    description: 'IVFFlat vector index for BGE similarity search (384 dims)',
-  },
-  {
-    name: 'idx_memory_facts_embedding',
-    dropPattern: /DROP\s+INDEX.*idx_memory_facts_embedding/i,
-    createPattern: /CREATE\s+INDEX.*idx_memory_facts_embedding/i,
-    description: 'IVFFlat vector index for fact similarity retrieval (384 dims)',
-  },
-  {
-    name: 'memories_chunk_group_id_idx',
-    dropPattern: /DROP\s+INDEX.*memories_chunk_group_id_idx/i,
-    createPattern: /CREATE\s+INDEX.*memories_chunk_group_id_idx/i,
-    description: 'Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL)',
-  },
-];
+export const PROTECTED_INDEXES: ProtectedIndex[] = loadProtectedIndexes();
 
 interface CheckResult {
   file: string;
