@@ -26,5 +26,11 @@ Acceptance: every network shell-out in github-prs.ts carries a timeout; a test a
 
 Filed rather than fixed in 2097 deliberately: that PR reached round 8 of a ~6-round cap, and five of its last six defects were introduced while fixing a previous finding. The reviewer explicitly offered fast-follow as the appropriate disposition. This is a clean small unit for a fresh context.
 
+SECOND ITEM, same file, from the PR 2097 round-9 review: countRangeChangedFiles builds its diff-range arg as one template string, `${fromTag}..origin/${base}`. A --from or --base value starting with a dash could be parsed by git diff as an option rather than a revision. This is NOT shell injection - execFileSync with array args throughout - and it is operator-controlled only.
+
+Merits disposition, not deferred for being theoretical: the failure is self-correcting. git rejects the malformed arg, the existing try/catch turns that into undefined, and the advisory prints SKIPPED rather than a number. The one outcome this function must never produce - a plausible wrong count - is unreachable by this path. So it is defense-in-depth on an already-safe failure mode.
+
+Fix shape when this task is picked up: reject a leading dash on fromTag and base before building the range, or pass a `--` separator ahead of the revision arg. Do it in the same pass as the timeout above; both are hardening on the same two functions.
+
 Note: assistant-generated from review, counts against the session net.
 <!-- SECTION:DESCRIPTION:END -->
