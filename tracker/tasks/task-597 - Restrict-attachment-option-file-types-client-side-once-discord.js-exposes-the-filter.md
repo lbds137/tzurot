@@ -28,5 +28,15 @@ Fix shape: once available, set the allowed content types on each of the six opti
 
 Acceptance: each attachment option declares its accepted types from the shared constant; the option description prose no longer has to carry the list as its only enforcement; server-side validation stays as defense in depth.
 
+VERIFIED SPEC (read from the Discord reference page, owner asked whether JSON imports are covered - they are):
+- Values are either a dot-prefixed file EXTENSION (.json) or one of the predefined GROUP names (image, video, audio). MIME types are NOT accepted. Extensions are case-insensitive, normalized to lowercase.
+- Maximum 10 file types.
+- No wildcards - the docs direct you to the group names instead of enumerating extensions.
+- CLIENT-SIDE ONLY, and extension-only: quoting the reference, "This feature only checks the file extension against the filename and does not inspect the file contents. You are still responsible for validating the actual contents of the file."
+
+So all six sites map cleanly: the two avatar options take the image group, the two voice-reference options take the audio group, and both JSON import options (character and preset) take .json.
+
+The client-side-only nature makes the shared-constant requirement above sharper, not softer: this filter can never replace server-side validation, because a renamed .json file passes it. It removes the wrong-file round trip; it does not remove a single existing check. Any implementation that deletes a server-side content check because the picker now filters is WRONG.
+
 Note: assistant-generated intake from an owner-relayed announcement - counts against the session net.
 <!-- SECTION:DESCRIPTION:END -->
