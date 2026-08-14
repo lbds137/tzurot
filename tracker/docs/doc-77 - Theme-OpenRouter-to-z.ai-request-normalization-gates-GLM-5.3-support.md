@@ -35,13 +35,65 @@ Code-reading says we send a `reasoning` object to an API that documents `thinkin
 
 This is code-reading, not runtime observation, so none of the three may be asserted yet. **Phase 0 exists to distinguish them**, and the answer changes the whole shape of the work: (a) is a live silent-misconfiguration bug, (b) means the z.ai path is less exercised than assumed, (c) means the documented contract is wrong and our strip list is over-broad.
 
+## Phase 0 RESULT (prod logs, 2026-08-14) — (b) falsified, (c) confirmed, (a) still open
+
+Evidence is a single fully-correlated prod job, `llm-842a8368-9b8d-47ca-8ea7-99fd6a66322d`,
+plus a wider sweep of the same deployment. Runtime observation, not code-reading.
+
+**(b) is FALSIFIED — z.ai-direct is live in prod.** `ProviderRouter` logs
+`Auto-promoting OpenRouter z-ai/ model to z.ai-direct (user has zai-coding key)`
+repeatedly across the window, for more than one user and more than one model
+(`z-ai/glm-4.5-air`, `z-ai/glm-5.2`). On the correlated job,
+`ContextWindowResolver` independently reports `effectiveProvider="zai-coding"`,
+so that request definitively took the direct path.
+
+**(c) is CONFIRMED, and it falsifies our own comment.** The job ran under the
+admin default config named `GLM 4.5 Air (Reasoning: medium)` — so `reasoning:
+{effort: 'medium'}` was in `modelKwargs` — and `LLMInvoker` reports
+`succeeded on attempt 1`, 43s, no retry. **No 400, no code 1210.** z.ai
+therefore does NOT reject the undocumented `reasoning` key. The claim at
+`ModelFactory.ts:33-36` that "anything outside that list yields 400 'Invalid
+API parameter' (code 1210)" is **too strong** — it is true of the specific
+params observed to fail (`frequency_penalty`, `presence_penalty`) and false as
+a general rule. That comment should be narrowed to what was actually observed
+when Phase 1 touches this file.
+
+**(a) is NOT resolved — accepted is not honoured.** The response carried
+`reasoning_content` (`additionalKwargsKeys=["function_call","tool_calls","reasoning_content"]`)
+and `ResponsePostProcessor` logged `reasoningRequested=true
+reasoningActuallyEngaged=true apiReasoningLength=3391
+thinkingContentLength=3391` — all 3391 chars came from the API field, none
+from inline tag extraction. But **GLM-4.5-Air is a hybrid-reasoning model that
+thinks by default**, so a populated `reasoning_content` is equally consistent
+with "z.ai honoured effort=medium" and with "z.ai ignored the param and the
+model thought anyway". This observation cannot separate them.
+
+**Discriminator for the remaining question** (cheap, owner-driven): issue the
+same prompt on the z.ai-direct path under two configs differing ONLY in
+`reasoning.effort` — e.g. `none` vs `high` — and compare `apiReasoningLength`
+in the `Reasoning mode engaged` log line. If the value does not move, z.ai is
+ignoring the param and thinking control on that path is a no-op. Needs the
+owner to drive Discord (`/tzurot-testing`), so it is not self-servable.
+
+**Incidental finding, same job — filed as TASK-611.** The z.ai path logs
+`[OpenRouterReasoning] Expected __raw_response in additional_kwargs but found
+none — verify ChatOpenAI __includeRawResponse setting and @langchain/openai
+version` on every request. `ModelFactory.ts:481-485` withholds
+`__includeRawResponse` for z.ai **deliberately**, so this is the OpenRouter
+reasoning bridge running on a path that intentionally opted out of it and
+complaining about the expected absence. Extraction still works (the field is
+read from `additional_kwargs` directly), so it is log noise rather than a
+functional break — but it is a warning-shaped line on a healthy path, which
+trains the eye to ignore it.
+
 ## Phases
 
-### Phase 0 — Establish which world we are in (do this first, small)
+### Phase 0 — Establish which world we are in (do this first, small) ✅ DONE 2026-08-14
 
-- [ ] Determine whether real traffic reaches z.ai-direct: is a zai-coding key stored, and does `ProviderRouter` auto-promotion actually fire for the owner's presets? Log or `/inspect` evidence, not inference.
-- [ ] Capture one real z.ai-direct request body and its response. Confirm whether `reasoning` is present, and whether z.ai 400s, ignores it, or honours it.
-- [ ] Record the answer here before any code changes. Everything below is scoped by it.
+- [x] Determine whether real traffic reaches z.ai-direct — YES, confirmed in prod logs (see result above).
+- [x] Capture one real z.ai-direct request and its response — captured via correlated prod job; z.ai accepts `reasoning` without a 400.
+- [x] Record the answer here before any code changes.
+- [ ] **Remaining**: run the effort-level discriminator above to settle honoured-vs-ignored. Owner-driven; gates how urgent Phase 2's mapping is.
 
 ### Phase 1 — Audit the full param surface, both directions
 
