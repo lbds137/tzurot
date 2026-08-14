@@ -95,11 +95,49 @@ trains the eye to ignore it.
 - [x] Record the answer here before any code changes.
 - [ ] **Remaining**: run the effort-level discriminator above to settle honoured-vs-ignored. Owner-driven; gates how urgent Phase 2's mapping is.
 
-### Phase 1 — Audit the full param surface, both directions
+### Phase 1 — Audit the full param surface, both directions ✅ NAME AUDIT DONE 2026-08-14
 
-- [ ] Enumerate every field we can put on an outbound request (sampling, output control, reasoning, response_format, stop, tools) and mark each: supported by z.ai / stripped today / silently passed / needs translation.
-- [ ] Do the same for VALUES, not just names — the strip list is name-based and cannot catch an out-of-range enum. `reasoning.effort` is the known case; check `stop` (z.ai documents max 1) and `response_format` too.
-- [ ] Include the response direction, so the thinking-field protocol gap is documented in the same place rather than rediscovered.
+**Result: the outbound surface is already correctly handled EXCEPT `reasoning`.**
+This is a materially smaller finding than the theme assumed, and it should
+shrink Phase 2. The authored vocabulary is `AdvancedParamsSchema`
+(`packages/common-types/src/schemas/llmAdvancedParams.ts`) — every field it
+can carry, traced to what actually reaches z.ai:
+
+| Authored field                                                    | Carrier                     | On the z.ai-direct path                                                                              |
+| ----------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `temperature`, `top_p`, `max_tokens`                              | first-class `ChatOpenAI`    | passed — z.ai documents all three ✅                                                                   |
+| `frequency_penalty`, `presence_penalty`                           | first-class                 | stripped by `filterRestrictedParams`, AND re-excluded at the constructor ✅                            |
+| `top_k`, `repetition_penalty`, `min_p`, `top_a`, `seed`           | `modelKwargs`               | stripped by name ✅                                                                                    |
+| `logit_bias`                                                      | `modelKwargs`               | stripped by name ✅                                                                                    |
+| `response_format`                                                 | `modelKwargs`               | passed — z.ai documents it ✅ (VALUE not yet checked: we emit `text`/`json_object`)                    |
+| `transforms`, `route`, `verbosity`                                | `buildOpenRouterExtraParams`| never reaches z.ai — that builder is called ONLY from `buildOpenRouterModel:373`, path-scoped ✅       |
+| `show_thinking`                                                   | neither                     | never leaves the service; not in `buildModelKwargs`, not a constructor arg. Display-side flag ✅       |
+| **`reasoning.{effort,max_tokens,exclude,enabled}`**               | `modelKwargs` as `reasoning`| **passed through untranslated — the single hole** ❌                                                   |
+
+Two of the theme's own worries are non-issues, verified rather than assumed:
+
+- **`stop` is never emitted.** It is not in `AdvancedParamsSchema` at all, and
+  a grep across ai-worker and the schemas finds only a `finish_reason: "stop"`
+  comment. z.ai's documented max-1 constraint cannot bite something we never
+  send.
+- **The OpenRouter-only trio is already path-scoped**, not by a strip list but
+  by construction — `buildZaiCodingModel` simply never calls the builder that
+  produces them. That is the shape Phase 2 should copy.
+
+**So Phase 2 is narrower than "build a general translation layer":** handle
+`reasoning`, and add a guard so the NEXT unhandled param cannot slip through
+silently the way this one did. The strip list is a denylist, which is why a
+newly-added field defaults to being sent; an allowlist (or a test asserting
+every `AdvancedParamsSchema` key has a declared z.ai disposition) would have
+caught `reasoning` at authoring time.
+
+Remaining Phase 1 work:
+
+- [ ] VALUE audit, not just names — `reasoning.effort` is the known case;
+      confirm z.ai accepts our `response_format` values.
+- [ ] Response direction, so the thinking-field protocol gap is documented
+      here rather than rediscovered. Partly answered by Phase 0: the response
+      arrives as `reasoning_content` in `additional_kwargs` and IS extracted.
 
 ### Phase 2 — A real translation seam
 
