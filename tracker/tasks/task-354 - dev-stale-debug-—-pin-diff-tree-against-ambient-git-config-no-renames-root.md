@@ -3,10 +3,10 @@ id: TASK-354
 title: >-
   dev:stale-debug — pin diff-tree against ambient git config (--no-renames,
   --root)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 18:14'
-updated_date: '2026-08-04 13:55'
+updated_date: '2026-08-14 02:53'
 labels:
   - 'size:S'
   - 'area:tooling'

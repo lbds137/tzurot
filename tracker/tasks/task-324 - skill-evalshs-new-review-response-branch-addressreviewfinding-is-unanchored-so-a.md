@@ -1,10 +1,10 @@
 ---
 id: TASK-324
 title: skill-eval review-response branch regex is unanchored
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-24 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-08-14 02:53'
 labels:
   - 'origin:review'
   - 'area:process'
