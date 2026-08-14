@@ -4,16 +4,23 @@ vi.mock('./github-prs.js', () => ({
   discoverPrevTag: vi.fn(),
   tagTimestamp: vi.fn(),
   listMergedPrsSince: vi.fn(),
+  countRangeChangedFiles: vi.fn(),
   DEFAULT_BASE_BRANCH: 'develop',
 }));
 
 import { releaseRange, formatRangeReport, classifyPr, isNonRuntimeFile } from './range.js';
-import { discoverPrevTag, tagTimestamp, listMergedPrsSince } from './github-prs.js';
+import {
+  discoverPrevTag,
+  tagTimestamp,
+  listMergedPrsSince,
+  countRangeChangedFiles,
+} from './github-prs.js';
 import type { MergedPr } from './notes-format.js';
 
 const mockedDiscoverPrevTag = vi.mocked(discoverPrevTag);
 const mockedTagTimestamp = vi.mocked(tagTimestamp);
 const mockedListMergedPrsSince = vi.mocked(listMergedPrsSince);
+const mockedCountRangeChangedFiles = vi.mocked(countRangeChangedFiles);
 
 describe('isNonRuntimeFile', () => {
   it('excludes files under the tooling/test-support packages', () => {
@@ -163,6 +170,53 @@ describe('formatRangeReport', () => {
     const report = formatRangeReport(prs, baseOptions);
     expect(report).not.toContain('release-cadence threshold');
   });
+  it('reports diff size, the axis the runtime count does not measure', () => {
+    // A range can be almost entirely non-runtime and still hand the release
+    // reviewer every one of those files. Runtime count answers "how much prod
+    // risk"; this answers "how much is there to read".
+    const prs: MergedPr[] = [
+      { number: 1, title: 'docs: a', mergedAt: '2026-04-22T11:00:00Z', files: ['docs/a.md'] },
+    ];
+
+    const report = formatRangeReport(prs, { ...baseOptions, changedFiles: 175 });
+
+    expect(report).toContain(
+      'Diff size: 175 files changed (GitHub stops rendering a diff at 300).'
+    );
+    expect(report).not.toContain('review-capacity threshold');
+  });
+
+  it('advises a cut on diff size even when the runtime count is nowhere near its own threshold', () => {
+    // The whole point of the second trigger: one non-runtime PR, so the
+    // runtime trailer stays silent, yet the diff is past what a reviewer can
+    // hold. Both trailers must be independently reachable.
+    const prs: MergedPr[] = [
+      { number: 1, title: 'docs: a', mergedAt: '2026-04-22T11:00:00Z', files: ['docs/a.md'] },
+    ];
+
+    const report = formatRangeReport(prs, { ...baseOptions, changedFiles: 250 });
+
+    expect(report).toContain('review-capacity threshold');
+    expect(report).not.toContain('Runtime count at release-cadence threshold');
+  });
+
+  it('omits the diff-size line entirely when the count is unavailable', () => {
+    // countRangeChangedFiles returns undefined rather than throwing when git
+    // cannot answer; the report must degrade to silence, not to "0 files".
+    const prs: MergedPr[] = [
+      { number: 1, title: 'docs: a', mergedAt: '2026-04-22T11:00:00Z', files: ['docs/a.md'] },
+    ];
+
+    const report = formatRangeReport(prs, baseOptions);
+
+    expect(report).not.toContain('Diff size:');
+    expect(report).not.toContain('review-capacity threshold');
+  });
+
+  it('prints a zero diff size rather than omitting it — 0 is an answer, undefined is not', () => {
+    const report = formatRangeReport([], { ...baseOptions, changedFiles: 0 });
+    expect(report).toContain('Diff size: 0 files changed');
+  });
 });
 
 describe('releaseRange', () => {
@@ -220,6 +274,34 @@ describe('releaseRange', () => {
     expect(mockedDiscoverPrevTag).not.toHaveBeenCalled();
     expect(mockedTagTimestamp).toHaveBeenCalledWith('v3.0.0-beta.101');
     expect(mockedListMergedPrsSince).toHaveBeenCalledWith('2026-04-20T00:00:00Z', 'main');
+  });
+
+  it('threads the range file count into the printed report', () => {
+    // The seam: formatRangeReport is unit-tested with changedFiles passed in
+    // directly, so only this asserts releaseRange actually calls the counter
+    // and forwards its result. Without it the wiring could be dropped and
+    // every formatRangeReport test would still pass.
+    mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
+    mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');
+    mockedListMergedPrsSince.mockReturnValueOnce([]);
+    mockedCountRangeChangedFiles.mockReturnValueOnce(175);
+
+    releaseRange({});
+
+    expect(mockedCountRangeChangedFiles).toHaveBeenCalledWith('v3.0.0-beta.103', 'develop');
+    expect(stdout).toContain('Diff size: 175 files changed');
+  });
+
+  it('still prints a report when the file count is unavailable', () => {
+    mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
+    mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');
+    mockedListMergedPrsSince.mockReturnValueOnce([]);
+    mockedCountRangeChangedFiles.mockReturnValueOnce(undefined);
+
+    releaseRange({});
+
+    expect(stdout).toContain('Total: 0 PRs');
+    expect(stdout).not.toContain('Diff size:');
   });
 
   it('writes a stderr note and still prints the zero-count report when no PRs are in range', () => {

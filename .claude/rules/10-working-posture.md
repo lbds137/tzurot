@@ -127,6 +127,16 @@ The same instinct applies down-stack: one package per rollout PR, one campaign
 slice per PR, fix-forward for a release review's non-blocking finding rather
 than holding the train.
 
+**Second trigger — REVIEW capacity, which the runtime count does not measure.**
+"Cut non-runtime batches at convenience" is right about prod risk and wrong
+about the reviewer: the release PR renders the whole range's diff, so a set
+that is mostly `docs/`/`.claude/`/`tracker/` still puts every one of those
+files in front of the review that the first trigger exists to protect.
+GitHub stops rendering a diff at **300 files** (its documented limit), and
+attention degrades well before that. `release:range` prints the range's file
+count and flags ~250; treat that as a cut trigger on its own, even at a low
+runtime count.
+
 ## SKILL CHECK reminders are binding
 
 Trigger: a `SKILL CHECK` reminder fires, or a cycle-rare operation is next
