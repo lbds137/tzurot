@@ -167,6 +167,16 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
 }
 
 /**
+ * Bound both shell-outs below. The fetch talks to the network, and a STALLED
+ * connection (rather than a clean failure) would otherwise block
+ * `release:range` forever with no way to tell "still fetching" from "hung" —
+ * the same indistinguishability this whole advisory exists to avoid. On
+ * timeout the call throws, which the catch turns into `undefined`, so the
+ * report says SKIPPED instead of hanging.
+ */
+const RANGE_GIT_TIMEOUT_MS = 30_000;
+
+/**
  * Count files in the whole-range diff (`<tag>..<base>`), which is what the
  * release PR will render. Distinct from the per-PR file lists used for
  * runtime classification: those measure prod risk, this measures how much
@@ -179,12 +189,18 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
  * repo with a single `git mv` returns 1 path from `--name-only`, identical
  * with and without an explicit `-M`.
  *
- * The two-dot form assumes `fromTag` is an ancestor of `base`. That holds
+ * The two-dot form always RUNS — `git diff A..B` is just `git diff A B`, a
+ * direct tree comparison with no ancestry requirement (unlike `git log`).
+ * Ancestry matters only for the count to APPROXIMATE GitHub's compare view,
+ * which is three-dot (against the merge base). That approximation holds
  * because `release:finalize` rebases `develop` onto `main` after every
- * release, keeping tags reachable. If it were ever broken — a hotfix landing
- * on `main` outside that flow — the count would OVER-state relative to what
- * GitHub renders, never under, so the advisory still fails toward warning
- * early.
+ * release, keeping tags reachable.
+ *
+ * If it were ever broken — a hotfix landing on `main` outside that flow —
+ * the count would usually over-state, but not always: two branches that
+ * independently converged on identical content for a file show no two-dot
+ * difference while a merge-base compare would count it. So treat divergence
+ * as "this number is approximate", not as a guaranteed direction.
  *
  * Returns `undefined` rather than throwing when git can't answer (a missing
  * tag, a shallow clone, no such ref, an unreachable remote) — the ship inventory is still useful
@@ -201,8 +217,12 @@ export function countRangeChangedFiles(fromTag: string, base: string): number | 
     // not produce, because it reads as "comfortably under the threshold" and
     // that is indistinguishable from a real pass. Same risk and same remedy
     // as premigrate.ts, one file over.
-    execFileSync('git', ['fetch', 'origin'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    execFileSync('git', ['fetch', 'origin'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: RANGE_GIT_TIMEOUT_MS,
+    });
     const out = execFileSync('git', ['diff', '--name-only', `${fromTag}..origin/${base}`], {
+      timeout: RANGE_GIT_TIMEOUT_MS,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
