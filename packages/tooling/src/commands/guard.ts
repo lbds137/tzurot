@@ -170,6 +170,17 @@ function registerSyncGuards(cli: CAC): void {
 
   cli
     .command(
+      'guard:commit-scope-sync',
+      'Fail when the commit-scope prose in 05-tooling.md / the git-workflow skill drifts from allScopes'
+    )
+    .example('ops guard:commit-scope-sync')
+    .action(async () => {
+      const { checkCommitScopeSync } = await import('../dev/check-commit-scope-sync.js');
+      checkCommitScopeSync();
+    });
+
+  cli
+    .command(
       'guard:repo-settings',
       'Fail when deletion of a long-lived branch (main, develop) is reachable via GitHub settings'
     )

@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MONITOR_COMMAND_SURFACES,
   extractMonitorCommand,
   findMonitorCommandDrift,
   normalizeMonitorCommand,
+  checkMonitorCommand,
 } from './check-monitor-command.js';
 
 const HOOK_LINE = String.raw`    pnpm ops gh:ci-gate 42 --sha \$(git rev-parse HEAD)`;
@@ -104,5 +106,67 @@ describe('the real surfaces', () => {
       extractMonitorCommand(file, readFileSync(join(rootDir, file), 'utf-8'))
     );
     expect(findMonitorCommandDrift(commands)).toEqual([]);
+  });
+});
+
+describe('checkMonitorCommand (entry point)', () => {
+  let tmp: string;
+  let cwdSpy: ReturnType<typeof vi.spyOn>;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let savedExitCode: typeof process.exitCode;
+
+  /** Writes the three surfaces at their real relative paths under a fixture root. */
+  function writeFixture(overrides?: { hook?: string; rule?: string; skill?: string }): void {
+    mkdirSync(join(tmp, '.claude/hooks'), { recursive: true });
+    mkdirSync(join(tmp, '.claude/rules'), { recursive: true });
+    mkdirSync(join(tmp, '.claude/skills/tzurot-git-workflow'), { recursive: true });
+
+    writeFileSync(
+      join(tmp, '.claude/hooks/pr-monitor-reminder.sh'),
+      `${overrides?.hook ?? HOOK_LINE}\n`
+    );
+    writeFileSync(join(tmp, '.claude/rules/05-tooling.md'), `${overrides?.rule ?? RULE_LINE}\n`);
+    writeFileSync(
+      join(tmp, '.claude/skills/tzurot-git-workflow/SKILL.md'),
+      `${overrides?.skill ?? RULE_LINE}\n`
+    );
+  }
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'guard-monitor-command-'));
+    cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tmp);
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+  });
+
+  afterEach(() => {
+    cwdSpy.mockRestore();
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+    process.exitCode = savedExitCode;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('leaves exitCode untouched and logs success when all three surfaces agree', () => {
+    writeFixture();
+    checkMonitorCommand();
+    expect(process.exitCode).not.toBe(1);
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('CI-monitor command identical across')
+    );
+  });
+
+  it('sets exitCode=1 and names the offending file and its drifted command on mismatch', () => {
+    const drifted = `${RULE_LINE} --poll 5`;
+    writeFixture({ skill: drifted });
+    checkMonitorCommand();
+    expect(process.exitCode).toBe(1);
+    const output = errorSpy.mock.calls.map((call: unknown[]) => call.join(' ')).join('\n');
+    expect(output).toContain('.claude/skills/tzurot-git-workflow/SKILL.md');
+    expect(output).toContain('--poll 5');
   });
 });
