@@ -193,11 +193,20 @@ describe('countRangeChangedFiles', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('counts the files in the two-dot range diff', () => {
-    mockedExec.mockReturnValueOnce('a.ts\nb.ts\nc.ts\n');
+    mockedExec.mockReturnValueOnce('').mockReturnValueOnce('a.ts\nb.ts\nc.ts\n');
     expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(3);
-    expect(mockedExec).toHaveBeenCalledWith(
+    // Fetch first, then diff origin/<base> — NOT the local branch. A stale
+    // local ref would resolve and under-report instead of degrading.
+    expect(mockedExec).toHaveBeenNthCalledWith(
+      1,
       'git',
-      ['diff', '--name-only', 'v3.0.0-beta.103..develop'],
+      ['fetch', 'origin'],
+      expect.objectContaining({ stdio: expect.anything() })
+    );
+    expect(mockedExec).toHaveBeenNthCalledWith(
+      2,
+      'git',
+      ['diff', '--name-only', 'v3.0.0-beta.103..origin/develop'],
       expect.objectContaining({ encoding: 'utf-8' })
     );
   });
@@ -206,13 +215,36 @@ describe('countRangeChangedFiles', () => {
     // The whole point of the trimmed === '' guard: ''.split('\n') is [''],
     // length 1, so a range with no changes would report one file. Deleting
     // that ternary must fail here.
-    mockedExec.mockReturnValueOnce('\n');
+    mockedExec.mockReturnValueOnce('').mockReturnValueOnce('\n');
     expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(0);
   });
 
   it('counts a single-file diff as 1, not 0 — the guard must not over-reach', () => {
-    mockedExec.mockReturnValueOnce('only.ts\n');
+    mockedExec.mockReturnValueOnce('').mockReturnValueOnce('only.ts\n');
     expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(1);
+  });
+
+  it('never diffs the bare local branch — a stale local ref under-reports silently', () => {
+    // The failure this guards: `fromTag..develop` resolves against a stale
+    // local checkout, so git SUCCEEDS and returns a too-low count. Every
+    // other failure mode here degrades to undefined and says so; this one
+    // would read as a comfortable pass. Asserting the absence of the local
+    // form is the only way to catch a revert to it.
+    mockedExec.mockReturnValueOnce('').mockReturnValueOnce('a.ts\n');
+    countRangeChangedFiles('v3.0.0-beta.103', 'develop');
+    const diffArgs = mockedExec.mock.calls
+      .map(call => call[1])
+      .filter((args): args is string[] => Array.isArray(args) && args[0] === 'diff');
+    expect(diffArgs).toHaveLength(1);
+    expect(diffArgs[0]).not.toContain('v3.0.0-beta.103..develop');
+    expect(diffArgs[0]).toContain('v3.0.0-beta.103..origin/develop');
+  });
+
+  it('returns undefined when the fetch itself fails, rather than diffing a stale ref', () => {
+    mockedExec.mockImplementationOnce(() => {
+      throw new Error('fatal: unable to access remote');
+    });
+    expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBeUndefined();
   });
 
   it('returns undefined rather than throwing when git cannot answer', () => {
