@@ -165,3 +165,29 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
     files: raw.files?.map(f => f.path),
   };
 }
+
+/**
+ * Count files in the whole-range diff (`<tag>..<base>`), which is what the
+ * release PR will render. Distinct from the per-PR file lists used for
+ * runtime classification: those measure prod risk, this measures how much
+ * diff the release reviewer has to read.
+ *
+ * Returns `undefined` rather than throwing when git can't answer (a missing
+ * tag, a shallow clone, no such ref) — the ship inventory is still useful
+ * without a size line, and this command runs at release time where failing
+ * the whole report over an advisory metric would be the wrong trade.
+ */
+export function countRangeChangedFiles(fromTag: string, base: string): number | undefined {
+  try {
+    const out = execFileSync('git', ['diff', '--name-only', `${fromTag}..${base}`], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const trimmed = out.trim();
+    // An empty diff is a legitimate zero, not a failure — `split` on '' would
+    // otherwise report 1.
+    return trimmed === '' ? 0 : trimmed.split('\n').length;
+  } catch {
+    return undefined;
+  }
+}
