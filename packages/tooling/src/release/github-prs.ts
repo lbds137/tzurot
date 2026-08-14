@@ -217,7 +217,15 @@ export function countRangeChangedFiles(fromTag: string, base: string): number | 
     // not produce, because it reads as "comfortably under the threshold" and
     // that is indistinguishable from a real pass. Same risk and same remedy
     // as premigrate.ts, one file over.
-    execFileSync('git', ['fetch', 'origin', base], {
+    //
+    // The EXPLICIT refspec matters; a bare `fetch origin <base>` is not
+    // enough. Under a restricted `remote.origin.fetch` (single-branch or
+    // partial clone) that form succeeds but writes only FETCH_HEAD, leaving
+    // any pre-existing `refs/remotes/origin/<base>` untouched — so the diff
+    // below would resolve a stale remote-tracking ref and under-report,
+    // reintroducing this very bug by another route. Naming the destination
+    // ref forces the update regardless of how the remote is configured.
+    execFileSync('git', ['fetch', 'origin', `+refs/heads/${base}:refs/remotes/origin/${base}`], {
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: RANGE_GIT_TIMEOUT_MS,
     });

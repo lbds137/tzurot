@@ -200,7 +200,7 @@ describe('countRangeChangedFiles', () => {
     expect(mockedExec).toHaveBeenNthCalledWith(
       1,
       'git',
-      ['fetch', 'origin', 'develop'],
+      ['fetch', 'origin', '+refs/heads/develop:refs/remotes/origin/develop'],
       expect.objectContaining({ stdio: expect.anything() })
     );
     expect(mockedExec).toHaveBeenNthCalledWith(

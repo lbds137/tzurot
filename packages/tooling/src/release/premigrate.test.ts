@@ -56,6 +56,23 @@ afterEach(() => {
 });
 
 describe('premigrate', () => {
+  it('bounds every git call with a timeout — the fetch touches the network', async () => {
+    // Same motivation as countRangeChangedFiles in github-prs.ts: a STALLED
+    // connection (not a clean failure) would hang premigrate indefinitely,
+    // and this one runs in the pre-merge migration path where a silent hang
+    // is worse. Asserted rather than assumed, so removing the bound reds
+    // here instead of surfacing as a wedged release.
+    mockGitDiff([]);
+
+    await premigrate({ env: 'prod' });
+
+    const gitCalls = vi.mocked(execFileSync).mock.calls.filter(call => call[0] === 'git');
+    expect(gitCalls.length).toBeGreaterThan(0);
+    for (const call of gitCalls) {
+      expect(call[2]).toEqual(expect.objectContaining({ timeout: expect.any(Number) }));
+    }
+  });
+
   it('does nothing and does not migrate when the release range adds no migrations', async () => {
     mockGitDiff([]);
 
