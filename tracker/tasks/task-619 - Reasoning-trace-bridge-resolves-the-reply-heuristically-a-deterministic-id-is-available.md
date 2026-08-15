@@ -1,11 +1,10 @@
 ---
 id: TASK-619
-title: >-
-  Reasoning-trace bridge resolves the reply heuristically; a deterministic id is
-  available
+title: Verify userMessageTime equals the Discord post time on every producer path
 status: To Do
 assignee: []
 created_date: '2026-08-15 15:48'
+updated_date: '2026-08-15 17:08'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -18,13 +17,15 @@ ordinal: 619000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Why: historyReasoning.ts bridgeFromTriggerMessage resolves a trigger message to its reply with createdAt gt userRow.createdAt, orderBy asc, scoped to channel+personality+persona. Narrow race, flagged in review of PR 2105: two messages fired in quick succession in the same channel/personality/persona, where the user right-clicks the EARLIER trigger before its reply has persisted while the LATER reply already has, transiently returns the later reply trace instead of 404. Low severity (wrong-but-real trace, briefly) and the same shape as the existing tier-1 by-message to by-response fallback, so not a regression.
+Why: historyReasoning.ts bridgeFromTriggerMessage pairs a trigger message to its reply by EXACT timestamp equality, userRow.createdAt + ASSISTANT_ROW_OFFSET_MS, matching the offset the persist handler uses to derive the assistant row. That pairing is correct only if userMessageTime is genuinely the Discord post time, i.e. the same instant the user row was stamped with. That equivalence is assumed, not verified.
 
-The better fix exists and is exact rather than heuristic: the assistant row id is deterministic, generateConversationHistoryUuid(channelId, personalityId, personaId, userMessageTime + 1ms), and conversationUserMessage.ts sets the user row createdAt to the Discord post time. If those are the same instant on every path, the bridge can findUnique the exact reply id and the race disappears.
+CORRECTED SCOPE: an earlier version of this task described a range scan (createdAt gt, orderBy asc) and a race where a later reply could be returned instead of 404. That shipped differently. PR 2105 replaced the range scan with the exact equality above precisely to remove that class, so there is no race left to fix and no heuristic left to replace. What survives is only the unverified premise.
 
-BLOCKED ON A PRODUCER SWEEP, which is why PR 2105 did not do it: userMessageTime reaches saveAssistantMessage through several producers, including MultiTagRecovery reconstructing it from a serialized snapshot and the multiTagCoordinatorHelpers path. Per 00-critical the producer is authoritative, so the equivalence must be verified at every assignment site before relying on it. Getting it wrong is WORSE than the current state: an exact-id lookup that misses returns a permanent 404 where the heuristic succeeds, trading a narrow transient wrong answer for a durable missing one.
+It also recorded a reasoning error worth naming, since it was the argument for NOT doing the exact match: it claimed an exact lookup that misses is worse than a heuristic, trading a transient wrong answer for a durable missing one. That compared exact-miss against heuristic-CORRECT. The real comparison is exact-miss against heuristic-WRONG: a range scan answers a click whose paired reply was never persisted with some unrelated turn reasoning, rendered under the wrong message. A 404 puts the user where they were before the bridge existed. Fail-safe beats fail-wrong, which is why the exactness shipped without waiting for this sweep.
 
-Fix shape: sweep every userMessageTime producer and confirm it equals the Discord post time; if yes, replace the second hop with findUnique on the derived id and add a component case for two rapid turns in one channel; if no, document why the heuristic stays and keep the ordering comment honest.
+Consequence today: if userMessageTime diverges from the post time on some path, the bridge MISSES and the user sees the ordinary not-found. No wrong answer, no leak, just a feature that quietly does not work for whichever path diverges. That is why this is medium and not high.
 
-Acceptance: either the bridge does an exact id lookup with the sweep cited, or the heuristic is retained with the producer divergence named in the code comment.
+Fix shape: sweep every producer that supplies userMessageTime to saveAssistantMessage and confirm each is the Discord post time. Known producers to check by name: the job context path through MessageHandler, MultiTagRecovery rebuilding it from a serialized snapshot, and multiTagCoordinatorHelpers. Then either assert the invariant with a test per path, or document the divergent path and decide whether the bridge should handle it.
+
+Acceptance: every userMessageTime producer is enumerated and each is shown to be the Discord post time (or the divergence is named); the bridge's docstring stops saying the equivalence is unverified, or says exactly which path is exempt.
 <!-- SECTION:DESCRIPTION:END -->
