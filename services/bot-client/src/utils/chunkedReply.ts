@@ -17,6 +17,7 @@ import {
   type ActionRowBuilder,
   type ButtonInteraction,
   type MessageActionRowComponentBuilder,
+  type MessageContextMenuCommandInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
@@ -28,8 +29,13 @@ const logger = createLogger('chunkedReply');
 
 export interface ChunkedReplyOptions {
   /** Any already-acked reply surface: a component interaction (button or
-   * select menu) or a deferred slash-command context. */
-  interaction: ButtonInteraction | StringSelectMenuInteraction | DeferredCommandContext;
+   * select menu), a message context-menu command (the dispatcher defers those
+   * ephemeral before `execute`), or a deferred slash-command context. */
+  interaction:
+    | ButtonInteraction
+    | StringSelectMenuInteraction
+    | MessageContextMenuCommandInteraction
+    | DeferredCommandContext;
   content: string;
   header: string;
   continuedHeader: string;
