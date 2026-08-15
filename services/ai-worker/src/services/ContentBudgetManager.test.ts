@@ -4,11 +4,19 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
-import { ContentBudgetManager, type PreselectedHistory } from './ContentBudgetManager.js';
+import {
+  ContentBudgetManager,
+  activeSpeakerPronouns,
+  type PreselectedHistory,
+} from './ContentBudgetManager.js';
 import { ContextWindowManager as RealContextWindowManager } from './context/ContextWindowManager.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
-import type { BudgetAllocationOptions, MemoryDocument } from './ConversationalRAGTypes.js';
+import type {
+  BudgetAllocationOptions,
+  MemoryDocument,
+  ParticipantInfo,
+} from './ConversationalRAGTypes.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 describe('ContentBudgetManager', () => {
@@ -233,7 +241,13 @@ describe('ContentBudgetManager', () => {
       expect(mockPromptBuilder.buildHumanMessage).toHaveBeenCalledTimes(2);
     });
 
-    it('should pass participant personas to system prompt builder', () => {
+    it('passes participant personas to BOTH buildSystemMessage calls', () => {
+      // The roster renders in the system message, so it counts toward
+      // systemPromptBaseTokens. The budget identity (contextWindow −
+      // systemPromptBase − currentMessage − memoryReserve) holds only if the
+      // MEASUREMENT call and the shipped call see the same input; passing it to
+      // one and not the other under-counts the base and inflates historyBudget
+      // by exactly the roster's size — silently, since both calls succeed.
       const options = createBaseOptions();
       options.participantPersonas = new Map([
         [
@@ -249,11 +263,72 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      expect(mockPromptBuilder.buildVolatilePrefix).toHaveBeenCalledWith(
-        expect.objectContaining({
-          participantPersonas: options.participantPersonas,
-        })
+      const systemCalls = vi.mocked(mockPromptBuilder.buildSystemMessage).mock.calls;
+      // The measurement call (no serializedHistory) is the silent-failure path.
+      const measurementCall = systemCalls.find(
+        ([arg]) => (arg as { serializedHistory?: string }).serializedHistory === undefined
       );
+      const shippedCall = systemCalls.find(
+        ([arg]) => (arg as { serializedHistory?: string }).serializedHistory !== undefined
+      );
+
+      expect(measurementCall?.[0]).toEqual(
+        expect.objectContaining({ participantPersonas: options.participantPersonas })
+      );
+      expect(shippedCall?.[0]).toEqual(
+        expect.objectContaining({ participantPersonas: options.participantPersonas })
+      );
+    });
+
+    it('passes the active speaker pronouns to the human message from the roster', () => {
+      const options = createBaseOptions();
+      options.context.activePersonaId = 'persona-alice';
+      options.participantPersonas = new Map([
+        [
+          'persona-alice',
+          {
+            personaName: 'Alice',
+            content: 'User persona',
+            isActive: true,
+            personaId: 'persona-alice',
+            pronouns: 'she/her',
+          },
+        ],
+      ]);
+
+      budgetManager.allocate(options, budgetManager.preselectHistory(options));
+
+      const humanCalls = vi.mocked(mockPromptBuilder.buildHumanMessage).mock.calls;
+      expect(humanCalls.length).toBeGreaterThan(0);
+      // Both the pre-pass and the shipped message identify the same speaker.
+      for (const call of humanCalls) {
+        expect(call[2]).toEqual(expect.objectContaining({ activePersonaPronouns: 'she/her' }));
+      }
+    });
+
+    it('omits pronouns when the active speaker is absent from the roster', () => {
+      const options = createBaseOptions();
+      options.context.activePersonaId = 'persona-nobody';
+      options.participantPersonas = new Map([
+        [
+          'persona-alice',
+          {
+            personaName: 'Alice',
+            content: 'User persona',
+            isActive: true,
+            personaId: 'persona-alice',
+            pronouns: 'she/her',
+          },
+        ],
+      ]);
+
+      budgetManager.allocate(options, budgetManager.preselectHistory(options));
+
+      for (const call of vi.mocked(mockPromptBuilder.buildHumanMessage).mock.calls) {
+        expect(
+          (call[2] as { activePersonaPronouns?: string }).activePersonaPronouns
+        ).toBeUndefined();
+      }
     });
 
     it('should pass referenced messages to system prompt builder', () => {
@@ -686,5 +761,46 @@ describe('ContentBudgetManager', () => {
       };
       expect(finalPromptArgs.relevantMemories.map(m => m.metadata?.id)).toEqual(['mem-e1']);
     });
+  });
+});
+
+describe('activeSpeakerPronouns', () => {
+  const roster = new Map<string, ParticipantInfo>([
+    [
+      'persona-alice',
+      {
+        personaName: 'Alice',
+        content: 'User persona',
+        isActive: true,
+        personaId: 'persona-alice',
+        pronouns: 'she/her',
+      },
+    ],
+  ]);
+
+  it('returns the pronouns for a speaker present in the roster', () => {
+    expect(activeSpeakerPronouns(roster, 'persona-alice')).toBe('she/her');
+  });
+
+  it('returns undefined for an undefined id', () => {
+    expect(activeSpeakerPronouns(roster, undefined)).toBeUndefined();
+  });
+
+  it('returns undefined for an empty-string id', () => {
+    expect(activeSpeakerPronouns(roster, '')).toBeUndefined();
+  });
+
+  it('returns undefined for a speaker absent from the roster', () => {
+    expect(activeSpeakerPronouns(roster, 'persona-nobody')).toBeUndefined();
+  });
+
+  it('returns undefined when the speaker declares no pronouns', () => {
+    const noPronouns = new Map<string, ParticipantInfo>([
+      [
+        'persona-bob',
+        { personaName: 'Bob', content: 'User persona', isActive: true, personaId: 'persona-bob' },
+      ],
+    ]);
+    expect(activeSpeakerPronouns(noPronouns, 'persona-bob')).toBeUndefined();
   });
 });

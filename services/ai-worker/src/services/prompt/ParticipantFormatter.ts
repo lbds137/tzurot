@@ -1,8 +1,8 @@
 /**
  * Participant Formatter
  *
- * Formats conversation participant personas for the volatile prefix of the
- * human message.
+ * Formats conversation participant personas for the system message, ahead of
+ * the chat log whose from_id attributes bind to this roster.
  * Uses pure XML structure with ID binding for clear identity association.
  *
  * Key features:
@@ -77,7 +77,8 @@ function buildRosterNotes(
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
   activePersonaName?: string,
-  collisionNote?: string
+  collisionNote?: string,
+  order: 'stable' | 'insertion' = 'stable'
 ): string {
   if (participantPersonas.size === 0 && collisionNote === undefined) {
     return '';
@@ -89,7 +90,26 @@ export function formatParticipantsContext(
     '<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>'
   );
 
-  for (const [, info] of participantPersonas.entries()) {
+  // Render in persona-UUID order, not Map-iteration (recency) order. Selection
+  // upstream stays recency-based — the MAX_EXTENDED_CONTEXT_PARTICIPANTS cap
+  // keeps the most recently active — but this block sits in the provider's
+  // prompt-cache prefix, and prod measurement showed recency-ordered rendering
+  // reshuffles it between turns, invalidating the cached prefix for no
+  // informational gain. The UUID is a stable deterministic key over the same
+  // selected set. `order: 'insertion'` exists ONLY for the legacy eval arm,
+  // which must reproduce the pre-restructure Map-iteration bytes; production
+  // callers never pass it.
+  // Ordinal compare, NOT localeCompare: the sort exists for byte-determinism,
+  // and an unpinned localeCompare is ICU-driven — a Node/ICU bump between
+  // deploys could reorder the same set and silently cost a full prefix miss.
+  const orderedParticipants =
+    order === 'stable'
+      ? [...participantPersonas.values()].sort((a, b) =>
+          a.personaId < b.personaId ? -1 : a.personaId > b.personaId ? 1 : 0
+        )
+      : [...participantPersonas.values()];
+
+  for (const info of orderedParticipants) {
     // Build participant tag with id and optional active attribute
     const activeAttr = info.isActive ? ' active="true"' : '';
     parts.push(`<participant id="${escapeXml(info.personaId)}"${activeAttr}>`);

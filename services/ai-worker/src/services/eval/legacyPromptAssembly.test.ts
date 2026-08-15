@@ -87,6 +87,43 @@ describe('legacyBuildSystemPrompt (arm A drift pins)', () => {
     ).toMatchSnapshot();
   });
 
+  it('renders a multi-participant roster in Map-insertion order, not the sorted production order', () => {
+    // The live ParticipantFormatter sorts by persona UUID for cache-prefix
+    // stability; the pre-restructure assembly iterated the Map directly. This
+    // pin fails if the legacy arm silently inherits the production sort — the
+    // single-participant fixtures elsewhere in this file cannot catch that.
+    const multiParticipants = new Map<string, ParticipantInfo>([
+      [
+        'persona-9',
+        {
+          personaName: 'Zed',
+          content: 'Speaks last, listed first',
+          isActive: false,
+          personaId: 'persona-9',
+        },
+      ],
+      [
+        'persona-1',
+        {
+          personaName: 'Vee',
+          content: 'A curious engineer',
+          isActive: true,
+          personaId: 'persona-1',
+        },
+      ],
+    ]);
+    const prompt = legacyBuildSystemPrompt({
+      personality: createMockPersonality({ systemPrompt: '<rules>Be kind.</rules>' }),
+      participantPersonas: multiParticipants,
+      relevantMemories: memories,
+      facts,
+      context,
+      serializedHistory: '<message from="Vee" role="user" t="2026-07-15">hi</message>',
+    });
+
+    expect(prompt.indexOf('persona-9')).toBeLessThan(prompt.indexOf('persona-1'));
+  });
+
   it('keeps the Sandwich order: protocol + output constraints AFTER chat_log (the recency tail)', () => {
     const prompt = buildFixtureSystemPrompt({ systemPrompt: '<rules>Be kind.</rules>' });
     const chatLogIndex = prompt.indexOf('<chat_log>');

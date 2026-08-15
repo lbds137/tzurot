@@ -247,13 +247,29 @@ describe('dedupeReference', () => {
   });
 
   describe('the preview', () => {
-    it('is withheld for OUR OWN persona — a fragment of its own text reads as "continue this"', () => {
+    it('is kept for OUR OWN persona — a contentless stub names nothing the model can resolve', () => {
+      // The continuation risk this preview once guarded against is blocked in
+      // the prompt itself (OUTPUT_CONSTRAINTS plus the <contextual_references>
+      // instruction), so the assistant role gets the same preview every other
+      // role gets rather than a marker with no referent.
       const stub = dedupeReference(
         reference({ role: 'assistant', content: 'my earlier line', attachments: [] })
       );
 
-      expect(stub.content).not.toContain('my earlier line');
-      expect(stub.content).toBe('[Referenced message — full text in the chat log]');
+      expect(stub.content).toContain('my earlier line');
+      expect(stub.content).toBe(
+        '[Referenced message — full text in the chat log]\n\nmy earlier line'
+      );
+    });
+
+    it('caps an assistant preview at the same limit as every other role', () => {
+      const long = 'y'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 50);
+      const stub = dedupeReference(
+        reference({ role: 'assistant', content: long, attachments: [] })
+      );
+
+      expect(stub.content).toContain('y'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
+      expect(stub.content).not.toContain('y'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 1));
     });
 
     it('is KEPT for a third-party bot — not our text, so the trap does not apply', () => {

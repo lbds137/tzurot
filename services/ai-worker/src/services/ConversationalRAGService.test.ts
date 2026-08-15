@@ -529,7 +529,6 @@ describe('ConversationalRAGService', () => {
 
       expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
-        participantPersonas: expect.any(Map),
         relevantMemories: memories,
         facts: [],
         context,
@@ -586,9 +585,13 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
+      // The roster crosses into the SYSTEM message now, so that is the seam
+      // this wiring assertion has to watch.
+      expect(getPromptBuilderMock().buildSystemMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ personality, context, participantPersonas: participantMap })
+      );
       expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
-        participantPersonas: participantMap,
         relevantMemories: expect.any(Array),
         facts: [],
         context,
@@ -632,7 +635,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      const call = getPromptBuilderMock().buildVolatilePrefix.mock.calls[0]?.[0] as
+      const call = getPromptBuilderMock().buildSystemMessage.mock.calls[0]?.[0] as
         { participantPersonas: Map<string, { personaId: string; content?: string }> } | undefined;
       expect(call).toBeDefined();
       const participants = call!.participantPersonas;
@@ -978,7 +981,6 @@ describe('ConversationalRAGService', () => {
 
       expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
-        participantPersonas: expect.any(Map),
         relevantMemories: expect.any(Array),
         facts: [],
         context,

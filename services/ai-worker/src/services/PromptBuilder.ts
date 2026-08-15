@@ -1,8 +1,8 @@
 /**
  * Prompt Builder - Builds the cacheable system message (constraints, personality
- * identity, protocol, chat log) and the human message, whose volatile prefix
- * carries the per-request content (environment, participants, facts, memories,
- * referenced messages).
+ * identity, protocol, location, participants, chat log) and the human message,
+ * whose volatile prefix carries the per-request content (datetime, facts,
+ * memories, referenced messages).
  */
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -50,6 +50,12 @@ interface BuildSystemMessageOptions {
   personality: LoadedPersonality;
   /** Needed for persona-name resolution on the legacy protocol path. */
   context: ConversationContext;
+  /**
+   * Keyed by resolvedPersonaId (a UUID) — see `ParticipantInfo`/`PersonaLoadResult`
+   * in ConversationalRAGTypes.ts. Renders the roster ahead of `chat_log`, where
+   * the from_id bindings the log uses are resolvable in the same container.
+   */
+  participantPersonas: Map<string, ParticipantInfo>;
   serializedHistory?: string;
 }
 
@@ -57,8 +63,6 @@ interface BuildSystemMessageOptions {
 interface BuildVolatilePrefixOptions {
   personality: LoadedPersonality;
   context: ConversationContext;
-  /** Keyed by resolvedPersonaId (a UUID) — see `ParticipantInfo`/`PersonaLoadResult` in ConversationalRAGTypes.ts. */
-  participantPersonas: Map<string, ParticipantInfo>;
   referencedMessagesFormatted?: string;
   /** Distilled active facts for the `<facts>` block (empty/absent = no block). */
   facts?: FactForPrompt[];
@@ -79,7 +83,7 @@ function buildChatLogSection(
     return '';
   }
   return `<chat_log>
-<instruction>The conversation so far. Each message's role says who wrote it: role="assistant" marks your own earlier lines (${escapeXmlContent(personalityName)}); role="user" marks humans (match from_id to <participants>); role="character" marks a different AI character — a conversation peer, never you.</instruction>
+<instruction>The conversation so far. Each message's role says who wrote it: role="assistant" marks your own earlier lines (${escapeXmlContent(personalityName)}); role="user" marks humans (match from_id to the <participants> roster above); role="character" marks a different AI character — a conversation peer, never you.</instruction>
 ${serializedHistory}
 </chat_log>`;
 }
@@ -119,10 +123,11 @@ export class PromptBuilder {
    * - Provides consistent behavior between current turn and history
    *
    * The message includes speaker identification via a <from> tag to help the LLM
-   * know who is speaking. This is critical because while the volatile prefix of
-   * this same message has a participants section with active="true", and the
-   * system message's chat_log has from= attributes, the raw HumanMessage content
-   * also needs explicit speaker identification.
+   * know who is speaking. This is critical because while the system message's
+   * participants roster marks the speaker active="true" and its chat_log has
+   * from= attributes, the raw HumanMessage content also needs explicit speaker
+   * identification. The tag carries the speaker's id and pronouns so the current
+   * turn is self-describing without a lookup back into the roster.
    */
   buildHumanMessage(
     userMessage: string,
@@ -137,14 +142,26 @@ export class PromptBuilder {
        */
       volatilePrefix?: string;
       activePersonaId?: string;
+      /**
+       * The speaker's pronouns, rendered as a `<from>` attribute. Absent when
+       * the persona declares none — the roster's own `<pronouns>` element is
+       * governed by the same rule.
+       */
+      activePersonaPronouns?: string;
       /** Discord username for disambiguation when persona name matches personality name */
       discordUsername?: string;
       /** Personality name for collision detection */
       personalityName?: string;
     }
   ): { message: HumanMessage; contentForStorage: string } {
-    const { activePersonaName, volatilePrefix, activePersonaId, discordUsername, personalityName } =
-      options ?? {};
+    const {
+      activePersonaName,
+      volatilePrefix,
+      activePersonaId,
+      activePersonaPronouns,
+      discordUsername,
+      personalityName,
+    } = options ?? {};
 
     // Build message content with attachments
     let messageContent = userMessage;
@@ -177,7 +194,12 @@ export class PromptBuilder {
         personalityName,
         discordUsername
       );
-      turnContent = wrapWithSpeakerIdentification(safeUserContent, displayName, activePersonaId);
+      turnContent = wrapWithSpeakerIdentification(
+        safeUserContent,
+        displayName,
+        activePersonaId,
+        activePersonaPronouns
+      );
     }
 
     // V prefix leads; the <from>-wrapped turn closes the message so the user's
@@ -202,8 +224,15 @@ export class PromptBuilder {
    * cross-persona-static S0 block leads so automatic-prefix providers share
    * those bytes across every persona; the per-persona S1 block follows;
    * `chat_log` (H) is last — it grows per turn, so everything before it stays
-   * a stable prefix between turns. Nothing per-request volatile renders here;
-   * that content lives in {@link buildVolatilePrefix}. The recency-tail
+   * a stable prefix between turns. `location` and `participants` sit at the end
+   * of the S1 run, ahead of `chat_log`, so the roster the log's from_id
+   * attributes bind to is resolvable in the same container. The roster's
+   * ORDERING is byte-stable turn to turn (see `formatParticipantsContext`),
+   * but the block as a whole is not fully so: the `active="true"` flag and
+   * the collision note both track the current speaker, so the prefix still
+   * re-breaks on speaker change in multi-human channels. Per-request volatile
+   * content (datetime, retrieval output, references) lives in
+   * {@link buildVolatilePrefix}. The recency-tail
    * placement protocol/output_constraints held before this restructure was
    * deliberately traded for cacheability (the voice-consistency gate guards
    * the quality side; see the epic roadmap).
@@ -216,7 +245,7 @@ export class PromptBuilder {
     message: SystemMessage;
     sections: SectionDescription[];
   } {
-    const { personality, context, serializedHistory } = options;
+    const { personality, context, participantPersonas, serializedHistory } = options;
 
     const { persona, protocol } = formatPersonalityFields(
       personality,
@@ -244,9 +273,37 @@ ${escapeXmlContent(persona)}
 </character>
 </system_identity>`;
 
-    // Identity constraints — static per persona. The name-collision note (a
-    // per-request concern) renders in the V-tier participants block instead.
+    // Identity constraints — static per persona. The name-collision note rides
+    // inside the participants block below, which is where the roster it
+    // disambiguates lives.
     const identityConstraintsSection = buildIdentityConstraints(personality.name);
+
+    // Where the conversation is happening. Rendered here rather than in the
+    // volatile prefix: the location is stable for the whole channel, so it
+    // belongs in the cacheable prefix beside the roster it contextualizes.
+    const locationSection =
+      context.environment !== undefined && context.environment !== null
+        ? formatEnvironmentContext(context.environment)
+        : '<location type="dm">Direct Message (private one-on-one chat)</location>';
+
+    // Conversation participants, carrying the name-collision disambiguation
+    // when the active user's display name matches the character's. Rendered
+    // ahead of chat_log so the from_id bindings resolve within one container.
+    const collisionInfo = detectNameCollision(
+      context.activePersonaName,
+      context.discordUsername,
+      personality.name,
+      personality.id
+    );
+    const collisionNote =
+      collisionInfo !== undefined
+        ? `A user named "${escapeXmlContent(collisionInfo.userName)}" shares your name. They appear as "${escapeXmlContent(collisionInfo.userName)} (@${escapeXmlContent(collisionInfo.discordUsername)})" in the chat log. This is a different person - address them naturally.`
+        : undefined;
+    const participantsSection = formatParticipantsContext(
+      participantPersonas,
+      context.activePersonaName,
+      collisionNote
+    );
 
     // Conversation history as XML (legend lives in buildChatLogSection)
     const chatLogSection = buildChatLogSection(serializedHistory, personality.name);
@@ -263,6 +320,8 @@ ${escapeXmlContent(persona)}
       { id: 'system_identity', tier: 'S1', render: () => identitySection },
       { id: 'identity_constraints', tier: 'S1', render: () => identityConstraintsSection },
       { id: 'protocol', tier: 'S1', render: () => protocolSection },
+      { id: 'location', tier: 'S1', render: () => locationSection },
+      { id: 'participants', tier: 'S1', render: () => participantsSection },
       { id: 'chat_log', tier: 'H', render: () => chatLogSection },
     ];
 
@@ -287,10 +346,11 @@ ${escapeXmlContent(persona)}
   }
 
   /**
-   * Build the V-tier volatile prefix of the current user message: datetime and
-   * location context, the participant roster (with the name-collision note
-   * when one is detected), retrieved facts and memories, and the contextual
-   * references. Everything here changes per request — placing it in the user
+   * Build the V-tier volatile prefix of the current user message: the datetime,
+   * retrieved facts and memories, and the contextual references. The location
+   * and the participant roster render in the system message instead — both are
+   * stable for the channel, so re-rendering them per turn bought nothing.
+   * Everything left here changes per request — placing it in the user
    * message keeps the system message byte-stable so the provider's prefix
    * cache actually hits (§2.2 of the accepted architecture; this placement is
    * also what ended the references double-render across both containers).
@@ -298,38 +358,16 @@ ${escapeXmlContent(persona)}
    * Always non-empty: the `<context>` block renders unconditionally.
    */
   buildVolatilePrefix(options: BuildVolatilePrefixOptions): string {
-    const { personality, context, participantPersonas } = options;
+    const { personality, context } = options;
 
-    // Current date/time and environment context wrapped in <context>
+    // Current date/time wrapped in <context>. The location moved to the system
+    // message — it is stable for the channel, so keeping it here re-rendered a
+    // constant into the volatile container every turn.
     const datetime = formatFullDateTime(new Date(), context.userTimezone);
-
-    const locationXml =
-      context.environment !== undefined && context.environment !== null
-        ? formatEnvironmentContext(context.environment)
-        : '<location type="dm">Direct Message (private one-on-one chat)</location>';
 
     const contextSection = `<context>
 <datetime>${datetime}</datetime>
-${locationXml}
 </context>`;
-
-    // Conversation participants, carrying the name-collision disambiguation
-    // when the active user's display name matches the character's.
-    const collisionInfo = detectNameCollision(
-      context.activePersonaName,
-      context.discordUsername,
-      personality.name,
-      personality.id
-    );
-    const collisionNote =
-      collisionInfo !== undefined
-        ? `A user named "${escapeXmlContent(collisionInfo.userName)}" shares your name. They appear as "${escapeXmlContent(collisionInfo.userName)} (@${escapeXmlContent(collisionInfo.discordUsername)})" in the chat log. This is a different person - address them naturally.`
-        : undefined;
-    const participantsContext = formatParticipantsContext(
-      participantPersonas,
-      context.activePersonaName,
-      collisionNote
-    );
 
     // Distilled active facts, rendered ahead of the historical archive.
     // Subject-bound to the triggering message's author — fact retrieval is
@@ -354,7 +392,6 @@ ${locationXml}
 
     const sections: PromptSection[] = [
       { id: 'context', tier: 'V', render: () => contextSection },
-      { id: 'participants', tier: 'V', render: () => participantsContext },
       { id: 'facts', tier: 'V', render: () => factsContext },
       { id: 'memory_archive', tier: 'V', render: () => memoryContext },
       { id: 'contextual_references', tier: 'V', render: () => referencesContext },

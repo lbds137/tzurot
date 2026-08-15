@@ -22,9 +22,28 @@ import type {
   BudgetAllocationResult,
   FactForPrompt,
   MemoryDocument,
+  ParticipantInfo,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ContentBudgetManager');
+
+/**
+ * The active speaker's pronouns for the `<from>` tag, read from the roster
+ * already in hand — the map is keyed by resolvedPersonaId, which is what
+ * `context.activePersonaId` holds. Undefined when the speaker has no persona ID,
+ * is absent from the roster, or declares no pronouns. Exported so the eval
+ * harness derives the value the same way production does instead of
+ * re-implementing the lookup.
+ */
+export function activeSpeakerPronouns(
+  participantPersonas: Map<string, ParticipantInfo>,
+  activePersonaId: string | undefined
+): string | undefined {
+  if (activePersonaId === undefined || activePersonaId.length === 0) {
+    return undefined;
+  }
+  return participantPersonas.get(activePersonaId)?.pronouns;
+}
 
 /**
  * Reserved fact sub-budget (Phase 2 slice 4a). Facts are short/dense and would
@@ -271,7 +290,6 @@ export class ContentBudgetManager {
     const finalVolatilePrefix = this.promptBuilder.buildVolatilePrefix({
       personality: processedPersonality,
       context,
-      participantPersonas,
       referencedMessagesFormatted: opts.referencedMessagesDescriptions,
       facts: selectedFacts,
       relevantMemories,
@@ -283,6 +301,7 @@ export class ContentBudgetManager {
         activePersonaName: context.activePersonaName,
         volatilePrefix: finalVolatilePrefix,
         activePersonaId: context.activePersonaId,
+        activePersonaPronouns: activeSpeakerPronouns(participantPersonas, context.activePersonaId),
         discordUsername: context.discordUsername,
         personalityName: processedPersonality.name,
       }
@@ -291,6 +310,7 @@ export class ContentBudgetManager {
       this.promptBuilder.buildSystemMessage({
         personality: processedPersonality,
         context,
+        participantPersonas,
         serializedHistory,
       });
 
@@ -354,7 +374,6 @@ export class ContentBudgetManager {
     const volatilePrefix = this.promptBuilder.buildVolatilePrefix({
       personality: processedPersonality,
       context,
-      participantPersonas,
       referencedMessagesFormatted: referencedMessagesDescriptions,
     });
 
@@ -365,14 +384,21 @@ export class ContentBudgetManager {
         activePersonaName: context.activePersonaName,
         volatilePrefix,
         activePersonaId: context.activePersonaId,
+        activePersonaPronouns: activeSpeakerPronouns(participantPersonas, context.activePersonaId),
         discordUsername: context.discordUsername,
         personalityName: processedPersonality.name,
       }
     );
 
+    // The roster MUST be passed here as well as at the shipped-message call in
+    // `allocate`. The budget identity (contextWindow − systemPromptBase −
+    // currentMessage − memoryReserve) holds only if both calls see the same
+    // input; measuring a base without the roster under-counts it and inflates
+    // the history budget by exactly the roster's size.
     const systemPromptBaseOnly = this.promptBuilder.buildSystemMessage({
       personality: processedPersonality,
       context,
+      participantPersonas,
     });
 
     const systemPromptBaseTokens = this.promptBuilder.countTokens(
