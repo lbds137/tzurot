@@ -444,6 +444,7 @@ export class MessageHandler {
         content,
         chunkMessageIds,
         userMessageTime,
+        thinkingContent: result.metadata?.thinkingContent,
       });
 
       if (chunkMessageIds.length > 0) {

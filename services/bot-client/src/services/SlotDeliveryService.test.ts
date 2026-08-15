@@ -109,6 +109,21 @@ describe('SlotDeliveryService', () => {
       expect(vi.mocked(updateDiagnosticResponseIds)).toHaveBeenCalledWith('req-1', ['chunk-1']);
     });
 
+    it('forwards the reasoning trace from result metadata into the persisted row', async () => {
+      const result = buildSuccessResult({
+        metadata: { modelUsed: 'test-model', thinkingContent: 'SLOT_TRACE_SENTINEL' },
+      } as Partial<LLMGenerationResult>);
+      const slot = buildSlotContext();
+
+      await service.deliverSuccess(result, slot);
+
+      // The same metadata field the thinking block renders from must also reach
+      // persistence — otherwise the trace dies with the 24h diagnostic log.
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: 'SLOT_TRACE_SENTINEL' })
+      );
+    });
+
     it('skips diagnostic update when no chunks were sent', async () => {
       responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: [] });
       const result = buildSuccessResult();

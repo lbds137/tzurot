@@ -22,6 +22,8 @@ interface AssistantMessageWriteParams {
   content: string;
   chunkMessageIds: string[];
   userMessageTime: Date;
+  /** Reasoning trace from the job result; absent when the model produced none. */
+  thinkingContent?: string;
 }
 
 interface ObservedSyncSnapshotMessage {
@@ -97,6 +99,7 @@ function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
   content: string;
   chunkMessageIds: string[];
   userMessageTime: string;
+  thinkingContent?: string;
 } {
   return {
     channelId: params.channelId,
@@ -106,6 +109,10 @@ function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
     content: params.content,
     chunkMessageIds: params.chunkMessageIds,
     userMessageTime: params.userMessageTime.toISOString(),
+    // Conditional spread to match `buildUserMessagePayload` above: omit the key
+    // rather than sending an explicit undefined. Equivalent over the wire since
+    // JSON.stringify drops undefined, but one convention per file.
+    ...(params.thinkingContent !== undefined && { thinkingContent: params.thinkingContent }),
   };
 }
 

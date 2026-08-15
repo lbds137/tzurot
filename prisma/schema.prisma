@@ -620,6 +620,14 @@ model ConversationHistory {
   /// Separates semantic content (in 'content') from contextual data
   /// See MessageMetadata interface in common-types for schema
   messageMetadata  Json?          @default("{}") @map("message_metadata")
+  /// Deferred-set: the model's reasoning trace for an assistant turn, written
+  /// once at row creation by the assistant-message persist endpoint. Null when
+  /// the model produced no trace (~5% of generations), when the row is a user
+  /// turn (only assistant rows carry one), or when the row predates trace
+  /// persistence. Reads guard with a null/empty check and fall back to the
+  /// 24h diagnostic log. Never UPDATEd after creation — see 03-database.md
+  /// § Sync-Tracked Tables before adding a later write.
+  thinkingContent  String?        @map("thinking_content")
   /// Soft delete timestamp - message excluded from context when set
   /// Used for opportunistic sync when Discord message is deleted
   deletedAt        DateTime?      @map("deleted_at")

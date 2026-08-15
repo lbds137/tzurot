@@ -233,6 +233,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   undoHistory: USER_HISTORY,
   getHistoryStats: USER_HISTORY,
   hardDeleteHistory: USER_HISTORY,
+  getMessageReasoning: '../user/historyReasoning.js',
 
   // User voices
   listVoices: USER_VOICES,

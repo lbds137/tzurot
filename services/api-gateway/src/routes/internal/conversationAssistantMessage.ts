@@ -20,7 +20,7 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { MessageRole } from '@tzurot/common-types/constants/message';
+import { MessageRole, ASSISTANT_ROW_OFFSET_MS } from '@tzurot/common-types/constants/message';
 import {
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
@@ -37,6 +37,42 @@ import { fetchExistingConversationRow } from './conversationPersistShared.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-conversation-assistant-message');
+
+/**
+ * Warn when a replay carries a reasoning trace that differs from the stored
+ * row's.
+ *
+ * Reported separately from `matched`, and deliberately NOT folded into it: the
+ * common shape is benign (the first attempt captured no trace, a retry did), so
+ * failing the replay would reclassify an ordinary retry as a drift bug. But the
+ * column is write-once, so the incoming trace is discarded either way — and
+ * without this line that discard is invisible, which defeats the point of a
+ * column whose whole purpose is that a trace survives.
+ */
+function warnOnTraceDrift(
+  stored: string | null,
+  incoming: string | undefined,
+  fields: { id: string; channelId: string }
+): void {
+  // Normalize the incoming value the SAME way the write path does before
+  // comparing. `addMessage` stores '' as null, so a stored "no trace" row always
+  // reads back as null — comparing a raw '' against it would report drift
+  // between two values that mean the identical thing, on a log line whose only
+  // job is to be a trustworthy signal.
+  const normalizedIncoming = incoming === '' ? null : incoming;
+  if (normalizedIncoming === undefined || normalizedIncoming === stored) {
+    return;
+  }
+  logger.warn(
+    {
+      ...fields,
+      storedLength: stored?.length ?? 0,
+      incomingLength: normalizedIncoming?.length ?? 0,
+      storedWasNull: stored === null,
+    },
+    'Assistant-message replay carried a different reasoning trace — discarded (column is write-once)'
+  );
+}
 
 function chunkIdsMatch(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id, idx) => id === b[idx]);
@@ -55,13 +91,22 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       sendZodError(res, parseResult.error);
       return;
     }
-    const { channelId, guildId, personalityId, personaId, content, chunkMessageIds } =
-      parseResult.data;
+    const {
+      channelId,
+      guildId,
+      personalityId,
+      personaId,
+      content,
+      chunkMessageIds,
+      thinkingContent,
+    } = parseResult.data;
 
     // Assistant timestamp: user message + 1ms (chronological ordering).
     // Derived here, not client-side, so the deterministic UUID below is a
     // pure function of what the gateway persists.
-    const assistantTime = new Date(new Date(parseResult.data.userMessageTime).getTime() + 1);
+    const assistantTime = new Date(
+      new Date(parseResult.data.userMessageTime).getTime() + ASSISTANT_ROW_OFFSET_MS
+    );
     const id = generateConversationHistoryUuid(channelId, personalityId, personaId, assistantTime);
 
     const compareExisting = async (): Promise<PersistAssistantMessageResponse | null> => {
@@ -88,6 +133,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
           'Assistant-message persist replay DIVERGED from existing row'
         );
       }
+      warnOnTraceDrift(existing.thinkingContent, thinkingContent, { id, channelId });
       return { id, created: false, matched };
     };
 
@@ -108,6 +154,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
         guildId,
         discordMessageId: chunkMessageIds,
         timestamp: assistantTime,
+        thinkingContent,
       });
     } catch (error) {
       // Only the unique-violation race gets the compare fallback: a duplicate

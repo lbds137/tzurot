@@ -210,6 +210,23 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       expect(createdData().discordMessageId).toEqual([]);
     });
 
+    it('omits the thinkingContent key entirely when not provided', async () => {
+      await service.addMessage({ ...base });
+      expect(createdData()).not.toHaveProperty('thinkingContent');
+    });
+
+    it('persists a provided thinkingContent verbatim', async () => {
+      await service.addMessage({ ...base, thinkingContent: 'weighed two options' });
+      expect(createdData().thinkingContent).toBe('weighed two options');
+    });
+
+    it('normalizes an empty thinkingContent to null, not an empty string', async () => {
+      // "No trace" must have one representation in the column, so a `!== null`
+      // reader and a `.length === 0` reader can never disagree about a row.
+      await service.addMessage({ ...base, thinkingContent: '' });
+      expect(createdData().thinkingContent).toBeNull();
+    });
+
     it('omits the messageMetadata key entirely when not provided', async () => {
       await service.addMessage({ ...base });
       expect(createdData()).not.toHaveProperty('messageMetadata');

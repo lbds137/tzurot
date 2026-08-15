@@ -65,6 +65,12 @@ interface SaveAssistantMessageOptions {
   chunkMessageIds: string[];
   /** User message timestamp (assistant will be +1ms) */
   userMessageTime: Date;
+  /**
+   * Reasoning trace from the job result metadata. Persisted onto the history
+   * row so it survives the 24h diagnostic window; absent when the model
+   * produced none.
+   */
+  thinkingContent?: string;
 }
 
 /**
@@ -121,6 +127,8 @@ interface SaveAssistantMessageFromFieldsOptions {
   chunkMessageIds: string[];
   /** User message timestamp (assistant will be +1ms) */
   userMessageTime: Date;
+  /** Reasoning trace from the job result metadata; absent when none was produced. */
+  thinkingContent?: string;
 }
 
 /**
@@ -192,7 +200,15 @@ export class ConversationPersistence {
    * - Proper chronological ordering (user < assistant)
    */
   async saveAssistantMessage(options: SaveAssistantMessageOptions): Promise<void> {
-    const { message, personality, personaId, content, chunkMessageIds, userMessageTime } = options;
+    const {
+      message,
+      personality,
+      personaId,
+      content,
+      chunkMessageIds,
+      userMessageTime,
+      thinkingContent,
+    } = options;
 
     // Delegate to field-based implementation with Message fields extracted
     await this.saveAssistantMessageFromFields({
@@ -203,6 +219,7 @@ export class ConversationPersistence {
       content,
       chunkMessageIds,
       userMessageTime,
+      thinkingContent,
     });
   }
 
@@ -298,6 +315,7 @@ export class ConversationPersistence {
       content,
       chunkMessageIds,
       userMessageTime,
+      thinkingContent,
     } = options;
 
     if (chunkMessageIds.length === 0) {
@@ -331,6 +349,7 @@ export class ConversationPersistence {
       content,
       chunkMessageIds,
       userMessageTime,
+      thinkingContent,
     };
 
     // The gateway endpoint IS the write. Throws on failure.
