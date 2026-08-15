@@ -14,7 +14,7 @@ import { AIProvider, AI_DEFAULTS, AI_ENDPOINTS } from '@tzurot/common-types/cons
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
-import type { ReasoningEffortLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import {
   createOpenRouterFetch,
   type OpenRouterExtraParams,
@@ -168,37 +168,28 @@ function addIfHasKeys(
 }
 
 /**
- * Build reasoning params object from ModelConfig reasoning.
+ * Translate the canonical thinking level into OpenRouter's `reasoning` object.
  *
- * IMPORTANT: OpenRouter only accepts ONE of `effort` OR `max_tokens`, not both.
- * When both are specified, we prefer `effort` since it's the simpler user-friendly option.
+ * Our `off` maps to their `none`; every other level is sent under its own name.
+ *
+ * NOT VERIFIED: that OpenRouter accepts `max` is a documentation read, not a
+ * probe — no request has been observed carrying it, and no config has ever
+ * used the `xhigh` it replaces. Treat a `max`-level config as unproven on the
+ * wire until a live call confirms it.
+ *
+ * Absent means "send nothing" — the provider default — so it must stay absent
+ * rather than becoming an explicit level.
+ *
+ * `exclude` is deliberately never sent: both providers default to returning the
+ * trace, which is the only behavior `/inspect` can work with.
  */
 function buildReasoningParams(
-  reasoning: ModelConfig['reasoning']
+  thinking: ModelConfig['thinking']
 ): Record<string, unknown> | undefined {
-  if (reasoning === undefined) {
+  if (thinking === undefined) {
     return undefined;
   }
-
-  const params: Record<string, unknown> = {};
-
-  // OpenRouter constraint: only ONE of effort or max_tokens can be specified
-  if (reasoning.effort !== undefined) {
-    params.effort = reasoning.effort;
-    if (reasoning.maxTokens !== undefined) {
-      logger.warn(
-        { effort: reasoning.effort, maxTokens: reasoning.maxTokens },
-        'Both reasoning.effort and reasoning.maxTokens set, using effort (maxTokens ignored - OpenRouter constraint)'
-      );
-    }
-  } else if (reasoning.maxTokens !== undefined) {
-    params.max_tokens = reasoning.maxTokens;
-  }
-
-  addIfDefined(params, 'exclude', reasoning.exclude);
-  addIfDefined(params, 'enabled', reasoning.enabled);
-
-  return Object.keys(params).length > 0 ? params : undefined;
+  return { effort: thinking === 'off' ? 'none' : thinking };
 }
 
 /**
@@ -222,13 +213,13 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
 
   // Reasoning (CRITICAL for thinking models: o1/o3, Claude, Gemini, DeepSeek R1)
   // Gate: skip reasoning params if the model explicitly doesn't support them
-  if (modelConfig.reasoning !== undefined && modelConfig.supportsReasoning === false) {
+  if (modelConfig.thinking !== undefined && modelConfig.supportsReasoning === false) {
     logger.warn(
-      { modelName: modelConfig.modelName, reasoning: modelConfig.reasoning },
+      { modelName: modelConfig.modelName, thinking: modelConfig.thinking },
       'Model does not support reasoning — skipping reasoning params'
     );
   } else {
-    addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
+    addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.thinking));
   }
 
   return kwargs;
@@ -253,38 +244,35 @@ function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraPa
   return params;
 }
 
-/** Type for reasoning effort levels — the canonical union from common-types. */
-type ReasoningEffort = ReasoningEffortLevel;
-
 /**
- * Calculate effective maxTokens for a model based on reasoning configuration.
+ * Calculate effective maxTokens for a model based on the thinking level.
  *
- * For reasoning models: scales maxTokens based on reasoning.effort level.
+ * For reasoning models: scales maxTokens based on the canonical thinking level.
  * For standard models: uses the config maxTokens as-is.
  */
 function getEffectiveMaxTokens(
   modelName: string,
   configMaxTokens: number | undefined,
-  reasoningEffort: ReasoningEffort | undefined
+  thinking: ThinkingLevel | undefined
 ): number | undefined {
   if (configMaxTokens !== undefined) {
     return configMaxTokens;
   }
 
-  if (!isReasoningModel(modelName) || reasoningEffort === undefined) {
+  if (!isReasoningModel(modelName) || thinking === undefined) {
     return configMaxTokens;
   }
 
-  const scaledMaxTokens = AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS[reasoningEffort];
+  const scaledMaxTokens = AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS[thinking];
 
   logger.info(
     {
       modelName,
-      reasoningEffort,
+      thinking,
       scaledMaxTokens,
       defaultMaxTokens: AI_DEFAULTS.MAX_TOKENS,
     },
-    'Scaling maxTokens for reasoning model based on effort level'
+    'Scaling maxTokens for reasoning model based on thinking level'
   );
 
   return scaledMaxTokens;
@@ -373,7 +361,7 @@ function buildOpenRouterModel(
   const extraParams = buildOpenRouterExtraParams(modelConfig);
   const hasExtraParams = Object.keys(extraParams).length > 0;
   const hasReasoning =
-    modelConfig.reasoning !== undefined && modelConfig.supportsReasoning !== false;
+    modelConfig.thinking !== undefined && modelConfig.supportsReasoning !== false;
   const needsCustomFetch = hasExtraParams || hasReasoning;
 
   logger.debug(
@@ -500,11 +488,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   const provider = modelConfig.provider ?? config.AI_PROVIDER;
   const modelName = validateModelName(modelConfig.modelName);
 
-  const maxTokens = getEffectiveMaxTokens(
-    modelName,
-    modelConfig.maxTokens,
-    modelConfig.reasoning?.effort
-  );
+  const maxTokens = getEffectiveMaxTokens(modelName, modelConfig.maxTokens, modelConfig.thinking);
   const modelKwargs = buildModelKwargs(modelConfig);
   const { frequencyPenalty, presencePenalty } = filterRestrictedParams(
     modelName,

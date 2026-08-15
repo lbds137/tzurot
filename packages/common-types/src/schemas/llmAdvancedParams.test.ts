@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   SamplingParamsSchema,
-  ReasoningConfigSchema,
-  ReasoningParamsSchema,
+  ThinkingParamsSchema,
+  AdvancedParamsInputSchema,
   OutputParamsSchema,
   OpenRouterParamsSchema,
   AdvancedParamsSchema,
   safeValidateAdvancedParams,
-  hasReasoningEnabled,
-  validateReasoningConstraints,
+  upgradeLegacyReasoningShape,
   advancedParamsToConfigFormat,
   LLM_CONFIG_OVERRIDE_KEYS,
   applyLlmOverrideParams,
@@ -108,75 +107,22 @@ describe('LLM Advanced Params Schema', () => {
     });
   });
 
-  describe('ReasoningConfigSchema', () => {
-    it('should accept valid effort levels', () => {
-      expect(ReasoningConfigSchema.parse({ effort: 'xhigh' })).toEqual({ effort: 'xhigh' });
-      expect(ReasoningConfigSchema.parse({ effort: 'high' })).toEqual({ effort: 'high' });
-      expect(ReasoningConfigSchema.parse({ effort: 'medium' })).toEqual({ effort: 'medium' });
-      expect(ReasoningConfigSchema.parse({ effort: 'low' })).toEqual({ effort: 'low' });
-      expect(ReasoningConfigSchema.parse({ effort: 'minimal' })).toEqual({ effort: 'minimal' });
-      expect(ReasoningConfigSchema.parse({ effort: 'none' })).toEqual({ effort: 'none' });
+  describe('ThinkingParamsSchema', () => {
+    it('should accept every canonical level', () => {
+      for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'max'] as const) {
+        expect(ThinkingParamsSchema.parse({ thinking: level })).toEqual({ thinking: level });
+      }
     });
 
-    it('should accept xhigh effort level for maximum thinking', () => {
-      // xhigh is ~95% token allocation for reasoning
-      const config = { effort: 'xhigh' as const, max_tokens: 30000 };
-      expect(ReasoningConfigSchema.parse(config)).toEqual(config);
+    it('should reject the retired effort names', () => {
+      expect(() => ThinkingParamsSchema.parse({ thinking: 'xhigh' })).toThrow();
+      expect(() => ThinkingParamsSchema.parse({ thinking: 'none' })).toThrow();
+      expect(() => ThinkingParamsSchema.parse({ thinking: '' })).toThrow();
     });
 
-    it('should reject invalid effort levels', () => {
-      expect(() => ReasoningConfigSchema.parse({ effort: 'maximum' })).toThrow();
-      expect(() => ReasoningConfigSchema.parse({ effort: '' })).toThrow();
-    });
-
-    it('should accept valid max_tokens', () => {
-      expect(ReasoningConfigSchema.parse({ max_tokens: 1024 })).toEqual({ max_tokens: 1024 });
-      expect(ReasoningConfigSchema.parse({ max_tokens: 16000 })).toEqual({ max_tokens: 16000 });
-      expect(ReasoningConfigSchema.parse({ max_tokens: 32000 })).toEqual({ max_tokens: 32000 });
-    });
-
-    it('should reject max_tokens below minimum (1024)', () => {
-      expect(() => ReasoningConfigSchema.parse({ max_tokens: 1000 })).toThrow();
-      expect(() => ReasoningConfigSchema.parse({ max_tokens: 0 })).toThrow();
-    });
-
-    it('should reject max_tokens above maximum (32000)', () => {
-      expect(() => ReasoningConfigSchema.parse({ max_tokens: 33000 })).toThrow();
-    });
-
-    it('should accept boolean exclude', () => {
-      expect(ReasoningConfigSchema.parse({ exclude: true })).toEqual({ exclude: true });
-      expect(ReasoningConfigSchema.parse({ exclude: false })).toEqual({ exclude: false });
-    });
-
-    it('should accept boolean enabled', () => {
-      expect(ReasoningConfigSchema.parse({ enabled: true })).toEqual({ enabled: true });
-      expect(ReasoningConfigSchema.parse({ enabled: false })).toEqual({ enabled: false });
-    });
-
-    it('should accept combined reasoning config', () => {
-      const config = {
-        effort: 'high' as const,
-        max_tokens: 16000,
-        exclude: false,
-        enabled: true,
-      };
-      expect(ReasoningConfigSchema.parse(config)).toEqual(config);
-    });
-  });
-
-  describe('ReasoningParamsSchema', () => {
-    it('should accept reasoning object', () => {
-      const params = { reasoning: { effort: 'medium' as const } };
-      expect(ReasoningParamsSchema.parse(params)).toEqual(params);
-    });
-
-    it('should accept empty object', () => {
-      expect(ReasoningParamsSchema.parse({})).toEqual({});
-    });
-
-    it('should accept undefined reasoning', () => {
-      expect(ReasoningParamsSchema.parse({ reasoning: undefined })).toEqual({});
+    it('should accept an absent level — absent is NOT the same as off', () => {
+      expect(ThinkingParamsSchema.parse({})).toEqual({});
+      expect(ThinkingParamsSchema.parse({ thinking: undefined })).toEqual({});
     });
   });
 
@@ -260,11 +206,8 @@ describe('LLM Advanced Params Schema', () => {
         temperature: 0.7,
         top_p: 0.9,
         frequency_penalty: 0.5,
-        // Reasoning
-        reasoning: {
-          effort: 'high' as const,
-          max_tokens: 8000,
-        },
+        // Thinking
+        thinking: 'high' as const,
         // Output
         max_tokens: 4096,
         // OpenRouter
@@ -296,130 +239,156 @@ describe('LLM Advanced Params Schema', () => {
     it('should return empty object for null input', () => {
       expect(safeValidateAdvancedParams(null)).toEqual({});
     });
-  });
 
-  describe('hasReasoningEnabled', () => {
-    it('should return false for empty params', () => {
-      expect(hasReasoningEnabled({})).toBe(false);
+    // The read path sees rows the data migration has not reached yet. Plain
+    // strip mode would delete `reasoning` and return {} — the level would look
+    // like it had vanished from the dashboard and /inspect.
+    it('should upgrade a stored legacy reasoning object instead of stripping it', () => {
+      expect(safeValidateAdvancedParams({ reasoning: { effort: 'xhigh' } })).toEqual({
+        thinking: 'max',
+      });
+      expect(safeValidateAdvancedParams({ reasoning: { enabled: false } })).toEqual({
+        thinking: 'off',
+      });
     });
 
-    it('should return false for undefined reasoning', () => {
-      expect(hasReasoningEnabled({ temperature: 0.7 })).toBe(false);
-    });
-
-    it('should return false when enabled is false', () => {
-      expect(hasReasoningEnabled({ reasoning: { enabled: false } })).toBe(false);
-    });
-
-    it('should return false when effort is none', () => {
-      expect(hasReasoningEnabled({ reasoning: { effort: 'none' } })).toBe(false);
-    });
-
-    it('should return true when effort is set (not none)', () => {
-      expect(hasReasoningEnabled({ reasoning: { effort: 'xhigh' } })).toBe(true);
-      expect(hasReasoningEnabled({ reasoning: { effort: 'high' } })).toBe(true);
-      expect(hasReasoningEnabled({ reasoning: { effort: 'medium' } })).toBe(true);
-      expect(hasReasoningEnabled({ reasoning: { effort: 'low' } })).toBe(true);
-      expect(hasReasoningEnabled({ reasoning: { effort: 'minimal' } })).toBe(true);
-    });
-
-    it('should return true when max_tokens is set', () => {
-      expect(hasReasoningEnabled({ reasoning: { max_tokens: 8000 } })).toBe(true);
-    });
-
-    it('should return true with both effort and max_tokens', () => {
-      expect(hasReasoningEnabled({ reasoning: { effort: 'high', max_tokens: 8000 } })).toBe(true);
-    });
-
-    it('should return false with only exclude set', () => {
-      expect(hasReasoningEnabled({ reasoning: { exclude: true } })).toBe(false);
+    it('should leave an already-migrated row untouched (upgrade is idempotent)', () => {
+      expect(safeValidateAdvancedParams({ thinking: 'medium', temperature: 0.5 })).toEqual({
+        thinking: 'medium',
+        temperature: 0.5,
+      });
     });
   });
 
-  describe('validateReasoningConstraints', () => {
-    it('should return true when no reasoning', () => {
-      expect(validateReasoningConstraints({ max_tokens: 4096 })).toBe(true);
+  describe('upgradeLegacyReasoningShape', () => {
+    // Every row here is also an arm of the SQL CASE in
+    // prisma/migrations/20260814120000_collapse_reasoning_to_thinking/migration.sql.
+    // The two mappings must agree; change them together.
+    const MAPPING: [string, Record<string, unknown>, string | undefined][] = [
+      ['enabled:false wins over any effort', { enabled: false, effort: 'high' }, 'off'],
+      ['enabled:false alone', { enabled: false }, 'off'],
+      ['effort none', { effort: 'none' }, 'off'],
+      ['effort xhigh collapses to max', { effort: 'xhigh' }, 'max'],
+      ['effort high', { effort: 'high' }, 'high'],
+      ['effort medium', { effort: 'medium' }, 'medium'],
+      ['effort low', { effort: 'low' }, 'low'],
+      ['effort minimal', { effort: 'minimal' }, 'minimal'],
+      ['max_tokens only', { max_tokens: 16000 }, 'high'],
+      [
+        'unknown effort falls through to max_tokens',
+        { effort: 'bogus', max_tokens: 16000 },
+        'high',
+      ],
+      ['empty object', {}, undefined],
+      ['exclude only', { exclude: false }, undefined],
+      ['enabled:true with no level', { enabled: true }, undefined],
+      ['unknown effort with no budget', { effort: 'bogus' }, undefined],
+    ];
+
+    it.each(MAPPING)('maps %s', (_label, reasoning, expected) => {
+      const result = upgradeLegacyReasoningShape({ temperature: 0.7, reasoning }) as Record<
+        string,
+        unknown
+      >;
+      expect(result.reasoning).toBeUndefined();
+      expect(result.thinking).toBe(expected);
+      // Sibling params survive the rewrite untouched.
+      expect(result.temperature).toBe(0.7);
     });
 
-    it('should return true when no max_tokens', () => {
-      expect(validateReasoningConstraints({ reasoning: { max_tokens: 8000 } })).toBe(true);
+    it('passes through a payload with no reasoning object', () => {
+      const input = { temperature: 0.7, thinking: 'low' };
+      expect(upgradeLegacyReasoningShape(input)).toBe(input);
     });
 
-    it('should return true when reasoning.max_tokens < max_tokens', () => {
-      const params: AdvancedParams = {
-        reasoning: { max_tokens: 8000 },
-        max_tokens: 16000,
-      };
-      expect(validateReasoningConstraints(params)).toBe(true);
+    it('passes through non-object input untouched', () => {
+      expect(upgradeLegacyReasoningShape(null)).toBeNull();
+      expect(upgradeLegacyReasoningShape(undefined)).toBeUndefined();
+      expect(upgradeLegacyReasoningShape('nope')).toBe('nope');
+      expect(upgradeLegacyReasoningShape([1, 2])).toEqual([1, 2]);
     });
 
-    it('should return false when reasoning.max_tokens >= max_tokens', () => {
-      const params: AdvancedParams = {
-        reasoning: { max_tokens: 8000 },
-        max_tokens: 8000,
-      };
-      expect(validateReasoningConstraints(params)).toBe(false);
+    // The one place this function and the SQL migration deliberately differ:
+    // a non-object `reasoning` passes through untouched here (a general-purpose
+    // boundary function must not mangle input it does not recognize), while
+    // the migration's pass 2 drops the key. Pinned so the documented
+    // divergence is a tested fact rather than a comment.
+    it('passes a non-object reasoning value through untouched', () => {
+      expect(upgradeLegacyReasoningShape({ reasoning: null })).toEqual({ reasoning: null });
+      expect(upgradeLegacyReasoningShape({ reasoning: 'nonsense', temperature: 0.5 })).toEqual({
+        reasoning: 'nonsense',
+        temperature: 0.5,
+      });
     });
 
-    it('should return false when reasoning.max_tokens > max_tokens', () => {
-      const params: AdvancedParams = {
-        reasoning: { max_tokens: 16000 },
-        max_tokens: 8000,
-      };
-      expect(validateReasoningConstraints(params)).toBe(false);
+    it('lets an already-canonical thinking key win over a stale reasoning object', () => {
+      expect(
+        upgradeLegacyReasoningShape({ thinking: 'low', reasoning: { effort: 'high' } })
+      ).toEqual({ thinking: 'low' });
+    });
+
+    // An explicit null expresses no level, so it must NOT short-circuit the
+    // upgrade — otherwise the null reaches the enum, which rejects it, and a
+    // payload we could have upgraded becomes a rejected request instead.
+    it('upgrades rather than short-circuiting when thinking is explicitly null', () => {
+      expect(
+        upgradeLegacyReasoningShape({ thinking: null, reasoning: { effort: 'high' } })
+      ).toEqual({ thinking: 'high' });
+      expect(AdvancedParamsInputSchema.safeParse({ thinking: null }).success).toBe(false);
+    });
+  });
+
+  describe('AdvancedParamsInputSchema', () => {
+    it('upgrades a legacy reasoning object instead of silently stripping it', () => {
+      const parsed = AdvancedParamsInputSchema.parse({
+        temperature: 0.7,
+        reasoning: { effort: 'xhigh', max_tokens: 16000 },
+      });
+      expect(parsed).toEqual({ temperature: 0.7, thinking: 'max' });
+    });
+
+    it('leaves a canonical payload alone', () => {
+      expect(AdvancedParamsInputSchema.parse({ thinking: 'medium' })).toEqual({
+        thinking: 'medium',
+      });
+    });
+
+    it('keeps a knobless payload knobless — absent must stay absent', () => {
+      expect(AdvancedParamsInputSchema.parse({ temperature: 0.7 })).toEqual({ temperature: 0.7 });
+    });
+
+    it('demonstrates what the plain schema would have done to a legacy payload', () => {
+      expect(AdvancedParamsSchema.parse({ reasoning: { effort: 'high' } })).toEqual({});
     });
   });
 
   describe('Real-world scenarios', () => {
     it('should validate typical OpenAI o1 configuration', () => {
       const params = {
-        reasoning: { effort: 'high' as const },
+        thinking: 'high' as const,
         max_tokens: 4096,
         temperature: 1, // Required for reasoning models
       };
       expect(AdvancedParamsSchema.parse(params)).toEqual(params);
-      expect(hasReasoningEnabled(params)).toBe(true);
     });
 
-    it('should validate typical Claude configuration', () => {
+    it('should validate configuration with thinking disabled', () => {
       const params = {
-        reasoning: { max_tokens: 16000 },
-        max_tokens: 32000,
-        temperature: 0.7,
-      };
-      expect(AdvancedParamsSchema.parse(params)).toEqual(params);
-      expect(hasReasoningEnabled(params)).toBe(true);
-      expect(validateReasoningConstraints(params)).toBe(true);
-    });
-
-    it('should validate configuration with reasoning excluded', () => {
-      const params = {
-        reasoning: { effort: 'high' as const, exclude: true },
-        max_tokens: 4096,
-      };
-      expect(AdvancedParamsSchema.parse(params)).toEqual(params);
-      expect(hasReasoningEnabled(params)).toBe(true);
-    });
-
-    it('should validate configuration with reasoning disabled', () => {
-      const params = {
-        reasoning: { enabled: false },
+        thinking: 'off' as const,
         max_tokens: 4096,
         temperature: 0.7,
       };
       expect(AdvancedParamsSchema.parse(params)).toEqual(params);
-      expect(hasReasoningEnabled(params)).toBe(false);
     });
 
     it('should validate typical non-reasoning model configuration', () => {
-      const params = {
+      const params: AdvancedParams = {
         temperature: 0.7,
         top_p: 0.9,
         max_tokens: 2048,
         frequency_penalty: 0.3,
       };
       expect(AdvancedParamsSchema.parse(params)).toEqual(params);
-      expect(hasReasoningEnabled(params)).toBe(false);
     });
   });
 
@@ -468,22 +437,13 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.showThinking).toBe(true);
     });
 
-    it('should convert reasoning config with all fields', () => {
-      const input: AdvancedParams = {
-        reasoning: {
-          effort: 'xhigh',
-          max_tokens: 16000,
-          exclude: false,
-          enabled: true,
-        },
-      };
-      const result = advancedParamsToConfigFormat(input);
-      expect(result.reasoning).toEqual({
-        effort: 'xhigh',
-        maxTokens: 16000,
-        exclude: false,
-        enabled: true,
-      });
+    it('should forward the thinking level unchanged (same name both sides)', () => {
+      const result = advancedParamsToConfigFormat({ thinking: 'max' });
+      expect(result.thinking).toBe('max');
+    });
+
+    it('should leave thinking absent when absent (provider default preserved)', () => {
+      expect(advancedParamsToConfigFormat({ temperature: 0.7 }).thinking).toBeUndefined();
     });
 
     it('should convert OpenRouter-specific params (transforms, route, verbosity)', () => {
@@ -516,8 +476,8 @@ describe('LLM Advanced Params Schema', () => {
         logit_bias: { '1234': 50 },
         response_format: { type: 'text' },
         show_thinking: true,
-        // Reasoning
-        reasoning: { effort: 'high', max_tokens: 8000 },
+        // Thinking
+        thinking: 'high',
         // OpenRouter
         transforms: ['middle-out'],
         route: 'fallback',
@@ -538,7 +498,7 @@ describe('LLM Advanced Params Schema', () => {
         logitBias: { '1234': 50 },
         responseFormat: { type: 'text' },
         showThinking: true,
-        reasoning: { effort: 'high', maxTokens: 8000, exclude: undefined, enabled: undefined },
+        thinking: 'high',
         transforms: ['middle-out'],
         route: 'fallback',
         verbosity: 'medium',
@@ -553,7 +513,7 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.minP).toBeUndefined();
       expect(result.topA).toBeUndefined();
       expect(result.seed).toBeUndefined();
-      expect(result.reasoning).toBeUndefined();
+      expect(result.thinking).toBeUndefined();
       expect(result.transforms).toBeUndefined();
       expect(result.showThinking).toBeUndefined();
     });
@@ -587,21 +547,14 @@ describe('LLM Advanced Params Schema', () => {
     it('should preserve false values for booleans', () => {
       const input: AdvancedParams = {
         show_thinking: false,
-        reasoning: { enabled: false, exclude: false },
       };
       const result = advancedParamsToConfigFormat(input);
       expect(result.showThinking).toBe(false);
-      expect(result.reasoning?.enabled).toBe(false);
-      expect(result.reasoning?.exclude).toBe(false);
     });
 
-    it('should handle reasoning with only effort set', () => {
-      const input: AdvancedParams = {
-        reasoning: { effort: 'medium' },
-      };
-      const result = advancedParamsToConfigFormat(input);
-      expect(result.reasoning?.effort).toBe('medium');
-      expect(result.reasoning?.maxTokens).toBeUndefined();
+    it('should carry an explicit off level through — off is not absent', () => {
+      const result = advancedParamsToConfigFormat({ thinking: 'off' });
+      expect(result.thinking).toBe('off');
     });
   });
 
@@ -622,7 +575,7 @@ describe('LLM Advanced Params Schema', () => {
         'logitBias',
         'responseFormat',
         'showThinking',
-        'reasoning',
+        'thinking',
         'transforms',
         'route',
         'verbosity',

@@ -233,45 +233,15 @@ export const reasoningSection: SectionDefinition<FlattenedPresetData> = {
   id: 'reasoning',
   label: '🧠 Reasoning',
   description: 'Extended thinking configuration',
-  fieldIds: [
-    'reasoning_effort',
-    'reasoning_max_tokens',
-    'reasoning_exclude',
-    'reasoning_enabled',
-    'show_thinking',
-  ],
+  fieldIds: ['thinking', 'show_thinking'],
   fields: [
     {
-      id: 'reasoning_effort',
-      label: 'Effort (xhigh/high/medium/low/minimal/none)',
+      id: 'thinking',
+      label: 'Thinking (off/minimal/low/medium/high/max)',
       placeholder: 'medium',
       required: false,
       style: 'short',
       maxLength: 10,
-    },
-    {
-      id: 'reasoning_max_tokens',
-      label: 'Max Reasoning Tokens',
-      placeholder: '10000',
-      required: false,
-      style: 'short',
-      maxLength: 10,
-    },
-    {
-      id: 'reasoning_exclude',
-      label: 'Exclude from response (true/false)',
-      placeholder: 'false',
-      required: false,
-      style: 'short',
-      maxLength: 5,
-    },
-    {
-      id: 'reasoning_enabled',
-      label: 'Enabled (true/false)',
-      placeholder: 'true',
-      required: false,
-      style: 'short',
-      maxLength: 5,
     },
     {
       id: 'show_thinking',
@@ -283,27 +253,13 @@ export const reasoningSection: SectionDefinition<FlattenedPresetData> = {
     },
   ],
   getStatus: data => {
-    const hasAny =
-      data.reasoning_effort ||
-      data.reasoning_max_tokens ||
-      data.reasoning_exclude ||
-      data.reasoning_enabled ||
-      data.show_thinking;
+    const hasAny = data.thinking || data.show_thinking;
     return hasAny ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
   },
   getPreview: data => {
     const parts: string[] = [];
-    if (data.reasoning_enabled === 'true' || data.reasoning_enabled === 'false') {
-      parts.push(`enabled=${data.reasoning_enabled}`);
-    }
-    if (data.reasoning_effort) {
-      parts.push(`effort=${data.reasoning_effort}`);
-    }
-    if (data.reasoning_max_tokens) {
-      parts.push(`max=${data.reasoning_max_tokens}`);
-    }
-    if (data.reasoning_exclude) {
-      parts.push(`exclude=${data.reasoning_exclude}`);
+    if (data.thinking) {
+      parts.push(`thinking=${data.thinking}`);
     }
     if (data.show_thinking === 'true') {
       parts.push('💭 show thinking');

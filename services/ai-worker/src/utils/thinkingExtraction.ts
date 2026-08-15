@@ -73,7 +73,7 @@ export const KNOWN_THINKING_TAGS = [
  * GLM-4.5-Air fake-user-message-echo pattern.
  *
  * Observed in production (req b533e288-fb07-46c0-a5e2-a0f78883e63e): with
- * `reasoning.enabled=true` and no OpenRouter-side reasoning extraction,
+ * thinking enabled and no OpenRouter-side reasoning extraction,
  * GLM-4.5-Air improvised a reasoning channel by wrapping its chain-of-thought
  * in tags that mimic our prompt-assembly format:
  *
@@ -171,7 +171,7 @@ const STANDALONE_FROM_ID_ECHO_PATTERN =
  * GLM-4.7 meta-preamble pattern.
  *
  * Observed in production (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3): with
- * `reasoning.enabled=true` and `showThinking=false`, GLM-4.7 emitted a scene-
+ * thinking enabled and `showThinking=false`, GLM-4.7 emitted a scene-
  * setting preamble before the in-character response:
  *
  *   <user>Lila</user>
@@ -807,7 +807,8 @@ export interface ReasoningDetail {
  *
  * OpenRouter returns API-level reasoning in a structured format separate from
  * the text content. This is used by models like DeepSeek R1, Claude Extended
- * Thinking, and other reasoning models when `reasoning.exclude: false` is set.
+ * Thinking, and other reasoning models. We never send `exclude`, so the
+ * provider default (return the trace) always applies.
  *
  * @param reasoningDetails - Array of reasoning detail objects from response metadata
  * @returns Extracted reasoning text, or null if no readable content found

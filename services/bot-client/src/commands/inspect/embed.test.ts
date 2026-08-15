@@ -241,9 +241,7 @@ describe('buildReasoningField', () => {
 
   it('shows config + upstream + extraction lines when reasoningDebug is populated', () => {
     const payload = createMockPayload();
-    payload.llmConfig.allParams = {
-      reasoning: { effort: 'medium', enabled: true },
-    };
+    payload.llmConfig.allParams = { thinking: 'medium' };
     payload.llmResponse.reasoningDebug = {
       additionalKwargsKeys: ['reasoning'],
       hasReasoningInKwargs: true,
@@ -259,7 +257,7 @@ describe('buildReasoningField', () => {
 
     const field = buildReasoningField(payload);
     expect(field).not.toBeNull();
-    expect(field!.value).toContain('effort=medium');
+    expect(field!.value).toContain('thinking=medium');
     expect(field!.value).toContain('Upstream:** DekaLLM');
     expect(field!.value).toContain('Extraction:');
     expect(field!.value).toContain('1,063 chars');
@@ -270,7 +268,7 @@ describe('buildReasoningField', () => {
     // (the success path no longer injects tags into content), so the line was
     // misleading users with a permanent ❌. Confirm it's gone.
     const payload = createMockPayload();
-    payload.llmConfig.allParams = { reasoning: { effort: 'medium', enabled: true } };
+    payload.llmConfig.allParams = { thinking: 'medium' };
     payload.llmResponse.reasoningDebug = {
       additionalKwargsKeys: [],
       hasReasoningInKwargs: false,
@@ -290,7 +288,7 @@ describe('buildReasoningField', () => {
 
   it('omits Upstream line when upstreamProvider is undefined (pre-PR-#895 logs)', () => {
     const payload = createMockPayload();
-    payload.llmConfig.allParams = { reasoning: { effort: 'high', enabled: true } };
+    payload.llmConfig.allParams = { thinking: 'high' };
     payload.llmResponse.reasoningDebug = {
       additionalKwargsKeys: [],
       hasReasoningInKwargs: false,
@@ -309,7 +307,7 @@ describe('buildReasoningField', () => {
 
   it('does NOT show LOW completion-tokens warning in the Reasoning field (moved to Response field)', () => {
     const payload = createMockPayload();
-    payload.llmConfig.allParams = { reasoning: { effort: 'high', enabled: true } };
+    payload.llmConfig.allParams = { thinking: 'high' };
     payload.llmResponse.completionTokens = 35;
 
     const field = buildReasoningField(payload);
@@ -387,9 +385,9 @@ describe('buildDiagnosticEmbed', () => {
     expect(responseField?.value).not.toContain('Cached Tokens');
   });
 
-  it('should include reasoning field when reasoning config present', () => {
+  it('should include the reasoning field when a thinking level is present', () => {
     const payload = createMockPayload();
-    payload.llmConfig.allParams = { reasoning: { effort: 'high', enabled: true } };
+    payload.llmConfig.allParams = { thinking: 'high' };
 
     const embed = buildDiagnosticEmbed(payload);
     const fields = embed.toJSON().fields ?? [];

@@ -375,7 +375,7 @@ describe('Admin LLM Config Routes', () => {
         advancedParameters: {
           temperature: 0.8,
           top_p: 0.95,
-          reasoning: { effort: 'high', max_tokens: 8000 },
+          thinking: 'high',
         },
       });
 
@@ -384,10 +384,7 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.config.params.temperature).toBe(0.8);
       expect(response.body.config.params.top_p).toBe(0.95);
-      expect(response.body.config.params.reasoning).toEqual({
-        effort: 'high',
-        max_tokens: 8000,
-      });
+      expect(response.body.config.params.thinking).toBe('high');
     });
 
     it('should handle null advancedParameters', async () => {

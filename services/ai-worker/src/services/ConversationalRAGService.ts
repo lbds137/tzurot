@@ -140,9 +140,12 @@ export class ConversationalRAGService {
     // while the budget assumed otherwise).
     const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
-    // Check reasoning capability (async, cached with 5-min TTL)
+    // Check reasoning capability (async, cached with 5-min TTL).
+    // Gated on the level being SET (not on it being enabled): ModelFactory's
+    // supportsReasoning gate must also suppress an explicit `off`, so the
+    // capability answer is needed whenever any level is configured.
     const supportsReasoning =
-      personality.reasoning !== undefined
+      personality.thinking !== undefined
         ? await checkModelReasoningSupport(personality.model)
         : undefined;
 
@@ -211,7 +214,13 @@ export class ConversationalRAGService {
         // Uses !== false (not === true) as a defensive guard — supportsReasoning
         // is always boolean in practice, but this prevents future undefined values
         // from accidentally suppressing glitch detection.
-        reasoningEnabled: personality.reasoning !== undefined && supportsReasoning !== false,
+        //
+        // Deliberately keys on the level being SET, not on it being enabled: a
+        // config asking for `off` is exactly where an unrequested trace is most
+        // likely to leak into content (providers that think regardless of the
+        // request), so narrowing this to `!== 'off'` would disable leak
+        // detection precisely where it earns its keep.
+        reasoningEnabled: personality.thinking !== undefined && supportsReasoning !== false,
         // Included in the per-model reasoning-did-not-engage warn so log
         // searches can correlate extraction misses with specific upstream
         // model releases.

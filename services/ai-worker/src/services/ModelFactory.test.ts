@@ -52,12 +52,12 @@ vi.mock('@tzurot/common-types/constants/ai', async () => {
     AI_DEFAULTS: {
       MAX_TOKENS: 4096,
       REASONING_MODEL_MAX_TOKENS: {
-        xhigh: 65536,
+        max: 65536,
         high: 32768,
         medium: 16384,
         low: 8192,
         minimal: 6144,
-        none: 4096,
+        off: 4096,
       },
     },
     AI_ENDPOINTS: {
@@ -425,101 +425,60 @@ describe('ModelFactory', () => {
     });
 
     // ===================================
-    // Reasoning parameters (CRITICAL for thinking models)
+    // Thinking level → OpenRouter reasoning translation
     // ===================================
 
-    it('should pass reasoning with effort via modelKwargs', () => {
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        reasoning: { effort: 'high' },
-      };
+    it.each([
+      ['minimal', 'minimal'],
+      ['low', 'low'],
+      ['medium', 'medium'],
+      ['high', 'high'],
+      ['max', 'max'],
+    ] as const)('translates thinking=%s to reasoning.effort=%s', (thinking, effort) => {
+      createChatModel({ modelName: 'test-model', thinking });
 
-      createChatModel(config);
-
-      // Get the actual call arguments
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
         modelKwargs?: Record<string, unknown>;
         configuration?: { fetch?: unknown };
       };
 
-      // reasoning goes in modelKwargs
-      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'high' });
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort });
 
       // Custom fetch needed for response interception (LangChain drops reasoning from responses)
       expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
-    it('should pass reasoning with maxTokens (converted to snake_case) via modelKwargs', () => {
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        reasoning: { maxTokens: 16000 },
-      };
-
-      createChatModel(config);
+    it("translates thinking=off to OpenRouter's effort=none", () => {
+      createChatModel({ modelName: 'test-model', thinking: 'off' });
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
         modelKwargs?: Record<string, unknown>;
-        configuration?: { fetch?: unknown };
       };
 
-      expect(callArgs?.modelKwargs?.reasoning).toEqual({ max_tokens: 16000 });
-      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
-      expect(callArgs?.configuration?.fetch).toBeDefined();
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'none' });
     });
 
-    it('should pass reasoning object with all fields except maxTokens when effort is set', () => {
-      // OpenRouter constraint: only ONE of effort or maxTokens can be used
-      // When both are provided, effort takes precedence
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        reasoning: {
-          effort: 'xhigh',
-          maxTokens: 32000, // Will be ignored because effort is set
-          exclude: false,
-          enabled: true,
-        },
-      };
-
-      createChatModel(config);
+    it('sends no reasoning object at all when the level is absent (provider default)', () => {
+      createChatModel({ modelName: 'test-model', temperature: 0.7 });
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
         modelKwargs?: Record<string, unknown>;
         configuration?: { fetch?: unknown };
       };
 
-      expect(callArgs?.modelKwargs?.reasoning).toEqual({
-        effort: 'xhigh',
-        // max_tokens NOT included because effort takes precedence
-        exclude: false,
-        enabled: true,
-      });
-      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
-      expect(callArgs?.configuration?.fetch).toBeDefined();
+      expect(callArgs?.modelKwargs?.reasoning).toBeUndefined();
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
-    it('should use maxTokens when effort is not set and pass exclude in reasoning object', () => {
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        reasoning: {
-          maxTokens: 16000,
-          exclude: true, // exclude: true means don't return reasoning in response
-        },
-      };
-
-      createChatModel(config);
+    it('never sends exclude — both providers default to returning the trace', () => {
+      createChatModel({ modelName: 'test-model', thinking: 'high' });
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
         modelKwargs?: Record<string, unknown>;
-        configuration?: { fetch?: unknown };
       };
 
-      // reasoning object should be present with exclude flag
-      expect(callArgs?.modelKwargs?.reasoning).toEqual({
-        max_tokens: 16000,
-        exclude: true,
-      });
-      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
-      expect(callArgs?.configuration?.fetch).toBeDefined();
+      expect(callArgs?.modelKwargs?.reasoning).not.toHaveProperty('exclude');
+      expect(callArgs?.modelKwargs?.reasoning).not.toHaveProperty('enabled');
     });
 
     // ===================================
@@ -543,11 +502,11 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
-    it('should use custom fetch for reasoning config (needed for response interception)', () => {
+    it('should use custom fetch for a thinking config (needed for response interception)', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         showThinking: false,
-        reasoning: { enabled: true, effort: 'medium' },
+        thinking: 'medium',
       };
 
       createChatModel(config);
@@ -558,10 +517,7 @@ describe('ModelFactory', () => {
       };
 
       // reasoning goes in modelKwargs AND custom fetch intercepts responses
-      expect(callArgs?.modelKwargs?.reasoning).toEqual({
-        enabled: true,
-        effort: 'medium',
-      });
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'medium' });
       expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
@@ -620,8 +576,8 @@ describe('ModelFactory', () => {
         seed: 42,
         // Output
         responseFormat: { type: 'text' },
-        // Reasoning (effort only - maxTokens would conflict)
-        reasoning: { effort: 'high' },
+        // Thinking level
+        thinking: 'high',
         // OpenRouter
         transforms: ['middle-out'],
         route: 'fallback',
@@ -793,7 +749,7 @@ describe('ModelFactory', () => {
       const config: ModelConfig = {
         modelName: 'deepseek/deepseek-r1',
         maxTokens: 8000,
-        reasoning: { effort: 'high' },
+        thinking: 'high',
       };
 
       createChatModel(config);
@@ -807,13 +763,13 @@ describe('ModelFactory', () => {
 
       const config: ModelConfig = {
         modelName: 'deepseek/deepseek-r1',
-        reasoning: { effort: 'medium' },
+        thinking: 'medium',
       };
 
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
-      expect(callArgs?.maxTokens).toBe(16384); // Scaled for medium effort
+      expect(callArgs?.maxTokens).toBe(16384); // Scaled for medium
     });
 
     it('should scale maxTokens for reasoning models with high effort', () => {
@@ -821,7 +777,7 @@ describe('ModelFactory', () => {
 
       const config: ModelConfig = {
         modelName: 'kimi/kimi-k2-thinking',
-        reasoning: { effort: 'high' },
+        thinking: 'high',
       };
 
       createChatModel(config);
@@ -835,7 +791,7 @@ describe('ModelFactory', () => {
 
       const config: ModelConfig = {
         modelName: 'openai/o1-preview',
-        reasoning: { effort: 'low' },
+        thinking: 'low',
       };
 
       createChatModel(config);
@@ -849,7 +805,7 @@ describe('ModelFactory', () => {
 
       const config: ModelConfig = {
         modelName: 'anthropic/claude-sonnet-4.5',
-        reasoning: { effort: 'high' },
+        thinking: 'high',
       };
 
       createChatModel(config);
@@ -863,7 +819,7 @@ describe('ModelFactory', () => {
 
       const config: ModelConfig = {
         modelName: 'deepseek/deepseek-r1',
-        // No reasoning.effort set
+        // No thinking level set
       };
 
       createChatModel(config);
@@ -872,32 +828,32 @@ describe('ModelFactory', () => {
       expect(callArgs?.maxTokens).toBeUndefined(); // Not scaled, API decides
     });
 
-    it('should use standard limit when effort is none', () => {
+    it('should use the standard limit when thinking is off', () => {
       mockIsReasoningModel.mockReturnValue(true);
 
       const config: ModelConfig = {
         modelName: 'deepseek/deepseek-r1',
-        reasoning: { effort: 'none' },
+        thinking: 'off',
       };
 
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
-      expect(callArgs?.maxTokens).toBe(4096); // Standard limit for 'none'
+      expect(callArgs?.maxTokens).toBe(4096); // Standard limit for 'off'
     });
 
-    it('should scale maxTokens for xhigh effort', () => {
+    it('should scale maxTokens for the max level', () => {
       mockIsReasoningModel.mockReturnValue(true);
 
       const config: ModelConfig = {
         modelName: 'openai/o1',
-        reasoning: { effort: 'xhigh' },
+        thinking: 'max',
       };
 
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
-      expect(callArgs?.maxTokens).toBe(65536); // Maximum for xhigh effort
+      expect(callArgs?.maxTokens).toBe(65536); // Maximum for the max level
     });
   });
 
@@ -909,7 +865,7 @@ describe('ModelFactory', () => {
     it('should skip reasoning params when supportsReasoning is false', () => {
       const config: ModelConfig = {
         modelName: 'meta-llama/llama-3-70b',
-        reasoning: { effort: 'high', enabled: true },
+        thinking: 'high',
         supportsReasoning: false,
       };
 
@@ -925,7 +881,7 @@ describe('ModelFactory', () => {
     it('should pass reasoning params when supportsReasoning is true', () => {
       const config: ModelConfig = {
         modelName: 'deepseek/deepseek-r1',
-        reasoning: { effort: 'high' },
+        thinking: 'high',
         supportsReasoning: true,
       };
 
@@ -940,7 +896,7 @@ describe('ModelFactory', () => {
     it('should pass reasoning params when supportsReasoning is undefined (backward compat)', () => {
       const config: ModelConfig = {
         modelName: 'deepseek/deepseek-r1',
-        reasoning: { effort: 'medium' },
+        thinking: 'medium',
         // supportsReasoning not set
       };
 
@@ -955,7 +911,7 @@ describe('ModelFactory', () => {
     it('should not use custom fetch when reasoning is gated out', () => {
       const config: ModelConfig = {
         modelName: 'meta-llama/llama-3-70b',
-        reasoning: { effort: 'high' },
+        thinking: 'high',
         supportsReasoning: false,
       };
 

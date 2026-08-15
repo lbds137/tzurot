@@ -297,10 +297,7 @@ describe('Preset Import', () => {
           advancedParameters: {
             temperature: 0.8,
             max_tokens: 4096,
-            reasoning: {
-              effort: 'high',
-              enabled: true,
-            },
+            thinking: 'high',
           },
         }),
       });
@@ -317,13 +314,31 @@ describe('Preset Import', () => {
           advancedParameters: expect.objectContaining({
             temperature: 0.8,
             max_tokens: 4096,
-            reasoning: expect.objectContaining({
-              effort: 'high',
-              enabled: true,
-            }),
+            thinking: 'high',
           }),
         })
       );
+    });
+
+    it('upgrades a pre-collapse export file carrying the retired reasoning object', async () => {
+      // Without the boundary upgrade the wire schema would strip `reasoning`
+      // silently and the imported preset would lose its level entirely.
+      vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
+        data: createValidPresetData({
+          advancedParameters: {
+            temperature: 0.8,
+            reasoning: { effort: 'xhigh', enabled: true },
+          },
+        }),
+      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+
+      await handleImport(createMockContext());
+
+      const payload = stub.createUserLlmConfig.mock.calls[0][0] as {
+        advancedParameters: Record<string, unknown>;
+      };
+      expect(payload.advancedParameters).toEqual({ temperature: 0.8, thinking: 'max' });
     });
 
     it('should handle API create failure', async () => {

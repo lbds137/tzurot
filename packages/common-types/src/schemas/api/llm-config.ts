@@ -15,7 +15,7 @@
 
 import { z } from 'zod';
 import { EntityPermissionsSchema, optionalString, nullableString } from './shared.js';
-import { AdvancedParamsSchema } from '../llmAdvancedParams.js';
+import { AdvancedParamsInputSchema, AdvancedParamsSchema } from '../llmAdvancedParams.js';
 import { AI_DEFAULTS, CONFIG_NAME_MAX_LENGTH } from '../../constants/index.js';
 
 // ============================================================================
@@ -42,8 +42,10 @@ export const LlmConfigCreateSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   provider: z.string().max(50).optional(),
 
-  // AI behavior settings
-  advancedParameters: AdvancedParamsSchema.optional(),
+  // AI behavior settings. Input-tier schema: an inbound payload may still carry
+  // the retired 4-knob `reasoning` object (old preset export files on disk), and
+  // plain strip-mode would delete it silently instead of upgrading it.
+  advancedParameters: AdvancedParamsInputSchema.optional(),
 
   // contextWindowTokens min(1000) is intentional - reasonable minimum for context windows
   contextWindowTokens: z.number().int().min(1000).optional(),
@@ -79,8 +81,10 @@ export const LlmConfigUpdateSchema = z.object({
   // Nullable DB fields: empty string → null (clear the value)
   description: nullableString(500),
 
-  // AI behavior settings
-  advancedParameters: AdvancedParamsSchema.optional(),
+  // AI behavior settings. Input-tier schema: an inbound payload may still carry
+  // the retired 4-knob `reasoning` object (old preset export files on disk), and
+  // plain strip-mode would delete it silently instead of upgrading it.
+  advancedParameters: AdvancedParamsInputSchema.optional(),
 
   contextWindowTokens: z.number().int().min(1000).optional(),
 

@@ -457,8 +457,8 @@ export function buildModelSamplingConfig(opts: {
     logitBias: personality.logitBias,
     responseFormat: personality.responseFormat,
     showThinking: personality.showThinking,
-    // Reasoning (for thinking models: o1/o3, Claude, DeepSeek R1)
-    reasoning: personality.reasoning,
+    // Canonical thinking level (for reasoning models: o1/o3, Claude, DeepSeek R1, GLM)
+    thinking: personality.thinking,
     supportsReasoning,
     // OpenRouter-specific
     transforms: personality.transforms,

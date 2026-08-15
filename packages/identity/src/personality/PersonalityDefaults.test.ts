@@ -294,7 +294,7 @@ describe('PersonalityDefaults', () => {
       expect(result.displayName).toBe('FallbackBot');
     });
 
-    it('should include reasoning config from personality LlmConfig', () => {
+    it('should include the thinking level from personality LlmConfig', () => {
       const dbPersonality = createMockDatabasePersonality({
         name: 'ReasoningBot',
         slug: 'reasoning-bot',
@@ -307,11 +307,7 @@ describe('PersonalityDefaults', () => {
               temperature: 0.7,
               top_p: 0.95,
               show_thinking: true,
-              reasoning: {
-                effort: 'medium',
-                enabled: true,
-                exclude: false,
-              },
+              thinking: 'medium',
             },
             contextWindowTokens: 131072,
           },
@@ -320,12 +316,9 @@ describe('PersonalityDefaults', () => {
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
-      // CRITICAL: reasoning must flow through to LoadedPersonality
+      // CRITICAL: the thinking level must flow through to LoadedPersonality
       // This was the root cause of beta.60-62 thinking breakage
-      expect(result.reasoning).toBeDefined();
-      expect(result.reasoning?.effort).toBe('medium');
-      expect(result.reasoning?.enabled).toBe(true);
-      expect(result.reasoning?.exclude).toBe(false);
+      expect(result.thinking).toBe('medium');
       expect(result.showThinking).toBe(true);
 
       // maxTokens should be undefined when not explicitly set in advancedParameters
@@ -333,7 +326,7 @@ describe('PersonalityDefaults', () => {
       expect(result.maxTokens).toBeUndefined();
     });
 
-    it('should include reasoning config from global default when personality has none', () => {
+    it('should include the thinking level from global default when personality has none', () => {
       const dbPersonality = createMockDatabasePersonality({
         name: 'NoConfigBot',
         slug: 'no-config-bot',
@@ -347,17 +340,13 @@ describe('PersonalityDefaults', () => {
         maxTokens: 2048,
         contextWindowTokens: 100000,
         showThinking: true,
-        reasoning: {
-          effort: 'high',
-          enabled: true,
-        },
+        thinking: 'high',
       };
 
       const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
 
-      // Should inherit reasoning from global config
-      expect(result.reasoning).toBeDefined();
-      expect(result.reasoning?.effort).toBe('high');
+      // Should inherit the thinking level from global config
+      expect(result.thinking).toBe('high');
       expect(result.showThinking).toBe(true);
     });
 
@@ -376,7 +365,7 @@ describe('PersonalityDefaults', () => {
             advancedParameters: {
               temperature: 1,
               top_p: 0.95,
-              reasoning: { effort: 'medium', enabled: true },
+              thinking: 'medium',
               // NOTE: no max_tokens here — should NOT default to 4096
             },
             contextWindowTokens: 131072,
@@ -386,12 +375,12 @@ describe('PersonalityDefaults', () => {
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
-      // maxTokens must be undefined so ModelFactory can auto-scale based on reasoning effort
+      // maxTokens must be undefined so ModelFactory can auto-scale based on the thinking level
       expect(result.maxTokens).toBeUndefined();
       // Other config fields should still be populated
       expect(result.model).toBe('z-ai/glm-4.5-air:free');
       expect(result.temperature).toBe(1);
-      expect(result.reasoning?.effort).toBe('medium');
+      expect(result.thinking).toBe('medium');
     });
 
     it('should use explicit max_tokens from advancedParameters when set', () => {
