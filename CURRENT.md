@@ -4,6 +4,16 @@
 
 ---
 
+## 🔨 IN FLIGHT — doc-77 / doc-73 build session (2026-08-14, Opus orchestrator)
+
+**PR #2103** (`refactor/canonical-thinking-level`, worktree `agent-a1d249db53f7c544f`) — doc-77 PR A: four `reasoning` knobs → one canonical `thinking` level, legacy-shape upgrade at the validation boundary, data-only migration (raw SQL, LWW-neutral). **Live monitor task id: `bxcjscrk2`** (SHA-pinned to `f4f8be11e`; the invocation is worktree-anchored — a bare `git rev-parse HEAD` in the main checkout resolves to `develop`, not the PR head). **The worktree must survive until merge** — a branch checked out anywhere makes `--delete-branch` fail silently.
+
+**Migration `20260814120000_collapse_reasoning_to_thinking` is NOT yet applied anywhere.** Dev: `pnpm ops db:migrate --env dev` after merge. Prod: rides the next release premigrate (data-only, additive-safe).
+
+**Orchestrator catch worth keeping**: the worker narrowed `ConversationalRAGService`'s `reasoningEnabled` from "level set" to "level above `off`". That flag gates leaked-CoT detection → retry, so the narrowing would have disabled leak detection for the 9 configs encoding "no reasoning" — including Kimi presets, where reasoning-as-plain-text is a known unhandled shape. Reverted to the literal translation; `hasThinkingEnabled` deleted with it (no production caller left, knip would fail).
+
+doc-73 PR 1 (View Reasoning context menu) dispatched in parallel — disjoint file set. Both doc-77 and doc-73 have **all owner decisions closed**; remaining doc-77 work is PR B (z.ai translation, step 0 = live probe, needs owner green-light on the BYOK key) and PR C (save-time validation).
+
 ## 🚀 beta.201 SHIPPED (2026-08-14) — smoke item open
 
 Cut and merged in one sitting: 23 PRs / 8 runtime / 186 files, no migrations, no advisories, holistic review clean (it read #2085 and #2090 in full and reached the same conclusions independently). `release:range` drove every count; `verify-notes` confirmed all 23 PRs referenced exactly once.
