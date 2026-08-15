@@ -10,13 +10,13 @@ Three surfaces, by granularity:
 
 ### HOT — read at session start
 
-| Surface                   | Contents                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `BACKLOG.md` (root)       | Load manifest + filing decision-tree                                                            |
-| `backlog/now.md`          | 🚨 Production Issues · 🎯 Current Focus (max 3) · ⚡ Quick Wins (max 5) · 📥 Untriaged (max 10) |
-| `backlog/active-epic.md`  | The ONE current major initiative: roadmap + current phase                                       |
-| `backlog/references.md`   | Cross-links to research docs / post-mortems                                                     |
-| `pnpm ops backlog:digest` | Generated tracker briefing: per-area counts · oldest 20 (aging surface) · newest 10             |
+| Surface                   | Contents                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BACKLOG.md` (root)       | Load manifest + filing decision-tree                                                                                                                                                       |
+| `backlog/now.md`          | 🚨 Production Issues · 🚢 Next Release (the release plan — see `10-working-posture.md` § Ship in bounded units) · 🎯 Current Focus (max 3) · ⚡ Quick Wins (max 5) · 📥 Untriaged (max 10) |
+| `backlog/active-epic.md`  | The ONE current major initiative: roadmap + current phase                                                                                                                                  |
+| `backlog/references.md`   | Cross-links to research docs / post-mortems                                                                                                                                                |
+| `pnpm ops backlog:digest` | Generated tracker briefing: per-area counts · oldest 20 (aging surface) · newest 10                                                                                                        |
 
 ### COLD — grep-on-demand, NEVER auto-loaded
 
