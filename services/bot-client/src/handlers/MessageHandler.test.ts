@@ -1078,6 +1078,26 @@ describe('MessageHandler', () => {
       );
     });
 
+    it('forwards the reasoning trace across the persistence seam on the slash path', async () => {
+      // Rule 7: persistence is mocked here, so a dropped or misspelled field
+      // name would cross this seam invisibly and every other test would pass.
+      // The webhook path's equivalent is pinned in SlotDeliveryService.test.ts.
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
+
+      await messageHandler.handleJobResult('job-slash-trace', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+        metadata: { thinkingContent: 'SLASH-PATH-TRACE-SENTINEL' },
+      } as unknown as LLMGenerationResult);
+
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: 'SLASH-PATH-TRACE-SENTINEL' })
+      );
+    });
+
     it('persists assistant message via saveAssistantMessageFromFields (no Message anchor)', async () => {
       const ctx = createSlashContext();
       mockJobTracker.getContext.mockReturnValue(ctx);

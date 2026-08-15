@@ -14,6 +14,7 @@ import {
   UndoHistoryResponseSchema,
   HistoryStatsResponseSchema,
   HardDeleteHistoryResponseSchema,
+  MessageReasoningResponseSchema,
 } from './history.js';
 
 describe('History API Input Schema Tests', () => {
@@ -286,6 +287,51 @@ describe('History API Input Schema Tests', () => {
         message: 'msg',
       };
       expect(HardDeleteHistoryResponseSchema.safeParse(data).success).toBe(false);
+    });
+  });
+
+  describe('MessageReasoningResponseSchema', () => {
+    it('accepts a row carrying a reasoning trace', () => {
+      const result = MessageReasoningResponseSchema.safeParse({
+        thinkingContent: 'The model weighed two options.',
+        createdAt: '2026-06-04T12:00:00.000Z',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    /**
+     * Null is a MEANINGFUL value here, not an absent one: the turn exists but
+     * carries no trace, which the command renders differently from a miss.
+     * A schema that rejected null would collapse that distinction.
+     */
+    it('accepts a null trace (the turn exists, the model produced none)', () => {
+      const result = MessageReasoningResponseSchema.safeParse({
+        thinkingContent: null,
+        createdAt: '2026-06-04T12:00:00.000Z',
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.thinkingContent).toBeNull();
+    });
+
+    it('preserves the trace value through the parse', () => {
+      const sentinel = 'SENTINEL-READ-BACK: reasoning survived the response parse.';
+      const result = MessageReasoningResponseSchema.safeParse({
+        thinkingContent: sentinel,
+        createdAt: '2026-06-04T12:00:00.000Z',
+      });
+      expect(result.data?.thinkingContent).toBe(sentinel);
+    });
+
+    it('rejects an omitted thinkingContent (null and absent are not the same)', () => {
+      const result = MessageReasoningResponseSchema.safeParse({
+        createdAt: '2026-06-04T12:00:00.000Z',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a missing createdAt', () => {
+      const result = MessageReasoningResponseSchema.safeParse({ thinkingContent: null });
+      expect(result.success).toBe(false);
     });
   });
 });

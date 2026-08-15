@@ -289,6 +289,40 @@ describe('PersistAssistantMessageRequestSchema', () => {
       }).success
     ).toBe(false);
   });
+
+  it('accepts a request with no thinkingContent (the model produced no trace)', () => {
+    const parsed = PersistAssistantMessageRequestSchema.safeParse(VALID_PERSIST_REQUEST);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.thinkingContent).toBeUndefined();
+  });
+
+  /**
+   * Sentinel-survival: Zod strips undeclared keys, so a `thinkingContent` that
+   * is missing from this schema would be deleted between bot-client's POST and
+   * the gateway's write — silently, with no parse error, leaving the column
+   * null forever. Asserting `success` alone cannot catch that (an unknown key
+   * is stripped, not rejected), so this pins the VALUE surviving the parse.
+   */
+  it('preserves thinkingContent through the parse instead of stripping it', () => {
+    const sentinel = 'SENTINEL-TRACE-a1b2c3: the model reasoned about castles.';
+
+    const parsed = PersistAssistantMessageRequestSchema.safeParse({
+      ...VALID_PERSIST_REQUEST,
+      thinkingContent: sentinel,
+    });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.thinkingContent).toBe(sentinel);
+  });
+
+  it('rejects a non-string thinkingContent', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({
+        ...VALID_PERSIST_REQUEST,
+        thinkingContent: 42,
+      }).success
+    ).toBe(false);
+  });
 });
 
 describe('PersistAssistantMessageResponseSchema', () => {
