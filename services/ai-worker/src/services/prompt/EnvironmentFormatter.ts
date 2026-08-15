@@ -1,8 +1,9 @@
 /**
  * Environment Formatter
  *
- * Formats Discord environment context (DM vs guild) for the volatile prefix of
- * the human message.
+ * Formats Discord environment context (DM vs guild) as the system message's
+ * `<location>` section, rendered ahead of chat_log — the location is stable
+ * for the channel, so it lives in the cacheable prefix.
  * Uses pure XML structure for clear LLM context separation.
  *
  * This is a thin wrapper around the shared formatLocationAsXml() function,
@@ -16,9 +17,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 const logger = createLogger('EnvironmentFormatter');
 
 /**
- * Format Discord environment context for inclusion in the human message's
- * volatile prefix.
- * Returns a `<location>` XML element for embedding in the `<context>` section.
+ * Format Discord environment context for the system message's location
+ * section.
+ * Returns a `<location>` XML element rendered as its own S1 section.
  *
  * Uses the shared formatLocationAsXml() from common-types (DRY with referenced messages).
  *

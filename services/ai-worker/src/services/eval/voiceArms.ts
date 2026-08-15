@@ -16,6 +16,7 @@
  */
 
 import { PromptBuilder } from '../PromptBuilder.js';
+import { activeSpeakerPronouns } from '../ContentBudgetManager.js';
 import { PLATFORM_CONSTRAINTS, OUTPUT_CONSTRAINTS } from '../prompt/HardcodedConstraints.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type {
@@ -72,13 +73,13 @@ function buildCurrentArm(inputs: ProbeInputs): ArmMessages {
     builder.buildSystemMessage({
       personality: inputs.personality,
       context: inputs.context,
+      participantPersonas: inputs.participantPersonas,
       serializedHistory: inputs.serializedHistory,
     }).message.content
   );
   const volatilePrefix = builder.buildVolatilePrefix({
     personality: inputs.personality,
     context: inputs.context,
-    participantPersonas: inputs.participantPersonas,
     referencedMessagesFormatted: inputs.referencedMessagesFormatted,
     facts: inputs.facts,
     relevantMemories: inputs.relevantMemories,
@@ -88,6 +89,10 @@ function buildCurrentArm(inputs: ProbeInputs): ArmMessages {
       activePersonaName: inputs.context.activePersonaName,
       volatilePrefix,
       activePersonaId: inputs.context.activePersonaId,
+      activePersonaPronouns: activeSpeakerPronouns(
+        inputs.participantPersonas,
+        inputs.context.activePersonaId
+      ),
       discordUsername: inputs.context.discordUsername,
       personalityName: inputs.personality.name,
     }).message.content

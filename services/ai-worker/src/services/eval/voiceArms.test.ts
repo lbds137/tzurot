@@ -101,6 +101,13 @@ describe('voice arms', () => {
       expect(system).not.toContain(tag);
       expect(human).toContain(tag);
     }
+    // The roster and the location sit on the SYSTEM side — both are stable for
+    // the channel. Pinned in the same loop shape as the volatile tags so an
+    // arm-pairing regression that moves them cannot pass silently.
+    for (const tag of ['<participants>', '<location']) {
+      expect(system).toContain(tag);
+      expect(human).not.toContain(tag);
+    }
     expect(human).toContain('<contextual_references>');
     // References render ONCE in B.
     expect(system).not.toContain('the seed catalog');

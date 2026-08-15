@@ -21,9 +21,11 @@
 /**
  * Stability tier per the accepted architecture:
  * - S0: static across ALL personas (platform/output constraints)
- * - S1: static per persona (identity, identity constraints, protocol)
+ * - S1: stable-prefix sections — static per persona (identity, identity
+ *   constraints, protocol) plus the per-channel location and the roster,
+ *   whose active-flag/collision note still track the current speaker
  * - H: frozen conversation history (grows per turn)
- * - V: per-request volatile (datetime, participants, retrieval output, references)
+ * - V: per-request volatile (datetime, retrieval output, references)
  *
  * Keep in lockstep with common-types' DiagnosticPromptSection.tier — the two
  * are structurally compatible mirrors with no compiler tie (the diagnostic

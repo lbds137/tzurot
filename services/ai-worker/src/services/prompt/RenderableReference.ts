@@ -231,13 +231,13 @@ export function dedupeReference(
     return enrichment !== undefined && enrichment.length > 0;
   });
 
-  // No preview of OUR OWN persona's prior words: a fragment of the model's own
-  // text is the "continue this" trigger, and the full line is in <chat_log>
-  // regardless. Keyed on the rendered role rather than "was this authored by a
-  // bot", which is a broader question with a different answer — it also
-  // silenced third-party bots and proxy-relayed humans, neither of whom is the
-  // model reading the prompt.
-  const preview = ref.role === 'assistant' ? '' : capDedupText(ref.content);
+  // Every role gets the same preview, the assistant's own prior words included.
+  // Withholding it produced a contentless marker naming nothing the model could
+  // resolve; the continuation risk that motivated the exemption is already
+  // blocked twice in the prompt — OUTPUT_CONSTRAINTS and the
+  // <contextual_references> instruction, which states that an assistant-role
+  // quote is context and never a turn to continue.
+  const preview = capDedupText(ref.content);
   const prefix = hasMedia ? DEDUP_PREFIX_WITH_MEDIA : DEDUP_PREFIX;
 
   return {

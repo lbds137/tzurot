@@ -740,6 +740,34 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('[Referenced message — full text in the chat log]');
     });
 
+    it('renders the text preview on a deduped assistant stub, same as every other role', async () => {
+      // A contentless assistant stub names nothing the model can resolve; the
+      // continuation risk is blocked in the prompt (OUTPUT_CONSTRAINTS plus the
+      // <contextual_references> instruction) rather than by withholding text.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'm',
+          discordUserId: 'u',
+          authorUsername: 'Test Bot',
+          authorDisplayName: 'Test Bot',
+          authorRole: 'assistant',
+          content: 'my earlier line',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        },
+      ];
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
+      expect(result).toContain('<quote number="1" from="Test Bot" role="assistant"');
+      expect(result).toContain('[Referenced message — full text in the chat log]');
+      expect(result).toContain('my earlier line');
+    });
+
     it('renders authorRole="bot" on a deduped third-party reply-target', async () => {
       // A deduped stub from a non-persona bot/webhook reads as role="bot".
       const references: ReferencedMessage[] = [
