@@ -2615,6 +2615,13 @@
         "name": "Inspect Message",
         "type": 3
       }
+    },
+    {
+      "name": "View Reasoning",
+      "data": {
+        "name": "View Reasoning",
+        "type": 3
+      }
     }
   ]
 }
