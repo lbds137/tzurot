@@ -19,8 +19,11 @@
  * Formatters verified UNCHANGED since that revision import live
  * (PersonalityFieldsFormatter, EnvironmentFormatter, MessageFormatters,
  * ParticipantFormatter sans collision note, formatSingleMemory/-Fact); only
- * what the restructure changed is frozen here. A snapshot test pins this
- * file's output so silent drift is impossible.
+ * what the restructure changed is frozen here. One pinned exception: the live
+ * ParticipantFormatter now sorts the roster by persona UUID for cache-prefix
+ * stability, so this arm passes `order: 'insertion'` to reproduce the old
+ * Map-iteration bytes. A snapshot test pins this file's output so silent
+ * drift is impossible.
  *
  * EVAL-ONLY — never imported by production code. Delete (or re-arm as the
  * "old" side) when the harness re-runs at the Phase-2 exit gate.
@@ -196,10 +199,13 @@ ${escapeXmlContent(persona)}
 ${locationXml}
 </context>`;
 
-  // Old call shape: no collision note in the roster (it rendered above).
+  // Old call shape: no collision note in the roster (it rendered above), and
+  // insertion order — the pre-restructure formatter iterated the Map directly.
   const participantsContext = formatParticipantsContext(
     participantPersonas,
-    context.activePersonaName
+    context.activePersonaName,
+    undefined,
+    'insertion'
   );
 
   const factsContext = legacyFactsContext(options.facts ?? [], {

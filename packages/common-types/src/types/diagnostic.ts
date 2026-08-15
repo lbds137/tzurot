@@ -222,7 +222,7 @@ export interface DiagnosticAssembledPrompt {
 export interface DiagnosticPromptSection {
   /** Stable section id (e.g. 'system_identity', 'chat_log') */
   id: string;
-  /** Stability tier: S0 cross-persona static · S1 per-persona · H history · V volatile */
+  /** Stability tier: S0 cross-persona static · S1 stable prefix (per-persona + per-channel/-speaker) · H history · V volatile */
   tier: 'S0' | 'S1' | 'H' | 'V';
   /** Rendered length in chars (separators excluded) */
   chars: number;

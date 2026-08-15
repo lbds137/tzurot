@@ -252,19 +252,22 @@ describe('ParticipantFormatter', () => {
       expect(result).toContain('<note>This is a group conversation');
     });
 
-    it('should preserve participant order from Map', () => {
+    it('renders in persona-UUID order, not Map-insertion order', () => {
+      // The block sits in the provider's prompt-cache prefix, so its byte
+      // layout must not depend on how recently each participant spoke — the
+      // Map arrives in recency order and would otherwise reshuffle per turn.
       const participants = new Map<string, ParticipantInfo>([
         [
+          'persona-3',
+          { personaName: 'Third', content: 'Content 3', isActive: true, personaId: 'persona-3' },
+        ],
+        [
           'persona-1',
-          { personaName: 'First', content: 'Content 1', isActive: true, personaId: 'persona-1' },
+          { personaName: 'First', content: 'Content 1', isActive: false, personaId: 'persona-1' },
         ],
         [
           'persona-2',
           { personaName: 'Second', content: 'Content 2', isActive: false, personaId: 'persona-2' },
-        ],
-        [
-          'persona-3',
-          { personaName: 'Third', content: 'Content 3', isActive: false, personaId: 'persona-3' },
         ],
       ]);
 
@@ -276,6 +279,56 @@ describe('ParticipantFormatter', () => {
 
       expect(firstIndex).toBeLessThan(secondIndex);
       expect(secondIndex).toBeLessThan(thirdIndex);
+    });
+
+    it('renders byte-identically regardless of the insertion order of the same set', () => {
+      const alice: ParticipantInfo = {
+        personaName: 'Alice',
+        content: 'Content A',
+        isActive: true,
+        personaId: 'persona-a',
+      };
+      const bob: ParticipantInfo = {
+        personaName: 'Bob',
+        content: 'Content B',
+        isActive: false,
+        personaId: 'persona-b',
+      };
+
+      const aliceFirst = formatParticipantsContext(
+        new Map<string, ParticipantInfo>([
+          ['persona-a', alice],
+          ['persona-b', bob],
+        ])
+      );
+      const bobFirst = formatParticipantsContext(
+        new Map<string, ParticipantInfo>([
+          ['persona-b', bob],
+          ['persona-a', alice],
+        ])
+      );
+
+      expect(aliceFirst).toBe(bobFirst);
+    });
+
+    it("preserves Map-insertion order under order: 'insertion' (legacy eval arm)", () => {
+      // The legacy voice-consistency arm must reproduce the pre-restructure
+      // bytes, which iterated the Map directly — so the escape hatch must NOT
+      // sort. Fixture deliberately inserts against UUID order.
+      const participants = new Map<string, ParticipantInfo>([
+        [
+          'persona-z',
+          { personaName: 'Zoe', content: 'Content Z', isActive: false, personaId: 'persona-z' },
+        ],
+        [
+          'persona-a',
+          { personaName: 'Ann', content: 'Content A', isActive: true, personaId: 'persona-a' },
+        ],
+      ]);
+
+      const result = formatParticipantsContext(participants, undefined, undefined, 'insertion');
+
+      expect(result.indexOf('persona-z')).toBeLessThan(result.indexOf('persona-a'));
     });
 
     it('should include instruction element', () => {

@@ -71,20 +71,28 @@ export function buildMessageWithAttachments(
 /**
  * Wrap message content with speaker identification.
  *
- * Adds <from id="personaId">DisplayName</from> prefix for speaker identification.
- * This helps the LLM understand who is speaking in multi-user conversations.
+ * Adds `<from id="personaId" pronouns="she/her">DisplayName</from>` prefix for
+ * speaker identification. This helps the LLM understand who is speaking in
+ * multi-user conversations. Each attribute is omitted entirely when its value is
+ * absent, so a speaker with no persona ID or no declared pronouns renders a
+ * bare `<from>` rather than an empty attribute.
  */
 export function wrapWithSpeakerIdentification(
   safeContent: string,
   displayName: string,
-  activePersonaId: string | undefined
+  activePersonaId: string | undefined,
+  pronouns?: string
 ): string {
   const safeSpeaker = escapeXmlContent(displayName);
+  const attrs: string[] = [];
   if (activePersonaId !== undefined && activePersonaId.length > 0) {
-    const safeId = escapeXml(activePersonaId);
-    return `<from id="${safeId}">${safeSpeaker}</from>\n\n${safeContent}`;
+    attrs.push(`id="${escapeXml(activePersonaId)}"`);
   }
-  return `<from>${safeSpeaker}</from>\n\n${safeContent}`;
+  if (pronouns !== undefined && pronouns.length > 0) {
+    attrs.push(`pronouns="${escapeXml(pronouns)}"`);
+  }
+  const attrsStr = attrs.length > 0 ? ` ${attrs.join(' ')}` : '';
+  return `<from${attrsStr}>${safeSpeaker}</from>\n\n${safeContent}`;
 }
 
 /** Message object with content, referenced message, and attachments */
