@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-13'
+lastUpdated: '2026-08-15'
 ---
 
 # Git Workflow Procedures
@@ -302,6 +302,11 @@ git push --force-with-lease origin feat/your-feature
 The owner opens essentially every release with "any risks? anything that would
 raise confidence?" — answer it before being asked, as part of proposing the cut:
 
+- **Cite the release plan** — the 🚢 Next Release section in `backlog/now.md`
+  is the primary cut trigger (`10-working-posture.md` § Ship in bounded units):
+  state that its waiting-on list is empty, or name the backstop that fired
+  instead and what the plan still lists as waiting. A cut that diverges from
+  the plan is fine — but the divergence is stated, not silent.
 - **Risk level** (low/medium/high) with the one-line basis (what's runtime-unverified,
   what's blast-radius-bounded).
 - **Smoke scope derived from the release diff** — risk-scoped and minimal, not a
@@ -567,6 +572,27 @@ owner has named session-per-release as the preferred cadence. This is a
 technical-breakpoint flag per `09-interaction-style.md` § Don't Suggest
 Stopping (a fresh session continues the work — it is not a stop); one sentence
 at close-out is enough, and the call is theirs.
+
+### 10. Draft the Next Release Plan
+
+Close the release by planning the next one — this is the named moment the
+bigger picture gets looked at (`10-working-posture.md` § Ship in bounded
+units); skipping it reverts release scoping to ad-hoc accumulation, which the
+owner has explicitly moved away from. Rewrite the 🚢 Next Release section in
+`backlog/now.md` for vNext (~10 minutes, direct-commit doc change):
+
+- **Theme** — what this release IS, in a phrase. Pull candidates from Current
+  Focus, `active-epic.md`, `cold/queue.md`, and the digest's oldest-20.
+- **In already** — empty at cut time; grows as PRs merge.
+- **Waiting on** — the named items whose landing defines the cut.
+- **Explicitly NOT in** — what's deliberately deferred to the next train,
+  with the gating reason.
+- **Deploy notes** — migration timing, maintenance windows, owner decisions
+  that must survive until cut time (CURRENT.md is session state; this is the
+  durable home for release-scoped facts).
+- **Cut when** — the criterion, plus the standing backstops (~10 runtime PRs /
+  ~250 files) with current values from `release:range`.
+- **vNext+1 sketch** — one line, so the horizon extends past a single train.
 
 ### Hotfix release cut from `main`
 
