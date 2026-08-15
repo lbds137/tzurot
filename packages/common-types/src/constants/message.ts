@@ -156,6 +156,22 @@ export const MULTI_TAG = {
 export const NO_TEXT_CONTENT_PLACEHOLDER = '[no text content]';
 
 /**
+ * How far an assistant turn's `createdAt` sits past its triggering user turn's.
+ *
+ * The persist handler derives the assistant row's timestamp as
+ * `userMessageTime + this`, which makes the row's deterministic id a pure
+ * function of the turn and guarantees chronological ordering (user < assistant)
+ * without depending on wall-clock persist time.
+ *
+ * Both sides MUST reference this constant, for the same reason
+ * {@link NO_TEXT_CONTENT_PLACEHOLDER} exists: the reader pairs a user row to
+ * its reply by adding this offset, so a literal that drifts between writer and
+ * reader silently breaks the pairing with no error anywhere — the lookup just
+ * stops finding anything.
+ */
+export const ASSISTANT_ROW_OFFSET_MS = 1;
+
+/**
  * Unknown User Constants
  * Used for forwarded messages where author information is unavailable
  * These must be used consistently to allow filtering during batch user creation

@@ -75,6 +75,12 @@ interface AddMessageOptions {
   timestamp?: Date;
   /** Optional structured metadata (referenced messages, attachment descriptions) */
   messageMetadata?: MessageMetadata;
+  /**
+   * The model's reasoning trace for an assistant turn. Written once here at
+   * row creation and never updated — the column is LWW-neutral by that
+   * construction (03-database.md § Sync-Tracked Tables).
+   */
+  thinkingContent?: string;
 }
 
 export class ConversationHistoryService {
@@ -94,6 +100,7 @@ export class ConversationHistoryService {
       discordMessageId,
       timestamp,
       messageMetadata,
+      thinkingContent,
     } = options;
 
     try {
@@ -128,6 +135,14 @@ export class ConversationHistoryService {
           createdAt,
           // Store structured metadata (referenced messages, attachments)
           ...(messageMetadata !== undefined && { messageMetadata }),
+          // Empty normalizes to null so "no trace" has ONE representation in
+          // the column. Readers already treat null and '' alike, but that is a
+          // convention every reader has to keep; storing null makes it
+          // structural, and keeps the DB agreeing with the `hasTrace`-style
+          // `!== null` checks rather than silently disagreeing.
+          ...(thinkingContent !== undefined && {
+            thinkingContent: thinkingContent === '' ? null : thinkingContent,
+          }),
         },
       });
 
@@ -142,6 +157,7 @@ export class ConversationHistoryService {
           timestampKind: timestamp !== undefined ? 'explicit' : 'default',
           tokenCount,
           hasMetadata: messageMetadata !== undefined,
+          thinkingLength: thinkingContent?.length ?? 0,
         },
         'Added message to history'
       );

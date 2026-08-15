@@ -1024,6 +1024,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:getMessageReasoning",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /history/reasoning/:messageId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:getModels",
       "kind": "http-route",
       "producer": "client",

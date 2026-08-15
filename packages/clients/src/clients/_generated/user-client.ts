@@ -1431,6 +1431,26 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async getMessageReasoning(messageId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getMessageReasoning.output>>> {
+    const fullPath = `/api/user/history/reasoning/${encodeURIComponent(messageId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.getMessageReasoning.output,
+    });
+  }
+
   async hardDeleteHistory(input: z.input<typeof ROUTE_MANIFEST.hardDeleteHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.output>>> {
     const fullPath = '/api/user/history/hard-delete';
     return callGateway({

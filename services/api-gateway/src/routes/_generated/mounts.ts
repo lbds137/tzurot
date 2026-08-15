@@ -93,6 +93,7 @@ import { handleUpdateChannelGuild } from '../user/channel/updateGuild.js';
 import { handleGetChannelConfigOverrides, handleUpdateChannelConfigOverrides, handleClearChannelConfigOverrides } from '../user/channel/configOverrides.js';
 import { handleGetUserUsage } from '../user/usage.js';
 import { handleClearHistory, handleUndoHistory, handleGetHistoryStats, handleHardDeleteHistory } from '../user/history.js';
+import { handleGetMessageReasoning } from '../user/historyReasoning.js';
 import { handleGetNsfwStatus, handleVerifyNsfw } from '../user/nsfw.js';
 import { handleListWalletKeys } from '../wallet/listKeys.js';
 import { handleSetWalletKey } from '../wallet/setKey.js';
@@ -287,6 +288,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetChannelConfigOverrides(deps));
   app.patch('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateChannelConfigOverrides(deps));
   app.delete('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearChannelConfigOverrides(deps));
+  app.get('/api/user/history/reasoning/:messageId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetMessageReasoning(deps));
   app.delete('/api/user/wallet/:provider', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRemoveWalletKey(deps));
   app.get('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetMemory(deps));
   app.patch('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateMemory(deps));

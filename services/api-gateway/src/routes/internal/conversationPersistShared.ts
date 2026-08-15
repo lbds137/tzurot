@@ -19,6 +19,14 @@ import { logFastPoolTimeout } from '../../utils/dbTimeout.js';
 export interface ExistingConversationRow {
   content: string;
   discordMessageId: string[];
+  /**
+   * Selected for drift REPORTING only — deliberately not part of the `matched`
+   * verdict. The column is write-once, so a replay carrying a different trace
+   * than the stored row cannot overwrite it; without a log line that trace
+   * would be dropped with no signal anywhere, which is the failure the
+   * assistant route's warn covers.
+   */
+  thinkingContent: string | null;
 }
 
 /**
@@ -38,7 +46,7 @@ export async function fetchExistingConversationRow(
   try {
     return await prisma.conversationHistory.findUnique({
       where: { id },
-      select: { content: true, discordMessageId: true },
+      select: { content: true, discordMessageId: true, thinkingContent: true },
     });
   } catch (error) {
     logFastPoolTimeout(

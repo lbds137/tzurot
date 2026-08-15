@@ -309,6 +309,7 @@ CREATE TABLE "conversation_history" (
     "token_count" INTEGER,
     "discord_message_id" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "message_metadata" JSONB DEFAULT '{}',
+    "thinking_content" TEXT,
     "deleted_at" TIMESTAMP(3),
     "edited_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

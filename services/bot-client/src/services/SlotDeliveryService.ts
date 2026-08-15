@@ -142,27 +142,7 @@ export class SlotDeliveryService {
       recipientUserId: slot.recipientUserId,
     });
 
-    // Webhook send already succeeded above — the user has received the
-    // message. Persistence failures from here MUST NOT propagate, so the
-    // caller's per-slot catch doesn't log a misleading "Slot delivery
-    // threw" while the user just got their response. Symmetric with the
-    // try/catch in deliverError: after a successful webhook send,
-    // persist failures are logged but never bubble to the caller.
-    try {
-      await this.persistence.saveAssistantMessage({
-        message: slot.message,
-        personality: slot.personality,
-        personaId: slot.personaId,
-        content: result.content,
-        chunkMessageIds,
-        userMessageTime: slot.userMessageTime,
-      });
-    } catch (persistError) {
-      logger.error(
-        { err: persistError, personalityId: slot.personality.id },
-        'Failed to persist assistant message to conversation history (webhook already sent)'
-      );
-    }
+    await this.persistDeliveredTurn(result, slot, chunkMessageIds, result.content);
 
     if (chunkMessageIds.length > 0) {
       void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
@@ -171,6 +151,47 @@ export class SlotDeliveryService {
     }
 
     return { chunkMessageIds };
+  }
+
+  /**
+   * Persist the delivered assistant turn, including its reasoning trace.
+   *
+   * Extracted from `deliverSuccess` to keep that method under the complexity
+   * ceiling; it is a step of that flow and has no other caller.
+   *
+   * Webhook send has already succeeded when this runs — the user HAS the
+   * message. Persistence failures therefore MUST NOT propagate, or the
+   * caller's per-slot catch logs a misleading "Slot delivery threw" while the
+   * user just got their response. Symmetric with the try/catch in
+   * `deliverError`: after a successful webhook send, persist failures are
+   * logged but never bubble to the caller.
+   */
+  private async persistDeliveredTurn(
+    result: LLMGenerationResult & { success: true },
+    slot: SlotDeliveryContext,
+    chunkMessageIds: string[],
+    // Passed separately because the caller's guard narrowed it to a non-empty
+    // string; that narrowing does not survive the call boundary on `result`.
+    content: string
+  ): Promise<void> {
+    try {
+      await this.persistence.saveAssistantMessage({
+        message: slot.message,
+        personality: slot.personality,
+        personaId: slot.personaId,
+        content,
+        chunkMessageIds,
+        userMessageTime: slot.userMessageTime,
+        // The same metadata field the thinking block renders from — persisting
+        // it here is what lets the trace outlive the 24h diagnostic window.
+        thinkingContent: result.metadata?.thinkingContent,
+      });
+    } catch (persistError) {
+      logger.error(
+        { err: persistError, personalityId: slot.personality.id },
+        'Failed to persist assistant message to conversation history (webhook already sent)'
+      );
+    }
   }
 
   /**

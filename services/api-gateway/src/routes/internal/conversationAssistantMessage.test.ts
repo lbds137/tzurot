@@ -119,6 +119,60 @@ describe('POST /api/internal/conversation/assistant-message', () => {
     expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
   });
 
+  it('warns when a replay carries a different trace, without failing the match', async () => {
+    // The benign-looking shape that silently loses data: everything matches, so
+    // the replay is correctly `matched: true` — but the column is write-once, so
+    // the incoming trace is discarded. Without the warn there is no signal at
+    // all that a trace existed and was dropped.
+    mockPrisma.conversationHistory.findUnique.mockResolvedValue({
+      content: VALID_BODY.content,
+      discordMessageId: VALID_BODY.chunkMessageIds,
+      thinkingContent: null,
+    });
+
+    const response = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, thinkingContent: 'a trace the first attempt never captured' });
+
+    expect(response.body).toEqual({ id: EXPECTED_ID, created: false, matched: true });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ storedWasNull: true, incomingLength: 40 }),
+      expect.stringContaining('different reasoning trace')
+    );
+  });
+
+  it('stays silent when an empty replay trace meets an already-null stored row', async () => {
+    // Both mean "no trace" — the write path stores '' as null, so comparing the
+    // RAW incoming value against the normalized stored one would report drift
+    // between two identical meanings and make the warn untrustworthy.
+    mockPrisma.conversationHistory.findUnique.mockResolvedValue({
+      content: VALID_BODY.content,
+      discordMessageId: VALID_BODY.chunkMessageIds,
+      thinkingContent: null,
+    });
+
+    await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, thinkingContent: '' });
+
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the replay carries the same trace as the stored row', async () => {
+    mockPrisma.conversationHistory.findUnique.mockResolvedValue({
+      content: VALID_BODY.content,
+      discordMessageId: VALID_BODY.chunkMessageIds,
+      thinkingContent: 'identical trace',
+    });
+
+    const response = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, thinkingContent: 'identical trace' });
+
+    expect(response.body).toEqual({ id: EXPECTED_ID, created: false, matched: true });
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
   it('reports matched=false when chunk IDs differ in order', async () => {
     mockPrisma.conversationHistory.findUnique.mockResolvedValue({
       content: VALID_BODY.content,

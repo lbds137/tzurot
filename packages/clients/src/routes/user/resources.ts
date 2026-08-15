@@ -35,6 +35,7 @@ import {
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
   HistoryStatsResponseSchema,
+  MessageReasoningResponseSchema,
   UndoHistoryResponseSchema,
   UndoHistorySchema,
 } from '@tzurot/common-types/schemas/api/history';
@@ -205,6 +206,23 @@ export const userResourceRoutes = {
     // Zod schemas in the `Record<string, ZodTypeAny>` shape the codegen needs.
     query: HistoryStatsQuerySchema.shape,
     output: HistoryStatsResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  // The persisted reasoning trace for one assistant turn. The handler's own
+  // gate is the row's persona owner matching the caller's Discord ID (or
+  // bot-owner), so provisioning is not what protects this route — but every
+  // user route here carries it (enforced by the manifest invariant tests), and
+  // requiring it is strictly narrowing: anyone who has a persisted turn to read
+  // necessarily has a provisioned user row already.
+  getMessageReasoning: {
+    audience: 'user',
+    method: 'get',
+    path: '/history/reasoning/:messageId',
+    id: 'getMessageReasoning',
+    params: { messageId: z.string() },
+    output: MessageReasoningResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
   },

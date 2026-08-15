@@ -374,6 +374,30 @@ describe('ConversationPersistence', () => {
   });
 
   describe('saveAssistantMessage', () => {
+    it('forwards the reasoning trace to the gateway write', async () => {
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveAssistantMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        content: 'Assistant response',
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime: new Date('2025-01-01T10:00:00.000Z'),
+        thinkingContent: 'TRACE_SENTINEL weighed the options',
+      });
+
+      // Seam assertion: the trace must cross into the gateway write. Dropping
+      // it here leaves the column null with no error anywhere.
+      expect(persistAssistantMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: 'TRACE_SENTINEL weighed the options' })
+      );
+    });
+
     it('sends userMessageTime to the gateway (the +1ms assistant time is derived gateway-side)', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',

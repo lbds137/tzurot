@@ -231,11 +231,27 @@ export function buildReasoningView(
   // intentionally unused — uniform VIEW_BUILDERS signature
   _ctx: ViewContext
 ): DebugViewResult {
-  const thinking = payload.postProcessing.thinkingContent;
+  return buildReasoningTextView(payload.postProcessing.thinkingContent);
+}
 
-  if (thinking === null || thinking.length === 0) {
+/**
+ * Render a reasoning trace, whatever its source. Shared by the diagnostic-log
+ * view above and the persisted-history fallback in `viewReasoning.ts` so both
+ * tiers produce byte-identical output — the trace is the same text either way,
+ * and a reader should not be able to tell which store answered.
+ *
+ * @param thinking The trace, or null/empty when none was captured.
+ * @param emptyMessage Copy for the no-trace case; callers differ because
+ *   "this request" (a diagnostic log) and "this message" (a history row) are
+ *   not the same thing to a reader.
+ */
+export function buildReasoningTextView(
+  thinking: string | null | undefined,
+  emptyMessage = 'No reasoning content captured for this request.'
+): DebugViewResult {
+  if (thinking === null || thinking === undefined || thinking.length === 0) {
     return {
-      content: 'No reasoning content captured for this request.',
+      content: emptyMessage,
       flags: MessageFlags.Ephemeral,
     };
   }

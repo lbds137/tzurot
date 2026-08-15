@@ -111,6 +111,14 @@ export const PersistAssistantMessageRequestSchema = z.object({
   chunkMessageIds: z.array(DiscordSnowflakeSchema).min(1).max(SYNC_LIMITS.MAX_MESSAGE_BATCH),
   /** ISO timestamp of the triggering user message; the assistant row is persisted at +1ms. */
   userMessageTime: z.string().datetime(),
+  /**
+   * The model's reasoning trace, persisted onto the history row so it outlives
+   * the 24h diagnostic-log window. Absent when the model produced no trace.
+   * Declared here deliberately: an undeclared key is stripped by the parse
+   * below, which would leave the column null forever with no error — see the
+   * sentinel-survival test in internal.test.ts.
+   */
+  thinkingContent: z.string().optional(),
 });
 
 export const PersistAssistantMessageResponseSchema = z.object({

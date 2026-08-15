@@ -16,7 +16,7 @@ const asLogger = (log: { error: ReturnType<typeof vi.fn> }): ReturnType<typeof c
 
 describe('fetchExistingConversationRow', () => {
   it('returns the selected row when it exists', async () => {
-    const row = { content: 'hi', discordMessageId: ['1'] };
+    const row = { content: 'hi', discordMessageId: ['1'], thinkingContent: null };
     const findUnique = vi.fn().mockResolvedValue(row);
 
     const result = await fetchExistingConversationRow(
@@ -28,9 +28,12 @@ describe('fetchExistingConversationRow', () => {
     );
 
     expect(result).toBe(row);
+    // `thinkingContent` is selected for drift REPORTING, not for the `matched`
+    // verdict — the assistant route warns when a replay carries a different
+    // trace than the stored row, which it cannot do without reading it here.
     expect(findUnique).toHaveBeenCalledWith({
       where: { id: 'row-id' },
-      select: { content: true, discordMessageId: true },
+      select: { content: true, discordMessageId: true, thinkingContent: true },
     });
   });
 

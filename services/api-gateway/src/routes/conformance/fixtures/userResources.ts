@@ -17,6 +17,8 @@ import { createPersonality } from './seedHelpers.js';
 const CHANNEL_SNOWFLAKE = '800000000000000001';
 const GUILD_SNOWFLAKE = '800000000000000002';
 const HISTORY_UNDO_SLUG = 'conf-history-undo';
+const REASONING_MESSAGE_ID = '800000000000000031';
+const REASONING_ROW_ID = '5c110000-0000-4000-8000-000000000001';
 
 /**
  * Insert a BYOK wallet row directly. The set route validates keys against
@@ -159,6 +161,29 @@ export const userResourceFixtures: Record<string, ConformanceEntry> = {
       await createPersonality(ctx, 'conf-history-hard-delete');
     },
     body: { personalitySlug: 'conf-history-hard-delete', channelId: CHANNEL_SNOWFLAKE },
+  },
+
+  getMessageReasoning: {
+    // The route reads an assistant turn owned by the actor's persona, so the
+    // row is inserted directly — no API path creates a history row (the write
+    // is an internal, service-authenticated endpoint, not a user one).
+    seed: async ctx => {
+      const { id: personalityId } = await createPersonality(ctx, 'conf-history-reasoning');
+      await ctx.prisma.conversationHistory.create({
+        data: {
+          id: REASONING_ROW_ID,
+          channelId: CHANNEL_SNOWFLAKE,
+          guildId: GUILD_SNOWFLAKE,
+          personalityId,
+          personaId: ctx.actorPersonaId,
+          role: 'assistant',
+          content: 'A conformance assistant turn.',
+          discordMessageId: [REASONING_MESSAGE_ID],
+          thinkingContent: 'Conformance reasoning trace.',
+        },
+      });
+    },
+    params: { messageId: REASONING_MESSAGE_ID },
   },
 
   // ---- NSFW verification ----------------------------------------------------

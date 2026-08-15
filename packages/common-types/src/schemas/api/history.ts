@@ -91,6 +91,22 @@ export const HistoryStatsResponseSchema = z.object({
   canUndo: z.boolean(),
 });
 
+/**
+ * GET /user/history/reasoning/:messageId
+ *
+ * The persisted reasoning trace for one assistant turn, looked up by any of
+ * the turn's Discord chunk message IDs. `thinkingContent` is null when the row
+ * exists but carries no trace (the model produced none, or the row predates
+ * trace persistence) — distinct from a 404, which means no row matched OR the
+ * row is not the caller's. That 404-not-403 collapse is deliberate: it hides
+ * the existence of other users' turns.
+ */
+export const MessageReasoningResponseSchema = z.object({
+  thinkingContent: z.string().nullable(),
+  /** ISO timestamp of the assistant row — the trace's age, for the retention hint. */
+  createdAt: z.string().datetime(),
+});
+
 /** DELETE /user/history/hard-delete */
 export const HardDeleteHistoryResponseSchema = z.object({
   success: z.literal(true),
