@@ -67,8 +67,8 @@ describe('LlmConfigMapper', () => {
           logit_bias: { '1234': 50 },
           response_format: { type: 'json_object' },
           show_thinking: true,
-          // Reasoning
-          reasoning: { effort: 'xhigh', max_tokens: 16000 },
+          // Thinking
+          thinking: 'max',
           // OpenRouter
           transforms: ['middle-out'],
           route: 'fallback',
@@ -97,9 +97,8 @@ describe('LlmConfigMapper', () => {
       expect(result.responseFormat).toEqual({ type: 'json_object' });
       expect(result.showThinking).toBe(true);
 
-      // Reasoning
-      expect(result.reasoning?.effort).toBe('xhigh');
-      expect(result.reasoning?.maxTokens).toBe(16000);
+      // Thinking
+      expect(result.thinking).toBe('max');
 
       // OpenRouter
       expect(result.transforms).toEqual(['middle-out']);
@@ -113,7 +112,7 @@ describe('LlmConfigMapper', () => {
 
       expect(result.temperature).toBeUndefined();
       expect(result.maxTokens).toBeUndefined();
-      expect(result.reasoning).toBeUndefined();
+      expect(result.thinking).toBeUndefined();
     });
 
     it('should handle empty advancedParameters (empty object)', () => {
@@ -157,7 +156,7 @@ describe('LlmConfigMapper', () => {
       expect(result.temperature).toBe(0.5);
       expect(result.maxTokens).toBe(2048);
       expect(result.topP).toBeUndefined();
-      expect(result.reasoning).toBeUndefined();
+      expect(result.thinking).toBeUndefined();
     });
   });
 
@@ -201,18 +200,14 @@ describe('LlmConfigMapper', () => {
       expect(result.contextWindowTokens).toBe(200000);
     });
 
-    it('should handle config with reasoning enabled', () => {
+    it('should handle config with thinking enabled', () => {
       const raw: RawLlmConfigFromDb = {
         model: 'deepseek/deepseek-r1',
         provider: 'openrouter',
         advancedParameters: {
           temperature: 1.0, // Required for reasoning models
           max_tokens: 32000,
-          reasoning: {
-            effort: 'high',
-            max_tokens: 16000,
-            exclude: false,
-          },
+          thinking: 'high',
           show_thinking: true,
         },
         contextWindowTokens: 128000,
@@ -223,9 +218,7 @@ describe('LlmConfigMapper', () => {
       expect(result.model).toBe('deepseek/deepseek-r1');
       expect(result.temperature).toBe(1.0);
       expect(result.maxTokens).toBe(32000);
-      expect(result.reasoning?.effort).toBe('high');
-      expect(result.reasoning?.maxTokens).toBe(16000);
-      expect(result.reasoning?.exclude).toBe(false);
+      expect(result.thinking).toBe('high');
       expect(result.showThinking).toBe(true);
     });
 

@@ -32,11 +32,8 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     repetition_penalty: '',
     min_p: '',
     top_a: '',
-    // Reasoning params
-    reasoning_effort: '',
-    reasoning_max_tokens: '',
-    reasoning_exclude: '',
-    reasoning_enabled: '',
+    // Thinking param
+    thinking: '',
     // Output params
     show_thinking: '',
     // Context window
@@ -84,46 +81,6 @@ describe('presetConfigValidator', () => {
         const result = presetConfigValidator.validate(config);
 
         expect(result.errors.filter(e => e.field === 'min_p / top_a')).toHaveLength(0);
-      });
-    });
-
-    describe('reasoning_max_tokens constraint', () => {
-      it('should error when reasoning tokens >= max tokens', () => {
-        const config = createTestConfig({
-          reasoning_max_tokens: '8000',
-          max_tokens: '4000',
-        });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.isValid).toBe(false);
-        expect(result.errors.some(e => e.field === 'reasoning_max_tokens')).toBe(true);
-      });
-
-      it('should error when reasoning tokens equal max tokens', () => {
-        const config = createTestConfig({
-          reasoning_max_tokens: '4000',
-          max_tokens: '4000',
-        });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.isValid).toBe(false);
-      });
-
-      it('should pass when reasoning tokens < max tokens', () => {
-        const config = createTestConfig({
-          reasoning_max_tokens: '2000',
-          max_tokens: '4000',
-        });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.errors.filter(e => e.field === 'reasoning_max_tokens')).toHaveLength(0);
-      });
-
-      it('should pass when only reasoning tokens is set', () => {
-        const config = createTestConfig({ reasoning_max_tokens: '8000' });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.errors.filter(e => e.field === 'reasoning_max_tokens')).toHaveLength(0);
       });
     });
   });
@@ -236,77 +193,42 @@ describe('presetConfigValidator', () => {
       });
     });
 
-    describe('reasoning effort without enabled warning', () => {
-      it('should warn when effort is set but reasoning is disabled', () => {
+    describe('thinking / max_tokens interaction', () => {
+      it('should warn when both the thinking level and max_tokens are set', () => {
         const config = createTestConfig({
-          reasoning_effort: 'high',
-          reasoning_enabled: 'false',
-        });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.warnings.some(w => w.field === 'reasoning_effort')).toBe(true);
-      });
-
-      it('should not warn when effort is set and reasoning is enabled', () => {
-        const config = createTestConfig({
-          reasoning_effort: 'high',
-          reasoning_enabled: 'true',
-        });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.warnings.filter(w => w.field === 'reasoning_effort')).toHaveLength(0);
-      });
-
-      it('should not warn when effort is set and enabled is not specified', () => {
-        const config = createTestConfig({ reasoning_effort: 'high' });
-        const result = presetConfigValidator.validate(config);
-
-        expect(result.warnings.filter(w => w.field === 'reasoning_effort')).toHaveLength(0);
-      });
-    });
-
-    describe('reasoning effort / max_tokens mutual exclusivity', () => {
-      it('should warn when both reasoning effort and max_tokens are set', () => {
-        const config = createTestConfig({
-          reasoning_effort: 'high',
+          thinking: 'high',
           max_tokens: '4096',
         });
         const result = presetConfigValidator.validate(config);
 
-        expect(result.warnings.some(w => w.field === 'reasoning_effort / max_tokens')).toBe(true);
-        expect(
-          result.warnings.find(w => w.field === 'reasoning_effort / max_tokens')?.message
-        ).toContain('cannot both be active');
+        expect(result.warnings.some(w => w.field === 'thinking / max_tokens')).toBe(true);
+        expect(result.warnings.find(w => w.field === 'thinking / max_tokens')?.message).toContain(
+          'will not scale the token budget'
+        );
       });
 
-      it('should not warn when only effort is set', () => {
-        const config = createTestConfig({ reasoning_effort: 'medium' });
+      it('should not warn when only the thinking level is set', () => {
+        const config = createTestConfig({ thinking: 'medium' });
         const result = presetConfigValidator.validate(config);
 
-        expect(
-          result.warnings.filter(w => w.field === 'reasoning_effort / max_tokens')
-        ).toHaveLength(0);
+        expect(result.warnings.filter(w => w.field === 'thinking / max_tokens')).toHaveLength(0);
       });
 
       it('should not warn when only max_tokens is set', () => {
         const config = createTestConfig({ max_tokens: '4096' });
         const result = presetConfigValidator.validate(config);
 
-        expect(
-          result.warnings.filter(w => w.field === 'reasoning_effort / max_tokens')
-        ).toHaveLength(0);
+        expect(result.warnings.filter(w => w.field === 'thinking / max_tokens')).toHaveLength(0);
       });
 
-      it('should not warn when effort is empty string', () => {
+      it('should not warn when the thinking level is an empty string', () => {
         const config = createTestConfig({
-          reasoning_effort: '',
+          thinking: '',
           max_tokens: '4096',
         });
         const result = presetConfigValidator.validate(config);
 
-        expect(
-          result.warnings.filter(w => w.field === 'reasoning_effort / max_tokens')
-        ).toHaveLength(0);
+        expect(result.warnings.filter(w => w.field === 'thinking / max_tokens')).toHaveLength(0);
       });
     });
   });
@@ -357,8 +279,7 @@ describe('PARAMETER_DESCRIPTIONS', () => {
       'repetition_penalty',
       'max_tokens',
       'seed',
-      'reasoning_effort',
-      'reasoning_max_tokens',
+      'thinking',
     ];
 
     for (const param of expectedParams) {

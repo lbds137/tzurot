@@ -110,7 +110,7 @@ The answer is 42.
 | `<reflection>`         | Reflection AI                                               |
 | `<scratchpad>`         | Legacy research models                                      |
 | `<character_analysis>` | GLM 4.5 Air (internal chain-of-thought / response planning) |
-| `<understanding>`      | GLM 4.5 Air (observed at `reasoning.effort: medium`)        |
+| `<understanding>`      | GLM 4.5 Air (observed at thinking level `medium`)           |
 
 **Relevant code:**
 
@@ -122,23 +122,21 @@ The answer is 42.
 
 ### Enabling Reasoning
 
-To receive reasoning content from a model, configure your preset with:
+To receive reasoning content from a model, set the canonical thinking level on your preset:
 
 ```json
 {
-  "reasoning": {
-    "effort": "medium",
-    "enabled": true,
-    "exclude": false
-  }
+  "thinking": "medium"
 }
 ```
 
-**Effort levels:** `none`, `minimal`, `low`, `medium`, `high`, `xhigh`
+**Levels:** `off`, `minimal`, `low`, `medium`, `high`, `max`
 
-**Constraint:** `effort` and `max_tokens` are mutually exclusive — use one or the other. When both are set, `effort` takes precedence (`buildReasoningParams` in `ModelFactory.ts` logs a warning and drops `max_tokens`).
+**Absent is not `off`.** Omitting `thinking` sends nothing and takes the provider's own default; `"off"` explicitly asks the provider to disable reasoning.
 
-The `reasoning.effort` parameter controls how much "thinking" the model does. Higher effort = more reasoning tokens = better quality but slower/more expensive.
+The level is translated per provider at request-build time. For OpenRouter, `buildReasoningParams` in `ModelFactory.ts` emits `reasoning: { effort: <level> }`, with `off` mapping to OpenRouter's `none`. `exclude` is never sent — both providers default to returning the trace, which `/inspect` depends on.
+
+Higher levels mean more reasoning tokens: better quality, but slower and more expensive. When `max_tokens` is not set explicitly, the level also scales the response budget via `AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS`.
 
 Models with `supportsReasoning: false` in the catalog have reasoning params skipped entirely (with a warning) rather than sent and rejected.
 
@@ -233,7 +231,7 @@ Use `/inspect <message_id>` to see extraction details:
   "llmConfig": {
     "allParams": {
       "showThinking": true,
-      "reasoning": { "effort": "medium", "enabled": true }
+      "thinking": "medium"
     }
   },
   "llmResponse": {

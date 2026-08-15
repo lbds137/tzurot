@@ -134,16 +134,16 @@ describe('getModelCacheKey', () => {
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
   });
 
-  it('should differentiate by reasoning effort', () => {
-    const config1: ModelConfig = { modelName: 'model-1', reasoning: { effort: 'high' } };
-    const config2: ModelConfig = { modelName: 'model-1', reasoning: { effort: 'low' } };
+  it('should differentiate by thinking level', () => {
+    const config1: ModelConfig = { modelName: 'model-1', thinking: 'high' };
+    const config2: ModelConfig = { modelName: 'model-1', thinking: 'low' };
 
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
   });
 
-  it('should differentiate by reasoning maxTokens', () => {
-    const config1: ModelConfig = { modelName: 'model-1', reasoning: { maxTokens: 8000 } };
-    const config2: ModelConfig = { modelName: 'model-1', reasoning: { maxTokens: 16000 } };
+  it('should differentiate an explicit off level from an absent one', () => {
+    const config1: ModelConfig = { modelName: 'model-1', thinking: 'off' };
+    const config2: ModelConfig = { modelName: 'model-1' };
 
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
   });

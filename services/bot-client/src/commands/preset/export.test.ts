@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AttachmentBuilder } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import type { PresetData } from './types.js';
 
 vi.mock('@tzurot/common-types/config/config', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
@@ -176,12 +177,9 @@ describe('Preset Export', () => {
         params: {
           temperature: 0.8,
           max_tokens: 4096,
-          reasoning: {
-            effort: 'high',
-            enabled: true,
-          },
+          thinking: 'high',
           show_thinking: true,
-        },
+        } satisfies PresetData['params'],
       };
 
       stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: presetWithAdvancedParams }));
@@ -190,7 +188,46 @@ describe('Preset Export', () => {
 
       await handleExport(mockContext);
 
-      expect(mockContext.editReply).toHaveBeenCalled();
+      // Assert the payload itself, not just that a reply happened — the thinking
+      // level must survive into the file so /preset import can round-trip it.
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: { attachment: Buffer | string }[];
+      };
+      const json = JSON.parse(String(editReplyArgs.files[0].attachment)) as {
+        advancedParameters?: Record<string, unknown>;
+      };
+      expect(json.advancedParameters).toEqual({
+        temperature: 0.8,
+        max_tokens: 4096,
+        thinking: 'high',
+        show_thinking: true,
+      });
+    });
+
+    // `off` is the level a refactor is most likely to treat as "nothing to
+    // say" — it is the one value that MEANS disabled, and absent already means
+    // provider-default. Conflating the two here would silently turn "reasoning
+    // disabled" back into "provider default" on the next import.
+    it('should export an explicit off level rather than dropping it', async () => {
+      stub.getUserLlmConfig.mockResolvedValue(
+        makeOk({
+          config: {
+            ...mockPresetData,
+            params: { thinking: 'off' } satisfies PresetData['params'],
+          },
+        })
+      );
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext);
+
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: { attachment: Buffer | string }[];
+      };
+      const json = JSON.parse(String(editReplyArgs.files[0].attachment)) as {
+        advancedParameters?: Record<string, unknown>;
+      };
+      expect(json.advancedParameters).toEqual({ thinking: 'off' });
     });
 
     it('should include context window field in export', async () => {

@@ -112,17 +112,14 @@ export function formatMemoryFoundLine(
 export function buildReasoningField(
   payload: DiagnosticPayload
 ): { name: string; value: string } | null {
-  const reasoningConfig = payload.llmConfig.allParams.reasoning as
-    { effort?: string; enabled?: boolean } | undefined;
-  if (reasoningConfig === undefined) {
+  const thinking = payload.llmConfig.allParams.thinking as string | undefined;
+  if (thinking === undefined) {
     return null;
   }
 
   const { llmResponse } = payload;
   const reasoningDebug = llmResponse.reasoningDebug;
-  const lines: string[] = [
-    `**Config:** effort=${reasoningConfig.effort ?? 'default'}, enabled=${String(reasoningConfig.enabled ?? true)}`,
-  ];
+  const lines: string[] = [`**Config:** thinking=${thinking}`];
 
   if (reasoningDebug?.upstreamProvider !== undefined) {
     lines.push(`**Upstream:** ${reasoningDebug.upstreamProvider}`);

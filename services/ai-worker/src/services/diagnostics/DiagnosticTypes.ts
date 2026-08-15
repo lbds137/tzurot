@@ -5,7 +5,7 @@
  * Extracted from DiagnosticCollector to reduce file size.
  */
 
-import type { ReasoningEffortLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
@@ -70,16 +70,6 @@ export interface TokenBudgetData {
 }
 
 /**
- * Reasoning configuration for diagnostic recording
- */
-export interface ReasoningConfig {
-  effort?: ReasoningEffortLevel;
-  maxTokens?: number;
-  exclude?: boolean;
-  enabled?: boolean;
-}
-
-/**
  * LLM configuration data
  */
 export interface LlmConfigData {
@@ -101,8 +91,8 @@ export interface LlmConfigData {
   logitBias?: Record<string, number>;
   responseFormat?: { type: 'text' | 'json_object' };
   showThinking?: boolean;
-  // Reasoning (for thinking models)
-  reasoning?: ReasoningConfig;
+  // Canonical thinking level (for reasoning models)
+  thinking?: ThinkingLevel;
   // OpenRouter-specific
   transforms?: string[];
   route?: 'fallback';

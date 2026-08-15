@@ -49,7 +49,7 @@ function getRequiredLlmConfig(
       getConfigValue(pc?.temperature, gc?.temperature, AI_DEFAULTS.TEMPERATURE) ??
       AI_DEFAULTS.TEMPERATURE,
     // maxTokens intentionally has NO default — when not explicitly set:
-    // - Reasoning models: ModelFactory scales based on reasoning.effort
+    // - Reasoning models: ModelFactory scales based on the thinking level
     // - Standard models: OpenRouter uses per-model defaults
     maxTokens: getConfigValue(pc?.maxTokens, gc?.maxTokens),
     contextWindowTokens:
@@ -81,16 +81,17 @@ function getSamplingConfig(
 }
 
 /**
- * Get reasoning/thinking config
- * Includes both display preference (showThinking) and reasoning token config (reasoning)
+ * Get thinking config
+ * Includes both the display preference (showThinking) and the canonical
+ * thinking level (thinking)
  */
-function getReasoningConfig(
+function getThinkingConfig(
   pc: MappedLlmConfig | null,
   gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'showThinking' | 'reasoning'> {
+): Pick<LoadedPersonality, 'showThinking' | 'thinking'> {
   return {
     showThinking: getConfigValue(pc?.showThinking, gc?.showThinking),
-    reasoning: getConfigValue(pc?.reasoning, gc?.reasoning),
+    thinking: getConfigValue(pc?.thinking, gc?.thinking),
   };
 }
 
@@ -241,7 +242,7 @@ export function mapToPersonality(
     // config-override cascade at request time, not the LlmConfig columns.
     ...getRequiredLlmConfig(personalityConfig, globalDefaultConfig),
     ...getSamplingConfig(personalityConfig, globalDefaultConfig),
-    ...getReasoningConfig(personalityConfig, globalDefaultConfig),
+    ...getThinkingConfig(personalityConfig, globalDefaultConfig),
 
     // Character definition fields (with placeholders replaced)
     ...processCharacterFields(db),

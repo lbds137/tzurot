@@ -262,8 +262,8 @@ export class LlmConfigResolver extends BaseConfigResolver<
         logitBias: mapped.logitBias,
         responseFormat: mapped.responseFormat,
         showThinking: mapped.showThinking,
-        // Reasoning
-        reasoning: mapped.reasoning,
+        // Thinking (canonical level)
+        thinking: mapped.thinking,
         // OpenRouter
         transforms: mapped.transforms,
         route: mapped.route,

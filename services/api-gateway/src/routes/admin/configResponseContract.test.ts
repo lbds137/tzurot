@@ -95,7 +95,7 @@ describe('Admin LLM config response contract', () => {
 
   const llmDetailRow = {
     ...llmListRow,
-    advancedParameters: { temperature: 0.7, reasoning: { effort: 'high', max_tokens: 8000 } },
+    advancedParameters: { temperature: 0.7, thinking: 'high' },
     contextWindowTokens: 8000,
   };
 

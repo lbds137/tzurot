@@ -132,7 +132,7 @@ describe('LLM Config API Contract Tests', () => {
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
       contextWindowTokens: 8000,
-      params: { temperature: 0.7, reasoning: { effort: 'high' } },
+      params: { temperature: 0.7, thinking: 'high' },
     };
 
     it('validates a full detail config', () => {
@@ -309,6 +309,27 @@ describe('LLM Config API Contract Tests', () => {
     it('should validate minimal create input (only required fields)', () => {
       const result = LlmConfigCreateSchema.safeParse(validCreateInput);
       expect(result.success).toBe(true);
+    });
+
+    // The inbound API boundary must tolerate a client still sending the retired
+    // 4-knob object: plain strip mode would delete it silently and the level
+    // would vanish with no error. Asserted here, at the schema the routes
+    // actually mount, not only at the helper it delegates to.
+    it('should upgrade a legacy reasoning object on create rather than dropping it', () => {
+      const result = LlmConfigCreateSchema.safeParse({
+        ...validCreateInput,
+        advancedParameters: { temperature: 0.7, reasoning: { effort: 'xhigh' } },
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.advancedParameters).toEqual({ temperature: 0.7, thinking: 'max' });
+    });
+
+    it('should upgrade a legacy reasoning object on update rather than dropping it', () => {
+      const result = LlmConfigUpdateSchema.safeParse({
+        advancedParameters: { reasoning: { enabled: false } },
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.advancedParameters).toEqual({ thinking: 'off' });
     });
 
     it('should validate complete create input with all optional fields', () => {

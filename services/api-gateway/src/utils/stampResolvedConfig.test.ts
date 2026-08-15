@@ -78,13 +78,13 @@ describe('stampResolvedConfig', () => {
           contextWindowTokens: 500000,
           minP: 0.01,
           temperature: 0.8,
-          reasoning: { enabled: true, effort: 'medium' },
+          thinking: 'medium',
         })
       );
       expect(personality.contextWindowTokens).toBe(500000);
       expect(personality.minP).toBe(0.01);
       expect(personality.temperature).toBe(0.8);
-      expect(personality.reasoning).toEqual({ enabled: true, effort: 'medium' });
+      expect(personality.thinking).toBe('medium');
     });
 
     it('leaves seed fields untouched when the resolved config omits them (undefined)', async () => {

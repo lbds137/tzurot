@@ -28,7 +28,6 @@ function parseNum(value: string | undefined): number | undefined {
  *
  * Error rules (block save):
  * - min_p + top_a conflict: Both achieve similar goals, use one
- * - reasoning.max_tokens >= max_tokens: Must leave room for response
  *
  * Warning rules (allow save, display caution):
  * - Low temperature + low top_p: May produce repetitive output
@@ -49,18 +48,6 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
       return minP !== undefined && minP > 0 && topA !== undefined && topA > 0;
     },
     'Use min_p OR top_a, not both. They achieve the same goal (dynamic probability filtering) differently.'
-  )
-
-  .addError(
-    'reasoning_max_tokens',
-    c => {
-      const reasoningTokens = parseNum(c.reasoning_max_tokens);
-      const maxTokens = parseNum(c.max_tokens);
-      return (
-        reasoningTokens !== undefined && maxTokens !== undefined && reasoningTokens >= maxTokens
-      );
-    },
-    'Reasoning tokens must be less than max_tokens to leave room for the actual response.'
   )
 
   // =========================================
@@ -122,24 +109,13 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   )
 
   .addWarning(
-    'reasoning_effort',
+    'thinking / max_tokens',
     c => {
-      const effort = c.reasoning_effort;
-      const reasoningEnabled = c.reasoning_enabled;
-      // Warn if effort is set but reasoning is explicitly disabled
-      return effort !== undefined && effort.length > 0 && reasoningEnabled === 'false';
-    },
-    'Reasoning effort is set but reasoning is disabled. Enable reasoning or remove effort setting.'
-  )
-
-  .addWarning(
-    'reasoning_effort / max_tokens',
-    c => {
-      const effort = c.reasoning_effort;
+      const thinking = c.thinking;
       const maxTokens = parseNum(c.max_tokens);
-      return effort !== undefined && effort.length > 0 && maxTokens !== undefined;
+      return thinking !== undefined && thinking.length > 0 && maxTokens !== undefined;
     },
-    'Reasoning effort and max_tokens cannot both be active. Remove max_tokens to use effort-based reasoning, or remove effort to use explicit token limits.'
+    'Thinking level and max_tokens are both set. An explicit max_tokens wins, so the thinking level will not scale the token budget — remove max_tokens to get level-based scaling.'
   );
 
 /**
@@ -163,7 +139,6 @@ export const PARAMETER_DESCRIPTIONS: Record<string, string> = {
     'Alternative repetition control (1.0=none, 2.0=strong). Pick this OR freq/presence penalties.',
   max_tokens: 'Maximum response length in tokens (~4 chars each). Default: 2048-4096',
   seed: 'Fixed seed for reproducible outputs. Same seed + same input = same output.',
-  reasoning_effort:
-    'Thinking intensity: xhigh (~95%), high (~80%), medium (~50%), low (~20%), minimal (~10%), none',
-  reasoning_max_tokens: 'Direct token budget for thinking. Must be less than max_tokens.',
+  thinking:
+    'Thinking intensity: max, high (~80%), medium (~50%), low (~20%), minimal (~10%), off. Leave blank to take the provider default.',
 };

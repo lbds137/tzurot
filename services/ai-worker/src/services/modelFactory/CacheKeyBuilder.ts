@@ -1,7 +1,7 @@
 /**
  * Cache key generation for model instances.
  *
- * Different reasoning/sampling configs should produce different model instances
+ * Different thinking/sampling configs should produce different model instances
  * to ensure correct behavior for each user's configuration.
  */
 
@@ -60,11 +60,8 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     cacheVal(modelConfig.maxTokens),
     cacheVal(modelConfig.responseFormat?.type),
     cacheVal(modelConfig.showThinking),
-    // Reasoning - all fields affect reasoning param in modelKwargs
-    cacheVal(modelConfig.reasoning?.enabled),
-    cacheVal(modelConfig.reasoning?.exclude),
-    cacheVal(modelConfig.reasoning?.effort),
-    cacheVal(modelConfig.reasoning?.maxTokens),
+    // Thinking - the canonical level drives the reasoning param in modelKwargs
+    cacheVal(modelConfig.thinking),
     cacheVal(modelConfig.supportsReasoning),
     // OpenRouter
     cacheArr(modelConfig.transforms),

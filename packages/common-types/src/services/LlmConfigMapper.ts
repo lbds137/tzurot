@@ -32,7 +32,7 @@ import {
  *
  * Fields included:
  * - model: Model identifier
- * - advancedParameters: JSONB with ALL sampling/reasoning/output params
+ * - advancedParameters: JSONB with ALL sampling/thinking/output params
  * - contextWindowTokens: Context window size (not in JSONB)
  * - name: Config name for display/logging (optional for some use cases)
  */
@@ -125,7 +125,7 @@ export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {
   return {
     model: raw.model,
     provider: raw.provider,
-    // Spread ALL converted params (sampling, reasoning, output, OpenRouter)
+    // Spread ALL converted params (sampling, thinking, output, OpenRouter)
     ...converted,
     // Non-JSONB field (still an individual column; model-coupled)
     contextWindowTokens: raw.contextWindowTokens,

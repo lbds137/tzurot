@@ -451,23 +451,17 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmConfig.allParams.seed).toBe(42);
     });
 
-    it('should record reasoning config for thinking models', () => {
+    it('should record the thinking level for reasoning models', () => {
       collector.recordLlmConfig({
         model: 'deepseek/deepseek-r1',
         provider: 'deepseek',
-        reasoning: {
-          effort: 'high',
-          enabled: true,
-        },
+        thinking: 'high',
         showThinking: true,
       });
 
       const payload = collector.finalize();
 
-      expect(payload.llmConfig.allParams.reasoning).toEqual({
-        effort: 'high',
-        enabled: true,
-      });
+      expect(payload.llmConfig.allParams.thinking).toBe('high');
       expect(payload.llmConfig.allParams.showThinking).toBe(true);
     });
 
