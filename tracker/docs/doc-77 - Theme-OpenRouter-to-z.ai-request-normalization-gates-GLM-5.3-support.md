@@ -342,7 +342,14 @@ and pin a test that the two mappings agree. Without it, Zod strip-mode would
   `enabled`) across every tier incl. `tests/e2e`; type fixtures with `satisfies`.
 - **PR B — z.ai translation + allowlist flip.** Step 0: live probe on the dev
   path (thinking.type honored? reasoning_effort accepted on GLM-5.x? trace-size
-  discriminates low vs high?). Then: provider branch emitting the z.ai row of
+  discriminates low vs high?). **Two OpenRouter wire values ride along in that
+  probe** — both are doc-reads that PR A shipped unverified, flagged by review:
+  (a) `effort: 'max'`, which PR A now sends where an `xhigh` config used to
+  (zero prod configs used `xhigh`, so nothing regressed — but `max` has never
+  been on the wire); (b) `effort: 'none'`, which PR A now sends for a config
+  that previously sent bare `{enabled: false}`. (b) is the lower risk of the
+  two: 4 prod configs already sent `effort:'none'` directly, so that value has
+  real-world precedent, while `max` has none. Then: provider branch emitting the z.ai row of
   the table; **flip `ZAI_DIRECT_UNSUPPORTED_PARAMS` denylist → allowlist** from
   the documented param set; parity test asserting every `AdvancedParamsSchema`
   key has a declared z.ai disposition (translate / send / drop) so a
