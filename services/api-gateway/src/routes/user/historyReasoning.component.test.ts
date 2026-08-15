@@ -132,8 +132,18 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
     return { req, res, json, status };
   }
 
-  /** Drive the REAL persist route, exactly as bot-client's POST would. */
-  async function persistAssistantTurn(thinkingContent?: string): Promise<void> {
+  /**
+   * Drive the REAL persist route, exactly as bot-client's POST would.
+   *
+   * `userMessageTime` defaults to the trigger's post time, but the dominant
+   * prod producers stamp it at COORDINATION time — hundreds of ms to seconds
+   * after the trigger row's `createdAt` — so bridge tests pass a realistic
+   * later value rather than relying on the two clocks agreeing.
+   */
+  async function persistAssistantTurn(
+    thinkingContent?: string,
+    userMessageTime: string = USER_MESSAGE_TIME
+  ): Promise<void> {
     const { req, res } = reqRes({
       body: {
         channelId: CHANNEL,
@@ -142,7 +152,7 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
         personaId: OWNER_PERSONA,
         content: 'A castle is a fortified residence.',
         chunkMessageIds: [CHUNK_ID],
-        userMessageTime: USER_MESSAGE_TIME,
+        userMessageTime,
         ...(thinkingContent !== undefined && { thinkingContent }),
       },
     });
@@ -267,6 +277,28 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
 
     it("resolves the reply's trace when the user right-clicks their OWN message", async () => {
       await persistUserTurn();
+      // Realistic clock skew: the persist payload's userMessageTime is the
+      // COORDINATION time, ~62ms-3s after the trigger row's Discord post time
+      // in prod. The bridge must pair across that gap, not assume the clocks
+      // agree to the millisecond.
+      await persistAssistantTurn(
+        SENTINEL_TRACE,
+        new Date(new Date(USER_MESSAGE_TIME).getTime() + 800).toISOString()
+      );
+
+      const { req, res, json } = reqRes({
+        userId: OWNER_DISCORD,
+        params: { messageId: TRIGGER_ID },
+      });
+      await handleGetMessageReasoning(deps())(req, res, () => undefined);
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: SENTINEL_TRACE })
+      );
+    });
+
+    it('still pairs the minority path where userMessageTime IS the post time (+1ms)', async () => {
+      await persistUserTurn();
       await persistAssistantTurn(SENTINEL_TRACE);
 
       const { req, res, json } = reqRes({
@@ -278,6 +310,40 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
       expect(json).toHaveBeenCalledWith(
         expect.objectContaining({ thinkingContent: SENTINEL_TRACE })
       );
+    });
+
+    it('returns the NEAREST following turn when two sit inside the window', async () => {
+      await persistUserTurn();
+      // The true pair, ~900ms after the trigger...
+      await persistAssistantTurn(
+        SENTINEL_TRACE,
+        new Date(new Date(USER_MESSAGE_TIME).getTime() + 900).toISOString()
+      );
+      // ...and a later turn still inside the window, which must NOT win.
+      await prisma.conversationHistory.create({
+        data: {
+          id: '7c3e1f77-0000-4000-8000-00000000e009',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY,
+          personaId: OWNER_PERSONA,
+          role: 'assistant',
+          content: 'The next turn.',
+          discordMessageId: ['555555555555555555'],
+          thinkingContent: 'LATER-TRACE: belongs to the following turn',
+          createdAt: new Date(new Date(USER_MESSAGE_TIME).getTime() + 30_000),
+        },
+      });
+
+      const { req, res, json } = reqRes({
+        userId: OWNER_DISCORD,
+        params: { messageId: TRIGGER_ID },
+      });
+      await handleGetMessageReasoning(deps())(req, res, () => undefined);
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: SENTINEL_TRACE })
+      );
+      expect(JSON.stringify(json.mock.calls)).not.toContain('LATER-TRACE');
     });
 
     it("404s another user's trigger message instead of bridging to the trace", async () => {
@@ -296,24 +362,45 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
       expect(JSON.stringify(json.mock.calls)).not.toContain(SENTINEL_TRACE);
     });
 
-    it("does not attribute a LATER turn's trace when the paired reply is missing", async () => {
-      // Reachable, not hypothetical: SlotDeliveryService persists AFTER the
-      // webhook send and deliberately swallows failures, so a reply the user
-      // can see may have no row. A range scan would answer this click with the
-      // next unrelated turn's reasoning; the exact pairing answers with nothing.
+    it('pairs a reply just inside the window boundary (+59,999ms)', async () => {
       await persistUserTurn();
-      // No reply for THAT trigger — instead, a later unrelated assistant turn
-      // in the same channel/personality/persona.
       await prisma.conversationHistory.create({
         data: {
-          id: '7c3e1f77-0000-4000-8000-00000000e008',
+          id: '7c3e1f77-0000-4000-8000-00000000e00b',
           channelId: CHANNEL,
           personalityId: PERSONALITY,
           personaId: OWNER_PERSONA,
           role: 'assistant',
-          content: 'A reply to something else entirely.',
-          discordMessageId: ['444444444444444444'],
-          thinkingContent: 'UNRELATED-TRACE: this belongs to a different turn',
+          content: 'A slow-coordinated reply.',
+          discordMessageId: ['777777777777777777'],
+          thinkingContent: 'EDGE-INSIDE-TRACE',
+          createdAt: new Date(new Date(USER_MESSAGE_TIME).getTime() + 59_999),
+        },
+      });
+
+      const { req, res, json } = reqRes({
+        userId: OWNER_DISCORD,
+        params: { messageId: TRIGGER_ID },
+      });
+      await handleGetMessageReasoning(deps())(req, res, () => undefined);
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: 'EDGE-INSIDE-TRACE' })
+      );
+    });
+
+    it('excludes a row at exactly the window boundary (+60,000ms, lt not lte)', async () => {
+      await persistUserTurn();
+      await prisma.conversationHistory.create({
+        data: {
+          id: '7c3e1f77-0000-4000-8000-00000000e00c',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY,
+          personaId: OWNER_PERSONA,
+          role: 'assistant',
+          content: 'Exactly on the fence.',
+          discordMessageId: ['888888888888888888'],
+          thinkingContent: 'EDGE-OUTSIDE-TRACE',
           createdAt: new Date(new Date(USER_MESSAGE_TIME).getTime() + 60_000),
         },
       });
@@ -325,7 +412,121 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
       await handleGetMessageReasoning(deps())(req, res, () => undefined);
 
       expect(status).toHaveBeenCalledWith(404);
+      expect(JSON.stringify(json.mock.calls)).not.toContain('EDGE-OUTSIDE-TRACE');
+    });
+
+    it('pairs each of two consecutive turns with ITS OWN reply, by send order', async () => {
+      // Two full trigger+reply pairs inside one window. The second trigger's
+      // `gt` lower bound excludes the FIRST pair's reply, so each click
+      // resolves its own turn — send order (coordination stamps) decides
+      // pairing, not generation-completion order, which never touches
+      // `createdAt` at all.
+      const t0 = new Date(USER_MESSAGE_TIME).getTime();
+      await persistUserTurn();
+      await persistAssistantTurn(SENTINEL_TRACE, new Date(t0 + 900).toISOString());
+
+      const SECOND_TRIGGER_ID = '999999999999999901';
+      await prisma.conversationHistory.create({
+        data: {
+          id: '7c3e1f77-0000-4000-8000-00000000e00d',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY,
+          personaId: OWNER_PERSONA,
+          role: 'user',
+          content: 'And a moat?',
+          discordMessageId: [SECOND_TRIGGER_ID],
+          createdAt: new Date(t0 + 10_000),
+        },
+      });
+      await prisma.conversationHistory.create({
+        data: {
+          id: '7c3e1f77-0000-4000-8000-00000000e00e',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY,
+          personaId: OWNER_PERSONA,
+          role: 'assistant',
+          content: 'A moat is a defensive ditch.',
+          discordMessageId: ['999999999999999902'],
+          thinkingContent: 'SECOND-TURN-TRACE',
+          createdAt: new Date(t0 + 11_000),
+        },
+      });
+
+      const first = reqRes({ userId: OWNER_DISCORD, params: { messageId: TRIGGER_ID } });
+      await handleGetMessageReasoning(deps())(first.req, first.res, () => undefined);
+      expect(first.json).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: SENTINEL_TRACE })
+      );
+
+      const second = reqRes({ userId: OWNER_DISCORD, params: { messageId: SECOND_TRIGGER_ID } });
+      await handleGetMessageReasoning(deps())(second.req, second.res, () => undefined);
+      expect(second.json).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: 'SECOND-TURN-TRACE' })
+      );
+    });
+
+    it('does not attribute a turn OUTSIDE the pairing window when the reply is missing', async () => {
+      // The bounded half of the fail-safe: an orphaned trigger (the reply was
+      // never persisted — reachable, SlotDeliveryService swallows persist
+      // failures after the webhook send) must not pair with a turn beyond the
+      // window. An unbounded range scan would answer this click with whatever
+      // came next, hours later included.
+      await persistUserTurn();
+      await prisma.conversationHistory.create({
+        data: {
+          id: '7c3e1f77-0000-4000-8000-00000000e008',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY,
+          personaId: OWNER_PERSONA,
+          role: 'assistant',
+          content: 'A reply to something else entirely.',
+          discordMessageId: ['444444444444444444'],
+          thinkingContent: 'UNRELATED-TRACE: this belongs to a different turn',
+          createdAt: new Date(new Date(USER_MESSAGE_TIME).getTime() + 5 * 60_000),
+        },
+      });
+
+      const { req, res, json, status } = reqRes({
+        userId: OWNER_DISCORD,
+        params: { messageId: TRIGGER_ID },
+      });
+      await handleGetMessageReasoning(deps())(req, res, () => undefined);
+
+      expect(status).toHaveBeenCalledWith(404);
       expect(JSON.stringify(json.mock.calls)).not.toContain('UNRELATED-TRACE');
+    });
+
+    it('ACCEPTED TRADE: an orphaned trigger pairs with a within-window later turn', async () => {
+      // The deliberate cost of windowed pairing, pinned so nobody "fixes" it
+      // back to exact matching without confronting it: when the true reply was
+      // never persisted AND another same-conversation turn landed inside the
+      // window, that turn's trace is returned. The route cannot distinguish
+      // the two — the trigger linkage is not stored — and prod pairing offsets
+      // make exact matching resolve nothing at all, which is strictly worse.
+      await persistUserTurn();
+      await prisma.conversationHistory.create({
+        data: {
+          id: '7c3e1f77-0000-4000-8000-00000000e00a',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY,
+          personaId: OWNER_PERSONA,
+          role: 'assistant',
+          content: 'The following turn.',
+          discordMessageId: ['666666666666666666'],
+          thinkingContent: 'WITHIN-WINDOW-TRACE',
+          createdAt: new Date(new Date(USER_MESSAGE_TIME).getTime() + 45_000),
+        },
+      });
+
+      const { req, res, json } = reqRes({
+        userId: OWNER_DISCORD,
+        params: { messageId: TRIGGER_ID },
+      });
+      await handleGetMessageReasoning(deps())(req, res, () => undefined);
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingContent: 'WITHIN-WINDOW-TRACE' })
+      );
     });
 
     it('404s when the trigger has no reply persisted yet', async () => {
