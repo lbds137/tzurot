@@ -111,7 +111,15 @@ state what you verified and how, not just what you did.
 
 ## Ship in bounded units
 
-Trigger: when unreleased **merged PRs that touch runtime** reach roughly ten,
+**The primary cut trigger is the 🚢 Next Release plan in `backlog/now.md`.**
+Each release is planned at the previous cut — theme, contents, waiting-on list,
+exclusions, deploy notes, cut criterion — and the cut is proposed when its
+waiting-on list empties (drafting step: `/tzurot-git-workflow` § Release, final
+step). Ad-hoc accumulation narrowed work selection to next-thing-only; the plan
+is the named moment the bigger picture gets looked at. The two triggers below
+are BACKSTOPS: a planned theme that balloons still cuts.
+
+Backstop one: when unreleased **merged PRs that touch runtime** reach roughly ten,
 or the release notes would need more than two themes, propose a cut — accumulation
 dilutes the holistic release-review's second look. **Count merged PRs, not
 commits**: rebase-only merging makes those diverge badly enough to change the
@@ -127,11 +135,11 @@ The same instinct applies down-stack: one package per rollout PR, one campaign
 slice per PR, fix-forward for a release review's non-blocking finding rather
 than holding the train.
 
-**Second trigger — REVIEW capacity, which the runtime count does not measure.**
+**Backstop two — REVIEW capacity, which the runtime count does not measure.**
 "Cut non-runtime batches at convenience" is right about prod risk and wrong
 about the reviewer: the release PR renders the whole range's diff, so a set
 that is mostly `docs/`/`.claude/`/`tracker/` still puts every one of those
-files in front of the review that the first trigger exists to protect.
+files in front of the review that the first backstop exists to protect.
 GitHub stops rendering a diff at **300 files** (its documented limit), and
 attention degrades well before that. `release:range` prints the range's file
 count and flags ~250; treat that as a cut trigger on its own, even at a low
