@@ -4,17 +4,15 @@
 
 ---
 
-## 🔨 IN FLIGHT — doc-77 / doc-73 build session (2026-08-14, Opus orchestrator)
+## ✅ doc-77 PR A + doc-73 PR 1 MERGED (2026-08-15, Opus orchestrator)
 
-**PR #2104 MERGED** — doc-73 PR 1: the View Reasoning message context-menu command (pure routing over the existing lookup + render path). Branch verified deleted.
+**#2103** (doc-77 PR A) — four `reasoning` knobs → one canonical `thinking` level (`off·minimal·low·medium·high·max`), absent kept distinct from `off`, legacy-shape upgrade on BOTH the inbound and DB-read paths. **#2104** (doc-73 PR 1) — the View Reasoning message context-menu command. Both branches verified deleted.
 
-**PR #2103 open** (`refactor/canonical-thinking-level`, worktree `agent-a1d249db53f7c544f`) — doc-77 PR A: four `reasoning` knobs → one canonical `thinking` level, legacy-shape upgrade on BOTH the inbound and DB-read paths, data-only migration. **Live monitor `bz5jth0xt`**, worktree-anchored because a bare `git rev-parse HEAD` in the main checkout resolves to `develop`. **That worktree must survive until merge** — a branch checked out anywhere makes `--delete-branch` fail silently.
+**🚨 Migration `20260814120000_collapse_reasoning_to_thinking` — APPLY AFTER THE DEPLOY, NOT BEFORE**, reversing `03-database.md`'s prod order (owner decision). No DDL, so `release:premigrate` reads it as additive — but it is semantically a key rename, and old code sees a migrated row as having no reasoning configured (no scaled max_tokens, no effort sent, leak detection off) across the 17 of 39 configs that set an effort. The reverse order needs no maintenance window because the read-path upgrade handles new-code-on-old-rows. **Prod: merge the release → let Railway finish → migrate.** The gap that lets this be forgotten is **TASK-616** (premigrate cannot see an apply-after-deploy marker).
 
-**🚨 Migration `20260814120000_collapse_reasoning_to_thinking` — APPLY AFTER THE DEPLOY, NOT BEFORE.** Owner decision, reversing `03-database.md`'s prod order for this one migration. It has no DDL so `release:premigrate` reads it as additive, but it is semantically a key rename: old code sees a migrated row as having no reasoning configured (no scaled max_tokens, no effort sent, leak detection off) for the whole deploy window, across the 17 of 39 configs that set an effort. The reverse order is safe with no maintenance window because the read-path upgrade handles new-code-on-old-rows. Dev: push → let it deploy → `pnpm ops db:migrate --env dev`. Prod: merge the release → let Railway finish → migrate. Not yet applied anywhere.
+**Two catches worth keeping.** (1) The worker narrowed `ConversationalRAGService`'s `reasoningEnabled` from "level set" to "level above `off`" — that flag gates leaked-CoT detection → retry, so it would have disabled leak detection for the 9 configs encoding "no reasoning", Kimi presets included. Reverted. (2) `thinking: 'max'` is **unverified on the wire** (doc-read, never probed) and is selectable in the dashboard from now; doc-77 PR B step 0 probes it alongside `effort:'none'`.
 
-**Orchestrator catch worth keeping**: the worker narrowed `ConversationalRAGService`'s `reasoningEnabled` from "level set" to "level above `off`". That flag gates leaked-CoT detection → retry, so the narrowing would have disabled leak detection for the 9 configs encoding "no reasoning" — including Kimi presets, where reasoning-as-plain-text is a known unhandled shape. Reverted to the literal translation; `hasThinkingEnabled` deleted with it (no production caller left, knip would fail).
-
-doc-73 PR 1 (View Reasoning context menu) dispatched in parallel — disjoint file set. Both doc-77 and doc-73 have **all owner decisions closed**; remaining doc-77 work is PR B (z.ai translation, step 0 = live probe, needs owner green-light on the BYOK key) and PR C (save-time validation).
+Remaining doc-77: PR B (z.ai translation; needs owner green-light for the BYOK probe), PR C (save-time validation). doc-73 PR 2 spec is drafted (persistence; nullable column, ~19 MB @ 30d). All owner decisions on both themes are closed.
 
 ## 🚀 beta.201 SHIPPED (2026-08-14) — smoke item open
 
