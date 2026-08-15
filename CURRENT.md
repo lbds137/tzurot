@@ -6,7 +6,7 @@
 
 ## 🔨 IN FLIGHT — doc-77 / doc-73 build session (2026-08-14, Opus orchestrator)
 
-**PR #2103** (`refactor/canonical-thinking-level`, worktree `agent-a1d249db53f7c544f`) — doc-77 PR A: four `reasoning` knobs → one canonical `thinking` level, legacy-shape upgrade at the validation boundary, data-only migration (raw SQL, LWW-neutral). **Live monitor ids: `bskwuzb3a` (#2103) · `bebcc02p0` (#2104)** — both worktree-anchored, because a bare `git rev-parse HEAD` in the main checkout resolves to `develop`, not the PR head. **Both worktrees must survive until merge** (`agent-a1d249db53f7c544f` → #2103, `agent-ab12da18722debb6a` → #2104) — a branch checked out anywhere makes `--delete-branch` fail silently. #2103 carries fixup commits, so `fixup-check` is red by design until the pre-merge autosquash.
+**PR #2103** (`refactor/canonical-thinking-level`, worktree `agent-a1d249db53f7c544f`) — doc-77 PR A: four `reasoning` knobs → one canonical `thinking` level, legacy-shape upgrade at the validation boundary, data-only migration (raw SQL, LWW-neutral). **Live monitor ids: `bvgrxgl25` (#2103 round 4) · `bc4dieg3h` (#2104 round 2)** — both worktree-anchored, because a bare `git rev-parse HEAD` in the main checkout resolves to `develop`, not the PR head. **Both worktrees must survive until merge** (`agent-a1d249db53f7c544f` → #2103, `agent-ab12da18722debb6a` → #2104) — a branch checked out anywhere makes `--delete-branch` fail silently. Both branches are autosquashed to one commit each (sanctioned final-round exception), so `fixup-check` is green.
 
 **PR #2104** — doc-73 PR 1: the View Reasoning message context-menu command, pure routing over the existing lookup + render path.
 
