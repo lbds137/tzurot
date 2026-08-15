@@ -24,3 +24,8 @@ Fix shape: (a) drop active="true" from the roster - the <from id pronouns> tag o
 
 Acceptance: participants block bytes are invariant across consecutive turns with different speakers in the same channel (extend the ParticipantFormatter byte-identity test), and prod prefix-diff shows no same-length participants churn.
 <!-- SECTION:DESCRIPTION:END -->
+
+RIDER (from PR 2108 round-5 review, routed here because this task reworks the
+roster rendering and its tests): add a PromptBuilder.test.ts assertion that the
+system message ends with </participants> when the roster is non-empty and there
+is no history — today only the empty-roster tail case is pinned directly.
