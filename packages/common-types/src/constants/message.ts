@@ -156,18 +156,22 @@ export const MULTI_TAG = {
 export const NO_TEXT_CONTENT_PLACEHOLDER = '[no text content]';
 
 /**
- * How far an assistant turn's `createdAt` sits past its triggering user turn's.
+ * How far an assistant turn's `createdAt` sits past the persist payload's
+ * `userMessageTime`.
  *
  * The persist handler derives the assistant row's timestamp as
  * `userMessageTime + this`, which makes the row's deterministic id a pure
- * function of the turn and guarantees chronological ordering (user < assistant)
- * without depending on wall-clock persist time.
+ * function of the payload (so a retried persist is idempotent) and sorts the
+ * assistant row after the payload's own timestamp without depending on
+ * wall-clock persist time.
  *
- * Both sides MUST reference this constant, for the same reason
- * {@link NO_TEXT_CONTENT_PLACEHOLDER} exists: the reader pairs a user row to
- * its reply by adding this offset, so a literal that drifts between writer and
- * reader silently breaks the pairing with no error anywhere — the lookup just
- * stops finding anything.
+ * This is a WRITER-side constant only. It does NOT relate the assistant row
+ * to the USER row's stored `createdAt`: user rows carry the Discord post time
+ * while `userMessageTime` is stamped at coordination time on the dominant
+ * producer paths, so the two rows sit tens of milliseconds to seconds apart
+ * in practice. Readers must not pair rows by adding this offset — the
+ * reasoning-trace bridge pairs by a bounded nearest-following window for
+ * exactly this reason (`historyReasoning.ts`).
  */
 export const ASSISTANT_ROW_OFFSET_MS = 1;
 

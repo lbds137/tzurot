@@ -16,7 +16,7 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { MessageRole, ASSISTANT_ROW_OFFSET_MS } from '@tzurot/common-types/constants/message';
+import { MessageRole } from '@tzurot/common-types/constants/message';
 import { MessageReasoningResponseSchema } from '@tzurot/common-types/schemas/api/history';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -69,31 +69,37 @@ async function findTraceByReplyId(
 }
 
 /**
+ * How far past the trigger row's `createdAt` the bridge looks for the reply.
+ *
+ * The reply CANNOT be found by exact offset: the persist payload's
+ * `userMessageTime` is stamped at coordination time on the dominant producer
+ * paths (`MultiTagCoordinator`, `PersonalityChatManager`) while the user row
+ * carries the Discord post time, so the two rows sit tens of milliseconds to
+ * seconds apart (prod measurement: 815 of 816 sampled turns pair within 60s,
+ * offsets clustering 62ms-3s; an exact `+1ms` match resolved none of them).
+ * The assistant timestamp is stamped at coordination, BEFORE generation, so a
+ * slow generation does not widen the gap.
+ */
+const REPLY_PAIRING_WINDOW_MS = 60_000;
+
+/**
  * Resolve a TRIGGER message id to the assistant turn that answered it.
  *
  * Two hops, because a user turn and its reply are separate rows with separate
  * Discord message ids: find the user row by its own id, then the reply paired
- * with it. "Paired" is an EXACT timestamp match, not a range scan — the
- * assistant row is persisted at `userMessageTime + 1ms`
- * (`conversationAssistantMessage.ts` derives it that way so the row's id is a
- * pure function of the turn), so its `createdAt` is exactly one millisecond
- * past the user row's.
+ * with it. "Paired" is the NEAREST FOLLOWING assistant turn in the same
+ * conversation within {@link REPLY_PAIRING_WINDOW_MS} — the trigger linkage is
+ * not stored on the assistant row, and exact-offset pairing is impossible (see
+ * the window constant).
  *
- * The exactness is the point, and it is a SAFETY property rather than an
- * optimization. A reply can legitimately have no row at all: `SlotDeliveryService`
- * persists AFTER the webhook send and deliberately swallows failures, so the
- * user can hold a message that was never written. A range scan
- * (`createdAt > userRow.createdAt`, take the first) answers that case with
- * whatever unrelated turn came next and renders its reasoning under the wrong
- * message. The exact match answers it with nothing.
- *
- * That also makes this robust to the one thing not verified here: whether
- * `userMessageTime` is the Discord post time on EVERY producer path (the job
- * context, and `MultiTagRecovery` rebuilding it from a snapshot). If it ever
- * isn't, this misses and the caller 404s — which is where the user was before
- * the bridge existed. Wrong-and-confident is the failure worth engineering out;
- * see TASK-619 for the producer sweep that would let this be asserted rather
- * than merely relied upon.
+ * The window is the SAFETY bound. A reply can legitimately have no row at all
+ * (`SlotDeliveryService` persists AFTER the webhook send and deliberately
+ * swallows failures), and in that case an unbounded scan would answer with
+ * whatever unrelated turn came next — hours later included. Inside the window
+ * the wrong-answer risk requires that orphaning AND another same-conversation
+ * turn within 60s, a deliberately accepted conjunction pinned by the
+ * "ACCEPTED TRADE" case in `historyReasoning.component.test.ts`; the
+ * outside-window 404 is pinned there too.
  *
  * `ownerScope` is applied to BOTH hops, not just the first. Skipping it on the
  * second would let a caller who owns a user row read a reply belonging to
@@ -128,13 +134,17 @@ async function bridgeFromTriggerMessage(
       personalityId: userRow.personalityId,
       personaId: userRow.personaId,
       role: MessageRole.Assistant,
-      // Exactly the paired reply — see the note above on why this is an
-      // equality and not a range.
-      createdAt: new Date(userRow.createdAt.getTime() + ASSISTANT_ROW_OFFSET_MS),
+      // Nearest following turn inside the pairing window — see the notes above
+      // on why this is a bounded range and not an exact offset.
+      createdAt: {
+        gt: userRow.createdAt,
+        lt: new Date(userRow.createdAt.getTime() + REPLY_PAIRING_WINDOW_MS),
+      },
       deletedAt: null,
       ...ownerScope,
     },
     select: { thinkingContent: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
   });
 }
 
