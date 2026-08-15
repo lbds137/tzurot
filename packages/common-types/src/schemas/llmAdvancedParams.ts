@@ -5,7 +5,8 @@
  * This schema validates JSONB from the LlmConfig.advancedParameters column.
  *
  * Key features:
- * - Unified `reasoning` object works across o1/o3, Claude, Gemini, DeepSeek R1
+ * - One canonical `thinking` level, translated per provider at request-build
+ *   time (OpenRouter `reasoning.effort`, z.ai `thinking`/`reasoning_effort`)
  * - Snake_case to match OpenRouter REST API (LangChain passes unknown params as-is)
  * - All fields optional to support partial configurations
  *
@@ -58,65 +59,139 @@ export const SamplingParamsSchema = z.object({
 });
 
 // ============================================
-// REASONING PARAMETERS (Unified by OpenRouter)
-// Works across: OpenAI o1/o3, Claude, Gemini, DeepSeek R1
+// THINKING (extended-reasoning) PARAMETER
+// One canonical level, translated per provider at request-build time.
 // ============================================
 
 /**
- * The canonical reasoning-effort levels. `ReasoningConfigSchema.effort`
- * derives from this tuple, and UI surfaces that validate user-typed effort
- * values (e.g. preset config parsing) import it — one list, no drift.
+ * The canonical thinking levels — our own vocabulary, deliberately
+ * provider-neutral so each provider builder can translate FROM it
+ * (OpenRouter `reasoning.effort`, z.ai `thinking` + `reasoning_effort`).
+ *
+ * Ordered weakest-to-strongest after `off`. Budget shares are approximate and
+ * are what `AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS` encodes.
  */
-export const REASONING_EFFORT_LEVELS = [
-  'xhigh',
-  'high',
-  'medium',
-  'low',
-  'minimal',
-  'none',
-] as const;
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'max'] as const;
 
-/** The effort-level union, for consumers that need the type without the tuple. */
-export type ReasoningEffortLevel = (typeof REASONING_EFFORT_LEVELS)[number];
+/** The thinking-level union, for consumers that need the type without the tuple. */
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 /**
- * Reasoning token configuration for "thinking" models.
- * OpenRouter normalizes this across different providers.
+ * The single extended-thinking knob.
+ *
+ * ABSENT is distinct from `'off'`: absent means "send nothing, take the
+ * provider default", while `'off'` explicitly asks the provider to disable
+ * reasoning. Configs that carry no thinking key must keep behaving exactly as
+ * they did before this field existed.
  */
-export const ReasoningConfigSchema = z.object({
+export const ThinkingParamsSchema = z.object({
   /**
-   * Effort level - maps to approximate reasoning token budget:
-   * - xhigh: ~95% of max_tokens (maximum thinking)
-   * - high: ~80% of max_tokens
-   * - medium: ~50% of max_tokens
-   * - low: ~20% of max_tokens
+   * Extended-thinking level:
+   * - off: reasoning disabled
    * - minimal: ~10% of max_tokens
-   * - none: 0% (reasoning disabled)
+   * - low: ~20% of max_tokens
+   * - medium: ~50% of max_tokens
+   * - high: ~80% of max_tokens
+   * - max: maximum thinking the provider offers
+   *
+   * Omit the key entirely to take the provider default.
    */
-  effort: z.enum(REASONING_EFFORT_LEVELS).optional(),
-
-  /**
-   * Direct token budget for reasoning (Anthropic, Gemini, Alibaba Qwen).
-   * Constraints: min 1024, max 32000, must be < max_tokens
-   */
-  max_tokens: z.number().int().min(1024).max(32000).optional(),
-
-  /** Whether to exclude reasoning from the response (default: false = include) */
-  exclude: z.boolean().optional(),
-
-  /** Enable/disable reasoning entirely (default: true for reasoning models) */
-  enabled: z.boolean().optional(),
+  thinking: z.enum(THINKING_LEVELS).optional(),
 });
 
-type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>;
+// ============================================
+// LEGACY `reasoning` UPGRADE
+// ============================================
+
+/** The retired effort names that map 1:1 onto a canonical level. */
+const LEGACY_EFFORT_TO_LEVEL: Readonly<Record<string, ThinkingLevel>> = {
+  none: 'off',
+  minimal: 'minimal',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'max',
+};
+
+/** The retired 4-knob object, as it may still appear in an on-disk export file. */
+interface LegacyReasoningShape {
+  effort?: unknown;
+  max_tokens?: unknown;
+  exclude?: unknown;
+  enabled?: unknown;
+}
 
 /**
- * Parameters containing reasoning configuration.
+ * Map one legacy `reasoning` object onto a canonical level, in precedence
+ * order. Returns `undefined` when the object expresses no level at all
+ * (empty, `exclude`-only, or `enabled: true` with no budget) — such a payload
+ * gets NO `thinking` key, which preserves "take the provider default".
+ *
+ * This mapping is duplicated as a SQL `CASE` in
+ * `prisma/migrations/20260814120000_collapse_reasoning_to_thinking/migration.sql`.
+ * `llmAdvancedParams.test.ts` pins THIS half against a table; nothing executes
+ * the SQL to compare, so the two are kept in step by convention — change them
+ * together. The migration's header records where they deliberately differ.
  */
-export const ReasoningParamsSchema = z.object({
-  /** Reasoning token configuration */
-  reasoning: ReasoningConfigSchema.optional(),
-});
+function legacyReasoningToLevel(reasoning: LegacyReasoningShape): ThinkingLevel | undefined {
+  // Explicit off wins over any effort — the two encodings of "no reasoning"
+  // that prod data actually carries ({enabled:false} and {effort:'none'})
+  // must land on the same level.
+  if (reasoning.enabled === false) {
+    return 'off';
+  }
+  if (typeof reasoning.effort === 'string') {
+    const mapped = LEGACY_EFFORT_TO_LEVEL[reasoning.effort];
+    if (mapped !== undefined) {
+      return mapped;
+    }
+  }
+  // A bare token budget expressed intent without a level. Fixed mapping, not
+  // proportional to the number: the retired schema documented `high` as ~80%
+  // of max_tokens, so it is the level whose DOCUMENTED meaning matches "a
+  // budget was set" — a 1024-token budget lands on `high` the same as a
+  // 32000-token one.
+  if (typeof reasoning.max_tokens === 'number') {
+    return 'high';
+  }
+  return undefined;
+}
+
+/**
+ * Upgrade an inbound `advancedParameters` payload that still carries the
+ * retired 4-knob `reasoning` object into the canonical `thinking` level.
+ *
+ * Non-object input, and input without a `reasoning` object, pass through
+ * untouched. A `thinking` key already carrying a VALUE wins — a payload
+ * holding both is treated as already-canonical with a stale leftover. An
+ * explicit `thinking: null` does not win, since it expresses no level.
+ *
+ * Exported so the same mapping is available to any validation boundary; wired
+ * in via `AdvancedParamsInputSchema`.
+ */
+export function upgradeLegacyReasoningShape(params: unknown): unknown {
+  if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+    return params;
+  }
+  const record = params as Record<string, unknown>;
+  const { reasoning } = record;
+  if (typeof reasoning !== 'object' || reasoning === null || Array.isArray(reasoning)) {
+    return params;
+  }
+
+  const { reasoning: _dropped, ...rest } = record;
+  // Both nullish forms fall through, not just `undefined`: an explicit
+  // `thinking: null` expresses no level, so the legacy object must still be
+  // mapped. Short-circuiting on it would hand a null to the enum, which
+  // accepts `undefined` but rejects `null` — turning a payload we can upgrade
+  // into a rejected request. Spelled out rather than `!= null` because
+  // `eqeqeq` bans the loose form.
+  if (rest.thinking !== undefined && rest.thinking !== null) {
+    return rest;
+  }
+  const level = legacyReasoningToLevel(reasoning);
+  return level === undefined ? rest : { ...rest, thinking: level };
+}
 
 // ============================================
 // OUTPUT CONTROL PARAMETERS
@@ -174,11 +249,30 @@ export const OpenRouterParamsSchema = z.object({
  * Complete advanced parameters schema for LlmConfig.advancedParameters.
  * Merges all parameter categories into a single validated structure.
  */
-export const AdvancedParamsSchema = SamplingParamsSchema.merge(ReasoningParamsSchema)
+export const AdvancedParamsSchema = SamplingParamsSchema.merge(ThinkingParamsSchema)
   .merge(OutputParamsSchema)
   .merge(OpenRouterParamsSchema);
 
 export type AdvancedParams = z.infer<typeof AdvancedParamsSchema>;
+
+/**
+ * The same shape, but tolerant of the retired 4-knob `reasoning` object on the
+ * way in. Use this for any INBOUND payload that may predate the collapse
+ * (preset JSON import, an old client) — plain `AdvancedParamsSchema` strips an
+ * unknown `reasoning` key silently, which would drop the user's setting with
+ * no error.
+ *
+ * Accepted tradeoff: `z.preprocess` makes `z.input<>` of this schema `unknown`,
+ * because the preprocess function itself takes `unknown`. Any route typing its
+ * parameter off `z.input` therefore loses compile-time shape-checking of
+ * `advancedParameters` — a `{ thnking: 'high' }` typo becomes a runtime Zod
+ * rejection rather than a type error. That is the price of accepting the legacy
+ * shape at all; `z.infer` (the OUTPUT type) is unaffected and still exact.
+ */
+export const AdvancedParamsInputSchema = z.preprocess(
+  upgradeLegacyReasoningShape,
+  AdvancedParamsSchema
+);
 
 // ============================================
 // VALIDATION FUNCTIONS
@@ -190,6 +284,13 @@ export type AdvancedParams = z.infer<typeof AdvancedParamsSchema>;
  *
  * Handles null/undefined from database JSONB by returning empty object.
  *
+ * Parses through `AdvancedParamsInputSchema`, so a stored row still carrying
+ * the retired `reasoning` object is UPGRADED on read rather than stripped.
+ * That matters in the window between deploying this code and running the data
+ * migration in a given environment: plain strip-mode would make the config's
+ * level appear to vanish from the dashboard and `/inspect` until the migration
+ * lands. The upgrade is idempotent, so a migrated row is unaffected.
+ *
  * @param params - Raw params from database JSONB or user input
  * @returns Validated AdvancedParams or null if invalid
  */
@@ -198,7 +299,7 @@ export function safeValidateAdvancedParams(params: unknown): AdvancedParams | nu
   if (params === null || params === undefined) {
     return {};
   }
-  const result = AdvancedParamsSchema.safeParse(params);
+  const result = AdvancedParamsInputSchema.safeParse(params);
   if (!result.success) {
     logger.debug(
       { errors: result.error.flatten().fieldErrors },
@@ -209,63 +310,9 @@ export function safeValidateAdvancedParams(params: unknown): AdvancedParams | nu
   return result.data;
 }
 
-/**
- * Check if reasoning is enabled for these params.
- * Used to apply constraints (e.g., max_tokens > reasoning.max_tokens).
- *
- * @param params - Validated AdvancedParams
- * @returns true if reasoning is configured and enabled
- */
-export function hasReasoningEnabled(params: AdvancedParams): boolean {
-  if (params.reasoning === undefined) {
-    return false;
-  }
-  if (params.reasoning.enabled === false) {
-    return false;
-  }
-  if (params.reasoning.effort === 'none') {
-    return false;
-  }
-  return params.reasoning.effort !== undefined || params.reasoning.max_tokens !== undefined;
-}
-
-/**
- * Validate reasoning constraints against max_tokens.
- * Returns true if valid, false if reasoning.max_tokens >= max_tokens.
- *
- * @param params - Validated AdvancedParams
- * @returns true if constraints are satisfied
- */
-export function validateReasoningConstraints(params: AdvancedParams): boolean {
-  if (params.reasoning?.max_tokens === undefined) {
-    return true;
-  }
-  if (params.max_tokens === undefined) {
-    return true;
-  }
-
-  // reasoning.max_tokens must be less than max_tokens to leave room for response
-  return params.reasoning.max_tokens < params.max_tokens;
-}
-
 // ============================================
 // CONVERSION UTILITIES
 // ============================================
-
-/**
- * Reasoning configuration in camelCase format.
- * Matches the OpenRouter API shape for easy pass-through.
- */
-export interface ConvertedReasoningConfig {
-  /** Effort level: xhigh (~95%), high (~80%), medium (~50%), low (~20%), minimal (~10%), none */
-  effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
-  /** Direct token budget for reasoning (different from top-level maxTokens) */
-  maxTokens?: number;
-  /** Whether to exclude reasoning from the response */
-  exclude?: boolean;
-  /** Enable/disable reasoning entirely */
-  enabled?: boolean;
-}
 
 /**
  * Converted params in camelCase format for use in ResolvedLlmConfig.
@@ -277,7 +324,7 @@ export interface ConvertedReasoningConfig {
  * - Sampling (basic): temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Sampling (advanced): minP, topA, seed
  * - Output: maxTokens, logitBias, responseFormat, showThinking
- * - Reasoning: reasoning object (for thinking models)
+ * - Thinking: thinking level (for reasoning models)
  * - OpenRouter-specific: transforms, route, verbosity
  */
 export interface ConvertedLlmParams {
@@ -300,31 +347,13 @@ export interface ConvertedLlmParams {
   responseFormat?: { type: 'text' | 'json_object' };
   showThinking?: boolean;
 
-  // Reasoning (for thinking models: o1/o3, Claude, Gemini, DeepSeek R1)
-  reasoning?: ConvertedReasoningConfig;
+  // Thinking level (for reasoning models: o1/o3, Claude, Gemini, DeepSeek R1, GLM)
+  thinking?: ThinkingLevel;
 
   // OpenRouter-specific routing/transform params
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
-}
-
-/**
- * Convert reasoning config from snake_case to camelCase.
- * Internal helper for advancedParamsToConfigFormat.
- */
-function convertReasoningConfig(
-  reasoning: ReasoningConfig | undefined
-): ConvertedReasoningConfig | undefined {
-  if (reasoning === undefined) {
-    return undefined;
-  }
-  return {
-    effort: reasoning.effort,
-    maxTokens: reasoning.max_tokens,
-    exclude: reasoning.exclude,
-    enabled: reasoning.enabled,
-  };
 }
 
 /**
@@ -359,8 +388,8 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
     responseFormat: params.response_format,
     showThinking: params.show_thinking,
 
-    // Reasoning (for thinking models)
-    reasoning: convertReasoningConfig(params.reasoning),
+    // Thinking level (same name both sides — no snake/camel split)
+    thinking: params.thinking,
 
     // OpenRouter-specific routing/transform params
     transforms: params.transforms,
@@ -383,7 +412,7 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
  * - Basic sampling: temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Advanced sampling: minP, topA, seed
  * - Output control: maxTokens, logitBias, responseFormat, showThinking
- * - Reasoning: reasoning (for thinking models)
+ * - Thinking: thinking (canonical level for reasoning models)
  * - OpenRouter-specific: transforms, route, verbosity
  * - Memory/context: memoryScoreThreshold, memoryLimit, contextWindowTokens
  */
@@ -404,8 +433,8 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
   'logitBias',
   'responseFormat',
   'showThinking',
-  // Reasoning (for thinking models)
-  'reasoning',
+  // Thinking (canonical level for reasoning models)
+  'thinking',
   // OpenRouter-specific
   'transforms',
   'route',

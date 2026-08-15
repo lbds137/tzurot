@@ -1364,14 +1364,11 @@ describe('ConversationalRAGService', () => {
       );
     });
 
-    it('should pass reasoning config for thinking models', async () => {
+    it('should pass the thinking level for reasoning models', async () => {
       const personality = createMockPersonality({
         model: 'openrouter/deepseek-r1',
         provider: 'openrouter',
-        reasoning: {
-          effort: 'high',
-          enabled: true,
-        },
+        thinking: 'high',
         showThinking: true,
       });
       const context = createMockContext();
@@ -1381,10 +1378,7 @@ describe('ConversationalRAGService', () => {
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
           modelName: 'openrouter/deepseek-r1',
-          reasoning: {
-            effort: 'high',
-            enabled: true,
-          },
+          thinking: 'high',
           showThinking: true,
         })
       );

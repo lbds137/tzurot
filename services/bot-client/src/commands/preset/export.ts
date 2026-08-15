@@ -46,9 +46,6 @@ const SAMPLING_PARAMS = [
   'top_a',
 ] as const;
 
-/** Reasoning parameter keys to extract from reasoning config */
-const REASONING_PARAMS = ['effort', 'max_tokens', 'exclude', 'enabled'] as const;
-
 /**
  * Extract defined parameters from an object using a list of keys
  */
@@ -73,15 +70,6 @@ function extractSamplingParams(params: PresetData['params']): Record<string, unk
 }
 
 /**
- * Extract reasoning parameters from preset params
- */
-function extractReasoningParams(
-  reasoning: NonNullable<PresetData['params']['reasoning']>
-): Record<string, unknown> {
-  return extractDefinedParams(reasoning, REASONING_PARAMS);
-}
-
-/**
  * Build exportable preset data including advanced parameters
  */
 function buildPresetExportData(preset: PresetData): Record<string, unknown> {
@@ -98,12 +86,9 @@ function buildPresetExportData(preset: PresetData): Record<string, unknown> {
   // Build advanced parameters
   const advancedParams = extractSamplingParams(preset.params);
 
-  // Add reasoning if present
-  if (preset.params.reasoning !== undefined) {
-    const reasoning = extractReasoningParams(preset.params.reasoning);
-    if (Object.keys(reasoning).length > 0) {
-      advancedParams.reasoning = reasoning;
-    }
+  // Add the canonical thinking level if set
+  if (preset.params.thinking !== undefined) {
+    advancedParams.thinking = preset.params.thinking;
   }
 
   // Add show_thinking

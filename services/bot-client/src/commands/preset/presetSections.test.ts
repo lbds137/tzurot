@@ -217,15 +217,9 @@ describe('reasoningSection', () => {
   });
 
   it('should have correct fields', () => {
-    expect(reasoningSection.fields).toHaveLength(5);
+    expect(reasoningSection.fields).toHaveLength(2);
     const keys = reasoningSection.fields.map(f => f.id);
-    expect(keys).toEqual([
-      'reasoning_effort',
-      'reasoning_max_tokens',
-      'reasoning_exclude',
-      'reasoning_enabled',
-      'show_thinking',
-    ]);
+    expect(keys).toEqual(['thinking', 'show_thinking']);
   });
 
   it('should return DEFAULT status when no params set', () => {
@@ -234,13 +228,13 @@ describe('reasoningSection', () => {
   });
 
   it('should return COMPLETE status when any param is set', () => {
-    const data = { reasoning_enabled: 'true' } as FlattenedPresetData;
+    const data = { thinking: 'high' } as FlattenedPresetData;
     expect(reasoningSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
   });
 
-  it('should show preview with enabled status', () => {
-    const data = { reasoning_enabled: 'true', reasoning_effort: 'high' } as FlattenedPresetData;
-    expect(reasoningSection.getPreview(data)).toBe('enabled=true, effort=high');
+  it('should show preview with the thinking level', () => {
+    const data = { thinking: 'high' } as FlattenedPresetData;
+    expect(reasoningSection.getPreview(data)).toBe('thinking=high');
   });
 
   it('should show show_thinking indicator when enabled', () => {
@@ -248,25 +242,19 @@ describe('reasoningSection', () => {
     expect(reasoningSection.getPreview(data)).toBe('💭 show thinking');
   });
 
-  it('should show all reasoning params in preview', () => {
+  it('should show both thinking params in preview', () => {
     const data = {
-      reasoning_enabled: 'true',
-      reasoning_effort: 'high',
-      reasoning_max_tokens: '10000',
-      reasoning_exclude: 'false',
+      thinking: 'high',
       show_thinking: 'true',
     } as FlattenedPresetData;
     const preview = reasoningSection.getPreview(data);
-    expect(preview).toContain('enabled=true');
-    expect(preview).toContain('effort=high');
-    expect(preview).toContain('max=10000');
-    expect(preview).toContain('exclude=false');
+    expect(preview).toContain('thinking=high');
     expect(preview).toContain('💭 show thinking');
   });
 
-  it('should handle enabled=false in preview', () => {
-    const data = { reasoning_enabled: 'false' } as FlattenedPresetData;
-    expect(reasoningSection.getPreview(data)).toBe('enabled=false');
+  it('should render an explicit off level in preview', () => {
+    const data = { thinking: 'off' } as FlattenedPresetData;
+    expect(reasoningSection.getPreview(data)).toBe('thinking=off');
   });
 });
 

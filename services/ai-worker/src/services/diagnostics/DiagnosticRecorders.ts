@@ -110,7 +110,7 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
     logitBias: personality.logitBias,
     responseFormat: personality.responseFormat,
     showThinking: personality.showThinking,
-    reasoning: personality.reasoning,
+    thinking: personality.thinking,
     transforms: personality.transforms,
     route: personality.route,
     verbosity: personality.verbosity,

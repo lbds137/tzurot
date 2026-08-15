@@ -52,7 +52,7 @@ function buildVisionConfigParams(
 
 /**
  * Apply a resolved (already-merged) LLM config onto the personality — model plus
- * EVERY override key (`contextWindowTokens`, sampling, `reasoning`, `maxTokens`,
+ * EVERY override key (`contextWindowTokens`, sampling, `thinking`, `maxTokens`,
  * …). This mirrors the pre-stamp ConfigStep merge: stamping only `model` silently
  * reverts every other preset field to the SEED personality (personality-bound
  * config, else the admin global default), which shipped as a real regression —
@@ -74,7 +74,7 @@ function applyResolvedConfig(
  * the personality, so every job in the chain (the conversation job AND the
  * image-description child job) shares the same user-cascaded values. The TEXT stamp
  * carries the FULL merged config — model plus every `LLM_CONFIG_OVERRIDE_KEYS` field
- * (contextWindowTokens, sampling, reasoning, …) — because nothing downstream re-runs
+ * (contextWindowTokens, sampling, thinking, …) — because nothing downstream re-runs
  * the cascade: ai-worker's `ConfigStep` trusts the stamp, and the image-description
  * job never runs the cascade at all.
  *

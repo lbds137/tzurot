@@ -9,13 +9,12 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type LlmConfigUpdateInput } from '@tzurot/common-types/schemas/api/llm-config';
 import {
   type AdvancedParams,
-  REASONING_EFFORT_LEVELS,
+  type ThinkingLevel,
+  THINKING_LEVELS,
 } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { DashboardConfig, FieldDefinition } from '../../utils/dashboard/types.js';
 import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';
-
-type ReasoningConfig = NonNullable<AdvancedParams['reasoning']>;
 
 // Re-export types for backward compatibility
 export type { PresetData, FlattenedPresetData } from './types.js';
@@ -47,11 +46,8 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     repetition_penalty: data.params.repetition_penalty?.toString() ?? '',
     min_p: data.params.min_p?.toString() ?? '',
     top_a: data.params.top_a?.toString() ?? '',
-    // Reasoning params
-    reasoning_effort: data.params.reasoning?.effort ?? '',
-    reasoning_max_tokens: data.params.reasoning?.max_tokens?.toString() ?? '',
-    reasoning_exclude: data.params.reasoning?.exclude?.toString() ?? '',
-    reasoning_enabled: data.params.reasoning?.enabled?.toString() ?? '',
+    // Thinking param (canonical level)
+    thinking: data.params.thinking ?? '',
     // Output params
     show_thinking: data.params.show_thinking?.toString() ?? '',
     // Context window (model-coupled, stays in LlmConfig)
@@ -105,34 +101,19 @@ function parseNumericParams(flat: Partial<FlattenedPresetData>): {
   return { values, hasAny };
 }
 
-// The canonical list lives beside ReasoningConfigSchema — imported so the
-// schema enum and this validation can never drift.
-const VALID_EFFORTS: readonly NonNullable<ReasoningConfig['effort']>[] = REASONING_EFFORT_LEVELS;
-
-/** Parse reasoning params from flat data */
-function parseReasoningParams(flat: Partial<FlattenedPresetData>): ReasoningConfig | null {
-  const reasoning: ReasoningConfig = {};
-
-  if (flat.reasoning_effort !== undefined && flat.reasoning_effort.length > 0) {
-    const effortInput = flat.reasoning_effort.toLowerCase();
-    const effort = VALID_EFFORTS.find(e => e === effortInput);
-    if (effort !== undefined) {
-      reasoning.effort = effort;
-    }
+/**
+ * Parse the thinking level from flat form data.
+ *
+ * An unrecognized level parses to `null` (the field is left unset) rather than
+ * erroring — the same lenience the retired effort field had. `THINKING_LEVELS`
+ * is imported so the modal's accepted values and the schema enum cannot drift.
+ */
+function parseThinkingLevel(flat: Partial<FlattenedPresetData>): ThinkingLevel | null {
+  if (flat.thinking === undefined || flat.thinking.length === 0) {
+    return null;
   }
-  if (flat.reasoning_max_tokens !== undefined && flat.reasoning_max_tokens.length > 0) {
-    const num = parseInt(flat.reasoning_max_tokens, 10);
-    if (!isNaN(num)) {
-      reasoning.max_tokens = num;
-    }
-  }
-  if (flat.reasoning_exclude !== undefined && flat.reasoning_exclude.length > 0) {
-    reasoning.exclude = flat.reasoning_exclude.toLowerCase() === 'true';
-  }
-  if (flat.reasoning_enabled !== undefined && flat.reasoning_enabled.length > 0) {
-    reasoning.enabled = flat.reasoning_enabled.toLowerCase() === 'true';
-  }
-  return Object.keys(reasoning).length > 0 ? reasoning : null;
+  const input = flat.thinking.toLowerCase();
+  return THINKING_LEVELS.find(level => level === input) ?? null;
 }
 
 /** Parse optional integer field, returning undefined if invalid */
@@ -147,18 +128,18 @@ function parseOptionalInt(value: string | undefined): number | undefined {
 /** Build advancedParameters object from flattened data */
 function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedParams | null {
   const { values: samplingParams, hasAny: hasSampling } = parseNumericParams(flat);
-  const reasoning = parseReasoningParams(flat);
+  const thinking = parseThinkingLevel(flat);
 
   const advancedParameters: AdvancedParams = { ...samplingParams };
-  if (reasoning !== null) {
-    advancedParameters.reasoning = reasoning;
+  if (thinking !== null) {
+    advancedParameters.thinking = thinking;
   }
   if (flat.show_thinking !== undefined && flat.show_thinking.length > 0) {
     advancedParameters.show_thinking = flat.show_thinking.toLowerCase() === 'true';
   }
 
   const hasAdvanced =
-    hasSampling || reasoning !== null || advancedParameters.show_thinking !== undefined;
+    hasSampling || thinking !== null || advancedParameters.show_thinking !== undefined;
   return hasAdvanced ? advancedParameters : null;
 }
 

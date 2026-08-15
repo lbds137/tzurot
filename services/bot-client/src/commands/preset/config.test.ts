@@ -116,7 +116,7 @@ describe('flattenPresetData', () => {
     expect(result.top_a).toBe('0.2');
   });
 
-  it('should flatten reasoning params', () => {
+  it('should flatten the thinking level', () => {
     const preset: PresetData = {
       id: 'preset-123',
       name: 'My Preset',
@@ -128,21 +128,13 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: true, canDelete: true },
       contextWindowTokens: 8192,
       params: {
-        reasoning: {
-          effort: 'high',
-          max_tokens: 8000,
-          exclude: false,
-          enabled: true,
-        },
+        thinking: 'high',
       },
     };
 
     const result = flattenPresetData(preset);
 
-    expect(result.reasoning_effort).toBe('high');
-    expect(result.reasoning_max_tokens).toBe('8000');
-    expect(result.reasoning_exclude).toBe('false');
-    expect(result.reasoning_enabled).toBe('true');
+    expect(result.thinking).toBe('high');
   });
 
   it('should handle missing params as empty strings', () => {
@@ -164,8 +156,7 @@ describe('flattenPresetData', () => {
     expect(result.temperature).toBe('');
     expect(result.top_p).toBe('');
     expect(result.frequency_penalty).toBe('');
-    expect(result.reasoning_effort).toBe('');
-    expect(result.reasoning_enabled).toBe('');
+    expect(result.thinking).toBe('');
   });
 
   it('should pass requiresZaiKey through for the dashboard badge', () => {
@@ -258,33 +249,30 @@ describe('unflattenPresetData', () => {
     });
   });
 
-  it('should unflatten reasoning params', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      reasoning_effort: 'medium',
-      reasoning_max_tokens: '10000',
-      reasoning_exclude: 'true',
-      reasoning_enabled: 'true',
-    };
+  it('should unflatten the thinking level', () => {
+    const flat: Partial<FlattenedPresetData> = { thinking: 'medium' };
 
     const result = unflattenPresetData(flat);
 
     const advParams = result.advancedParameters as Record<string, unknown>;
-    expect(advParams.reasoning).toEqual({
-      effort: 'medium',
-      max_tokens: 10000,
-      exclude: true,
-      enabled: true,
-    });
+    expect(advParams.thinking).toBe('medium');
   });
 
-  it('should handle invalid reasoning effort values', () => {
+  it('should unflatten an explicit off level (off is not absent)', () => {
+    const flat: Partial<FlattenedPresetData> = { thinking: 'off' };
+
+    const advParams = unflattenPresetData(flat).advancedParameters as Record<string, unknown>;
+    expect(advParams.thinking).toBe('off');
+  });
+
+  it('should handle invalid thinking level values', () => {
     const flat: Partial<FlattenedPresetData> = {
-      reasoning_effort: 'invalid',
+      thinking: 'invalid',
     };
 
     const result = unflattenPresetData(flat);
 
-    // Invalid effort should not be included
+    // An unrecognized level should not be included
     expect(result.advancedParameters).toBeUndefined();
   });
 
@@ -487,15 +475,9 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     const reasoningSection = PRESET_DASHBOARD_CONFIG.sections[4];
 
     it('should have correct fields', () => {
-      expect(reasoningSection.fields).toHaveLength(5);
+      expect(reasoningSection.fields).toHaveLength(2);
       const keys = reasoningSection.fields.map(f => f.id);
-      expect(keys).toEqual([
-        'reasoning_effort',
-        'reasoning_max_tokens',
-        'reasoning_exclude',
-        'reasoning_enabled',
-        'show_thinking',
-      ]);
+      expect(keys).toEqual(['thinking', 'show_thinking']);
     });
 
     it('should return DEFAULT status when no params set', () => {
@@ -504,13 +486,13 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     });
 
     it('should return COMPLETE status when any param is set', () => {
-      const data = { reasoning_enabled: 'true' } as FlattenedPresetData;
+      const data = { thinking: 'high' } as FlattenedPresetData;
       expect(reasoningSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
 
-    it('should show preview with enabled status', () => {
-      const data = { reasoning_enabled: 'true', reasoning_effort: 'high' } as FlattenedPresetData;
-      expect(reasoningSection.getPreview(data)).toBe('enabled=true, effort=high');
+    it('should show preview with the thinking level', () => {
+      const data = { thinking: 'high' } as FlattenedPresetData;
+      expect(reasoningSection.getPreview(data)).toBe('thinking=high');
     });
   });
 });

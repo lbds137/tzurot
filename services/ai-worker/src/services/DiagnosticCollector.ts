@@ -285,8 +285,8 @@ export class DiagnosticCollector {
         logitBias: data.logitBias,
         responseFormat: data.responseFormat,
         showThinking: data.showThinking,
-        // Reasoning
-        reasoning: data.reasoning,
+        // Thinking (canonical level)
+        thinking: data.thinking,
         // OpenRouter-specific
         transforms: data.transforms,
         route: data.route,

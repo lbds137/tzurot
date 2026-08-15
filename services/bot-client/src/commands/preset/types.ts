@@ -5,6 +5,7 @@
  * Extracted to avoid circular dependencies between config.ts and presetSections.ts.
  */
 
+import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { EntityPermissions } from '@tzurot/common-types/utils/permissions';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 
@@ -47,12 +48,8 @@ export interface PresetData {
     repetition_penalty?: number;
     min_p?: number;
     top_a?: number;
-    reasoning?: {
-      effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
-      max_tokens?: number;
-      exclude?: boolean;
-      enabled?: boolean;
-    };
+    /** Canonical thinking level; absent means "provider default". */
+    thinking?: ThinkingLevel;
     /** Whether to display thinking blocks to users */
     show_thinking?: boolean;
   };
@@ -87,11 +84,8 @@ export interface FlattenedPresetData {
   repetition_penalty: string;
   min_p: string;
   top_a: string;
-  // Reasoning params
-  reasoning_effort: string;
-  reasoning_max_tokens: string;
-  reasoning_exclude: string;
-  reasoning_enabled: string;
+  // Thinking param (canonical level; empty string = provider default)
+  thinking: string;
   // Output params
   show_thinking: string;
   // Context window (model-coupled, stays in LlmConfig)

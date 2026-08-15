@@ -16,19 +16,19 @@ export const AI_DEFAULTS = {
   /** Default maximum tokens for LLM responses */
   MAX_TOKENS: 4096,
   /**
-   * Max tokens scaling for reasoning models by effort level.
+   * Max tokens scaling for reasoning models by canonical thinking level.
    *
-   * Reasoning models (o1, Claude 3.7+, DeepSeek R1, Kimi K2, etc.) generate
+   * Reasoning models (o1, Claude 3.7+, DeepSeek R1, Kimi K2, GLM, etc.) generate
    * extended thinking content that can easily exceed the standard 4096 token limit.
    * These scaled limits ensure thinking isn't truncated.
    *
-   * Effort levels map to OpenRouter's reasoning.effort parameter:
-   * - xhigh: Maximum reasoning depth, allocate generous token budget
+   * Keyed by `ThinkingLevel` (`schemas/llmAdvancedParams.ts`):
+   * - max: Maximum reasoning depth, allocate generous token budget
    * - high: Deep reasoning, substantial token budget
    * - medium: Balanced reasoning, moderate token budget
    * - low: Light reasoning, still needs more than standard
    * - minimal: Minimal reasoning, slight increase over standard
-   * - none: Reasoning disabled, use standard limit
+   * - off: Reasoning disabled, use standard limit
    *
    * These are only applied when:
    * 1. Model is detected as a reasoning model (isReasoningModel)
@@ -40,13 +40,13 @@ export const AI_DEFAULTS = {
     // Scaling: base (4096) * multiplier
     // Based on observed thinking token usage from DeepSeek R1/o1 models:
     // - Extended thinking can use 10k-30k tokens before response
-    // - Higher effort = more thinking = more output capacity needed
-    xhigh: 65536, // 16x - Maximum reasoning depth
+    // - Higher level = more thinking = more output capacity needed
+    max: 65536, // 16x - Maximum reasoning depth
     high: 32768, // 8x - Deep reasoning
     medium: 16384, // 4x - Balanced (MCP council recommended)
     low: 8192, // 2x - Light reasoning
     minimal: 6144, // 1.5x - Minimal reasoning
-    none: 4096, // 1x - Reasoning disabled, standard limit
+    off: 4096, // 1x - Reasoning disabled, standard limit
   } as const,
   /** Temperature for vision models (lower = more deterministic) */
   VISION_TEMPERATURE: 0.3,

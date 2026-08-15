@@ -188,7 +188,7 @@ const NAMED_PARAMS = [
 /**
  * The full generation configuration: model/provider, the named sampling
  * knobs, and the complete `allParams` record (which carries the long tail —
- * seed, minP, reasoning config, transforms…).
+ * seed, minP, thinking level, transforms…).
  */
 export function buildGenerationParamsView(
   payload: DiagnosticPayload,

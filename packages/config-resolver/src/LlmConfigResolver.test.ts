@@ -444,7 +444,7 @@ describe('LlmConfigResolver', () => {
     it('should merge advanced params from override with personality fallbacks', async () => {
       const personalityWithAdvanced = {
         ...mockPersonality,
-        reasoning: { effort: 'medium' as const, enabled: true },
+        thinking: 'medium' as const,
         showThinking: true,
         minP: 0.05,
       };
@@ -457,7 +457,7 @@ describe('LlmConfigResolver', () => {
           model: 'deepseek/deepseek-r1',
           provider: 'openrouter',
           advancedParameters: {
-            reasoning: { effort: 'high', enabled: true }, // Override reasoning
+            thinking: 'high', // Override the thinking level
             // showThinking not set - should use personality default
             min_p: 0.1, // Override minP
           },
@@ -475,7 +475,7 @@ describe('LlmConfigResolver', () => {
       );
 
       // Override takes precedence
-      expect(result.config.reasoning).toEqual({ effort: 'high', enabled: true });
+      expect(result.config.thinking).toBe('high');
       expect(result.config.minP).toBe(0.1);
       // Personality fallback when not in override
       expect(result.config.showThinking).toBe(true);
@@ -484,7 +484,7 @@ describe('LlmConfigResolver', () => {
     it('should include advanced params when extracting personality defaults', async () => {
       const personalityWithAdvanced = {
         ...mockPersonality,
-        reasoning: { effort: 'high' as const, enabled: true },
+        thinking: 'high' as const,
         showThinking: true,
         minP: 0.05,
         topA: 0.3,
@@ -500,7 +500,7 @@ describe('LlmConfigResolver', () => {
       );
 
       expect(result.source).toBe('personality');
-      expect(result.config.reasoning).toEqual({ effort: 'high', enabled: true });
+      expect(result.config.thinking).toBe('high');
       expect(result.config.showThinking).toBe(true);
       expect(result.config.minP).toBe(0.05);
       expect(result.config.topA).toBe(0.3);

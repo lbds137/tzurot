@@ -7,6 +7,7 @@ import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetImportOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { upgradeLegacyReasoningShape } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -47,12 +48,14 @@ interface ImportedPresetData {
     repetition_penalty?: number;
     min_p?: number;
     top_a?: number;
-    reasoning?: {
-      effort?: string;
-      max_tokens?: number;
-      exclude?: boolean;
-      enabled?: boolean;
-    };
+    /**
+     * Canonical thinking level. Old export files on disk instead carry the
+     * retired 4-knob `reasoning` object; `upgradeLegacyReasoningShape` folds
+     * that into this field before the payload is sent, so both shapes import.
+     */
+    thinking?: string;
+    /** Retired 4-knob shape, still present in pre-collapse export files. */
+    reasoning?: Record<string, unknown>;
     show_thinking?: boolean;
   };
 }
@@ -75,10 +78,7 @@ export const PRESET_JSON_TEMPLATE = `{
     "temperature": 0.7,
     "top_p": 0.9,
     "max_tokens": 4096,
-    "reasoning": {
-      "effort": "medium",
-      "enabled": true
-    },
+    "thinking": "medium",
     "show_thinking": false
   }
 }`;
@@ -171,7 +171,10 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
     payload.contextWindowTokens = data.contextWindowTokens;
   }
   if (data.advancedParameters !== undefined && Object.keys(data.advancedParameters).length > 0) {
-    payload.advancedParameters = data.advancedParameters;
+    // Upgrade at the boundary: a pre-collapse export file carries the retired
+    // `reasoning` object, which the wire schema's strip mode would delete
+    // silently — the user's level would vanish with no error.
+    payload.advancedParameters = upgradeLegacyReasoningShape(data.advancedParameters);
   }
   if (typeof data.isGlobal === 'boolean') {
     payload.isGlobal = data.isGlobal;
