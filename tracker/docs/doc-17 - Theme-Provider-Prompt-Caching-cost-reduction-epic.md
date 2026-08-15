@@ -188,3 +188,29 @@ the user message, 1,866 tokens duplicated per referencing request) is **absorbed
 artifact §2.2 already rules it: references live ONLY in the user message. Do not fix it as a
 standalone dedup; it falls out of the V-tier hoist, and fixing it the other way (deleting the
 user-message copy) would be exactly backwards for caching.
+
+## Prod prefix-diff measurement 2026-08-15 (session probe, `pnpm ops cache:prefix-diff` + custom counters)
+
+Two busiest channels of the 24h diagnostic window (1498247824662335608, 1481138179917615144);
+20/20 consecutive same-personality prompt pairs diverge at EXACTLY the head of `<chat_log>` —
+common prefix 29-35% (~30-31k chars, the pre-chat_log system prompt), everything after re-billed
+every turn (~55-77k chars ≈ 14-19k tokens/turn).
+
+**Mechanism pinned by entry counts: the slider is `DEFAULT_MAX_MESSAGES` (50), not budget
+trimming.** Every measured prompt carries exactly 50 chat_log entries (48-49 where dedup drops a
+couple) — the fetch/count cap slides one message per turn in any full channel. This is CONSISTENT
+with §2.5.1's "budget trimming is dormant" (zero trimming events stands), and it REFINES §2.5:
+chunked-eviction-with-hysteresis implemented only at the token-budget layer would never fire in
+prod — the count cap slides first. The hysteresis policy must govern the message-count window
+too (e.g. at cap, cut to ~75% and refill), or the cache win never materializes.
+
+Also measured, feeding the minimal-user-turn PR: `<participants>` is byte-stable per render
+(0/68 pairs changed over 19h in the busiest channel, hash-identical across 3 personalities);
+where it churns (5/15 in a multi-user channel) part of the churn is the recency SORT ORDER, so
+the block moves into the stable prefix with render order sorted by persona UUID (selection stays
+recency-based). Entry timestamps are already absolute-only (cache-safe, verified in
+`conversationUtils.ts`).
+
+Open: `cachedPromptTokens: 0` on the 2026-08-15 incident request remains unexplained — the ~30k
+stable prefix should have hit even under sliding; candidates are provider TTL vs. something
+poisoning the prefix. Bracket the TTL per the gap-probe note above.
