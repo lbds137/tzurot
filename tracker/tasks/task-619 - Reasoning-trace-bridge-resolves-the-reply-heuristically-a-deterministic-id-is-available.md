@@ -1,10 +1,10 @@
 ---
 id: TASK-619
 title: Verify userMessageTime equals the Discord post time on every producer path
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 15:48'
-updated_date: '2026-08-15 18:28'
+updated_date: '2026-08-15 19:19'
 labels:
   - 'area:api-gateway'
   - 'size:S'
