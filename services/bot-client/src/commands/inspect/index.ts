@@ -14,6 +14,7 @@ import {
   SlashCommandBuilder,
   MessageFlags,
   type ButtonInteraction,
+  type MessageContextMenuCommandInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { inspectOptions } from '@tzurot/common-types/generated/commandOptions';
@@ -61,14 +62,20 @@ import { ackUpdate } from '../../ux/render/reply.js';
 const logger = createLogger('inspect');
 
 /**
- * Render one view result onto an already-acked component interaction.
+ * Render one view result onto an already-acked interaction.
  * `chunkedText` goes through the chunked-reply path (inline text, split
  * across ephemeral follow-ups when long — components ride the first chunk);
  * everything else is a single editReply. Passing components: [] clears any
  * prior rows when the user switches views on the same message.
+ *
+ * Exported so the "View Reasoning" message context-menu command
+ * (`commands/viewReasoning.ts`) renders a `DebugViewResult` through this one
+ * unpack path rather than its own copy — hence the interaction union covering
+ * context-menu commands alongside the component surfaces /inspect uses.
  */
-async function renderViewResult(
-  interaction: StringSelectMenuInteraction | ButtonInteraction,
+export async function renderViewResult(
+  interaction:
+    StringSelectMenuInteraction | ButtonInteraction | MessageContextMenuCommandInteraction,
   viewResult: DebugViewResult
 ): Promise<void> {
   if (viewResult.chunkedText !== undefined) {
