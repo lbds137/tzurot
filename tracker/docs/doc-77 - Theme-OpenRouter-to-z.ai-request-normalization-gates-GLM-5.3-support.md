@@ -501,9 +501,9 @@ preset-UI field, and the `sendThinkingBlock` display arm — **the job-result
 depends on it). With this, every owner decision in this theme is closed; the
 remaining work is build.
 
-### Phase 4 — GLM-5.3 enablement
+### Phase 4 — GLM-5.3 enablement ✅ DONE 2026-08-16 — THEME COMPLETE
 
-- [ ] Only after PRs A+B: add 5.3, with its effort vocabulary expressed through PR B's translation table. Probe the "thinking cannot be disabled" claim directly rather than trusting launch coverage — and note PR C's save-time validation is where an unsupported `off` gets surfaced.
+- [x] Only after PRs A+B: add 5.3, with its effort vocabulary expressed through PR B's translation table. **SHIPPED as #2115** (catalog entry: 1M context, `released: '2026-08-14'`, `thinkingOff: 'best-effort'` MEASURED via the probe below). Probe ran (below); PR C's save-time validation surfaces the best-effort `off` as a warning. With this, every phase in this theme is closed — TASK-609 closed on the probe evidence (report measured as best-effort, not rejected; levels honored).
 
 **✅ 5.3 PROBE RAN 2026-08-16** (owner: "5.3 should already be live so you can
 test it at your convenience"; same direct-API pattern as PR B step 0, dev BYOK

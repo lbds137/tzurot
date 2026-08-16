@@ -1,9 +1,10 @@
 ---
 id: TASK-629
 title: Image-only referenced messages render a contentless dedup stub
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 19:09'
+updated_date: '2026-08-16 23:07'
 labels:
   - 'area:ai-worker'
   - 'size:S'
