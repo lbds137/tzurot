@@ -92,6 +92,12 @@ describe('buildModelInfoUrl', () => {
       );
     });
 
+    it('should map glm-5.3 to its dedicated docs page', () => {
+      expect(buildModelInfoUrl('glm-5.3', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-5.3'
+      );
+    });
+
     it('should map glm-5-turbo to its dedicated docs page', () => {
       expect(buildModelInfoUrl('glm-5-turbo', 'zai-coding')).toBe(
         'https://docs.z.ai/guides/llm/glm-5-turbo'
@@ -296,12 +302,14 @@ describe('hasActiveChatCapableKey', () => {
 
 describe('isZaiCodingPlanModel', () => {
   it('should accept all current coding-plan catalog entries', () => {
-    expect(isZaiCodingPlanModel('glm-5')).toBe(true);
-    expect(isZaiCodingPlanModel('glm-5.1')).toBe(true);
-    expect(isZaiCodingPlanModel('glm-5.2')).toBe(true);
-    expect(isZaiCodingPlanModel('glm-5-turbo')).toBe(true);
-    expect(isZaiCodingPlanModel('glm-4.7')).toBe(true);
-    expect(isZaiCodingPlanModel('glm-4.5-air')).toBe(true);
+    // Iterates the catalog itself so a new entry can never silently fall out
+    // of this test's coverage; meaningful (not circular) because the function
+    // under test normalizes/prefix-strips rather than reading keys directly.
+    const models = listZaiCodingPlanModels();
+    expect(models.length).toBeGreaterThan(0);
+    for (const entry of models) {
+      expect(isZaiCodingPlanModel(entry.model)).toBe(true);
+    }
   });
 
   it('should case-normalize the input before lookup', () => {
@@ -347,6 +355,10 @@ describe('getZaiCodingPlanContextLength', () => {
     expect(getZaiCodingPlanContextLength('glm-5.2')).toBe(1_000_000);
   });
 
+  it('should return 1M for glm-5.3 (z.ai-only until the staggered OpenRouter listing lands)', () => {
+    expect(getZaiCodingPlanContextLength('glm-5.3')).toBe(1_000_000);
+  });
+
   it('should strip the z-ai/ prefix before lookup', () => {
     // Config validation and the runtime clamp pass the prefixed form; the
     // catalog keys are bare.
@@ -373,10 +385,13 @@ describe('listZaiCodingPlanModels', () => {
     const byName = new Map(models.map(m => [m.model, m]));
     // The catalog lineup per docs.z.ai/devpack/overview.
     expect([...byName.keys()].sort()).toEqual(
-      ['glm-4.5-air', 'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2'].sort()
+      ['glm-4.5-air', 'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3'].sort()
     );
     expect(byName.get('glm-5.2')?.contextLength).toBe(1_000_000);
     expect(byName.get('glm-4.5-air')?.contextLength).toBe(128_000);
+    // z.ai-only entries must carry `released` — it is the only `created`
+    // source for the /models recency sort until an OpenRouter listing exists.
+    expect(byName.get('glm-5.3')?.released).toBe('2026-08-14');
   });
 
   it('returns bare keys (no z-ai/ prefix) and a docs URL per model', () => {
@@ -441,7 +456,7 @@ describe('zaiThinkingOffSupport', () => {
   });
 
   it('covers the whole GLM-5.x family as best-effort', () => {
-    for (const model of ['glm-5', 'glm-5.1', 'glm-5.2', 'glm-5-turbo']) {
+    for (const model of ['glm-5', 'glm-5.1', 'glm-5.2', 'glm-5.3', 'glm-5-turbo']) {
       expect(zaiThinkingOffSupport(model)).toBe('best-effort');
     }
   });
