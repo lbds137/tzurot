@@ -325,6 +325,40 @@ describe('premigrate', () => {
     expect(runMigration).not.toHaveBeenCalled();
   });
 
+  it('still refuses when the destructive keyword sits beside a double-quoted identifier containing --', async () => {
+    // Without double-quote tracking, the `--` inside "foo--bar" is read as a
+    // line comment starting a `--`, stripping "bar\" DROP COLUMN \"x\";"
+    // entirely — deleting real DDL from the scan (fail-open).
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "foo--bar" DROP COLUMN "x";');
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a real destructive statement when an internal ; inside a dollar body would otherwise bypass the self-exempt guard', async () => {
+    // The naive-split fail-open: `scanSqlForDestructive` withholds a CREATE's
+    // createdEarlier registration until AFTER its own statement is fully
+    // scanned, specifically so a single atomic create+destroy can't
+    // self-exempt. Splitting this DO $$ body's internal `;` (between the two
+    // EXECUTE lines) into TWO separate array entries defeats that guard: the
+    // CREATE TABLE mention registers from the first fragment BEFORE the
+    // second fragment's DROP TABLE mention is checked, wrongly exempting it.
+    // Keeping the walker-owned split means the whole dollar-quoted DO block
+    // stays one statement, so the guard holds.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $$\n' +
+        'BEGIN\n' +
+        "  EXECUTE 'CREATE TABLE sneaky_t (id int)';\n" +
+        "  EXECUTE 'DROP TABLE sneaky_t';\n" +
+        'END $$;'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
   it('warns and skips an unreadable migration file in the destructive scan', async () => {
     mockGitDiff([DESTRUCTIVE_MIGRATION]);
     vi.mocked(readFileSync).mockImplementation((() => {
