@@ -93,6 +93,16 @@ function toRenderableAttachments(
   ];
 }
 
+/**
+ * Opening literal of every chat-log entry this module emits. Exported so
+ * consumers that split serialized history at entry boundaries (the
+ * cache-observability hashes) stay compile-time coupled to the actual tag
+ * shape — a rename here breaks them loudly instead of silently mis-locating
+ * the boundary. Entry bodies are XML-escaped before interpolation, so the
+ * literal cannot occur inside one (pinned by `cacheObservability.test.ts`).
+ */
+export const HISTORY_ENTRY_OPEN = '<message from="';
+
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
@@ -177,7 +187,7 @@ export function formatSingleHistoryEntryAsXml(
   }
 
   // Reactions stay at message level (forwarder can react to their own forward)
-  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${formattedContent}${quotedSection}${messageLevelAttachments}${reactionsSection}</message>`;
+  return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${formattedContent}${quotedSection}${messageLevelAttachments}${reactionsSection}</message>`;
 }
 
 /**
