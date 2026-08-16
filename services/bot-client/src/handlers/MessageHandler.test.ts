@@ -1140,6 +1140,26 @@ describe('MessageHandler', () => {
       );
     });
 
+    it('a persist failure after a delivered send does not post an error message', async () => {
+      // Same posture as SlotDeliveryService.persistDeliveredTurn: the reply is
+      // already on Discord, so a persist failure surviving the retry must not
+      // fall into the outer catch and send a SECOND message on top of it.
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
+      mockPersistence.saveAssistantMessageFromFields.mockRejectedValueOnce(
+        new Error('gateway down after retries')
+      );
+
+      await messageHandler.handleJobResult('job-slash-persist-fail', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+    });
+
     it('updates diagnostic response IDs with the slash requestId', async () => {
       const ctx = createSlashContext();
       mockJobTracker.getContext.mockReturnValue(ctx);
@@ -1236,6 +1256,27 @@ describe('MessageHandler', () => {
       const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
       expect(typeof sentContent).toBe('string');
       expect(sentContent.length).toBeGreaterThan(0);
+    });
+
+    it('a persist failure after a delivered ERROR send does not post a second error message', async () => {
+      // Symmetric with the success-path isolation: the error content is
+      // already delivered via sendResponse, so a persist failure must not
+      // fall into the outer catch and channel.send a SECOND error message.
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
+      mockPersistence.saveAssistantMessageFromFields.mockRejectedValueOnce(
+        new Error('gateway down after retries')
+      );
+
+      await messageHandler.handleJobResult('job-slash-err-persist', {
+        requestId: 'req-slash',
+        success: false,
+        error: 'model exploded',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+      expect(ctx.channel.send).not.toHaveBeenCalled();
     });
 
     it('routes null content (success=true, content=null) through the error path', async () => {
