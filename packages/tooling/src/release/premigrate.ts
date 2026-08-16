@@ -183,33 +183,66 @@ function statementTargetTables(statement: string): string[] | null {
  * Postgres-legal) aren't handled — the inner `*\/` ends the tracked comment
  * early, so the outer `*\/` and anything after briefly reads as live SQL
  * until the next real comment or string context, which can only cause
- * OVER-flagging, never a miss.
+ * OVER-flagging, never a miss. Same direction for an UNQUOTED identifier
+ * containing two `$`s (`col$tag$suffix`, Postgres-legal): the first `$`
+ * can be misread as a dollar-quote opener, and with no real closer the
+ * "span" runs to end of input, folding the rest of the file into one
+ * statement — again over-flagging, never a miss.
+ *
+ * Returns each statement TWICE: `text` (comment-stripped, everything else
+ * intact — what `DESTRUCTIVE_PATTERNS`/`statementTargetTables` scan) and
+ * `masked` (comments stripped AND single-quoted literal content AND
+ * dollar-quoted span inner content blanked to spaces — what
+ * `CREATE_TABLE_RE`'s created-earlier registration scans). The split exists
+ * because a `'...'` literal or a dollar body can contain arbitrary TEXT that
+ * happens to read as `CREATE TABLE <name>` without creating anything real —
+ * e.g. `INSERT INTO changelog (msg) VALUES ('...like a CREATE TABLE
+ * staging_data...')` — and registering that name would wrongly exempt a
+ * REAL later `DROP TABLE staging_data;`. Double-quoted identifier content is
+ * deliberately NOT blanked in `masked`: Prisma emits real DDL as `CREATE
+ * TABLE "name"`, so blanking identifiers would break the created-earlier
+ * exemption for every actual Prisma migration — the exact false-positive
+ * class the exemption exists to prevent. `DESTRUCTIVE_PATTERNS` and
+ * `statementTargetTables` deliberately keep scanning the UNMASKED `text`:
+ * fail-closed (a literal mentioning a destructive keyword still over-flags),
+ * and a literal-sourced target can only ever be EXEMPTED by a REAL create
+ * (masked strips the literal from THAT side), never the reverse.
+ *
+ * Accepted residual: a pathological double-quoted IDENTIFIER whose own name
+ * literally contains `CREATE TABLE x` text could still register — masking
+ * can't blank identifier content (that's the load-bearing exception above),
+ * and an identifier is structurally part of DDL either way. Narrow and
+ * contrived; not addressed.
  */
-function splitSqlStatements(sql: string): string[] {
-  const statements: string[] = [];
-  let current = '';
+function splitSqlStatements(sql: string): { text: string; masked: string }[] {
+  const statements: { text: string; masked: string }[] = [];
+  let text = '';
+  let masked = '';
   let activeQuote: QuoteChar | null = null;
   let i = 0;
   while (i < sql.length) {
     const ch = sql[i];
     if (activeQuote !== null) {
-      current += ch;
+      text += ch;
+      masked += activeQuote === "'" ? ' ' : ch;
       if (ch === activeQuote) activeQuote = null;
       i++;
       continue;
     }
     if (ch === ';') {
-      statements.push(current);
-      current = '';
+      statements.push({ text, masked });
+      text = '';
+      masked = '';
       i++;
       continue;
     }
     const step = stepOutsideString(sql, i);
-    current += step.append;
+    text += step.append;
+    masked += step.maskedAppend;
     i = step.next;
     if (step.opensQuote !== null) activeQuote = step.opensQuote;
   }
-  statements.push(current);
+  statements.push({ text, masked });
   return statements;
 }
 
@@ -267,14 +300,21 @@ function stripCommentsPreservingQuotes(sql: string): string {
 /**
  * If `sql[i]` starts a dollar-quoted string, the whole span (opener through
  * matching closer, or to end of input if unterminated), with any comments in
- * its INNER content stripped and everything else (quoted content, nested
- * dollar spans) preserved; otherwise `null` so the caller treats `$` as an
- * ordinary character. `text` (the stripped replacement) can be SHORTER than
- * the source span whenever a comment was removed, so the source extent is
- * returned separately as `sourceLength` — the caller must advance by THAT,
- * never by `text.length`, or it resumes mid-span and re-walks the tail.
+ * its INNER content stripped; otherwise `null` so the caller treats `$` as an
+ * ordinary character. Two replacement forms: `text` keeps quoted content and
+ * nested dollar spans intact (comments are the only thing removed); `masked`
+ * additionally blanks the ENTIRE inner content to spaces — a dollar body is
+ * PL/pgSQL source that could contain anything, so `masked` treats it the
+ * same as a single-quoted literal for created-earlier registration purposes
+ * (see `splitSqlStatements`). `text` can be SHORTER than the source span
+ * whenever a comment was removed, so the source extent is returned
+ * separately as `sourceLength` — the caller must advance by THAT, never by
+ * `text.length`, or it resumes mid-span and re-walks the tail.
  */
-function matchDollarQuote(sql: string, i: number): { text: string; sourceLength: number } | null {
+function matchDollarQuote(
+  sql: string,
+  i: number
+): { text: string; masked: string; sourceLength: number } | null {
   if (sql[i] !== '$') return null;
   const openerMatch = DOLLAR_QUOTE_TAG_RE.exec(sql.slice(i));
   if (openerMatch === null) return null;
@@ -285,38 +325,54 @@ function matchDollarQuote(sql: string, i: number): { text: string; sourceLength:
   const sourceEnd = hasCloser ? closerIndex + tag.length : sql.length;
   const rawInner = sql.slice(innerStart, hasCloser ? closerIndex : sql.length);
   const strippedInner = stripCommentsPreservingQuotes(rawInner);
-  return { text: tag + strippedInner + (hasCloser ? tag : ''), sourceLength: sourceEnd - i };
+  const closer = hasCloser ? tag : '';
+  return {
+    text: tag + strippedInner + closer,
+    masked: tag + ' '.repeat(strippedInner.length) + closer,
+    sourceLength: sourceEnd - i,
+  };
 }
 
 /**
  * One step outside any active quoted context: recognizes the start of a
  * `'...'` string or `"..."` quoted identifier, `--`/`/*` comments, and
- * dollar-quotes, falling back to copying an ordinary character. Returns the
- * text to append and the index to resume from, plus which quote character
- * (if any) the appended character opens — the only case the caller's
- * `activeQuote` state needs to change here; closing an active quote is
- * handled on the caller's own active-quote branch.
+ * dollar-quotes, falling back to copying an ordinary character. Returns two
+ * replacement forms (`append` for `text`, `maskedAppend` for `masked` — see
+ * `splitSqlStatements`) and the index to resume from, plus which quote
+ * character (if any) the appended character opens — the only case the
+ * caller's `activeQuote` state needs to change here; closing an active quote
+ * is handled on the caller's own active-quote branch.
  */
 function stepOutsideString(
   sql: string,
   i: number
-): { append: string; next: number; opensQuote: QuoteChar | null } {
+): { append: string; maskedAppend: string; next: number; opensQuote: QuoteChar | null } {
   const ch = sql[i];
   if (ch === "'" || ch === '"') {
-    return { append: ch, next: i + 1, opensQuote: ch };
+    // The single-quote delimiter itself is blanked too, for symmetry with
+    // the interior chars the caller's active-quote branch blanks; harmless
+    // either way since a lone quote can't form part of a keyword match.
+    return { append: ch, maskedAppend: ch === "'" ? ' ' : ch, next: i + 1, opensQuote: ch };
   }
   if (ch === '-' && sql[i + 1] === '-') {
-    return { append: '', next: skipLineComment(sql, i), opensQuote: null };
+    const next = skipLineComment(sql, i);
+    return { append: '', maskedAppend: '', next, opensQuote: null };
   }
   if (ch === '/' && sql[i + 1] === '*') {
     // preserve a token boundary where the comment stood
-    return { append: ' ', next: skipBlockComment(sql, i), opensQuote: null };
+    const next = skipBlockComment(sql, i);
+    return { append: ' ', maskedAppend: ' ', next, opensQuote: null };
   }
   const dollarQuote = matchDollarQuote(sql, i);
   if (dollarQuote !== null) {
-    return { append: dollarQuote.text, next: i + dollarQuote.sourceLength, opensQuote: null };
+    return {
+      append: dollarQuote.text,
+      maskedAppend: dollarQuote.masked,
+      next: i + dollarQuote.sourceLength,
+      opensQuote: null,
+    };
   }
-  return { append: ch, next: i + 1, opensQuote: null };
+  return { append: ch, maskedAppend: ch, next: i + 1, opensQuote: null };
 }
 
 /**
@@ -329,18 +385,22 @@ function stepOutsideString(
  * --allow-destructive). Order matters deliberately: DROP-then-reCREATE of the
  * same name destroys prod data, and stays flagged because the CREATE comes
  * after the DROP.
+ *
+ * The CREATE-registration check runs on `masked` (blanks literal/dollar-body
+ * content); `DESTRUCTIVE_PATTERNS` and `statementTargetTables` run on `text`
+ * (unmasked) — see `splitSqlStatements` for why the two differ.
  */
 function scanSqlForDestructive(sql: string): string[] {
   const labels: string[] = [];
   const createdEarlier = new Set<string>();
-  for (const statement of splitSqlStatements(sql)) {
-    const created = CREATE_TABLE_RE.exec(statement);
+  for (const { text, masked } of splitSqlStatements(sql)) {
+    const created = CREATE_TABLE_RE.exec(masked);
     for (const { label, re } of DESTRUCTIVE_PATTERNS) {
-      if (!re.test(statement)) continue;
+      if (!re.test(text)) continue;
       // Exempt ONLY when every targeted table was created earlier in this
       // file — `DROP TABLE new_one, live_one;` must keep its hit for the
       // table that exists in prod.
-      const targets = statementTargetTables(statement);
+      const targets = statementTargetTables(text);
       if (targets?.every(t => createdEarlier.has(t)) === true) continue;
       if (!labels.includes(label)) labels.push(label);
     }
