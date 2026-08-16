@@ -1,9 +1,10 @@
 ---
 id: TASK-617
 title: 'Orchestration spec template: branch setup must name an explicit base SHA'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 13:41'
+updated_date: '2026-08-16 19:26'
 labels:
   - 'area:skills'
   - 'size:S'
