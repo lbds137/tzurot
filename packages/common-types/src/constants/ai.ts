@@ -283,10 +283,9 @@ export const TTS_VOICE_NAME_PREFIX = 'tzurot-';
  * response budget). Kept in one place so api-gateway and ai-worker validators
  * stay synchronized when z.ai's catalog changes.
  *
- * Per z.ai's GLM Coding Plan documentation (docs.z.ai/devpack/overview),
- * available models are GLM-5.1, GLM-5-Turbo, GLM-4.7, and GLM-4.5-Air.
- * GLM-4.5-Air is the Haiku-equivalent tier with 1× quota multiplier — the
- * cheapest probe option.
+ * The available-model list lives in `ZAI_MODEL_CATALOG` below — a second
+ * enumeration here would go stale silently. GLM-4.5-Air is the
+ * Haiku-equivalent tier with 1× quota multiplier — the cheapest probe option.
  */
 export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 
@@ -324,7 +323,7 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
  *    rounded-down label (OpenRouter's card for glm-5.1 is 202752, z.ai shows
  *    "200K"), so the decimal reading sits at or below the real served limit,
  *    which is the safe direction for a cap. glm-5/5.1/5-turbo/4.7 = 200K,
- *    glm-4.5-air = 128K, glm-5.2 = 1M. (z.ai documents 128K max output for the
+ *    glm-4.5-air = 128K, glm-5.2/5.3 = 1M. (z.ai documents 128K max output for the
  *    GLM-5 family and 5-turbo, 96K for glm-4.5-air — output headroom the cap
  *    formula reserves automatically; recorded here so the next audit has it.)
  *
@@ -394,6 +393,18 @@ const ZAI_MODEL_CATALOG: Readonly<
     docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2',
     contextLength: 1_000_000,
     released: '2026-06-13',
+    thinkingOff: GLM_5X_THINKING_OFF,
+  },
+  // glm-5.3 is z.ai-only for now (the OpenRouter listing staggers a few weeks
+  // behind, matching the glm-5.2 rollout pattern), so `released` is live here
+  // — it feeds the /models recency sort until the OpenRouter merge supplies
+  // `created`. `thinkingOff` is MEASURED directly (unlike the doc-read
+  // 5/5.1/5-turbo siblings): a live request with thinking disabled still
+  // returned reasoning tokens.
+  'glm-5.3': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-5.3',
+    contextLength: 1_000_000,
+    released: '2026-08-14',
     thinkingOff: GLM_5X_THINKING_OFF,
   },
   'glm-5-turbo': {
