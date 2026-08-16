@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { retentionNotifyMock, getClientMock, confirmMock } = vi.hoisted(() => ({
   retentionNotifyMock: vi.fn(),
@@ -35,8 +35,14 @@ describe('retentionNotify', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     getClientMock.mockReturnValue({ retentionNotify: retentionNotifyMock });
     confirmMock.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('dry-run resolves the cohort and never enqueues', async () => {
@@ -77,6 +83,67 @@ describe('retentionNotify', () => {
     await expect(retentionNotify({ env: 'prod' })).rejects.toThrow('exit: declined');
 
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires confirmation on DEV too, and enqueues nothing when declined', async () => {
+    // Dev is not a sandbox for this command either: dev mirrors prod's users
+    // via sync, so a dev run DMs real people and starts their grace clocks.
+    retentionNotifyMock.mockResolvedValue({ ok: true, data: runResult() });
+    confirmMock.mockRejectedValue(new Error('exit: declined'));
+
+    await expect(retentionNotify({ env: 'dev' })).rejects.toThrow('exit: declined');
+
+    expect(confirmMock).toHaveBeenCalled();
+    expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('spells out the mirrored-userbase consequence before the dev prompt', async () => {
+    const logSpy = vi.mocked(console.log);
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult() })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1 }),
+      });
+
+    await retentionNotify({ env: 'dev' });
+
+    const output = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(output).toContain('NOT A SANDBOX OPERATION');
+    expect(output).toContain('DMs REAL users');
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('via DEV'));
+  });
+
+  it('prompts on LOCAL too, without asserting a sync consequence that does not exist', async () => {
+    // local reads its own ambient env and is not part of the dev<->prod sync;
+    // it still gets the gate, but not the mirrored-userbase banner.
+    const logSpy = vi.mocked(console.log);
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult() })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1 }),
+      });
+
+    await retentionNotify({ env: 'local' });
+
+    expect(confirmMock).toHaveBeenCalledWith(expect.not.stringContaining('mirrored prod userbase'));
+    const output = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(output).not.toContain('NOT A SANDBOX OPERATION');
+  });
+
+  it('--force skips the prompt on dev as well (it asserts the operator, not the env)', async () => {
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult() })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1 }),
+      });
+
+    await retentionNotify({ env: 'dev', force: true });
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(retentionNotifyMock).toHaveBeenCalledTimes(2);
   });
 
   it('an empty cohort stops before the confirmation', async () => {
@@ -134,12 +201,10 @@ describe('retentionNotify', () => {
       error: 'Unauthorized',
       status: 401,
     });
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     await retentionNotify({ env: 'dev' });
 
     expect(process.exitCode).toBe(1);
-    errorSpy.mockRestore();
   });
 });
 

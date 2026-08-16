@@ -117,11 +117,64 @@ describe('retentionPurge', () => {
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
+  it('requires confirmation on DEV too, and purges nothing when declined', async () => {
+    // Dev is not a sandbox for this command: `users` is sync-tracked, so a dev
+    // purge's tombstones erase the same accounts from prod on the next sync.
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    confirmMock.mockRejectedValue(new Error('exit: declined'));
+
+    await expect(retentionPurge({ env: 'dev' })).rejects.toThrow('exit: declined');
+
+    expect(confirmMock).toHaveBeenCalled();
+    expect(purgeMock).not.toHaveBeenCalled();
+  });
+
+  it('spells out the dev->prod sync consequence before the dev prompt', async () => {
+    // The shared gate's banner only names PRODUCTION; on a dev run the reason
+    // this is still a production erasure has to be stated, or the operator
+    // reads the prompt as boilerplate.
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    purgeMock.mockResolvedValue(PURGED('900000000000000001'));
+    const logSpy = vi.mocked(console.log);
+
+    await retentionPurge({ env: 'dev' });
+
+    const output = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(output).toContain('NOT A SANDBOX OPERATION');
+    expect(output).toContain('sync-tracked');
+    expect(output).toContain('propagate to PROD on the next sync');
+  });
+
+  it('prompts on LOCAL too, without asserting a sync consequence that does not exist', async () => {
+    // local is not part of the dev<->prod sync — it still gets the gate, but
+    // the sync banner there would be a fabricated consequence that trains the
+    // operator to discount the warning.
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    purgeMock.mockResolvedValue(PURGED('900000000000000001'));
+    const logSpy = vi.mocked(console.log);
+
+    await retentionPurge({ env: 'local' });
+
+    expect(confirmMock).toHaveBeenCalledWith(expect.not.stringContaining('propagating by sync'));
+    const output = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(output).not.toContain('NOT A SANDBOX OPERATION');
+  });
+
   it('--force skips the prompt', async () => {
     previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
     purgeMock.mockResolvedValue(PURGED('900000000000000001'));
 
     await retentionPurge({ env: 'prod', force: true });
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(purgeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('--force skips the prompt on dev as well (it asserts the operator, not the env)', async () => {
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    purgeMock.mockResolvedValue(PURGED('900000000000000001'));
+
+    await retentionPurge({ env: 'dev', force: true });
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(purgeMock).toHaveBeenCalledTimes(1);

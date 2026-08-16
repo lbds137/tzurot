@@ -39,8 +39,22 @@ const scheduler = createIntervalScheduler<[Client, Redis]>({
   run: (client, redis) => runRetentionNagCheck(client, redis),
 });
 
-/** Start the daily purge-eligibility check (call once from the composition root). */
+/**
+ * Start the daily purge-eligibility check (call once from the composition root).
+ *
+ * Production-only, and the gate lives here rather than at the composition root
+ * so every caller inherits it: the dev database mirrors prod's users, so a dev
+ * nag reports the SAME cohort the prod nag reports, and its footer points at
+ * `retention:purge --env dev` — a purge whose tombstones sync straight back to
+ * prod. No dev-specific signal, real dev-side blast radius.
+ */
 export function startRetentionNagScheduler(client: Client, redis: Redis): void {
+  if (getConfig().NODE_ENV !== 'production') {
+    logger.info(
+      'Retention nag scheduler disabled outside production — the dev DB mirrors prod users, so the report carries no dev-specific signal'
+    );
+    return;
+  }
   scheduler.start(client, redis);
 }
 
