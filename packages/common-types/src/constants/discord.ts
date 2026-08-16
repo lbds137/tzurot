@@ -351,7 +351,10 @@ export interface ModelFooterOptions {
   };
 }
 
-/** Footer wording per retargetable failure category (D12 descent included). */
+/**
+ * Footer wording per announceable swap reason (D12 descent included, plus the
+ * non-failure guest-mode substitution).
+ */
 const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
   quota_exceeded: 'rate limited',
   rate_limit: 'rate limited',
@@ -363,6 +366,7 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
   empty_response: 'empty response',
   censored: 'model refused',
   content_policy: 'model refused',
+  guest_mode: 'guest mode',
 };
 
 /**

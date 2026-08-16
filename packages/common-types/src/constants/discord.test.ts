@@ -222,6 +222,18 @@ describe('Bot Footer Text Constants', () => {
       }
     });
 
+    it('announces the guest-mode substitution with its own wording', () => {
+      // Not a failure: the guest ladder swapped a paid preset for a free
+      // model before dispatch, and the footer must say so rather than
+      // leaving the swap unexplained.
+      const result = buildModelFooterText('openrouter/free', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/primary', category: 'guest_mode' },
+      });
+      expect(result).toBe(
+        'Model: [openrouter/free](<https://example.com/m>) • expensive/primary → openrouter/free (guest mode)'
+      );
+    });
+
     it('sanitizes markdown-hostile characters in the quota-fallback source model', () => {
       const result = buildModelFooterText('free-model', 'https://example.com/m', {
         quotaFallback: { fromModel: 'bad[model](x)', category: 'quota_exceeded' },

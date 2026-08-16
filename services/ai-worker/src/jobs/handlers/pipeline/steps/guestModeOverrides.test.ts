@@ -261,4 +261,93 @@ describe('applyGuestModeOverrides', () => {
       expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
     });
   });
+
+  describe('footer announce carrier (guest_mode)', () => {
+    it('carries no note when the configured model was already free', async () => {
+      const personality = { ...PAID_PERSONALITY, model: 'meta/model:free' };
+      const result = await applyGuestModeOverrides({}, personality, 'u1', 'r1');
+
+      expect(result.quotaFallback).toBeUndefined();
+    });
+
+    it('announces the free-default substitution from the configured model', async () => {
+      const result = await applyGuestModeOverrides(
+        { configResolver: resolverWith('gemma/free-model:free') },
+        PAID_PERSONALITY,
+        'u1',
+        'r1'
+      );
+
+      expect(result.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: 'gemma/free-model:free',
+        category: 'guest_mode',
+        mode: 'proactive',
+      });
+    });
+
+    it('names the floor as the destination when the free default degrades', async () => {
+      // Event (b) of the task: no second category — the accurate toModel is
+      // what tells the user they landed on the hard floor.
+      const result = await applyGuestModeOverrides(
+        { configResolver: resolverWith('anthropic/claude-opus-4') },
+        PAID_PERSONALITY,
+        'u1',
+        'r1'
+      );
+
+      expect(result.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: LIVE_TEXT_FLOOR,
+        category: 'guest_mode',
+        mode: 'proactive',
+      });
+    });
+
+    it('announces the piggyback upgrade reached from the global free default', async () => {
+      const result = await applyGuestModeOverrides(
+        { configResolver: resolverWith('z-ai/glm-4.5-air'), zaiFreeTierAdmission: admission(true) },
+        PAID_PERSONALITY,
+        'u1',
+        'r1'
+      );
+
+      expect(result.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: ZAI_FREE_TIER_MODEL,
+        category: 'guest_mode',
+        mode: 'proactive',
+      });
+    });
+
+    it('announces the prefix normalization on a personally-selected piggyback model', async () => {
+      const result = await applyGuestModeOverrides(
+        { zaiFreeTierAdmission: admission(true) },
+        { ...PAID_PERSONALITY, model: 'z-ai/glm-4.5-air' } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+
+      expect(result.quotaFallback).toEqual({
+        fromModel: 'z-ai/glm-4.5-air',
+        toModel: ZAI_FREE_TIER_MODEL,
+        category: 'guest_mode',
+        mode: 'proactive',
+      });
+    });
+
+    it('carries no note when the piggyback upgrade leaves the model identical', async () => {
+      // A guest who selected the BARE piggyback id: the provider changes but
+      // the model string does not, so there is no substitution to announce.
+      const result = await applyGuestModeOverrides(
+        { zaiFreeTierAdmission: admission(true) },
+        { ...PAID_PERSONALITY, model: ZAI_FREE_TIER_MODEL } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+
+      expect(result.personality.model).toBe(ZAI_FREE_TIER_MODEL);
+      expect(result.quotaFallback).toBeUndefined();
+    });
+  });
 });
