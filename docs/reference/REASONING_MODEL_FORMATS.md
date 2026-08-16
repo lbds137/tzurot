@@ -140,24 +140,11 @@ Higher levels mean more reasoning tokens: better quality, but slower and more ex
 
 Models with `supportsReasoning: false` in the catalog have reasoning params skipped entirely (with a warning) rather than sent and rejected.
 
-### Displaying Thinking
+### Where the Thinking Goes
 
-To display the extracted thinking to users, enable `showThinking` in your preset:
-
-```json
-{
-  "show_thinking": true
-}
-```
-
-When enabled, thinking content appears as a collapsible Discord message before the main response:
-
-```
-💭 **Thinking:**
-||[reasoning content hidden in spoiler]||
-
-[Main response here]
-```
+Extracted thinking is never rendered to users. It travels as `thinkingContent`
+on the job-result metadata, is persisted with the assistant turn, and is
+readable via `/inspect`.
 
 ---
 
@@ -179,13 +166,9 @@ When enabled, thinking content appears as a collapsible Discord message before t
    - `mergeThinkingContent()` combines API-level and inline thinking
    - Returns `{ cleanedContent, thinkingContent }`
 
-5. **Result Building** - `ConversationalRAGService` includes in RAG response:
-   - `thinkingContent` - The extracted reasoning
-   - `showThinking` - From the user's resolved LLM config
+5. **Result Building** - `ConversationalRAGService` includes `thinkingContent` (the extracted reasoning) in the RAG response.
 
-6. **Discord Display** - `DiscordResponseSender` checks:
-   - If `showThinking === true` AND `thinkingContent` exists
-   - Sends thinking as spoiler message before main response
+6. **Persistence** - `SlotDeliveryService` saves `thinkingContent` with the assistant turn, so the trace outlives the 24h diagnostic window.
 
 ---
 
@@ -230,7 +213,6 @@ Use `/inspect <message_id>` to see extraction details:
   },
   "llmConfig": {
     "allParams": {
-      "showThinking": true,
       "thinking": "medium"
     }
   },
@@ -251,7 +233,6 @@ Use `/inspect <message_id>` to see extraction details:
 **Key diagnostic fields:**
 
 - `thinkingExtracted` / `thinkingContent` - Whether thinking was found, and the text
-- `showThinking` - Whether display is enabled
 - `hasReasoningInKwargs` / `reasoningKwargsLength` - Whether `additional_kwargs.reasoning` was populated by the post-parse extractor
 - `upstreamProvider` - The ACTUAL upstream provider from `__raw_response.provider` (LangChain hardcodes `model_provider: "openai"`, which is useless for incident segmentation)
 - `apiMessageKeys` - Keys on the raw API message; distinguishes "model returned structured reasoning" (`reasoning` present) from "model embedded planning into content" (just `role`/`content`)

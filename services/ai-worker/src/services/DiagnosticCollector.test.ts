@@ -456,13 +456,11 @@ describe('DiagnosticCollector', () => {
         model: 'deepseek/deepseek-r1',
         provider: 'deepseek',
         thinking: 'high',
-        showThinking: true,
       });
 
       const payload = collector.finalize();
 
       expect(payload.llmConfig.allParams.thinking).toBe('high');
-      expect(payload.llmConfig.allParams.showThinking).toBe(true);
     });
 
     it('should record OpenRouter-specific parameters', () => {

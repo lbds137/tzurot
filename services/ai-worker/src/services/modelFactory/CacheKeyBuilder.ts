@@ -59,7 +59,6 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     // Output
     cacheVal(modelConfig.maxTokens),
     cacheVal(modelConfig.responseFormat?.type),
-    cacheVal(modelConfig.showThinking),
     // Thinking - the canonical level drives the reasoning param in modelKwargs
     cacheVal(modelConfig.thinking),
     cacheVal(modelConfig.supportsReasoning),

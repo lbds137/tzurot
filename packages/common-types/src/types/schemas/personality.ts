@@ -141,9 +141,6 @@ export const loadedPersonalitySchema = z.object({
   repetitionPenalty: z.number().optional(),
   contextWindowTokens: z.number(),
 
-  // Reasoning/thinking display
-  showThinking: z.boolean().optional(), // Display <think> blocks as separate messages
-
   // Advanced sampling parameters (from user LLM config)
   minP: z.number().optional(),
   topA: z.number().optional(),

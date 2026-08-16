@@ -217,9 +217,9 @@ describe('reasoningSection', () => {
   });
 
   it('should have correct fields', () => {
-    expect(reasoningSection.fields).toHaveLength(2);
+    expect(reasoningSection.fields).toHaveLength(1);
     const keys = reasoningSection.fields.map(f => f.id);
-    expect(keys).toEqual(['thinking', 'show_thinking']);
+    expect(keys).toEqual(['thinking']);
   });
 
   it('should return DEFAULT status when no params set', () => {
@@ -235,21 +235,6 @@ describe('reasoningSection', () => {
   it('should show preview with the thinking level', () => {
     const data = { thinking: 'high' } as FlattenedPresetData;
     expect(reasoningSection.getPreview(data)).toBe('thinking=high');
-  });
-
-  it('should show show_thinking indicator when enabled', () => {
-    const data = { show_thinking: 'true' } as FlattenedPresetData;
-    expect(reasoningSection.getPreview(data)).toBe('💭 show thinking');
-  });
-
-  it('should show both thinking params in preview', () => {
-    const data = {
-      thinking: 'high',
-      show_thinking: 'true',
-    } as FlattenedPresetData;
-    const preview = reasoningSection.getPreview(data);
-    expect(preview).toContain('thinking=high');
-    expect(preview).toContain('💭 show thinking');
   });
 
   it('should render an explicit off level in preview', () => {

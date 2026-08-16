@@ -1371,7 +1371,6 @@ describe('ConversationalRAGService', () => {
         model: 'openrouter/deepseek-r1',
         provider: 'openrouter',
         thinking: 'high',
-        showThinking: true,
       });
       const context = createMockContext();
 
@@ -1381,7 +1380,6 @@ describe('ConversationalRAGService', () => {
         expect.objectContaining({
           modelName: 'openrouter/deepseek-r1',
           thinking: 'high',
-          showThinking: true,
         })
       );
     });
@@ -1965,7 +1963,7 @@ describe('ConversationalRAGService', () => {
         resolvedPersonas: [],
       });
 
-      const personality = createMockPersonality({ showThinking: true });
+      const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(
@@ -2000,7 +1998,7 @@ describe('ConversationalRAGService', () => {
         resolvedPersonas: [],
       });
 
-      const personality = createMockPersonality({ showThinking: true });
+      const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Verify this', context);
@@ -2027,7 +2025,7 @@ describe('ConversationalRAGService', () => {
         resolvedPersonas: [],
       });
 
-      const personality = createMockPersonality({ showThinking: true });
+      const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Combine thinking', context);
@@ -2055,7 +2053,7 @@ describe('ConversationalRAGService', () => {
         resolvedPersonas: [],
       });
 
-      const personality = createMockPersonality({ showThinking: true });
+      const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Priority test', context);
@@ -2065,7 +2063,7 @@ describe('ConversationalRAGService', () => {
       expect(result.thinkingContent).not.toContain('Fallback reasoning');
     });
 
-    it('should not include thinking when showThinking is false', async () => {
+    it('should keep API-level reasoning out of the visible content', async () => {
       getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
         content: 'Response without thinking.',
         usage_metadata: { input_tokens: 100, output_tokens: 50 },
@@ -2079,15 +2077,14 @@ describe('ConversationalRAGService', () => {
         resolvedPersonas: [],
       });
 
-      // showThinking is false (default)
-      const personality = createMockPersonality({ showThinking: false });
+      const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Hide thinking', context);
 
-      // thinkingContent is extracted but showThinking=false means it won't be displayed
-      // The service still extracts it, the display decision is made elsewhere
+      // The reasoning is extracted into metadata, never merged into the reply
       expect(result.content).toBe('Response without thinking.');
+      expect(result.thinkingContent).toBe('This reasoning should not be shown');
     });
 
     it('should return empty content when model only produces thinking (triggers EMPTY_RESPONSE handling)', async () => {
@@ -2106,7 +2103,7 @@ describe('ConversationalRAGService', () => {
         resolvedPersonas: [],
       });
 
-      const personality = createMockPersonality({ showThinking: true });
+      const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Test message', context);

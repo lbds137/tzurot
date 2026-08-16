@@ -445,7 +445,7 @@ describe('LlmConfigResolver', () => {
       const personalityWithAdvanced = {
         ...mockPersonality,
         thinking: 'medium' as const,
-        showThinking: true,
+        topA: 0.3,
         minP: 0.05,
       };
 
@@ -458,7 +458,7 @@ describe('LlmConfigResolver', () => {
           provider: 'openrouter',
           advancedParameters: {
             thinking: 'high', // Override the thinking level
-            // showThinking not set - should use personality default
+            // top_a not set - should use personality default
             min_p: 0.1, // Override minP
           },
           memoryScoreThreshold: null,
@@ -478,14 +478,13 @@ describe('LlmConfigResolver', () => {
       expect(result.config.thinking).toBe('high');
       expect(result.config.minP).toBe(0.1);
       // Personality fallback when not in override
-      expect(result.config.showThinking).toBe(true);
+      expect(result.config.topA).toBe(0.3);
     });
 
     it('should include advanced params when extracting personality defaults', async () => {
       const personalityWithAdvanced = {
         ...mockPersonality,
         thinking: 'high' as const,
-        showThinking: true,
         minP: 0.05,
         topA: 0.3,
         transforms: ['middle-out'],
@@ -501,7 +500,6 @@ describe('LlmConfigResolver', () => {
 
       expect(result.source).toBe('personality');
       expect(result.config.thinking).toBe('high');
-      expect(result.config.showThinking).toBe(true);
       expect(result.config.minP).toBe(0.05);
       expect(result.config.topA).toBe(0.3);
       expect(result.config.transforms).toEqual(['middle-out']);

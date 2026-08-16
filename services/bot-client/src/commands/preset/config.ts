@@ -48,8 +48,6 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     top_a: data.params.top_a?.toString() ?? '',
     // Thinking param (canonical level)
     thinking: data.params.thinking ?? '',
-    // Output params
-    show_thinking: data.params.show_thinking?.toString() ?? '',
     // Context window (model-coupled, stays in LlmConfig)
     contextWindowTokens: String(data.contextWindowTokens),
     // Model context info (display-only, not editable)
@@ -134,12 +132,7 @@ function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedPa
   if (thinking !== null) {
     advancedParameters.thinking = thinking;
   }
-  if (flat.show_thinking !== undefined && flat.show_thinking.length > 0) {
-    advancedParameters.show_thinking = flat.show_thinking.toLowerCase() === 'true';
-  }
-
-  const hasAdvanced =
-    hasSampling || thinking !== null || advancedParameters.show_thinking !== undefined;
+  const hasAdvanced = hasSampling || thinking !== null;
   return hasAdvanced ? advancedParameters : null;
 }
 

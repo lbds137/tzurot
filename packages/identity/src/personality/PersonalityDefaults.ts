@@ -81,16 +81,13 @@ function getSamplingConfig(
 }
 
 /**
- * Get thinking config
- * Includes both the display preference (showThinking) and the canonical
- * thinking level (thinking)
+ * Get thinking config — the canonical thinking level
  */
 function getThinkingConfig(
   pc: MappedLlmConfig | null,
   gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'showThinking' | 'thinking'> {
+): Pick<LoadedPersonality, 'thinking'> {
   return {
-    showThinking: getConfigValue(pc?.showThinking, gc?.showThinking),
     thinking: getConfigValue(pc?.thinking, gc?.thinking),
   };
 }
