@@ -403,7 +403,12 @@ and pin a test that the two mappings agree. Without it, Zod strip-mode would
   deliberately unchanged in A. Test-sweep obligation: Core Principle 8 — grep
   distinctive OLD tokens (`reasoning.effort`, `reasoning_effort` modal ids,
   `enabled`) across every tier incl. `tests/e2e`; type fixtures with `satisfies`.
-- **PR B — z.ai translation + allowlist flip.** Step 0: live probe on the dev
+- **PR B — z.ai translation + allowlist flip. ✅ SHIPPED as #2112 (2026-08-16)** —
+  `modelFactory/thinkingTranslation.ts` owns the table; `ZAI_DIRECT_SUPPORTED_PARAMS`
+  allowlist replaces the denylist (glm-4.5-air-via-OpenRouter keeps its own denylist);
+  `ZAI_PARAM_DISPOSITIONS` + parity test enforce per-key dispositions at compile time
+  AND test time. Two polish nits routed to TASK-628 at the review round cap.
+  Original scope follows. Step 0: live probe on the dev
   path (thinking.type honored? reasoning_effort accepted on GLM-5.x? trace-size
   discriminates low vs high?). **Two OpenRouter wire values ride along in that
   probe** — both are doc-reads that PR A shipped unverified, flagged by review:
