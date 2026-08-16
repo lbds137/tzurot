@@ -436,16 +436,30 @@ export class MessageHandler {
       // history-only write: long-term MEMORY creation is gated separately on
       // isWeighIn in the ai-worker (ConversationalRAGService), so persisting
       // here keeps the incognito "no memories" semantics intact.
-      await this.persistence.saveAssistantMessageFromFields({
-        channelId: channel.id,
-        guildId,
-        personality,
-        personaId,
-        content,
-        chunkMessageIds,
-        userMessageTime,
-        thinkingContent: result.metadata?.thinkingContent,
-      });
+      //
+      // Isolated catch, same posture as SlotDeliveryService.persistDeliveredTurn:
+      // the send above already succeeded, so a persist failure surviving the
+      // retry must not fall into the outer catch and post an error message on
+      // top of the reply the user already has. Pinned by "a persist failure
+      // after a delivered send does not post an error message" in
+      // MessageHandler.test.ts.
+      try {
+        await this.persistence.saveAssistantMessageFromFields({
+          channelId: channel.id,
+          guildId,
+          personality,
+          personaId,
+          content,
+          chunkMessageIds,
+          userMessageTime,
+          thinkingContent: result.metadata?.thinkingContent,
+        });
+      } catch (persistError) {
+        logger.error(
+          { err: persistError, jobId },
+          'Failed to persist slash assistant message to conversation history (response already sent)'
+        );
+      }
 
       if (chunkMessageIds.length > 0) {
         void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
@@ -501,16 +515,29 @@ export class MessageHandler {
       // the error becomes visible to the next turn's LLM context. Acceptable
       // because (a) it mirrors what users see on screen, and (b) divergence
       // between the two paths would be more surprising than the parity cost.
+      //
+      // Isolated catch, symmetric with handleSlashJobResult's persist above:
+      // the error content is already delivered, so a persist failure must not
+      // fall into the outer catch and channel.send a SECOND error message.
+      // Pinned by "a persist failure after a delivered ERROR send does not
+      // post a second error message" in MessageHandler.test.ts.
       if (!isWeighInMode) {
-        await this.persistence.saveAssistantMessageFromFields({
-          channelId: channel.id,
-          guildId,
-          personality,
-          personaId,
-          content: stripErrorSpoiler(errorContent),
-          chunkMessageIds,
-          userMessageTime,
-        });
+        try {
+          await this.persistence.saveAssistantMessageFromFields({
+            channelId: channel.id,
+            guildId,
+            personality,
+            personaId,
+            content: stripErrorSpoiler(errorContent),
+            chunkMessageIds,
+            userMessageTime,
+          });
+        } catch (persistError) {
+          logger.error(
+            { err: persistError, jobId },
+            'Failed to persist slash error message to conversation history (error already sent)'
+          );
+        }
       }
 
       if (chunkMessageIds.length > 0) {

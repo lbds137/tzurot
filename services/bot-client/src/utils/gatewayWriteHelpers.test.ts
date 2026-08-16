@@ -52,11 +52,54 @@ describe('persistAssistantMessageViaGateway', () => {
   });
 
   it('THROWS on a request failure (authoritative write, caller owns the catch)', async () => {
-    mockServiceClient.persistAssistantMessage.mockResolvedValue(makeErr(503, 'boom'));
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.persistAssistantMessage.mockResolvedValue(makeErr(503, 'boom'));
+
+      const promise = persistAssistantMessageViaGateway(PARAMS);
+      const assertion = expect(promise).rejects.toThrow(
+        'Assistant-message persist failed via gateway after 3 attempt(s): 503'
+      );
+      await vi.runAllTimersAsync();
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries a 5xx and resolves once the retry lands (persist is replay-safe)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.persistAssistantMessage
+        .mockResolvedValueOnce(makeErr(503, 'boom'))
+        .mockResolvedValueOnce(ok({ id: 'row-1', created: true }));
+
+      const promise = persistAssistantMessageViaGateway(PARAMS);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(mockServiceClient.persistAssistantMessage).toHaveBeenCalledTimes(2);
+      // The retry re-sends the SAME payload — that identity is what makes the
+      // gateway's deterministic row id resolve to one row instead of two turns.
+      const [first, second] = mockServiceClient.persistAssistantMessage.mock.calls;
+      expect(second[0]).toEqual(first[0]);
+      expect(second[0]).toMatchObject({
+        channelId: 'chan-1',
+        chunkMessageIds: ['111111111111111111'],
+        userMessageTime: '2026-06-04T12:00:00.000Z',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry a 4xx (a rejected payload will be rejected again)', async () => {
+    mockServiceClient.persistAssistantMessage.mockResolvedValue(makeErr(400, 'bad payload'));
 
     await expect(persistAssistantMessageViaGateway(PARAMS)).rejects.toThrow(
-      'Assistant-message persist failed via gateway: 503'
+      'Assistant-message persist failed via gateway after 1 attempt(s): 400'
     );
+    expect(mockServiceClient.persistAssistantMessage).toHaveBeenCalledTimes(1);
   });
 
   it('resolves (with a warn, not a throw) on an idempotent replay that diverged', async () => {

@@ -541,6 +541,30 @@ describe('DiscordResponseSender', () => {
       const lastChunk = mockWebhookManager.sendAsPersonality.mock.calls[1][2];
       expect(lastChunk).toMatch(/\n-# Model: \[test-model\]/);
     });
+
+    it('propagates a webhook send failure instead of returning a short id list', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const longContent = 'x'.repeat(3000);
+      mockWebhookManager.sendAsPersonality
+        .mockResolvedValueOnce({ id: 'msg-1' })
+        .mockRejectedValueOnce(new Error('webhook 500'));
+
+      await expect(
+        sender.sendResponse({
+          content: longContent,
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+      ).rejects.toThrow('webhook 500');
+
+      // The loop aborts on the failed chunk and the throw carries no ids —
+      // including the id of chunk 1, which WAS delivered. Callers therefore
+      // persist nothing for a mid-stream multi-chunk failure; surfacing that
+      // partial progress is a tracked follow-up, not a property of this path.
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('sendResponse - DM Channel', () => {

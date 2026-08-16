@@ -11,8 +11,18 @@ import { SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
 import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from './gatewayClients.js';
+import { withGatewayRetry } from './gatewayRetry.js';
 
 const logger = createLogger('gatewayWriteHelpers');
+
+/**
+ * Retry budget for the assistant persist. Matches the after-spend report
+ * convention in `gatewayServiceCalls.ts` (`REPORT_MAX_ATTEMPTS` /
+ * `REPORT_RETRY_BASE_DELAY_MS`): the message is already on Discord when this
+ * runs, so the write is worth a short bounded retry, not a long one.
+ */
+const ASSISTANT_PERSIST_MAX_ATTEMPTS = 3;
+const ASSISTANT_PERSIST_RETRY_BASE_DELAY_MS = 500;
 
 interface AssistantMessageWriteParams {
   channelId: string;
@@ -152,16 +162,33 @@ function buildSyncSnapshotPayload(
 /**
  * Persist an assistant message via the gateway endpoint — the authoritative
  * write. Throws on failure; callers own the catch.
+ *
+ * Retries transient gateway failures with the DEFAULT predicate
+ * (`isRetryableGatewayFailure`: network, timeout, 5xx) rather than the
+ * narrower connection-only one used for job submission. The gateway route is
+ * replay-safe by construction — the row id is a deterministic UUID over
+ * (channel, personality, persona, timestamp) and the handler compares instead
+ * of writing when the row exists (see api-gateway's
+ * `conversationPersistShared.ts` header) — so a delivered-but-unacknowledged
+ * attempt re-lands on the same row instead of duplicating the turn. Retry
+ * behaviour is pinned by "retries a 5xx …" / "does not retry a 4xx …" in
+ * `gatewayWriteHelpers.test.ts`.
  */
 export async function persistAssistantMessageViaGateway(
   params: AssistantMessageWriteParams
 ): Promise<void> {
-  const result = await getServiceClient().persistAssistantMessage(
-    buildAssistantMessagePayload(params)
+  const { result, attempts } = await withGatewayRetry(
+    () => getServiceClient().persistAssistantMessage(buildAssistantMessagePayload(params)),
+    {
+      maxAttempts: ASSISTANT_PERSIST_MAX_ATTEMPTS,
+      baseDelayMs: ASSISTANT_PERSIST_RETRY_BASE_DELAY_MS,
+      operation: 'persisting assistant message',
+      context: { channelId: params.channelId },
+    }
   );
   if (!result.ok) {
     throw new Error(
-      `Assistant-message persist failed via gateway: ${result.status} ${result.error}`
+      `Assistant-message persist failed via gateway after ${attempts} attempt(s): ${result.status} ${result.error}`
     );
   }
   if (result.data.created === false && result.data.matched === false) {
