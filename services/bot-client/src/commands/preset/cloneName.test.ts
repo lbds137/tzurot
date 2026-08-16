@@ -12,6 +12,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import type { FlattenedPresetData } from './config.js';
 
+/**
+ * Wrap a preset payload in the mutating-API result shape.
+ *
+ * `createPreset` / `updatePreset` / `updateGlobalPreset` return the saved
+ * preset alongside the gateway's non-blocking save warnings, so a bare preset
+ * object is no longer a valid stub return.
+ */
+const asMutation = (preset: unknown, warnings: string[] = []) => ({ preset, warnings });
+
 function mkUserClient(discordId = 'user-1'): UserClient {
   return { actor: discordId } as unknown as UserClient;
 }
@@ -58,7 +67,7 @@ describe('createClonedPreset', () => {
     // Server owns the suffix-bumping loop now. Client sends one request and
     // relies on the server to pick a non-colliding name internally.
     const resultPreset = { id: 'new-id', name: 'My Preset (Copy)' };
-    mockCreatePreset.mockResolvedValueOnce(resultPreset);
+    mockCreatePreset.mockResolvedValueOnce(asMutation(resultPreset));
 
     const userClient = mkUserClient();
     const result = await createClonedPreset(sourceData, userClient);

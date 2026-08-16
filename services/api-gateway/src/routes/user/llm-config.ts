@@ -172,14 +172,13 @@ function createCreateHandler(
     const userId = resolveProvisionedUserId(req);
     const hasZaiCodingKey = await userHasActiveApiKey(prisma, userId, AIProvider.ZaiCoding);
 
-    if (
-      !(await validateLlmConfigModelFields({
-        res,
-        modelCache,
-        body,
-        hasZaiCodingKey,
-      }))
-    ) {
+    const validation = await validateLlmConfigModelFields({
+      res,
+      modelCache,
+      body,
+      hasZaiCodingKey,
+    });
+    if (!validation.ok) {
       return;
     }
 
@@ -253,7 +252,10 @@ function createCreateHandler(
     logger.info({ discordUserId, configId: config.id, name: config.name }, 'Created config');
     sendCustomSuccess(
       res,
-      { config: { ...formatted, isOwned: true, permissions, requiresZaiKey } },
+      {
+        config: { ...formatted, isOwned: true, permissions, requiresZaiKey },
+        warnings: validation.warnings,
+      },
       StatusCodes.CREATED
     );
   };
@@ -335,15 +337,14 @@ function createUpdateHandler(
     const userId = resolveProvisionedUserId(req);
     const hasZaiCodingKey = await userHasActiveApiKey(prisma, userId, AIProvider.ZaiCoding);
 
-    if (
-      !(await validateLlmConfigModelFields({
-        res,
-        modelCache,
-        body,
-        fallback: { service, configId: configId },
-        hasZaiCodingKey,
-      }))
-    ) {
+    const validation = await validateLlmConfigModelFields({
+      res,
+      modelCache,
+      body,
+      fallback: { service, configId: configId },
+      hasZaiCodingKey,
+    });
+    if (!validation.ok) {
       return;
     }
 
@@ -436,7 +437,10 @@ function createUpdateHandler(
 
     sendCustomSuccess(
       res,
-      { config: { ...formatted, isOwned: isOwnedByRequester, permissions, requiresZaiKey } },
+      {
+        config: { ...formatted, isOwned: isOwnedByRequester, permissions, requiresZaiKey },
+        warnings: validation.warnings,
+      },
       StatusCodes.OK
     );
   };

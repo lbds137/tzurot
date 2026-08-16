@@ -148,6 +148,33 @@ Higher levels mean more reasoning tokens: better quality, but slower and more ex
 
 Models with `supportsReasoning: false` in the catalog have reasoning params skipped entirely (with a warning) rather than sent and rejected.
 
+### Save-Time Validation
+
+Saving a preset whose thinking level the target model can't honor produces
+**non-blocking warnings**, never a rejection. The gateway returns them on the
+create/update response (`warnings: string[]`), and the preset dashboard renders
+them in a separate ephemeral embed after the save lands.
+
+| Case                                                                 | Warning                                                     |
+| -------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `thinking: 'off'` on a model whose thinking is compulsory (glm-4.7)  | The `off` level will be ignored; the model keeps reasoning. |
+| `thinking: 'off'` on a GLM-5.x model                                 | Disabling is best-effort — the model may still reason.      |
+| Any non-`off` level on a model whose catalog entry lacks `reasoning` | The level will have no effect.                              |
+
+Warnings are **advisory only**: capability data can be stale or briefly
+unreachable, and a preset must never become unsaveable because a catalog lookup
+had a bad day. Nothing is warned when the model can't be resolved at all — an
+unresolvable model yields silence rather than a guess from its name.
+
+The `thinkingOff` support level per z.ai model lives in `ZAI_MODEL_CATALOG`
+(`packages/common-types/src/constants/ai.ts`), with each entry's calibration
+(live-probed vs. read from z.ai's documentation) recorded in its comment.
+
+**Not covered:** OpenRouter models that _require_ reasoning and reject an
+explicit `off`. Nothing in OpenRouter's `/models` metadata marks a model as
+reasoning-mandatory, so this is undetectable at save time and still surfaces as
+a 400 at request time.
+
 ### Where the Thinking Goes
 
 Extracted thinking is never rendered to users. It travels as `thinkingContent`

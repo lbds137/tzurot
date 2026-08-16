@@ -25,6 +25,9 @@ function createMockModelCache(
       ? { kind: 'absent' }
       : { kind: 'resolved', model: getModelByIdResult });
   return {
+    // Reasoning support is unknown to these stubs — the three-state contract
+    // means undefined, so no thinking warning is derived from them.
+    supportsReasoning: vi.fn().mockResolvedValue(undefined),
     getModelById: vi.fn().mockResolvedValue(getModelByIdResult),
     lookupModelById: vi.fn().mockResolvedValue(lookup),
   } as unknown as OpenRouterModelCache;

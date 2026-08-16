@@ -627,4 +627,45 @@ describe('OpenRouterModelCache', () => {
       expect(models).toHaveLength(3);
     });
   });
+
+  describe('supportsReasoning', () => {
+    /** A catalog entry that declares `reasoning` among its supported params. */
+    const reasoningModel: OpenRouterModel = {
+      ...sampleTextModel,
+      id: 'some/reasoner',
+      supported_parameters: ['temperature', 'max_tokens', 'reasoning'],
+    };
+
+    it('returns true for a cached entry declaring reasoning support', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(
+        JSON.stringify([...sampleModels, reasoningModel])
+      );
+
+      expect(await cache.supportsReasoning('some/reasoner')).toBe(true);
+    });
+
+    it('returns false for a cached entry that omits reasoning', async () => {
+      // sampleTextModel's supported_parameters are temperature + max_tokens —
+      // an authoritative negative, which is the only thing that may drive a
+      // save-time warning.
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify(sampleModels));
+
+      expect(await cache.supportsReasoning('anthropic/claude-sonnet-4')).toBe(false);
+    });
+
+    it('returns undefined for a model absent from the catalog', async () => {
+      // Distinct from `false`: absence is not evidence of missing support.
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify(sampleModels));
+
+      expect(await cache.supportsReasoning('nobody/knows-this')).toBeUndefined();
+    });
+
+    it('returns undefined when the catalog is unreachable', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
+
+      expect(await cache.supportsReasoning('anthropic/claude-sonnet-4')).toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalled();
+    });
+  });
 });

@@ -107,14 +107,13 @@ function createCreateConfigHandler(
     // z.ai-catalog models (incl. z.ai-only ones like glm-5.2) are validatable as
     // global configs. Users with a z.ai key promote at runtime; users without
     // one fall through to OpenRouter.
-    if (
-      !(await validateLlmConfigModelFields({
-        res,
-        modelCache,
-        body,
-        hasZaiCodingKey: true,
-      }))
-    ) {
+    const validation = await validateLlmConfigModelFields({
+      res,
+      modelCache,
+      body,
+      hasZaiCodingKey: true,
+    });
+    if (!validation.ok) {
       return;
     }
 
@@ -138,7 +137,11 @@ function createCreateConfigHandler(
     await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.info({ configId: config.id, name: config.name }, 'Created global config');
-    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.CREATED);
+    sendCustomSuccess(
+      res,
+      { config: withAdminOwnership(formatted), warnings: validation.warnings },
+      StatusCodes.CREATED
+    );
   };
 }
 
@@ -174,15 +177,14 @@ function createEditConfigHandler(
       return;
     }
 
-    if (
-      !(await validateLlmConfigModelFields({
-        res,
-        modelCache,
-        body,
-        fallback: { service, configId: configId },
-        hasZaiCodingKey: true,
-      }))
-    ) {
+    const validation = await validateLlmConfigModelFields({
+      res,
+      modelCache,
+      body,
+      fallback: { service, configId: configId },
+      hasZaiCodingKey: true,
+    });
+    if (!validation.ok) {
       return;
     }
 
@@ -210,7 +212,11 @@ function createEditConfigHandler(
       { configId, name: config.name, updates: Object.keys(body) },
       'Updated global config'
     );
-    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.OK);
+    sendCustomSuccess(
+      res,
+      { config: withAdminOwnership(formatted), warnings: validation.warnings },
+      StatusCodes.OK
+    );
   };
 }
 

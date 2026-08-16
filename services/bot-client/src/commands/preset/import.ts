@@ -3,7 +3,7 @@
  * Handles /preset import - allows users to import presets from JSON files
  */
 
-import { EmbedBuilder, escapeMarkdown } from 'discord.js';
+import { EmbedBuilder, MessageFlags, escapeMarkdown } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetImportOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -13,6 +13,7 @@ import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateAndParseJsonFile } from '../../utils/jsonFileUtils.js';
 import { updatePreset } from './api.js';
+import { buildModelCompatibilityEmbed } from './warningsEmbed.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -191,7 +192,10 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
 async function createPresetFromImport(
   userClient: UserClient,
   payload: Record<string, unknown>
-): Promise<{ ok: true; id: string; globalApplied?: boolean } | { ok: false; failure: unknown }> {
+): Promise<
+  | { ok: true; id: string; globalApplied?: boolean; warnings: string[] }
+  | { ok: false; failure: unknown }
+> {
   // Create preset with all fields - API supports all fields in create endpoint
   const createResult = await userClient.createUserLlmConfig({
     name: payload.name,
@@ -209,22 +213,29 @@ async function createPresetFromImport(
     return { ok: false, failure: createResult };
   }
   const id = createResult.data.config.id;
+  // Import is the save-time validation's highest-value consumer: the payload's
+  // model/thinking combination came from a file, not an interactive edit, so
+  // the gateway's compatibility warnings must reach the importer.
+  const warnings = createResult.data.warnings;
 
   // Visibility round-trip: create lands private; apply isGlobal afterwards via the
   // same update the dashboard toggle uses. A failure here must NOT fail the import —
   // the preset exists; the caller surfaces "stayed private" in the result embed.
   if (payload.isGlobal !== true) {
-    return { ok: true, id };
+    return { ok: true, id, warnings };
   }
   try {
+    // The visibility-only update cannot change model or thinking, so its own
+    // warnings would only repeat the create's — the create's set is the one
+    // surfaced.
     await updatePreset(id, { isGlobal: true }, userClient);
-    return { ok: true, id, globalApplied: true };
+    return { ok: true, id, globalApplied: true, warnings };
   } catch (error) {
     logger.warn(
       { err: error, presetId: id },
       'Imported preset created but applying isGlobal failed — left private'
     );
-    return { ok: true, id, globalApplied: false };
+    return { ok: true, id, globalApplied: false, warnings };
   }
 }
 
@@ -311,6 +322,14 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     const presetName = payload.name as string;
     const embed = buildSuccessEmbed(payload, presetName, createResult.globalApplied);
     await context.editReply({ embeds: [embed] });
+
+    const compatibilityEmbed = buildModelCompatibilityEmbed(createResult.warnings);
+    if (compatibilityEmbed !== null) {
+      await context.interaction.followUp({
+        embeds: [compatibilityEmbed],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
 
     logger.info({ presetId: createResult.id, userId, presetName }, 'Preset imported successfully');
   } catch (error) {

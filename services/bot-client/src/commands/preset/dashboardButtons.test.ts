@@ -20,6 +20,15 @@ import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { buildPresetDashboardOptions, type FlattenedPresetData } from './config.js';
 
+/**
+ * Wrap a preset payload in the mutating-API result shape.
+ *
+ * `createPreset` / `updatePreset` / `updateGlobalPreset` return the saved
+ * preset alongside the gateway's non-blocking save warnings, so a bare preset
+ * object is no longer a valid stub return.
+ */
+const asMutation = (preset: unknown, warnings: string[] = []) => ({ preset, warnings });
+
 // Sentinel returned by mocked `clientsFor`; flows through to mocked api.ts helpers
 // so tests assert calls receive the same sentinel rather than a legacy GatewayUser.
 const mockDeleteUserLlmConfig = vi.fn();
@@ -223,6 +232,10 @@ describe('Preset Dashboard Buttons', () => {
     mockSessionManager.delete.mockResolvedValue(undefined);
     // Reset ownership check to default (owner)
     mockCheckOwnership.mockResolvedValue(true);
+    // Default mutation result: the clone flow reads `.warnings` off every
+    // updatePreset return, so an unstubbed bare vi.fn() would crash the flow
+    // rather than exercise it. Tests asserting specific warnings override this.
+    mockUpdatePreset.mockResolvedValue(asMutation({ id: 'updated-preset' }));
   });
 
   const createMockFlattenedPreset = (
@@ -500,7 +513,9 @@ describe('Preset Dashboard Buttons', () => {
         data: createMockFlattenedPreset({ isGlobal: false, browseContext }),
       });
       mockFetchPreset.mockResolvedValueOnce(createMockPresetResponse({ isGlobal: false }));
-      mockUpdatePreset.mockResolvedValueOnce(createMockPresetResponse({ isGlobal: true }));
+      mockUpdatePreset.mockResolvedValueOnce(
+        asMutation(createMockPresetResponse({ isGlobal: true }))
+      );
 
       await handleToggleGlobalButton(mockInteraction, 'preset-123');
 
@@ -760,11 +775,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'Original Preset' }),
       });
-      mockCreatePreset.mockResolvedValue({
-        id: 'cloned-preset',
-        name: 'Original Preset (Copy)',
-        slug: 'original-preset-copy',
-      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({
+          id: 'cloned-preset',
+          name: 'Original Preset (Copy)',
+          slug: 'original-preset-copy',
+        })
+      );
 
       await handleCloneButton(mockInteraction, 'preset-123');
 
@@ -781,11 +798,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'My Preset (Copy)' }),
       });
-      mockCreatePreset.mockResolvedValue({
-        id: 'cloned-preset',
-        name: 'My Preset (Copy 2)',
-        slug: 'my-preset-copy-2',
-      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({
+          id: 'cloned-preset',
+          name: 'My Preset (Copy 2)',
+          slug: 'my-preset-copy-2',
+        })
+      );
 
       await handleCloneButton(mockInteraction, 'preset-123');
 
@@ -801,11 +820,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'My Preset (Copy 5)' }),
       });
-      mockCreatePreset.mockResolvedValue({
-        id: 'cloned-preset',
-        name: 'My Preset (Copy 6)',
-        slug: 'my-preset-copy-6',
-      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({
+          id: 'cloned-preset',
+          name: 'My Preset (Copy 6)',
+          slug: 'my-preset-copy-6',
+        })
+      );
 
       await handleCloneButton(mockInteraction, 'preset-123');
 
@@ -822,11 +843,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'Preset (Copy) Edition' }),
       });
-      mockCreatePreset.mockResolvedValue({
-        id: 'cloned-preset',
-        name: 'Preset (Copy) Edition (Copy)',
-        slug: 'preset-copy-edition-copy',
-      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({
+          id: 'cloned-preset',
+          name: 'Preset (Copy) Edition (Copy)',
+          slug: 'preset-copy-edition-copy',
+        })
+      );
 
       await handleCloneButton(mockInteraction, 'preset-123');
 
@@ -852,7 +875,7 @@ describe('Preset Dashboard Buttons', () => {
         name: 'Full Preset (Copy)',
         slug: 'full-preset-copy',
       };
-      mockCreatePreset.mockResolvedValue(clonedPreset);
+      mockCreatePreset.mockResolvedValue(asMutation(clonedPreset));
       mockFetchPreset.mockResolvedValue(createMockPresetResponse({ id: 'cloned-preset' }));
 
       await handleCloneButton(mockInteraction, 'preset-123');
@@ -885,6 +908,41 @@ describe('Preset Dashboard Buttons', () => {
       });
     });
 
+    it('surfaces the param-copy save warnings after the clone', async () => {
+      // The second save copies the source's advanced params (thinking level
+      // included) onto the clone, so its gateway warnings are real — e.g.
+      // cloning an off-level preset on a compulsory-thinking model.
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ name: 'Original' }),
+      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({ id: 'cloned-preset', name: 'Original (Copy)', slug: 'original-copy' })
+      );
+      mockUpdatePreset.mockResolvedValue(
+        asMutation({ id: 'cloned-preset' }, ['clone-warning-sentinel'])
+      );
+      mockFetchPreset.mockResolvedValue(
+        createMockPresetResponse({ id: 'cloned-preset', name: 'Original (Copy)' })
+      );
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      expect(mockInteraction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: [
+            expect.objectContaining({
+              data: expect.objectContaining({
+                title: expect.stringContaining('Model Compatibility'),
+                description: expect.stringContaining('clone-warning-sentinel'),
+              }),
+            }),
+          ],
+          flags: MessageFlags.Ephemeral,
+        })
+      );
+    });
+
     it('carries browseContext forward to the cloned preset session', async () => {
       // Ensures the back-to-browse affordance survives a clone from
       // /preset browse — the cloned dashboard should still route back.
@@ -894,11 +952,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'Original', browseContext }),
       });
-      mockCreatePreset.mockResolvedValue({
-        id: 'cloned-preset',
-        name: 'Original (Copy)',
-        slug: 'original-copy',
-      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({
+          id: 'cloned-preset',
+          name: 'Original (Copy)',
+          slug: 'original-copy',
+        })
+      );
       mockFetchPreset.mockResolvedValue(
         createMockPresetResponse({ id: 'cloned-preset', name: 'Original (Copy)' })
       );
@@ -924,11 +984,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'Original', browseContext: undefined }),
       });
-      mockCreatePreset.mockResolvedValue({
-        id: 'cloned-preset',
-        name: 'Original (Copy)',
-        slug: 'original-copy',
-      });
+      mockCreatePreset.mockResolvedValue(
+        asMutation({
+          id: 'cloned-preset',
+          name: 'Original (Copy)',
+          slug: 'original-copy',
+        })
+      );
       mockFetchPreset.mockResolvedValue(
         createMockPresetResponse({ id: 'cloned-preset', name: 'Original (Copy)' })
       );

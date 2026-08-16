@@ -54,6 +54,10 @@ export class ModelCapabilityService {
         supportsAudioInput: openRouterModel.supportsAudioInput,
         supportsAudioOutput: openRouterModel.supportsAudioOutput,
         contextLength: openRouterModel.contextLength,
+        // Separate lookup because the autocomplete projection above drops
+        // `supported_parameters`. It re-reads the same catalog `getModelById`
+        // just consulted, which is a memory-cache hit on the same request.
+        supportsReasoning: await this.modelCache?.supportsReasoning(modelId),
         source: 'openrouter',
       };
     }

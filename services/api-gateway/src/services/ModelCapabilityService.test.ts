@@ -31,6 +31,9 @@ function modelOption(overrides: Partial<ModelAutocompleteOption> = {}): ModelAut
 /** A cache stub whose getModelById returns whatever the map holds (null otherwise). */
 function cacheReturning(byId: Record<string, ModelAutocompleteOption>): OpenRouterModelCache {
   return {
+    // Reasoning support is unknown to these stubs — the three-state contract
+    // means undefined, so no thinking warning is derived from them.
+    supportsReasoning: vi.fn().mockResolvedValue(undefined),
     getModelById: vi.fn(async (id: string) => byId[id] ?? null),
   } as unknown as OpenRouterModelCache;
 }
@@ -87,6 +90,9 @@ describe('ModelCapabilityService', () => {
       supportsAudioInput: false,
       supportsAudioOutput: false,
       contextLength: 1_000_000,
+      // Text-only, but still a reasoning model — the catalog's whole lineup is.
+      supportsReasoning: true,
+      thinkingOff: 'best-effort',
       source: 'zai',
     });
   });
@@ -137,6 +143,66 @@ describe('ModelCapabilityService', () => {
       expect(await new ModelCapabilityService(undefined).supportsVision('made-up/model-x')).toBe(
         false
       );
+    });
+  });
+
+  describe('reasoning support', () => {
+    /** A stub carrying BOTH lookups, so the two can disagree the way real data can. */
+    function cacheWithReasoning(
+      byId: Record<string, ModelAutocompleteOption>,
+      reasoning: boolean | undefined
+    ): OpenRouterModelCache {
+      return {
+        getModelById: vi.fn(async (id: string) => byId[id] ?? null),
+        supportsReasoning: vi.fn().mockResolvedValue(reasoning),
+      } as unknown as OpenRouterModelCache;
+    }
+
+    it('carries the cache answer through, keyed on the requested model', async () => {
+      // Asserting across the mocked seam: the id must reach the accessor, and
+      // its answer must reach the resolved record. A mocked collaborator
+      // returns the same thing whether or not the caller forwarded correctly,
+      // so the argument assertion is the half that catches a wiring bug.
+      const cache = cacheWithReasoning(
+        { 'some/reasoner': modelOption({ id: 'some/reasoner' }) },
+        true
+      );
+
+      const caps = await new ModelCapabilityService(cache).resolve('some/reasoner');
+
+      expect(caps?.supportsReasoning).toBe(true);
+      expect(cache.supportsReasoning).toHaveBeenCalledWith('some/reasoner');
+    });
+
+    it('carries an authoritative negative through as false', async () => {
+      const cache = cacheWithReasoning(
+        { 'some/text-only': modelOption({ id: 'some/text-only' }) },
+        false
+      );
+
+      expect(
+        (await new ModelCapabilityService(cache).resolve('some/text-only'))?.supportsReasoning
+      ).toBe(false);
+    });
+
+    it('leaves reasoning support undefined when the cache cannot answer', async () => {
+      const cache = cacheWithReasoning(
+        { 'some/mystery': modelOption({ id: 'some/mystery' }) },
+        undefined
+      );
+
+      expect(
+        (await new ModelCapabilityService(cache).resolve('some/mystery'))?.supportsReasoning
+      ).toBeUndefined();
+    });
+
+    it('reports z.ai-catalog models as reasoning-capable with their thinkingOff level', async () => {
+      // glm-5.2 is z.ai-only, so it falls through to the static catalog.
+      const caps = await new ModelCapabilityService(undefined).resolve('z-ai/glm-5.2');
+
+      expect(caps?.source).toBe('zai');
+      expect(caps?.supportsReasoning).toBe(true);
+      expect(caps?.thinkingOff).toBe('best-effort');
     });
   });
 });

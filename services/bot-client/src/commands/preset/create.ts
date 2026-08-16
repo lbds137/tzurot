@@ -109,7 +109,9 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
   try {
     // Create preset via API (API uses AI_DEFAULTS for sensible defaults)
     const { userClient } = clientsFor(interaction);
-    const preset = await createPreset(
+    // The create modal collects only name/model/provider — no thinking level —
+    // so this save has no thinking warnings to surface.
+    const { preset } = await createPreset(
       {
         name: values.name.trim(),
         model: values.model.trim(),
