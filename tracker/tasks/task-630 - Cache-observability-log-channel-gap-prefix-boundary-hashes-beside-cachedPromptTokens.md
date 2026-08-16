@@ -3,9 +3,10 @@ id: TASK-630
 title: >-
   Cache observability: log channel gap + prefix-boundary hashes beside
   cachedPromptTokens
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 19:18'
+updated_date: '2026-08-16 23:07'
 labels:
   - 'area:ai-worker'
   - 'size:S'

@@ -3,9 +3,10 @@ id: TASK-609
 title: >-
   GLM-5.3 reportedly removes reasoning-off; our effort:none level may become
   invalid
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 16:07'
+updated_date: '2026-08-16 23:07'
 labels:
   - 'area:ai-worker'
   - 'area:common-types'

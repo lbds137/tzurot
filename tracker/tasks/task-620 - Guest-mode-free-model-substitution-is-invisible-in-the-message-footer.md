@@ -1,9 +1,10 @@
 ---
 id: TASK-620
 title: Guest-mode free-model substitution is invisible in the message footer
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 16:24'
+updated_date: '2026-08-16 23:09'
 labels:
   - 'area:ai-worker'
   - 'size:M'
