@@ -4,7 +4,7 @@
  * AI model configuration, providers, defaults, and endpoints.
  */
 
-import type { ModelCapabilities } from '../types/ai.js';
+import type { ModelCapabilities, ZaiThinkingOffSupport } from '../types/ai.js';
 import { INTERVALS } from './timing.js';
 
 /**
@@ -342,6 +342,18 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 // z.ai coding-plan model is text-only, so none set them; the fields exist so a
 // future z.ai vision/audio model is a one-line value change, not a schema
 // change. `zaiCodingPlanModelCapabilities` reads them with `?? false`.
+//
+// `thinkingOff` records how far a `thinking: 'off'` request is actually honored
+// by each model, so save-time validation can warn instead of silently promising
+// a knob the provider ignores. Each entry's comment states its calibration —
+// live-probed against the model, or read from z.ai's documentation only.
+/**
+ * Shared by every GLM-5.x entry below: z.ai documents the 5.x family as
+ * auto-determining whether to think, and glm-5.2 was measured still returning
+ * reasoning tokens on a `disabled` request.
+ */
+const GLM_5X_THINKING_OFF: ZaiThinkingOffSupport = 'best-effort';
+
 const ZAI_MODEL_CATALOG: Readonly<
   Record<
     string,
@@ -353,27 +365,59 @@ const ZAI_MODEL_CATALOG: Readonly<
       supportsImageGeneration?: boolean;
       supportsAudioInput?: boolean;
       supportsAudioOutput?: boolean;
+      thinkingOff?: ZaiThinkingOffSupport;
     }
   >
 > = {
-  'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
-  'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
+  // GLM-5.x siblings: doc-read only (z.ai documents the 5.x family as
+  // auto-determining whether to think), calibrated by the glm-5.2 measurement
+  // below. Not individually probed.
+  'glm-5': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-5',
+    contextLength: 200_000,
+    thinkingOff: GLM_5X_THINKING_OFF,
+  },
+  'glm-5.1': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1',
+    contextLength: 200_000,
+    thinkingOff: GLM_5X_THINKING_OFF,
+  },
   // glm-5.2 is z.ai's flagship; OpenRouter also lists it (as `z-ai/glm-5.2`),
   // so the merge takes OpenRouter's `created`, leaving `released` here inert
   // for recency-sorting — kept as the documented z.ai date should the
   // OpenRouter listing ever disappear. This catalog remains the z.ai-direct
   // source for context length. The docs URL follows z.ai's established
   // per-model pattern.
+  // `thinkingOff: 'best-effort'` here is MEASURED: a live request with thinking
+  // disabled still came back carrying reasoning tokens.
   'glm-5.2': {
     docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2',
     contextLength: 1_000_000,
     released: '2026-06-13',
+    thinkingOff: GLM_5X_THINKING_OFF,
   },
-  'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo', contextLength: 200_000 },
-  'glm-4.7': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7', contextLength: 200_000 },
+  'glm-5-turbo': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo',
+    contextLength: 200_000,
+    thinkingOff: GLM_5X_THINKING_OFF,
+  },
+  // `thinkingOff: 'unsupported'` is doc-read only — z.ai's documentation
+  // describes this model's thinking as compulsory. Not probed against the live
+  // model, so treat it as z.ai's claim rather than a measurement.
+  'glm-4.7': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7',
+    contextLength: 200_000,
+    thinkingOff: 'unsupported',
+  },
   // glm-4.5-air uses the parent family page — z.ai docs the Air variant on
   // the same page as the regular glm-4.5; no per-model URL exists.
-  'glm-4.5-air': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5', contextLength: 128_000 },
+  // `thinkingOff: 'honored'` is MEASURED: a live request with thinking disabled
+  // returned zero reasoning tokens.
+  'glm-4.5-air': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5',
+    contextLength: 128_000,
+    thinkingOff: 'honored',
+  },
 };
 
 /**
@@ -446,6 +490,26 @@ export interface ZaiCodingPlanModelInfo {
   supportsAudioInput?: boolean;
   /** Produces audio output. Omitted = false. */
   supportsAudioOutput?: boolean;
+  /** How far a "disable thinking" request is honored. Omitted = no data. */
+  thinkingOff?: ZaiThinkingOffSupport;
+}
+
+/**
+ * Look up how far a z.ai coding-plan model honors a request to disable extended
+ * thinking. Same lookup contract as {@link getZaiCodingPlanContextLength}
+ * (optional `z-ai/` prefix, case-normalized). Returns `undefined` for a model
+ * outside the catalog, and for a catalog member carrying no `thinkingOff` data.
+ *
+ * Read this directly — rather than through {@link zaiCodingPlanModelCapabilities}
+ * — when the answer must hold regardless of which provider ends up serving the
+ * model. A GLM listed on OpenRouter resolves its capabilities from OpenRouter,
+ * which knows nothing about z.ai's thinking semantics, yet the same model still
+ * routes z.ai-direct for any user holding a z.ai coding key.
+ */
+export function zaiThinkingOffSupport(model: string): ZaiThinkingOffSupport | undefined {
+  const lower = model.toLowerCase();
+  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  return ZAI_MODEL_CATALOG[bare]?.thinkingOff;
 }
 
 /**
@@ -473,6 +537,11 @@ export function zaiCodingPlanModelCapabilities(model: string): ModelCapabilities
     supportsAudioInput: entry.supportsAudioInput ?? false,
     supportsAudioOutput: entry.supportsAudioOutput ?? false,
     contextLength: entry.contextLength,
+    // Every model in this catalog is a GLM reasoning model, so reasoning
+    // parameters are always accepted — what varies between them is only how far
+    // a request to turn thinking OFF is honored, which `thinkingOff` carries.
+    supportsReasoning: true,
+    thinkingOff: entry.thinkingOff,
     source: 'zai',
   };
 }

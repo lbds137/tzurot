@@ -37,7 +37,10 @@ vi.mock('@tzurot/common-types/constants/discord', async () => {
   );
   return {
     ...actual,
+    // Spread the real palette: replacing the whole object drops every other
+    // color, and an embed built with setColor(undefined) throws at runtime.
     DISCORD_COLORS: {
+      ...actual.DISCORD_COLORS,
       SUCCESS: 0x00ff00,
     },
   };
@@ -107,6 +110,7 @@ describe('Preset Import', () => {
         options: {
           getAttachment: vi.fn().mockReturnValue(createMockAttachment()),
         },
+        followUp: vi.fn(),
       },
       editReply: vi.fn(),
     }) as unknown as DeferredCommandContext;
@@ -144,11 +148,43 @@ describe('Preset Import', () => {
   });
 
   describe('handleImport', () => {
+    it('surfaces gateway compatibility warnings after a successful import', async () => {
+      // Import is the save-time validation's highest-value consumer: the
+      // model/thinking pairing came from a file, not an interactive edit.
+      vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
+        data: createValidPresetData(),
+      });
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: ['import-warning-sentinel'] })
+      );
+
+      const mockContext = createMockContext();
+      await handleImport(mockContext);
+
+      const followUp = (
+        mockContext as unknown as { interaction: { followUp: ReturnType<typeof vi.fn> } }
+      ).interaction.followUp;
+      expect(followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: [
+            expect.objectContaining({
+              data: expect.objectContaining({
+                title: expect.stringContaining('Model Compatibility'),
+                description: expect.stringContaining('import-warning-sentinel'),
+              }),
+            }),
+          ],
+        })
+      );
+    });
+
     it('should import valid preset successfully', async () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData(),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
 
       const mockContext = createMockContext();
 
@@ -171,7 +207,9 @@ describe('Preset Import', () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData({ isGlobal: true }),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
       stub.updateUserLlmConfig.mockResolvedValue(
         makeOk({ config: { id: 'new-preset-id', name: 'Test Preset', isGlobal: true, params: {} } })
       );
@@ -193,7 +231,9 @@ describe('Preset Import', () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData({ isGlobal: true }),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
       stub.updateUserLlmConfig.mockResolvedValue(makeErr(403, 'Forbidden'));
 
       const mockContext = createMockContext();
@@ -212,7 +252,9 @@ describe('Preset Import', () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData(),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
 
       await handleImport(createMockContext());
 
@@ -278,7 +320,9 @@ describe('Preset Import', () => {
           provider: 'anthropic',
         }),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
 
       const mockContext = createMockContext();
 
@@ -301,7 +345,9 @@ describe('Preset Import', () => {
           },
         }),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
 
       const mockContext = createMockContext();
 
@@ -331,7 +377,9 @@ describe('Preset Import', () => {
           },
         }),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
 
       await handleImport(createMockContext());
 
@@ -362,7 +410,9 @@ describe('Preset Import', () => {
           contextWindowTokens: 65536,
         }),
       });
-      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.createUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id' }, warnings: [] })
+      );
 
       const mockContext = createMockContext();
 

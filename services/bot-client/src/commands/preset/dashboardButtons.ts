@@ -35,6 +35,7 @@ import { fetchPreset, updatePreset, fetchGlobalPreset } from './api.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { createClonedPreset } from './cloneName.js';
+import { buildModelCompatibilityEmbed } from './warningsEmbed.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('preset-dashboard-buttons');
@@ -170,7 +171,13 @@ export async function handleToggleGlobalButton(
     }
 
     const newIsGlobal = !freshPreset.isGlobal;
-    const updatedPreset = await updatePreset(entityId, { isGlobal: newIsGlobal }, userClient);
+    // Visibility-only toggle — it can't change the model or thinking level, so
+    // any save warnings would repeat what the edit flow already surfaced.
+    const { preset: updatedPreset } = await updatePreset(
+      entityId,
+      { isGlobal: newIsGlobal },
+      userClient
+    );
 
     // Preserve browseContext from the existing session (same pattern as the refresh
     // handler above) — rebuilding from the API response alone drops it, and the
@@ -401,9 +408,14 @@ export async function handleCloneButton(
       updatePayload.isGlobal = true;
     }
 
-    // Apply updates if needed
+    // Apply updates if needed. This second save copies the source's advanced
+    // params — thinking level included — onto the clone, so it can produce
+    // real compatibility warnings (e.g. cloning an off-level preset on a
+    // compulsory-thinking model); they surface after the dashboard refresh.
+    let cloneWarnings: string[] = [];
     if (Object.keys(updatePayload).length > 0) {
-      await updatePreset(newPreset.id, updatePayload, userClient);
+      const updated = await updatePreset(newPreset.id, updatePayload, userClient);
+      cloneWarnings = updated.warnings;
     }
 
     // Fetch the complete cloned preset to get all fields
@@ -442,6 +454,14 @@ export async function handleCloneButton(
       dashboardConfig: PRESET_DASHBOARD_CONFIG,
       buildOptions: buildPresetDashboardOptions,
     });
+
+    const compatibilityEmbed = buildModelCompatibilityEmbed(cloneWarnings);
+    if (compatibilityEmbed !== null) {
+      await interaction.followUp({
+        embeds: [compatibilityEmbed],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
 
     logger.info(
       { sourcePresetId: entityId, clonedPresetId: clonedPreset.id, userId: interaction.user.id },

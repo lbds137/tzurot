@@ -142,13 +142,18 @@ describe('updatePreset', () => {
   });
 
   it('should update preset successfully', async () => {
-    stub.updateUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
+    stub.updateUserLlmConfig.mockResolvedValue(
+      makeOk({ config: mockPresetData, warnings: ['sentinel-update-warning'] })
+    );
 
     const updateData = { name: 'Updated Name' };
     const result = await updatePreset('preset-123', updateData, asUserClient(stub));
 
     expect(stub.updateUserLlmConfig).toHaveBeenCalledWith('preset-123', updateData);
-    expect(result).toEqual(mockPresetData);
+    expect(result.preset).toEqual(mockPresetData);
+    // The gateway's advisory notes must survive the adapter rather than being
+    // dropped on the floor between the client and the dashboard.
+    expect(result.warnings).toEqual(['sentinel-update-warning']);
   });
 
   it('should throw on error with message', async () => {
@@ -194,17 +199,20 @@ describe('updateGlobalPreset', () => {
   it('should update global preset successfully', async () => {
     // Admin API doesn't return isOwned/permissions, so function adds them
     const apiResponse = { ...mockPresetData };
-    stub.updateGlobalLlmConfig.mockResolvedValue(makeOk({ config: apiResponse }));
+    stub.updateGlobalLlmConfig.mockResolvedValue(
+      makeOk({ config: apiResponse, warnings: ['sentinel-global-warning'] })
+    );
 
     const updateData = { name: 'Updated Name' };
     const result = await updateGlobalPreset('preset-123', updateData, asOwnerClient(stub));
 
     expect(stub.updateGlobalLlmConfig).toHaveBeenCalledWith('preset-123', updateData);
-    expect(result).toEqual({
+    expect(result.preset).toEqual({
       ...mockPresetData,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
     });
+    expect(result.warnings).toEqual(['sentinel-global-warning']);
   });
 
   it('throws on failure with gateway error message', async () => {
@@ -247,14 +255,17 @@ describe('createPreset', () => {
   });
 
   it('returns the created preset config on success', async () => {
-    stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
+    stub.createUserLlmConfig.mockResolvedValue(
+      makeOk({ config: mockPresetData, warnings: ['sentinel-create-warning'] })
+    );
 
     const result = await createPreset(
       { name: 'Foo', model: 'm', provider: 'p' },
       asUserClient(stub)
     );
 
-    expect(result).toEqual(mockPresetData);
+    expect(result.preset).toEqual(mockPresetData);
+    expect(result.warnings).toEqual(['sentinel-create-warning']);
     expect(stub.createUserLlmConfig).toHaveBeenCalledWith({
       name: 'Foo',
       model: 'm',

@@ -243,6 +243,30 @@ export class OpenRouterModelCache {
   }
 
   /**
+   * Whether OpenRouter's catalog entry for `modelId` lists `reasoning` among its
+   * `supported_parameters`.
+   *
+   * Reads the RAW cached entry rather than going through `getModelById`:
+   * `toAutocompleteOption` projects the catalog down to the display fields and
+   * drops `supported_parameters`, so the autocomplete shape cannot answer this.
+   *
+   * Three-state on purpose. `undefined` means "no authoritative answer" and
+   * covers BOTH a model absent from the catalog and an unreachable catalog — the
+   * save-time thinking warnings must fire only on a present entry that genuinely
+   * lacks reasoning support, never on a lookup that simply failed. Covered by
+   * the reasoning-support cases in `OpenRouterModelCache.test.ts`.
+   */
+  async supportsReasoning(modelId: string): Promise<boolean | undefined> {
+    try {
+      const allModels = await this.getModels();
+      return allModels.find(m => m.id === modelId)?.supported_parameters.includes('reasoning');
+    } catch (error) {
+      logger.warn({ err: error, modelId }, 'Cache unavailable for reasoning-support lookup');
+      return undefined;
+    }
+  }
+
+  /**
    * Force refresh the cache (e.g., for admin purposes)
    */
   async refreshCache(): Promise<number> {

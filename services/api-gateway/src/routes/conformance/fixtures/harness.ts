@@ -156,6 +156,9 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
       getFilteredModels: () => Promise.resolve([CONFORMANCE_SAMPLE_MODEL]),
       getModelById: () => Promise.resolve(CONFORMANCE_SAMPLE_MODEL),
       lookupModelById: () => Promise.resolve({ kind: 'resolved', model: CONFORMANCE_SAMPLE_MODEL }),
+      // Three-state contract: undefined = "no authoritative answer", so the
+      // save-time thinking validation stays silent in conformance responses.
+      supportsReasoning: () => Promise.resolve(undefined),
     } as unknown as RouteDeps['modelCache'],
   };
 

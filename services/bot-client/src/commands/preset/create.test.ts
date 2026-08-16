@@ -169,16 +169,19 @@ describe('Preset Create', () => {
       });
 
       vi.mocked(api.createPreset).mockResolvedValue({
-        id: 'preset-123',
-        name: 'Test Preset',
-        description: null,
-        model: 'anthropic/claude-sonnet-4',
-        provider: 'openrouter',
-        isGlobal: false,
-        isOwned: true,
-        permissions: { canEdit: true, canDelete: true },
-        contextWindowTokens: 8192,
-        params: {},
+        preset: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          description: null,
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+          permissions: { canEdit: true, canDelete: true },
+          contextWindowTokens: 8192,
+          params: {},
+        },
+        warnings: [],
       });
 
       const mockInteraction = createMockModalInteraction({
@@ -270,7 +273,7 @@ describe('Preset Create', () => {
         provider: 'openrouter',
       });
 
-      vi.mocked(api.createPreset).mockResolvedValue(mockPreset);
+      vi.mocked(api.createPreset).mockResolvedValue({ preset: mockPreset, warnings: [] });
 
       const mockInteraction = createMockModalInteraction({
         name: 'My Preset',

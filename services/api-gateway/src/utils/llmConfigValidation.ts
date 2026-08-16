@@ -16,6 +16,11 @@
  */
 
 import type { Response } from 'express';
+import {
+  safeValidateAdvancedParams,
+  type ThinkingLevel,
+} from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { collectThinkingWarnings } from './thinkingValidation.js';
 import { sendError } from './responseHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
 import { validateModelAndContextWindow } from './modelValidation.js';
@@ -54,6 +59,14 @@ export interface ValidateLlmConfigModelFieldsOptions {
   body: {
     model?: string;
     contextWindowTokens?: number;
+    /**
+     * The advanced-params patch, read only for its `thinking` level. When the
+     * patch carries this object at all, its contents REPLACE the stored params
+     * (absent `thinking` inside it means the level is removed); only a patch
+     * with no `advancedParameters` key leaves the stored level in place, and
+     * only then does the update path fall back to the stored row's.
+     */
+    advancedParameters?: { thinking?: ThinkingLevel };
   };
   /**
    * Whether the saving user has an active z.ai-coding API key. Gates the z.ai
@@ -74,24 +87,48 @@ export interface ValidateLlmConfigModelFieldsOptions {
   };
 }
 
+/** The post-save model and thinking level, whether patched or inherited. */
+interface EffectiveConfigFields {
+  model: string | undefined;
+  thinking: ThinkingLevel | undefined;
+}
+
 /**
- * Resolve the effective model for validation: the body's model when present,
- * otherwise the stored row's (so contextWindowTokens can still be validated
- * against a known model on a context-only edit). The fetch only happens when
- * the fallback is actually needed.
+ * Resolve the effective post-save model and thinking level: each takes the
+ * body's value when the body sets one, otherwise the stored row's — so a
+ * context-only edit still validates against a known model, and a model-only
+ * edit still warns about the thinking level the config will keep carrying.
+ *
+ * At most ONE row fetch, shared by both fields, and only when the update path
+ * actually needs a fallback for one of them.
  */
-async function resolveEffectiveModel(
+async function resolveEffectiveFields(
   opts: ValidateLlmConfigModelFieldsOptions
-): Promise<string | undefined> {
+): Promise<EffectiveConfigFields> {
   const { body, fallback } = opts;
-  if (body.model !== undefined || fallback === undefined) {
-    return body.model;
+  // LlmConfigService.update REPLACES the advancedParameters JSONB wholesale
+  // whenever the patch carries it, so the stored row's thinking level survives
+  // the save ONLY when the patch leaves the object untouched. A params patch
+  // without a thinking key REMOVES the level — coalescing to the stored value
+  // there would warn about a setting the save just deleted.
+  const patchesParams = body.advancedParameters !== undefined;
+  const bodyThinking = body.advancedParameters?.thinking;
+
+  if (fallback === undefined || (body.model !== undefined && patchesParams)) {
+    return { model: body.model, thinking: bodyThinking };
   }
-  // If the row doesn't exist, this resolves undefined and validation is skipped —
-  // which is harmless: the update route's own fetch returns a clean 404 right
-  // after. We deliberately don't 404 here; existence is the route's concern.
+
+  // If the row doesn't exist, both fields resolve undefined and validation is
+  // skipped — which is harmless: the update route's own fetch returns a clean
+  // 404 right after. We deliberately don't 404 here; existence is the route's
+  // concern.
   const current = await fallback.service.getById(fallback.configId);
-  return current?.model;
+  return {
+    model: body.model ?? current?.model,
+    thinking: patchesParams
+      ? bodyThinking
+      : safeValidateAdvancedParams(current?.advancedParameters)?.thinking,
+  };
 }
 
 /**
@@ -145,43 +182,80 @@ export async function ensureVisionCapableModel(
   return true;
 }
 
+/** Outcome of the model/context-window/thinking validation pass. */
+export interface LlmConfigFieldValidation {
+  /** `false` means a 400 has already been sent and the route must return. */
+  ok: boolean;
+  /**
+   * Advisory notes for a save that succeeded. Always empty when `ok` is
+   * `false` — an error response carries no warnings.
+   */
+  warnings: string[];
+}
+
 /**
  * Validate `body.model` + `body.contextWindowTokens` against the OpenRouter
- * model cache, handling both create and update paths.
+ * model cache, handling both create and update paths, and collect non-blocking
+ * warnings about the effective `thinking` level.
  *
- * On failure, sends a 400 validation error response and returns `false`. On
- * success (or skipped validation), returns `true`.
- *
- * @returns `true` if validation passed or was skipped, `false` if error sent
+ * On failure, sends a 400 validation error response and returns `ok: false`.
+ * On success (or skipped validation), returns `ok: true` plus any warnings.
  */
 export async function validateLlmConfigModelFields(
   opts: ValidateLlmConfigModelFieldsOptions
-): Promise<boolean> {
+): Promise<LlmConfigFieldValidation> {
   const { res, modelCache, body, fallback, hasZaiCodingKey = false } = opts;
 
-  // Update path: skip entirely when neither model nor contextWindowTokens is present.
-  // A no-op update doesn't need model validation.
+  // Update path: skip entirely when the patch touches none of the fields this
+  // helper reasons about. `advancedParameters` is in the list because a
+  // thinking-only patch changes what the config asks the model for, even though
+  // it moves neither the model nor the context window.
   if (
     fallback !== undefined &&
     body.model === undefined &&
-    body.contextWindowTokens === undefined
+    body.contextWindowTokens === undefined &&
+    body.advancedParameters === undefined
   ) {
-    return true;
+    return { ok: true, warnings: [] };
   }
 
-  const effectiveModel = await resolveEffectiveModel(opts);
+  const effective = await resolveEffectiveFields(opts);
 
-  const result = await validateModelAndContextWindow(
-    modelCache,
-    effectiveModel,
-    body.contextWindowTokens,
-    hasZaiCodingKey
-  );
+  // Hard validation runs only when the patch actually touches a model field.
+  // A params-only update (thinking/temperature/...) previously skipped model
+  // validation entirely, and must not acquire a NEW way to 400 on catalog
+  // state it isn't editing — an unreachable catalog or a since-delisted stored
+  // model would otherwise reject a save that changes neither. Warning
+  // collection below still runs; it fail-quiets on an unresolvable model.
+  const touchesModelFields =
+    fallback === undefined || body.model !== undefined || body.contextWindowTokens !== undefined;
+  if (touchesModelFields) {
+    const result = await validateModelAndContextWindow(
+      modelCache,
+      effective.model,
+      body.contextWindowTokens,
+      hasZaiCodingKey
+    );
 
-  if (result.error !== undefined) {
-    sendError(res, ErrorResponses.validationError(result.error));
-    return false;
+    if (result.error !== undefined) {
+      sendError(res, ErrorResponses.validationError(result.error));
+      return { ok: false, warnings: [] };
+    }
   }
 
-  return true;
+  // Warning collection runs only past the error gate, so a rejected save never
+  // carries advisory noise alongside its 400.
+  const capabilities =
+    effective.model === undefined
+      ? null
+      : await new ModelCapabilityService(modelCache).resolve(effective.model);
+
+  return {
+    ok: true,
+    warnings: collectThinkingWarnings({
+      thinking: effective.thinking,
+      model: effective.model,
+      capabilities,
+    }),
+  };
 }

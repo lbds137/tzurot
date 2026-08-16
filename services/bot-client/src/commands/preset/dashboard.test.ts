@@ -15,6 +15,15 @@ import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
 import { GatewayApiError } from '@tzurot/clients';
 
+/**
+ * Wrap a preset payload in the mutating-API result shape.
+ *
+ * `createPreset` / `updatePreset` / `updateGlobalPreset` return the saved
+ * preset alongside the gateway's non-blocking save warnings, so a bare preset
+ * object is no longer a valid stub return.
+ */
+const asMutation = (preset: unknown, warnings: string[] = []) => ({ preset, warnings });
+
 // Sentinel passed by the migrated dashboard handler — `clientsFor(interaction)`
 // returns this stub, which then flows into the mocked api.ts helpers (fetchPreset,
 // updatePreset, etc.). Tests assert calls receive the same sentinel rather than
@@ -350,7 +359,7 @@ describe('handleModalSubmit', () => {
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
     });
-    mockUpdatePreset.mockResolvedValue(mockPresetData);
+    mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
@@ -363,6 +372,50 @@ describe('handleModalSubmit', () => {
     });
   });
 
+  it('surfaces the gateway save warnings in their own ephemeral follow-up', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
+    });
+    mockUpdatePreset.mockResolvedValue(
+      asMutation(mockPresetData, ['sentinel-thinking-warning', 'second-warning'])
+    );
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    // The save still succeeds — warnings never block the dashboard re-render.
+    expect(mockEditReply).toHaveBeenCalled();
+
+    const warningCall = mockModalFollowUp.mock.calls.at(-1) as [
+      { embeds: { data: { description?: string } }[]; flags: number },
+    ];
+    const description = warningCall[0].embeds[0].data.description;
+    expect(description).toContain('sentinel-thinking-warning');
+    expect(description).toContain('second-warning');
+  });
+
+  it('sends no warning follow-up when the gateway reports none', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
+    });
+    mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData, []));
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    expect(mockModalFollowUp).not.toHaveBeenCalled();
+  });
+
   it('should update global preset when session indicates global', async () => {
     mockParseDashboardCustomId.mockReturnValue({
       entityType: 'preset',
@@ -373,7 +426,7 @@ describe('handleModalSubmit', () => {
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: true, isOwned: true },
     });
-    mockUpdateGlobalPreset.mockResolvedValue(mockPresetData);
+    mockUpdateGlobalPreset.mockResolvedValue(asMutation(mockPresetData));
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
@@ -407,7 +460,7 @@ describe('handleModalSubmit', () => {
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true, browseContext },
     });
-    mockUpdatePreset.mockResolvedValue(mockPresetData);
+    mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
@@ -788,7 +841,7 @@ describe('handleButton', () => {
       });
       // Mock fetchPreset to return fresh data (race condition fix fetches before toggle)
       mockFetchPreset.mockResolvedValue({ ...mockPresetData, isGlobal: false });
-      mockUpdatePreset.mockResolvedValue({ ...mockPresetData, isGlobal: true });
+      mockUpdatePreset.mockResolvedValue(asMutation({ ...mockPresetData, isGlobal: true }));
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
 
@@ -809,7 +862,7 @@ describe('handleButton', () => {
       });
       // Mock fetchPreset to return fresh data (race condition fix fetches before toggle)
       mockFetchPreset.mockResolvedValue({ ...mockPresetData, isGlobal: true });
-      mockUpdatePreset.mockResolvedValue({ ...mockPresetData, isGlobal: false });
+      mockUpdatePreset.mockResolvedValue(asMutation({ ...mockPresetData, isGlobal: false }));
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
 
@@ -936,8 +989,8 @@ describe('handleButton', () => {
         },
       });
       const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy)' };
-      mockCreatePreset.mockResolvedValue(clonedPreset);
-      mockUpdatePreset.mockResolvedValue(clonedPreset); // For copying advanced params
+      mockCreatePreset.mockResolvedValue(asMutation(clonedPreset));
+      mockUpdatePreset.mockResolvedValue(asMutation(clonedPreset)); // For copying advanced params
       mockFetchPreset.mockResolvedValue(clonedPreset);
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
@@ -974,7 +1027,7 @@ describe('handleButton', () => {
         },
       });
       const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy 2)' };
-      mockCreatePreset.mockResolvedValue(clonedPreset);
+      mockCreatePreset.mockResolvedValue(asMutation(clonedPreset));
       mockFetchPreset.mockResolvedValue(clonedPreset);
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
@@ -1006,8 +1059,8 @@ describe('handleButton', () => {
         },
       });
       const clonedPreset = { ...mockPresetData, id: 'preset-456' };
-      mockCreatePreset.mockResolvedValue(clonedPreset);
-      mockUpdatePreset.mockResolvedValue(clonedPreset);
+      mockCreatePreset.mockResolvedValue(asMutation(clonedPreset));
+      mockUpdatePreset.mockResolvedValue(asMutation(clonedPreset));
       mockFetchPreset.mockResolvedValue(clonedPreset);
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
@@ -1120,7 +1173,7 @@ describe('handleButton', () => {
 
       // Server resolves the collision internally and returns the bumped name.
       const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy 2)' };
-      mockCreatePreset.mockResolvedValueOnce(clonedPreset);
+      mockCreatePreset.mockResolvedValueOnce(asMutation(clonedPreset));
       mockFetchPreset.mockResolvedValue(clonedPreset);
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));

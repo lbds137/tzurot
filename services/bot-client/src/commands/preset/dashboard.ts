@@ -40,6 +40,7 @@ import { handleSeedModalSubmit } from './create.js';
 import { PresetCustomIds } from '../../utils/customIds.js';
 import { presetConfigValidator } from './presetValidation.js';
 import { buildValidationEmbed, canProceed } from '../../utils/configValidation.js';
+import { buildModelCompatibilityEmbed } from './warningsEmbed.js';
 
 // Import button handlers from extracted module
 import {
@@ -155,7 +156,7 @@ async function handleSectionModalSubmit(
 
     // Update preset via appropriate API
     const { userClient, ownerClient } = clientsFor(interaction);
-    const updatedPreset = isGlobal
+    const { preset: updatedPreset, warnings: gatewayWarnings } = isGlobal
       ? await updateGlobalPreset(entityId, updatePayload, ownerClient)
       : await updatePreset(entityId, updatePayload, userClient);
 
@@ -195,6 +196,18 @@ async function handleSectionModalSubmit(
           flags: MessageFlags.Ephemeral,
         });
       }
+    }
+
+    // Gateway-side warnings ride in their own embed rather than merging into the
+    // one above: the local validator checks the values the user just typed,
+    // while these report what the target MODEL will actually honor. Collapsing
+    // them would present two different kinds of finding as one.
+    const compatibilityEmbed = buildModelCompatibilityEmbed(gatewayWarnings);
+    if (compatibilityEmbed !== null) {
+      await interaction.followUp({
+        embeds: [compatibilityEmbed],
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
     logger.info({ presetId: entityId, sectionId }, 'Preset section updated');

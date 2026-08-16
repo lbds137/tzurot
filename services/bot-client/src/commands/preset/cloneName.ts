@@ -39,7 +39,10 @@ export async function createClonedPreset(
   userClient: UserClient
 ): Promise<PresetData> {
   const initialName = generateClonedName(sourceData.name);
-  return createPreset(
+  // The clone create carries only name/model/provider/description; the source's
+  // thinking level is copied by a follow-up update, so this call has no
+  // thinking warnings to propagate.
+  const { preset } = await createPreset(
     {
       name: initialName,
       model: sourceData.model,
@@ -52,4 +55,5 @@ export async function createClonedPreset(
     },
     userClient
   );
+  return preset;
 }

@@ -238,6 +238,13 @@ export type ListLlmConfigsResponse = z.infer<typeof ListLlmConfigsResponseSchema
 
 export const CreateLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
+  /**
+   * Non-blocking validation notes (e.g. a thinking level the target model can't
+   * honor). The save already succeeded — these are advisory only. Required, not
+   * optional: an absent array and an empty one would otherwise be
+   * indistinguishable to the client, so the gateway always emits it.
+   */
+  warnings: z.array(z.string()),
 });
 
 export type CreateLlmConfigResponse = z.infer<typeof CreateLlmConfigResponseSchema>;
@@ -269,6 +276,12 @@ export const GetLlmConfigResponseSchema = z.object({
 
 export const UpdateLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
+  /**
+   * Non-blocking validation notes — same contract as the create response's
+   * `warnings`: advisory only, always emitted (possibly empty), never a reason
+   * the save failed.
+   */
+  warnings: z.array(z.string()),
 });
 
 // ============================================================================

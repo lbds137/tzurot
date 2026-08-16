@@ -15,6 +15,7 @@ import {
   isZaiCodingPlanModel,
   getZaiCodingPlanContextLength,
   zaiCodingPlanModelCapabilities,
+  zaiThinkingOffSupport,
   listZaiCodingPlanModels,
   toModelSlot,
   MODEL_SLOTS,
@@ -419,5 +420,41 @@ describe('zaiCodingPlanModelCapabilities', () => {
     expect(zaiCodingPlanModelCapabilities('glm-99-future')).toBeNull();
     expect(zaiCodingPlanModelCapabilities('anthropic/claude-sonnet-4')).toBeNull();
     expect(zaiCodingPlanModelCapabilities('')).toBeNull();
+  });
+
+  it('reports every catalog model as reasoning-capable and maps its thinkingOff', () => {
+    // The catalog is all GLM reasoning models; what differs between them is
+    // only how far a request to turn thinking OFF is honored.
+    for (const entry of listZaiCodingPlanModels()) {
+      const caps = zaiCodingPlanModelCapabilities(entry.model);
+      expect(caps?.supportsReasoning).toBe(true);
+      expect(caps?.thinkingOff).toBe(entry.thinkingOff);
+    }
+  });
+});
+
+describe('zaiThinkingOffSupport', () => {
+  it('reports the recorded support level per model', () => {
+    expect(zaiThinkingOffSupport('glm-4.5-air')).toBe('honored');
+    expect(zaiThinkingOffSupport('glm-4.7')).toBe('unsupported');
+    expect(zaiThinkingOffSupport('glm-5.2')).toBe('best-effort');
+  });
+
+  it('covers the whole GLM-5.x family as best-effort', () => {
+    for (const model of ['glm-5', 'glm-5.1', 'glm-5.2', 'glm-5-turbo']) {
+      expect(zaiThinkingOffSupport(model)).toBe('best-effort');
+    }
+  });
+
+  it('strips the z-ai/ prefix and case-normalizes before lookup', () => {
+    expect(zaiThinkingOffSupport('z-ai/glm-4.7')).toBe('unsupported');
+    expect(zaiThinkingOffSupport('Z-AI/GLM-4.7')).toBe('unsupported');
+  });
+
+  it('returns undefined for models outside the catalog', () => {
+    // Undefined is "no data", never "thinking-off is honored" — the save-time
+    // warnings must stay silent on an unknown model rather than guess.
+    expect(zaiThinkingOffSupport('anthropic/claude-sonnet-4')).toBeUndefined();
+    expect(zaiThinkingOffSupport('')).toBeUndefined();
   });
 });

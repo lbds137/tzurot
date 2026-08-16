@@ -38,7 +38,7 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 // Force model-field validation to pass so the LLM create/update paths reach
 // the response-shaping step without orchestrating a model cache.
 vi.mock('../../utils/llmConfigValidation.js', () => ({
-  validateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
+  validateLlmConfigModelFields: vi.fn().mockResolvedValue({ ok: true, warnings: [] }),
 }));
 
 import {
