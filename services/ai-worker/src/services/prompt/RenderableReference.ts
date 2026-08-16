@@ -163,6 +163,22 @@ const DEDUP_PREFIX_WITH_MEDIA =
   '[Referenced message — full text in the chat log; its media is described here]';
 
 /**
+ * The third variant: the stub has no text of its own AND every piece of its
+ * enrichment was subtracted, so the only surviving copy of the description is
+ * the one in the chat log. Both other markers mislead there — the plain one
+ * points at a "full text" that never existed, and the media one promises a
+ * description "here" that subtraction just removed, leaving a marker with
+ * nothing the model can resolve.
+ *
+ * Paired with a preview built from the PRE-subtraction enrichment, so the stub
+ * carries something to match its chat-log entry on. The pairing is pinned by
+ * `RenderableReference.test.ts` § "the media fallback preview".
+ */
+// Prose marker, for the same escaping reason as the two above.
+const DEDUP_PREFIX_MEDIA_IN_CHAT_LOG =
+  '[Referenced message — no text; its media is described in full in the chat log]';
+
+/**
  * Cap a dedup stub's text preview. The SINGLE truncation point: `renderReference`
  * renders whatever it is given as-is.
  *
@@ -176,6 +192,38 @@ const DEDUP_PREFIX_WITH_MEDIA =
 function capDedupText(text: string): string {
   const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
   return text.length > limit ? text.substring(0, limit) + '...' : text;
+}
+
+/**
+ * Which of the three markers a stub gets, from what actually survived into it.
+ *
+ * `hasMedia` wins over the fallback because the two are mutually exclusive by
+ * construction — the fallback is only reached when nothing enriched survives —
+ * and stating the precedence beats relying on the caller's ordering.
+ */
+function choosePrefix(hasMedia: boolean, hasMediaFallbackPreview: boolean): string {
+  if (hasMedia) {
+    return DEDUP_PREFIX_WITH_MEDIA;
+  }
+  return hasMediaFallbackPreview ? DEDUP_PREFIX_MEDIA_IN_CHAT_LOG : DEDUP_PREFIX;
+}
+
+/**
+ * The first piece of enrichment a reference's attachments carry, if any.
+ *
+ * Read from the PRE-subtraction attachments on purpose: it is the fallback for
+ * a stub whose enrichment was all subtracted, so the post-subtraction list is
+ * empty exactly when this is needed. First rather than joined — the preview is
+ * an anchor for matching the chat-log entry, not a copy of it.
+ */
+function firstEnrichment(attachments: RenderableAttachment[]): string | undefined {
+  for (const att of attachments) {
+    const enrichment = attachmentEnrichment(att);
+    if (enrichment !== undefined && enrichment.length > 0) {
+      return enrichment;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -207,6 +255,18 @@ function capDedupText(text: string): string {
  *
  * With no set supplied, nothing is subtracted. That is the safe default: a
  * duplicated description costs tokens, a dropped one costs the answer.
+ *
+ * The marker is then chosen from what SURVIVED, in three variants, because the
+ * stub's content and its promise about where the rest lives have to agree:
+ *
+ * - enrichment survived → `DEDUP_PREFIX_WITH_MEDIA`, and the preview stays the
+ *   capped text (the surviving attachment element already describes the media,
+ *   so previewing it too would print the same paid text twice in one stub);
+ * - no enrichment survived, no text → `DEDUP_PREFIX_MEDIA_IN_CHAT_LOG`, with
+ *   the first pre-subtraction enrichment as the preview;
+ * - otherwise → `DEDUP_PREFIX`, with the capped text (empty for a stub whose
+ *   message had neither text nor any description anywhere, which is a bare
+ *   marker because there is nothing left to say).
  */
 export function dedupeReference(
   ref: RenderableReference,
@@ -237,8 +297,21 @@ export function dedupeReference(
   // blocked twice in the prompt — OUTPUT_CONSTRAINTS and the
   // <contextual_references> instruction, which states that an assistant-role
   // quote is context and never a turn to continue.
-  const preview = capDedupText(ref.content);
-  const prefix = hasMedia ? DEDUP_PREFIX_WITH_MEDIA : DEDUP_PREFIX;
+  const textPreview = capDedupText(ref.content);
+
+  // A message can be media-only, and subtraction can then take its every
+  // description, leaving a marker with no anchor at all. The pre-subtraction
+  // enrichment is what the chat-log copy renders, so previewing it gives the
+  // model the string to match on — through the same cap, which is the single
+  // truncation point. Trimmed emptiness of the RAW content, not the capped
+  // preview: whitespace-only content anchors nothing so it must not block the
+  // fallback, and capping first would let the cap's own '...' suffix survive
+  // the trim on long whitespace runs.
+  const mediaPreview =
+    ref.content.trim().length === 0 && !hasMedia ? firstEnrichment(ref.attachments) : undefined;
+
+  const preview = mediaPreview === undefined ? textPreview : capDedupText(mediaPreview);
+  const prefix = choosePrefix(hasMedia, mediaPreview !== undefined);
 
   return {
     ...ref,

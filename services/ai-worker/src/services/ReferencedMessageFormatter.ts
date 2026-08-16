@@ -48,7 +48,7 @@ const logger = createLogger('ReferencedMessageFormatter');
  * bot's own words read as a turn to continue. Kept as a named constant so the wording
  * is visible alongside the other prompt-text constants instead of buried inline.
  */
-const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>; any media it describes appears only in the quote itself.</instruction>`;
+const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>; any media description not shown in the quote itself is in <chat_log>.</instruction>`;
 
 /**
  * Context for reference formatting. `userApiKey` is the key for
