@@ -126,61 +126,88 @@ function statementTargetTables(statement: string): string[] | null {
 }
 
 /**
- * Strip SQL comments before statement splitting + shape matching, so a `--`
- * or `/* *\/` comment that merely MENTIONS a destructive keyword (a migration
+ * Split migration SQL into comment-stripped statements, so a `--` or
+ * `/* *\/` comment that merely MENTIONS a destructive keyword (a migration
  * header explaining why it looks destructive, for instance) doesn't trip the
- * scan. String-literal aware for single-quoted strings: a `--` or `/*` inside
- * `'...'` is data and survives untouched, and the standard SQL `''`
- * escape-for-embedded-quote is handled for free — toggling the in-string flag
- * on every `'` means the two quotes of an escape flip it twice in a row with
- * no character between them for a comment marker to land on, so the net
- * effect is the same as never leaving the string.
+ * scan, and a `;` that only appears inside a string or dollar-quoted body
+ * doesn't fracture one real statement into two.
+ *
+ * String-literal aware for both quote kinds SQL uses: `'...'` (string
+ * literals) and `"..."` (quoted identifiers, e.g. `"foo--bar"` naming a
+ * column) each track their OWN quote character as the active context — a
+ * `"` inside a `'...'` string, or vice versa, is just data. Both kinds use
+ * the same doubled-quote escape for an embedded literal quote (`''` inside a
+ * string, `""` inside an identifier), and both get it "for free" from the
+ * same toggle: closing then immediately reopening the SAME quote character
+ * leaves no character in between for a comment marker to land on, so the net
+ * effect is the same as never leaving the quoted context.
  *
  * Also recognizes dollar-quoted strings (`$$...$$` / `$tag$...$tag$`, used
  * for several existing PL/pgSQL trigger-function and `DO` bodies in this
  * repo's migrations — at least one contains a `'` inside, e.g. a
  * `RAISE EXCEPTION` message literal). The whole quoted span, opener through
- * matching closer, is copied through verbatim: it's PL/pgSQL source, not SQL
- * to be comment-stripped by this pass, and a `'` or `--` inside is data, not
- * a string boundary or comment marker. A DIFFERENT tag nested inside (e.g.
- * `$inner$` inside `$outer$...$outer$`) is just content — only the matching
- * closer for the OPENING tag ends the span. An unterminated dollar-quote (no
- * matching closer before end of input) runs to end of input, same handling
- * as an unterminated block comment.
+ * matching closer, is copied through verbatim AS ONE UNIT — including any
+ * `;` inside it, which is why it can't fracture a statement — because it's
+ * PL/pgSQL source, not SQL for this pass to comment-strip or split, and a
+ * `'`/`"`/`--` inside it is data, not a boundary or comment marker. A
+ * DIFFERENT tag nested inside (e.g. `$inner$` inside `$outer$...$outer$`) is
+ * just content — only the matching closer for the OPENING tag ends the span.
+ * An unterminated dollar-quote (no matching closer before end of input) runs
+ * to end of input, same handling as an unterminated block comment. Content
+ * INSIDE a dollar-quoted span is still scanned for destructive keywords by
+ * the caller (it's real SQL that could genuinely execute) — this pass only
+ * protects the span's OWN boundaries and its surrounding context.
  *
- * Without this, an odd (unbalanced) `'` count inside a dollar-quoted body
- * leaves the single-quote tracker stuck "inside a string" for the rest of the
- * file, which does NOT delete any code — every character is still copied
- * through — but it DOES stop later `--`/`/* *\/` comments from being
- * recognized and stripped. A leftover, unstripped comment mentioning
- * `CREATE TABLE <name>` can then satisfy `scanSqlForDestructive`'s
- * created-earlier-in-file exemption for a table name that was never actually
- * created, silently exempting a REAL later `DROP`/`RENAME`/etc. on that same
- * table — the concrete fail-open path, not a merely theoretical one.
+ * Without the quote tracking, an odd (unbalanced) quote count inside a
+ * dollar-quoted body leaves the tracker stuck "inside a string" for the rest
+ * of the file, which does NOT delete any code — every character is still
+ * copied through — but it DOES stop later `--`/`/* *\/` comments from being
+ * recognized and stripped, or the following `;` from splitting statements.
+ * A leftover, unstripped comment mentioning `CREATE TABLE <name>` can then
+ * satisfy `scanSqlForDestructive`'s created-earlier-in-file exemption for a
+ * table name that was never actually created, silently exempting a REAL
+ * later `DROP`/`RENAME`/etc. on that same table — the concrete fail-open
+ * path, not a merely theoretical one. Same reasoning for double-quoted
+ * identifiers: without tracking them, `"foo--bar"` strips from the `--` to
+ * end of line, deleting real DDL from the scan.
  *
- * Comments are stripped before the `;` split further down, so a `;` that
- * only appeared inside a comment (previously able to fracture a statement in
- * two) is also fixed by this same pass — not handled separately.
+ * One known gap, fail-closed direction (consistent with this file's
+ * over-warning-is-safe stance): nested block comments (`/* /* *\/ *\/`,
+ * Postgres-legal) aren't handled — the inner `*\/` ends the tracked comment
+ * early, so the outer `*\/` and anything after briefly reads as live SQL
+ * until the next real comment or string context, which can only cause
+ * OVER-flagging, never a miss.
  */
-function stripSqlComments(sql: string): string {
-  let result = '';
-  let inString = false;
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let activeQuote: QuoteChar | null = null;
   let i = 0;
   while (i < sql.length) {
     const ch = sql[i];
-    if (inString) {
-      result += ch;
-      if (ch === "'") inString = false;
+    if (activeQuote !== null) {
+      current += ch;
+      if (ch === activeQuote) activeQuote = null;
+      i++;
+      continue;
+    }
+    if (ch === ';') {
+      statements.push(current);
+      current = '';
       i++;
       continue;
     }
     const step = stepOutsideString(sql, i);
-    result += step.append;
+    current += step.append;
     i = step.next;
-    if (step.opensString) inString = true;
+    if (step.opensQuote !== null) activeQuote = step.opensQuote;
   }
-  return result;
+  statements.push(current);
+  return statements;
 }
+
+/** A SQL quote character tracked as an active string/identifier context. */
+type QuoteChar = "'" | '"';
 
 /** Index just past the end of a `--` line comment starting at `i` (the newline itself is left for the caller to copy through). */
 function skipLineComment(sql: string, i: number): number {
@@ -215,33 +242,34 @@ function matchDollarQuote(sql: string, i: number): string | null {
 }
 
 /**
- * One step outside a single-quoted string: recognizes string-open, `--`/`/*`
- * comments, and dollar-quotes, falling back to copying an ordinary
- * character. Returns the text to append and the index to resume from, plus
- * whether the appended `'` opens a string (the only case the caller's
- * `inString` flag needs to change here — closing a string is handled on the
- * inString side, in `stripSqlComments` itself).
+ * One step outside any active quoted context: recognizes the start of a
+ * `'...'` string or `"..."` quoted identifier, `--`/`/*` comments, and
+ * dollar-quotes, falling back to copying an ordinary character. Returns the
+ * text to append and the index to resume from, plus which quote character
+ * (if any) the appended character opens — the only case the caller's
+ * `activeQuote` state needs to change here; closing an active quote is
+ * handled on the caller's own active-quote branch.
  */
 function stepOutsideString(
   sql: string,
   i: number
-): { append: string; next: number; opensString: boolean } {
+): { append: string; next: number; opensQuote: QuoteChar | null } {
   const ch = sql[i];
-  if (ch === "'") {
-    return { append: ch, next: i + 1, opensString: true };
+  if (ch === "'" || ch === '"') {
+    return { append: ch, next: i + 1, opensQuote: ch };
   }
   if (ch === '-' && sql[i + 1] === '-') {
-    return { append: '', next: skipLineComment(sql, i), opensString: false };
+    return { append: '', next: skipLineComment(sql, i), opensQuote: null };
   }
   if (ch === '/' && sql[i + 1] === '*') {
     // preserve a token boundary where the comment stood
-    return { append: ' ', next: skipBlockComment(sql, i), opensString: false };
+    return { append: ' ', next: skipBlockComment(sql, i), opensQuote: null };
   }
   const dollarQuote = matchDollarQuote(sql, i);
   if (dollarQuote !== null) {
-    return { append: dollarQuote, next: i + dollarQuote.length, opensString: false };
+    return { append: dollarQuote, next: i + dollarQuote.length, opensQuote: null };
   }
-  return { append: ch, next: i + 1, opensString: false };
+  return { append: ch, next: i + 1, opensQuote: null };
 }
 
 /**
@@ -258,7 +286,7 @@ function stepOutsideString(
 function scanSqlForDestructive(sql: string): string[] {
   const labels: string[] = [];
   const createdEarlier = new Set<string>();
-  for (const statement of stripSqlComments(sql).split(';')) {
+  for (const statement of splitSqlStatements(sql)) {
     const created = CREATE_TABLE_RE.exec(statement);
     for (const { label, re } of DESTRUCTIVE_PATTERNS) {
       if (!re.test(statement)) continue;
