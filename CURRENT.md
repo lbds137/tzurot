@@ -34,8 +34,8 @@ The reported prod bug (contentless assistant reply-stub, requestId `d3c643f0`) a
 
 **Dev smoke for #2108 (needs-smoke tier — the two runtime-only paths):**
 
-- [ ] **S2 — reply-preview fix**: in a busy dev channel, reply to a character's OWN message from well back in history → the character engages with THAT message; `/inspect` shows the quote carrying a text preview, not the bare `[Referenced message …]` marker.
-- [ ] **S3 — minimal user turn**: `/inspect` the same generation → the user turn contains NO `<participants>` block; `<location>` and `<participants>` render in the system prompt ahead of `<chat_log>`.
+- [x] **S2 — reply-preview fix** ✅ PASSED 2026-08-15 (requestId `0f8deb5a`): assistant-role quote deduped WITH a text preview under the marker — the exact fixed branch. (First attempt `003d6093` took the non-dedup path — target predated stored history — full quote rendered correctly there too.)
+- [x] **S3 — minimal user turn** ✅ PASSED 2026-08-15 (requestId `003d6093`): user turn = datetime-only `<context>`, zero `<participants>`; system renders location→participants→chat_log; `<from id pronouns>` present. Bonus: second warm generation cached 11,712/14,899 prompt tokens (~79%) vs 384 cold — the relocated prefix hits; reframes the doc-17 `cachedPromptTokens:0` question as likely cold/TTL.
 
 **Release state**: range = 10 PRs / 8 runtime / 207 files (`release:range`); cut criterion MET per the 🚢 plan; **premigrate BOTH pending migrations** (owner-decided; collapse header's after-deploy note void). Awaiting the owner's cut approval.
 
