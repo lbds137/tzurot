@@ -22,9 +22,9 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 _The release plan: what the next cut IS, what it waits for, what it deliberately excludes. Drafted at the beta.202 cut (2026-08-16); revised whenever priorities shift. The cut-criterion here is the primary trigger; the count/file caps in `10-working-posture.md` § Ship in bounded units are backstops._
 
 - **Theme**: finish doc-77 — after PR B, the five "(Reasoning: medium)" GLM presets are true for the first time (the false-advertising bug this Current Focus exists for).
-- **In already**: `show_thinking` retirement (#2110, incl. data-only JSONB strip migration — applied to dev 2026-08-16; prod at the cut via premigrate, safe either order).
+- **In already**: `show_thinking` retirement (#2110, incl. data-only JSONB strip migration — applied to dev 2026-08-16; prod at the cut via premigrate, safe either order) · TASK-625 premigrate comment-blind detector fix (#2111 — grew into a full quote/dollar-aware SQL walker over 4 review rounds; residuals in TASK-627).
 - **Waiting on**: doc-77 PR B (z.ai `thinking`/`reasoning_effort` translation + denylist→allowlist flip; step 0 = the owner's BYOK dev probe, which also verifies `thinking:'max'` and `effort:'none'` on the OpenRouter wire) · doc-77 PR C (config-time validation, consumes B's probe).
-- **Candidate riders, not gating**: durability hardening small PR (TASK-626) · TASK-625 (premigrate comment-blind detector).
+- **Candidate riders, not gating**: durability hardening small PR (TASK-626).
 - **Explicitly NOT in**: doc-17 count-cap hysteresis (needs design — the measurement refined §2.5; the win is ~14-19k tokens/turn, so it's a strong vNext+1 theme candidate).
 - **Deploy notes**: none yet (no pending migrations).
 - **Cut when**: the waiting-on list is empty. Backstops: ~10 runtime PRs / ~250 files.

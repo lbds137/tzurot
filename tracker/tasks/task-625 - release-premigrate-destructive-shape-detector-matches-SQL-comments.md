@@ -1,9 +1,10 @@
 ---
 id: TASK-625
 title: 'release:premigrate destructive-shape detector matches SQL comments'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 01:11'
+updated_date: '2026-08-16 06:47'
 labels:
   - 'area:tooling'
   - 'size:S'
