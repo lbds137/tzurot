@@ -17,11 +17,28 @@ vi.mock('../utils/ownerChannel.js', () => ({
   postOwnerChannelEmbed: (...args: unknown[]) => mockPostOwnerChannelEmbed(...args),
 }));
 
+// Mutable so the boot-guard tests can vary the configured env per case.
+let mockNodeEnv = 'production';
 vi.mock('@tzurot/common-types/config/config', () => ({
-  getConfig: () => ({ NODE_ENV: 'production' }),
+  getConfig: () => ({ NODE_ENV: mockNodeEnv }),
 }));
 
-import { runRetentionNagCheck, buildRetentionNagEmbed } from './RetentionNagScheduler.js';
+// vi.hoisted: the module under test calls createIntervalScheduler at import
+// time, so plain consts would not be initialized when the factory runs.
+const { mockSchedulerStart, mockSchedulerStop } = vi.hoisted(() => ({
+  mockSchedulerStart: vi.fn(),
+  mockSchedulerStop: vi.fn(),
+}));
+vi.mock('../utils/intervalScheduler.js', () => ({
+  createIntervalScheduler: () => ({ start: mockSchedulerStart, stop: mockSchedulerStop }),
+}));
+
+import {
+  runRetentionNagCheck,
+  buildRetentionNagEmbed,
+  startRetentionNagScheduler,
+  stopRetentionNagScheduler,
+} from './RetentionNagScheduler.js';
 
 function makePreview(overrides: {
   eligibleCount?: number;
@@ -66,9 +83,40 @@ function makeRedis(cooldownValue: string | null): Redis {
 
 const client = {} as Client;
 
+describe('startRetentionNagScheduler boot guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockNodeEnv = 'production';
+  });
+
+  it('starts the interval scheduler in production', () => {
+    startRetentionNagScheduler(client, makeRedis(null));
+
+    expect(mockSchedulerStart).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['development', 'test'])(
+    'refuses to start outside production (NODE_ENV=%s) — the dev nag points at a purge whose tombstones sync to prod',
+    env => {
+      mockNodeEnv = env;
+
+      startRetentionNagScheduler(client, makeRedis(null));
+
+      expect(mockSchedulerStart).not.toHaveBeenCalled();
+    }
+  );
+
+  it('stop delegates to the interval scheduler', () => {
+    stopRetentionNagScheduler();
+
+    expect(mockSchedulerStop).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('RetentionNagScheduler runRetentionNagCheck', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNodeEnv = 'production';
     mockPostOwnerChannelEmbed.mockResolvedValue(true);
   });
 
@@ -158,6 +206,12 @@ describe('RetentionNagScheduler runRetentionNagCheck', () => {
 });
 
 describe('buildRetentionNagEmbed', () => {
+  beforeEach(() => {
+    // The footer assertions below read the mocked NODE_ENV; reset it here so
+    // this block never depends on a sibling describe's cleanup having run.
+    mockNodeEnv = 'production';
+  });
+
   it('carries the counts, the reason labels, and the exact CLI commands with this env', () => {
     const embed = buildRetentionNagEmbed(makePreview({ eligibleCount: 2 })).toJSON();
 
