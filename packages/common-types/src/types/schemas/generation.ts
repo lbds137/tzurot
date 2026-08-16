@@ -153,12 +153,14 @@ const generationPayloadSchema = z.object({
        *  limit. The 500-char per-notice cap and 10-notice array cap each give 2x
        *  headroom over the single-provider-chain worst case. */
       ttsNotices: z.array(z.string().max(500)).max(10).optional(),
-      /** Tier-aware quota fallback fired for this turn: the configured
-       *  preset's model was quota-blocked and the request retargeted to the
-       *  admin default. Announced in the footer — a model swap is never
+      /** A model swap that fired for this turn: either the tier-aware quota
+       *  fallback (the configured preset's model was quota-blocked and the
+       *  request retargeted to the admin default) or the guest/free ladder
+       *  substituting a free model at admission time (`category:
+       *  'guest_mode'`). Announced in the footer — a model swap is never
        *  silent (an unexplained voice shift reads as a bug). `mode`
-       *  distinguishes the pre-dispatch cache short-circuit ('proactive')
-       *  from the in-turn retry after a fresh failure ('reactive'). */
+       *  distinguishes the pre-dispatch decision ('proactive') from the
+       *  in-turn retry after a fresh failure ('reactive'). */
       quotaFallback: z
         .object({
           fromModel: z.string(),

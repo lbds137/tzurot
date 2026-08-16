@@ -895,4 +895,29 @@ describe('composeQuotaFallbackInfo', () => {
     expect(composeQuotaFallbackInfo(undefined, proactive)).toBe(proactive);
     expect(composeQuotaFallbackInfo(undefined, undefined)).toBeUndefined();
   });
+
+  it('lets a reactive failure outrank a guest-mode substitution on the same turn', () => {
+    // A guest request whose free model then failed: the footer must report
+    // the FAILURE reason, not "guest mode" — and still trace back to the
+    // model the user actually configured.
+    const guest: QuotaFallbackInfo = {
+      fromModel: 'configured/paid',
+      toModel: 'free/default',
+      category: 'guest_mode',
+      mode: 'proactive',
+    };
+    const reactiveAfterGuest: QuotaFallbackInfo = {
+      fromModel: 'free/default',
+      toModel: 'divergent/paid-floor',
+      category: ApiErrorCategory.RATE_LIMIT,
+      mode: 'reactive',
+    };
+
+    expect(composeQuotaFallbackInfo(reactiveAfterGuest, guest)).toEqual({
+      fromModel: 'configured/paid',
+      toModel: 'divergent/paid-floor',
+      category: ApiErrorCategory.RATE_LIMIT,
+      mode: 'reactive',
+    });
+  });
 });

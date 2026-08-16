@@ -21,6 +21,12 @@ import {
 } from '@tzurot/common-types/constants/ai';
 import { getFreeTextFloor } from '../../../../services/freeFloors.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import {
+  GUEST_MODE_CATEGORY,
+  logQuotaFallbackAudit,
+  type QuotaFallbackInfo,
+} from '../../../../services/quotaFallback.js';
+import { SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
 import type { GenerationContext } from '../types.js';
@@ -39,6 +45,39 @@ export interface GuestOverrideResult {
   personality: EffectivePersonality;
   /** Set when the z.ai upgrade was admitted — the system coding-plan key. */
   zaiSystemKey?: string;
+  /**
+   * The footer announce carrier, set only when guest mode actually rewrote
+   * `personality.model`. An already-free model is served unchanged, so it
+   * carries nothing — there is no substitution to announce.
+   */
+  quotaFallback?: QuotaFallbackInfo;
+}
+
+/**
+ * Build the announce carrier for a guest substitution, or `undefined` when the
+ * model did not actually change. Guests always run on a system key, so the
+ * audit line names the shared bucket directly.
+ */
+function announceGuestSubstitution(
+  fromModel: string,
+  toModel: string,
+  requestId: string
+): QuotaFallbackInfo | undefined {
+  if (fromModel === toModel) {
+    return undefined;
+  }
+  const info: QuotaFallbackInfo = {
+    fromModel,
+    toModel,
+    category: GUEST_MODE_CATEGORY,
+    mode: 'proactive',
+  };
+  logQuotaFallbackAudit(info, {
+    jobId: undefined,
+    requestId,
+    cacheKeyId: SYSTEM_CACHE_KEY_ID,
+  });
+  return info;
 }
 
 /** The guest vision rule: keep the vision model only when it is itself free. */
@@ -116,12 +155,15 @@ export async function applyGuestModeOverrides(
     'Guest mode: overriding paid model with free model'
   );
 
+  const quotaFallback = announceGuestSubstitution(currentModel, guestModel, requestId);
+
   return {
     personality: {
       ...personality,
       model: guestModel,
       visionModel: guestVisionModel(personality),
     },
+    ...(quotaFallback !== undefined ? { quotaFallback } : {}),
   };
 }
 
@@ -180,6 +222,14 @@ async function tryZaiFreeTierUpgrade(
     return null;
   }
   logger.info({ userId }, 'Guest upgraded to GLM-4.5-Air on the system coding plan');
+  // A guest who personally selected the BARE piggyback id lands here with no
+  // model change at all, and gets no note; the `z-ai/`-prefixed form and the
+  // free-default arm both do change it, so both announce.
+  const quotaFallback = announceGuestSubstitution(
+    personality.model,
+    ZAI_FREE_TIER_MODEL,
+    requestId
+  );
   return {
     personality: {
       ...personality,
@@ -189,5 +239,6 @@ async function tryZaiFreeTierUpgrade(
       visionModel: guestVisionModel(personality),
     },
     zaiSystemKey,
+    ...(quotaFallback !== undefined ? { quotaFallback } : {}),
   };
 }

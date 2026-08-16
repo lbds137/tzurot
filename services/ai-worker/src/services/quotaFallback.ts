@@ -64,11 +64,24 @@ export type QuotaFallbackCategory =
   | ApiErrorCategory.CENSORED
   | ApiErrorCategory.CONTENT_POLICY;
 
+/**
+ * The guest/free ladder's admission-time substitution. Deliberately NOT a
+ * member of `QuotaFallbackCategory`: that union narrows from
+ * `ApiErrorCategory` (a type predicate TypeScript rejects the moment a
+ * non-enum literal joins it), and no failure occurred here — the guest simply
+ * may not run a paid model on the system key. It shares the announce carrier
+ * below because the footer question is identical.
+ */
+export const GUEST_MODE_CATEGORY = 'guest_mode';
+
+/** Every reason a model swap can be announced with: a retargetable failure, or guest mode. */
+type QuotaFallbackAnnounceCategory = QuotaFallbackCategory | typeof GUEST_MODE_CATEGORY;
+
 /** Announce/audit carrier — rides result metadata to the footer. */
 export interface QuotaFallbackInfo {
   fromModel: string;
   toModel: string;
-  category: QuotaFallbackCategory;
+  category: QuotaFallbackAnnounceCategory;
   mode: 'proactive' | 'reactive';
 }
 
@@ -376,7 +389,11 @@ export function logQuotaFallbackAudit(
       mode: info.mode,
       cacheKeyId: context.cacheKeyId,
     },
-    'Quota fallback retarget fired'
+    // Two event classes share this carrier; "retarget fired" would misname the
+    // non-failure guest substitution in log greps.
+    info.category === GUEST_MODE_CATEGORY
+      ? 'Guest-mode substitution applied'
+      : 'Quota fallback retarget fired'
   );
 }
 

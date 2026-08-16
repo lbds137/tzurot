@@ -417,6 +417,8 @@ export class AuthStep implements IPipelineStep {
     effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
     wasAutoPromoted?: boolean;
     fallback?: NonNullable<GenerationContext['auth']>['fallback'];
+    /** Set when guest mode substituted the configured model (footer announce). */
+    quotaFallback?: QuotaFallbackInfo;
   }> {
     let effectivePersonality = initialPersonality;
 
@@ -468,6 +470,11 @@ export class AuthStep implements IPipelineStep {
       // Guest Mode: enforce free-model-only on top of any router decision —
       // or, when the free default is the z.ai piggyback preset and admission
       // passes, upgrade to GLM-4.5-Air on the system coding-plan key.
+      // Carries the guest substitution's footer announce past the block, so
+      // BOTH guest exits (z.ai upgrade and plain free-model override) report
+      // it — the swap is never silent on either arm.
+      let guestQuotaFallback: QuotaFallbackInfo | undefined;
+
       if (route.isGuestMode) {
         const guest = await applyGuestModeOverrides(
           { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
@@ -476,6 +483,7 @@ export class AuthStep implements IPipelineStep {
           requestId
         );
         effectivePersonality = guest.personality;
+        guestQuotaFallback = guest.quotaFallback;
         if (guest.zaiSystemKey !== undefined) {
           return {
             resolvedApiKey: guest.zaiSystemKey,
@@ -484,6 +492,7 @@ export class AuthStep implements IPipelineStep {
             effectivePersonality,
             wasAutoPromoted: route.wasAutoPromoted,
             fallback: route.fallback,
+            ...(guestQuotaFallback !== undefined ? { quotaFallback: guestQuotaFallback } : {}),
           };
         }
       }
@@ -495,6 +504,7 @@ export class AuthStep implements IPipelineStep {
         effectivePersonality,
         wasAutoPromoted: route.wasAutoPromoted,
         fallback: route.fallback,
+        ...(guestQuotaFallback !== undefined ? { quotaFallback: guestQuotaFallback } : {}),
       };
     } catch (error) {
       // Resolution failure is unexpected (normal guest mode is signaled via
@@ -512,6 +522,7 @@ export class AuthStep implements IPipelineStep {
         resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
         isGuestMode: true,
         effectivePersonality,
+        ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
       };
     }
   }
