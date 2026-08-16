@@ -424,7 +424,14 @@ and pin a test that the two mappings agree. Without it, Zod strip-mode would
   key has a declared z.ai disposition (translate / send / drop) so a
   future-added field defaults to NOT sent. This PR closes the false-advertising
   bug — after it, the five "(Reasoning: medium)" GLM presets are true.
-- **PR C — config-time validation (was Phase 3).** Warn/reject at SAVE for a
+- **PR C — config-time validation (was Phase 3). ✅ SHIPPED as #2114 (2026-08-16).**
+  Resolved as WARN-ONLY (no rejects — stale capability data must never brick a
+  save): `thinkingOff` metadata on the z.ai catalog (probed/doc-read calibrated),
+  three-state `supportsReasoning` from the OpenRouter cache, required `warnings`
+  array on both save responses, surfaced by dashboard/import/clone. W3
+  (reasoning-mandatory OpenRouter + off) undetectable from metadata — stays a
+  request-time 400, documented. Residual polish: TASK-632.
+  Original scope follows. Warn/reject at SAVE for a
   level the target provider/model can't honor (e.g. `off` on compulsory-thinking
   GLM-4.7), instead of silent per-request degradation. May consume
   `ModelCapabilityChecker`. Probe-measured cases to cover (step-0 results
