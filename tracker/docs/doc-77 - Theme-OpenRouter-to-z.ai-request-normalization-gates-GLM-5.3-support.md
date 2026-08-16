@@ -498,6 +498,29 @@ remaining work is build.
 
 - [ ] Only after PRs A+B: add 5.3, with its effort vocabulary expressed through PR B's translation table. Probe the "thinking cannot be disabled" claim directly rather than trusting launch coverage — and note PR C's save-time validation is where an unsupported `off` gets surfaced.
 
+**✅ 5.3 PROBE RAN 2026-08-16** (owner: "5.3 should already be live so you can
+test it at your convenience"; same direct-API pattern as PR B step 0, dev BYOK
+key, 5 calls, sheep-riddle prompt, temperature 0, max_tokens 1024):
+
+| sent | HTTP | reasoning tokens |
+| --- | --- | --- |
+| baseline (no thinking params) | 200 | 81 |
+| `thinking:{type:'disabled'}` | 200 | **70** |
+| `enabled` + `reasoning_effort:'low'` | 200 | **0** |
+| `enabled` + `reasoning_effort:'high'` | 200 | 127 |
+| `enabled` + `reasoning_effort:'max'` | 200 | 74 |
+
+Conclusions: **glm-5.3 is LIVE on the coding-plan endpoint** and accepts both
+translation fields with zero 400s. **`disabled` is NOT honored** (70rt anyway —
+same best-effort behavior as 5.2's measured 89rt), so the launch-coverage
+"thinking cannot be disabled" claim measures as *best-effort*, not *rejected*
+→ catalog entry gets `thinkingOff: 'best-effort'` (probed). Levels are honored
+(`low` → 0rt on the trivial prompt, same auto-skip as 5.2). `max` < `high`
+(74 vs 127) is a single-sample anomaly on a trivial prompt — not evidence
+against the dose-response; don't cite it as one. Remaining for the catalog-add
+PR (rides beta.203, after PR C): docs URL + context length from
+https://docs.z.ai/guides/llm/glm-5.3 (doc-read is fine for those two fields).
+
 ## Related
 
 - **TASK-609** — the original narrow filing (effort `none` may become invalid). Superseded in scope by this theme; keep it as the watch for 5.3 becoming available.
