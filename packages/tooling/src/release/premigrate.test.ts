@@ -360,11 +360,11 @@ describe('premigrate', () => {
   });
 
   it('still refuses when a BALANCED dollar body leaks a CREATE TABLE mention through an unstripped inner comment', async () => {
-    // The reviewer's exact scenario: no unbalanced quote anywhere (this body
-    // is perfectly quote-balanced), so the round-2 quote-parity story doesn't
-    // apply at all — the bug is that `matchDollarQuote` used to copy the
-    // whole span verbatim, comments included, so this `--` comment survived
-    // into the scanned statement and phantom-registered `staging_data`.
+    // No unbalanced quote anywhere in this body — it's perfectly
+    // quote-balanced — so this is independent of quote-parity desync. The
+    // bug is that `matchDollarQuote` used to copy the whole span verbatim,
+    // comments included, so this `--` comment survived into the scanned
+    // statement and phantom-registered `staging_data`.
     mockGitDiff([DESTRUCTIVE_MIGRATION]);
     vi.mocked(readFileSync).mockReturnValue(
       'DO $$\n' +
@@ -430,6 +430,36 @@ describe('premigrate', () => {
       'DO $$\nBEGIN\n-- c\nZE$$;\n' +
         'CREATE TABLE t1 (a int);\n' +
         'ALTER TABLE t1 ALTER COLUMN a TYPE bigint;'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('still refuses when a single-quoted VALUES literal merely reads like a CREATE TABLE', async () => {
+    // A literal that mentions a table name in prose ("...does what a CREATE
+    // TABLE staging_data would do...") must not register that name as
+    // created — the INSERT creates nothing. Registering it would wrongly
+    // exempt the REAL DROP TABLE staging_data; that follows.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      "INSERT INTO changelog (msg) VALUES ('…does what a CREATE TABLE staging_data would do');\n" +
+        'DROP TABLE staging_data;'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('proceeds on a real double-quoted-identifier CREATE + ALTER pair (masking preserves identifiers)', async () => {
+    // The regression guard for the load-bearing exception: masking must NOT
+    // blank double-quoted content, or every real Prisma migration (which
+    // emits `CREATE TABLE "name"`) would lose its created-earlier exemption
+    // and force --allow-destructive on ordinary additive migrations.
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'CREATE TABLE "q_t" (a int);\n' + 'ALTER TABLE "q_t" ALTER COLUMN a TYPE bigint;'
     );
 
     await premigrate({ env: 'prod', force: true });
