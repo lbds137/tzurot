@@ -264,6 +264,71 @@ describe('AuthStep', () => {
       expect(result.auth?.apiKey).toBeUndefined();
     });
 
+    describe('guest-mode substitution reaches the footer', () => {
+      const GUEST_ANNOUNCE = {
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: FREE_ROUTER_MODEL,
+        category: 'guest_mode',
+        mode: 'proactive',
+      };
+
+      function guestContext(): GenerationContext {
+        return {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+        };
+      }
+
+      it('threads the announce carrier through the NORMAL guest arm', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'system-key',
+          provider: AIProvider.OpenRouter,
+          source: 'system',
+          isGuestMode: true,
+        });
+        vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const result = await step.process(guestContext());
+
+        expect(result.auth?.quotaFallback).toEqual(GUEST_ANNOUNCE);
+      });
+
+      it('threads the announce carrier through the ERROR-RECOVERY guest arm', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(
+          new Error('Database connection failed')
+        );
+        vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const result = await step.process(guestContext());
+
+        expect(result.auth?.quotaFallback).toEqual(GUEST_ANNOUNCE);
+      });
+
+      it('carries nothing when the guest was already on a free model', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'system-key',
+          provider: AIProvider.OpenRouter,
+          source: 'system',
+          isGuestMode: true,
+        });
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const context = guestContext();
+        const result = await step.process({
+          ...context,
+          config: {
+            effectivePersonality: { ...TEST_PERSONALITY, model: 'some/free-model' },
+            configSource: 'personality',
+          },
+        });
+
+        expect(result.auth?.quotaFallback).toBeUndefined();
+      });
+    });
+
     describe('proactive quota fallback', () => {
       const BYOK_RESULT: ApiKeyResolutionResult = {
         apiKey: 'sk-user-key',
@@ -412,9 +477,11 @@ describe('AuthStep', () => {
         const result = await step.process(buildContext());
 
         // Guest override lands on the free router; the stale user-bucket mark
-        // must not have retargeted it away.
+        // must not have retargeted it away. The announce carrier is the guest
+        // substitution itself — a retarget would have stamped a FAILURE
+        // category here instead.
         expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
-        expect(result.auth?.quotaFallback).toBeUndefined();
+        expect(result.auth?.quotaFallback?.category).toBe('guest_mode');
         expect(caches.rateLimit.isRateLimited).toHaveBeenCalledWith(
           expect.objectContaining({ cacheKeyId: 'system' })
         );

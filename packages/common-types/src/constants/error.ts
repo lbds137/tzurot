@@ -195,14 +195,19 @@ export enum ApiErrorCategory {
 }
 
 /**
- * The failure categories the tier-aware quota fallback can retarget on — the
- * wire values carried in `quotaFallback` result metadata (a subset of
- * `ApiErrorCategory` values). Single source of truth: the Zod enum in
- * `generation.ts` and every hand-typed `category` field derive from this
- * tuple, so adding a retargetable category is a one-line change here.
+ * The reasons a model swap can be announced in the footer — the wire values
+ * carried in `quotaFallback` result metadata. Single source of truth: the Zod
+ * enum in `generation.ts` and every hand-typed `category` field derive from
+ * this tuple, so adding an announceable reason is a one-line change here.
  * (ai-worker's `QuotaFallbackCategory` enum-member union stays separate for
  * its `ApiErrorCategory` narrowing; enum members are assignable to these
  * literals, so producers type-check against this without casts.)
+ *
+ * Two classes live here. Everything except `guest_mode` is a retargetable
+ * FAILURE (a subset of `ApiErrorCategory` values) — the tier-aware quota
+ * fallback's own categories. `guest_mode` is an admission-time substitution
+ * with no error behind it; it rides the same carrier because the footer
+ * question is identical ("why did I get this model").
  */
 export const QUOTA_FALLBACK_CATEGORIES = [
   'quota_exceeded',
@@ -216,6 +221,10 @@ export const QUOTA_FALLBACK_CATEGORIES = [
   'empty_response',
   'censored',
   'content_policy',
+  // Not a failure: the guest/free ladder substituted the configured model
+  // before dispatch. Produced ONLY by the guest admission path, never by the
+  // quota-fallback runner (which narrows from `ApiErrorCategory`).
+  'guest_mode',
 ] as const;
 
 export type QuotaFallbackCategoryValue = (typeof QUOTA_FALLBACK_CATEGORIES)[number];
