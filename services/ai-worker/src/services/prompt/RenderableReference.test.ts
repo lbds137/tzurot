@@ -304,6 +304,104 @@ describe('dedupeReference', () => {
       expect(stub.content.endsWith('\n')).toBe(false);
     });
   });
+
+  describe('the media fallback preview', () => {
+    const DESCRIPTION = 'a cat asleep on a sunlit windowsill';
+
+    function imageOnly(description: string = DESCRIPTION): RenderableReference {
+      return reference({
+        content: '',
+        attachments: [
+          { kind: 'image', filename: 'cat.png', contentType: 'image/png', description },
+        ],
+      });
+    }
+
+    it('anchors an image-only stub whose description the chat log carries', () => {
+      // Nothing text-derived exists and the subtraction takes the only
+      // enrichment, so without this the stub is a bare marker naming nothing.
+      const stub = dedupeReference(imageOnly(), new Set([enrichmentKey('image', DESCRIPTION)]));
+
+      expect(stub.attachments).toEqual([]);
+      expect(stub.content).toContain(DESCRIPTION);
+      expect(stub.content).toContain('described in full in the chat log');
+      // It must NOT claim a full TEXT copy is waiting there — there is no text.
+      expect(stub.content).not.toContain('full text in the chat log');
+    });
+
+    it('leaves the surviving-enrichment stub alone — the attachment already describes it', () => {
+      const stub = dedupeReference(
+        imageOnly(),
+        new Set([enrichmentKey('image', 'a completely different photo')])
+      );
+
+      expect(stub.content).toBe(
+        '[Referenced message — full text in the chat log; its media is described here]'
+      );
+      expect(renderReference(stub)).toContain(DESCRIPTION);
+    });
+
+    it('treats whitespace-only content as empty for the fallback trigger', () => {
+      // capDedupText does not trim, so a single-space message would otherwise
+      // count as "has text" and silently drop the description the fallback
+      // exists to preserve.
+      const stub = dedupeReference(
+        reference({
+          content: '  ',
+          attachments: [
+            {
+              kind: 'image',
+              filename: 'cat.png',
+              contentType: 'image/png',
+              description: DESCRIPTION,
+            },
+          ],
+        }),
+        new Set([enrichmentKey('image', DESCRIPTION)])
+      );
+
+      expect(stub.content).toContain(DESCRIPTION);
+      expect(stub.content).toContain('described in full in the chat log');
+    });
+
+    it('triggers the fallback even when the whitespace run outlives the cap', () => {
+      // The emptiness test must run on the RAW content: capping first appends
+      // '...' to a >cap whitespace run, and that suffix survives a trim.
+      const stub = dedupeReference(
+        reference({
+          content: ' '.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 50),
+          attachments: [
+            {
+              kind: 'image',
+              filename: 'cat.png',
+              contentType: 'image/png',
+              description: DESCRIPTION,
+            },
+          ],
+        }),
+        new Set([enrichmentKey('image', DESCRIPTION)])
+      );
+
+      expect(stub.content).toContain(DESCRIPTION);
+      expect(stub.content).toContain('described in full in the chat log');
+    });
+
+    it('caps the media fallback at the same limit as the text preview', () => {
+      const long = 'z'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 50);
+      const stub = dedupeReference(imageOnly(long), new Set([enrichmentKey('image', long)]));
+
+      expect(stub.content).toContain('z'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
+      expect(stub.content).not.toContain('z'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 1));
+    });
+
+    it('leaves a bare marker when there is no enrichment anywhere to fall back to', () => {
+      const stub = dedupeReference(
+        reference({ content: '', attachments: [{ kind: 'file', filename: 'report.pdf' }] })
+      );
+
+      expect(stub.content).toBe('[Referenced message — full text in the chat log]');
+    });
+  });
 });
 
 describe('referenceSearchText', () => {

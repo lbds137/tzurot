@@ -243,6 +243,31 @@ describe('built references survive the round trip (component, PGLite)', () => {
     expect(rendered).not.toContain(VOICE_SENTINEL);
   });
 
+  it('anchors an image-only stub whose media the chat-log entry renders', async () => {
+    // The stored/replay twin of the live-path image-only case: no text to
+    // preview AND the subtraction takes every description, so the stub must
+    // fall back to previewing the first pre-subtraction enrichment and point
+    // at the chat log for the rest. The subtraction set here is built by
+    // chatLogEnrichmentFor from messageMetadata — a different producer than
+    // the live path's carriedByChatLog map, which is why this arm gets its
+    // own test.
+    const stored = toStoredReference({ ...liveReference(), content: '' }, builtAttachments());
+    await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
+
+    const rendered = await replayQuotes(stored.discordMessageId, {
+      imageDescriptions: [{ filename: 'whiteboard.png', description: IMAGE_SENTINEL }],
+      voiceTranscripts: [VOICE_SENTINEL],
+    });
+
+    expect(rendered).toContain('described in full in the chat log');
+    // The FIRST enrichment rides as the anchor preview...
+    expect(rendered).toContain(IMAGE_SENTINEL);
+    // ...and only the first — the preview is an anchor, not a copy.
+    expect(rendered).not.toContain(VOICE_SENTINEL);
+    expect(rendered).not.toContain('its media is described here');
+    expect(rendered).not.toContain('full text in the chat log');
+  });
+
   it('renders an absence, not an invention, when nothing was ever computed', async () => {
     // Absence has to stay retryable-shaped: an attachment with no enrichment
     // says so, rather than quietly rendering as though it had none to give.
