@@ -365,13 +365,13 @@ describe('applyConfigToPersonality', () => {
       temperature: 0.9,
       topP: 0.5,
       maxTokens: 4000,
-      showThinking: true,
+      minP: 0.2,
     } as unknown as LoadedPersonality;
 
     const result = applyConfigToPersonality(personality, {
       model: 'freebie/model:free',
       temperature: 0.7,
-      // topP/maxTokens/showThinking deliberately unset on the target config
+      // topP/maxTokens/minP deliberately unset on the target config
     });
 
     expect(result.model).toBe('freebie/model:free');
@@ -380,7 +380,7 @@ describe('applyConfigToPersonality', () => {
     // must NOT leak onto the fallback (provider defaults apply instead).
     expect(result.topP).toBeUndefined();
     expect(result.maxTokens).toBeUndefined();
-    expect(result.showThinking).toBeUndefined();
+    expect(result.minP).toBeUndefined();
     // Non-config personality fields survive untouched.
     expect(result.name).toBe('Testy');
     expect(result.id).toBe('p1');

@@ -233,7 +233,7 @@ export const reasoningSection: SectionDefinition<FlattenedPresetData> = {
   id: 'reasoning',
   label: '🧠 Reasoning',
   description: 'Extended thinking configuration',
-  fieldIds: ['thinking', 'show_thinking'],
+  fieldIds: ['thinking'],
   fields: [
     {
       id: 'thinking',
@@ -243,27 +243,11 @@ export const reasoningSection: SectionDefinition<FlattenedPresetData> = {
       style: 'short',
       maxLength: 10,
     },
-    {
-      id: 'show_thinking',
-      label: 'Show Thinking (true/false)',
-      placeholder: 'false',
-      required: false,
-      style: 'short',
-      maxLength: 5,
-    },
   ],
   getStatus: data => {
-    const hasAny = data.thinking || data.show_thinking;
-    return hasAny ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
+    return data.thinking ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
   },
   getPreview: data => {
-    const parts: string[] = [];
-    if (data.thinking) {
-      parts.push(`thinking=${data.thinking}`);
-    }
-    if (data.show_thinking === 'true') {
-      parts.push('💭 show thinking');
-    }
-    return parts.length > 0 ? parts.join(PREVIEW_SEPARATOR) : DEFAULT_PREVIEW;
+    return data.thinking ? `thinking=${data.thinking}` : DEFAULT_PREVIEW;
   },
 };

@@ -213,14 +213,6 @@ export const OutputParamsSchema = z.object({
       type: z.enum(['text', 'json_object']),
     })
     .optional(),
-
-  /**
-   * Toggle for displaying <think> blocks to users.
-   * When enabled, thinking content from reasoning models (DeepSeek R1, o1, Claude)
-   * is extracted and shown as a separate message before the response.
-   * Default: false (thinking content is hidden)
-   */
-  show_thinking: z.boolean().optional(),
 });
 
 // ============================================
@@ -323,7 +315,7 @@ export function safeValidateAdvancedParams(params: unknown): AdvancedParams | nu
  * Parameter categories:
  * - Sampling (basic): temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Sampling (advanced): minP, topA, seed
- * - Output: maxTokens, logitBias, responseFormat, showThinking
+ * - Output: maxTokens, logitBias, responseFormat
  * - Thinking: thinking level (for reasoning models)
  * - OpenRouter-specific: transforms, route, verbosity
  */
@@ -345,7 +337,6 @@ export interface ConvertedLlmParams {
   maxTokens?: number;
   logitBias?: Record<string, number>;
   responseFormat?: { type: 'text' | 'json_object' };
-  showThinking?: boolean;
 
   // Thinking level (for reasoning models: o1/o3, Claude, Gemini, DeepSeek R1, GLM)
   thinking?: ThinkingLevel;
@@ -386,7 +377,6 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
     maxTokens: params.max_tokens,
     logitBias: params.logit_bias,
     responseFormat: params.response_format,
-    showThinking: params.show_thinking,
 
     // Thinking level (same name both sides — no snake/camel split)
     thinking: params.thinking,
@@ -411,7 +401,7 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
  * Categories:
  * - Basic sampling: temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Advanced sampling: minP, topA, seed
- * - Output control: maxTokens, logitBias, responseFormat, showThinking
+ * - Output control: maxTokens, logitBias, responseFormat
  * - Thinking: thinking (canonical level for reasoning models)
  * - OpenRouter-specific: transforms, route, verbosity
  * - Memory/context: memoryScoreThreshold, memoryLimit, contextWindowTokens
@@ -432,7 +422,6 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
   'maxTokens',
   'logitBias',
   'responseFormat',
-  'showThinking',
   // Thinking (canonical level for reasoning models)
   'thinking',
   // OpenRouter-specific

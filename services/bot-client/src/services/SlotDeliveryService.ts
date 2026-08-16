@@ -133,8 +133,6 @@ export class SlotDeliveryService {
       isAutoResponse: slot.isAutoResponse,
       freshModeEnabled: result.metadata?.freshModeEnabled,
       incognitoModeActive: result.metadata?.incognitoModeActive,
-      thinkingContent: result.metadata?.thinkingContent,
-      showThinking: result.metadata?.showThinking,
       showModelFooter: result.metadata?.showModelFooter,
       ttsAudioKey: result.metadata?.ttsAudioKey,
       ttsAudioContentType: result.metadata?.ttsAudioContentType,
@@ -182,8 +180,8 @@ export class SlotDeliveryService {
         content,
         chunkMessageIds,
         userMessageTime: slot.userMessageTime,
-        // The same metadata field the thinking block renders from — persisting
-        // it here is what lets the trace outlive the 24h diagnostic window.
+        // Persisting the reasoning trace here is what lets it outlive the 24h
+        // diagnostic window.
         thinkingContent: result.metadata?.thinkingContent,
       });
     } catch (persistError) {

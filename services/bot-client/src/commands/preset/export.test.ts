@@ -178,7 +178,6 @@ describe('Preset Export', () => {
           temperature: 0.8,
           max_tokens: 4096,
           thinking: 'high',
-          show_thinking: true,
         } satisfies PresetData['params'],
       };
 
@@ -200,7 +199,6 @@ describe('Preset Export', () => {
         temperature: 0.8,
         max_tokens: 4096,
         thinking: 'high',
-        show_thinking: true,
       });
     });
 

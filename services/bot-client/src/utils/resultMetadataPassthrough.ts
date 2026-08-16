@@ -1,8 +1,10 @@
 /**
- * The full result-metadata → sendResponse passthrough (footer, modes,
- * thinking, TTS). One definition, spread at every success-path call site, so
- * a new metadata field can't silently reach one delivery path but not the
- * others (error paths forward a narrower, hand-picked subset).
+ * The full result-metadata → sendResponse passthrough (footer, modes, TTS).
+ * One definition, spread at every success-path call site, so a new metadata
+ * field can't silently reach one delivery path but not the others (error
+ * paths forward a narrower, hand-picked subset). `thinkingContent` is
+ * deliberately NOT forwarded: delivery has no renderer for it, and the
+ * persistence paths read it from result.metadata directly.
  */
 
 import { type QuotaFallbackCategoryValue } from '@tzurot/common-types/constants/error';
@@ -19,8 +21,6 @@ export interface ResultMetadataPassthrough {
   isGuestMode?: boolean;
   freshModeEnabled?: boolean;
   incognitoModeActive?: boolean;
-  thinkingContent?: string;
-  showThinking?: boolean;
   showModelFooter?: boolean;
   ttsAudioKey?: string;
   ttsAudioContentType?: string;
@@ -38,8 +38,6 @@ export function buildResultMetadataPassthrough(
     isGuestMode: result.metadata?.isGuestMode,
     freshModeEnabled: result.metadata?.freshModeEnabled,
     incognitoModeActive: result.metadata?.incognitoModeActive,
-    thinkingContent: result.metadata?.thinkingContent,
-    showThinking: result.metadata?.showThinking,
     showModelFooter: result.metadata?.showModelFooter,
     ttsAudioKey: result.metadata?.ttsAudioKey,
     ttsAudioContentType: result.metadata?.ttsAudioContentType,

@@ -56,7 +56,6 @@ interface ImportedPresetData {
     thinking?: string;
     /** Retired 4-knob shape, still present in pre-collapse export files. */
     reasoning?: Record<string, unknown>;
-    show_thinking?: boolean;
   };
 }
 
@@ -78,8 +77,7 @@ export const PRESET_JSON_TEMPLATE = `{
     "temperature": 0.7,
     "top_p": 0.9,
     "max_tokens": 4096,
-    "thinking": "medium",
-    "show_thinking": false
+    "thinking": "medium"
   }
 }`;
 

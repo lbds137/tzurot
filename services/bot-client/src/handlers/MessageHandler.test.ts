@@ -1022,7 +1022,6 @@ describe('MessageHandler', () => {
           ttsAudioKey: 'tts-key-1',
           ttsAudioContentType: 'audio/ogg',
           thinkingContent: 'reasoning...',
-          showThinking: true,
         },
       } as unknown as LLMGenerationResult;
 
@@ -1042,8 +1041,6 @@ describe('MessageHandler', () => {
           recipientUserId: 'user-slash',
           modelUsed: 'anthropic/claude',
           ttsAudioKey: 'tts-key-1',
-          thinkingContent: 'reasoning...',
-          showThinking: true,
         })
       );
     });

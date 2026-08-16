@@ -19,7 +19,7 @@
  *    - Used by: DeepSeek R1 via OpenRouter, Claude Extended Thinking
  *
  * This utility extracts the thinking content separately so it can be:
- * 1. Displayed to users (if showThinking is enabled) in Discord spoiler tags
+ * 1. Carried as response metadata alongside the visible reply
  * 2. Excluded from the visible response
  * 3. Logged for debugging purposes
  */
@@ -171,8 +171,8 @@ const STANDALONE_FROM_ID_ECHO_PATTERN =
  * GLM-4.7 meta-preamble pattern.
  *
  * Observed in production (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3): with
- * thinking enabled and `showThinking=false`, GLM-4.7 emitted a scene-
- * setting preamble before the in-character response:
+ * thinking enabled, GLM-4.7 emitted a scene-setting preamble before the
+ * in-character response:
  *
  *   <user>Lila</user>
  *   <character>Lilith</character>
@@ -695,8 +695,8 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
   // (`<think>`/`<understanding>`/etc.), the inner content would be added
   // to `thinkingParts` twice — once as part of the whole `<message>` block
   // in Pass 1, once as its own tag match in Pass 2. Edge case is not
-  // user-visible (it only affects `showThinking` output) and would require
-  // a pathological input shape. Left as-is intentionally.
+  // user-visible (it only affects the extracted thinking metadata) and would
+  // require a pathological input shape. Left as-is intentionally.
   //
   // The same two-string split bounds the quote gate inside: it is evaluated
   // against `normalized` when collecting and against the post-Pass-1 string

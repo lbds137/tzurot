@@ -271,7 +271,6 @@ export class GenerationStep implements IPipelineStep {
               isGuestMode,
               // Include thinking content so it can be shown even on failure
               thinkingContent: response.thinkingContent,
-              showThinking: effectivePersonality.showThinking,
               showModelFooter: context.configOverrides?.showModelFooter,
               // A retarget may have fired even though the new model then
               // produced only empty responses — the swap still happened and
@@ -308,7 +307,6 @@ export class GenerationStep implements IPipelineStep {
             freshModeEnabled: response.freshModeEnabled,
             incognitoModeActive: response.incognitoModeActive,
             thinkingContent: response.thinkingContent,
-            showThinking: effectivePersonality.showThinking,
             showModelFooter: context.configOverrides?.showModelFooter,
             // Tier-aware quota retarget (proactive from AuthStep or reactive
             // from the wrapper above) — the footer announces it, never silent.

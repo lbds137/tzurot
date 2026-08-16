@@ -475,9 +475,9 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     const reasoningSection = PRESET_DASHBOARD_CONFIG.sections[4];
 
     it('should have correct fields', () => {
-      expect(reasoningSection.fields).toHaveLength(2);
+      expect(reasoningSection.fields).toHaveLength(1);
       const keys = reasoningSection.fields.map(f => f.id);
-      expect(keys).toEqual(['thinking', 'show_thinking']);
+      expect(keys).toEqual(['thinking']);
     });
 
     it('should return DEFAULT status when no params set', () => {

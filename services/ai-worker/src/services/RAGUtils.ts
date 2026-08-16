@@ -456,7 +456,6 @@ export function buildModelSamplingConfig(opts: {
     // Output control
     logitBias: personality.logitBias,
     responseFormat: personality.responseFormat,
-    showThinking: personality.showThinking,
     // Canonical thinking level (for reasoning models: o1/o3, Claude, DeepSeek R1, GLM)
     thinking: personality.thinking,
     supportsReasoning,

@@ -1017,7 +1017,7 @@ Response.`;
       // `thinkingParts` twice — once as part of the whole <message> block
       // (Pass 1), once as its own tag match (Pass 2).
       //
-      // Not user-visible (only affects `showThinking` output) and requires
+      // Not user-visible (only affects the extracted thinking metadata) and requires
       // a pathological input shape. Left as-is intentionally; this test
       // PINS the current behavior so any future refactor explicitly chooses
       // whether to preserve or fix it.

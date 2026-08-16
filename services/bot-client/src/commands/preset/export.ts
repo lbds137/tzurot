@@ -91,11 +91,6 @@ function buildPresetExportData(preset: PresetData): Record<string, unknown> {
     advancedParams.thinking = preset.params.thinking;
   }
 
-  // Add show_thinking
-  if (preset.params.show_thinking !== undefined) {
-    advancedParams.show_thinking = preset.params.show_thinking;
-  }
-
   // Only add advancedParameters if we have any
   if (Object.keys(advancedParams).length > 0) {
     exportData.advancedParameters = advancedParams;

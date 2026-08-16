@@ -66,7 +66,6 @@ describe('LlmConfigMapper', () => {
           max_tokens: 4096,
           logit_bias: { '1234': 50 },
           response_format: { type: 'json_object' },
-          show_thinking: true,
           // Thinking
           thinking: 'max',
           // OpenRouter
@@ -95,7 +94,6 @@ describe('LlmConfigMapper', () => {
       expect(result.maxTokens).toBe(4096);
       expect(result.logitBias).toEqual({ '1234': 50 });
       expect(result.responseFormat).toEqual({ type: 'json_object' });
-      expect(result.showThinking).toBe(true);
 
       // Thinking
       expect(result.thinking).toBe('max');
@@ -208,7 +206,6 @@ describe('LlmConfigMapper', () => {
           temperature: 1.0, // Required for reasoning models
           max_tokens: 32000,
           thinking: 'high',
-          show_thinking: true,
         },
         contextWindowTokens: 128000,
       };
@@ -219,7 +216,6 @@ describe('LlmConfigMapper', () => {
       expect(result.temperature).toBe(1.0);
       expect(result.maxTokens).toBe(32000);
       expect(result.thinking).toBe('high');
-      expect(result.showThinking).toBe(true);
     });
 
     it('should handle user override config with minimal params', () => {

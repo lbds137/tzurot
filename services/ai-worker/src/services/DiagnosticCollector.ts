@@ -284,7 +284,6 @@ export class DiagnosticCollector {
         // Output control
         logitBias: data.logitBias,
         responseFormat: data.responseFormat,
-        showThinking: data.showThinking,
         // Thinking (canonical level)
         thinking: data.thinking,
         // OpenRouter-specific
