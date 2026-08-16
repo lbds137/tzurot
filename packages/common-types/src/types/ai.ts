@@ -157,6 +157,19 @@ export interface ModelAutocompleteOption {
 export type ModelCapabilitySource = 'openrouter' | 'zai' | 'unknown';
 
 /**
+ * How far a model honors an explicit "disable extended thinking" request:
+ *
+ * - `honored` — the model stops reasoning when asked to.
+ * - `best-effort` — the request is accepted but the model may still reason.
+ * - `unsupported` — the model cannot disable reasoning at all; the request is
+ *   ignored.
+ *
+ * Per-model calibration (measured vs. read from the provider's documentation)
+ * is recorded alongside each catalog entry in `constants/ai.ts`.
+ */
+export type ZaiThinkingOffSupport = 'honored' | 'best-effort' | 'unsupported';
+
+/**
  * Unified, provider-agnostic model-capability shape. Both the OpenRouter cache
  * and the z.ai catalog map INTO this, so a capability check queries one shape
  * regardless of which provider serves the model. This is the first concrete
@@ -175,6 +188,22 @@ export interface ModelCapabilities {
   supportsAudioOutput: boolean;
   /** Max context length in tokens; null when the source doesn't report one. */
   contextLength: number | null;
+  /**
+   * Whether the model accepts extended-reasoning parameters at all.
+   *
+   * Optional with three-state meaning: `true`/`false` are authoritative answers
+   * from the resolving source, while ABSENT means "couldn't tell" (the source
+   * doesn't report reasoning support, or the catalog was unreachable). Save-time
+   * warnings must fire only on an authoritative `false` — an absent value is
+   * never treated as a negative.
+   */
+  supportsReasoning?: boolean;
+  /**
+   * How far this model honors a request to disable extended thinking. Absent
+   * when the resolving source has no data on it, which is the common case:
+   * only the z.ai coding-plan catalog records this today.
+   */
+  thinkingOff?: ZaiThinkingOffSupport;
   /** Which source resolved this record. */
   source: ModelCapabilitySource;
 }

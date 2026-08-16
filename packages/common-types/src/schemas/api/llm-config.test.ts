@@ -257,6 +257,7 @@ describe('LLM Config API Contract Tests', () => {
           contextWindowTokens: 8000,
           params: { temperature: 0.7 },
         },
+        warnings: [],
       };
 
       const result = CreateLlmConfigResponseSchema.safeParse(response);
@@ -268,6 +269,53 @@ describe('LLM Config API Contract Tests', () => {
 
       const result = CreateLlmConfigResponseSchema.safeParse(invalidResponse);
       expect(result.success).toBe(false);
+    });
+
+    it('should reject a response omitting warnings', () => {
+      // Required, not optional: absent and empty must not be confusable, so a
+      // producer that forgets the field fails here rather than silently
+      // shipping "no warnings".
+      const response = {
+        config: {
+          id: '00000000-0000-4000-8000-000000000004',
+          name: 'My New Preset',
+          description: null,
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+          permissions: { canEdit: true, canDelete: true },
+          contextWindowTokens: 8000,
+          params: {},
+        },
+      };
+
+      expect(CreateLlmConfigResponseSchema.safeParse(response).success).toBe(false);
+    });
+
+    it('carries warnings through the parse instead of stripping them', () => {
+      // The RESPONSE direction crosses a Zod strip no mock can see: a key the
+      // wire schema does not declare is deleted before any caller sees it, and
+      // a mocked client skips the parse entirely.
+      const response = {
+        config: {
+          id: '00000000-0000-4000-8000-000000000004',
+          name: 'My New Preset',
+          description: null,
+          model: 'z-ai/glm-4.7',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+          permissions: { canEdit: true, canDelete: true },
+          contextWindowTokens: 8000,
+          params: {},
+        },
+        warnings: ['sentinel-create-warning'],
+      };
+
+      const result = CreateLlmConfigResponseSchema.safeParse(response);
+      expect(result.success).toBe(true);
+      expect(result.data?.warnings).toEqual(['sentinel-create-warning']);
     });
   });
 
@@ -538,7 +586,33 @@ describe('LLM Config API Contract Tests', () => {
         contextWindowTokens: 8000,
         params: {},
       };
-      expect(UpdateLlmConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
+      expect(
+        UpdateLlmConfigResponseSchema.safeParse({ config: validConfig, warnings: [] }).success
+      ).toBe(true);
+    });
+
+    it('requires warnings and carries them through the parse', () => {
+      const validConfig = {
+        id: '00000000-0000-4000-8000-000000000001',
+        name: 'cfg',
+        description: null,
+        provider: 'openrouter',
+        model: 'z-ai/glm-5.2',
+        isGlobal: true,
+        isOwned: false,
+        permissions: { canEdit: false, canDelete: false },
+        contextWindowTokens: 8000,
+        params: {},
+      };
+
+      expect(UpdateLlmConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(false);
+
+      const result = UpdateLlmConfigResponseSchema.safeParse({
+        config: validConfig,
+        warnings: ['sentinel-update-warning'],
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.warnings).toEqual(['sentinel-update-warning']);
     });
   });
 

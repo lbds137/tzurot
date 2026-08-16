@@ -14,6 +14,19 @@ import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/clie
 import type { PresetData } from './types.js';
 
 /**
+ * A mutating preset call's result: the saved preset plus any non-blocking
+ * validation notes the gateway attached to the save.
+ *
+ * Warnings are carried separately from `PresetData` rather than folded into it
+ * because they describe THIS save, not the stored entity — a later fetch of the
+ * same preset has nothing to report.
+ */
+export interface PresetMutationResult {
+  preset: PresetData;
+  warnings: string[];
+}
+
+/**
  * Adapt a fetched LlmConfig detail payload to the dashboard's PresetData shape.
  *
  * `LlmConfigDetailSchema` now enumerates every field the dashboard reads
@@ -75,7 +88,7 @@ export async function updatePreset(
   presetId: string,
   data: LlmConfigUpdateInput,
   userClient: UserClient
-): Promise<PresetData> {
+): Promise<PresetMutationResult> {
   const result = await userClient.updateUserLlmConfig(presetId, data);
 
   if (!result.ok) {
@@ -86,7 +99,7 @@ export async function updatePreset(
     );
   }
 
-  return toPresetData(result.data.config);
+  return { preset: toPresetData(result.data.config), warnings: result.data.warnings };
 }
 
 /**
@@ -98,7 +111,7 @@ export async function updateGlobalPreset(
   presetId: string,
   data: LlmConfigUpdateInput,
   ownerClient: OwnerClient
-): Promise<PresetData> {
+): Promise<PresetMutationResult> {
   const result = await ownerClient.updateGlobalLlmConfig(presetId, data);
 
   if (!result.ok) {
@@ -109,7 +122,7 @@ export async function updateGlobalPreset(
     );
   }
 
-  return toPresetData(result.data.config);
+  return { preset: toPresetData(result.data.config), warnings: result.data.warnings };
 }
 
 /**
@@ -129,7 +142,7 @@ export async function createPreset(
     autoSuffixOnCollision?: boolean;
   },
   userClient: UserClient
-): Promise<PresetData> {
+): Promise<PresetMutationResult> {
   const result = await userClient.createUserLlmConfig(data);
 
   if (!result.ok) {
@@ -143,5 +156,5 @@ export async function createPreset(
     );
   }
 
-  return toPresetData(result.data.config);
+  return { preset: toPresetData(result.data.config), warnings: result.data.warnings };
 }

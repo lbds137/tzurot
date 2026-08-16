@@ -31,7 +31,7 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 // Mock validateLlmConfigModelFields so tests can force early-return on
 // invalid-model paths without orchestrating a full model cache.
 const { mockValidateLlmConfigModelFields } = vi.hoisted(() => ({
-  mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
+  mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue({ ok: true, warnings: [] }),
 }));
 
 // Partial mock: stub validateLlmConfigModelFields, but keep the REAL
@@ -153,6 +153,9 @@ describe('Admin LLM Config Routes', () => {
   // gpt-4o / *-vl-* models → vision-capable, glm → text-only, anything else → unknown.
   const buildAppWithVisionCache = (): Express => {
     const mockModelCache = {
+      // Reasoning support is unknown to these stubs — the three-state contract
+      // means undefined, so no thinking warning is derived from them.
+      supportsReasoning: vi.fn().mockResolvedValue(undefined),
       getModelById: vi.fn(async (id: string) =>
         id.includes('gpt-4o') || id.includes('-vl')
           ? { supportsVision: true }
@@ -213,6 +216,9 @@ describe('Admin LLM Config Routes', () => {
       // gpt-4o resolves vision-capable via OpenRouter; glm-4.7 misses OpenRouter
       // and resolves text-only from the z.ai catalog → supportsVision false.
       const mockModelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'openai/gpt-4o'
             ? {
@@ -414,7 +420,7 @@ describe('Admin LLM Config Routes', () => {
       mockValidateLlmConfigModelFields.mockImplementationOnce(
         async (opts: { res: { status: (n: number) => { json: (body: unknown) => unknown } } }) => {
           opts.res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Test: invalid model' });
-          return false;
+          return { ok: false, warnings: [] };
         }
       );
 
@@ -447,6 +453,35 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(201);
       expect(response.body.config.name).toBe('New Global Config');
       expect(response.body.config.isGlobal).toBe(true);
+      expect(response.body.warnings).toEqual([]);
+    });
+
+    it('threads validation warnings into the create response', async () => {
+      // Seam test: the mocked validator returns the warnings either way — only
+      // this assertion proves the route forwards them into the JSON body. A
+      // dropped key would otherwise surface only as a client-side parse failure.
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce({
+        ok: true,
+        warnings: ['sentinel-create-warning'],
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config-id',
+        name: 'New Global Config',
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+      });
+
+      const response = await request(app).post('/admin/llm-config').send({
+        name: 'New Global Config',
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.warnings).toEqual(['sentinel-create-warning']);
     });
 
     it('should accept contextWindowTokens in create', async () => {
@@ -618,7 +653,7 @@ describe('Admin LLM Config Routes', () => {
           opts.res
             .status(400)
             .json({ error: 'VALIDATION_ERROR', message: 'Test: context too large' });
-          return false;
+          return { ok: false, warnings: [] };
         }
       );
 
@@ -660,6 +695,36 @@ describe('Admin LLM Config Routes', () => {
         data: { name: 'New Name', model: 'google/gemini-2.0-flash' },
         select: expect.any(Object),
       });
+    });
+
+    it('threads validation warnings into the update response', async () => {
+      // Seam test — same rationale as the create-path sibling above.
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce({
+        ok: true,
+        warnings: ['sentinel-update-warning'],
+      });
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        isGlobal: true,
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'New Name',
+        model: 'google/gemini-2.0-flash',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id').send({
+        name: 'New Name',
+        model: 'google/gemini-2.0-flash',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.warnings).toEqual(['sentinel-update-warning']);
     });
 
     it('should accept contextWindowTokens in update', async () => {
@@ -1279,6 +1344,9 @@ describe('Admin LLM Config Routes', () => {
 
     it('should enrich GET response with model context info when modelCache provided', async () => {
       const mockModelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue({
           id: 'anthropic/claude-sonnet-4',
           name: 'Claude Sonnet 4',
@@ -1324,6 +1392,9 @@ describe('Admin LLM Config Routes', () => {
 
     it('should enrich POST response with model context info when modelCache provided', async () => {
       const mockModelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue({
           id: 'anthropic/claude-sonnet-4',
           name: 'Claude Sonnet 4',
@@ -1373,6 +1444,9 @@ describe('Admin LLM Config Routes', () => {
 
     it('should enrich PUT response with model context info when modelCache provided', async () => {
       const mockModelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue({
           id: 'anthropic/claude-sonnet-4',
           name: 'Claude Sonnet 4',

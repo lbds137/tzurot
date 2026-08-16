@@ -104,7 +104,7 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock validateLlmConfigModelFields so tests can force early-return on
 // invalid-model paths without orchestrating full model cache + Zod responses.
 const { mockValidateLlmConfigModelFields } = vi.hoisted(() => ({
-  mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
+  mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue({ ok: true, warnings: [] }),
 }));
 
 vi.mock('../../utils/llmConfigValidation.js', () => ({
@@ -320,6 +320,9 @@ describe('/user/llm-config routes', () => {
       // gpt-4o resolves vision-capable via OpenRouter; glm-4.7 misses OpenRouter
       // and resolves text-only from the z.ai catalog → supportsVision false.
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'openai/gpt-4o'
             ? {
@@ -420,6 +423,9 @@ describe('/user/llm-config routes', () => {
       });
       mockPrisma.userApiKey.findFirst.mockResolvedValue(null); // no z.ai-coding key
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue(null), // glm-5.2 not on OpenRouter
         lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
@@ -456,6 +462,9 @@ describe('/user/llm-config routes', () => {
       });
       mockPrisma.userApiKey.findFirst.mockResolvedValue({ id: 'zai-key-1' }); // has key
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue(null),
         lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
@@ -515,7 +524,7 @@ describe('/user/llm-config routes', () => {
       // calling res.status()/res.json() is safe. Contrast with admin/llm-config.test.ts
       // which uses supertest and must have the mock write the error response to res
       // (otherwise supertest hangs waiting for a response that never comes).
-      mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce({ ok: false, warnings: [] });
 
       const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'bad-model' });
@@ -621,6 +630,36 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
+    it('threads validation warnings into the create response', async () => {
+      // Seam test: the mocked validator returns the warnings either way — only
+      // this assertion proves the route forwards them into the JSON body.
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce({
+        ok: true,
+        warnings: ['sentinel-create-warning'],
+      });
+      mockPrisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config',
+        name: 'My Config',
+        description: null,
+        model: 'gpt-4',
+        provider: 'openrouter',
+        isGlobal: false,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
+      const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ warnings: ['sentinel-create-warning'] })
+      );
+    });
+
     it('should save a z.ai-only model (z-ai/glm-5.2) when the user has a z.ai-coding key', async () => {
       // End-to-end route wiring: resolveProvisionedUserId → userHasActiveApiKey
       // (returns a key) → validation takes the z.ai catalog path, so glm-5.2
@@ -670,6 +709,9 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue(null),
         lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
@@ -759,7 +801,7 @@ describe('/user/llm-config routes', () => {
 
   describe('PUT /api/user/llm-config/:id', () => {
     it('should return 400 when model validation fails on update', async () => {
-      mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce({ ok: false, warnings: [] });
 
       const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
@@ -1017,6 +1059,52 @@ describe('/user/llm-config routes', () => {
       );
     });
 
+    it('threads validation warnings into the update response', async () => {
+      // Seam test — same rationale as the create-path sibling above.
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce({
+        ok: true,
+        warnings: ['sentinel-update-warning'],
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'New Name',
+        description: 'Updated',
+        model: 'claude-3',
+        provider: 'openrouter',
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        advancedParameters: { temperature: 0.9 },
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
+        ...mockDeps,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
+      const { req, res } = createMockReqRes(
+        { name: 'New Name', advancedParameters: { temperature: 0.9 } },
+        { id: 'config-123' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ warnings: ['sentinel-update-warning'] })
+      );
+    });
+
     it('should wire the z.ai-coding key check into the update path', async () => {
       // Proves createUpdateHandler runs userHasActiveApiKey → hasZaiCodingKey →
       // validation (mirrors the create-path test). If that wiring were dropped,
@@ -1089,6 +1177,9 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn().mockResolvedValue(null),
         lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
@@ -1536,6 +1627,9 @@ describe('/user/llm-config routes', () => {
     // first z-ai/-prefixed model added here would crash with "not a function"
     // rather than fail an assertion.
     const mockModelCache = {
+      // Reasoning support is unknown to these stubs — the three-state contract
+      // means undefined, so no thinking warning is derived from them.
+      supportsReasoning: vi.fn().mockResolvedValue(undefined),
       getModelById: vi.fn(),
       lookupModelById: vi.fn().mockResolvedValue({ kind: 'absent' }),
     } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;

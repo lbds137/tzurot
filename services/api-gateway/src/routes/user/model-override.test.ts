@@ -208,6 +208,9 @@ describe('/user/model-override routes', () => {
       ]);
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'openai/gpt-4o' ? { supportsVision: true } : null
         ),
@@ -428,6 +431,9 @@ describe('/user/model-override routes', () => {
       });
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'openai/gpt-4o' ? { supportsVision: true } : null
         ),
@@ -481,6 +487,9 @@ describe('/user/model-override routes', () => {
       });
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'z-ai/glm-4.7' ? { supportsVision: false } : null
         ),
@@ -524,6 +533,9 @@ describe('/user/model-override routes', () => {
       });
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async () => null), // unknown to OpenRouter + not a z.ai member
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
@@ -769,6 +781,9 @@ describe('/user/model-override routes', () => {
       });
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'openai/gpt-4o' ? { supportsVision: true } : null
         ),
@@ -802,6 +817,9 @@ describe('/user/model-override routes', () => {
       });
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async (id: string) =>
           id === 'z-ai/glm-4.7' ? { supportsVision: false } : null
         ),
@@ -837,6 +855,9 @@ describe('/user/model-override routes', () => {
       });
 
       const modelCache = {
+        // Reasoning support is unknown to these stubs — the three-state contract
+        // means undefined, so no thinking warning is derived from them.
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
         getModelById: vi.fn(async () => null), // unknown to OpenRouter + not a z.ai member
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 

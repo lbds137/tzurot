@@ -160,6 +160,7 @@ export function mockCreateLlmConfigResponse(
       permissions: { canEdit: true, canDelete: true }, // User owns their created config
       ...overrides,
     }),
+    warnings: [],
   };
   return CreateLlmConfigResponseSchema.parse(response);
 }
