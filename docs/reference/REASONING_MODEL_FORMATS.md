@@ -134,7 +134,15 @@ To receive reasoning content from a model, set the canonical thinking level on y
 
 **Absent is not `off`.** Omitting `thinking` sends nothing and takes the provider's own default; `"off"` explicitly asks the provider to disable reasoning.
 
-The level is translated per provider at request-build time. For OpenRouter, `buildReasoningParams` in `ModelFactory.ts` emits `reasoning: { effort: <level> }`, with `off` mapping to OpenRouter's `none`. `exclude` is never sent — both providers default to returning the trace, which `/inspect` depends on.
+The level is translated per provider at request-build time by `buildThinkingKwargs` in `services/ai-worker/src/services/modelFactory/thinkingTranslation.ts` — the single module that owns the translation table:
+
+| canonical       | OpenRouter                       | z.ai-direct                                                   |
+| --------------- | -------------------------------- | ------------------------------------------------------------- |
+| _(absent)_      | nothing                          | nothing                                                       |
+| `off`           | `reasoning: { effort: 'none' }`  | `thinking: { type: 'disabled' }`                              |
+| any other level | `reasoning: { effort: <level> }` | `thinking: { type: 'enabled' }` + `reasoning_effort: <level>` |
+
+z.ai does not read OpenRouter's `reasoning` object — it accepts unknown params and silently ignores them, which is why the split exists (and why the z.ai param filter is an allowlist: an untranslated param would be dropped on the floor with no error). `exclude` is never sent on either arm — both providers default to returning the trace, which `/inspect` depends on. Model caveat, live-probed: GLM-5.x treats `disabled` as best-effort (the model may think anyway); GLM-4.5-air honors it.
 
 Higher levels mean more reasoning tokens: better quality, but slower and more expensive. When `max_tokens` is not set explicitly, the level also scales the response budget via `AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS`.
 
@@ -150,7 +158,7 @@ readable via `/inspect`.
 
 ## Pipeline Flow
 
-1. **Request** - `ModelFactory` builds the `reasoning` param via `buildReasoningParams()` into `modelKwargs`, which LangChain passes through to the API as a top-level body key. OpenRouter-only extras (`transforms`, `route`, `verbosity`) are injected by the custom fetch wrapper (`OpenRouterFetch.ts`) on the request side.
+1. **Request** - `ModelFactory.buildModelKwargs` merges the provider-appropriate thinking params from `buildThinkingKwargs()` (`modelFactory/thinkingTranslation.ts`) into `modelKwargs` — `reasoning: {...}` for OpenRouter, `thinking: {...}` + `reasoning_effort` for z.ai-direct — which LangChain passes through to the API as top-level body keys. On the z.ai route, `filterRestrictedParams` then applies the `ZAI_DIRECT_SUPPORTED_PARAMS` allowlist. OpenRouter-only extras (`transforms`, `route`, `verbosity`) are injected by the custom fetch wrapper (`OpenRouterFetch.ts`) on the request side.
 
 2. **Raw-Response Capture** - For OpenRouter models, `__includeRawResponse: true` surfaces the complete raw API response at `additional_kwargs.__raw_response` after LangChain parses it. (The custom fetch no longer mutates response bodies for reasoning — its only response-side job is 400-recovery, below.)
 
