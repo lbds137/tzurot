@@ -154,16 +154,16 @@ gh pr merge 714 --rebase                  # develop survives
 
 **NEVER run these without explicit user permission:**
 
-| Command                       | Risk                            |
-| ----------------------------- | ------------------------------- |
-| `git merge`                   | Creates forbidden merge commits |
-| `git restore`                 | Discards uncommitted work       |
-| `git checkout .`              | Discards all changes            |
-| `git reset --hard`            | Undoes commits permanently      |
-| `git clean -fd`               | Deletes untracked files         |
-| `git push --force`            | Rewrites history                |
-| `killall node` / `pkill node` | Kills Claude Code               |
-| `rm -rf` on gitignored paths  | Data is UNRECOVERABLE           |
+| Command                       | Risk                                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `git merge`                   | Creates forbidden merge commits                                                                                              |
+| `git restore`                 | Discards uncommitted work                                                                                                    |
+| `git checkout .`              | Discards all changes                                                                                                         |
+| `git reset --hard`            | Undoes commits permanently — one scoped exception: the worktree-agent self-heal in `/tzurot-orchestration` § Worktree spawns |
+| `git clean -fd`               | Deletes untracked files                                                                                                      |
+| `git push --force`            | Rewrites history                                                                                                             |
+| `killall node` / `pkill node` | Kills Claude Code                                                                                                            |
+| `rm -rf` on gitignored paths  | Data is UNRECOVERABLE                                                                                                        |
 
 **Uncommitted changes = HOURS OF WORK.** When user says "get changes" → COMMIT, not DISCARD.
 

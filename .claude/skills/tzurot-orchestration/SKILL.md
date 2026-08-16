@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-12'
+lastUpdated: '2026-08-16'
 ---
 
 # Orchestrator Mode
@@ -87,7 +87,10 @@ a gap the worker will fill by guessing.
    parallel (`05-tooling.md` § Resource Constraints).
 7. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
-   creation has to land on its own before any edit.
+   creation has to land on its own before any edit. For worktree spawns this
+   step is preceded by the base-SHA verification WITH self-heal authorization
+   (§ Worktree spawns › "The base IS stale by default") — never a bare
+   verify-and-stop.
 8. **Report requirements** — deviations flagged, verbatim verification tails,
    survivor-grep results.
 
@@ -130,6 +133,42 @@ git -C <worktree-path> log -1 --format='%H %s'
 A stale base is the failure mode that reads as competence: the worker behaves
 correctly against the code it can see, and confidently "corrects" a spec that
 was right about the code it cannot.
+
+### The base IS stale by default — dispatch with a self-heal, not a stop
+
+**The harness cuts agent worktrees from `main`, not from the orchestrator's
+branch** (observed repeatedly on this repo — a worker dispatched from `develop`
+starts on the last release, missing everything merged since). The
+`worktree-agent-*` branch shape is likewise observed harness behavior, not
+repo-defined — if the harness ever changes it, the gate fails closed (the
+worker stops instead of self-healing). Treat the stale
+base as the expected state and put the correction IN the dispatch prompt, as
+the worker's step 0:
+
+- Name the required base SHA **with its subject line**, so the worker's
+  `git log -1` check is self-evidently right or wrong.
+- **Authorize the self-heal**: if HEAD differs from the required SHA AND
+  `git status -s` is empty AND the current branch is the agent's own
+  `worktree-agent-*` branch AND `git log <required-sha>..HEAD --oneline` is
+  empty (no commits would become unreachable — a clean tree says nothing
+  about COMMITTED work, and this must hold even when the check is re-run out
+  of order), the worker runs `git reset --hard <required-sha>` and
+  re-verifies. The object store is shared with the main checkout, so no fetch
+  is needed and the SHA is always reachable when it exists locally. This is
+  the one sanctioned standing exception to `00-critical.md`'s ASK-FIRST
+  `git reset --hard` entry, scoped to the agent's own throwaway
+  worktree-agent branch under exactly these conditions.
+- STOP remains the instruction when any condition fails: the tree is dirty,
+  the branch is not a worktree-agent branch, commits exist past the required
+  SHA, or the SHA is unreachable.
+
+**A bare verify-and-STOP wastes the entire dispatch.** The harness AUTO-REMOVES
+a worktree whose worker stops having changed nothing — so the correctly-stopped
+worker cannot be resumed into it (its cwd is gone, and a resume then lands in
+the shared tree, the exact state the isolation mandate exists to prevent).
+Mid-run `SendMessage` steering loses the race too: the base check completes
+before the message delivers. The self-heal authorization in the prompt is the
+only correction that arrives in time.
 
 ### Resuming a worktree-isolated worker
 
