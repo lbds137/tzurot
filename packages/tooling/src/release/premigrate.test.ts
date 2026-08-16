@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve as pathResolve } from 'node:path';
 
 // chalk → identity strings so assertions match plain text
 vi.mock('chalk', () => {
@@ -25,6 +27,15 @@ import { premigrate } from './premigrate.js';
 
 const ADDITIVE_MIGRATION = 'prisma/migrations/20260627_add_kind/migration.sql';
 const DESTRUCTIVE_MIGRATION = 'prisma/migrations/20260628_drop_old/migration.sql';
+
+// The real specimen that motivated the comment-stripping fix: a pure-DML
+// migration whose header comments explain the destructive-shape detector
+// itself (and therefore mention DROP/RENAME COLUMN by name).
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = pathResolve(__dirname, '../../../..');
+const COLLAPSE_MIGRATION_REL =
+  'prisma/migrations/20260814120000_collapse_reasoning_to_thinking/migration.sql';
+const COLLAPSE_MIGRATION_ABS = pathResolve(REPO_ROOT, COLLAPSE_MIGRATION_REL);
 
 /**
  * Wire the git() mock: `diff` returns the supplied file list, everything else
@@ -204,6 +215,114 @@ describe('premigrate', () => {
     await premigrate({ force: true });
 
     expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('classifies the real collapse-reasoning-to-thinking migration (pure DML, header mentions destructive keywords) as non-destructive', async () => {
+    const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    let sql: string;
+    try {
+      sql = actualFs.readFileSync(COLLAPSE_MIGRATION_ABS, 'utf-8');
+    } catch (err) {
+      throw new Error(
+        `Could not read the specimen migration at ${COLLAPSE_MIGRATION_ABS} — did it move or ` +
+          `get deleted?`,
+        { cause: err }
+      );
+    }
+    mockGitDiff([COLLAPSE_MIGRATION_REL]);
+    vi.mocked(readFileSync).mockReturnValue(sql);
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('still refuses a real ALTER TABLE ... RENAME COLUMN statement sitting beside explanatory comments', async () => {
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      '-- this migration does NOT rename any column, honest\n' +
+        'ALTER TABLE "x" RENAME COLUMN "a" TO "b";'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('does not let a `--` inside a single-quoted literal swallow the rest of the line', async () => {
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(`UPDATE t SET c = 'a--b'; DROP TABLE live_t;`);
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('does not flag a destructive keyword mentioned only inside a block comment', async () => {
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      '/* historical note: an earlier draft used DROP TABLE old_thing here */\n' +
+        'ALTER TABLE "x" ADD COLUMN "y" TEXT;'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('a dollar-quoted body with an odd (unbalanced) quote does not let a leaked-comment keyword mention flag the migration', async () => {
+    // The dollar-quote fix's regression target: without it, the lone `'` in
+    // `RAISE NOTICE 'unterminated` desyncs the single-quote tracker for the
+    // rest of the file, so the trailing `--` comment below is never
+    // recognized as a comment and its "DROP TABLE" text leaks into the
+    // scanned statement — even though there's no real destructive statement
+    // anywhere in this migration.
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $$\n' +
+        'BEGIN\n' +
+        "  RAISE NOTICE 'unterminated;\n" +
+        'END $$;\n' +
+        '-- an earlier draft of this migration used DROP TABLE old_stuff instead of this approach\n' +
+        'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('still refuses a real destructive statement after a dollar-quoted body with an odd quote (fail-open pinned closed)', async () => {
+    // Same odd-quote desync as above, but the leaked comment mentions
+    // `CREATE TABLE live_t` instead — which, pre-fix, wrongly registers
+    // `live_t` in the created-earlier-in-file exemption set and exempts the
+    // REAL `DROP TABLE live_t;` statement that follows. This is the concrete
+    // fail-open path: a real destructive statement silently exempted.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $$\n' +
+        'BEGIN\n' +
+        "  RAISE NOTICE 'unterminated;\n" +
+        'END $$;\n' +
+        '-- illustrative: an earlier draft used CREATE TABLE live_t (id int) and it was fine;\n' +
+        'DROP TABLE live_t;'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('a tagged dollar-quote ($fn$...$fn$) closes the same way as $$...$$', async () => {
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $fn$\n' +
+        'BEGIN\n' +
+        "  RAISE NOTICE 'unterminated;\n" +
+        'END $fn$;\n' +
+        '-- illustrative: an earlier draft used CREATE TABLE live_t (id int) and it was fine;\n' +
+        'DROP TABLE live_t;'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
   });
 
   it('warns and skips an unreadable migration file in the destructive scan', async () => {
