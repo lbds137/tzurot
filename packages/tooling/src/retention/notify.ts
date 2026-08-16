@@ -7,8 +7,11 @@
  * safeguards, in the order a run hits them:
  *
  *   1. `--dry-run` resolves and prints the cohort without enqueuing.
- *   2. On prod, `requireProductionConfirmation` is the manual-approval gate —
- *      `--force` skips the PROMPT only.
+ *   2. In EVERY environment, `requireProductionConfirmation` is the
+ *      manual-approval gate — `--force` skips the PROMPT only. Dev is not
+ *      exempt: dev mirrors prod's users via sync, so a dev run DMs REAL
+ *      users a deletion warning from the dev bot and starts their grace
+ *      clocks.
  *   3. The gateway refuses the run when the cohort exceeds the hard-ceiling
  *      share of the userbase; `--breaker-override` is the deliberate,
  *      separate flag. The first real run is EXPECTED to trip the softer warn
@@ -37,7 +40,7 @@ export interface RetentionNotifyOptions {
   env: Environment;
   /** Resolve and print the cohort without enqueuing anything. */
   dryRun?: boolean;
-  /** Skip the production confirmation prompt. Does NOT bypass the breaker. */
+  /** Skip the confirmation prompt (every env prompts). Does NOT bypass the breaker. */
   force?: boolean;
   /** Proceed despite the hard-ceiling breaker. Deliberately not `--force`. */
   breakerOverride?: boolean;
@@ -127,10 +130,24 @@ export async function retentionNotify(options: RetentionNotifyOptions): Promise<
     return;
   }
 
-  if (env === 'prod' && !force) {
+  if (!force) {
+    if (env === 'dev') {
+      // The shared gate's banner names PRODUCTION unconditionally; on a dev
+      // run the reason this still reaches real people has to be stated, or
+      // the operator reads the prompt as boilerplate. DEV ONLY: `local` is
+      // not part of the dev<->prod sync, so it gets the plain prompt.
+      console.log(chalk.red.bold('\n⚠️  A DEV NOTIFY IS NOT A SANDBOX OPERATION'));
+      console.log(
+        chalk.red(
+          "dev mirrors prod's users via sync: this run DMs REAL users a deletion\n" +
+            'warning from the dev bot and starts their 30-day grace clocks.'
+        )
+      );
+    }
     await requireProductionConfirmation(
       `DM a deletion warning to ${String(previewResult.data.cohortSize)} inactive users ` +
-        '(starts their 30-day grace clocks)'
+        '(starts their 30-day grace clocks)' +
+        (env === 'dev' ? ' via DEV, reaching the mirrored prod userbase' : '')
     );
   }
 

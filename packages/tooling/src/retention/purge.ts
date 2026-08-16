@@ -6,8 +6,10 @@
  * run hits them:
  *
  *   1. `--dry-run` short-circuits to the read-only preview.
- *   2. On prod, `requireProductionConfirmation` is the manual-approval gate that
- *      D5 requires — `--force` skips the PROMPT only.
+ *   2. In EVERY environment, `requireProductionConfirmation` is the
+ *      manual-approval gate that D5 requires — `--force` skips the PROMPT
+ *      only. Dev is not exempt: `users` is sync-tracked, so a dev purge's
+ *      tombstones erase the same accounts from prod on the next sync.
  *   3. The gateway refuses each call when the cohort exceeds the hard-ceiling
  *      share of the userbase; `--breaker-override` is the deliberate,
  *      separate flag that bypasses it. `--force` cannot.
@@ -37,7 +39,7 @@ export interface RetentionPurgeOptions {
   env: Environment;
   /** Report the cohort and stop — identical to `retention:preview` (D5). */
   dryRun?: boolean;
-  /** Skip the production confirmation prompt. Does NOT bypass the breaker. */
+  /** Skip the confirmation prompt (every env prompts). Does NOT bypass the breaker. */
   force?: boolean;
   /** Comma-separated Discord IDs to skip for this run only. */
   exclude?: string;
@@ -97,24 +99,46 @@ export function renderTally(tally: PurgeRunTally): void {
 }
 
 /**
- * Ask for approval on prod. Returns only when the run may proceed — a
- * decline exits inside the gate.
+ * Ask for approval in EVERY environment. Returns only when the run may
+ * proceed — a decline exits inside the gate.
+ *
+ * Dev is gated too, and not as belt-and-braces: `users` is a sync-tracked
+ * table, and a purge writes `sync_tombstones` rows precisely so a later sync
+ * cannot resurrect the account. A dev-side purge therefore deletes the same
+ * people from PROD on the next sync — the one destructive command in this
+ * epic has no sandbox environment, so it gets no unprompted environment.
  *
  * Note the asymmetry with the breaker: this gate is about the OPERATOR being
  * present, which `--force` legitimately asserts in a scripted context. The
  * breaker is about the DATA being plausible, which no amount of operator
  * intent can vouch for — hence a separate flag, checked server-side.
  */
-async function approveOnProd(
+async function approveDestructivePurge(
   env: Environment,
   force: boolean,
   eligibleCount: number
 ): Promise<void> {
-  if (env !== 'prod' || force) {
+  if (force) {
     return;
   }
+  if (env === 'dev') {
+    // The shared gate's banner names PRODUCTION unconditionally; on a dev run
+    // that is only half the story, so the sync consequence is spelled out
+    // here before the prompt renders. DEV ONLY: `local` is not part of the
+    // dev<->prod sync, so it gets the plain prompt — asserting a sync
+    // consequence there would train the operator to discount this banner.
+    console.log(chalk.red.bold('\n⚠️  A DEV PURGE IS NOT A SANDBOX OPERATION'));
+    console.log(
+      chalk.red(
+        "dev's users table is dev<->prod sync-tracked: purge deletions write tombstones\n" +
+          'that propagate to PROD on the next sync. The same people are erased from\n' +
+          'production, and the tombstone exists so a later sync cannot bring them back.'
+      )
+    );
+  }
   await requireProductionConfirmation(
-    `permanently erase ${String(eligibleCount)} inactive, unreachable accounts`
+    `permanently erase ${String(eligibleCount)} inactive, unreachable accounts` +
+      (env === 'dev' ? ' via DEV, propagating by sync' : '')
   );
 }
 
@@ -234,7 +258,7 @@ export async function retentionPurge(options: RetentionPurgeOptions): Promise<vo
   if (preview.users.length === 0) {
     return;
   }
-  await approveOnProd(env, force, preview.totals.eligibleCount);
+  await approveDestructivePurge(env, force, preview.totals.eligibleCount);
 
   const tally = await purgeCohort(client, preview.users, {
     excludes: parseExcludes(options.exclude),

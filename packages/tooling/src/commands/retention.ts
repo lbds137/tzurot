@@ -48,7 +48,9 @@ export function registerRetentionCommands(cli: CAC): void {
     .command('retention:purge', 'ERASE the purge-eligible cohort, one account per call')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--dry-run', 'Report the cohort without erasing anything (same as retention:preview)')
-    .option('--force', FORCE_OPTION_DESC)
+    // Not FORCE_OPTION_DESC: the purge prompts in EVERY environment (a dev
+    // purge's tombstones sync to prod), so its --force is not prod-scoped.
+    .option('--force', 'Skip the confirmation prompt (prompts in every environment)')
     .option('--exclude <ids>', 'Comma-separated Discord IDs to skip for this run only')
     // Deliberately NOT covered by --force: --force asserts the operator is
     // present, which says nothing about whether an implausibly large cohort is
@@ -85,7 +87,9 @@ export function registerRetentionCommands(cli: CAC): void {
     )
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--dry-run', 'Resolve and print the notify cohort without enqueuing anything')
-    .option('--force', FORCE_OPTION_DESC)
+    // Not FORCE_OPTION_DESC: notify prompts in EVERY environment (dev mirrors
+    // prod's users via sync, so a dev run DMs real people).
+    .option('--force', 'Skip the confirmation prompt (prompts in every environment)')
     // Same two-flag discipline as the purge: --force asserts the operator is
     // present; only --breaker-override vouches for an implausibly large cohort.
     .option('--breaker-override', 'Proceed even though the cohort exceeds the safety ceiling')
