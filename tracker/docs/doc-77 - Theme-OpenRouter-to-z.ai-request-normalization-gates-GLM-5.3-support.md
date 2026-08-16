@@ -282,7 +282,70 @@ tracking.
 - The default-`max` explains Phase 0: we send neither field, so z.ai runs its
   own default regardless of our knobs.
 - **Both tables are doc-reads, not probes** (`00-critical.md` § external-system
-  claims). Build step 0 of PR B runs the live probe.
+  claims). Build step 0 of PR B runs the live probe. **→ DONE, results below.**
+
+### ✅ PR B STEP 0 PROBE RESULTS (2026-08-16, owner-approved; both riders included)
+
+Direct API calls, not Discord traffic. z.ai probes used the owner's stored dev
+BYOK key (decrypted in-process via a one-off script, deleted after this
+record); OpenRouter probes used the system `OPENROUTER_API_KEY`. Same fixed
+prompt across all calls, `temperature: 0`, `max_tokens: 1024`. This route was
+chosen over the originally-planned Discord-config discriminator because
+`llm_configs` is **bidirectionally dev↔prod sync-tracked** (`syncTables.ts`)
+— probe configs created on dev would ride the next db-sync into prod.
+
+**z.ai (`api.z.ai/api/coding/paas/v4`) — every call HTTP 200, zero param
+rejections.** `thinking` and `reasoning_effort` are both accepted; the
+allowlist flip can include them.
+
+| model | sent | reasoning_content | reasoning_tokens |
+| --- | --- | --- | --- |
+| glm-4.5-air | `thinking:{type:'disabled'}` | **ABSENT** | 0 |
+| glm-4.5-air | enabled + `reasoning_effort:'minimal'` | 1227 chars | 340 |
+| glm-4.5-air | enabled + `reasoning_effort:'low'` | 1169 chars | 323 |
+| glm-4.5-air | enabled + `reasoning_effort:'high'` | 1620 chars | 483 |
+| glm-5.2 | enabled + `reasoning_effort:'low'` | **ABSENT** (×2, reran to confirm) | 0 |
+| glm-5.2 | enabled + `reasoning_effort:'high'` | 363 chars | 102 |
+| glm-5.2 | enabled + `reasoning_effort:'max'` | 402 chars | 120 |
+| glm-5.2 | `thinking:{type:'disabled'}` | **323 chars** | 89 |
+
+Conclusions:
+
+- **The translation table is validated as designed** — both fields honored,
+  real dose-response on both models (4.5-air: low 323rt < high 483rt; 5.2:
+  low 0 < high 102 < max 120). `minimal` is accepted (≈`low` in practice on
+  4.5-air; separation at the bottom of the scale is weak).
+- **`thinking:{type:'disabled'}` is honored on glm-4.5-air but NOT on
+  glm-5.2** — 5.2 produced 89 reasoning tokens anyway, consistent with the
+  documented "5.x automatically determine". Conversely 5.2 at `low` produced
+  ZERO reasoning on a trivial prompt (twice) — the model auto-skips, which is
+  `low` behaving as documented, not a failure. Net: on 5.x, `off` is
+  best-effort, not a guarantee. **This is PR C's save-time-warning case**, and
+  the Phase-4 GLM-5.3 "thinking cannot be disabled" claim now has a measured
+  5.2 precedent.
+
+**OpenRouter riders (system key, `deepseek/deepseek-r1-0528` — a
+reasoning-mandatory model):**
+
+| sent | result |
+| --- | --- |
+| `reasoning:{effort:'high'}` (control) | 200 — 2022 chars, 516 rt |
+| `reasoning:{effort:'max'}` | **200 — 2704 chars, 756 rt** (> high ✓) |
+| `reasoning:{effort:'none'}` | **400** "Reasoning is mandatory for this endpoint and cannot be disabled." |
+| `reasoning:{enabled:false, exclude:false}` (pre-PR-A legacy shape) | **400, identical message** |
+
+Conclusions:
+
+- **Rider (a) closed**: `effort:'max'` is live-verified on the OpenRouter
+  wire with a real dose-response above `high`.
+- **Rider (b) closed, with a finding**: `effort:'none'` 400s on
+  reasoning-mandatory models — but the legacy `{enabled:false}` shape 400s
+  **identically**, so this is pre-existing OpenRouter behavior, NOT a PR A
+  regression (no prod config pairs `off` with a mandatory-reasoning model
+  today; the 4 Gemma `effort:'none'` configs run fine because Gemma can
+  disable). **PR C's validation should cover "off on a reasoning-mandatory
+  model" on the OpenRouter side too, not just z.ai's compulsory-thinking
+  GLMs.**
 
 ### The canonical field
 
@@ -349,7 +412,8 @@ and pin a test that the two mappings agree. Without it, Zod strip-mode would
   been on the wire); (b) `effort: 'none'`, which PR A now sends for a config
   that previously sent bare `{enabled: false}`. (b) is the lower risk of the
   two: 4 prod configs already sent `effort:'none'` directly, so that value has
-  real-world precedent, while `max` has none. Then: provider branch emitting the z.ai row of
+  real-world precedent, while `max` has none. **Step 0 ✅ DONE 2026-08-16 —
+  results in "PR B STEP 0 PROBE RESULTS" above; both riders closed.** Then: provider branch emitting the z.ai row of
   the table; **flip `ZAI_DIRECT_UNSUPPORTED_PARAMS` denylist → allowlist** from
   the documented param set; parity test asserting every `AdvancedParamsSchema`
   key has a declared z.ai disposition (translate / send / drop) so a
@@ -358,7 +422,10 @@ and pin a test that the two mappings agree. Without it, Zod strip-mode would
 - **PR C — config-time validation (was Phase 3).** Warn/reject at SAVE for a
   level the target provider/model can't honor (e.g. `off` on compulsory-thinking
   GLM-4.7), instead of silent per-request degradation. May consume
-  `ModelCapabilityChecker`.
+  `ModelCapabilityChecker`. Probe-measured cases to cover (step-0 results
+  above): `off` on reasoning-mandatory OpenRouter models (R1 400s the whole
+  request — both wire shapes) and best-effort-only `off` on GLM-5.x (silently
+  thinks anyway).
 - Docs rider (either PR): update `docs/reference/REASONING_MODEL_FORMATS.md`.
 
 ### What the user sees differently (restated per 00-critical § Before Code Changes)
