@@ -28,6 +28,22 @@ vi.mock('../utils/MessageContentBuilder.js', () => ({
   }),
 }));
 
+// One shared logger instance so tests can assert on the warn the empty-chunk
+// guard emits (a per-call factory would hand each caller a different spy).
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
+
 // The conversation write IS the gateway endpoint — bot-client performs no
 // local Prisma write for this surface.
 vi.mock('../utils/gatewayWriteHelpers.js', () => ({
@@ -476,7 +492,9 @@ describe('ConversationPersistence', () => {
       });
     });
 
-    it('should not save if no chunk message IDs', async () => {
+    // Zero delivered ids means nothing reached Discord (both send paths throw
+    // on failure), so persisting would fabricate a turn that no user can see.
+    it('skips the save when chunkMessageIds is empty', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
@@ -493,6 +511,9 @@ describe('ConversationPersistence', () => {
       });
 
       expect(persistAssistantMessageViaGateway).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'No chunk message IDs, skipping assistant message save'
+      );
     });
 
     it('should handle DM channels (no guild)', async () => {

@@ -223,6 +223,9 @@ export class DiscordResponseSender {
       const isLastChunk = i === chunks.length - 1;
       const files = isLastChunk ? ttsFiles : undefined;
 
+      // `sendAsPersonality` returns a non-nullable Message and throws on
+      // failure, so the id push is unconditional — identical to `sendViaDM`.
+      // A failed chunk aborts the loop rather than yielding a short id list.
       const sentMessage = await this.webhookManager.sendAsPersonality(
         channel,
         personality,
@@ -230,10 +233,8 @@ export class DiscordResponseSender {
         files
       );
 
-      if (sentMessage !== null && sentMessage !== undefined) {
-        await redisService.storeWebhookMessage(sentMessage.id, personality.id);
-        chunkMessageIds.push(sentMessage.id);
-      }
+      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
+      chunkMessageIds.push(sentMessage.id);
     }
   }
 
