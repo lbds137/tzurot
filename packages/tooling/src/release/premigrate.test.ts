@@ -359,6 +359,84 @@ describe('premigrate', () => {
     expect(runMigration).not.toHaveBeenCalled();
   });
 
+  it('still refuses when a BALANCED dollar body leaks a CREATE TABLE mention through an unstripped inner comment', async () => {
+    // The reviewer's exact scenario: no unbalanced quote anywhere (this body
+    // is perfectly quote-balanced), so the round-2 quote-parity story doesn't
+    // apply at all — the bug is that `matchDollarQuote` used to copy the
+    // whole span verbatim, comments included, so this `--` comment survived
+    // into the scanned statement and phantom-registered `staging_data`.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $$\n' +
+        'BEGIN\n' +
+        '  -- old approach used CREATE TABLE staging_data\n' +
+        "  RAISE NOTICE 'done';\n" +
+        'END $$;\n' +
+        'DROP TABLE staging_data;'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('does not flag a destructive keyword mentioned only inside a dollar body comment, with nothing destructive outside', async () => {
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $$\n' +
+        'BEGIN\n' +
+        '  -- this used to DROP TABLE old_t\n' +
+        "  RAISE NOTICE 'done';\n" +
+        'END $$;'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('a ; inside a single-quoted literal does not fracture the statement it lives in (self-exempt guard holds)', async () => {
+    // The literal itself contains both a CREATE TABLE mention and a DROP
+    // TABLE mention, separated by an internal `;` — content-scanning inside
+    // a string literal is accepted design (dynamic DDL lives in literals),
+    // so this is EXPECTED to flag. The pin is that it flags for the RIGHT
+    // reason: the whole VALUES(...) literal stays ONE statement, so the
+    // self-exempt guard (registration withheld until the statement finishes
+    // scanning) sees the CREATE and DROP mentions together and does not let
+    // the CREATE exempt the DROP. A `;`-before-quote ordering bug would
+    // fracture the literal into two array entries, letting the CREATE
+    // mention register from the first fragment before the DROP mention (in
+    // the second fragment) is checked — wrongly exempting it.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      "INSERT INTO t (a) VALUES ('CREATE TABLE sneaky_t;DROP TABLE sneaky_t');"
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('advances by the SOURCE span length when a dollar body contained a comment (no walker desync)', async () => {
+    // The stripped span is SHORTER than its source whenever an inner comment
+    // was removed. If the walker advances by the stripped length instead of
+    // the source length, it resumes mid-span in source coordinates and
+    // re-processes the span's tail — here landing on the closer's `$$`,
+    // which then reads as a fresh unterminated opener that swallows the rest
+    // of the file into ONE statement, breaking the created-earlier exemption
+    // for the CREATE + ALTER pair below. Correct behavior: the DO body is
+    // one clean statement, CREATE TABLE registers, and the ALTER COLUMN TYPE
+    // on the just-created table is exempt — premigrate proceeds.
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DO $$\nBEGIN\n-- c\nZE$$;\n' +
+        'CREATE TABLE t1 (a int);\n' +
+        'ALTER TABLE t1 ALTER COLUMN a TYPE bigint;'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
   it('warns and skips an unreadable migration file in the destructive scan', async () => {
     mockGitDiff([DESTRUCTIVE_MIGRATION]);
     vi.mocked(readFileSync).mockImplementation((() => {

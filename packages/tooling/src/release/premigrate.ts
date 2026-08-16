@@ -146,17 +146,20 @@ function statementTargetTables(statement: string): string[] | null {
  * for several existing PL/pgSQL trigger-function and `DO` bodies in this
  * repo's migrations — at least one contains a `'` inside, e.g. a
  * `RAISE EXCEPTION` message literal). The whole quoted span, opener through
- * matching closer, is copied through verbatim AS ONE UNIT — including any
- * `;` inside it, which is why it can't fracture a statement — because it's
- * PL/pgSQL source, not SQL for this pass to comment-strip or split, and a
- * `'`/`"`/`--` inside it is data, not a boundary or comment marker. A
+ * matching closer, is kept as ONE UNIT — including any `;` inside it, which
+ * is why it can't fracture a statement — because it's PL/pgSQL source, not
+ * top-level SQL for THIS pass to split. But comments are comments in
+ * PL/pgSQL too: `--`/`/* *\/` comments inside the span's inner content ARE
+ * stripped (recursively, through any nested dollar spans), while quoted
+ * (`'...'`/`"..."`) content and everything else survives untouched. A
  * DIFFERENT tag nested inside (e.g. `$inner$` inside `$outer$...$outer$`) is
- * just content — only the matching closer for the OPENING tag ends the span.
- * An unterminated dollar-quote (no matching closer before end of input) runs
- * to end of input, same handling as an unterminated block comment. Content
- * INSIDE a dollar-quoted span is still scanned for destructive keywords by
- * the caller (it's real SQL that could genuinely execute) — this pass only
- * protects the span's OWN boundaries and its surrounding context.
+ * itself walked the same way, one level at a time — only the matching closer
+ * for the OPENING tag ends the OUTER span. An unterminated dollar-quote (no
+ * matching closer before end of input) runs to end of input, same handling
+ * as an unterminated block comment. Non-comment content INSIDE a
+ * dollar-quoted span is still scanned for destructive keywords by the caller
+ * (it's real SQL that could genuinely execute) — this pass only removes
+ * comments and protects the span's OWN boundaries and surrounding context.
  *
  * Without the quote tracking, an odd (unbalanced) quote count inside a
  * dollar-quoted body leaves the tracker stuck "inside a string" for the rest
@@ -169,7 +172,11 @@ function statementTargetTables(statement: string): string[] | null {
  * later `DROP`/`RENAME`/etc. on that same table — the concrete fail-open
  * path, not a merely theoretical one. Same reasoning for double-quoted
  * identifiers: without tracking them, `"foo--bar"` strips from the `--` to
- * end of line, deleting real DDL from the scan.
+ * end of line, deleting real DDL from the scan. Without stripping comments
+ * INSIDE a dollar body specifically, even a perfectly BALANCED body (no
+ * quote-parity desync at all) leaks a comment mentioning `CREATE TABLE
+ * <name>` straight into the scanned statement — the same exemption bug via a
+ * third route, needing no unbalanced quote to trigger it.
  *
  * One known gap, fail-closed direction (consistent with this file's
  * over-warning-is-safe stance): nested block comments (`/* /* *\/ *\/`,
@@ -227,18 +234,58 @@ function skipBlockComment(sql: string, i: number): number {
 const DOLLAR_QUOTE_TAG_RE = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
 
 /**
- * If `sql[i]` starts a dollar-quoted string, the whole span (opener through
- * matching closer, or to end of input if unterminated) verbatim; otherwise
- * `null` so the caller treats `$` as an ordinary character.
+ * Comments are comments in PL/pgSQL too, so a `--`/`/* *\/` comment inside a
+ * dollar-quoted body is stripped just like one outside — the SAME walk as
+ * `splitSqlStatements`, minus the `;`-splitting (a dollar body's own `;` is
+ * never a statement boundary). Quoted content (`'...'`, `"..."`) and OTHER
+ * dollar-quoted spans nested inside are preserved untouched: `matchDollarQuote`
+ * calls this function on ITS OWN inner content before returning, so a nested
+ * span gets its comments stripped recursively, one level at a time, the same
+ * way the outer one does — each level's search is strictly inside its
+ * parent's already-shorter substring, so this always terminates.
  */
-function matchDollarQuote(sql: string, i: number): string | null {
+function stripCommentsPreservingQuotes(sql: string): string {
+  let result = '';
+  let activeQuote: QuoteChar | null = null;
+  let i = 0;
+  while (i < sql.length) {
+    const ch = sql[i];
+    if (activeQuote !== null) {
+      result += ch;
+      if (ch === activeQuote) activeQuote = null;
+      i++;
+      continue;
+    }
+    const step = stepOutsideString(sql, i);
+    result += step.append;
+    i = step.next;
+    if (step.opensQuote !== null) activeQuote = step.opensQuote;
+  }
+  return result;
+}
+
+/**
+ * If `sql[i]` starts a dollar-quoted string, the whole span (opener through
+ * matching closer, or to end of input if unterminated), with any comments in
+ * its INNER content stripped and everything else (quoted content, nested
+ * dollar spans) preserved; otherwise `null` so the caller treats `$` as an
+ * ordinary character. `text` (the stripped replacement) can be SHORTER than
+ * the source span whenever a comment was removed, so the source extent is
+ * returned separately as `sourceLength` — the caller must advance by THAT,
+ * never by `text.length`, or it resumes mid-span and re-walks the tail.
+ */
+function matchDollarQuote(sql: string, i: number): { text: string; sourceLength: number } | null {
   if (sql[i] !== '$') return null;
   const openerMatch = DOLLAR_QUOTE_TAG_RE.exec(sql.slice(i));
   if (openerMatch === null) return null;
   const tag = openerMatch[0];
-  const closerIndex = sql.indexOf(tag, i + tag.length);
-  const end = closerIndex === -1 ? sql.length : closerIndex + tag.length;
-  return sql.slice(i, end);
+  const innerStart = i + tag.length;
+  const closerIndex = sql.indexOf(tag, innerStart);
+  const hasCloser = closerIndex !== -1;
+  const sourceEnd = hasCloser ? closerIndex + tag.length : sql.length;
+  const rawInner = sql.slice(innerStart, hasCloser ? closerIndex : sql.length);
+  const strippedInner = stripCommentsPreservingQuotes(rawInner);
+  return { text: tag + strippedInner + (hasCloser ? tag : ''), sourceLength: sourceEnd - i };
 }
 
 /**
@@ -267,7 +314,7 @@ function stepOutsideString(
   }
   const dollarQuote = matchDollarQuote(sql, i);
   if (dollarQuote !== null) {
-    return { append: dollarQuote, next: i + dollarQuote.length, opensQuote: null };
+    return { append: dollarQuote.text, next: i + dollarQuote.sourceLength, opensQuote: null };
   }
   return { append: ch, next: i + 1, opensQuote: null };
 }
