@@ -89,7 +89,17 @@ vi.mock('../utils/reasoningModelUtils.js', () => ({
 }));
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { createChatModel, type ModelConfig } from './ModelFactory.js';
+import {
+  AdvancedParamsSchema,
+  THINKING_LEVELS,
+  type AdvancedParams,
+} from '@tzurot/common-types/schemas/llmAdvancedParams';
+import {
+  createChatModel,
+  isZaiSupportedParam,
+  ZAI_PARAM_DISPOSITIONS,
+  type ModelConfig,
+} from './ModelFactory.js';
 
 describe('ModelFactory', () => {
   beforeEach(() => {
@@ -1087,6 +1097,178 @@ describe('ModelFactory', () => {
       const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
       const configuration = callArgs.configuration as Record<string, unknown>;
       expect(configuration.defaultHeaders).toBeUndefined();
+    });
+  });
+
+  // ===================================
+  // z.ai thinking translation
+  // ===================================
+
+  describe('z.ai thinking translation', () => {
+    const zaiConfig = (overrides: Partial<ModelConfig> = {}): ModelConfig => ({
+      modelName: 'glm-4.7',
+      provider: AIProvider.ZaiCoding,
+      apiKey: 'zai-key',
+      ...overrides,
+    });
+
+    const kwargsFromLastCall = (): Record<string, unknown> | undefined => {
+      const callArgs = mockChatOpenAI.mock.calls.at(-1)?.[0] as
+        { modelKwargs?: Record<string, unknown> } | undefined;
+      return callArgs?.modelKwargs;
+    };
+
+    it.each(['minimal', 'low', 'medium', 'high', 'max'] as const)(
+      'sends z.ai enabled thinking + reasoning_effort=%s',
+      thinking => {
+        createChatModel(zaiConfig({ thinking }));
+
+        expect(kwargsFromLastCall()).toEqual({
+          thinking: { type: 'enabled' },
+          reasoning_effort: thinking,
+        });
+      }
+    );
+
+    it('sends z.ai disabled thinking for off, with no effort', () => {
+      createChatModel(zaiConfig({ thinking: 'off' }));
+
+      expect(kwargsFromLastCall()).toEqual({ thinking: { type: 'disabled' } });
+    });
+
+    it('sends no thinking params at all when the level is absent', () => {
+      createChatModel(zaiConfig());
+
+      expect(kwargsFromLastCall()).toBeUndefined();
+    });
+
+    it('honors the supportsReasoning=false gate on the z.ai route too', () => {
+      createChatModel(zaiConfig({ thinking: 'high', supportsReasoning: false }));
+
+      expect(kwargsFromLastCall()).toBeUndefined();
+    });
+
+    // Regression pin for the false-advertising bug: the z.ai route used to be
+    // handed OpenRouter's `reasoning` object, which z.ai accepts and silently
+    // ignores — so a configured level ran at the provider default with no error.
+    it.each([...THINKING_LEVELS, undefined])(
+      'never sends a reasoning key to z.ai (level=%s)',
+      thinking => {
+        createChatModel(zaiConfig({ thinking }));
+
+        expect(kwargsFromLastCall() ?? {}).not.toHaveProperty('reasoning');
+      }
+    );
+
+    it('still sends OpenRouter the reasoning object for the same level', () => {
+      // The inverse half: translation is provider-aware, not a blanket rename.
+      createChatModel({ modelName: 'glm-4.7', thinking: 'high' });
+
+      expect(kwargsFromLastCall()?.reasoning).toEqual({ effort: 'high' });
+    });
+  });
+
+  // ===================================
+  // z.ai param allowlist
+  // ===================================
+
+  describe('z.ai param allowlist', () => {
+    it('drops a modelKwargs param that is absent from the allowlist', () => {
+      // logit_bias is outside z.ai's supported set, so the allowlist strips it
+      // — the allow-mode arm of the filter, exercised via a real schema param.
+      createChatModel({
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+        logitBias: { '123': 50 },
+      });
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.modelKwargs).toBeUndefined();
+    });
+
+    it('keeps allowlisted modelKwargs params', () => {
+      createChatModel({
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+        responseFormat: { type: 'text' },
+      });
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.modelKwargs).toEqual({ response_format: { type: 'text' } });
+    });
+
+    it('leaves the OpenRouter route on denylist semantics for glm-4.5-air', () => {
+      // The per-model OpenRouter entry must NOT become an allowlist: params
+      // OpenRouter handles (here response_format) have to survive.
+      createChatModel({
+        modelName: 'z-ai/glm-4.5-air:free',
+        responseFormat: { type: 'text' },
+        seed: 42,
+      });
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
+      expect(kwargs.response_format).toEqual({ type: 'text' });
+      expect(kwargs.seed).toBeUndefined();
+    });
+
+    it('lets the OpenRouter route keep reasoning for a restricted model', () => {
+      // The sharpest edge of the denylist/allowlist split: an allowlist applied
+      // to the OpenRouter route would strip the reasoning object entirely.
+      createChatModel({
+        modelName: 'z-ai/glm-4.5-air:free',
+        thinking: 'high',
+      });
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
+      expect(kwargs.reasoning).toEqual({ effort: 'high' });
+    });
+  });
+
+  // ===================================
+  // Schema ↔ z.ai disposition parity
+  // ===================================
+
+  describe('z.ai param disposition parity', () => {
+    // Object.keys erases the map's `keyof AdvancedParams` key type; restore it
+    // so the disposition lookups below stay index-safe under noImplicitAny.
+    const dispositionKeys = Object.keys(ZAI_PARAM_DISPOSITIONS) as (keyof AdvancedParams)[];
+
+    it('declares a z.ai disposition for exactly the schema keys', () => {
+      // Both directions: a new AdvancedParamsSchema key fails here until its
+      // z.ai disposition is declared, and a stale declaration fails too.
+      expect(Object.keys(ZAI_PARAM_DISPOSITIONS).sort()).toEqual(
+        Object.keys(AdvancedParamsSchema.shape).sort()
+      );
+    });
+
+    it('keeps every sent param in the allowlist', () => {
+      const sent = dispositionKeys.filter(key => ZAI_PARAM_DISPOSITIONS[key] === 'sent');
+      expect(sent.length).toBeGreaterThan(0);
+      for (const key of sent) {
+        expect(isZaiSupportedParam(key)).toBe(true);
+      }
+    });
+
+    it('keeps every dropped param out of the allowlist', () => {
+      const dropped = dispositionKeys.filter(key => ZAI_PARAM_DISPOSITIONS[key] === 'dropped');
+      expect(dropped.length).toBeGreaterThan(0);
+      for (const key of dropped) {
+        expect(isZaiSupportedParam(key)).toBe(false);
+      }
+    });
+
+    it('translates exactly the thinking level', () => {
+      // `thinking` is the only translated key. Note the schema key and z.ai's
+      // wire `thinking` object are different things that share a spelling —
+      // this map is keyed by SCHEMA key.
+      const translated = dispositionKeys.filter(
+        key => ZAI_PARAM_DISPOSITIONS[key] === 'translated'
+      );
+      expect(translated).toEqual(['thinking']);
     });
   });
 });

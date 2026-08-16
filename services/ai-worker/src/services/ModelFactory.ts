@@ -14,11 +14,12 @@ import { AIProvider, AI_DEFAULTS, AI_ENDPOINTS } from '@tzurot/common-types/cons
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
-import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import type { AdvancedParams, ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import {
   createOpenRouterFetch,
   type OpenRouterExtraParams,
 } from './modelFactory/OpenRouterFetch.js';
+import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';
@@ -28,18 +29,104 @@ const logger = createLogger('ModelFactory');
 const config = getConfig();
 
 /**
- * Provider-tier unsupported params for z.ai-direct routing.
+ * Provider-tier ALLOWLIST of params z.ai-direct routing may send.
  *
- * Z.AI docs (docs.z.ai/api-reference/llm/chat-completion) list supported params
- * as: temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice,
- * do_sample, response_format, stream. Anything outside that list yields 400
- * "Invalid API parameter" (code 1210), regardless of which GLM model is targeted.
+ * Z.AI docs (docs.z.ai/api-reference/llm/chat-completion) list these as the
+ * supported set; per the same docs `stop` accepts at most ONE entry (nothing
+ * sends it today, but the cap belongs with the list that admits the param).
+ * Verification is not uniform across entries: `thinking`/`reasoning_effort`
+ * are live-probed, while the tail entries we never send (`tool_stream`,
+ * `request_id`, `user_id`, `stop`, `do_sample`, `tools`, `tool_choice`) are
+ * doc-read only — inert until something writes them, at which point the
+ * disposition parity test forces a fresh look.
+ * It is an allowlist rather than a denylist so a param added to
+ * our schema later defaults to NOT being sent: z.ai does not reliably reject
+ * what it does not understand. `frequency_penalty`/`presence_penalty` are
+ * observed to 400 "Invalid API parameter" (code 1210), but an unknown
+ * `reasoning` object was accepted and silently ignored — a param that is
+ * dropped on the floor while the config claims it is active is the worse
+ * failure, and only an allowlist prevents it by default.
  *
  * Routes through OpenRouter are NOT subject to this filter — OpenRouter's
- * normalization layer translates or drops these params per upstream provider's
+ * normalization layer translates or drops params per the upstream provider's
  * actual support, so we don't pre-strip them at the SDK boundary.
  */
-const ZAI_DIRECT_UNSUPPORTED_PARAMS: ReadonlySet<string> = new Set([
+const ZAI_DIRECT_SUPPORTED_PARAMS: ReadonlySet<string> = new Set([
+  'temperature',
+  'top_p',
+  'max_tokens',
+  'stop',
+  'response_format',
+  'do_sample',
+  'stream',
+  'thinking',
+  'reasoning_effort',
+  'tools',
+  'tool_choice',
+  'tool_stream',
+  'request_id',
+  'user_id',
+]);
+
+/** Whether z.ai-direct routing may send `key` on the wire. */
+export function isZaiSupportedParam(key: string): boolean {
+  return ZAI_DIRECT_SUPPORTED_PARAMS.has(key);
+}
+
+/**
+ * Every `AdvancedParamsSchema` key and what happens to it on the z.ai-direct
+ * route. Keyed by SCHEMA key (the stored snake_case wire name), which is NOT
+ * always the z.ai field name — the schema's `thinking` level is translated
+ * into z.ai's own `thinking` object plus `reasoning_effort`, so the two
+ * `thinking` spellings are different things.
+ *
+ * - `translated`: re-expressed in z.ai's protocol by `buildThinkingKwargs`.
+ * - `sent`: forwarded as-is (must therefore be in the allowlist).
+ * - `dropped`: never reaches z.ai (must therefore NOT be in the allowlist),
+ *   whether stripped by the filter or, for the OpenRouter-only routing params,
+ *   never built for this route at all.
+ *
+ * Totality is enforced twice: at compile time by the `keyof AdvancedParams`
+ * key type (a new schema key fails `tsc` until declared here), and at runtime
+ * by the `ModelFactory.test.ts` parity test, which also cross-checks each
+ * disposition against the allowlist.
+ */
+export const ZAI_PARAM_DISPOSITIONS: Readonly<
+  Record<keyof AdvancedParams, 'translated' | 'sent' | 'dropped'>
+> = {
+  // Sampling
+  temperature: 'sent',
+  top_p: 'sent',
+  top_k: 'dropped',
+  frequency_penalty: 'dropped',
+  presence_penalty: 'dropped',
+  repetition_penalty: 'dropped',
+  min_p: 'dropped',
+  top_a: 'dropped',
+  seed: 'dropped',
+  // Thinking
+  thinking: 'translated',
+  // Output control
+  max_tokens: 'sent',
+  logit_bias: 'dropped',
+  response_format: 'sent',
+  // OpenRouter-only routing/transform params: built into the custom fetch on
+  // the OpenRouter route, never onto a z.ai request.
+  transforms: 'dropped',
+  route: 'dropped',
+  verbosity: 'dropped',
+};
+
+/**
+ * Params the glm-4.5-air upstream rejects when routed through OpenRouter.
+ *
+ * A DENYLIST, deliberately: on the OpenRouter route everything else must pass
+ * through untouched (`reasoning`, `transforms`, and any future OpenRouter
+ * param), so an allowlist here would strip params OpenRouter handles fine.
+ * This is the observed-rejected set for that one upstream — it is not z.ai's
+ * direct contract and moves independently of it.
+ */
+const GLM_45_AIR_OPENROUTER_UNSUPPORTED_PARAMS: ReadonlySet<string> = new Set([
   'frequency_penalty',
   'presence_penalty',
   'repetition_penalty',
@@ -62,35 +149,43 @@ const RESTRICTED_PARAM_MODELS: { pattern: RegExp; unsupported: ReadonlySet<strin
   {
     // glm-4.5-air observed to 400 with "Invalid API parameter" (code 1210)
     // when these params are passed via OpenRouter despite OpenRouter's normalization.
-    // Reuses ZAI_DIRECT_UNSUPPORTED_PARAMS because the two contracts happen to match
-    // today; track independently if z.ai's direct supported-params contract diverges
-    // from what OpenRouter passes through to the glm-4.5-air upstream.
     pattern: /glm-4\.5-air/i,
-    unsupported: ZAI_DIRECT_UNSUPPORTED_PARAMS,
+    unsupported: GLM_45_AIR_OPENROUTER_UNSUPPORTED_PARAMS,
   },
 ];
 
 /**
- * Resolve the set of unsupported param names for a given (modelName, provider) pair.
+ * How a resolved filter decides whether a param name is sent.
+ *
+ * - `allow`: send only names in the set (provider-tier, z.ai-direct).
+ * - `deny`: send everything except names in the set (per-model, OpenRouter).
+ */
+type ParamFilter =
+  { mode: 'allow'; params: ReadonlySet<string> } | { mode: 'deny'; params: ReadonlySet<string> };
+
+/**
+ * Resolve the param filter for a given (modelName, provider) pair.
  *
  * Provider-tier filter (z.ai-direct) takes precedence — z.ai's chat-completion
  * endpoint enforces a single supported-params contract for every GLM variant it
  * serves, regardless of model name. For other providers (e.g. OpenRouter), fall
  * back to per-model regex matching against `RESTRICTED_PARAM_MODELS`.
  */
-function resolveUnsupportedParamSet(
-  modelName: string,
-  effectiveProvider: AIProvider
-): ReadonlySet<string> | null {
+function resolveParamFilter(modelName: string, effectiveProvider: AIProvider): ParamFilter | null {
   if (effectiveProvider === AIProvider.ZaiCoding) {
-    return ZAI_DIRECT_UNSUPPORTED_PARAMS;
+    return { mode: 'allow', params: ZAI_DIRECT_SUPPORTED_PARAMS };
   }
   for (const entry of RESTRICTED_PARAM_MODELS) {
     if (entry.pattern.test(modelName)) {
-      return entry.unsupported;
+      return { mode: 'deny', params: entry.unsupported };
     }
   }
   return null;
+}
+
+/** Whether `filter` strips `key` from the outbound request. */
+function isFilteredOut(filter: ParamFilter, key: string): boolean {
+  return filter.mode === 'allow' ? !filter.params.has(key) : filter.params.has(key);
 }
 
 /**
@@ -105,25 +200,25 @@ function filterRestrictedParams(
   firstClassParams: { frequencyPenalty?: number; presencePenalty?: number },
   modelKwargs: Record<string, unknown>
 ): { frequencyPenalty?: number; presencePenalty?: number } {
-  const unsupported = resolveUnsupportedParamSet(modelName, effectiveProvider);
-  if (unsupported === null) {
+  const filter = resolveParamFilter(modelName, effectiveProvider);
+  if (filter === null) {
     return firstClassParams;
   }
 
   const filtered: string[] = [];
   let { frequencyPenalty, presencePenalty } = firstClassParams;
 
-  if (frequencyPenalty !== undefined && unsupported.has('frequency_penalty')) {
+  if (frequencyPenalty !== undefined && isFilteredOut(filter, 'frequency_penalty')) {
     frequencyPenalty = undefined;
     filtered.push('frequency_penalty');
   }
-  if (presencePenalty !== undefined && unsupported.has('presence_penalty')) {
+  if (presencePenalty !== undefined && isFilteredOut(filter, 'presence_penalty')) {
     presencePenalty = undefined;
     filtered.push('presence_penalty');
   }
   // Filter from modelKwargs (keys are already snake_case)
   for (const key of Object.keys(modelKwargs)) {
-    if (unsupported.has(key)) {
+    if (isFilteredOut(filter, key)) {
       delete modelKwargs[key];
       filtered.push(key);
     }
@@ -168,36 +263,14 @@ function addIfHasKeys(
 }
 
 /**
- * Translate the canonical thinking level into OpenRouter's `reasoning` object.
- *
- * Our `off` maps to their `none`; every other level is sent under its own name.
- *
- * NOT VERIFIED: that OpenRouter accepts `max` is a documentation read, not a
- * probe — no request has been observed carrying it, and no config has ever
- * used the `xhigh` it replaces. Treat a `max`-level config as unproven on the
- * wire until a live call confirms it.
- *
- * Absent means "send nothing" — the provider default — so it must stay absent
- * rather than becoming an explicit level.
- *
- * `exclude` is deliberately never sent: both providers default to returning the
- * trace, which is the only behavior `/inspect` can work with.
- */
-function buildReasoningParams(
-  thinking: ModelConfig['thinking']
-): Record<string, unknown> | undefined {
-  if (thinking === undefined) {
-    return undefined;
-  }
-  return { effort: thinking === 'off' ? 'none' : thinking };
-}
-
-/**
  * Build model kwargs for provider-specific parameters.
  * These are params that LangChain doesn't have first-class support for,
  * but OpenRouter/OpenAI accept via the API.
+ *
+ * `provider` selects the thinking-level translation — the same canonical level
+ * goes on the wire differently per provider (see `buildThinkingKwargs`).
  */
-function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
+function buildModelKwargs(modelConfig: ModelConfig, provider: AIProvider): Record<string, unknown> {
   const kwargs: Record<string, unknown> = {};
 
   // Sampling (advanced) - OpenRouter-specific
@@ -212,14 +285,16 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   addIfDefined(kwargs, 'response_format', modelConfig.responseFormat);
 
   // Reasoning (CRITICAL for thinking models: o1/o3, Claude, Gemini, DeepSeek R1)
-  // Gate: skip reasoning params if the model explicitly doesn't support them
+  // Gate: skip reasoning params if the model explicitly doesn't support them.
+  // The gate covers EVERY provider — a model that can't reason must not receive
+  // OpenRouter's `reasoning` or z.ai's `thinking` shape.
   if (modelConfig.thinking !== undefined && modelConfig.supportsReasoning === false) {
     logger.warn(
       { modelName: modelConfig.modelName, thinking: modelConfig.thinking },
       'Model does not support reasoning — skipping reasoning params'
     );
   } else {
-    addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.thinking));
+    Object.assign(kwargs, buildThinkingKwargs(modelConfig.thinking, provider) ?? {});
   }
 
   return kwargs;
@@ -489,7 +564,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   const modelName = validateModelName(modelConfig.modelName);
 
   const maxTokens = getEffectiveMaxTokens(modelName, modelConfig.maxTokens, modelConfig.thinking);
-  const modelKwargs = buildModelKwargs(modelConfig);
+  const modelKwargs = buildModelKwargs(modelConfig, provider);
   const { frequencyPenalty, presencePenalty } = filterRestrictedParams(
     modelName,
     provider,
