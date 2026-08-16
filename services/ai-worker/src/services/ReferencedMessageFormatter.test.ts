@@ -2418,6 +2418,28 @@ describe('ReferencedMessageFormatter', () => {
       expect(JSON.stringify(durable)).toContain(VISION_SENTINEL);
     });
 
+    it('previews the description on an IMAGE-ONLY stub the chat log carries', async () => {
+      // Same subtraction, but the message has no text to fall back on, so the
+      // stub would otherwise be a bare marker naming nothing. The paid vision
+      // sentinel must still reach the rendered prompt — as the stub's preview,
+      // pointing at the chat log for the rest.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [{ ...dedupedRefWithImage(), content: '' }],
+        mockPersonality,
+        false,
+        preprocessedImage,
+        {
+          carriedByChatLog: new Map([
+            [QUOTED_MESSAGE_ID, new Set([enrichmentKey('image', VISION_SENTINEL)])],
+          ]),
+        }
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
+      expect(formatted).toContain('described in full in the chat log');
+      expect(formatted).not.toContain('its media is described here');
+    });
+
     it('keeps the description when the map has no entry for that reference', async () => {
       // The miss case — a time-window dedup matches no history entry at all.
       // Subtracting nothing is the safe default: a duplicated description costs
