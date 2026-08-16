@@ -196,9 +196,12 @@ Two busiest channels of the 24h diagnostic window (1498247824662335608, 14811381
 common prefix 29-35% (~30-31k chars, the pre-chat_log system prompt), everything after re-billed
 every turn (~55-77k chars ≈ 14-19k tokens/turn).
 
-**Mechanism pinned by entry counts: the slider is `DEFAULT_MAX_MESSAGES` (50), not budget
+**Mechanism pinned by entry counts: the slider is the maxMessages COUNT cap, not budget
 trimming.** Every measured prompt carries exactly 50 chat_log entries (48-49 where dedup drops a
-couple) — the fetch/count cap slides one message per turn in any full channel. This is CONSISTENT
+couple) — those channels run the `DEFAULT_MAX_MESSAGES` default; the setting is user-configurable
+(the owner runs 100, and an owner-supplied 2026-08-15 dump showed a 68-entry log with
+`historyMessagesDropped: 0` — an unfull window does not slide). The cap slides one message per
+turn in any FULL channel, whatever its configured value. This is CONSISTENT
 with §2.5.1's "budget trimming is dormant" (zero trimming events stands), and it REFINES §2.5:
 chunked-eviction-with-hysteresis implemented only at the token-budget layer would never fire in
 prod — the count cap slides first. The hysteresis policy must govern the message-count window
