@@ -138,6 +138,14 @@ export interface ConversationContext {
     discordMessageId?: string[];
     role: string;
     content: string;
+    /**
+     * ISO timestamp of the message, supplied by the pipeline producer
+     * (`ContextStep` → `PreparedContext.rawConversationHistory`, typed there as
+     * `ConversationHistoryEntry.createdAt`). Optional because legacy/DB-sourced
+     * rows can lack one — the budget pre-pass already filters unparseable
+     * stamps out for the same reason.
+     */
+    createdAt?: string;
     tokenCount?: number;
     /** Structured metadata (referenced messages, image descriptions, reactions) */
     messageMetadata?: {
@@ -373,6 +381,12 @@ export interface ModelInvocationOptions {
   systemPrompt: BaseMessage;
   /** Section map of systemPrompt, recorded into the diagnostic payload. */
   systemPromptSections?: SectionDescription[];
+  /**
+   * The serialized chat log embedded in `systemPrompt` — threaded only so the
+   * prefix-cache observability hashes can isolate the history tail from the
+   * stable core. Never re-rendered from it.
+   */
+  serializedHistory?: string;
   /** The final human message from the budget allocation (see
    *  BudgetAllocationResult.currentMessage). */
   currentMessage: BaseMessage;
