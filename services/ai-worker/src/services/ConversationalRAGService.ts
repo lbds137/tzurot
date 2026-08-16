@@ -42,6 +42,7 @@ import { resolveEffectiveContextWindow } from './contextWindowResolver.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
+import { logGeneratedResponse } from './cacheObservability.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
 import { resolveRagVisionAuth, enrichRagHistory } from './multimodal/ragVisionAuth.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
@@ -122,6 +123,7 @@ export class ConversationalRAGService {
       personality,
       systemPrompt,
       systemPromptSections,
+      serializedHistory,
       currentMessage,
       userMessage,
       context,
@@ -255,18 +257,22 @@ export class ConversationalRAGService {
       `Content cleanup check for ${personality.name}`
     );
 
-    logger.info(
-      {
-        charCount: cleanedContent.length,
-        personalityName: personality.name,
-        modelName,
-        promptTokens: usageMetadata?.input_tokens,
-        // Prefix-cache hit size (provider-reported). The prod cache-hit-rate
-        // measurement greps this field — cachedPromptTokens/promptTokens.
-        cachedPromptTokens: usageMetadata?.input_token_details?.cache_read,
-      },
-      'Generated response'
-    );
+    // Carries the token counts plus the prefix-cache diagnostics: the turn gap
+    // the provider TTL races against, and three hashes that localize a prefix
+    // change (stable core vs. inside history vs. the whole prompt).
+    logGeneratedResponse(logger, {
+      charCount: cleanedContent.length,
+      personalityName: personality.name,
+      modelName,
+      systemPromptText: contentToText(systemPrompt.content),
+      systemPromptSections,
+      serializedHistory,
+      currentMessageText: contentToText(currentMessage.content),
+      history: context.rawConversationHistory,
+      triggerMessageId: context.triggerMessageId,
+      cacheReadTokens: usageMetadata?.input_token_details?.cache_read,
+      inputTokens: usageMetadata?.input_tokens,
+    });
 
     return {
       cleanedContent,
@@ -449,6 +455,7 @@ export class ConversationalRAGService {
         personality,
         systemPrompt: budgetResult.systemPrompt,
         systemPromptSections: budgetResult.systemPromptSections,
+        serializedHistory: budgetResult.serializedHistory,
         currentMessage: budgetResult.currentMessage,
         userMessage: inputs.userMessage,
         context,

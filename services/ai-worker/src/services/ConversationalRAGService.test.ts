@@ -12,7 +12,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { SystemMessage } from '@langchain/core/messages';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
+import { promptHash } from './cacheObservability.js';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -27,6 +29,28 @@ import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types/constants/me
 const { mockResolveVisionConfig } = vi.hoisted(() => ({
   mockResolveVisionConfig: vi.fn(),
 }));
+
+// One shared logger spy for every createLogger() consumer in this module graph,
+// so the 'Generated response' log object can be asserted directly.
+const { mockLogger } = vi.hoisted(() => {
+  const logger: Record<string, unknown> = {
+    info: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    trace: vi.fn(),
+  };
+  logger.child = vi.fn(() => logger);
+  return { mockLogger: logger };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
 
 // Set up mocks using async factories (vi.mock is hoisted before imports)
 vi.mock('./LLMInvoker.js', async () => {
@@ -2130,6 +2154,109 @@ describe('ConversationalRAGService', () => {
       // The mocked LongTermMemoryService records its constructor args — the
       // seam this pins is "the 5th RAG-service param lands as LTM's 3rd arg."
       expect(getLongTermMemoryServiceMock().constructorArgs[2]).toBe(sentinelTrigger);
+    });
+  });
+
+  describe('cache observability on the Generated response log line', () => {
+    const ENTRY_OLD = '<message from="Vee" role="user" t="2026-08-01 (Sat) 10:00">first</message>';
+    const ENTRY_NEW =
+      '<message from="Ada" role="assistant" t="2026-08-01 (Sat) 10:01">second</message>';
+
+    /** The 'Generated response' log object, or undefined if it never fired. */
+    function generatedResponseLog(): Record<string, unknown> | undefined {
+      const call = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls.find(
+        args => args[1] === 'Generated response'
+      );
+      return call?.[0] as Record<string, unknown> | undefined;
+    }
+
+    function primeBudget(serializedHistory: string): void {
+      getContextWindowManagerMock().selectAndSerializeHistory.mockReturnValue({
+        serializedHistory,
+        historyTokensUsed: 50,
+        messagesIncluded: 2,
+        messagesDropped: 0,
+        crossChannelMessagesIncluded: 0,
+        selectedEntries: [],
+      });
+      getPromptBuilderMock().buildSystemMessage.mockReturnValue({
+        message: new SystemMessage(`<platform/>\n\n<chat_log>\n${serializedHistory}\n</chat_log>`),
+        sections: [
+          { id: 'platform_constraints', tier: 'S0', chars: 11, offset: 0 },
+          {
+            id: 'chat_log',
+            tier: 'H',
+            chars: `<chat_log>\n${serializedHistory}\n</chat_log>`.length,
+            offset: 13,
+          },
+        ],
+      });
+    }
+
+    it('logs the hashes, the channel gap, and the hit ratio', async () => {
+      primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'AI response',
+        usage_metadata: {
+          input_tokens: 1000,
+          output_tokens: 20,
+          total_tokens: 1020,
+          input_token_details: { cache_read: 250 },
+        },
+      });
+      // Timestamps are anchored to the wall clock rather than fake timers: the
+      // gap is an hour, so the handful of ms the call takes cannot move the
+      // rounded second count out of the asserted band.
+      const newest = new Date(Date.now() - 3_600_000).toISOString();
+      const older = new Date(Date.now() - 7_200_000).toISOString();
+
+      await service.generateResponse(
+        createMockPersonality(),
+        'Test message',
+        createMockContext({
+          rawConversationHistory: [
+            { role: 'user', content: 'first', createdAt: older },
+            { role: 'assistant', content: 'second', createdAt: newest },
+          ],
+        })
+      );
+
+      const logged = generatedResponseLog();
+      expect(logged).toBeDefined();
+      expect(logged?.secondsSinceLastChannelGeneration).toBeGreaterThanOrEqual(3600);
+      expect(logged?.secondsSinceLastChannelGeneration).toBeLessThan(3610);
+      expect(logged?.cacheHitRatio).toBe(0.25);
+      expect(logged?.promptHashSystemCore).toMatch(/^[0-9a-f]{12}$/);
+      expect(logged?.promptHashHistoryStable).toMatch(/^[0-9a-f]{12}$/);
+      expect(logged?.promptHashFull).toMatch(/^[0-9a-f]{12}$/);
+      // The pre-existing prod-grepped fields must survive untouched.
+      expect(logged?.promptTokens).toBe(1000);
+      expect(logged?.cachedPromptTokens).toBe(250);
+    });
+
+    it('hashes the SHIPPED serializedHistory minus its newest entry', async () => {
+      primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
+
+      await service.generateResponse(createMockPersonality(), 'Test message', createMockContext());
+
+      const logged = generatedResponseLog();
+      expect(logged?.promptHashHistoryStable).toBe(promptHash(`${ENTRY_OLD}\n`));
+      expect(logged?.promptHashHistoryStable).not.toBe(promptHash(`${ENTRY_OLD}\n${ENTRY_NEW}`));
+    });
+
+    it('omits the gap and the ratio when history and usage carry neither', async () => {
+      primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
+
+      await service.generateResponse(
+        createMockPersonality(),
+        'Test message',
+        createMockContext({ rawConversationHistory: [] })
+      );
+
+      const logged = generatedResponseLog();
+      expect(logged).toBeDefined();
+      expect(logged).not.toHaveProperty('secondsSinceLastChannelGeneration');
+      expect(logged).not.toHaveProperty('cacheHitRatio');
     });
   });
 });
