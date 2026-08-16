@@ -248,7 +248,7 @@ export class LLMInvoker {
 
     // Note: Thinking tag extraction is handled by ResponsePostProcessor downstream.
     // We do NOT strip tags here to avoid losing reasoning content before it can be
-    // extracted and displayed to users (when showThinking is enabled).
+    // extracted and carried as response metadata.
 
     return result.value;
   }

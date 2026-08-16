@@ -108,14 +108,9 @@ const generationPayloadSchema = z.object({
       /**
        * Extracted thinking/reasoning content from <think> tags.
        * Only present if the model included thinking blocks in its response.
-       * Display to users depends on showThinking setting.
+       * Carried as diagnostic metadata alongside the response.
        */
       thinkingContent: z.string().optional(),
-      /**
-       * Whether to display thinking content to users.
-       * From the preset's show_thinking setting.
-       */
-      showThinking: z.boolean().optional(),
       /** Pipeline step that failed (only set on error) */
       failedStep: z.string().optional(),
       /** Last successfully completed pipeline step (only set on error) */

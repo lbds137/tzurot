@@ -22,7 +22,6 @@ describe('buildResultMetadataPassthrough', () => {
         freshModeEnabled: false,
         incognitoModeActive: false,
         thinkingContent: 'thoughts',
-        showThinking: true,
         showModelFooter: true,
         ttsAudioKey: 'tts-audio:job-1',
         ttsAudioContentType: 'audio/wav',
@@ -36,7 +35,9 @@ describe('buildResultMetadataPassthrough', () => {
     expect(passthrough.quotaFallback?.fromModel).toBe('expensive/primary');
     expect(passthrough.quotaFallback?.category).toBe('credit_exhaustion');
     expect(passthrough.ttsNotices).toEqual(['notice']);
-    expect(passthrough.showThinking).toBe(true);
+    // thinkingContent is deliberately not delivery metadata — persistence
+    // reads it from result.metadata directly, so the builder must not forward it.
+    expect(passthrough).not.toHaveProperty('thinkingContent');
   });
 
   it('degrades to all-undefined when metadata is absent', () => {

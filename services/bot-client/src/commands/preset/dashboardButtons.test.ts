@@ -249,7 +249,6 @@ describe('Preset Dashboard Buttons', () => {
       min_p: '',
       top_a: '',
       thinking: '',
-      show_thinking: '',
       contextWindowTokens: '131072',
       ...overrides,
     }) as FlattenedPresetData;
@@ -354,7 +353,6 @@ describe('Preset Dashboard Buttons', () => {
       min_p: null,
       top_a: null,
       thinking: null,
-      show_thinking: null,
     },
     ...overrides,
   });

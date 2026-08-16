@@ -306,7 +306,6 @@ describe('PersonalityDefaults', () => {
             advancedParameters: {
               temperature: 0.7,
               top_p: 0.95,
-              show_thinking: true,
               thinking: 'medium',
             },
             contextWindowTokens: 131072,
@@ -319,7 +318,6 @@ describe('PersonalityDefaults', () => {
       // CRITICAL: the thinking level must flow through to LoadedPersonality
       // This was the root cause of beta.60-62 thinking breakage
       expect(result.thinking).toBe('medium');
-      expect(result.showThinking).toBe(true);
 
       // maxTokens should be undefined when not explicitly set in advancedParameters
       // This allows ModelFactory.getEffectiveMaxTokens() to auto-scale for reasoning models
@@ -339,7 +337,6 @@ describe('PersonalityDefaults', () => {
         temperature: 0.8,
         maxTokens: 2048,
         contextWindowTokens: 100000,
-        showThinking: true,
         thinking: 'high',
       };
 
@@ -347,7 +344,6 @@ describe('PersonalityDefaults', () => {
 
       // Should inherit the thinking level from global config
       expect(result.thinking).toBe('high');
-      expect(result.showThinking).toBe(true);
     });
 
     it('should NOT fill in default maxTokens when not in advancedParameters', () => {

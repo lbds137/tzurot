@@ -117,8 +117,8 @@ describe('SlotDeliveryService', () => {
 
       await service.deliverSuccess(result, slot);
 
-      // The same metadata field the thinking block renders from must also reach
-      // persistence — otherwise the trace dies with the 24h diagnostic log.
+      // The reasoning trace must reach persistence — otherwise it dies with
+      // the 24h diagnostic log.
       expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
         expect.objectContaining({ thinkingContent: 'SLOT_TRACE_SENTINEL' })
       );

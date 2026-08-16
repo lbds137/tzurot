@@ -90,7 +90,6 @@ export interface LlmConfigData {
   // Output control
   logitBias?: Record<string, number>;
   responseFormat?: { type: 'text' | 'json_object' };
-  showThinking?: boolean;
   // Canonical thinking level (for reasoning models)
   thinking?: ThinkingLevel;
   // OpenRouter-specific

@@ -159,16 +159,6 @@ describe('LLM Advanced Params Schema', () => {
     it('should reject invalid response_format type', () => {
       expect(() => OutputParamsSchema.parse({ response_format: { type: 'xml' } })).toThrow();
     });
-
-    it('should accept show_thinking boolean', () => {
-      expect(OutputParamsSchema.parse({ show_thinking: true })).toEqual({ show_thinking: true });
-      expect(OutputParamsSchema.parse({ show_thinking: false })).toEqual({ show_thinking: false });
-    });
-
-    it('should reject non-boolean show_thinking', () => {
-      expect(() => OutputParamsSchema.parse({ show_thinking: 'yes' })).toThrow();
-      expect(() => OutputParamsSchema.parse({ show_thinking: 1 })).toThrow();
-    });
   });
 
   describe('OpenRouterParamsSchema', () => {
@@ -425,16 +415,14 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.seed).toBe(42);
     });
 
-    it('should convert output params (logitBias, responseFormat, showThinking)', () => {
+    it('should convert output params (logitBias, responseFormat)', () => {
       const input: AdvancedParams = {
         logit_bias: { '1234': 50, '5678': -50 },
         response_format: { type: 'json_object' },
-        show_thinking: true,
       };
       const result = advancedParamsToConfigFormat(input);
       expect(result.logitBias).toEqual({ '1234': 50, '5678': -50 });
       expect(result.responseFormat).toEqual({ type: 'json_object' });
-      expect(result.showThinking).toBe(true);
     });
 
     it('should forward the thinking level unchanged (same name both sides)', () => {
@@ -475,7 +463,6 @@ describe('LLM Advanced Params Schema', () => {
         max_tokens: 4096,
         logit_bias: { '1234': 50 },
         response_format: { type: 'text' },
-        show_thinking: true,
         // Thinking
         thinking: 'high',
         // OpenRouter
@@ -497,7 +484,6 @@ describe('LLM Advanced Params Schema', () => {
         maxTokens: 4096,
         logitBias: { '1234': 50 },
         responseFormat: { type: 'text' },
-        showThinking: true,
         thinking: 'high',
         transforms: ['middle-out'],
         route: 'fallback',
@@ -515,7 +501,6 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.seed).toBeUndefined();
       expect(result.thinking).toBeUndefined();
       expect(result.transforms).toBeUndefined();
-      expect(result.showThinking).toBeUndefined();
     });
 
     it('should handle partial params', () => {
@@ -544,14 +529,6 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.seed).toBe(0);
     });
 
-    it('should preserve false values for booleans', () => {
-      const input: AdvancedParams = {
-        show_thinking: false,
-      };
-      const result = advancedParamsToConfigFormat(input);
-      expect(result.showThinking).toBe(false);
-    });
-
     it('should carry an explicit off level through — off is not absent', () => {
       const result = advancedParamsToConfigFormat({ thinking: 'off' });
       expect(result.thinking).toBe('off');
@@ -574,7 +551,6 @@ describe('LLM Advanced Params Schema', () => {
         'maxTokens',
         'logitBias',
         'responseFormat',
-        'showThinking',
         'thinking',
         'transforms',
         'route',
@@ -611,9 +587,9 @@ describe('LLM Advanced Params Schema', () => {
       }
     });
 
-    it('should have exactly 18 keys', () => {
+    it('should have exactly 17 keys', () => {
       // This test ensures we notice if keys are accidentally added or removed
-      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(18);
+      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(17);
     });
   });
 

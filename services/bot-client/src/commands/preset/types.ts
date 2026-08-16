@@ -50,8 +50,6 @@ export interface PresetData {
     top_a?: number;
     /** Canonical thinking level; absent means "provider default". */
     thinking?: ThinkingLevel;
-    /** Whether to display thinking blocks to users */
-    show_thinking?: boolean;
   };
 }
 
@@ -86,8 +84,6 @@ export interface FlattenedPresetData {
   top_a: string;
   // Thinking param (canonical level; empty string = provider default)
   thinking: string;
-  // Output params
-  show_thinking: string;
   // Context window (model-coupled, stays in LlmConfig)
   contextWindowTokens: string;
   /** Model's full context window (display-only, not editable) */

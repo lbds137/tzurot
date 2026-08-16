@@ -34,8 +34,6 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     top_a: '',
     // Thinking param
     thinking: '',
-    // Output params
-    show_thinking: '',
     // Context window
     contextWindowTokens: '131072',
     ...overrides,

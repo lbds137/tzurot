@@ -485,27 +485,9 @@ describe('ModelFactory', () => {
     // OpenRouter-specific parameters (via custom fetch)
     // ===================================
 
-    it('should NOT use custom fetch for showThinking alone (reasoning handled natively)', () => {
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        showThinking: true,
-      };
-
-      createChatModel(config);
-
-      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
-        configuration?: { fetch?: unknown };
-      };
-
-      // showThinking no longer triggers custom fetch - reasoning is handled
-      // natively via the reasoning param in modelKwargs
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
-    });
-
     it('should use custom fetch for a thinking config (needed for response interception)', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
-        showThinking: false,
         thinking: 'medium',
       };
 
