@@ -26,8 +26,24 @@
  * group note) and opts out of the lead-in, over the shared element renderer.
  * A snapshot test pins this file's output so silent drift is impossible.
  *
- * EVAL-ONLY — never imported by production code. Delete (or re-arm as the
- * "old" side) when the harness re-runs at the Phase-2 exit gate.
+ * EVAL-ONLY — never imported by production code.
+ *
+ * STATUS: the gate this arm served has CLOSED as INCONCLUSIVE — the
+ * identical-arm control tripped its pre-registered under-power threshold, so
+ * the instrument could not resolve the effect and neither PASS nor FAIL was
+ * supportable. That verdict is about the INSTRUMENT, not the effect: the
+ * A-vs-B question is still open, and re-running it (near-zero temperature,
+ * calibrated judge rubric, N≥100) would use THESE arms. That is why this file
+ * is still here, and why prompt-assembly changes keep opting it out of new
+ * live-side bytes rather than letting it drift.
+ *
+ * Do NOT read the Phase-2 exit gate as this file's expiry: that gate re-arms
+ * the harness with DIFFERENT arms (current 2-message shape vs extracted
+ * history), so it neither needs nor retires this one. Delete this file when
+ * the under-powered gate is ruled out as not worth re-running — the authority
+ * on both points is the caching epic entry in `backlog/active-epic.md`, not
+ * this comment. Reconstruction cost if deleted early is real but bounded: the
+ * vendoring command is at the top of this block.
  */
 
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
