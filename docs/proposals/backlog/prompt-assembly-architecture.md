@@ -107,6 +107,144 @@ That is a property of the budget's shape, not luck. Trimming happens **only** wh
 
 Provider economics, verified against first-party docs, temper the urgency: a shifted window costs **forfeited discount only** on implicit-caching routes (z.ai — our dominant route — plus Gemini and pre-5.6 OpenAI, where cache writes are free). Only explicit routes (Anthropic, Qwen) charge a write premium, making an unread write **more expensive than not caching at all** — so `cache_control` should not be set on a route whose window is unstable. Break-even on Anthropic's 5-minute tier is a single read (1.25× write + 0.1× read = 1.35 vs 2.00 uncached); the 1-hour tier needs two.
 
+#### 2.5.2 Count-cap hysteresis — the layer that actually slides (added 2026-08-16, beta.204 design pass)
+
+> Status within the artifact: **ACCEPTED 2026-08-16** — quad council pass (§9b) +
+> owner sign-off same day (chunk ratio 25% confirmed over the recorded 2–2 split;
+> package confirmed as amended). Grounding: doc-17's 2026-08-15 prod prefix-diff
+> measurement (20/20 consecutive same-personality prompt pairs diverge at the head of
+> `<chat_log>`; every measured prompt carries exactly 50 entries) + a code-grounding
+> sweep 2026-08-16 (file:line cites below).
+
+§2.5/§2.5.1 designed eviction at the **token-budget** layer and measured it dormant.
+The 2026-08-15 measurement pinned the real slider one layer earlier: the
+**message-count cap** at fetch time — `limit = min(maxMessages ?? 50, 100)`
+(`ContextAssembler.ts:204-207`, feeding `take: limit` on a `createdAt DESC, id DESC`
+query in `ConversationHistoryService.getChannelHistory:437-469`). Any FULL channel
+slides its window start by one message per turn, so the `chat_log` head changes every
+turn and everything from it onward re-bills (~14-19k tokens/turn measured). Hysteresis
+implemented only at the token layer would never fire in prod; it must govern the count
+window.
+
+**D1 — Stateless quantized eviction, derived from the in-scope row count, under ONE
+snapshot** *(council-rebuilt: the two-snapshot race was caught by all four models)*.
+Let `C` = the resolved cap and `E` = the eviction chunk. In a **single
+repeatable-read transaction**, count the in-scope rows `n` and fetch, both built from
+**one shared predicate builder** (`channelId`, `deletedAt: null`, optional
+`createdAt >= cutoff` — the epoch cutoff IS in the WHERE, grounding §4):
+
+```
+k = n ≤ C ? 0 : E · ceil((n − C) / E)      // rows evicted, quantized
+take = n − k                                // ∈ (C − E, C]
+```
+
+Fetch the newest `take` rows exactly as today. The window-start element is the
+(k+1)-th oldest in-scope row: as `n` grows with `k` fixed, that element is **fixed** —
+the window head is byte-stable and the tail appends, which is precisely the shape
+prefix caching rewards. The start jumps by `E` once per `E` new messages; each jump is
+one accepted miss. An unfull window (`n ≤ C`) never slides (matches the owner's
+observed 68-entry/100-cap stable window). The transaction is what makes the head
+claim TRUE rather than probabilistic: with separate statements, any write landing
+between COUNT and FETCH slides the head for that request (the original draft shipped
+exactly the disease it was curing, at lower frequency). The shared predicate builder
+makes WHERE-drift between the two queries unrepresentable rather than a convention.
+Rejected alternatives: **a stateful window-start anchor** (Redis or a
+`ChannelSettings` column) — no such per-channel state exists today (grounding §5), it
+adds multi-replica races and invalidation duties; **render-side cutting** — the fetch
+IS the truncation point; **DeepSeek's COUNT-free overfetch** (fetch C+E, derive k from
+result size) — refuted by Kimi's analysis: once `n > C+E` the derived boundary loses
+the true `n` and degenerates to sliding-by-1 again; quantization needs an absolute
+anchor, and the in-scope count is the only stateless one.
+
+**D2 — Parameters, re-derived for this layer** *(council: the 2026-07-05 75% figure
+was signed for the token layer; inheriting the number is not inheriting the policy)*:
+`E = min(ceil(0.25 · C), C − FLOOR)` with an **absolute minimum-message floor**
+restored as its own constraint (FLOOR = 20), and **hysteresis applies only when
+C ≥ 20** — below that, a tiny window is cheap to re-bill and quantization would eat
+too much of it. Window oscillates [max(FLOOR, 0.75C), C]. Amortized economics
+(adjudicated against GLM's contrary math): a head jump re-bills the **entire
+post-head suffix** (~the whole chat_log), not the evicted messages, so expected
+re-bill ≈ windowTokens / E per message — E=13 ≈ 1.2k tokens/msg vs E=5 ≈ 3.1k, both
+far below today's ~15k/msg, with 25% ~2.6× cheaper than 10%. `E`'s ratio is a named
+config constant, tunable by telemetry, not a literal. Mid-exchange cuts are NOT a
+regression: today's sliding head lands mid-exchange every turn; the change only
+batches the departure of messages that would have left within ≤E turns anyway, and
+the RAG memory archive remains the recall path for older context.
+
+**D3 — Index decision is made WITH the PR, from an EXPLAIN, not deferred past it.**
+The existing `[channelId, personalityId, createdAt DESC]` index serves the count only
+via its leading column (the `createdAt` range cannot seek across `personalityId`, and
+the fetch's ORDER BY already can't use it — council, confirmed against the index
+shape). A `[channelId, createdAt DESC, id DESC]` index would serve COUNT + fetch +
+epoch cutoff together, and the new COUNT is a query it ships with (03-database rule
+satisfied). Implementation step: EXPLAIN ANALYZE both statements against a
+prod-shaped row count; add the index in the same PR if the count isn't index-only-fast.
+
+**D4 — Known invalidation events, classified by expected frequency** *(council: a
+flat "accepted single-miss" list hid additive and structural cases)*: per-user epoch
+resets (rare; but in a channel where users carry DIFFERENT epochs, alternating
+speakers produce alternating window shapes — each user's own turns stay stable and
+provider caches are per-prefix, so both variants can stay warm; pre-existing
+behavior, unchanged by this design); retention aging (slow, one head move per aged-out
+chunk); deletions shrinking `n` (head can jump backward, may transiently resurrect
+evicted context — harmless); message edits/heal-on-read rewrites inside the window
+(accepted by §2.5's standing rule: caching must tolerate rewrites, never prevent
+them); extended-context union prepending a live-fetched message older than the window
+head (expected rare — extended messages are recent by construction — but now
+**measured, not asserted**: the fetch meta records it, D6); the trigger-row
+`+1`/filter (inside the transaction snapshot; shifts slide TIMING by at most one
+message). Post-fetch dedup is deterministic, so a stable row window renders a stable
+`chat_log`.
+
+**D5 — The token-budget layer is untouched.** It remains the independent, currently
+dormant, newest-first backstop (§2.5.1 consequence 2 unchanged: when it starts firing
+in attachment-heavy threads, THAT is when its own chunked eviction gets built against
+real data). Count-quantized windows can still be token-heavy; the dormancy margin
+(≥21k headroom) is re-checked, not assumed, in the rollout week's telemetry.
+
+**D6 — Validation + attribution telemetry.** The shipped beta.203 surface
+(`cacheObservability.ts`) already scopes `promptHashHistoryStable` to the cached
+chat_log region (hash of the serialized log minus its newest entry) and
+`promptHashSystemCore` to S0+S1 — so S1-churn misses and head-slide misses are
+separable. The windowed fetch adds per-generation meta: `{n, k, take, headRowId,
+extendedContextPrepended}`, giving every prefix divergence an attributable layer
+(S1 vs head-slide vs mid-log — mid-log divergence should be impossible and is
+alert-worthy). Acceptance: `promptHashHistoryStable` unchanged between slides,
+`cacheHitRatio` rising on full channels, `pnpm ops cache:prefix-diff` diverging only
+at slide boundaries or attributed events. **Phase 0 of the build**: the z.ai TTL
+bracket probe (docs give no number — "reasonable time limits"), which also reads the
+**actual billed discount** (docs say ~50%, the earlier doc-17 note said ~80%) and
+rules TTL in/out for the unexplained `cachedPromptTokens: 0` incident reading before
+other candidates (routing/residency, min-cacheable-length — check min(S0+S1) across
+personas while there). Tail-append reuse needs no new probe: the 2026-08-01 spike's
+calls 2–3 WERE same-prefix-new-tail and cached 97.6% (a council objection answered by
+the existing measurement, not a new gap).
+
+**Open calls — all resolved (owner pass 2026-08-16)**: **O1 — DECIDED: 25% of C.**
+The council split 2–2 (GLM + DeepSeek: 10%, for gentler context steps; Kimi + Qwen:
+25% conditionally); presented with the suffix-re-bill economics, the owner confirmed
+25% — the 10% case partly rests on cost math the suffix-re-bill model contradicts,
+the quality delta is bounded (evicted messages die within ≤E turns under status quo
+sliding anyway), and the ratio is a config constant telemetry can lower later.
+**O2 — CONFIRMED: TASK-622 is a co-requisite, both halves** *(council, 4/4, two
+calling it the higher-ROI fix)*: the roster's `active="true"` + speaker-derived
+collision note churn S1, which invalidates participants AND the whole chat_log —
+strictly more than the head slide. Drop the active flag (the `<from>` tag identifies
+the speaker) and make the collision note speaker-independent (generic phrasing:
+names may repeat, bind by `from_id`). Ships in the same release, ideally the same PR
+wave, as D1 — D1's win in multi-user channels is near-zero without it. **O3 —
+CONFIRMED: window logic lives in a new `ConversationHistoryService` windowed-fetch
+method** returning `{messages, meta}` under the D1 transaction (council 4/4; the
+decisive reason is that the snapshot guarantee and the shared predicate builder must
+live in exactly one place). Property-test the arithmetic (vary n/C/E, boundary
+transitions, C=1..100, floor).
+
+**Build slices (beta.204)**: PR 0 — Phase-0 probe (TTL bracket + billed discount +
+min-cacheable check; script-only, no runtime change) · PR 1 — TASK-622 roster
+stabilization · PR 2 — windowed fetch (service method + transaction + telemetry meta
++ EXPLAIN-decided index) · rollout week reads `cacheHitRatio`/`prefix-diff` before
+declaring the win.
+
 ### 2.6 Reasoning-model rewrite: DELETED, not fixed (fact-check outcome)
 
 The draft planned to fix the system→user rewrite with a `developer`-role message. Fact verification (2026-07-05, OpenAI first-party docs) dissolved the problem: **the entire o-series is deprecated** (o1 → o4-mini, all marked deprecated; current reasoning lineup is GPT-5.4/5.5 with effort levels) and **no current OpenAI model rejects the `system` role** — Chat Completions accepts both `system` and `developer` API-wide, with system treated as developer for reasoning models. The transform (`transformMessagesForReasoningModel` + the stale `/^(openai\/)?o[13]…/` gate) is dead code guarding against dead models, with destructive behavior (content-part flattening, silent system-content drops) as its only remaining effect. **Delete it** (Phase 0). Reasoning-effort config plumbing is unaffected and stays.
@@ -195,3 +333,41 @@ Phases 0–1 are cheap and independently valuable. Phase 2 is the risk center (m
 **Owner constraints on record**: do not assume Anthropic (not in active use; §2.7 reframed Qwen-first) · roleplay quality is load-bearing — caching wins never trade against it (Phase gates exist for this).
 
 **Fact sheet** (verification agent, 2026-07-05, first-party docs; the user's staleness challenge triggered this pass and it dissolved §2.6 + resolved call 3): OpenAI current reasoning lineup GPT-5.4/5.5, o-series fully deprecated, `system` accepted API-wide · Anthropic 1.25×/2× write, 0.1× read, 4 breakpoints, 512–4,096 min, same-role auto-combine · OpenRouter cache_control pass-through documented (content parts, sticky routing; usage: `cached_tokens`/`cache_write_tokens`/`cache_discount`); Qwen also marker-required; OpenAI/DeepSeek/Grok/Moonshot/Groq automatic; Gemini implicit-automatic · z.ai implicit on standard endpoint, coding endpoint unverified (Phase-0 empirical check). Sources archived in the fact-sheet section of the session; key URLs: platform.claude.com/docs prompt-caching + messages API, openrouter.ai/docs/guides/best-practices/prompt-caching, developers.openai.com models/reasoning docs, ai.google.dev caching + pricing, api-docs.deepseek.com, docs.z.ai/guides/capabilities/cache.
+
+## 9b. Council pass record — §2.5.2 count-cap hysteresis (2026-08-16)
+
+**Quad** (roster per council skill, IDs verified same-day): GLM 5.2 · Kimi K3 · Qwen
+3.8 Max · DeepSeek v4 Pro, identical adversarial brief with the doc-17/grounding
+measured facts.
+
+**Council-rebuilt (adopted)**: the COUNT-then-FETCH two-snapshot race (4/4 — the
+draft's central "byte-stable head" claim was false under concurrent writes; fixed as
+one repeatable-read transaction + one shared predicate builder, D1); the absolute
+minimum-message floor restored as a separate constraint + small-C gate (Kimi's
+E/C-swing analysis, D2); "inherits the accepted 75% policy" struck as justification —
+re-derived with layer-specific economics instead (Kimi/Qwen, D2); index decision
+moved to EXPLAIN-at-implementation with the compound-index fact corrected (GLM/Qwen/
+Kimi noted `personalityId` blocks the `createdAt` seek, D3); D4 reclassified by
+frequency with edits added and the epoch cache-partition named honestly (Qwen, D4);
+per-generation `{n, k, take, headRowId, extendedContextPrepended}` meta for
+per-layer divergence attribution, mid-log divergence alert-worthy (Kimi/DeepSeek/
+Qwen, D6); Phase-0 probe widened to billed-discount read + min-cacheable-length
+check + 0-reading attribution order (Qwen/Kimi, D6); TASK-622 promoted from rider to
+co-requisite (4/4 — two models ranked it above D1 itself, O2).
+
+**Rejected with evidence**: DeepSeek's COUNT-free overfetch fix (fetch C+E, derive k
+from result size) — Kimi's pre-refutation stands: past n > C+E the boundary loses the
+true n and degenerates to per-turn sliding; GLM's "total re-bill cost is identical
+regardless of E" — wrong cost model: a head jump re-bills the whole post-head suffix,
+not the evicted chunk, so cost scales as 1/E (Kimi's math and ours agree); Qwen's
+"tail-append reuse is unproven" — the 2026-08-01 spike's calls 2–3 were literally
+same-prefix-new-tail at 97.6% cached; Kimi's per-row token-estimate column (enables
+token-aware count eviction later) — declined: TASK-370 showed stored token counts
+understate rendered size 60–87%, the budget layer already owns token-awareness, and
+the memory boulder (#3) owns history schema; Qwen's relative-timestamp warning —
+already absolute-only (shipped, `conversationUtils.ts`); Qwen/GLM's hash-scope
+concern — the shipped hash is already correctly scoped to the cached region.
+
+**Split recorded**: O1 eviction chunk, 2–2 (GLM + DeepSeek 10%; Kimi + Qwen
+conditional 25%) — presented to the owner with the suffix-re-bill economics and a
+25% recommendation; the ratio is a config constant either way.

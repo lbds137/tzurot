@@ -9,7 +9,7 @@ created_date: '2026-08-15 21:58'
 labels:
   - 'area:ai-worker'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 622000
@@ -29,3 +29,11 @@ RIDER (from PR 2108 round-5 review, routed here because this task reworks the
 roster rendering and its tests): add a PromptBuilder.test.ts assertion that the
 system message ends with </participants> when the roster is non-empty and there
 is no history — today only the empty-roster tail case is pinned directly.
+
+DECIDED 2026-08-16 (owner pass, beta.204 design): BOTH halves confirmed — (a) drop
+active="true" (the <from> tag identifies the speaker) and (b) render the collision
+note speaker-independent (generic phrasing: names may repeat, bind by from_id).
+PROMOTED to co-requisite of the beta.204 count-cap-hysteresis theme (quad council
+4/4; two models ranked it above the window fix — roster churn invalidates the S1
+prefix AND the whole chat_log). Design home:
+docs/proposals/backlog/prompt-assembly-architecture.md §2.5.2 (build slice PR 1).
