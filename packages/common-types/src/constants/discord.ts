@@ -340,7 +340,8 @@ export interface ModelFooterOptions {
   withAutoBadge?: boolean;
   /**
    * Tier-aware quota fallback that fired for this turn. Renders the swap as
-   * "• <from> → <to> (<per-category reason>)" — see QUOTA_FALLBACK_REASON; a model swap is never
+   * the model line itself — "Model: <from> → [<to>](<url>) (<per-category
+   * reason>)" — see QUOTA_FALLBACK_REASON; a model swap is never
    * silent (an unexplained voice shift reads as a bug, and "why did I get
    * the free model" must be answerable from the reply itself). `modelUsed`
    * already IS the target model; this names where the request started.
@@ -386,10 +387,19 @@ export function buildModelFooterText(
   // Defensive: sanitize model name to prevent markdown injection
   // (brackets and angle brackets could break link syntax)
   const sanitizedModel = modelUsed.replace(/[[\]()<>]/g, '');
-  let text = `Model: [${sanitizedModel}](<${modelUrl}>)`;
+  // The link rides the RESOLVED model wherever it ends up, so that model is
+  // named exactly once. On a swap it is the arrow's target — the chain reads
+  // `<from> → <to> (<reason>)` and the old leading mention is gone; the swap
+  // footer used to print the resolved name twice, once linked at the front and
+  // again as the target. With no swap there is nothing to point at and the
+  // line is byte-identical to what it always was.
+  const modelLink = `[${sanitizedModel}](<${modelUrl}>)`;
+  let text: string;
   if (quotaFallback !== undefined) {
     const sanitizedFrom = quotaFallback.fromModel.replace(/[[\]()<>]/g, '');
-    text += ` • ${sanitizedFrom} → ${sanitizedModel} (${QUOTA_FALLBACK_REASON[quotaFallback.category]})`;
+    text = `Model: ${sanitizedFrom} → ${modelLink} (${QUOTA_FALLBACK_REASON[quotaFallback.category]})`;
+  } else {
+    text = `Model: ${modelLink}`;
   }
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
   const fallbackLabel =
@@ -434,8 +444,34 @@ export const BOT_FOOTER_PATTERNS = {
    * "• via <provider>" and/or the "• 📍 auto" badge). The tail is bounded to
    * the footer line (`[^\n]+`), so it strips the whole indicator without
    * over-reaching into following content.
+   *
+   * Two link POSITIONS must match, because {@link buildModelFooterText} moved
+   * the link onto the swap chain's target and channel history still holds
+   * messages written before that:
+   * - current: `Model: [<model>](<url>)` — and on a swap
+   *   `Model: <from> → [<to>](<url>) (<reason>)`, hence the optional
+   *   `<from> → ` prefix (which excludes `[` so it can never swallow the
+   *   link itself) and the optional ` (<reason>)` that follows it.
+   * - pre-move: `Model: [<to>](<url>) • <from> → <to> (<reason>)`, still
+   *   covered by the base shape plus the ` • …` tail.
+   *
+   * Both are exercised by the round-trip tests in `discord.test.ts`; a stale
+   * pattern here does not fail loudly — it silently leaves footers in the
+   * history fed back to the model, and in the text `stripBotFooters` feeds to
+   * duplicate- and cross-turn detection.
+   *
+   * ACCEPTED WIDENING, against this block's "match ONLY our bot-added footers"
+   * rule above: the optional prefix is generic (`[^\n[]*→ `) rather than an
+   * alternation over the exact builder outputs, so a user line shaped like
+   * `-# Model: foo → [bar](<https://x>)` now strips where it previously
+   * survived. Deliberate — it needs a literal `→` AND a well-formed
+   * `[text](<url>)` immediately after `-# Model: `, and the cost when it does
+   * fire is the author's own quoted text missing from what is fed back to the
+   * model, not any cross-user effect. The alternation would have to be
+   * rewritten for every future footer shape, which is the maintenance failure
+   * this pattern already had once.
    */
-  MODEL: /(?:^|\n)-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • [^\n]+)?/g,
+  MODEL: /(?:^|\n)-# Model: (?:[^\n[]*→ )?\[[^\]]+\]\(<[^>]+>\)(?: \([^()\n]*\))?(?: • [^\n]+)?/g,
   /** Guest mode notice - uses GUEST_MODE.FOOTER_MESSAGE from ai.ts */
   GUEST_MODE: /(?:^|\n)-# 🆓 Using free model \(no API key required\)/g,
   /** Auto-response indicator (standalone) */
