@@ -21,7 +21,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
 import type { FallbackRoute } from '../../../services/ProviderRouter.js';
-import type { QuotaFallbackInfo } from '../../../services/quotaFallback.js';
+import type { QuotaFallbackCategory, QuotaFallbackInfo } from '../../../services/quotaFallback.js';
 
 /**
  * Conversation history entry (raw format from job data)
@@ -140,6 +140,21 @@ export interface ResolvedAuth {
    * announces the swap — retargeting is never silent.
    */
   quotaFallback?: QuotaFallbackInfo;
+  /**
+   * Set ONLY when AuthStep's DEMOTION tier fired — a known-doomed promoted
+   * route moved to its OpenRouter passthrough, same model, different pool.
+   *
+   * The demotion keeps the user's model, so the reactive quota retarget is
+   * still owed if the passthrough fails. But the demotion also means the quota
+   * error never reaches the reactive tier to be classified: the doom cache
+   * short-circuits it. This carries the category that was classified up here so
+   * the tier stays eligible.
+   *
+   * Deliberately distinct from `quotaFallback` above, which the proactive
+   * RETARGET also sets — that path has already spent the reactive tier, and
+   * inheriting from it would retarget the admin default to itself.
+   */
+  inheritedQuotaCategory?: QuotaFallbackCategory;
 }
 
 /**

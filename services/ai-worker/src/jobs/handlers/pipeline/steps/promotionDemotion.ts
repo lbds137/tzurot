@@ -50,7 +50,9 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
   userId: string,
   category: QuotaFallbackCategory,
   caches: QuotaFallbackCaches | undefined
-): Promise<(T & { quotaFallback: QuotaFallbackInfo }) | null> {
+): Promise<
+  (T & { quotaFallback: QuotaFallbackInfo; inheritedQuotaCategory: QuotaFallbackCategory }) | null
+> {
   if (caches === undefined || llmAuth.wasAutoPromoted !== true || llmAuth.fallback === undefined) {
     return null;
   }
@@ -108,5 +110,25 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
     // demoted-away z.ai route.
     wasAutoPromoted: undefined,
     fallback: undefined,
+    // Carry the doom category forward for the reactive tier.
+    //
+    // A demotion does NOT abandon the user's model — it moves the same model to
+    // a different pool — so the quota retarget has not run yet and is still the
+    // correct next step if this passthrough also fails. But the retarget's
+    // eligibility is decided by classifying the ERROR, and after a demotion the
+    // z.ai 429 never happens: the doom cache short-circuits it, so the only
+    // error downstream is whatever the passthrough returns. A staggered model
+    // release makes that a 400 (`<model> is not a valid model ID`), which
+    // classifies as nothing, and the turn dead-ends.
+    //
+    // Without this field the SAME rate-limited user gets a response when the
+    // 429 arrives live (the error propagates, the retarget fires) and an
+    // in-character error when it comes from cache. Preserving the category
+    // makes the outcome independent of that caching accident.
+    //
+    // Deliberately NOT read off `quotaFallback.category`: the proactive RETARGET
+    // sets that field too, and it has already spent the reactive tier — reusing
+    // it there would retarget the admin default to the admin default.
+    inheritedQuotaCategory: category,
   };
 }

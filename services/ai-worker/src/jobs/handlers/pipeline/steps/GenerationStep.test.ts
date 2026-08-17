@@ -34,6 +34,25 @@ function mockQuota(allowed = true): FreeTierRequestQuota {
   } as unknown as FreeTierRequestQuota;
 }
 
+// Captures the `opts` object GenerationStep hands to the quota-fallback
+// wrapper, so the auth -> attemptOpts hop can be asserted. Delegates to the
+// REAL implementation, so no other test in this file changes behaviour — the
+// spy observes, it does not stub.
+const { quotaFallbackOptsSpy } = vi.hoisted(() => ({ quotaFallbackOptsSpy: vi.fn() }));
+
+vi.mock('./quotaFallbackRunner.js', async () => {
+  const actual = await vi.importActual<typeof import('./quotaFallbackRunner.js')>(
+    './quotaFallbackRunner.js'
+  );
+  return {
+    ...actual,
+    runWithQuotaFallback: (options: Parameters<typeof actual.runWithQuotaFallback>[0]) => {
+      quotaFallbackOptsSpy(options.opts);
+      return actual.runWithQuotaFallback(options);
+    },
+  };
+});
+
 // Mock common-types logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -765,6 +784,51 @@ describe('GenerationStep', () => {
         expect(result.result?.success).toBe(false);
         // The footer must be able to explain why modelUsed is the fallback.
         expect(result.result?.metadata?.quotaFallback).toEqual(proactiveSwap);
+      });
+
+      it('forwards inheritedQuotaCategory from auth into the attempt opts (hop 2)', async () => {
+        // The demotion's category crosses THREE hops: promotionDemotion ->
+        // AuthStep -> GenerationStep -> quotaFallbackRunner. Every hop copies an
+        // OPTIONAL field, so dropping any one of them compiles cleanly and the
+        // reactive retarget silently dead-ends. AuthStep.test.ts pins hop 1;
+        // this pins hop 2, which shipped unpinned and was caught in review.
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+          content: 'ok',
+          modelUsed: 'configured/original',
+        } as RAGResponse);
+
+        await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: { ...baseAuth, inheritedQuotaCategory: ApiErrorCategory.QUOTA_EXCEEDED },
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quotaFallbackOptsSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ inheritedQuotaCategory: ApiErrorCategory.QUOTA_EXCEEDED })
+        );
+      });
+
+      it('leaves inheritedQuotaCategory absent when auth carries none', async () => {
+        // Absence must stay absence — a defaulted value here would make every
+        // request look demotion-derived and retarget on unrelated failures.
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+          content: 'ok',
+          modelUsed: 'configured/original',
+        } as RAGResponse);
+
+        await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quotaFallbackOptsSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ inheritedQuotaCategory: undefined })
+        );
       });
 
       it('failure path without any swap: quotaFallback stays absent', async () => {
