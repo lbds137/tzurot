@@ -376,7 +376,35 @@ not tail-append — the history window's head moved. First direct prod observati
 the head-slide that beta.204 PR 2's count-cap hysteresis exists to stop; previously
 this was inferred from aggregates only.
 
-**Still open**: one thread is not the 53-call shallow-hit population. Whether the
-chat_log-head-slide vs persona-alternation split generalizes needs 2-3 more channels.
-That generalization is what SIZES beta.204's win; the localization question TASK-641
-actually asks is answered.
+### Second thread (8 pairs, same day) — corroborates, and exposes a sampling error
+
+8/8 divergences at `H chat_log`, 90-99%, single persona throughout, ZERO S1
+divergences. Confirms the alternation finding by its absence: no second character,
+no S1 cut.
+
+**CORRECTION to the paragraph this replaces, which claimed TASK-641's localization
+question was answered. It is NOT.** The arithmetic does not close:
+
+| divergence observed | offset | ~tokens @3.6 chars |
+| --- | --- | --- |
+| `S1 system_identity` (alternation) | 1,956 chars | ~543 |
+| `H chat_log` (healthy append, 15 pairs) | 129,216-135,702 | ~35,900-37,700 |
+| `H chat_log` (the one deep case) | 34,302 | ~9,528 |
+
+The shallow-hit population is 53 calls, mean cached 5,117 tokens, all under the
+<25% ceiling of ~8,054 tokens (~29,000 chars). **Nothing sampled lands in the
+18,000-29,000 char band where that population sits** — S1 cuts are ~15x too small
+to average 5,117, the chat_log cuts ~4x too large. Two healthy threads did not
+reproduce the shape.
+
+**The sampling error is the lesson**: channels were sampled, when SHALLOW HITS
+needed sampling. `cache:prefix-diff` takes `--channel`/`--personality` and cannot
+filter on cache depth, so it cannot find its own subject. Closing TASK-641 needs
+the rows selected by `cachedPromptTokens/promptTokens < 0.25` FIRST, then diffed —
+either a `--min-depth`/`--request` selector on the tool, or a prod query joining
+diagnostic rows to their usage numbers.
+
+**Established regardless**: divergences occur in exactly two sections, never a
+third; S1 cuts are persona alternation and inherent (owner-confirmed); and the
+one deep chat_log cut at 34,302 chars is the first direct prod sighting of the
+head-slide beta.204 PR 2 targets.
