@@ -227,3 +227,103 @@ fetch under one repeatable-read transaction). Build slices (PR 0 probe / PR 1 ro
 / PR 2 windowed fetch) live in the artifact. The TTL gap-probe and the
 `cachedPromptTokens: 0` attribution are PR 0. This doc remains the
 requirement/measurement record; the artifact owns the design.
+
+## PR 0 MEASUREMENTS 2026-08-17 — z.ai cache mechanics probed, prod misses decomposed
+
+Method: live probes against dev's real `ZAI_CODING_API_KEY` (`railway run --service
+ai-worker` — `pnpm ops run` injects DATABASE_URL only), plus read-only queries over
+prod's 226-row `llm_diagnostic_logs` window (22h). Synthetic filler only; no user
+content. Probe scripts were scratch, not landed — method recorded here instead.
+
+### Mechanics (dev, measured)
+
+- **The response reports caching**: `usage.prompt_tokens_details.cached_tokens`.
+  Immediate identical 9,009-token repeat → 8,960 cached (99.5%).
+- **Block granularity is 64 tokens.** Every cached value across a 9-point size
+  sweep is an exact multiple of 64 (64, 256, 576, 1152, 1728, 2304, 3456, 5760,
+  11776). The trailing partial block never caches.
+- **There is effectively no minimum cacheable length** — a 92-token prompt cached
+  its first 64-token block. This CLOSES the "min-cacheable-length" candidate.
+- **Caching is on the LONGEST MATCHING PREFIX, not on a whole-prompt match.**
+  This is the measurement the epic's whole premise rested on and had never been
+  taken:
+  - identical system prefix + a DIFFERENT user tail → 8,192 / 8,599 cached (95.3%).
+    Tail-append reuse works; stabilizing the head is worth doing.
+  - stable front + CHANGED middle + stable back → 4,160 / 9,048 (46.0%). The hit
+    is exactly the stable front, truncated at the first divergence, floored to a
+    64-block.
+  - one character changed at the FIRST token → 0 / 8,616. The only shape that
+    yields a zero on a long prompt.
+- **TTL is ≥ 20 minutes** for an untouched entry (identical prefix re-probed at
+  1/3/6/12/20 min, all 99.8%, byte-identical `cached` value each time).
+
+### The billed discount is NOT measurable from any surface we have — ruled out, do not re-attempt
+
+Both candidate instruments were checked. The chat/completions response carries
+exactly seven top-level keys (`choices, created, id, model, object, request_id,
+usage`) and no cost field of any kind. The quota endpoint
+(`/api/monitor/usage/quota/limit`) reports its `TOKENS_LIMIT` windows as an INTEGER
+`percentage` with no raw token counts — moving it by one point would require
+billing ~1% of the plan window and would contaminate the owner's real quota, and
+even then could not separate cached from uncached rates. So the docs' ~50% and this
+doc's earlier ~80% both remain unverified and unverifiable here. This does not gate
+anything: the discount changes the SIZE of the win, not its direction.
+
+### Prod decomposition (226 diagnostic rows, 190 on zai-coding)
+
+`cachedPromptTokens: 0` is not one unexplained incident — it is **91 of 190 calls
+(48%)**. The 2026-08-16 incident request `f6f73154` is one of them: `zai-coding`
+(so NOT an OpenRouter accounting artifact — that candidate is closed), glm-5.2,
+55,837 prompt tokens, 0 cached.
+
+Hit rate by idle gap since the previous call in the SAME channel:
+
+| gap | calls | hit% |
+| --- | --- | --- |
+| first in window | 16 | 25.0 |
+| < 2 min | 21 | 76.2 |
+| 2–10 min | 109 | 63.3 |
+| 10–30 min | 20 | 35.0 |
+| 30 min – 2 h | 16 | 18.8 |
+| > 2 h | 8 | 0.0 |
+
+Monotonic decay: **entry expiry dominates the long tail** (8/8 zero past 2h). But
+~24% still miss inside the <2 min bucket, where expiry cannot be the cause — that
+residual is prefix instability. Both causes are real and now separated. Sample is
+small (n=8 in the largest-gap bucket); treat the curve's shape as established and
+its exact breakpoints as not.
+
+Depth of the hits that did land:
+
+| hit depth | calls | mean cached | mean prompt |
+| --- | --- | --- | --- |
+| < 25% | 53 | 5,117 | 32,216 |
+| 25–50% | 10 | 7,763 | 25,574 |
+| 50–75% | 4 | 33,760 | 54,619 |
+| 75–90% | 12 | 23,483 | 29,311 |
+| ≥ 90% | 20 | 25,107 | 25,328 |
+
+**The largest hit bucket re-bills the entire chat_log.** 53 of 99 hits cache ~5.1k
+of ~32k. Section sizes on those same requests (from the stored `systemPromptSections`,
+char counts only): platform_constraints 851 · output_constraints 1,069 · system_identity
+15,220 · identity_constraints 420 · protocol 9,688 · location 166 · participants 936 ·
+chat_log 62,696. Pre-chat_log totals ~28,350 chars.
+
+Note what that does NOT say. ~5.1k cached tokens is BELOW the pre-chat_log region
+(~7.9k tokens at a rough 3.6 chars/token), so on these requests the cut lands
+**inside S1, before chat_log begins** — not at the chat_log boundary. So the head
+slide is not the sole cause even here; an S1-side divergence is also cutting the
+prefix. Which section it lands in is NOT established: these are means across
+requests with different personas (system_identity alone is 15k chars and differs
+per persona), and means of ratios cannot localize a boundary. Localizing it needs
+per-request analysis with a real tokenizer — a live follow-up, not a settled fact.
+
+### What this sets up for the rollout read
+
+- PR 1 + PR 2 should move the shallow-hit bucket (53 calls, ~16% of prompt cached)
+  toward the ≥90% bucket. That is the acceptance signal.
+- They should NOT be expected to change the >30 min buckets at all. Anyone reading
+  a post-deploy aggregate hit rate near 60% and concluding the epic failed would be
+  reading expiry, not prefix stability. Read the <2 min bucket and the hit-depth
+  distribution, not the headline ratio.
+- The unlocalized S1 cut is the next open question, and it may bound the win.
