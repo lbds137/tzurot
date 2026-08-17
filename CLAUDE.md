@@ -79,10 +79,11 @@ gh pr merge <number> --rebase                  # Release PRs (develop → main) 
 
 When compacting context, preserve:
 
+- **Any finished-but-undelivered user-facing report** — and deliver it in the FIRST post-compaction reply, before any tool calls (priority 0 in the recovery order below; the owner twice asked "what do you need from me?" because a completed unit's report died at the boundary)
 - List of all modified files in this session
 - Current task state and any blockers
 - Test commands that were run and their results
-- **Session settings the user changed** (reasoning effort level, permission mode) — post-compaction sessions have twice re-suggested settings that were already active
+- **Session settings the user changed** (reasoning effort level, permission mode) — post-compaction sessions have twice re-suggested settings that were already active. The env block's MODEL line goes stale after an in-session `/model` switch — verify the driver model via the session JSONL's per-message `.message.model` field before asserting it (misread twice from the stale env block)
 - **Open promises and asks**: anything announced as "I'll do X later," any unanswered question posed to the user, any user question not yet answered
 - **The work-stack pointer**: the interrupted task and its resume point when a side-quest (prod bug, review round) preempted the main line
 - **Manual-test / smoke-checklist state**: which items the user has executed and their results (also written to CURRENT.md per `/tzurot-testing` — the file is the source of truth)
@@ -90,4 +91,4 @@ When compacting context, preserve:
 - Re-read `.claude/rules/` files after compaction
 - **Read-state does not survive compaction**: Edit/Write requires a fresh Read of any file post-compaction — and auto-loaded content (rules, CLAUDE.md, CURRENT.md, backlog injections) never counts as Read for editing purposes; Read the file first or the edit is rejected
 
-**Recovery mechanism**: exact pre-compaction context (verbatim quotes, tool output, decisions) is recoverable by grepping the session JSONL under `~/.claude/projects/<project-slug>/` (the slug derives from the checkout path — `ls ~/.claude/projects/` to find it) — use it before re-deriving or guessing at lost state. When something specific feels missing post-compaction, actively recover in this order: (1) session settings (effort level, permission mode) — don't re-suggest what was active; (2) open promises/asks — grep for "I'll" / the user's unanswered questions; (3) the work-stack pointer (interrupted task + resume point); (4) manual-test/smoke results not yet in CURRENT.md.
+**Recovery mechanism**: exact pre-compaction context (verbatim quotes, tool output, decisions) is recoverable by grepping the session JSONL under `~/.claude/projects/<project-slug>/` (the slug derives from the checkout path — `ls ~/.claude/projects/` to find it) — use it before re-deriving or guessing at lost state. When something specific feels missing post-compaction, actively recover in this order: (0) undelivered user-facing reports — deliver before anything else; (1) session settings (effort level, permission mode) — don't re-suggest what was active, and verify the driver model from the JSONL, not the env block; (2) open promises/asks — grep for "I'll" / the user's unanswered questions; (3) the work-stack pointer (interrupted task + resume point); (4) manual-test/smoke results not yet in CURRENT.md.
