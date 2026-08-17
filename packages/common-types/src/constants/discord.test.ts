@@ -184,15 +184,17 @@ describe('Bot Footer Text Constants', () => {
       const outOfCredit = buildModelFooterText('free-model', 'https://example.com/m', {
         quotaFallback: { fromModel: 'expensive/primary', category: 'credit_exhaustion' },
       });
+      // The resolved model is named ONCE, as the arrow's target, and that is
+      // where the link lives — no leading duplicate mention.
       expect(outOfCredit).toBe(
-        'Model: [free-model](<https://example.com/m>) • expensive/primary → free-model (out of credit)'
+        'Model: expensive/primary → [free-model](<https://example.com/m>) (out of credit)'
       );
 
       const rateLimited = buildModelFooterText('paid-default', 'https://example.com/m', {
         quotaFallback: { fromModel: 'expensive/primary', category: 'quota_exceeded' },
       });
       expect(rateLimited).toBe(
-        'Model: [paid-default](<https://example.com/m>) • expensive/primary → paid-default (rate limited)'
+        'Model: expensive/primary → [paid-default](<https://example.com/m>) (rate limited)'
       );
 
       // A live 429 classifies as rate_limit — renders the same "rate limited" reason.
@@ -200,7 +202,7 @@ describe('Bot Footer Text Constants', () => {
         quotaFallback: { fromModel: 'user/free-default', category: 'rate_limit' },
       });
       expect(rateLimitCat).toBe(
-        'Model: [free-default](<https://example.com/m>) • user/free-default → free-default (rate limited)'
+        'Model: user/free-default → [free-default](<https://example.com/m>) (rate limited)'
       );
     });
 
@@ -230,7 +232,7 @@ describe('Bot Footer Text Constants', () => {
         quotaFallback: { fromModel: 'expensive/primary', category: 'guest_mode' },
       });
       expect(result).toBe(
-        'Model: [openrouter/free](<https://example.com/m>) • expensive/primary → openrouter/free (guest mode)'
+        'Model: expensive/primary → [openrouter/free](<https://example.com/m>) (guest mode)'
       );
     });
 
@@ -238,7 +240,38 @@ describe('Bot Footer Text Constants', () => {
       const result = buildModelFooterText('free-model', 'https://example.com/m', {
         quotaFallback: { fromModel: 'bad[model](x)', category: 'quota_exceeded' },
       });
-      expect(result).toContain('badmodelx → free-model');
+      expect(result).toContain('badmodelx → [free-model]');
+    });
+
+    it('names the resolved model exactly once on a swap', () => {
+      // The point of the shape: before this, the target appeared twice — once
+      // as the leading link and again after the arrow — which is what made the
+      // guest-mode footer visibly long.
+      //
+      // The count below proves "named once" only for a URL that does not
+      // itself contain the model slug, which this stub deliberately does not.
+      // Production URLs come from `buildModelInfoUrl`, which for some providers
+      // DOES embed the model id in the path — so a raw occurrence count is the
+      // wrong instrument for the real invariant. The invariant is positional:
+      // the one READABLE mention sits right of the arrow, which the `toContain`
+      // and the exact-string assertion pin directly.
+      const result = buildModelFooterText('glm-4.5-air', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'z-ai/glm-5', category: 'guest_mode' },
+        provider: 'zai-coding',
+      });
+      expect(result).toContain('→ [glm-4.5-air]');
+      expect(result.split('glm-4.5-air')).toHaveLength(2); // one occurrence, given a slug-free stub URL
+      expect(result).toBe(
+        'Model: z-ai/glm-5 → [glm-4.5-air](<https://example.com/m>) (guest mode) • via Z.AI Coding Plan'
+      );
+    });
+
+    it('leaves the no-swap footer byte-identical to the pre-move shape', () => {
+      // The link only MOVES when there is an arrow to move it onto; with no
+      // swap there is nothing to point at and the line must not change at all.
+      expect(buildModelFooterText('glm-4.5-air', 'https://example.com/m')).toBe(
+        'Model: [glm-4.5-air](<https://example.com/m>)'
+      );
     });
 
     it('renders the full route chain when a fallback attempt also failed', () => {
@@ -318,6 +351,30 @@ describe('Bot Footer Text Constants', () => {
           fallbackProviderAttempted: 'openrouter',
           withAutoBadge: true,
         }),
+        // The swap shapes, where the link sits AFTER the arrow. These were
+        // absent from this list while the regex required the link immediately
+        // after "Model: " — so the one shape that could break the strip was
+        // the one shape the round-trip never covered.
+        buildModelFooterText('test/model', 'https://example.com/model', {
+          quotaFallback: { fromModel: 'expensive/primary', category: 'guest_mode' },
+        }),
+        buildModelFooterText('test/model', 'https://example.com/model', {
+          quotaFallback: { fromModel: 'expensive/primary', category: 'quota_exceeded' },
+          provider: 'zai-coding',
+          withAutoBadge: true,
+        }),
+        // Maximal shape: a quota swap AND both provider routes failing AND the
+        // auto badge, all on one line. Reachable — DiscordResponseSender's
+        // buildFooter forwards quotaFallback, fallbackProviderAttempted and
+        // withAutoBadge from one options object, so nothing prevents them
+        // co-occurring. This is the same untested-but-reachable combination
+        // class that let the strip regex break in the first place.
+        buildModelFooterText('test/model', 'https://example.com/model', {
+          quotaFallback: { fromModel: 'expensive/primary', category: 'server_error' },
+          provider: 'zai-coding',
+          fallbackProviderAttempted: 'openrouter',
+          withAutoBadge: true,
+        }),
       ];
       for (const built of cases) {
         const line = `-# ${built}`;
@@ -325,6 +382,22 @@ describe('Bot Footer Text Constants', () => {
         expect(BOT_FOOTER_PATTERNS.MODEL.test(line)).toBe(true);
         // And the strip removes the entire footer line, leaving nothing behind.
         expect(line.replace(BOT_FOOTER_PATTERNS.MODEL, '')).toBe('');
+      }
+    });
+
+    it('still strips the PRE-MOVE footer shape stored in channel history', () => {
+      // Messages written before the link moved onto the arrow target are still
+      // in the DB and still get fed back to the model. The builder can no
+      // longer emit these, so they are written out literally — a regex that
+      // only satisfies the current builder would silently start leaking them.
+      const legacy = [
+        '-# Model: [free-model](<https://example.com/m>) • expensive/primary → free-model (guest mode)',
+        '-# Model: [free-model](<https://example.com/m>) • expensive/primary → free-model (rate limited) • via Z.AI Coding Plan',
+        '-# Model: [gpt-4](<https://example.com/m>) • via OpenRouter • 📍 auto',
+      ];
+      for (const line of legacy) {
+        BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
+        expect(line.replace(BOT_FOOTER_PATTERNS.MODEL, ''), line).toBe('');
       }
     });
 
