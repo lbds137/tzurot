@@ -38,8 +38,9 @@ export const PLATFORM_CONSTRAINTS = `<platform_constraints>
  *
  * A pure function of the personality — deliberately: this block is S1-tier
  * (static per persona) so the cacheable system-message prefix stays
- * byte-stable across requests. The per-request name-collision disambiguation
- * renders as a `<note>` in the V-tier participants block instead.
+ * byte-stable across requests. The name-collision disambiguation renders as a
+ * `<note>` in the participants block instead — also S1-tier, and likewise
+ * roster-derived rather than per-request, so it does not break that prefix.
  *
  * @param personalityName - The AI character's name
  */

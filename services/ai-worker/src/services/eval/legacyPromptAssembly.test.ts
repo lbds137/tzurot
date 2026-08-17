@@ -122,6 +122,14 @@ describe('legacyBuildSystemPrompt (arm A drift pins)', () => {
     });
 
     expect(prompt.indexOf('persona-9')).toBeLessThan(prompt.indexOf('persona-1'));
+
+    // The pre-restructure per-speaker bits, which production has since shed.
+    // The single-participant .snap fixtures never reach the multi-participant
+    // note branch, so without this the wording could drift unpinned.
+    expect(prompt).toContain('<participant id="persona-1" active="true">');
+    expect(prompt).toContain(
+      '<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "Vee: message"</note>'
+    );
   });
 
   it('keeps the Sandwich order: protocol + output constraints AFTER chat_log (the recency tail)', () => {

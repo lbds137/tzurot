@@ -13,6 +13,13 @@
  * - source="user_input" attribution to clarify first-person content origin
  * - Optional guild info (roles, color, join date) for Discord server context
  *
+ * Every byte this module emits is derived from the roster alone — never from
+ * who is speaking this turn. The block sits in the provider's prompt-cache
+ * prefix (S1), so a per-speaker bit here invalidates the roster AND the whole
+ * chat_log that follows it on every speaker change in a multi-human channel.
+ * The current speaker is identified by the `<from>` tag on the turn itself,
+ * which lives in the volatile tier where per-request bytes belong.
+ *
  * Extracted from PromptBuilder for better modularity.
  */
 
@@ -21,6 +28,129 @@ import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
+/** The display name rendered for a participant — also what collides. */
+function participantDisplayName(info: ParticipantInfo): string {
+  return info.preferredName ?? info.personaName;
+}
+
+/**
+ * Does any roster member render under the character's own name?
+ *
+ * Roster-derived rather than speaker-derived: a colliding participant is a
+ * standing fact about the conversation, not a property of whoever happens to
+ * be talking, so the answer (and therefore the note it drives) is stable
+ * across turns.
+ */
+function rosterCollidesWithCharacter(
+  participants: ParticipantInfo[],
+  personalityName: string
+): boolean {
+  if (personalityName.length === 0) {
+    return false;
+  }
+  const target = personalityName.toLowerCase();
+  return participants.some(info => participantDisplayName(info).toLowerCase() === target);
+}
+
+/** The trailing `<note>` lines: collision disambiguation + group-conversation hint. */
+function buildRosterNotes(participants: ParticipantInfo[], personalityName: string): string[] {
+  const notes: string[] = [];
+
+  // Name-collision disambiguation. Deliberately names nobody: the concrete
+  // "Name (@username)" form is rendered by the <from> tag on the current turn
+  // (buildDisambiguatedDisplayName), which is volatile-tier already. Naming the
+  // colliding user here would put a speaker-derived string in the cached prefix.
+  // Phrased without number so it reads correctly whether one roster member
+  // collides or several do.
+  if (rosterCollidesWithCharacter(participants, personalityName)) {
+    notes.push(
+      '<note>A name in the roster above matches your own. Names are not unique here — bind identity by from_id, never by name. Anyone appearing under your name is a different person from you.</note>'
+    );
+  }
+
+  if (participants.length > 1) {
+    notes.push(
+      '<note>This is a group conversation. Each chat_log message carries a from_id identifying its speaker — match it to the participant ids above.</note>'
+    );
+  }
+
+  return notes;
+}
+
+/**
+ * Render one `<participant>` element as its constituent lines.
+ *
+ * Shared with the frozen legacy eval arm, which reproduces pre-restructure
+ * bytes: the element body never changed, only the ordering, the `active`
+ * attribute, and the trailing notes — so those are the caller's business and
+ * this stays the single source for the body.
+ *
+ * @param markActive - emit `active="true"` for the current speaker. Production
+ *   never does (it made the cached prefix per-speaker); the legacy arm must.
+ */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Conditional pronouns, guild attributes, and roles each branch independently
+export function renderParticipantElement(info: ParticipantInfo, markActive = false): string[] {
+  const parts: string[] = [];
+
+  const activeAttr = markActive && info.isActive ? ' active="true"' : '';
+  parts.push(`<participant id="${escapeXml(info.personaId)}"${activeAttr}>`);
+
+  // Name element - use preferredName if available, otherwise fall back to personaName
+  parts.push(`<name>${escapeXml(participantDisplayName(info))}</name>`);
+
+  // Pronouns element (if available)
+  if (info.pronouns !== undefined && info.pronouns.length > 0) {
+    parts.push(`<pronouns>${escapeXml(info.pronouns)}</pronouns>`);
+  }
+
+  // Guild info (if available) - attributes for metadata, child element for roles
+  if (info.guildInfo) {
+    const guildAttrs: string[] = [];
+
+    if (info.guildInfo.displayColor !== undefined && info.guildInfo.displayColor !== '') {
+      guildAttrs.push(`color="${escapeXml(info.guildInfo.displayColor)}"`);
+    }
+
+    if (info.guildInfo.joinedAt !== undefined && info.guildInfo.joinedAt !== '') {
+      const dateOnly = formatDateOnly(info.guildInfo.joinedAt, 'UTC');
+      guildAttrs.push(`joined="${escapeXml(dateOnly)}"`);
+    }
+
+    const hasRoles = info.guildInfo.roles.length > 0;
+    const attrsStr = guildAttrs.length > 0 ? ` ${guildAttrs.join(' ')}` : '';
+
+    if (hasRoles) {
+      // Roles as child elements
+      parts.push(`<guild_info${attrsStr}>`);
+      parts.push('<roles>');
+      for (const role of info.guildInfo.roles) {
+        parts.push(`<role>${escapeXml(role)}</role>`);
+      }
+      parts.push('</roles>');
+      parts.push('</guild_info>');
+    } else if (guildAttrs.length > 0) {
+      // Self-closing if only attributes, no roles
+      parts.push(`<guild_info${attrsStr}/>`);
+    }
+  }
+
+  // User-provided persona content. Uses escapeXmlContent (targeted): it
+  // preserves literal <3 / x > 5 like CDATA did, but ALSO renders any
+  // structural tag inert to the LLM (CDATA does not — the model reads raw
+  // text, so a CDATA-wrapped </about> is still visible markup to it). <about>
+  // and <participant> are protected so content can't forge another party.
+  // source="user_input" tells LLM this is user's self-description, not system instructions
+  parts.push(`<about source="user_input">${escapeXmlContent(info.content)}</about>`);
+
+  parts.push('</participant>');
+
+  return parts;
+}
+
+/** The opening lines every roster block shares — shared with the legacy arm. */
+export const PARTICIPANTS_INSTRUCTION =
+  '<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>';
+
 /**
  * Format conversation participants with their personas
  *
@@ -28,7 +158,7 @@ import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
  * ```xml
  * <participants>
  *   <instruction>These people are in this conversation. Match from_id in chat_log to participant IDs.</instruction>
- *   <participant id="persona-uuid-123" active="true">
+ *   <participant id="persona-uuid-123">
  *     <name>Lila</name>
  *     <pronouns>she/her, they/them</pronouns>
  *     <guild_info color="#FF00FF" joined="2023-05-15">
@@ -43,52 +173,21 @@ import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
  * ```
  *
  * @param participantPersonas - Map of resolvedPersonaId (UUID) to ParticipantInfo
- * @param activePersonaName - Name of the currently active speaker (for group conversation note)
- * @param collisionNote - Pre-escaped note text when a user shares the character's
- *   name; rendered as a `<note>` so the roster itself carries the
- *   disambiguation. Forces the block to render even with an empty roster —
- *   the note must reach the model regardless.
+ * @param personalityName - The character's own name; drives the name-collision
+ *   note when a roster member renders under the same name
  * @returns Formatted participants context string in XML, or empty string if no participants
  */
-/** The trailing `<note>` lines: collision disambiguation + group-conversation hint. */
-function buildRosterNotes(
-  participantCount: number,
-  activePersonaName?: string,
-  collisionNote?: string
-): string[] {
-  const notes: string[] = [];
-  // Name-collision disambiguation (caller pre-escapes the interpolated names)
-  if (collisionNote !== undefined) {
-    notes.push(`<note>${collisionNote}</note>`);
-  }
-  if (participantCount > 1) {
-    const rawExampleName =
-      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice';
-    // activePersonaName is user-authored — was interpolated raw into <note>.
-    const exampleName = escapeXmlContent(rawExampleName);
-    notes.push(
-      `<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "${exampleName}: message"</note>`
-    );
-  }
-  return notes;
-}
-
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Builds XML for each participant with conditional persona description, system prompt, and group conversation notes
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
-  activePersonaName?: string,
-  collisionNote?: string,
-  order: 'stable' | 'insertion' = 'stable'
+  personalityName: string
 ): string {
-  if (participantPersonas.size === 0 && collisionNote === undefined) {
+  if (participantPersonas.size === 0) {
     return '';
   }
 
   const parts: string[] = [];
   parts.push('<participants>');
-  parts.push(
-    '<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>'
-  );
+  parts.push(PARTICIPANTS_INSTRUCTION);
 
   // Render in persona-UUID order, not Map-iteration (recency) order. Selection
   // upstream stays recency-based — the MAX_EXTENDED_CONTEXT_PARTICIPANTS cap
@@ -96,76 +195,21 @@ export function formatParticipantsContext(
   // prompt-cache prefix, and prod measurement showed recency-ordered rendering
   // reshuffles it between turns, invalidating the cached prefix for no
   // informational gain. The UUID is a stable deterministic key over the same
-  // selected set. `order: 'insertion'` exists ONLY for the legacy eval arm,
-  // which must reproduce the pre-restructure Map-iteration bytes; production
-  // callers never pass it.
+  // selected set.
   // Ordinal compare, NOT localeCompare: the sort exists for byte-determinism,
   // and an unpinned localeCompare is ICU-driven — a Node/ICU bump between
   // deploys could reorder the same set and silently cost a full prefix miss.
-  const orderedParticipants =
-    order === 'stable'
-      ? [...participantPersonas.values()].sort((a, b) =>
-          a.personaId < b.personaId ? -1 : a.personaId > b.personaId ? 1 : 0
-        )
-      : [...participantPersonas.values()];
+  const orderedParticipants = [...participantPersonas.values()].sort((a, b) =>
+    a.personaId < b.personaId ? -1 : a.personaId > b.personaId ? 1 : 0
+  );
 
   for (const info of orderedParticipants) {
-    // Build participant tag with id and optional active attribute
-    const activeAttr = info.isActive ? ' active="true"' : '';
-    parts.push(`<participant id="${escapeXml(info.personaId)}"${activeAttr}>`);
-
-    // Name element - use preferredName if available, otherwise fall back to personaName
-    const displayName = info.preferredName ?? info.personaName;
-    parts.push(`<name>${escapeXml(displayName)}</name>`);
-
-    // Pronouns element (if available)
-    if (info.pronouns !== undefined && info.pronouns.length > 0) {
-      parts.push(`<pronouns>${escapeXml(info.pronouns)}</pronouns>`);
-    }
-
-    // Guild info (if available) - attributes for metadata, child element for roles
-    if (info.guildInfo) {
-      const guildAttrs: string[] = [];
-
-      if (info.guildInfo.displayColor !== undefined && info.guildInfo.displayColor !== '') {
-        guildAttrs.push(`color="${escapeXml(info.guildInfo.displayColor)}"`);
-      }
-
-      if (info.guildInfo.joinedAt !== undefined && info.guildInfo.joinedAt !== '') {
-        const dateOnly = formatDateOnly(info.guildInfo.joinedAt, 'UTC');
-        guildAttrs.push(`joined="${escapeXml(dateOnly)}"`);
-      }
-
-      const hasRoles = info.guildInfo.roles.length > 0;
-      const attrsStr = guildAttrs.length > 0 ? ` ${guildAttrs.join(' ')}` : '';
-
-      if (hasRoles) {
-        // Roles as child elements
-        parts.push(`<guild_info${attrsStr}>`);
-        parts.push('<roles>');
-        for (const role of info.guildInfo.roles) {
-          parts.push(`<role>${escapeXml(role)}</role>`);
-        }
-        parts.push('</roles>');
-        parts.push('</guild_info>');
-      } else if (guildAttrs.length > 0) {
-        // Self-closing if only attributes, no roles
-        parts.push(`<guild_info${attrsStr}/>`);
-      }
-    }
-
-    // User-provided persona content. Uses escapeXmlContent (targeted): it
-    // preserves literal <3 / x > 5 like CDATA did, but ALSO renders any
-    // structural tag inert to the LLM (CDATA does not — the model reads raw
-    // text, so a CDATA-wrapped </about> is still visible markup to it). <about>
-    // and <participant> are protected so content can't forge another party.
-    // source="user_input" tells LLM this is user's self-description, not system instructions
-    parts.push(`<about source="user_input">${escapeXmlContent(info.content)}</about>`);
-
-    parts.push('</participant>');
+    // No `active` attribute: the speaker is identified by the turn's own <from>
+    // tag, and marking them here made the cached prefix per-speaker.
+    parts.push(...renderParticipantElement(info));
   }
 
-  parts.push(...buildRosterNotes(participantPersonas.size, activePersonaName, collisionNote));
+  parts.push(...buildRosterNotes(orderedParticipants, personalityName));
 
   parts.push('</participants>');
 
