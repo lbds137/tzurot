@@ -12,6 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { formatParticipantsContext } from './ParticipantFormatter.js';
+import { extractXmlTextContent } from '../../utils/xmlTextExtractor.js';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
 describe('ParticipantFormatter', () => {
@@ -776,7 +777,14 @@ describe('ParticipantFormatter', () => {
 
           // The attribution must survive stripping every tag — that is exactly
           // the reading a model doing weak structural tracking performs.
-          const untagged = result.replace(/<[^>]*>/g, '');
+          //
+          // Strips via the codebase's own extractor rather than a tag regex:
+          // `/<[^>]*>/g` is the shape `00-critical.md` bans (CodeQL flags it as
+          // incomplete multi-character sanitization, and it did — on the release
+          // PR, not on the PR that introduced it). Using the real extractor also
+          // makes this a truer test of the claim, since it is what production
+          // uses to turn this XML back into prose.
+          const untagged = extractXmlTextContent(result);
           expect(untagged).toContain("In Lila's own words: I carry demon-angel lineage.");
         });
 
