@@ -336,3 +336,47 @@ per-request analysis with a real tokenizer — a live follow-up, not a settled f
   reading expiry, not prefix stability. Read the <2 min bucket and the hit-depth
   distribution, not the headline ratio.
 - The unlocalized S1 cut is the next open question, and it may bound the win.
+
+## S1 CUT LOCALIZED 2026-08-17 (TASK-641) — it is persona alternation, recorded as INHERENT
+
+Instrument: `pnpm ops cache:prefix-diff --env prod --channel <thread> --limit 15`.
+The tool already existed and this doc already cited it (see the 2026-08-15 section);
+a session re-derived its design from scratch before finding it. Thread snowflakes
+work directly — `channel_id` records the thread's own id, measured, not the parent's.
+
+Ten consecutive pairs from one owner thread (01:20–05:04 UTC). Divergences land in
+exactly TWO sections, never anywhere else:
+
+| pattern | pairs | common prefix | divergence |
+| --- | --- | --- | --- |
+| healthy tail-append | 7 | 90–99% | `H chat_log` |
+| deep truncation | 1 | 25% | `H chat_log` @ 34,302 chars |
+| prefix collapse | 2 | 5%, 1% | `S1 system_identity` @ **1956** |
+
+**The S1 cut is persona alternation — inherent, not a defect.** Both S1 rows diverge
+at the IDENTICAL offset 1956 and bracket a single request whose prompt is 41,775
+chars where every neighbour is ~142,000; the main conversation's length continues
+smoothly across it (142,316 → 145,315), so that request is an interloper, not part
+of the same growing thread. Owner confirmed a different character spoke at that
+point. Two personas share S0 plus a common identity preamble and split 1956 chars
+in, which is the legitimate divergence §2.5.2 anticipated. **No S1-side fix is
+indicated, and TASK-641's worry that "an S1 divergence may bound the win" does NOT
+hold for this shape.**
+
+**Reading caveat, load-bearing for anyone re-running this:** the tool diffs
+CONSECUTIVE requests, but the provider caches the longest match across ALL recent
+prefixes. An interloper therefore does not necessarily cost the next request its
+hit — the following request can still match the prefix left by the one before the
+interloper. Consecutive-pair diffing is a proxy for the cache lookup, not the
+lookup. Do not convert an `S1` row into a billed miss without that check.
+
+**The row that matters is the 25% one**: same persona, divergence INSIDE `chat_log`
+at 34,302 chars (~9.5k tokens, floored to a 9,472-token block). Not alternation and
+not tail-append — the history window's head moved. First direct prod observation of
+the head-slide that beta.204 PR 2's count-cap hysteresis exists to stop; previously
+this was inferred from aggregates only.
+
+**Still open**: one thread is not the 53-call shallow-hit population. Whether the
+chat_log-head-slide vs persona-alternation split generalizes needs 2-3 more channels.
+That generalization is what SIZES beta.204's win; the localization question TASK-641
+actually asks is answered.
