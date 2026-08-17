@@ -110,11 +110,12 @@ describe('HardcodedConstraints', () => {
     });
 
     it('never carries collision text (S1-stability invariant)', () => {
-      // The name-collision disambiguation renders in the V-tier participants
-      // block (PromptBuilder.buildVolatilePrefix); this block must stay a pure
-      // function of the personality so the cacheable prefix is byte-stable.
+      // The name-collision disambiguation renders in the participants block,
+      // which is part of the S1 cacheable prefix (PromptBuilder.buildSystemMessage);
+      // this block must stay a pure function of the personality so that prefix
+      // is byte-stable.
       const result = buildIdentityConstraints('TestBot');
-      expect(result).not.toContain('shares your name');
+      expect(result).not.toContain('matches your own');
     });
   });
 });
