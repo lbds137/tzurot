@@ -3,9 +3,10 @@ id: TASK-622
 title: >-
   Roster active-flag and collision note make the system-prefix per-speaker
   volatile
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 21:58'
+updated_date: '2026-08-17 05:12'
 labels:
   - 'area:ai-worker'
   - 'size:S'
