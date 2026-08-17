@@ -1,9 +1,10 @@
 ---
 id: TASK-634
 title: Dev retention nag recommends a purge whose deletions would sync to prod
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 22:56'
+updated_date: '2026-08-17 00:15'
 labels:
   - 'area:bot-client'
   - 'size:S'
