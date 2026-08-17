@@ -23,7 +23,7 @@ Release review clean (no blocking findings; it independently verified the migrat
 
 ## 📋 Open items (near-term)
 
-- **Purge authorization (owner, open ask)**: 18 prod accounts purge-eligible, all never-used-directly class (no notice owed, zero characters); 1 reachable user awaits the warning DM (`retention:notify`). Manual runs only — awaiting explicit owner go-ahead.
+- **Purge EXECUTED (owner-authorized 2026-08-16)**: 20 never-used accounts erased (cohort had grown 18→20 by run time), 0 characters touched, post-run preview confirms 0 eligible, userbase 228→208. Tombstones propagate to dev on next sync (the #2120-safe direction). Remaining: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call).
 - **S1 (beta.201, #2090 export-clear round-trip) — STILL OPEN**: export a character with an **empty** field → re-import → confirm it stays empty. TASK-590 (`customFields` lossy gateway-side) is the known gap left out on purpose.
 - **Housekeeping**: `3f50da50.jsonl` (155MB, fully mined) is a disk-space deletion candidate — owner's explicit okay still needed.
 
