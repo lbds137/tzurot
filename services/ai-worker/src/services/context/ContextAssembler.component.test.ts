@@ -96,7 +96,7 @@ describe('ContextAssembler.assembleCore — PGLite component', () => {
     });
     personality = { id: personalityId, name: 'AssemblerIntBot' } as LoadedPersonality;
 
-    // Two channel-history rows (chronological); getChannelHistory reads them by
+    // Two channel-history rows (chronological); getChannelHistoryWindow reads them by
     // channelId. discordMessageId lets the trigger-exclusion test target one.
     const seedTurn = async (
       content: string,

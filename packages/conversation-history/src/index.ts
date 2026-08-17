@@ -19,7 +19,17 @@
  * share one implementation without a cross-service import.
  */
 
-export { ConversationHistoryService } from './ConversationHistoryService.js';
+export {
+  ConversationHistoryService,
+  getChannelHistoryWindow,
+  type ChannelHistoryWindowParams,
+  type ChannelHistoryWindowResult,
+} from './ConversationHistoryService.js';
+// TransactionalConversationHistoryClient is deliberately NOT re-exported: it is
+// the capability the windowed read asks for at its own signature, and every
+// external consumer reaches it structurally by passing a real PrismaClient.
+// Exporting it would invite a consumer to type a field as "transaction-capable"
+// — which is how the narrow type got widened in the first place.
 export { type ConversationHistoryClient } from './ConversationMessageMapper.js';
 export { ConversationRetentionService } from './ConversationRetentionService.js';
 export { ConversationSyncService } from './ConversationSyncService.js';

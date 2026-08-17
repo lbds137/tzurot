@@ -157,7 +157,7 @@ describe('mineConversationGoldens (the Prisma + fs seams)', () => {
     const priorCall = mockQueryRaw.mock.calls[1];
     const sql = (priorCall[0] as string[]).join(' ');
     expect(sql).toContain('channel_id');
-    // The finding-#1 regression guard: production's getChannelHistory is channel-only,
+    // The finding-#1 regression guard: production's getChannelHistoryWindow is channel-only,
     // so folding this by personality would diverge on multi-persona channels.
     expect(sql).not.toContain('personality_id');
     const priorValues = priorCall.slice(1);

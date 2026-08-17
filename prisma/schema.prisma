@@ -646,6 +646,21 @@ model ConversationHistory {
   pendingMemory    PendingMemory?
 
   @@index([channelId, personalityId, createdAt(sort: Desc)])
+  // Backs the windowed channel-history fetch, which is channel-scoped with NO
+  // personalityId filter — the index above cannot serve it in order, because
+  // personality_id sits between the equality column and the sort columns. On
+  // dev's busiest channel (2,938 rows) the planner switched from seq scan +
+  // top-N sort (6.4ms, 1,496 buffers) to an ordered index scan that stops at
+  // the LIMIT (0.15ms, 17 buffers), unforced.
+  //
+  // Write path checked too, because the comment below is this table's own
+  // precedent for a read-side win hiding a write-side cost: 300 inserts with
+  // and without it, inside a rolled-back transaction on dev, came out +1.3%
+  // per insert. Read that as an upper BOUND rather than a figure — at ~11ms
+  // per insert the timing is dominated by network round-trip, so a sub-0.1ms
+  // index cost is below this measurement's resolution. What it does rule out
+  // is the failure mode below: nothing resembling a multi-second stall.
+  @@index([channelId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([personaId, personalityId, createdAt(sort: Desc)])
   @@index([discordMessageId])
   // No GIN index on messageMetadata: nothing queries it by JSONB containment

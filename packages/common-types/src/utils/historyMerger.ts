@@ -118,7 +118,7 @@ export function enrichDbMessagesWithExtendedMetadata(
  * `conversation_history` rows are personality-scoped and there is no unique
  * constraint on `discordMessageId`, so a single Discord message that triggered
  * N personalities (a user's @-ping to multiple characters in one channel) is
- * stored as N rows sharing the same `discordMessageId`. `getChannelHistory` is
+ * stored as N rows sharing the same `discordMessageId`. `getChannelHistoryWindow` is
  * channel-scoped — it fetches ALL personalities' rows — so every duplicate
  * comes back, and the merge would otherwise surface that one user turn N times
  * in the model context.
@@ -169,7 +169,7 @@ export function mergeWithHistory(
   // Collapse same-Discord-message duplicate rows FIRST. A user's @-ping to
   // multiple characters is persisted once per responding personality (rows are
   // personality-scoped, no unique constraint on discordMessageId), and the
-  // channel-scoped getChannelHistory returns all of them — without this the
+  // channel-scoped getChannelHistoryWindow returns all of them — without this the
   // merge would surface that one user turn N times. See dedupeDbHistoryByMessageId.
   const dedupedDbHistory = dedupeDbHistoryByMessageId(dbHistory);
 

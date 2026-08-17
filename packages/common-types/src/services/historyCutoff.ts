@@ -8,7 +8,7 @@
  *
  * Both are lower bounds — older messages are excluded — so combining them
  * means taking the more recent (later) cutoff. This is the single source of
- * truth used by both `getChannelHistory` and `getCrossChannelHistory` so the
+ * truth used by both `getChannelHistoryWindow` and `getCrossChannelHistory` so the
  * two paths can't drift in their interpretation of "after which timestamp".
  */
 

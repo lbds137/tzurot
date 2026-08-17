@@ -21,10 +21,30 @@ const logger = createLogger('ConversationMessageMapper');
  * Structural subset of PrismaClient that the conversation-history modules
  * actually use. A full PrismaClient satisfies it — and so does an
  * `$extends`-wrapped client (api-gateway's fast pool with blanket dead-conn
- * retry), which the nominal `PrismaClient` type would force behind an
- * `as unknown as` cast because `$extends` returns a differently-typed client.
+ * retry, `applyFastPoolDeadConnRetry` in `utils/dbTimeout.ts`), which the
+ * nominal `PrismaClient` type would force behind an `as unknown as` cast
+ * because `$extends` returns a differently-typed client.
+ *
+ * **This type's NARROWNESS is load-bearing, not incidental.** It is what the
+ * fast pool is typed as, and the fast pool carries a blanket retry-once that is
+ * safe only for idempotent single-row work. Because `$transaction` is absent
+ * here, opening a transaction on that pool fails to compile — see the
+ * dedication argument on `applyFastPoolDeadConnRetry`. Do NOT add capabilities
+ * to this type to satisfy one consumer; give that consumer its own type, as
+ * {@link TransactionalConversationHistoryClient} does.
  */
 export type ConversationHistoryClient = Pick<PrismaClient, 'conversationHistory'>;
+
+/**
+ * A client that can additionally open an interactive transaction.
+ *
+ * Separate from {@link ConversationHistoryClient} so that requiring a
+ * transaction cannot silently hand the capability to the fast pool. Only the
+ * windowed channel read needs it — its count and its rows must come from ONE
+ * snapshot — and it asks for it explicitly at its own signature.
+ */
+export type TransactionalConversationHistoryClient = ConversationHistoryClient &
+  Pick<PrismaClient, '$transaction'>;
 
 /**
  * Prisma select object for conversation history queries
@@ -83,6 +103,42 @@ export const conversationRecencyOrderBy: Prisma.ConversationHistoryOrderByWithRe
   { createdAt: 'desc' },
   { id: 'desc' },
 ];
+
+/** Inputs to the channel-history predicate. */
+export interface ChannelHistoryWhereParams {
+  channelId: string;
+  /** Resolved `createdAt >=` cutoff, or undefined for no time bound. */
+  cutoff?: Date;
+  /**
+   * A Discord message id to exclude — the turn that triggered the request.
+   * Excluded DB-SIDE rather than post-filtered: the window's count and its
+   * rows must describe the same set, and a row filtered off afterwards would
+   * hand back one message fewer than the arithmetic promised.
+   */
+  excludeDiscordMessageId?: string;
+}
+
+/**
+ * The channel-history predicate, built once and used by BOTH the count and the
+ * fetch of a windowed read. Sharing the object is the mechanism, not a
+ * convenience: two independently-built predicates that drift produce a count
+ * over one row set and a window over another, and nothing would detect it.
+ *
+ * Deliberately NO personalityId filter — channel history is cross-personality.
+ */
+export function buildChannelHistoryWhere(
+  params: ChannelHistoryWhereParams
+): Prisma.ConversationHistoryWhereInput {
+  const { channelId, cutoff, excludeDiscordMessageId } = params;
+  return {
+    channelId,
+    deletedAt: null,
+    ...(cutoff !== undefined ? { createdAt: { gte: cutoff } } : {}),
+    ...(excludeDiscordMessageId !== undefined
+      ? { NOT: { discordMessageId: { has: excludeDiscordMessageId } } }
+      : {}),
+  };
+}
 
 /**
  * Safely parse messageMetadata from database JSONB column

@@ -16,7 +16,12 @@ import {
   type ConversationMessage,
   type CrossChannelHistoryGroup,
 } from '@tzurot/common-types/types/conversationMessage';
-import { ConversationHistoryService } from '@tzurot/conversation-history';
+import {
+  ConversationHistoryService,
+  getChannelHistoryWindow,
+  type ChannelHistoryWindowParams,
+  type ChannelHistoryWindowResult,
+} from '@tzurot/conversation-history';
 import { getOrCreateUserService, type UserService } from '@tzurot/identity';
 import type {
   ContextDataSource,
@@ -33,13 +38,13 @@ export class PrismaContextDataSource implements ContextDataSource {
     this.users = getOrCreateUserService(prisma);
   }
 
-  async getChannelHistory(
-    channelId: string,
-    limit: number,
-    contextEpoch?: Date,
-    maxAgeSeconds?: number | null
-  ): Promise<ConversationMessage[]> {
-    return this.history.getChannelHistory(channelId, limit, contextEpoch, maxAgeSeconds);
+  async getChannelHistoryWindow(
+    params: ChannelHistoryWindowParams
+  ): Promise<ChannelHistoryWindowResult> {
+    // The free function, not a service method: it needs `$transaction`, which
+    // the service's client type deliberately lacks (see its doc). ai-worker
+    // holds a full PrismaClient, so it can supply the capability.
+    return getChannelHistoryWindow(this.prisma, params);
   }
 
   async getCrossChannelHistory(
