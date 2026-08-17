@@ -29,14 +29,14 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<participants>');
         expect(result).toContain('</participants>');
       });
 
       it('should not add XML wrapper when no participants', () => {
-        const result = formatParticipantsContext(new Map());
+        const result = formatParticipantsContext(new Map(), 'Lilith');
 
         expect(result).toBe('');
         expect(result).not.toContain('<participants>');
@@ -57,7 +57,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Mallory');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // Exactly one real <about> open per participant; the injected boundary
         // tags are escaped, not live markup.
@@ -78,7 +78,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // Count opening and closing tags
         const openTags = (result.match(/<participants>/g) || []).length;
@@ -89,7 +89,7 @@ describe('ParticipantFormatter', () => {
     });
 
     it('should return empty string when no participants', () => {
-      const result = formatParticipantsContext(new Map());
+      const result = formatParticipantsContext(new Map(), 'Lilith');
       expect(result).toBe('');
     });
 
@@ -106,7 +106,7 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice');
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       // Check for XML structure with ID binding
       expect(result).toContain('<participant id="persona-123"');
@@ -117,30 +117,25 @@ describe('ParticipantFormatter', () => {
       expect(result).not.toContain('<note>');
     });
 
-    it('should mark active participant', () => {
-      const participants = new Map<string, ParticipantInfo>([
+    it('never marks the active participant — the flag made the cache prefix per-speaker', () => {
+      const active = new Map<string, ParticipantInfo>([
         [
           'persona-1',
           { personaName: 'Alice', content: 'Developer', isActive: true, personaId: 'persona-1' },
         ],
       ]);
-
-      const result = formatParticipantsContext(participants, 'Alice');
-
-      expect(result).toContain('active="true"');
-    });
-
-    it('should not mark inactive participants as active', () => {
-      const participants = new Map<string, ParticipantInfo>([
+      const inactive = new Map<string, ParticipantInfo>([
         [
           'persona-1',
           { personaName: 'Alice', content: 'Developer', isActive: false, personaId: 'persona-1' },
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice');
-
-      expect(result).not.toContain('active="true"');
+      expect(formatParticipantsContext(active, 'Lilith')).not.toContain('active=');
+      // isActive is the ONLY differing input, so the bytes must be identical.
+      expect(formatParticipantsContext(active, 'Lilith')).toBe(
+        formatParticipantsContext(inactive, 'Lilith')
+      );
     });
 
     it('should format multiple participants with group note', () => {
@@ -160,69 +155,16 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice');
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       // Check both participants
       expect(result).toContain('<participant id="persona-1"');
       expect(result).toContain('<name>Alice</name>');
       expect(result).toContain('<participant id="persona-2"');
       expect(result).toContain('<name>Bob</name>');
-      // Group note should be present
+      // Group note should be present, and names nobody
       expect(result).toContain('<note>This is a group conversation');
-      expect(result).toContain('Alice: message');
-    });
-
-    it('should use provided activePersonaName in group note', () => {
-      const participants = new Map<string, ParticipantInfo>([
-        [
-          'persona-1',
-          { personaName: 'Alice', content: 'Person 1', isActive: false, personaId: 'persona-1' },
-        ],
-        [
-          'persona-2',
-          { personaName: 'Bob', content: 'Person 2', isActive: true, personaId: 'persona-2' },
-        ],
-      ]);
-
-      const result = formatParticipantsContext(participants, 'Bob');
-
-      expect(result).toContain('Bob: message');
-    });
-
-    it('should use fallback name when activePersonaName is undefined', () => {
-      const participants = new Map<string, ParticipantInfo>([
-        [
-          'persona-1',
-          { personaName: 'Alice', content: 'Person 1', isActive: true, personaId: 'persona-1' },
-        ],
-        [
-          'persona-2',
-          { personaName: 'Bob', content: 'Person 2', isActive: false, personaId: 'persona-2' },
-        ],
-      ]);
-
-      const result = formatParticipantsContext(participants);
-
-      // Fallback is "Alice" (first example in implementation)
-      expect(result).toContain('Alice: message');
-    });
-
-    it('should use fallback name when activePersonaName is empty', () => {
-      const participants = new Map<string, ParticipantInfo>([
-        [
-          'persona-1',
-          { personaName: 'Alice', content: 'Person 1', isActive: true, personaId: 'persona-1' },
-        ],
-        [
-          'persona-2',
-          { personaName: 'Bob', content: 'Person 2', isActive: false, personaId: 'persona-2' },
-        ],
-      ]);
-
-      const result = formatParticipantsContext(participants, '');
-
-      // Fallback is "Alice" (first example in implementation)
-      expect(result).toContain('Alice: message');
+      expect(result).not.toContain('Alice: message');
     });
 
     it('should format three participants', () => {
@@ -241,7 +183,7 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice');
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       expect(result).toContain('<name>Alice</name>');
       expect(result).toContain('<about source="user_input">Developer</about>');
@@ -271,7 +213,7 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants);
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       const firstIndex = result.indexOf('<name>First</name>');
       const secondIndex = result.indexOf('<name>Second</name>');
@@ -299,36 +241,104 @@ describe('ParticipantFormatter', () => {
         new Map<string, ParticipantInfo>([
           ['persona-a', alice],
           ['persona-b', bob],
-        ])
+        ]),
+        'Lilith'
       );
       const bobFirst = formatParticipantsContext(
         new Map<string, ParticipantInfo>([
           ['persona-b', bob],
           ['persona-a', alice],
-        ])
+        ]),
+        'Lilith'
       );
 
       expect(aliceFirst).toBe(bobFirst);
     });
 
-    it("preserves Map-insertion order under order: 'insertion' (legacy eval arm)", () => {
-      // The legacy voice-consistency arm must reproduce the pre-restructure
-      // bytes, which iterated the Map directly — so the escape hatch must NOT
-      // sort. Fixture deliberately inserts against UUID order.
-      const participants = new Map<string, ParticipantInfo>([
-        [
-          'persona-z',
-          { personaName: 'Zoe', content: 'Content Z', isActive: false, personaId: 'persona-z' },
-        ],
-        [
-          'persona-a',
-          { personaName: 'Ann', content: 'Content A', isActive: true, personaId: 'persona-a' },
-        ],
-      ]);
+    describe('speaker-independence (S1 cache-prefix stability)', () => {
+      // TASK-622: the roster sits in the provider's cache prefix, ahead of
+      // chat_log. Any byte here that tracks the current speaker invalidates the
+      // roster AND the whole log behind it on every speaker change in a
+      // multi-human channel. These pin that no such byte exists.
+      const roster = (activeId: string): Map<string, ParticipantInfo> =>
+        new Map<string, ParticipantInfo>([
+          [
+            'persona-a',
+            {
+              personaName: 'Alice',
+              content: 'Content A',
+              isActive: activeId === 'persona-a',
+              personaId: 'persona-a',
+            },
+          ],
+          [
+            'persona-b',
+            {
+              personaName: 'Bob',
+              content: 'Content B',
+              isActive: activeId === 'persona-b',
+              personaId: 'persona-b',
+            },
+          ],
+        ]);
 
-      const result = formatParticipantsContext(participants, undefined, undefined, 'insertion');
+      it('renders byte-identically across consecutive turns with different speakers', () => {
+        expect(formatParticipantsContext(roster('persona-a'), 'Lilith')).toBe(
+          formatParticipantsContext(roster('persona-b'), 'Lilith')
+        );
+      });
 
-      expect(result.indexOf('persona-z')).toBeLessThan(result.indexOf('persona-a'));
+      it('stays byte-identical across speakers when a participant collides with the character', () => {
+        // The colliding participant is Alice; the note must render the same
+        // whether Alice or Bob is the one talking.
+        const whileAliceSpeaks = formatParticipantsContext(roster('persona-a'), 'Alice');
+        const whileBobSpeaks = formatParticipantsContext(roster('persona-b'), 'Alice');
+
+        expect(whileAliceSpeaks).toContain('<note>A name in the roster above matches your own.');
+        expect(whileAliceSpeaks).toBe(whileBobSpeaks);
+      });
+
+      it('renders no collision note when no roster member shares the character name', () => {
+        expect(formatParticipantsContext(roster('persona-a'), 'Lilith')).not.toContain(
+          'matches your own'
+        );
+      });
+
+      it('matches the collision case-insensitively, and on the rendered display name', () => {
+        const preferred = new Map<string, ParticipantInfo>([
+          [
+            'persona-a',
+            {
+              personaName: 'alice-from-db',
+              preferredName: 'LILITH',
+              content: 'Content A',
+              isActive: true,
+              personaId: 'persona-a',
+            },
+          ],
+        ]);
+
+        expect(formatParticipantsContext(preferred, 'Lilith')).toContain('matches your own');
+      });
+
+      it('names nobody in the collision note — no user-derived bytes reach the prefix', () => {
+        const result = formatParticipantsContext(roster('persona-a'), 'Alice');
+
+        // The concrete "Alice (@handle)" disambiguation lives on the volatile
+        // <from> tag instead (buildDisambiguatedDisplayName).
+        const notes = result.split('\n').filter(line => line.startsWith('<note>'));
+        expect(notes.length).toBeGreaterThan(0);
+        for (const note of notes) {
+          expect(note).not.toContain('Alice');
+          expect(note).not.toContain('Bob');
+        }
+      });
+
+      it('renders no collision note for an empty character name', () => {
+        expect(formatParticipantsContext(roster('persona-a'), '')).not.toContain(
+          'matches your own'
+        );
+      });
     });
 
     it('should include instruction element', () => {
@@ -339,7 +349,7 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice');
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       expect(result).toContain('<instruction>');
       expect(result).toContain('from_id');
@@ -359,7 +369,7 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice <Admin>');
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       // Name should be escaped
       expect(result).toContain('<name>Alice &lt;Admin&gt;</name>');
@@ -378,7 +388,7 @@ describe('ParticipantFormatter', () => {
         ],
       ]);
 
-      const result = formatParticipantsContext(participants, 'Alice');
+      const result = formatParticipantsContext(participants, 'Lilith');
 
       // ID should be escaped in attribute
       expect(result).toContain('id="persona-123&amp;456"');
@@ -399,7 +409,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Lila');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<pronouns>she/her, they/them</pronouns>');
       });
@@ -418,7 +428,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).not.toContain('<pronouns>');
       });
@@ -437,7 +447,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).not.toContain('<pronouns>');
       });
@@ -456,7 +466,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Lila ☠');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // Should use preferredName, not personaName
         expect(result).toContain('<name>Lila ☠</name>');
@@ -477,7 +487,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<name>Alice</name>');
       });
@@ -496,7 +506,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<pronouns>she/her &amp; they/them</pronouns>');
       });
@@ -519,7 +529,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Lila');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         const nameIndex = result.indexOf('<name>Lila</name>');
         const pronounsIndex = result.indexOf('<pronouns>she/her</pronouns>');
@@ -551,7 +561,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<guild_info');
         expect(result).toContain('<roles>');
@@ -580,7 +590,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // Should only include date part
         expect(result).toContain('joined="2023-05-15"');
@@ -603,7 +613,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // No guild_info since roles is empty and no other properties
         expect(result).not.toContain('<guild_info');
@@ -625,7 +635,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<guild_info>');
         expect(result).toContain('<roles>');
@@ -652,7 +662,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<guild_info color="#00FF00"/>');
       });
@@ -671,7 +681,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).not.toContain('<guild_info');
       });
@@ -692,7 +702,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // Roles should be escaped within <role> elements
         expect(result).toContain('<role>Admin &amp; Manager</role>');
@@ -714,7 +724,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('<about source="user_input">I am a developer</about>');
       });
@@ -727,7 +737,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         expect(result).toContain('source="user_input"');
       });
@@ -745,7 +755,7 @@ describe('ParticipantFormatter', () => {
           ],
         ]);
 
-        const result = formatParticipantsContext(participants, 'Alice');
+        const result = formatParticipantsContext(participants, 'Lilith');
 
         // escapeXmlContent is targeted: <tags>/quotes/& aren't prompt structural
         // tags, so they pass through literally (same benign-preservation CDATA gave).

@@ -167,7 +167,7 @@ You are a helpful assistant. Always be kind and helpful.
 
 <participants>
 <instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
-<participant id="p-test" active="true">
+<participant id="p-test">
 <name>TestUser</name>
 <about source="user_input">A developer testing the bot</about>
 </participant>
@@ -225,7 +225,7 @@ You are a helpful assistant. Always be kind and helpful.
 
 <participants>
 <instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
-<participant id="p-alice" active="true">
+<participant id="p-alice">
 <name>Alice</name>
 <about source="user_input">Software developer who loves TypeScript</about>
 </participant>
@@ -257,7 +257,7 @@ You are a helpful assistant. Always be kind and helpful.
 <name>Henry</name>
 <about source="user_input">QA engineer ensuring quality</about>
 </participant>
-<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "TestUser: message"</note>
+<note>This is a group conversation. Each chat_log message carries a from_id identifying its speaker — match it to the participant ids above.</note>
 </participants>"
 `;
 

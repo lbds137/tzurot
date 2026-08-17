@@ -18,12 +18,13 @@
  *
  * Formatters verified UNCHANGED since that revision import live
  * (PersonalityFieldsFormatter, EnvironmentFormatter, MessageFormatters,
- * ParticipantFormatter sans collision note, formatSingleMemory/-Fact); only
- * what the restructure changed is frozen here. One pinned exception: the live
- * ParticipantFormatter now sorts the roster by persona UUID for cache-prefix
- * stability, so this arm passes `order: 'insertion'` to reproduce the old
- * Map-iteration bytes. A snapshot test pins this file's output so silent
- * drift is impossible.
+ * formatSingleMemory/-Fact); only what the restructure changed is frozen here.
+ * One pinned exception: the live `<participants>` block has since shed every
+ * per-speaker and recency-ordered byte for cache-prefix stability, so
+ * `legacyFormatParticipantsContext` below reproduces the old wrapper (insertion
+ * order, `active="true"`, speaker-named group note) over the shared element
+ * renderer. A snapshot test pins this file's output so silent drift is
+ * impossible.
  *
  * EVAL-ONLY — never imported by production code. Delete (or re-arm as the
  * "old" side) when the harness re-runs at the Phase-2 exit gate.
@@ -38,7 +39,10 @@ import type {
   ParticipantInfo,
   FactForPrompt,
 } from '../ConversationalRAGTypes.js';
-import { formatParticipantsContext } from '../prompt/ParticipantFormatter.js';
+import {
+  renderParticipantElement,
+  PARTICIPANTS_INSTRUCTION,
+} from '../prompt/ParticipantFormatter.js';
 import { formatSingleMemory, formatSingleFact } from '../prompt/MemoryFormatter.js';
 import { layoutSections, type PromptSection } from '../prompt/sections.js';
 import { formatPersonalityFields } from '../prompt/PersonalityFieldsFormatter.js';
@@ -49,6 +53,45 @@ import {
   wrapWithSpeakerIdentification,
 } from '../prompt/MessageFormatters.js';
 import { detectNameCollision } from '../prompt/PromptLogger.js';
+
+/**
+ * The pre-restructure `<participants>` block.
+ *
+ * Three bytes-level differences from the live formatter, all of which the
+ * live one shed for prompt-cache stability: Map-insertion (recency) order
+ * rather than persona-UUID order, `active="true"` on the current speaker, and
+ * a group-conversation note whose example name is the current speaker's. The
+ * `<participant>` element body itself never changed, so it comes from the
+ * shared renderer rather than a frozen copy.
+ */
+export function legacyFormatParticipantsContext(
+  participantPersonas: Map<string, ParticipantInfo>,
+  activePersonaName?: string
+): string {
+  if (participantPersonas.size === 0) {
+    return '';
+  }
+
+  const parts: string[] = ['<participants>', PARTICIPANTS_INSTRUCTION];
+
+  for (const info of participantPersonas.values()) {
+    parts.push(...renderParticipantElement(info, true));
+  }
+
+  if (participantPersonas.size > 1) {
+    const rawExampleName =
+      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice';
+    // activePersonaName is user-authored — was interpolated raw into <note>.
+    const exampleName = escapeXmlContent(rawExampleName);
+    parts.push(
+      `<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "${exampleName}: message"</note>`
+    );
+  }
+
+  parts.push('</participants>');
+
+  return parts.join('\n');
+}
 
 /** Pre-restructure memory-archive framing (superseded by the internal-recall wording). */
 export const LEGACY_MEMORY_ARCHIVE_INSTRUCTION =
@@ -199,13 +242,11 @@ ${escapeXmlContent(persona)}
 ${locationXml}
 </context>`;
 
-  // Old call shape: no collision note in the roster (it rendered above), and
-  // insertion order — the pre-restructure formatter iterated the Map directly.
-  const participantsContext = formatParticipantsContext(
+  // No collision note in the roster — pre-restructure it rendered above, inside
+  // identity_constraints.
+  const participantsContext = legacyFormatParticipantsContext(
     participantPersonas,
-    context.activePersonaName,
-    undefined,
-    'insertion'
+    context.activePersonaName
   );
 
   const factsContext = legacyFactsContext(options.facts ?? [], {

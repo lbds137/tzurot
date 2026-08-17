@@ -37,7 +37,7 @@ import {
 } from './prompt/MessageFormatters.js';
 import * as tokenCounters from './prompt/TokenCounters.js';
 import { buildSearchQuery } from './prompt/SearchQueryBuilder.js';
-import { logDetailedPromptAssembly, detectNameCollision } from './prompt/PromptLogger.js';
+import { logDetailedPromptAssembly } from './prompt/PromptLogger.js';
 
 const logger = createLogger('PromptBuilder');
 
@@ -123,11 +123,13 @@ export class PromptBuilder {
    * - Provides consistent behavior between current turn and history
    *
    * The message includes speaker identification via a <from> tag to help the LLM
-   * know who is speaking. This is critical because while the system message's
-   * participants roster marks the speaker active="true" and its chat_log has
-   * from= attributes, the raw HumanMessage content also needs explicit speaker
-   * identification. The tag carries the speaker's id and pronouns so the current
-   * turn is self-describing without a lookup back into the roster.
+   * know who is speaking. The system message's roster is deliberately
+   * speaker-independent so it stays in the provider's cache prefix, so it names
+   * the participants but never which of them is talking now; chat_log entries
+   * do name their own speaker (`from=` alongside `from_id=`, disambiguated per
+   * line by `resolveSpeakerInfo`), but the live turn has no chat_log entry yet.
+   * This tag is what identifies the speaker for that turn, carrying their id
+   * and pronouns so it is self-describing without a lookup back into the roster.
    */
   buildHumanMessage(
     userMessage: string,
@@ -226,11 +228,10 @@ export class PromptBuilder {
    * `chat_log` (H) is last — it grows per turn, so everything before it stays
    * a stable prefix between turns. `location` and `participants` sit at the end
    * of the S1 run, ahead of `chat_log`, so the roster the log's from_id
-   * attributes bind to is resolvable in the same container. The roster's
-   * ORDERING is byte-stable turn to turn (see `formatParticipantsContext`),
-   * but the block as a whole is not fully so: the `active="true"` flag and
-   * the collision note both track the current speaker, so the prefix still
-   * re-breaks on speaker change in multi-human channels. Per-request volatile
+   * attributes bind to is resolvable in the same container. The whole
+   * `participants` block is byte-stable turn to turn — ordering, elements, and
+   * notes are all roster-derived, with nothing tracking the current speaker
+   * (see `formatParticipantsContext`). Per-request volatile
    * content (datetime, retrieval output, references) lives in
    * {@link buildVolatilePrefix}. The recency-tail
    * placement protocol/output_constraints held before this restructure was
@@ -286,24 +287,14 @@ ${escapeXmlContent(persona)}
         ? formatEnvironmentContext(context.environment)
         : '<location type="dm">Direct Message (private one-on-one chat)</location>';
 
-    // Conversation participants, carrying the name-collision disambiguation
-    // when the active user's display name matches the character's. Rendered
-    // ahead of chat_log so the from_id bindings resolve within one container.
-    const collisionInfo = detectNameCollision(
-      context.activePersonaName,
-      context.discordUsername,
-      personality.name,
-      personality.id
-    );
-    const collisionNote =
-      collisionInfo !== undefined
-        ? `A user named "${escapeXmlContent(collisionInfo.userName)}" shares your name. They appear as "${escapeXmlContent(collisionInfo.userName)} (@${escapeXmlContent(collisionInfo.discordUsername)})" in the chat log. This is a different person - address them naturally.`
-        : undefined;
-    const participantsSection = formatParticipantsContext(
-      participantPersonas,
-      context.activePersonaName,
-      collisionNote
-    );
+    // Conversation participants, carrying a name-collision note when any
+    // roster member renders under the character's own name. Rendered ahead of
+    // chat_log so the from_id bindings resolve within one container. Both the
+    // roster and its notes are derived from the roster alone — never from the
+    // current speaker — so this block is byte-stable across speaker changes;
+    // the concrete "Name (@username)" disambiguation rides the volatile-tier
+    // <from> tag instead (buildDisambiguatedDisplayName, above).
+    const participantsSection = formatParticipantsContext(participantPersonas, personality.name);
 
     // Conversation history as XML (legend lives in buildChatLogSection)
     const chatLogSection = buildChatLogSection(serializedHistory, personality.name);

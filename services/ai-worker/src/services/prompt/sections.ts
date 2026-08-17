@@ -23,7 +23,7 @@
  * - S0: static across ALL personas (platform/output constraints)
  * - S1: stable-prefix sections — static per persona (identity, identity
  *   constraints, protocol) plus the per-channel location and the roster,
- *   whose active-flag/collision note still track the current speaker
+ *   every byte of which is roster-derived and so stable across speaker changes
  * - H: frozen conversation history (grows per turn)
  * - V: per-request volatile (datetime, retrieval output, references)
  *
