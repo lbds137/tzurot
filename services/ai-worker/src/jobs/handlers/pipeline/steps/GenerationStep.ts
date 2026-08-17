@@ -149,6 +149,10 @@ export class GenerationStep implements IPipelineStep {
         // Primary attempt routes to the resolved provider; the fallback
         // wrapper overrides this to OpenRouter if it swaps to the fallback.
         effectiveProvider: provider,
+        // Set only when AuthStep demoted a doomed promoted route. Keeps the
+        // reactive retarget reachable when the demoted route fails for a reason
+        // that does not classify as quota — the staggered-model-release 400.
+        inheritedQuotaCategory: auth.inheritedQuotaCategory,
       };
       const {
         response,
