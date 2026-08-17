@@ -14,7 +14,10 @@ import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationSyncService } from './ConversationSyncService.js';
-import { ConversationHistoryService } from './ConversationHistoryService.js';
+import {
+  ConversationHistoryService,
+  getChannelHistoryWindow,
+} from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 
@@ -112,7 +115,8 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Get the message ID
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const messageId = history[0].id;
 
       // Soft delete via the production path (the plural is the only writer).
@@ -180,7 +184,8 @@ describe('ConversationSyncService Integration Test', () => {
         guildId: testGuildId,
         discordMessageId: 'discord-prop-1',
       });
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const row = history.find(m => m.content === 'Turn whose deletion must propagate');
       if (row === undefined) throw new Error('seed row missing');
 
@@ -242,7 +247,8 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Get message IDs
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const messageIds = history.map(h => h.id);
 
       // Bulk soft delete
@@ -283,7 +289,8 @@ describe('ConversationSyncService Integration Test', () => {
         discordMessageId: 'discord-edit',
       });
 
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const messageId = history[0].id;
 
       // Update content
@@ -311,7 +318,8 @@ describe('ConversationSyncService Integration Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const messageId = history[0].id;
       const originalTokens = history[0].tokenCount;
 
@@ -392,7 +400,8 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Soft delete it
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       await syncService.softDeleteMessages([history[0].id]);
 
       // Should still find it by Discord ID
@@ -498,7 +507,8 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Soft delete first message
-      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const deleteMsg = history.find(h => h.content === 'Will be deleted');
       await syncService.softDeleteMessages([deleteMsg!.id]);
 

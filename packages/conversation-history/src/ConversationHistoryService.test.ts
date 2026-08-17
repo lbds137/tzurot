@@ -3,7 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ConversationHistoryService } from './ConversationHistoryService.js';
+import {
+  ConversationHistoryService,
+  getChannelHistoryWindow,
+} from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
@@ -12,6 +15,19 @@ import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas
 // service via the barrel), so intercept it through a partial mock rather than a
 // namespace spy — the latter doesn't reliably catch a re-exported binding.
 const { mockCountTextTokens } = vi.hoisted(() => ({ mockCountTextTokens: vi.fn() }));
+const { mockLoggerInfo } = vi.hoisted(() => ({ mockLoggerInfo: vi.fn() }));
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: mockLoggerInfo,
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 vi.mock('@tzurot/common-types/utils/tokenCounter', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/tokenCounter')>();
   return {
@@ -47,6 +63,12 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     vi.clearAllMocks();
     // Create fresh mocks for each test
     mockPrismaClient = createMockPrismaClient();
+    // Windowed reads count first and short-circuit the fetch when the window
+    // resolves to zero rows, so an unmocked `count` would make findMany
+    // unreachable. 20 matches the cap these tests pass: the window is exactly
+    // full, nothing is evicted, and `take` is the whole cap — the same fetch
+    // shape the pre-window code issued.
+    mockPrismaClient.conversationHistory.count.mockResolvedValue(20);
     service = new ConversationHistoryService(mockPrismaClient as unknown as PrismaClient);
   });
 
@@ -368,7 +390,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
-  describe('getChannelHistory - Token Count Retrieval', () => {
+  describe('getChannelHistoryWindow - Token Count Retrieval', () => {
     it('should include cached token counts in returned messages', async () => {
       // Mock returns messages in DESC order (newest first)
       const mockMessages = [
@@ -410,7 +432,13 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
-      const result = await service.getChannelHistory('channel-123', 20);
+      const { messages: result } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-123',
+          cap: 20,
+        }
+      );
 
       expect(result).toHaveLength(2);
       // Service reverses to chronological order (oldest first)
@@ -468,7 +496,13 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
-      const result = await service.getChannelHistory('channel-123', 20);
+      const { messages: result } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-123',
+          cap: 20,
+        }
+      );
 
       expect(result).toHaveLength(2);
       // Service reverses to chronological order (oldest first)
@@ -979,7 +1013,10 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
       // Retrieve messages
-      await service.getChannelHistory('channel-123', 20);
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-123',
+        cap: 20,
+      });
 
       // Token counter should NOT be called during retrieval
       expect(mockCountTextTokens).not.toHaveBeenCalled();
@@ -1360,11 +1397,14 @@ describe('ConversationHistoryService - Token Count Caching', () => {
   // Note: clearHistory and cleanupOldHistory tests moved to ConversationRetentionService.test.ts
   // Note: Soft delete / edit sync tests moved to ConversationSyncService.test.ts
 
-  describe('getChannelHistory - Soft Delete Filtering', () => {
+  describe('getChannelHistoryWindow - Soft Delete Filtering', () => {
     it('should exclude soft-deleted messages (deletedAt not null)', async () => {
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-      await service.getChannelHistory('channel-123', 20);
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-123',
+        cap: 20,
+      });
 
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1376,11 +1416,14 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
-  describe('getChannelHistory - Cross-Personality Channel History', () => {
+  describe('getChannelHistoryWindow - Cross-Personality Channel History', () => {
     it('should fetch messages without personality filter', async () => {
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-      await service.getChannelHistory('channel-123', 20);
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-123',
+        cap: 20,
+      });
 
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1442,7 +1485,13 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
-      const result = await service.getChannelHistory('channel-123', 20);
+      const { messages: result } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-123',
+          cap: 20,
+        }
+      );
 
       expect(result).toHaveLength(2);
       // Service reverses to chronological order (oldest first)
@@ -1454,7 +1503,11 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
       const contextEpoch = new Date('2025-01-01T00:00:00Z');
 
-      await service.getChannelHistory('channel-123', 20, contextEpoch);
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-123',
+        cap: 20,
+        contextEpoch,
+      });
 
       // gte (not gt) — matches the DiscordChannelFetcher inclusive cutoff
       // semantic and ensures a message timestamped at the exact reset moment
@@ -1487,7 +1540,11 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       it('should apply maxAge filter when provided (no contextEpoch)', async () => {
         mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-        await service.getChannelHistory('channel-123', 20, undefined, 60); // 60s
+        await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+          channelId: 'channel-123',
+          cap: 20,
+          maxAgeSeconds: 60,
+        }); // 60s
 
         const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
         expect(call.where.createdAt.gte).toEqual(new Date('2026-05-10T11:59:00Z'));
@@ -1499,7 +1556,12 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         // The 60s-ago cutoff is more recent → it wins
         const contextEpoch = new Date('2026-05-10T11:00:00Z');
 
-        await service.getChannelHistory('channel-123', 20, contextEpoch, 60);
+        await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+          channelId: 'channel-123',
+          cap: 20,
+          contextEpoch,
+          maxAgeSeconds: 60,
+        });
 
         const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
         expect(call.where.createdAt.gte).toEqual(new Date('2026-05-10T11:59:00Z'));
@@ -1508,7 +1570,10 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       it('omits the time filter when neither maxAge nor contextEpoch is provided', async () => {
         mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-        await service.getChannelHistory('channel-123', 20);
+        await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+          channelId: 'channel-123',
+          cap: 20,
+        });
 
         const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
         expect(call.where).not.toHaveProperty('createdAt');
@@ -1520,9 +1585,311 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         new Error('Database query failed')
       );
 
-      const result = await service.getChannelHistory('channel-123', 20);
+      const { messages, meta } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-123',
+          cap: 20,
+        }
+      );
 
-      expect(result).toEqual([]);
+      expect(messages).toEqual([]);
+      // An empty window and a failed read look identical without this flag.
+      expect(meta.degraded).toBe(true);
+    });
+  });
+
+  describe('getChannelHistoryWindow - count-cap hysteresis', () => {
+    const row = (id: string, minute: number) => ({
+      id,
+      role: MessageRole.User,
+      content: `message ${id}`,
+      tokenCount: 1,
+      createdAt: new Date(`2026-01-01T00:${String(minute).padStart(2, '0')}:00Z`),
+      personaId: 'persona-1',
+      personalityId: 'personality-1',
+      discordMessageId: [`discord-${id}`],
+      messageMetadata: null,
+      persona: { name: 'Alice', preferredName: null, owner: { username: 'alice' } },
+      personality: { name: 'Bot', displayName: 'Bot' },
+    });
+
+    it('reads the count and the rows inside ONE repeatable-read transaction', async () => {
+      // The isolation level is the whole point of the transaction: without it a
+      // write between the two reads makes the window arithmetic describe a row
+      // set that no longer exists.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(10);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+      });
+
+      expect(mockPrismaClient.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'RepeatableRead',
+      });
+    });
+
+    it('gives the count and the fetch the very same predicate object', async () => {
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(10);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+      });
+
+      const countWhere = mockPrismaClient.conversationHistory.count.mock.calls[0][0].where;
+      const fetchWhere = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0].where;
+      // Reference identity, not deep equality: two separately-built predicates
+      // could match today and drift apart later with nothing to detect it.
+      expect(countWhere).toBe(fetchWhere);
+    });
+
+    it('excludes the trigger message DB-side, in the predicate both reads share', async () => {
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(10);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+        excludeDiscordMessageId: 'trigger-99',
+      });
+
+      expect(mockPrismaClient.conversationHistory.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          NOT: { discordMessageId: { has: 'trigger-99' } },
+        }),
+      });
+    });
+
+    it('applies the trigger exclusion on the un-snapshotted path too', async () => {
+      // The two paths share one `where` object built by the caller, so this
+      // cannot diverge today — but nothing pins that. The reference-identity
+      // test covers only the transactional branch, so a future refactor that
+      // rebuilt the predicate inside the cap-only branch would silently stop
+      // excluding the trigger for every sub-21 cap. `maxMessages` accepts 1.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(5);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 10,
+        excludeDiscordMessageId: 'trigger-99',
+      });
+
+      expect(mockPrismaClient.$transaction).not.toHaveBeenCalled();
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ NOT: { discordMessageId: { has: 'trigger-99' } } }),
+        })
+      );
+    });
+
+    it('omits the exclusion entirely when no trigger id is given', async () => {
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(10);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+      });
+
+      const where = mockPrismaClient.conversationHistory.count.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('NOT');
+    });
+
+    it('quantizes the fetch size once the window is over the cap', async () => {
+      // n=100, cap=50 -> chunk 13, evicted 13*ceil(50/13) = 52, take 48.
+      // The un-quantized answer would be take=50; that is the sliding head.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(100);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      const { meta } = await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+      });
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 48 })
+      );
+      expect(meta).toMatchObject({ inScopeCount: 100, evicted: 52, take: 48, chunk: 13 });
+    });
+
+    it('skips the fetch entirely when the window resolves to zero rows', async () => {
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(0);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      const { messages, meta } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-1',
+          cap: 50,
+        }
+      );
+
+      expect(mockPrismaClient.conversationHistory.findMany).not.toHaveBeenCalled();
+      expect(messages).toEqual([]);
+      expect(meta.degraded).toBe(false);
+    });
+
+    it('skips the transaction entirely when the cap cannot quantize', async () => {
+      // The snapshot couples the count to the fetch so the eviction computed
+      // from one applies to the other. With chunk 0 there is no eviction, so
+      // there is nothing to couple — and holding a pooled connection across two
+      // sequential queries is exactly the cost the rollout is told to watch.
+      // `resolveEvictionChunk` is cap-only, so this is decidable before opening
+      // anything.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(500);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      const { meta } = await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 10,
+      });
+
+      expect(mockPrismaClient.$transaction).not.toHaveBeenCalled();
+      // ...and the count still happens: inScopeCount is the only signal for how
+      // much history the cap dropped, so the cheap path must not buy its speed
+      // by giving up the telemetry.
+      expect(mockPrismaClient.conversationHistory.count).toHaveBeenCalledTimes(1);
+      expect(meta).toMatchObject({ inScopeCount: 500, evicted: 0, chunk: 0 });
+    });
+
+    it('fetches the CAP, not the counted value, on the un-snapshotted path', async () => {
+      // The bug this pins: deriving `take` from the count bounds the fetch by a
+      // number a concurrent insert can already have invalidated, and without a
+      // transaction there is nothing holding the two together. Asking for the
+      // cap lets Postgres self-limit, which is what makes the missing snapshot
+      // harmless — and it is the ONLY thing that does.
+      //
+      // The interleaving itself is not representable in a synchronous mock, but
+      // it does not need to be: `take === cap` is the property that makes the
+      // interleaving benign, and that is checkable right here.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(8);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 10,
+      });
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 10 })
+      );
+    });
+
+    it('keeps already-fetched rows when the telemetry count fails', async () => {
+      // The second round trip is new failure surface: before the window, this
+      // path was one query with nothing downstream of it that could throw. A
+      // count blip must cost a telemetry field, not the turn's entire history.
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([row('a', 2), row('b', 1)]);
+      mockPrismaClient.conversationHistory.count.mockRejectedValue(new Error('pool timeout'));
+
+      const { messages, meta } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        { channelId: 'channel-1', cap: 10 }
+      );
+
+      expect(messages).toHaveLength(2);
+      expect(meta.degraded).toBe(false);
+      // inScopeCount falls back to what was actually fetched — understated, but
+      // never below `take`, and never a reason to throw the rows away.
+      expect(meta.inScopeCount).toBe(2);
+      expect(meta.take).toBe(2);
+    });
+
+    it('reports take as rows ACTUALLY returned, and never below inScopeCount', async () => {
+      // Un-snapshotted, so the count can lag the fetch. `take` must describe the
+      // rows in hand rather than a prediction, and the meta must not claim fewer
+      // rows exist than were just returned.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(8);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
+        row('a', 3),
+        row('b', 2),
+        row('c', 1),
+      ]);
+
+      const { meta } = await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 10,
+      });
+
+      expect(meta.take).toBe(3);
+      expect(meta.inScopeCount).toBeGreaterThanOrEqual(meta.take);
+    });
+
+    it('DOES open the transaction once the cap can quantize', async () => {
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(500);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+      });
+
+      expect(mockPrismaClient.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'RepeatableRead',
+      });
+    });
+
+    it('reports the TRUE row count when hysteresis is off and the channel is over cap', async () => {
+      // Regression: meta.inScopeCount was reconstructed as `evicted + take`,
+      // which equals the CAP here — chunk is 0 below cap 21, so nothing is
+      // evicted and take saturates. `maxMessages` accepts 1, so this is a
+      // reachable prod configuration, not a boundary curiosity.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(500);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      const { meta } = await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 10,
+      });
+
+      expect(meta.inScopeCount).toBe(500);
+      expect(meta).toMatchObject({ evicted: 0, chunk: 0 });
+    });
+
+    it('emits the window telemetry at INFO, not debug', async () => {
+      // The design is judged by these fields in prod logs, and prod defaults to
+      // LOG_LEVEL=info — at debug the acceptance evidence simply is not there,
+      // and nobody would know to bump the level to look for it. Demoting this
+      // line would silently un-verify the whole mechanism, so the level is
+      // pinned rather than left to convention.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(3);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([row('oldest', 1)]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-1',
+        cap: 50,
+      });
+
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ headRowId: 'oldest', channelId: 'channel-1' }),
+        'Retrieved channel history window'
+      );
+    });
+
+    it('reports the OLDEST returned row as the window head', async () => {
+      // findMany returns newest-first; the head is the other end.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(3);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
+        row('newest', 3),
+        row('middle', 2),
+        row('oldest', 1),
+      ]);
+
+      const { messages, meta } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-1',
+          cap: 50,
+        }
+      );
+
+      expect(messages.map(m => m.id)).toEqual(['oldest', 'middle', 'newest']);
+      expect(meta.headRowId).toBe('oldest');
     });
   });
 
@@ -1709,7 +2076,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
     describe('time-filter behavior', () => {
       // Fake timers per project standard (02-code-standards.md). See same block
-      // in getChannelHistory tests above for rationale.
+      // in getChannelHistoryWindow tests above for rationale.
       beforeEach(() => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-05-10T12:00:00Z'));
@@ -1806,13 +2173,21 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       expect(result).toBe(false);
     });
 
-    it('should return empty array when getChannelHistory fails', async () => {
+    it('should return empty array when getChannelHistoryWindow fails', async () => {
       const error = new Error('Database query failed');
       mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
 
-      const result = await service.getChannelHistory('channel-123', 20);
+      const { messages, meta } = await getChannelHistoryWindow(
+        mockPrismaClient as unknown as PrismaClient,
+        {
+          channelId: 'channel-123',
+          cap: 20,
+        }
+      );
 
-      expect(result).toEqual([]);
+      expect(messages).toEqual([]);
+      // An empty window and a failed read look identical without this flag.
+      expect(meta.degraded).toBe(true);
     });
   });
 });

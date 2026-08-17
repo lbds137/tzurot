@@ -14,7 +14,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
-import { ConversationHistoryService } from './ConversationHistoryService.js';
+import {
+  ConversationHistoryService,
+  getChannelHistoryWindow,
+} from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 
@@ -104,7 +107,8 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history).toHaveLength(1);
       expect(history[0].role).toBe(MessageRole.User);
       expect(history[0].content).toBe('Hello bot!');
@@ -122,7 +126,8 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history).toHaveLength(1);
       expect(history[0].role).toBe(MessageRole.Assistant);
       expect(history[0].content).toBe('Hello human!');
@@ -139,7 +144,8 @@ describe('ConversationHistoryService Component Test', () => {
         discordMessageId: 'discord-msg-123',
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history[0].discordMessageId).toEqual(['discord-msg-123']);
     });
 
@@ -154,7 +160,8 @@ describe('ConversationHistoryService Component Test', () => {
         discordMessageId: ['chunk-1', 'chunk-2', 'chunk-3'],
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history[0].discordMessageId).toEqual(['chunk-1', 'chunk-2', 'chunk-3']);
     });
 
@@ -169,7 +176,8 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history[0].tokenCount).toBeDefined();
       expect(history[0].tokenCount).toBeGreaterThan(0);
     });
@@ -184,13 +192,14 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: null, // DM = no guild
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history).toHaveLength(1);
       expect(history[0].content).toBe('DM message');
     });
   });
 
-  describe('getChannelHistory', () => {
+  describe('getChannelHistoryWindow', () => {
     it('should return messages in chronological order (oldest first)', async () => {
       // Explicit strictly-increasing timestamps pin insertion order AND keep each
       // deterministic-UUID row distinct (relying on default `new Date()` is flaky:
@@ -224,7 +233,8 @@ describe('ConversationHistoryService Component Test', () => {
         timestamp: seededTimestamp(2),
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
 
       expect(history).toHaveLength(3);
       expect(history[0].content).toBe('First message');
@@ -246,7 +256,8 @@ describe('ConversationHistoryService Component Test', () => {
         });
       }
 
-      const history = await service.getChannelHistory(testChannelId, 3);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 3 }))
+        .messages;
 
       expect(history).toHaveLength(3);
       // Should return the 3 most recent messages
@@ -255,13 +266,122 @@ describe('ConversationHistoryService Component Test', () => {
       expect(history[2].content).toBe('Message 4');
     });
 
+    it('holds the window HEAD fixed across a chunk, against a real transaction', async () => {
+      // The mechanism this whole change exists for, exercised end-to-end.
+      //
+      // It needs its own case because a cap below MIN_CAP_FOR_HYSTERESIS never
+      // reaches the quantization branch — `resolveEvictionChunk` returns 0
+      // there, pinned by historyWindow.test.ts ('is 0 at exactly the floor').
+      // `grep -rnF 'cap:' --include=*.component.test.ts` returned 3, 10, and 20
+      // and nothing else when this case was added — no other component-tier test
+      // reaches the branch, so its real-database coverage is this case alone.
+      //
+      // Here Prisma's real count + findMany + index + RepeatableRead transaction
+      // must agree with the pure function.
+      //
+      // cap 50 -> chunk 13. Starting at n = 120: evicted = 13*ceil(70/13) = 78.
+      // That holds while ceil((n-50)/13) stays 6, i.e. through n = 128, and
+      // increments at n = 129 -> evicted 91. So the head must not move for the
+      // first 8 inserts and must jump on the 9th.
+      const cap = 50;
+      const seed = 120;
+      for (let i = 0; i < seed; i++) {
+        await service.addMessage({
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: i % 2 === 0 ? MessageRole.User : MessageRole.Assistant,
+          content: `Message ${i}`,
+          guildId: testGuildId,
+          timestamp: seededTimestamp(i),
+        });
+      }
+
+      const first = await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap });
+      expect(first.meta).toMatchObject({ inScopeCount: 120, evicted: 78, take: 42, chunk: 13 });
+      expect(first.messages).toHaveLength(42);
+      // The head is the 79th oldest row (index 78) — content pins WHICH row,
+      // independently of the id, so a mis-ordered fetch cannot pass by accident.
+      expect(first.messages[0].content).toBe('Message 78');
+      const headId = first.meta.headRowId;
+
+      // Eight more messages: the window grows at the tail, the head stays put.
+      for (let i = seed; i < 128; i++) {
+        await service.addMessage({
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Message ${i}`,
+          guildId: testGuildId,
+          timestamp: seededTimestamp(i),
+        });
+        const w = await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap });
+        expect(w.meta.headRowId).toBe(headId);
+        expect(w.meta.evicted).toBe(78);
+        expect(w.messages[0].content).toBe('Message 78');
+      }
+
+      // The 129th row crosses the boundary: exactly one chunk is evicted.
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Message 128',
+        guildId: testGuildId,
+        timestamp: seededTimestamp(128),
+      });
+      const after = await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap });
+      expect(after.meta.evicted).toBe(78 + 13);
+      expect(after.meta.headRowId).not.toBe(headId);
+      expect(after.messages[0].content).toBe('Message 91');
+      // ...and the window lands back inside its band. Stated as the invariant
+      // `(cap - chunk, cap]` rather than the literal 38, because the literal is
+      // a restatement of the arithmetic under test — and got it wrong on the
+      // first write (129 - 91 = 38, not cap - 8).
+      expect(after.meta.take).toBe(129 - 91);
+      expect(after.meta.take).toBeGreaterThan(cap - 13);
+      expect(after.meta.take).toBeLessThanOrEqual(cap);
+    }, 60000);
+
+    it('reports window meta against a REAL over-cap row count', async () => {
+      // The meta is the acceptance instrument for the whole hysteresis design,
+      // and every other test here reads only `.messages` — so a meta field can
+      // be wrong against a real database and nothing notices. Cap 3 is below
+      // the hysteresis threshold, which is exactly where the arithmetic and the
+      // true row count diverge.
+      for (let i = 0; i < 5; i++) {
+        await service.addMessage({
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Message ${i}`,
+          guildId: testGuildId,
+          timestamp: seededTimestamp(i),
+        });
+      }
+
+      const { messages, meta } = await getChannelHistoryWindow(prisma, {
+        channelId: testChannelId,
+        cap: 3,
+      });
+
+      expect(meta.inScopeCount).toBe(5); // the real count, not the cap
+      expect(meta).toMatchObject({ evicted: 0, take: 3, chunk: 0, degraded: false });
+      expect(meta.headRowId).toBe(messages[0].id);
+    });
+
     it('should return empty array for non-existent channel', async () => {
-      const history = await service.getChannelHistory('non-existent', 10);
+      const history = (
+        await getChannelHistoryWindow(prisma, { channelId: 'non-existent', cap: 10 })
+      ).messages;
       expect(history).toEqual([]);
     });
 
     it('should return all messages regardless of personality', async () => {
-      // getChannelHistory does NOT filter by personalityId - it fetches ALL channel messages
+      // getChannelHistoryWindow does NOT filter by personalityId - it fetches ALL channel messages
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -271,7 +391,8 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history).toHaveLength(1);
       expect(history[0].content).toBe('Message to TestBot');
     });
@@ -368,7 +489,8 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(success).toBe(true);
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history[0].content).toBe('Updated content with attachment description');
     });
 
@@ -396,7 +518,9 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const historyBefore = await service.getChannelHistory(testChannelId, 10);
+      const historyBefore = (
+        await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 })
+      ).messages;
       const tokensBefore = historyBefore[0].tokenCount;
 
       await service.updateLastUserMessage(
@@ -406,7 +530,9 @@ describe('ConversationHistoryService Component Test', () => {
         longContent
       );
 
-      const historyAfter = await service.getChannelHistory(testChannelId, 10);
+      const historyAfter = (
+        await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 })
+      ).messages;
       const tokensAfter = historyAfter[0].tokenCount;
 
       expect(tokensAfter).toBeGreaterThan(tokensBefore!);
@@ -433,7 +559,8 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(success).toBe(true);
 
-      const history = await service.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       expect(history[0].discordMessageId).toEqual(['discord-id-1', 'discord-id-2']);
     });
 
@@ -492,7 +619,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
   });
 
-  describe('getChannelHistory with contextEpoch', () => {
+  describe('getChannelHistoryWindow with contextEpoch', () => {
     it('should filter out messages before epoch', async () => {
       // Explicit seeded timestamps (not real-clock + setTimeout): the epoch sits at
       // index 1, between the message at index 0 (before) and index 2 (after) — no
@@ -519,11 +646,19 @@ describe('ConversationHistoryService Component Test', () => {
       });
 
       // Without epoch - should see both
-      const allHistory = await service.getChannelHistory(testChannelId, 10);
+      const allHistory = (
+        await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 })
+      ).messages;
       expect(allHistory).toHaveLength(2);
 
       // With epoch - should only see message after epoch
-      const filteredHistory = await service.getChannelHistory(testChannelId, 10, epochTime);
+      const filteredHistory = (
+        await getChannelHistoryWindow(prisma, {
+          channelId: testChannelId,
+          cap: 10,
+          contextEpoch: epochTime,
+        })
+      ).messages;
       expect(filteredHistory).toHaveLength(1);
       expect(filteredHistory[0].content).toBe('New message after epoch');
     });
@@ -542,7 +677,13 @@ describe('ConversationHistoryService Component Test', () => {
       // Epoch well after the seeded message — deterministic, no real clock.
       const futureEpoch = seededTimestamp(100);
 
-      const history = await service.getChannelHistory(testChannelId, 10, futureEpoch);
+      const history = (
+        await getChannelHistoryWindow(prisma, {
+          channelId: testChannelId,
+          cap: 10,
+          contextEpoch: futureEpoch,
+        })
+      ).messages;
       expect(history).toEqual([]);
     });
   });

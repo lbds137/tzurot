@@ -120,7 +120,8 @@ Provider economics, verified against first-party docs, temper the urgency: a shi
 The 2026-08-15 measurement pinned the real slider one layer earlier: the
 **message-count cap** at fetch time — `limit = min(maxMessages ?? 50, 100)`
 (`ContextAssembler.ts:204-207`, feeding `take: limit` on a `createdAt DESC, id DESC`
-query in `ConversationHistoryService.getChannelHistory:437-469`). Any FULL channel
+query in `ConversationHistoryService`'s channel fetch — since PR 2,
+`getChannelHistoryWindow`). Any FULL channel
 slides its window start by one message per turn, so the `chat_log` head changes every
 turn and everything from it onward re-bills (~14-19k tokens/turn measured). Hysteresis
 implemented only at the token layer would never fire in prod; it must govern the count
@@ -244,6 +245,57 @@ min-cacheable check; script-only, no runtime change) · PR 1 — TASK-622 roster
 stabilization · PR 2 — windowed fetch (service method + transaction + telemetry meta
 + EXPLAIN-decided index) · rollout week reads `cacheHitRatio`/`prefix-diff` before
 declaring the win.
+
+**Build record — corrections the code forced on this design (PR 2, 2026-08-17):**
+
+- **D2's floor and its cap threshold coincide, so hysteresis begins at C = 21, not
+  C = 20.** `E = min(ceil(0.25·C), C − FLOOR)` with FLOOR = 20 yields `E = 0` at
+  exactly C = 20, and D1's `k = E·ceil((n−C)/E)` divides by `E`. The two constants
+  were derived independently and their collision was invisible at design time. Shipped
+  as an explicit zero-chunk path (chunk 0 = hysteresis off, window tracks the row
+  count exactly, which is the pre-hysteresis behavior) plus a named regression test.
+  The design is unchanged in intent; the boundary is one message higher than written.
+- **D3 — index ADDED, on a measured fetch win; the count win is unmeasured.** dev's
+  busiest channel (2,938 rows, 8,382 table-wide) is too small for the planner to leave
+  a seq scan, so plan SHAPE was compared rather than crossover cost. Fetch: seq scan +
+  top-N sort (6.4ms, 1,496 buffers) → ordered index scan stopping at the LIMIT (0.15ms,
+  17 buffers), chosen unforced with the index present. Count: the planner stayed on the
+  seq scan even with the index available — at this size every in-scope row is visited
+  either way. The index therefore ships on the fetch's evidence alone; "serves COUNT +
+  fetch together" is still unmeasured. Index size 568 kB against a 12 MB table.
+- **Correction to the line above — prod is NOT bigger than dev, so the dev EXPLAIN
+  is representative rather than a small-scale proxy.** Measured after the review
+  asked whether a non-concurrent `CREATE INDEX` was safe on prod: **prod
+  `conversation_history` is 8,404 rows / 13 MB heap / 23 MB with indexes**, against
+  dev's 8,382 / 12 MB. Retention bounds this table hard. Two consequences: the
+  plain `CREATE INDEX` is safe (an 8k-row build is sub-second, no `CONCURRENTLY`
+  needed), and the count's seq scan is a ~5ms cost at real prod scale rather than a
+  looming one. The phrase "a projection to prod-scale data" in the original PR body
+  implied prod was materially larger; it is not, and that framing was wrong.
+- **The rollout read gains watch items D6 did not name**, all consequences of the
+  transaction rather than of the window. (a) **Pool saturation**: the turn now
+  holds a pooled connection across two sequential queries instead of firing one,
+  against a default `DATABASE_POOL_MAX` of 20 per service process — watch the
+  saturation gauge alongside `cacheHitRatio`. This is the one item worth active
+  eyes. (b) **Count growth**: bounded today by retention (above), so this is a
+  watch rather than a risk — it becomes the dominant per-turn cost only if
+  retention policy changes. (c) **`P2028` transaction timeouts**: the transaction
+  inherits Prisma's 5s/2s defaults, a slightly larger failure surface than the
+  single query it replaced. It fails closed correctly (caught, logged with
+  `channelId`, `degraded: true`), so this is a log shape to recognize, not a
+  defect to pre-empt.
+- **D4's deletion case covers soft-deletes, and they can move the head off-schedule.**
+  D4 already lists deletions shrinking `n`; worth making explicit that
+  `ConversationSyncService`'s `deletedAt` writes are that case — the predicate
+  excludes the row going forward, which shifts every later row's ordinal and can
+  trigger a head jump outside a chunk boundary. Rare next to new-message volume,
+  and self-diagnosing: `headRowId` moving without a chunk-sized `evicted` change is
+  exactly this signature.
+- **D4's trigger-row `+1` is gone rather than moved.** The `+1` existed to compensate
+  for post-filtering the trigger row out of a `take: limit` fetch. Under windowing the
+  count and the rows must describe the same set, so the exclusion became part of the
+  shared predicate — and a predicate has nothing to compensate for. The "shifts slide
+  timing by at most one message" caveat no longer applies to anything.
 
 ### 2.6 Reasoning-model rewrite: DELETED, not fixed (fact-check outcome)
 

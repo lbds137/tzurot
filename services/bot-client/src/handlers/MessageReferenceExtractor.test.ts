@@ -308,16 +308,16 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       expect(references[0].content).toBe('Already in history - preserved as stub');
     });
 
-    it('ships dedup-INVARIANT rawReferences + content (getChannelHistory is vestigial for the envelope)', async () => {
-      // `conversationHistoryMessageIds` IS bot-client's getChannelHistory output. It
+    it('ships dedup-INVARIANT rawReferences + content (the channel-history read is vestigial for the envelope)', async () => {
+      // `conversationHistoryMessageIds` IS bot-client's channel-history read output. It
       // drives the dedup decision, which routes a reference between the formatter's
       // deduped and regular branches. This proves that decision leaves the SHIPPED
       // `rawReferences` and the rewritten content byte-identical either way, because
       // both branches push the same full raw snapshot and increment the same
       // reference number. That
       // invariance is precisely why the worker can re-derive dedup from the raw
-      // snapshots against its OWN history and bot-client's getChannelHistory read is
-      // vestigial for the thin envelope (2.5d getChannelHistory-eviction precondition).
+      // snapshots against its OWN history and bot-client's channel-history read is
+      // vestigial for the thin envelope (the 2.5d history-eviction precondition).
       const sharedReferenced = createMockMessage({
         id: 'referenced-123',
         content: 'Already in history - preserved as stub',
