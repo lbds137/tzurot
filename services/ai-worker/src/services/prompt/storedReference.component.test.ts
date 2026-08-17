@@ -15,7 +15,7 @@
  * The read path matters as much as the write. `parseMessageMetadata` Zod-parses
  * every row on the way out in STRIP mode, so a field the schema doesn't declare
  * is deleted silently between the INSERT and the renderer. Going through
- * `getChannelHistory` rather than reading the JSONB column directly is what
+ * `getChannelHistoryWindow` rather than reading the JSONB column directly is what
  * makes this test able to fail for that reason.
  */
 
@@ -25,7 +25,7 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
-import { ConversationHistoryService } from '@tzurot/conversation-history';
+import { ConversationHistoryService, getChannelHistoryWindow } from '@tzurot/conversation-history';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { type RawHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { formatQuotedSection } from '../../jobs/utils/xmlMetadataFormatters.js';
@@ -154,7 +154,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
     dedupId?: string,
     chatLogCarries?: RawHistoryEntry['messageMetadata']
   ): Promise<string> {
-    const rows = await history.getChannelHistory(CHANNEL, 10);
+    const rows = (await getChannelHistoryWindow(prisma, { channelId: CHANNEL, cap: 10 })).messages;
     const trigger = rows.find(row => row.role === MessageRole.User);
     expect(trigger).toBeDefined();
     return formatQuotedSection(

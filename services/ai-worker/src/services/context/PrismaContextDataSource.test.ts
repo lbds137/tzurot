@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockGetChannelHistory = vi.hoisted(() => vi.fn());
+const mockGetChannelHistoryWindow = vi.hoisted(() => vi.fn());
 const mockGetCrossChannelHistory = vi.hoisted(() => vi.fn());
 const mockGetMessageByDiscordId = vi.hoisted(() => vi.fn());
 const mockGetUserTimezone = vi.hoisted(() => vi.fn());
@@ -17,10 +17,12 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 vi.mock('@tzurot/conversation-history', () => ({
   ConversationHistoryService: class {
-    getChannelHistory = mockGetChannelHistory;
     getCrossChannelHistory = mockGetCrossChannelHistory;
     getMessageByDiscordId = mockGetMessageByDiscordId;
   },
+  // A free function, not a service method — it requires `$transaction`, which
+  // the service's client type deliberately lacks.
+  getChannelHistoryWindow: mockGetChannelHistoryWindow,
 }));
 
 vi.mock('@tzurot/identity', () => ({
@@ -53,14 +55,35 @@ describe('PrismaContextDataSource', () => {
     source = new PrismaContextDataSource(fakePrisma);
   });
 
-  it('delegates getChannelHistory with identical argument order', async () => {
+  it('forwards the history-window params and result untouched', async () => {
     const epoch = new Date('2026-01-01T00:00:00Z');
-    mockGetChannelHistory.mockResolvedValue([{ id: 'm1' }]);
+    const serviceResult = {
+      messages: [{ id: 'm1' }],
+      meta: {
+        inScopeCount: 90,
+        evicted: 13,
+        take: 77,
+        chunk: 13,
+        headRowId: 'm1',
+        degraded: false,
+      },
+    };
+    mockGetChannelHistoryWindow.mockResolvedValue(serviceResult);
 
-    const result = await source.getChannelHistory('chan-1', 25, epoch, 3600);
+    const params = {
+      channelId: 'chan-1',
+      cap: 25,
+      contextEpoch: epoch,
+      maxAgeSeconds: 3600,
+      excludeDiscordMessageId: 'trigger-1',
+    };
+    const result = await source.getChannelHistoryWindow(params);
 
-    expect(mockGetChannelHistory).toHaveBeenCalledWith('chan-1', 25, epoch, 3600);
-    expect(result).toEqual([{ id: 'm1' }]);
+    expect(mockGetChannelHistoryWindow).toHaveBeenCalledWith(fakePrisma, params);
+    // The meta must survive the seam intact — it is the telemetry the window
+    // design is judged by, and this adapter is the only thing between the
+    // service and the assembler that could drop it.
+    expect(result).toEqual(serviceResult);
   });
 
   it('maps cross-channel params onto the positional service signature', async () => {

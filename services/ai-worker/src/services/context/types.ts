@@ -23,6 +23,10 @@ import type {
   ConversationMessage,
   CrossChannelHistoryGroup,
 } from '@tzurot/common-types/types/conversationMessage';
+import type {
+  ChannelHistoryWindowParams,
+  ChannelHistoryWindowResult,
+} from '@tzurot/conversation-history';
 
 export interface CrossChannelHistoryParams {
   /** Active persona whose other-channel conversations to fetch */
@@ -41,15 +45,12 @@ export interface CrossChannelHistoryParams {
 
 export interface ContextDataSource {
   /**
-   * Channel conversation history, newest-window semantics identical to the
-   * bot-client fetch (limit + epoch + maxAge filters applied DB-side).
+   * Channel conversation history as a hysteresis-quantized window (epoch,
+   * maxAge, and trigger-message exclusion all applied DB-side, inside one
+   * snapshot). Returns the telemetry alongside the messages — the window's
+   * head row id is what makes the cache-stability claim checkable from logs.
    */
-  getChannelHistory(
-    channelId: string,
-    limit: number,
-    contextEpoch?: Date,
-    maxAgeSeconds?: number | null
-  ): Promise<ConversationMessage[]>;
+  getChannelHistoryWindow(params: ChannelHistoryWindowParams): Promise<ChannelHistoryWindowResult>;
 
   /** Cross-channel history groups for the active persona+personality. */
   getCrossChannelHistory(params: CrossChannelHistoryParams): Promise<CrossChannelHistoryGroup[]>;

@@ -24,10 +24,30 @@ import type { ContextDataSource } from './types.js';
 
 const PERSONALITY = { id: 'pers-1', name: 'Lila' } as LoadedPersonality;
 
+/**
+ * Mock the windowed history fetch. The assembler destructures `.messages` and
+ * `.meta`, so a bare-array mock hands it `undefined` for both — which throws
+ * far from the cause. Meta describes an unfull window (nothing evicted), which
+ * is what every case here wants unless it says otherwise.
+ */
+function mockHistoryWindow(messages: { id?: string; [key: string]: unknown }[] = []) {
+  return vi.fn().mockResolvedValue({
+    messages,
+    meta: {
+      inScopeCount: messages.length,
+      evicted: 0,
+      take: messages.length,
+      chunk: 0,
+      headRowId: messages[0]?.id ?? null,
+      degraded: false,
+    },
+  });
+}
+
 function makeDeps(overrides: Partial<Record<string, unknown>> = {}): ContextAssemblerDeps {
   return {
     dataSource: {
-      getChannelHistory: vi.fn().mockResolvedValue([]),
+      getChannelHistoryWindow: mockHistoryWindow(),
       getCrossChannelHistory: vi.fn().mockResolvedValue([]),
       getUserTimezone: vi.fn().mockResolvedValue('UTC'),
       getContextEpoch: vi.fn().mockResolvedValue(undefined),
@@ -136,7 +156,7 @@ describe('ContextAssembler.assembleCore', () => {
     const deps = makeDeps({
       dataSource: {
         getContextEpoch: vi.fn().mockResolvedValue(epoch),
-        getChannelHistory: vi.fn().mockResolvedValue([
+        getChannelHistoryWindow: mockHistoryWindow([
           {
             id: 'm1',
             role: MessageRole.User,
@@ -170,7 +190,13 @@ describe('ContextAssembler.assembleCore', () => {
       'persona-1'
     );
     // History hydration mirrors the bot-side dbLimit derivation + epoch + maxAge.
-    expect(deps.dataSource.getChannelHistory).toHaveBeenCalledWith('chan-1', 30, epoch, 7200);
+    expect(deps.dataSource.getChannelHistoryWindow).toHaveBeenCalledWith({
+      channelId: 'chan-1',
+      cap: 30,
+      contextEpoch: epoch,
+      maxAgeSeconds: 7200,
+      excludeDiscordMessageId: undefined,
+    });
 
     expect(core.userInternalId).toBe('internal-1');
     expect(core.activePersonaId).toBe('persona-1');
@@ -180,74 +206,31 @@ describe('ContextAssembler.assembleCore', () => {
     expect(core.history).toHaveLength(1);
   });
 
-  it('excludes the trigger message from the assembled history (it ships as the live turn)', async () => {
+  it('delegates trigger-message exclusion to the fetch predicate, un-compensated', async () => {
     // bot-client persists the trigger before submitting the job, so the channel
-    // history fetch includes it. The worker must drop it so the message does not
-    // appear both in the assembled history and as the current user turn.
-    const deps = makeDeps({
-      dataSource: {
-        getChannelHistory: vi.fn().mockResolvedValue([
-          {
-            id: 'm-prior',
-            role: MessageRole.User,
-            content: 'earlier message',
-            createdAt: new Date('2026-05-01T00:00:00Z'),
-            discordMessageId: ['d-prior'],
-          },
-          {
-            id: 'm-trigger',
-            role: MessageRole.User,
-            content: 'the message being answered',
-            createdAt: new Date('2026-05-01T00:01:00Z'),
-            discordMessageId: ['d-trigger'],
-          },
-        ]),
-      },
-    });
+    // history fetch would otherwise include it and the message would appear
+    // twice: in the assembled history and as the current user turn.
+    //
+    // The exclusion is now the fetch's own predicate rather than a post-filter
+    // here, so what this layer owns is passing it down — and NOT inflating the
+    // cap to compensate, which the post-filter era required. The exclusion's
+    // effect on the rows is pinned in ConversationHistoryService.test.ts
+    // ('excludes the trigger message DB-side'); there is nothing left for a
+    // mocked data source to demonstrate about it.
+    const deps = makeDeps();
     const assembler = new ContextAssembler(deps);
 
-    const core = await assembler.assembleCore(
-      makeJobContext({ triggerMessageId: 'd-trigger' }),
-      PERSONALITY,
-      { maxMessages: 30, maxAge: 7200 } as ResolvedConfigOverrides
-    );
+    await assembler.assembleCore(makeJobContext({ triggerMessageId: 'd-trigger' }), PERSONALITY, {
+      maxMessages: 30,
+      maxAge: 7200,
+    } as ResolvedConfigOverrides);
 
-    // Over-fetches limit+1 (31) so dropping the trigger still leaves a full
-    // limit-deep window rather than limit-1.
-    expect(deps.dataSource.getChannelHistory).toHaveBeenCalledWith('chan-1', 31, undefined, 7200);
-    // Only the prior message survives; the trigger row is filtered out.
-    expect(core.history).toHaveLength(1);
-    expect(core.history[0].content).toBe('earlier message');
+    expect(deps.dataSource.getChannelHistoryWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ cap: 30, excludeDiscordMessageId: 'd-trigger' })
+    );
   });
 
-  it('keeps history intact when the trigger is set but matches no row (no-match passthrough)', async () => {
-    const deps = makeDeps({
-      dataSource: {
-        getChannelHistory: vi.fn().mockResolvedValue([
-          {
-            id: 'm-x',
-            role: MessageRole.User,
-            content: 'unrelated',
-            createdAt: new Date('2026-05-01T00:00:00Z'),
-            discordMessageId: ['d-other'],
-          },
-        ]),
-      },
-    });
-    const assembler = new ContextAssembler(deps);
-
-    const core = await assembler.assembleCore(
-      makeJobContext({ triggerMessageId: 'd-trigger-not-present' }),
-      PERSONALITY,
-      undefined
-    );
-
-    // triggerMessageId is set but matches no row → nothing is filtered.
-    expect(core.history).toHaveLength(1);
-    expect(core.history[0].content).toBe('unrelated');
-  });
-
-  it('does not over-fetch (no limit+1) when no triggerMessageId is present', async () => {
+  it('passes the cap through unchanged when no triggerMessageId is present', async () => {
     const deps = makeDeps();
     const assembler = new ContextAssembler(deps);
 
@@ -256,14 +239,19 @@ describe('ContextAssembler.assembleCore', () => {
       maxAge: 7200,
     } as ResolvedConfigOverrides);
 
-    // No trigger → plain `limit`, no +1.
-    expect(deps.dataSource.getChannelHistory).toHaveBeenCalledWith('chan-1', 30, undefined, 7200);
+    expect(deps.dataSource.getChannelHistoryWindow).toHaveBeenCalledWith({
+      channelId: 'chan-1',
+      cap: 30,
+      contextEpoch: undefined,
+      maxAgeSeconds: 7200,
+      excludeDiscordMessageId: undefined,
+    });
   });
 
   it('keeps all history when no triggerMessageId is present', async () => {
     const deps = makeDeps({
       dataSource: {
-        getChannelHistory: vi.fn().mockResolvedValue([
+        getChannelHistoryWindow: mockHistoryWindow([
           {
             id: 'm-a',
             role: MessageRole.User,
@@ -319,7 +307,7 @@ describe('ContextAssembler.assembleCore', () => {
       discordMessageId: ['d-db'],
     };
     const deps = makeDeps({
-      dataSource: { getChannelHistory: vi.fn().mockResolvedValue([dbRow]) },
+      dataSource: { getChannelHistoryWindow: mockHistoryWindow([dbRow]) },
       userService: {
         getOrCreateUser: vi.fn().mockResolvedValue({ userId: 'internal-1' }),
         // Batch maps the extended-context author to an internal UUID.
@@ -470,7 +458,7 @@ describe('ContextAssembler.assembleCore', () => {
     };
     const deps = makeDeps({
       dataSource: {
-        getChannelHistory: vi.fn().mockResolvedValue([historyRow]),
+        getChannelHistoryWindow: mockHistoryWindow([historyRow]),
         // Transcript lookup for the voice reference.
         getMessageByDiscordId: vi.fn().mockResolvedValue({ content: 'db transcript' }),
       },
@@ -718,7 +706,7 @@ describe('ContextAssembler.assembleCore', () => {
       discordMessageId: ['d1'],
     };
     const deps = makeDeps({
-      dataSource: { getChannelHistory: vi.fn().mockResolvedValue([dbRow]) },
+      dataSource: { getChannelHistoryWindow: mockHistoryWindow([dbRow]) },
     });
     const assembler = new ContextAssembler(deps);
 
@@ -743,7 +731,7 @@ describe('ContextAssembler.assembleCore', () => {
       discordMessageId: ['d1'],
     };
     const deps = makeDeps({
-      dataSource: { getChannelHistory: vi.fn().mockResolvedValue([dbRow]) },
+      dataSource: { getChannelHistoryWindow: mockHistoryWindow([dbRow]) },
     });
     const assembler = new ContextAssembler(deps);
 
@@ -801,7 +789,7 @@ describe('ContextAssembler.assembleCore — schema-coupled re-derivation', () =>
 
     const deps = makeDeps({
       dataSource: {
-        getChannelHistory: vi.fn().mockResolvedValue([]),
+        getChannelHistoryWindow: mockHistoryWindow(),
         getUserTimezone: vi.fn().mockResolvedValue('America/New_York'),
       },
       userService: {

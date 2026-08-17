@@ -46,6 +46,7 @@ import { resolveExtendedContextPersonaIds } from '@tzurot/common-types/utils/ext
 import { mergeWithHistory } from '@tzurot/common-types/utils/historyMerger';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { fromApiMessage } from './fromApiMessage.js';
+import { countEntriesBeforeHead, logCacheBoundary } from './historyWindowTelemetry.js';
 import type { PersonaResolver, UserService } from '@tzurot/identity';
 import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
@@ -199,9 +200,9 @@ export class ContextAssembler {
     const activePersonaName = summon.kind === 'personal' ? summon.activePersonaName : null;
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
 
-    // Step 3: hydrate channel history — same limit derivation as the
+    // Step 3: hydrate channel history — same cap derivation as the
     // bot-side dbLimit.
-    const limit = Math.min(
+    const cap = Math.min(
       configOverrides?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
     );
@@ -209,28 +210,24 @@ export class ContextAssembler {
     // persists it to the gateway BEFORE submitting this job (durability for the
     // next turn), and this hydration runs after — so the just-sent message is
     // already in the channel history. It is also delivered as the live user
-    // turn, so without this filter it appears twice: once in the assembled
+    // turn, so without this exclusion it appears twice: once in the assembled
     // history and again as the current message. (The bot-side history fetch
     // reads before the persist and never saw it; the worker must drop it here.)
     //
-    // Fetch one extra row when a trigger is present: it's always the newest row
-    // in the window (just persisted), so filtering it from a plain `limit`
-    // fetch would shrink history to limit-1 and drop the oldest message. The +1
-    // keeps a full limit-deep window after the filter. (A rare no-match — the
-    // trigger isn't in the DB — leaves limit+1, which is harmless.)
-    const triggerMessageId = jobContext.triggerMessageId;
-    const fetchLimit = triggerMessageId !== undefined ? limit + 1 : limit;
-    const dbHistory = (
-      await this.deps.dataSource.getChannelHistory(
+    // The exclusion is a predicate, not a post-filter, and that placement is
+    // load-bearing under windowing: the window's count and its rows must
+    // describe the same set. Dropping a row afterwards returned one message
+    // fewer than the arithmetic promised, which the old code compensated for
+    // with a fetch-one-extra `+1`. Inside the predicate there is nothing to
+    // compensate for.
+    const { messages: dbHistory, meta: historyWindowMeta } =
+      await this.deps.dataSource.getChannelHistoryWindow({
         channelId,
-        fetchLimit,
+        cap,
         contextEpoch,
-        configOverrides?.maxAge ?? undefined
-      )
-    ).filter(
-      msg =>
-        triggerMessageId === undefined || !(msg.discordMessageId ?? []).includes(triggerMessageId)
-    );
+        maxAgeSeconds: configOverrides?.maxAge ?? undefined,
+        excludeDiscordMessageId: jobContext.triggerMessageId,
+      });
 
     // Step 4: envelope-carried extended context — batch-upsert the observed
     // users, resolve placeholder personaIds (shared impl, which also re-keys
@@ -273,10 +270,15 @@ export class ContextAssembler {
     const crossChannelHistory = await this.assembleCrossChannel(jobContext, personality, summon, {
       crossChannelEnabled: configOverrides?.crossChannelHistoryEnabled === true,
       excludeChannelId: channelId,
-      limit,
+      limit: cap,
       maxAgeSeconds: configOverrides?.maxAge ?? undefined,
       contextEpoch,
     });
+
+    // Hoisted: an O(n) scan over the merged history, and the debug line below
+    // is usually dropped at prod's log level — computing it inside both calls
+    // would pay for it twice to emit it once.
+    const entriesBeforeHead = countEntriesBeforeHead(history, historyWindowMeta.headRowId);
 
     logger.debug(
       {
@@ -286,9 +288,28 @@ export class ContextAssembler {
         mergedCount: history.length,
         referenceCount: referencedMessages?.length,
         crossChannelGroups: crossChannelHistory?.length,
+        // History-window telemetry. `headRowId` is the falsifiable one: across
+        // consecutive turns in one channel it should hold still for a whole
+        // eviction chunk and then jump once.
+        // How many merged entries sit AHEAD of the window's head row — the
+        // event D4 named, since anything prepended past the head moves the real
+        // cache boundary even when the head itself did not budge.
+        //
+        // Measured by locating the head, NOT as `history.length -
+        // dbHistory.length`: `mergeWithHistory` collapses same-Discord-message
+        // rows before appending, so that subtraction nets dedup drops against
+        // extended additions and goes NEGATIVE when a user @-pings two
+        // personalities and nothing is prepended.
+        //
+        // null = the head row is absent from the merged history (an empty
+        // window, or a head the merge dropped), which is a distinct state from
+        // "nothing was prepended" and should not be flattened into 0.
+        extendedContextPrepended: entriesBeforeHead,
       },
       'Core context assembled'
     );
+
+    logCacheBoundary(channelId, historyWindowMeta.headRowId, entriesBeforeHead);
 
     return {
       userInternalId: user.userId,

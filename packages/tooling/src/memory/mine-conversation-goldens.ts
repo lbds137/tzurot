@@ -200,7 +200,7 @@ export interface PriorHistoryTarget {
 /**
  * Fetch the turns preceding a target in the same CHANNEL — the exact substrate
  * production folds. Production's history source (`ConversationHistoryService.
- * getChannelHistory`) is channel-scoped with NO personalityId filter ("fetch ALL
+ * getChannelHistoryWindow`) is channel-scoped with NO personalityId filter ("fetch ALL
  * channel messages across all personalities"), so the fold sees cross-persona
  * context. Scoping this by personality would silently diverge from prod on
  * multi-persona channels — exactly the cross-persona pronoun case folding most

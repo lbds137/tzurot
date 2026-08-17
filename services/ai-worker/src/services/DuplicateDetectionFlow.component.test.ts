@@ -26,7 +26,7 @@ import {
   generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types/utils/deterministicUuid';
-import { ConversationHistoryService } from '@tzurot/conversation-history';
+import { ConversationHistoryService, getChannelHistoryWindow } from '@tzurot/conversation-history';
 import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
@@ -199,7 +199,8 @@ describe('Duplicate Detection Data Flow', () => {
       });
 
       // Fetch history via service (mimics production flow)
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
 
       // Verify we got all messages
       expect(history).toHaveLength(4);
@@ -226,7 +227,8 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
 
       // Verify the role value and type are exactly what duplicate detection expects
       expect(history).toHaveLength(1);
@@ -263,7 +265,8 @@ describe('Duplicate Detection Data Flow', () => {
       });
 
       // Fetch history (production flow)
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
 
       // Extract assistant messages
       const assistantMessages = getRecentAssistantMessages(history);
@@ -286,7 +289,8 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const assistantMessages = getRecentAssistantMessages(history);
 
       // A completely different response
@@ -341,7 +345,8 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
       const assistantMessages = getRecentAssistantMessages(history);
 
       // Should have both assistant messages
@@ -377,7 +382,8 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
 
       const assistantMessages = getRecentAssistantMessages(history);
 
@@ -390,7 +396,8 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should handle empty history', async () => {
-      const history = await conversationService.getChannelHistory(testChannelId, 10);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
+        .messages;
 
       expect(history).toHaveLength(0);
 
@@ -402,7 +409,7 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should handle history with mixed chronological order correctly', async () => {
-      // Messages are added in order; getChannelHistory returns them in chronological order
+      // Messages are added in order; getChannelHistoryWindow returns them in chronological order
       // getRecentAssistantMessages expects most recent first (reversed)
       for (let i = 1; i <= 5; i++) {
         await seedMessage({
@@ -424,7 +431,8 @@ describe('Duplicate Detection Data Flow', () => {
         });
       }
 
-      const history = await conversationService.getChannelHistory(testChannelId, 20);
+      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 20 }))
+        .messages;
 
       // 10 messages total (5 user + 5 assistant)
       expect(history).toHaveLength(10);
