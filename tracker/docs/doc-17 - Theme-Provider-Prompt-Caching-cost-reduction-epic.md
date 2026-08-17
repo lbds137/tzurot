@@ -217,3 +217,13 @@ recency-based). Entry timestamps are already absolute-only (cache-safe, verified
 Open: `cachedPromptTokens: 0` on the 2026-08-15 incident request remains unexplained — the ~30k
 stable prefix should have hit even under sliding; candidates are provider TTL vs. something
 poisoning the prefix. Bracket the TTL per the gap-probe note above.
+
+## DESIGN PASS COMPLETE 2026-08-16 — §2.5.2 accepted; the beta.204 build is specced
+
+The count-cap slider this doc's 2026-08-15 measurement pinned now has an accepted
+design: **artifact §2.5.2** (quad council pass + owner sign-off, all open calls
+resolved — 25% chunk, TASK-622 co-requisite, ConversationHistoryService windowed
+fetch under one repeatable-read transaction). Build slices (PR 0 probe / PR 1 roster
+/ PR 2 windowed fetch) live in the artifact. The TTL gap-probe and the
+`cachedPromptTokens: 0` attribution are PR 0. This doc remains the
+requirement/measurement record; the artifact owns the design.

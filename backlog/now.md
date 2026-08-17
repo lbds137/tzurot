@@ -14,16 +14,17 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.204 (theme: owner pick pending)
+### 🚢 Next Release — beta.204 (theme: count-cap hysteresis — CONFIRMED, design ACCEPTED)
 
-_The release plan: what the next cut IS, what it waits for, what it deliberately excludes. Drafted at the beta.203 cut (2026-08-16); revised whenever priorities shift. The cut-criterion here is the primary trigger; the count/file caps in `10-working-posture.md` § Ship in bounded units are backstops._
+_The release plan: what the next cut IS, what it waits for, what it deliberately excludes. Drafted at the beta.203 cut (2026-08-16); theme confirmed + design accepted same day. The cut-criterion here is the primary trigger; the count/file caps in `10-working-posture.md` § Ship in bounded units are backstops._
 
-- **Theme (recommended, unconfirmed)**: doc-17 §2.5 chunked-eviction hysteresis — the ~14-19k tokens/turn caching win; the measurement is done, the design isn't. Pairs with TASK-622 (roster active-flag volatility). Needs a design pass (council-worthy) before plan-mode.
+- **Theme (CONFIRMED 2026-08-16)**: history-window count-cap hysteresis — the ~14-19k tokens/turn caching win. **Design ACCEPTED**: [`prompt-assembly-architecture.md` §2.5.2](../docs/proposals/backlog/prompt-assembly-architecture.md) (quad council + owner pass; 25% chunk, 20-message floor, one repeatable-read transaction, telemetry meta). Build slices: **PR 0** z.ai TTL/discount probe (script-only) → **PR 1** TASK-622 roster stabilization (co-requisite, both halves owner-decided) → **PR 2** ConversationHistoryService windowed fetch (+EXPLAIN-decided index). Opus-session executable — the design is settled; workers build to spec.
+- **Rider candidates**: TASK-636 (model-footer dedupe, owner-proposed shape) · drain-campaign batches as they land.
 - **In already**: _(nothing — beta.203 cut 2026-08-16)_
-- **Waiting on**: theme confirmation from the owner; drain-campaign batches accumulate as riders meanwhile.
-- **Deploy notes**: none yet. beta.203's observability items self-verify on first prod use (cache log fields, guest-mode footer).
-- **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue).
-- **Cut when**: the waiting-on list is empty. Backstops: ~10 runtime PRs / ~250 files.
+- **Waiting on**: the build itself (no open decisions).
+- **Deploy notes**: no migrations expected unless PR 2's EXPLAIN adds the `[channelId, createdAt]` index (additive, premigrate-safe). Rollout week reads `cacheHitRatio`/prefix-diff before declaring the win.
+- **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue) · token-budget-layer eviction (stays dormant by design, §2.5.1).
+- **Cut when**: PR 0–2 shipped + rollout-week telemetry read. Backstops: ~10 runtime PRs / ~250 files.
 
 ### 🎯 Current Focus (max 3)
 
