@@ -3,9 +3,10 @@ id: TASK-626
 title: >-
   Durability hardening: retry assistant persists; resolve chunk-skip +
   webhook/DM id asymmetry
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 04:52'
+updated_date: '2026-08-17 00:15'
 labels:
   - 'area:bot-client'
   - 'size:S'
