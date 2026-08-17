@@ -1,9 +1,10 @@
 ---
 id: TASK-636
 title: 'Dedupe the model footer: hyperlink rides the arrow target, model named once'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 01:16'
+updated_date: '2026-08-17 22:55'
 labels:
   - 'area:bot-client'
   - 'size:S'
