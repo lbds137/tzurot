@@ -1,8 +1,20 @@
 # Current
 
-> **Version**: v3.0.0-beta.203 — "z.ai thinking translation": doc-77 COMPLETE (z.ai `thinking`/`reasoning_effort` translation #2112, save-time validation #2114, GLM-5.3 catalog #2115, `show_thinking` retirement #2110) + riders (#2116 reference-stub preview, #2117 cache observability, #2118 guest-mode footer, #2119 persist durability, #2120 retention dev-footgun — the owner's pre-cut gate). 11 PRs / 9 runtime / 149 files. Migration (data-only JSONB strip) premigrated to prod BEFORE the merge (`release:premigrate --force`, owner-authorized via AskUserQuestion). Merged to main 2026-08-17 00:39 UTC; tagged + published; beta.202 demoted.
+> **Version**: v3.0.0-beta.204 — "count-cap hysteresis": the channel-history window's start row now holds still across a chunk instead of sliding every turn (#2124, design §2.5.2), plus prompt-identity fixes — roster speaker-independence (#2123), participant-bio attribution (#2129, real identity bleed), quota retarget after demotion (#2128), model-footer dedupe (#2130), and this release's own CodeQL fix (#2132). 7 PRs / 6 runtime / 91 files. Migration (additive index on `conversation_history`) premigrated to prod BEFORE the merge, owner-authorized via AskUserQuestion; **verified in `pg_indexes`, and both protected pgvector indexes confirmed still present**. Merged to main 2026-08-17 23:52 UTC; `release:finalize` run (develop SHA-aligned); tagged + published; beta.203 demoted.
+>
+> **Previous**: v3.0.0-beta.203 — "z.ai thinking translation": doc-77 COMPLETE (z.ai `thinking`/`reasoning_effort` translation #2112, save-time validation #2114, GLM-5.3 catalog #2115, `show_thinking` retirement #2110) + riders (#2116 reference-stub preview, #2117 cache observability, #2118 guest-mode footer, #2119 persist durability, #2120 retention dev-footgun — the owner's pre-cut gate). 11 PRs / 9 runtime / 149 files. Migration (data-only JSONB strip) premigrated to prod BEFORE the merge (`release:premigrate --force`, owner-authorized via AskUserQuestion). Merged to main 2026-08-17 00:39 UTC; tagged + published; beta.202 demoted.
 
 ---
+
+## 🚀 beta.204 SHIPPED (2026-08-17 EDT) — smoke-verified, three clean release reviews
+
+Three holistic release reviews, **no blocking findings** in any. They independently verified the 17-package version bump, traced the cross-PR seams (windowed fetch × roster/bio fix × footer stripping × quota path), and confirmed the old `.getChannelHistory(` call shape has no dangling call sites.
+
+**⏳ POST-DEPLOY READ STILL OWED** — the rollout half of TASK-641's work. Baseline is pinned in `backlog/now.md`. Run `pnpm ops cache:prefix-diff --env prod --channel <id>` on the two baselined channels (`1498247824662335608`, `1481138179917615144`) and compare **cached-token counts/percentages, NOT raw offsets** — #2129 adds bytes inside S1 and shifts every offset after it. Success = the cut moves DEEPER into chat_log. Expect one free cache miss per channel as the new S1 prefix warms. Also watch for `degraded=true` in `Retrieved channel history window`, which is the silent-empty-history failure mode.
+
+**What the dev smoke did and did NOT prove** is recorded below in the 2026-08-17 session block — three of six runtime PRs went unexercised (#2128 no demotion, #2130 no swap-shape footer, #2123 single-speaker), and the hysteresis BENEFIT needs eviction that only prod reaches.
+
+**Release-process ledger (honest half)**: the release PR body claimed 72 files when the diff was 91 — accurate when `release:range` ran, stale after later commits, and caught by **two** reviewers rather than by me. That is the "re-derive a count whenever the thing it counts changes" rule, violated. CodeQL went red on a `replace(/<[^>]*>/g, '')` that `00-critical.md` explicitly bans, introduced in #2129 with the rule loaded in context and missed by per-PR CodeQL (fixed in #2132; lint-time enforcement filed as TASK-647). And three removal-at-ship misses (TASK-618, TASK-636, doc-77) all surfaced via release-time sweeps rather than at merge.
 
 ## 🚀 beta.203 SHIPPED (2026-08-16 EDT) — observability items, no smoke round
 
