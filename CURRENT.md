@@ -14,11 +14,18 @@ Release review clean (no blocking findings; it independently verified the migrat
 
 **Session process ledger (honest half)**: #2119 round 2 caught my round-1 fix being asymmetric (success-path persist isolated, error-path sibling missed — the two-way-sweep class); #2120 rounds 2–3 each caught a test-hygiene gap in my own additions (console-spy convention; `mockNodeEnv` describe relying on a sibling's reset). All applied same-round. Near-miss: a `git checkout <file>` on uncommitted work was hook-blocked (cwd-drift guard) — restored via Edit instead.
 
+## ✅ 2026-08-16 late session: beta.204 design ACCEPTED + mining pass + handoff prep
+
+- **beta.204 theme CONFIRMED + design ACCEPTED** (owner pass, same evening): count-cap hysteresis — [`prompt-assembly-architecture.md` §2.5.2](docs/proposals/backlog/prompt-assembly-architecture.md) (quad council record §9b). Build slices, Opus-executable: **PR 0** z.ai TTL/discount probe (also attributes the `cachedPromptTokens: 0` mystery) → **PR 1** TASK-622 roster fix (both halves decided, state:ready) → **PR 2** ConversationHistoryService windowed fetch (one repeatable-read tx, 25% chunk, 20-msg floor, telemetry meta, EXPLAIN-decided index).
+- **Mining run 2026-08-16 complete** (window 08-12→08-17): all five dispositions landed — P1/P3/P5 in **PR #2122 (in flight at write time)**, P2 = TASK-637, P4 answered: **the ~6-round review cap is SOFT, severity-gated** (hard for polish; High-severity correctness/security always gets its round) — recorded in the orchestrator memory.
+- **Deploy-orphan Production Issue CLOSED** — release-verified live during the beta.203 deploy (owner witnessed the delayed real reply; `Job stalled` trail confirmed in prod logs; commit `447909122`).
+- TASK-636 filed (model-footer dedupe, owner-proposed shape — beta.204 rider candidate).
+
 ## 📋 Open items (near-term)
 
-- **S1 (beta.201, #2090 export-clear round-trip) — STILL OPEN**: export a character with an **empty** field → re-import → confirm it stays empty. The one silent-failure flow in that range. TASK-590 (`customFields` lossy gateway-side) is the known gap left out on purpose.
-- **beta.203 vNext theme pick (owner)**: doc-17 §2.5 chunked-eviction hysteresis is the strong candidate (~14-19k tokens/turn; measurement in tracker doc-17 reframed the caching model — chat_log's prefix dies EVERY turn under the 50-cap slide). TASK-622 (roster active-flag volatility) pairs with it. Drain campaign resumes as background either way.
-- **doc-17 open question**: incident request's `cachedPromptTokens: 0` — the #2108 smoke's warm-generation 79% hit reframes it as likely cold/TTL; TTL-bracket probe noted in the doc.
+- **Purge authorization (owner, open ask)**: 18 prod accounts purge-eligible, all never-used-directly class (no notice owed, zero characters); 1 reachable user awaits the warning DM (`retention:notify`). Manual runs only — awaiting explicit owner go-ahead.
+- **S1 (beta.201, #2090 export-clear round-trip) — STILL OPEN**: export a character with an **empty** field → re-import → confirm it stays empty. TASK-590 (`customFields` lossy gateway-side) is the known gap left out on purpose.
+- **Housekeeping**: `3f50da50.jsonl` (155MB, fully mined) is a disk-space deletion candidate — owner's explicit okay still needed.
 
 ## 🔧 DRAIN CAMPAIGN — resumes now (doc-77 shipped); batching is the method
 
@@ -38,4 +45,4 @@ Backlog composition, measured: ~321 open = 107 `ready` · 97 `observable` · 57 
 - **Owner decisions locked** (still governing): no asset table for attachments · descriptions live 30d keyed to `DAYS_TO_KEEP_HISTORY` · direct replies always re-vision · extended context re-visions only within retention · undescribed old images render a presence note · extended-context quota exemption AFTER persistence · `maxImages` is a spend cap · moderator cascade (TASK-529) + shared-persona-name collision (TASK-528, key by personaId) fix shapes recorded.
 - **Retention is calendar-only**: books as of 2026-08-09 — 221+ users, 5 in earlier grace (~08-26 expiries) + 2 warned (~09-08). Phase 4 autonomy parked BY DESIGN. Dev nag now silenced by #2120's prod gate.
 
-_This session spanned beta.203's full cycle plus multiple compactions; a fresh session is a clean continuation point whenever convenient — owner's call._
+_HANDOFF READY (2026-08-16 late): the next session runs **Opus 5 orchestrator** per the standing default. First units: merge/absorb PR #2122 if still open → beta.204 PR 0 (probe) → PR 1 (TASK-622) → PR 2 (windowed fetch), drain batches as riders. The design is settled — workers build to §2.5.2's spec; escalate only owner-taste/schema calls. Review cap: soft, severity-gated (see orchestrator memory)._
