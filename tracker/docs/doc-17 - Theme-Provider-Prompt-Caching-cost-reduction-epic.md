@@ -408,3 +408,53 @@ diagnostic rows to their usage numbers.
 third; S1 cuts are persona alternation and inherent (owner-confirmed); and the
 one deep chat_log cut at 34,302 chars is the first direct prod sighting of the
 head-slide beta.204 PR 2 targets.
+
+## TASK-641 CLOSED 2026-08-17 — the shallow-hit cut is chat_log head-slide, NOT S1
+
+Supersedes the correction above. Sampling shallow HITS (not channels) resolved it.
+
+Method that worked, after sampling channels twice and drawing only healthy threads:
+select rows by `cachedPromptTokens/promptTokens < 0.25` across ALL channels first
+(`llmResponse.promptTokens` / `llmResponse.cachedPromptTokens` — NOT nested under
+`usage`; a guessed `usage` path returned 0 of 202 rows and the self-check caught
+it), then run `cache:prefix-diff` on the channels that surface.
+
+**The tell, visible before any diffing: cached tokens are CONSTANT per channel
+while prompt length varies freely.** ch-1498 cached 5,632 across prompts of
+25,989-34,026; ch-1481 cached 6,656 across 28,280-34,426. A fixed byte offset,
+not a fluctuating one.
+
+Diffing confirms it — 19 of 20 consecutive pairs diverge at `H chat_log`, at a
+per-channel CONSTANT offset, under prompt lengths that swing 10,000+ chars:
+
+| channel | divergence band | prompt range | cached | offset/cached |
+| --- | --- | --- | --- | --- |
+| 1498…608 | 27,451-27,465 (14 chars, 12 pairs) | 84,769-94,862 | 5,632 | 4.88 ch/tok |
+| 1481…144 | 32,334-32,451 (117 chars, 7 pairs) | 106,830-110,877 | 6,656 | 4.87 ch/tok |
+
+Three independent numbers agree: the divergence offset divided by the billed
+cached tokens gives 4.88 and 4.87 chars/token in two unrelated channels, and
+27,455 chars matches this doc's own earlier independent measurement of the
+pre-chat_log sections (~28,350) within 3%. So the cut sits essentially AT the
+chat_log boundary: S0 and S1 cache, and **the ENTIRE chat log is invalidated
+every turn** — the window head moving, which is exactly what beta.204 PR 2's
+count-cap hysteresis stops. Single model and single persona throughout both
+channels, so alternation is excluded.
+
+**TASK-641's premise is REFUTED, and this is the good outcome.** The task feared
+"an S1-side divergence is truncating the prefix in addition to the head slide…
+if S1 cuts at ~5.1k, stabilizing chat_log below that point buys nothing." S1 is
+NOT the cutter. The ~5.1k mean was the chat_log boundary measured in tokens, not
+an S1 defect. Nothing bounds the win from the S1 side.
+
+Residual S1 cuts, both minor and neither the shallow-hit driver:
+- `S1 participants` (1 of 20 pairs) — roster change mid-conversation. Real, small,
+  the residue of the TASK-622 roster-stability work.
+- `S1 system_identity` (2 pairs in a separate thread, offset 1956) — persona
+  alternation, owner-confirmed, inherent. See the section above.
+
+**Projected win (PROJECTION, not measured):** these channels sit at 29-32% cached.
+With the chat_log head held stable across a hysteresis chunk, the cacheable prefix
+should extend from the chat_log boundary toward the log's tail. That is the ≥90%
+bucket the rollout read is looking for. Measure it on the <2 min gap bucket
+post-deploy, per the acceptance note above.
