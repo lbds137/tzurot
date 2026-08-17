@@ -8,8 +8,8 @@
 
 Release review clean (no blocking findings; it independently verified the migration's LWW-safety and the guest-mode/quota-fallback seam test). The two runtime-unverified paths are **observability-instead-of-smoke** by design:
 
-- **Cache-observability fields (#2117)**: first prod generation proves them — check a `Generated response` log line for `secondsSinceLastChannelGeneration`, the three `promptHash*` fields, and `cacheHitRatio`.
-- **Guest-mode footer (#2118)**: fires on the next real guest substitution; audit line `Guest-mode substitution applied` + footer "guest mode" category. **TASK-620 design stands as shipped** (single `guest_mode` category; owner sign-off was offered pre-release, silence = keep).
+- **Cache-observability fields (#2117): ✅ VERIFIED LIVE** (prod logs 2026-08-17 01:07–01:57 UTC — `cacheHitRatio=0.62`, all three `promptHash*` fields, `secondsSinceLastChannelGeneration` present on real generations).
+- **Guest-mode footer (#2118): ✅ VERIFIED LIVE** (multiple `Guest-mode substitution applied` audit lines in the same window; owner screenshot shows the footer's "(guest mode)" category rendering). **TASK-620 design stands as shipped.**
 - z.ai thinking translation itself was owner-smoke-tested on dev pre-release (PR B, requestId `06dd8b51`) and probed live against GLM-5.3.
 
 **Session process ledger (honest half)**: #2119 round 2 caught my round-1 fix being asymmetric (success-path persist isolated, error-path sibling missed — the two-way-sweep class); #2120 rounds 2–3 each caught a test-hygiene gap in my own additions (console-spy convention; `mockNodeEnv` describe relying on a sibling's reset). All applied same-round. Near-miss: a `git checkout <file>` on uncommitted work was hook-blocked (cwd-drift guard) — restored via Edit instead.
