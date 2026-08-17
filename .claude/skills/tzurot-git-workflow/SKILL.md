@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-15'
+lastUpdated: '2026-08-16'
 ---
 
 # Git Workflow Procedures
@@ -302,6 +302,12 @@ git push --force-with-lease origin feat/your-feature
 The owner opens essentially every release with "any risks? anything that would
 raise confidence?" — answer it before being asked, as part of proposing the cut:
 
+- **The proposal itself is three parts, always** (owner directive):
+  a full summary of everything included (every PR, grouped by theme), an
+  explicit justification judgment ("is there enough here to justify a
+  release?"), and a riders check ("any other small items worth including?").
+  A bare "ready to cut?" prompt forces the owner to reconstruct the contents
+  themselves.
 - **Cite the release plan** — the 🚢 Next Release section in `backlog/now.md`
   is the primary cut trigger (`10-working-posture.md` § Ship in bounded units):
   state that its waiting-on list is empty, or name the backstop that fired
