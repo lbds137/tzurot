@@ -957,10 +957,14 @@ describe('PromptBuilder', () => {
       expect(content).toContain('</participants>');
       expect(content).toContain('<participant id="persona-1"');
       expect(content).toContain('<name>Alice</name>');
-      expect(content).toContain('<about source="user_input">A software developer</about>');
+      expect(content).toContain(
+        '<about source="user_input">In Alice\'s own words: A software developer</about>'
+      );
       expect(content).toContain('<participant id="persona-2"');
       expect(content).toContain('<name>Bob</name>');
-      expect(content).toContain('<about source="user_input">A designer</about>');
+      expect(content).toContain(
+        '<about source="user_input">In Bob\'s own words: A designer</about>'
+      );
       // Group conversation note for multiple participants
       expect(content).toContain('<note>This is a group conversation');
     });

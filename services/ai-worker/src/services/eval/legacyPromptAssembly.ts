@@ -20,11 +20,11 @@
  * (PersonalityFieldsFormatter, EnvironmentFormatter, MessageFormatters,
  * formatSingleMemory/-Fact); only what the restructure changed is frozen here.
  * One pinned exception: the live `<participants>` block has since shed every
- * per-speaker and recency-ordered byte for cache-prefix stability, so
- * `legacyFormatParticipantsContext` below reproduces the old wrapper (insertion
- * order, `active="true"`, speaker-named group note) over the shared element
- * renderer. A snapshot test pins this file's output so silent drift is
- * impossible.
+ * per-speaker and recency-ordered byte for cache-prefix stability AND gained an
+ * `<about>` attribution lead-in, so `legacyFormatParticipantsContext` below
+ * reproduces the old wrapper (insertion order, `active="true"`, speaker-named
+ * group note) and opts out of the lead-in, over the shared element renderer.
+ * A snapshot test pins this file's output so silent drift is impossible.
  *
  * EVAL-ONLY — never imported by production code. Delete (or re-arm as the
  * "old" side) when the harness re-runs at the Phase-2 exit gate.
@@ -57,12 +57,14 @@ import { detectNameCollision } from '../prompt/PromptLogger.js';
 /**
  * The pre-restructure `<participants>` block.
  *
- * Three bytes-level differences from the live formatter, all of which the
- * live one shed for prompt-cache stability: Map-insertion (recency) order
- * rather than persona-UUID order, `active="true"` on the current speaker, and
- * a group-conversation note whose example name is the current speaker's. The
- * `<participant>` element body itself never changed, so it comes from the
- * shared renderer rather than a frozen copy.
+ * Four byte-level differences from the live formatter. Three the live one shed
+ * for prompt-cache stability: Map-insertion (recency) order rather than
+ * persona-UUID order, `active="true"` on the current speaker, and a
+ * group-conversation note whose example name is the current speaker's. The
+ * fourth is the live formatter's `<about>` attribution lead-in, which this
+ * revision predates — suppressed via `attributeAbout: false` below. The
+ * element body is otherwise unchanged, so it still comes from the shared
+ * renderer rather than a frozen copy.
  */
 export function legacyFormatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
@@ -75,7 +77,10 @@ export function legacyFormatParticipantsContext(
   const parts: string[] = ['<participants>', PARTICIPANTS_INSTRUCTION];
 
   for (const info of participantPersonas.values()) {
-    parts.push(...renderParticipantElement(info, true));
+    // attributeAbout: false — the `<about>` attribution lead-in postdates this
+    // frozen revision, and arm A is only a valid baseline while it reproduces
+    // what actually shipped.
+    parts.push(...renderParticipantElement(info, { markActive: true, attributeAbout: false }));
   }
 
   if (participantPersonas.size > 1) {
