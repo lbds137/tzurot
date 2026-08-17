@@ -87,6 +87,7 @@ export class AuthStep implements IPipelineStep {
       wasAutoPromoted,
       fallback,
       quotaFallback,
+      inheritedQuotaCategory,
     } = llmAuth;
 
     const audioProviderKeys = await this.resolveAudioProviderKeys(jobContext.userId);
@@ -121,6 +122,13 @@ export class AuthStep implements IPipelineStep {
         ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),
         ...(fallback !== undefined ? { fallback } : {}),
         ...(quotaFallback !== undefined ? { quotaFallback } : {}),
+        // Carries the demotion's OWN classification forward so the reactive
+        // retarget stays reachable once the demotion has already consumed the
+        // quota error. Dropping it here is invisible to the compiler — the
+        // field is optional on ResolvedAuth — and silently re-creates the
+        // dead-end this thread exists to close, so the seam is asserted in
+        // AuthStep.test.ts rather than only at the two endpoints.
+        ...(inheritedQuotaCategory !== undefined ? { inheritedQuotaCategory } : {}),
       },
     };
   }
@@ -137,7 +145,18 @@ export class AuthStep implements IPipelineStep {
     jobId: string | undefined,
     requestId: string
   ): Promise<
-    Awaited<ReturnType<AuthStep['resolveLlmAuth']>> & { quotaFallback?: QuotaFallbackInfo }
+    Awaited<ReturnType<AuthStep['resolveLlmAuth']>> & {
+      quotaFallback?: QuotaFallbackInfo;
+      /**
+       * Set ONLY by the demotion tier. A demotion keeps the user's model and
+       * merely changes pool, so the reactive quota retarget is still owed if
+       * the passthrough fails — but after a demotion the original quota error
+       * never surfaces to be classified. This carries the category that was
+       * classified up here. Absent on the retarget path, which already spent
+       * that tier.
+       */
+      inheritedQuotaCategory?: QuotaFallbackCategory;
+    }
   > {
     const llmAuth = await this.resolveLlmAuth(initialPersonality, userId, requestId);
 

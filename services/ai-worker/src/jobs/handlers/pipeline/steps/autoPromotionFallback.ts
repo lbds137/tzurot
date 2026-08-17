@@ -28,6 +28,7 @@ import { RetryError } from '../../../../utils/retry.js';
 import {
   classifyBillingQuotaFailure,
   logQuotaFallbackAudit,
+  type QuotaFallbackCategory,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
 import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
@@ -55,6 +56,17 @@ export interface GenerateAttemptOpts {
   effectiveProvider?: AIProvider;
   /** LLM transient-retry budget override; set to 1 on the fail-fast primary attempt. */
   maxLlmAttempts?: number;
+  /**
+   * The quota category this attempt inherited from a proactive DEMOTION.
+   *
+   * A demotion fires only when `checkModelViability` reports the primary pool
+   * doomed (see AuthStep), so that pool is not called on this turn and cannot
+   * produce the quota error the reactive tier classifies. Carrying the category
+   * keeps that tier eligible on the demoted route's own failure — see
+   * `tryPromotionDemotion` for why the same user otherwise gets a response on a
+   * live 429 and an error on a cached one.
+   */
+  inheritedQuotaCategory?: QuotaFallbackCategory;
 }
 
 export interface GenerateAttemptResult {

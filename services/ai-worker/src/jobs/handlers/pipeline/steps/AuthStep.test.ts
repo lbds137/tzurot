@@ -735,6 +735,12 @@ describe('AuthStep', () => {
         // The passthrough is consumed — no stale rescue route survives.
         expect(result.auth?.fallback).toBeUndefined();
         expect(result.auth?.wasAutoPromoted).toBeUndefined();
+        // The demotion's own classification must SURVIVE this hop. It is
+        // optional on ResolvedAuth, so dropping it compiles cleanly and the
+        // endpoint tests on either side still pass while the reactive retarget
+        // silently dead-ends — which is exactly how it shipped once. This is
+        // the only test that drives the real process() wiring.
+        expect(result.auth?.inheritedQuotaCategory).toBe('quota_exceeded');
       });
 
       it('falls through to the global-default retarget when BOTH pools are doomed', async () => {
@@ -760,6 +766,14 @@ describe('AuthStep', () => {
         expect(result.config?.effectivePersonality.model).toBe('paid/default');
         expect(result.auth?.quotaFallback?.fromModel).toBe('glm-5.2');
         expect(result.auth?.quotaFallback?.toModel).toBe('paid/default');
+        // The INVERSE of the demotion invariant, and the reason the two are
+        // separate fields: this branch already spent the retarget tier, so
+        // carrying a category forward would let the request retarget to the
+        // admin default it is ALREADY on — a no-op retry loop. The branch
+        // spreads `...llmAuth`, which happens not to carry the field today, so
+        // without this assertion a future refactor could reintroduce the loop
+        // silently.
+        expect(result.auth?.inheritedQuotaCategory).toBeUndefined();
       });
 
       it('promotion WITHOUT a pre-computed fallback skips demotion (falls to quota retarget)', async () => {

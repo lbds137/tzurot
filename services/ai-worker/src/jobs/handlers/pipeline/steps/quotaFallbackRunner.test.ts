@@ -123,6 +123,87 @@ describe('runWithQuotaFallback', () => {
     expect(retry).not.toHaveBeenCalled();
   });
 
+  describe('inherited category from a proactive demotion (the cached-429 dead end)', () => {
+    // Reproduces an observed prod dead end. Three tiers exist: z.ai-direct,
+    // the OpenRouter same-model passthrough, and this reactive retarget. A
+    // model that ships on z.ai before OpenRouter makes tier 2 a guaranteed 400
+    // (`... is not a valid model ID`).
+    //
+    // Turn A (429 arrives LIVE): the rate-limit error reaches this gate,
+    // classifies, the retarget fires, the user gets a response.
+    // Turn B (429 comes from the RateLimitCache): AuthStep demotes straight to
+    // tier 2, so no quota error is ever produced — the only error here is the
+    // 400, which classifies as nothing, and the turn dead-ends in an
+    // in-character error.
+    //
+    // The user is equally rate-limited in both. The outcome differed only by
+    // whether we had cached the fact.
+    const staggeredReleaseError = new Error('z-ai/glm-5.3 is not a valid model ID');
+
+    it('dead-ends without the inherited category (the bug)', async () => {
+      const primary = vi.fn().mockRejectedValue(staggeredReleaseError);
+      const retry = vi.fn();
+
+      await expect(
+        runWithQuotaFallback({
+          primary,
+          retry,
+          opts: buildOpts(), // no inheritedQuotaCategory
+          userId: '123',
+          requestId: 'req-1',
+          deps: buildDeps({ global: { model: 'paid/default' } }),
+        })
+      ).rejects.toThrow('not a valid model ID');
+      expect(retry).not.toHaveBeenCalled();
+    });
+
+    it('retargets when the demotion carried the rate-limit category (the fix)', async () => {
+      const primary = vi.fn().mockRejectedValue(staggeredReleaseError);
+      const retry = vi.fn().mockResolvedValue(okResult);
+
+      const result = await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({ inheritedQuotaCategory: ApiErrorCategory.RATE_LIMIT }),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      });
+
+      expect(retry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality: expect.objectContaining({ model: 'paid/default' }),
+        })
+      );
+      expect(result.quotaFallback).toMatchObject({
+        toModel: 'paid/default',
+        category: ApiErrorCategory.RATE_LIMIT,
+        mode: 'reactive',
+      });
+    });
+
+    it('prefers the LIVE classification over the inherited one', async () => {
+      // The inherited category is a floor, not an override — an error that
+      // describes itself wins, or a credit-exhaustion downstream of a
+      // rate-limit demotion would be filed under the wrong reason.
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.QUOTA_EXCEEDED));
+      const retry = vi.fn().mockResolvedValue(okResult);
+
+      const result = await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({ inheritedQuotaCategory: ApiErrorCategory.RATE_LIMIT }),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      });
+
+      expect(result.quotaFallback).toMatchObject({
+        category: ApiErrorCategory.QUOTA_EXCEEDED,
+      });
+    });
+  });
+
   it('rethrows non-quota failures without retargeting', async () => {
     const primary = vi.fn().mockRejectedValue(new Error('connection reset by peer'));
     const retry = vi.fn();

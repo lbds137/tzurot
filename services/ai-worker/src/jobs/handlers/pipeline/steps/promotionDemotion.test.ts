@@ -50,6 +50,20 @@ describe('tryPromotionDemotion', () => {
     expect(result?.fallback).toBeUndefined();
   });
 
+  it('carries the category forward for the reactive tier', async () => {
+    // A demotion keeps the user's model and only changes pool, so the reactive
+    // retarget is still owed if the passthrough fails. But demoting means the
+    // quota error never reaches that tier to be classified — the doom cache
+    // short-circuits it — so the category has to travel on the auth instead.
+    //
+    // Observed in prod: without this, a cached 429 plus a model OpenRouter had
+    // not published yet produced a 400 that classified as nothing, and the turn
+    // dead-ended. The same user with a LIVE 429 got a response.
+    const result = await tryPromotionDemotion(promotedAuth, 'user-1', CATEGORY, makeCaches(false));
+
+    expect(result?.inheritedQuotaCategory).toBe(CATEGORY);
+  });
+
   it('returns null for a GUEST-MODE fallback (owner-cost boundary: paid model must not run on the system key)', async () => {
     const guestFallbackAuth: DemotableAuth = {
       ...promotedAuth,

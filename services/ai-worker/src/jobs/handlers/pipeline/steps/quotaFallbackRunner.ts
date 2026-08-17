@@ -120,7 +120,18 @@ export async function runWithQuotaFallback(options: {
       // Reaction is fail-soft by contract; never let it mask the real error.
       await onZaiFreeTierFailure(originalError).catch(() => undefined);
     }
-    const category = classifyQuotaFailure(originalError);
+    // Classification first; the inherited category is a fallback, never an
+    // override — a live quota error still describes itself best.
+    //
+    // The fallback exists because a proactive demotion consumes the quota error
+    // before it can be classified here. `AuthStep.resolveLlmAuthWithQuotaCheck`
+    // returns early unless `checkModelViability` reports the route doomed, and
+    // only then demotes — so on a demoted turn the doomed pool is never called
+    // and produces no error. The only error this sees is whatever the demoted
+    // route returned. When that is a 400 (a model OpenRouter has not published
+    // yet), classification yields null and the turn dead-ends — even though the
+    // user is demonstrably rate-limited, which is why the demotion happened.
+    const category = classifyQuotaFailure(originalError) ?? opts.inheritedQuotaCategory ?? null;
     if (category === null) {
       throw originalError;
     }
