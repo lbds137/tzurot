@@ -254,8 +254,14 @@ content. Probe scripts were scratch, not landed — method recorded here instead
     64-block.
   - one character changed at the FIRST token → 0 / 8,616. The only shape that
     yields a zero on a long prompt.
-- **TTL is ≥ 20 minutes** for an untouched entry (identical prefix re-probed at
-  1/3/6/12/20 min, all 99.8%, byte-identical `cached` value each time).
+- **TTL is between 30 and 45 minutes** for an idle entry. Seven distinct
+  prefixes were warmed at t=0 and one re-probed per checkpoint (so the run costs
+  max(delay), not sum(delay)): 1/3/6/12/20/30 min all returned 99.8% with a
+  byte-identical `cached` value, and 45 min returned 0/11,418. Scope: this
+  brackets pure age for an **untouched** entry. A prod entry in a busy channel
+  could also be evicted under cache pressure before its age runs out, which this
+  probe cannot see — so treat (30, 45] as the ceiling on idle survival, not as a
+  guaranteed lifetime.
 
 ### The billed discount is NOT measurable from any surface we have — ruled out, do not re-attempt
 
@@ -287,11 +293,14 @@ Hit rate by idle gap since the previous call in the SAME channel:
 | 30 min – 2 h | 16 | 18.8 |
 | > 2 h | 8 | 0.0 |
 
-Monotonic decay: **entry expiry dominates the long tail** (8/8 zero past 2h). But
-~24% still miss inside the <2 min bucket, where expiry cannot be the cause — that
-residual is prefix instability. Both causes are real and now separated. Sample is
-small (n=8 in the largest-gap bucket); treat the curve's shape as established and
-its exact breakpoints as not.
+Monotonic decay, and the measured (30, 45] min TTL explains its shape: the >2h
+bucket is 8/8 zero because no entry can survive that long, and the 30min-2h
+bucket straddles the boundary. **But the decay BELOW 30 minutes is not expiry** —
+an untouched entry demonstrably survived 30 minutes in the probe, so the 24% miss
+inside the <2 min bucket and the 37% inside 2-10 min are prefix instability, not
+age. Both causes are real, and the TTL measurement is what separates them.
+Sample is small (n=8 in the largest-gap bucket); treat the curve's shape as
+established and its exact breakpoints as not.
 
 Depth of the hits that did land:
 
