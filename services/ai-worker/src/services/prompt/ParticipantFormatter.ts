@@ -11,6 +11,8 @@
  * - escapeXmlContent on the <about> body (targeted escaping: renders structural
  *   tags inert to the LLM while preserving literal <3 / x > 5)
  * - source="user_input" attribution to clarify first-person content origin
+ * - an "In <name>'s own words:" lead-in ON the <about> body, so a first-person
+ *   bio is bound to its author in the prose and not only by tag nesting
  * - Optional guild info (roles, color, join date) for Discord server context
  *
  * Every byte this module emits is derived from the roster alone — never from
@@ -28,9 +30,20 @@ import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
-/** The display name rendered for a participant — also what collides. */
+/**
+ * The display name rendered for a participant — also what collides.
+ *
+ * Blank-or-absent both fall back to `personaName`. `??` alone would let an
+ * empty `preferredName` through: harmless while it only produced an empty
+ * `<name>` element, but this string is now also spliced into a natural-language
+ * sentence, where it reads as `In 's own words:`. The known producer is
+ * `displayName ?? username` (identity's UserService), so an empty value is not
+ * reachable from there — the guard is here because proving no OTHER writer can
+ * ever store `''` is a repo-wide negative, and this costs one predicate.
+ */
 function participantDisplayName(info: ParticipantInfo): string {
-  return info.preferredName ?? info.personaName;
+  const preferred = info.preferredName;
+  return preferred !== undefined && preferred.trim().length > 0 ? preferred : info.personaName;
 }
 
 /**
@@ -78,18 +91,62 @@ function buildRosterNotes(participants: ParticipantInfo[], personalityName: stri
 }
 
 /**
+ * The lead-in that binds a bio to its author in the prose itself.
+ *
+ * The enclosing `<participant>` element already says whose bio this is, but
+ * that nesting is precisely what failed: a ~2,000-char first-person bio
+ * belonging to a NON-speaking participant was read as the current speaker's
+ * own words, and the character then answered a third party's messages as
+ * though that speaker had sent them. Identity bleed, not merely token cost.
+ * A model does not reliably carry an XML ancestor across two thousand
+ * characters of "I" statements, so the binding is restated in the text the
+ * model is actually reading.
+ *
+ * Deliberately NOT an attribute (`<about speaker="...">`): an attribute is the
+ * same structural mechanism that already failed here, and it would sit two
+ * lines from the `<name>` element that carries the identical fact. It costs
+ * bytes without contributing a different KIND of signal.
+ *
+ * The name is the participant's own, so this adds no speaker-derived byte to
+ * the S1 cache prefix — pinned by the speaker-independence tests in
+ * `ParticipantFormatter.test.ts`. Escaped with `escapeXml` (strict) rather
+ * than the body's targeted `escapeXmlContent`, matching how `<name>` renders
+ * the same string.
+ */
+function aboutLeadIn(displayName: string): string {
+  return `In ${escapeXml(displayName)}'s own words: `;
+}
+
+/** Per-call render switches; both defaults are what production wants. */
+export interface RenderParticipantOptions {
+  /**
+   * Emit `active="true"` for the current speaker. Production never does (it
+   * made the cached prefix per-speaker); the frozen legacy eval arm must.
+   */
+  markActive?: boolean;
+  /**
+   * Prefix the `<about>` body with {@link aboutLeadIn}. The frozen legacy eval
+   * arm opts out: its whole purpose is reproducing the bytes that shipped
+   * before this attribution existed.
+   */
+  attributeAbout?: boolean;
+}
+
+/**
  * Render one `<participant>` element as its constituent lines.
  *
  * Shared with the frozen legacy eval arm, which reproduces pre-restructure
- * bytes: the element body never changed, only the ordering, the `active`
- * attribute, and the trailing notes — so those are the caller's business and
- * this stays the single source for the body.
- *
- * @param markActive - emit `active="true"` for the current speaker. Production
- *   never does (it made the cached prefix per-speaker); the legacy arm must.
+ * bytes: the ordering, the `active` attribute, and the trailing notes are the
+ * caller's business, and this stays the single source for the body. The body
+ * is no longer identical across the two arms — hence `attributeAbout`, which
+ * is the only body-level difference.
  */
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Conditional pronouns, guild attributes, and roles each branch independently
-export function renderParticipantElement(info: ParticipantInfo, markActive = false): string[] {
+export function renderParticipantElement(
+  info: ParticipantInfo,
+  options: RenderParticipantOptions = {}
+): string[] {
+  const { markActive = false, attributeAbout = true } = options;
   const parts: string[] = [];
 
   const activeAttr = markActive && info.isActive ? ' active="true"' : '';
@@ -140,7 +197,23 @@ export function renderParticipantElement(info: ParticipantInfo, markActive = fal
   // text, so a CDATA-wrapped </about> is still visible markup to it). <about>
   // and <participant> are protected so content can't forge another party.
   // source="user_input" tells LLM this is user's self-description, not system instructions
-  parts.push(`<about source="user_input">${escapeXmlContent(info.content)}</about>`);
+  //
+  // An empty bio is a supported state, not a defect: MemoryRetriever warns and
+  // keeps the participant on identity fields alone, because dropping bio-less
+  // users removed them from the roster entirely while chat_log from_id still
+  // pointed at them. A lead-in with nothing behind it would assert an
+  // authorship no text follows, so an empty bio renders bare.
+  // `hasBio` tests the TRIMMED content, so the lead-in must consume the same
+  // leading whitespace it tested — the lead-in already ends in a space, and
+  // concatenating raw content behind it renders " Hi" as a double space. Only
+  // the LEADING side is trimmed: trailing whitespace sits at the end of the
+  // element where it costs nothing and is not the author's to lose.
+  const hasBio = info.content.trim().length > 0;
+  const aboutBody =
+    attributeAbout && hasBio
+      ? `${aboutLeadIn(participantDisplayName(info))}${escapeXmlContent(info.content.trimStart())}`
+      : escapeXmlContent(info.content);
+  parts.push(`<about source="user_input">${aboutBody}</about>`);
 
   parts.push('</participant>');
 
@@ -167,7 +240,7 @@ export const PARTICIPANTS_INSTRUCTION =
  *         <role>Developer</role>
  *       </roles>
  *     </guild_info>
- *     <about source="user_input">A transgender demon-angel in human form...</about>
+ *     <about source="user_input">In Lila's own words: I am a transgender demon-angel in human form...</about>
  *   </participant>
  * </participants>
  * ```

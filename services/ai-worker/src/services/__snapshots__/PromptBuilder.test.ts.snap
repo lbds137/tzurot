@@ -169,7 +169,7 @@ You are a helpful assistant. Always be kind and helpful.
 <instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
 <participant id="p-test">
 <name>TestUser</name>
-<about source="user_input">A developer testing the bot</about>
+<about source="user_input">In TestUser's own words: A developer testing the bot</about>
 </participant>
 </participants>"
 `;
@@ -227,35 +227,35 @@ You are a helpful assistant. Always be kind and helpful.
 <instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
 <participant id="p-alice">
 <name>Alice</name>
-<about source="user_input">Software developer who loves TypeScript</about>
+<about source="user_input">In Alice's own words: Software developer who loves TypeScript</about>
 </participant>
 <participant id="p-bob">
 <name>Bob</name>
-<about source="user_input">UX designer focused on accessibility</about>
+<about source="user_input">In Bob's own words: UX designer focused on accessibility</about>
 </participant>
 <participant id="p-charlie">
 <name>Charlie</name>
-<about source="user_input">DevOps engineer managing infrastructure</about>
+<about source="user_input">In Charlie's own words: DevOps engineer managing infrastructure</about>
 </participant>
 <participant id="p-diana">
 <name>Diana</name>
-<about source="user_input">Product manager setting priorities</about>
+<about source="user_input">In Diana's own words: Product manager setting priorities</about>
 </participant>
 <participant id="p-eve">
 <name>Eve</name>
-<about source="user_input">Security researcher finding vulnerabilities</about>
+<about source="user_input">In Eve's own words: Security researcher finding vulnerabilities</about>
 </participant>
 <participant id="p-frank">
 <name>Frank</name>
-<about source="user_input">Backend developer working on APIs</about>
+<about source="user_input">In Frank's own words: Backend developer working on APIs</about>
 </participant>
 <participant id="p-grace">
 <name>Grace</name>
-<about source="user_input">Data scientist building ML models</about>
+<about source="user_input">In Grace's own words: Data scientist building ML models</about>
 </participant>
 <participant id="p-henry">
 <name>Henry</name>
-<about source="user_input">QA engineer ensuring quality</about>
+<about source="user_input">In Henry's own words: QA engineer ensuring quality</about>
 </participant>
 <note>This is a group conversation. Each chat_log message carries a from_id identifying its speaker — match it to the participant ids above.</note>
 </participants>"
