@@ -1,9 +1,10 @@
 ---
 id: TASK-641
 title: Localize the S1-side cache-prefix cut that shallow hits reveal
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 12:08'
+updated_date: '2026-08-17 19:02'
 labels:
   - 'area:ai-worker'
   - 'size:M'
