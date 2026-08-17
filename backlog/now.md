@@ -28,7 +28,9 @@ _The release plan: what the next cut IS, what it waits for, what it deliberately
 - **Waiting on**: the build itself (no open decisions).
 - **Deploy notes**: no migrations expected unless PR 2's EXPLAIN adds the `[channelId, createdAt]` index (additive, premigrate-safe). Rollout week reads `cacheHitRatio`/prefix-diff before declaring the win.
 - **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue) · token-budget-layer eviction (stays dormant by design, §2.5.1).
-- **Cut when**: PR 0–2 shipped + rollout-week telemetry read. Backstops: ~10 runtime PRs / ~250 files.
+- **Cut when**: PR 0–2 shipped + rollout-week telemetry read. Backstops: ~10 runtime PRs / ~250 files. **PR 1 = #2123, PR 2 = #2124 (both merged); PR 0's purpose is met — its measurements are in doc-17, the scripts were scratch by design.**
+- **PRE-DEPLOY BASELINE for the rollout read (TASK-641, 2026-08-17)** — measured BEFORE the hysteresis reaches prod, so the post-deploy read is a real before/after rather than an absolute number. Same command both sides: `pnpm ops cache:prefix-diff --env prod --channel <id>`. Channel `1498247824662335608`: 12/12 pairs cut at `H chat_log`, offsets 27,451-27,465, cached 5,632 tok, 29-32%. Channel `1481138179917615144`: 7/8 at `H chat_log`, offsets 32,334-32,451, cached 6,656 tok, 29-30%. Success = the cut moves DEEPER into chat_log (offset up, cached up); the mechanism is confirmed, only the size of the win is open.
+- **Confound to control for**: #2129 (participant `<about>` attribution lead-in) adds bytes INSIDE S1, which shifts every offset after it. If #2129 rides this release, compare cached-token COUNTS and percentages, not raw offsets, against the baseline above — and expect one free cache miss per channel on deploy as the new S1 prefix warms.
 
 ### 🎯 Current Focus (max 3)
 
