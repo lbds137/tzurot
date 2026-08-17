@@ -23,8 +23,16 @@ if [ "$SOURCE" = "compact" ]; then
   # when Compaction Instructions change, re-sync this block by hand.
   cat <<'EOF'
 POST-COMPACTION RECOVERY (structural checklist — act before new work):
+0. Undelivered reports FIRST: if the compaction summary names a user-facing
+   report, answer, or completion message that was never delivered, deliver it
+   in the FIRST reply — before any tool calls. (Mined twice: the user asked
+   "what do you need from me?" because a finished unit's report died at the
+   boundary.)
 1. Session settings: recover effort level / permission mode from pre-compaction
-   state; do NOT re-suggest settings that were already active.
+   state; do NOT re-suggest settings that were already active. The env block's
+   MODEL line may be stale after an in-session /model switch — verify the
+   driver model via the session JSONL's per-message `.message.model` field
+   before asserting it, and never flag a mismatch from the env block alone.
 2. Open promises and asks: grep the session JSONL under
    ~/.claude/projects/<project-slug>/ for "I'll" and unanswered user questions
    before re-deriving or guessing at lost state.
