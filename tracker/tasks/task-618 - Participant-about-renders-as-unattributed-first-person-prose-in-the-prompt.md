@@ -1,9 +1,10 @@
 ---
 id: TASK-618
 title: Participant <about> renders as unattributed first-person prose in the prompt
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 14:50'
+updated_date: '2026-08-17 22:33'
 labels:
   - 'area:ai-worker'
   - 'size:S'
