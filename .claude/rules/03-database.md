@@ -166,21 +166,21 @@ const cache = new TTLCache<ValueType>({
 
 `Tier` is the durability tier — see [durability-tiers.md](../../docs/reference/architecture/durability-tiers.md) for what each means and how to sort a new cache into one. **1** = recomputable for free, loss is correctness-neutral. **2** = costs money to regenerate and is conversation-scoped (the history row is the system of record; Redis is L1 only). **3** = costs money and the asset outlives the conversation (needs a home that is not a TTL).
 
-| Cache               | Location                     | TTL           | Tier | Type                                 |
-| ------------------- | ---------------------------- | ------------- | ---- | ------------------------------------ |
-| Channel Activation  | `gatewayServiceCalls.ts`     | 30s           | 1    | TTLCache + pub/sub                   |
-| Admin Settings      | `gatewayServiceCalls.ts`     | 60s           | 1    | TTLCache (in-memory)                 |
-| Personality         | `PersonalityService.ts`      | 5 min         | 1    | TTLCache + pub/sub                   |
-| Personality (bot)   | `HttpPersonalityLoader.ts`   | 5 min         | 1    | TTLCache (+ 60s negative)            |
-| Denylist            | `DenylistCache.ts`           | -             | 1    | In-memory + pub/sub                  |
-| User                | `UserService.ts`             | **1h**        | 1    | TTLCache (in-memory)                 |
-| Autocomplete        | `autocompleteCache.ts`       | 60s           | 1    | TTLCache (+ LRU-bounded stale, 500)  |
-| OpenRouter Models   | `OpenRouterModelCache.ts`    | **5 min/24h** | 1    | **Two-tier**: memory L1 → Redis      |
-| Vision Description  | `VisionDescriptionCache.ts`  | 1h            | 2    | Redis L1 over `attachmentEnrichment` |
-| Voice Transcript    | `VoiceTranscriptCache.ts`    | **1h**        | 2    | **Redis-backed**, L1 over the row    |
-| Redis Dedup         | `RedisDeduplicationCache.ts` | configurable  | 1    | Redis-backed                         |
-| Model Capability    | `ModelCapabilityChecker.ts`  | 5 min         | 1    | TTLCache (maxSize 500)               |
-| Context-Length Memo | `ModelCapabilityChecker.ts`  | 24h           | 1    | TTLCache (maxSize 500)               |
+| Cache               | Location                     | TTL           | Tier | Type                                                                              |
+| ------------------- | ---------------------------- | ------------- | ---- | --------------------------------------------------------------------------------- |
+| Channel Activation  | `gatewayServiceCalls.ts`     | 30s           | 1    | TTLCache + pub/sub                                                                |
+| Admin Settings      | `gatewayServiceCalls.ts`     | 60s           | 1    | TTLCache (in-memory)                                                              |
+| Personality         | `PersonalityService.ts`      | 5 min         | 1    | TTLCache + pub/sub                                                                |
+| Personality (bot)   | `HttpPersonalityLoader.ts`   | 5 min         | 1    | TTLCache (+ 60s negative)                                                         |
+| Denylist            | `DenylistCache.ts`           | -             | 1    | In-memory + pub/sub                                                               |
+| User                | `UserService.ts`             | **1h**        | 1    | TTLCache (in-memory)                                                              |
+| Autocomplete        | `autocompleteCache.ts`       | 60s           | 1    | TTLCache (+ LRU-bounded stale, 500)                                               |
+| OpenRouter Models   | `OpenRouterModelCache.ts`    | **5 min/24h** | 1    | **Two-tier**: memory L1 → Redis; refreshed on a schedule (TTL/3), not by requests |
+| Vision Description  | `VisionDescriptionCache.ts`  | 1h            | 2    | Redis L1 over `attachmentEnrichment`                                              |
+| Voice Transcript    | `VoiceTranscriptCache.ts`    | **1h**        | 2    | **Redis-backed**, L1 over the row                                                 |
+| Redis Dedup         | `RedisDeduplicationCache.ts` | configurable  | 1    | Redis-backed                                                                      |
+| Model Capability    | `ModelCapabilityChecker.ts`  | 5 min         | 1    | TTLCache (maxSize 500)                                                            |
+| Context-Length Memo | `ModelCapabilityChecker.ts`  | 24h           | 1    | TTLCache (maxSize 500)                                                            |
 
 Three rows were wrong before the durability audit and are corrected in bold: `User` said 5 min (it is 1h — `USER_CACHE_TTL_MS`), `OpenRouter Models` hid its 5-minute in-memory L1 in front of the 24h Redis entry, and `Voice Transcript` said "Custom (in-memory)" with no TTL when it is Redis `setex` at `INTERVALS.VOICE_TRANSCRIPT_TTL`. **Verify a row against the constant before relying on it** — every value here was re-read from source, and a stale TTL in an always-loaded table is a wrong premise in every session that reads it.
 

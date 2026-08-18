@@ -33,6 +33,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 import { OpenRouterModelCache } from './OpenRouterModelCache.js';
 import type { OpenRouterModel } from '@tzurot/common-types/types/ai';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 
 // Sample model data for testing
 const sampleTextModel: OpenRouterModel = {
@@ -570,20 +571,90 @@ describe('OpenRouterModelCache', () => {
     });
   });
 
-  describe('refreshCache', () => {
-    it('should clear Redis cache and refetch', async () => {
-      (mockRedis.get as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(JSON.stringify(sampleModels)) // First call (may be from memory cache clear)
-        .mockResolvedValueOnce(null); // After delete
+  describe('refreshFromSource', () => {
+    it('fetches and overwrites the cached entry, resetting its TTL', async () => {
+      // Must bypass the read path entirely: a refresh that went through
+      // getModels() would HIT Redis and return without rewriting the key,
+      // letting the TTL run out on schedule — the whole point is resetting it.
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify(sampleModels));
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ data: sampleModels }),
       });
 
-      const count = await cache.refreshCache();
+      const count = await cache.refreshFromSource();
 
-      expect(mockRedis.del).toHaveBeenCalledWith('openrouter:models');
+      expect(global.fetch).toHaveBeenCalled();
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        'openrouter:models',
+        INTERVALS.OPENROUTER_MODELS_TTL,
+        JSON.stringify(sampleModels)
+      );
       expect(count).toBe(3);
+    });
+
+    it('refuses an empty catalog served as a 200 and leaves the cache intact', async () => {
+      // A truncated body, a bad gateway response, or a rate-limit dressed as
+      // success all arrive as a well-formed 200 with no models. Accepting it
+      // would overwrite a good catalog with nothing — the absent-catalog state
+      // this whole refresher exists to prevent, now reachable 3x a day.
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await expect(cache.refreshFromSource()).rejects.toThrow('empty model catalog');
+
+      expect(mockRedis.setex).not.toHaveBeenCalled();
+      expect(mockRedis.del).not.toHaveBeenCalled();
+    });
+
+    it('logs the empty catalog once, not also as a fetch failure', async () => {
+      // The request SUCCEEDED and only the payload was empty. Emitting the
+      // generic 'Failed to fetch' line alongside would misdirect triage toward
+      // a network fault, on a path the scheduler reaches three times a day.
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await expect(cache.refreshFromSource()).rejects.toThrow('empty model catalog');
+
+      const messages = mockLogger.error.mock.calls.map(call => call[1]);
+      expect(messages).toContain(
+        'OpenRouter returned a successful response with an empty model catalog'
+      );
+      expect(messages).not.toContain('Failed to fetch from OpenRouter');
+    });
+
+    it('rejects a cold getModels() on an empty 200 instead of caching nothing', async () => {
+      // The guard is deliberately shared with the READ path, so this is a real
+      // behavior change for every getModels() caller — not refresh-only. A
+      // cold miss coinciding with an empty 200 must surface as a rejection
+      // rather than silently caching an empty catalog for the full 24h TTL.
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await expect(cache.getModels()).rejects.toThrow('empty model catalog');
+
+      expect(mockRedis.setex).not.toHaveBeenCalled();
+    });
+
+    it('leaves the existing cache intact when the fetch fails', async () => {
+      // Deleting before fetching would turn a transient OpenRouter outage
+      // into an absent catalog — exactly the state that leaves ai-worker on
+      // pattern-matching fallbacks. The old entry must survive to serve out
+      // its own TTL.
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
+
+      await expect(cache.refreshFromSource()).rejects.toThrow('network down');
+
+      expect(mockRedis.del).not.toHaveBeenCalled();
+      expect(mockRedis.setex).not.toHaveBeenCalled();
     });
   });
 

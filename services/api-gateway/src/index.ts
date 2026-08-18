@@ -80,6 +80,8 @@ import {
 // Services
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
+import { createModelCatalogRefresher } from './services/ModelCatalogRefresher.js';
+import type { IntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { requireServiceAuth } from './services/AuthMiddleware.js';
 import {
   createRedisPublicRouteRateLimiter,
@@ -149,6 +151,7 @@ interface ServicesContext {
   llmConfigResolver: LlmConfigResolver;
   visionConfigResolver: VisionConfigResolver;
   modelCache: OpenRouterModelCache;
+  modelCatalogRefresher: IntervalScheduler<[]>;
   dbNotificationListener: DatabaseNotificationListener;
 }
 
@@ -277,6 +280,13 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
+  // Keep the OpenRouter catalog present in Redis on a schedule. Without this,
+  // the key is written only as a side effect of model-config requests, so a
+  // quiet day expires it and ai-worker's capability checks silently fall back
+  // to pattern matching for good (see ModelCatalogRefresher's module doc).
+  const modelCatalogRefresher = createModelCatalogRefresher(modelCache);
+  modelCatalogRefresher.start();
+
   // Initialize local embedding service for memory search
   const embeddingReady = await initializeEmbeddingService();
   if (embeddingReady) {
@@ -313,6 +323,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     llmConfigResolver,
     visionConfigResolver,
     modelCache,
+    modelCatalogRefresher,
     dbNotificationListener,
   };
 }
@@ -592,6 +603,7 @@ async function main(): Promise<void> {
       unsubscribeSystemSettingsInvalidation: () =>
         services.systemSettingsInvalidation.unsubscribe(),
       stopCascadeResolverCleanup: () => services.cascadeResolver.stopCleanup(),
+      stopModelCatalogRefresher: () => services.modelCatalogRefresher.stop(),
       disconnectCacheRedis: () => services.cacheRedis.disconnect(),
       shutdownEmbeddingService,
       closeQueue,

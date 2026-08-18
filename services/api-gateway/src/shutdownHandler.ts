@@ -34,6 +34,15 @@ export interface ShutdownSteps {
   unsubscribeCascadeInvalidation: () => Promise<void>;
   unsubscribeSystemSettingsInvalidation: () => Promise<void>;
   stopCascadeResolverCleanup: () => void;
+  /**
+   * Runs before disconnectCacheRedis so no NEW refresh tick starts against a
+   * closing Redis client. It does not cancel a run already in flight — the
+   * scheduler's `stop()` clears timers only — so a refresh mid-fetch can still
+   * reach its `setex` after the disconnect. That path is contained rather than
+   * prevented: the refresher's cycle swallows its own errors, so the worst case
+   * is one spurious "refresh failed" line during shutdown.
+   */
+  stopModelCatalogRefresher: () => void;
   disconnectCacheRedis: () => void;
   shutdownEmbeddingService: () => Promise<void>;
   closeQueue: () => Promise<void>;
@@ -67,6 +76,7 @@ export function createShutdownHandler(
     await steps.unsubscribeCascadeInvalidation();
     await steps.unsubscribeSystemSettingsInvalidation();
     steps.stopCascadeResolverCleanup();
+    steps.stopModelCatalogRefresher();
     steps.disconnectCacheRedis();
     logger.info('Cache invalidation services closed');
 

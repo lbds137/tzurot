@@ -19,7 +19,7 @@ prune/cleanup. But the ask is explicitly for the general surface, not two knobs.
 
 Three pieces are in place and were built to be reused:
 
-1. **`createIntervalScheduler`** (`services/bot-client/src/utils/intervalScheduler.ts`)
+1. **`createIntervalScheduler`** (`packages/common-types/src/utils/intervalScheduler.ts`)
    — the shared scheduler shape, already backing `RetentionNagScheduler`,
    `VerificationCleanupScheduler`, and `SecretRotationNagScheduler`. Daily +
    startup firing, Redis cooldown, correct stop semantics.

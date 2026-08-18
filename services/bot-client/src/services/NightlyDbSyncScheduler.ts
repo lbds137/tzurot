@@ -38,7 +38,7 @@ import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/syst
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { escapeFenceBreaks } from '../utils/fenceEscape.js';
 import { getOwnerClient } from '../utils/gatewayClients.js';
-import { createIntervalScheduler } from '../utils/intervalScheduler.js';
+import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import {
   buildSyncReportText,

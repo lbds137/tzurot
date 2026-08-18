@@ -19,7 +19,7 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RetentionPreviewResponse } from '@tzurot/common-types/schemas/api/internal';
 import { getServiceClient } from '../utils/gatewayClients.js';
-import { createIntervalScheduler } from '../utils/intervalScheduler.js';
+import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 
 const logger = createLogger('retention-nag');

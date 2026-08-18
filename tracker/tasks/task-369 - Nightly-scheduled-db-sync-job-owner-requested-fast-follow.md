@@ -18,7 +18,7 @@ ordinal: 369000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 **Owner-requested 2026-07-30**, alongside the beta.188 release: run db-sync on a nightly schedule the same way the conversation-history prune/cleanup runs, instead of only on demand via `/admin db-sync`.
 
-**Existing pattern to follow**: `createIntervalScheduler` (`services/bot-client/src/utils/intervalScheduler.ts`) already backs three schedulers — `RetentionNagScheduler`, `VerificationCleanupScheduler`, `SecretRotationNagScheduler` — each with daily + startup firing and a Redis cooldown. The extraction that created it also fixed a stray-startup-timer-on-stop gap, so it is the vetted shape.
+**Existing pattern to follow**: `createIntervalScheduler` (`packages/common-types/src/utils/intervalScheduler.ts`) already backs three schedulers — `RetentionNagScheduler`, `VerificationCleanupScheduler`, `SecretRotationNagScheduler` — each with daily + startup firing and a Redis cooldown. The extraction that created it also fixed a stray-startup-timer-on-stop gap, so it is the vetted shape.
 
 **Wiring**: the sync itself lives api-gateway side (`DatabaseSyncService`, reached via `ownerClient.dbSync({dryRun, allowSchemaSkew})` from `services/bot-client/src/commands/admin/db-sync.ts`). A scheduler in bot-client can call the same client method the slash command does, so no new gateway surface is needed.
 

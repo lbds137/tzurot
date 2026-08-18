@@ -26,6 +26,18 @@ const logger = createLogger('OpenRouterModelCache');
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 
 /**
+ * A 200 carrying no models. Distinct from a fetch failure so the generic
+ * catch can skip re-logging it — the accurate cause is already on the record
+ * at the throw site, and "Failed to fetch" would send triage the wrong way.
+ */
+class EmptyCatalogError extends Error {
+  constructor() {
+    super('OpenRouter API returned an empty model catalog');
+    this.name = 'EmptyCatalogError';
+  }
+}
+
+/**
  * Tagged result of a single-model lookup, distinguishing a genuine catalog
  * miss from an unreachable catalog — `getModelById` collapses both to
  * `null`, which is correct for its own callers (display-only, fail-closed by
@@ -267,16 +279,38 @@ export class OpenRouterModelCache {
   }
 
   /**
-   * Force refresh the cache (e.g., for admin purposes)
+   * Fetch the catalog from OpenRouter and overwrite both cache tiers,
+   * bypassing every read path — the only way to reset the Redis TTL, since a
+   * plain `getModels()` that HITs Redis returns without rewriting the key and
+   * lets it expire on schedule.
+   *
+   * Overwrites rather than deleting first: a `del` followed by a failing fetch
+   * would leave no catalog at all, turning a transient OpenRouter outage into
+   * a hard one. On failure the previous entry keeps serving until its own TTL.
+   * Pinned by "leaves the existing cache intact when the fetch fails" in
+   * `OpenRouterModelCache.test.ts`.
+   *
+   * @returns The number of models written
    */
-  async refreshCache(): Promise<number> {
-    // Clear caches
-    this.memoryCache = null;
-    this.memoryCacheTimestamp = 0;
-    await this.redis.del(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
+  async refreshFromSource(): Promise<number> {
+    // Deliberately NOT routed through getModels()'s `inFlight` dedup. That
+    // promise resolves from `loadModels`, which returns early on a Redis HIT
+    // without fetching — joining it would let a concurrent reader satisfy the
+    // refresh with the very entry the refresh exists to replace, leaving the
+    // TTL untouched. The cost is a narrow double-fetch window when a tick and
+    // a genuine cold miss coincide; both write the same shape, last one wins.
+    const models = await this.fetchFromOpenRouter();
 
-    // Fetch fresh data
-    const models = await this.getModels();
+    await this.redis.setex(
+      REDIS_KEY_PREFIXES.OPENROUTER_MODELS,
+      INTERVALS.OPENROUTER_MODELS_TTL,
+      JSON.stringify(models)
+    );
+
+    this.memoryCache = models;
+    this.memoryCacheTimestamp = Date.now();
+
+    logger.info({ modelCount: models.length }, 'Refreshed model catalog from source');
     return models.length;
   }
 
@@ -308,6 +342,35 @@ export class OpenRouterModelCache {
         throw new Error('Invalid response format from OpenRouter API');
       }
 
+      // An empty catalog is a failure wearing a 200 — a truncated body, a bad
+      // gateway response, a rate-limit served as success. Treating it as valid
+      // would let the scheduled refresh overwrite a good catalog with nothing,
+      // which is the absent-catalog state the refresher exists to prevent.
+      // Throwing here routes it through the same path as a network error, so
+      // the previous entry serves out its TTL.
+      //
+      // Deliberately SHARED with the read path, not refresh-only: this method
+      // also backs loadModels(), so a cold miss (fresh deploy, flushed Redis)
+      // that coincides with an empty 200 now fails the request instead of
+      // returning an empty list. That is the same class as an OpenRouter 500
+      // through this path today — asyncHandler turns it into a request error —
+      // and failing loudly beats serving "no models exist" as though it were
+      // an answer. Both paths are pinned: "refuses an empty catalog served as
+      // a 200" (refresh) and "rejects a cold getModels() on an empty 200
+      // instead of caching nothing" (read).
+      if (data.data.length === 0) {
+        // Tagged so the generic catch below can skip its own line: the request
+        // SUCCEEDED and only the payload was empty, so 'Failed to fetch from
+        // OpenRouter' would misdirect triage toward a network fault — and
+        // emitting both lines would just double the noise on a path the
+        // refresher reaches three times a day.
+        logger.error(
+          { bodyBytes: JSON.stringify(data).length },
+          'OpenRouter returned a successful response with an empty model catalog'
+        );
+        throw new EmptyCatalogError();
+      }
+
       logger.info({ modelCount: data.data.length }, 'Fetched models from OpenRouter');
       return data.data;
     } catch (error) {
@@ -318,7 +381,10 @@ export class OpenRouterModelCache {
         throw new Error('OpenRouter API request timed out', { cause: error });
       }
 
-      logger.error({ err: error }, 'Failed to fetch from OpenRouter');
+      // Already logged at its throw site with the accurate cause.
+      if (!(error instanceof EmptyCatalogError)) {
+        logger.error({ err: error }, 'Failed to fetch from OpenRouter');
+      }
       throw error;
     }
   }

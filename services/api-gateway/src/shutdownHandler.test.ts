@@ -23,6 +23,7 @@ function makeSteps(log: string[]): ShutdownSteps {
     unsubscribeCascadeInvalidation: vi.fn(recordAsync('cascadeInvalidation')),
     unsubscribeSystemSettingsInvalidation: vi.fn(recordAsync('systemSettingsInvalidation')),
     stopCascadeResolverCleanup: vi.fn(record('cascadeCleanup')),
+    stopModelCatalogRefresher: vi.fn(record('modelCatalogRefresher')),
     disconnectCacheRedis: vi.fn(record('redis')),
     shutdownEmbeddingService: vi.fn(recordAsync('embedding')),
     closeQueue: vi.fn(recordAsync('queue')),
@@ -61,6 +62,9 @@ describe('createShutdownHandler', () => {
       'cascadeInvalidation',
       'systemSettingsInvalidation',
       'cascadeCleanup',
+      // Before 'redis' so no NEW tick starts against a closing client. An
+      // already-in-flight run is not cancelled by stop(); see ShutdownSteps.
+      'modelCatalogRefresher',
       'redis',
       'embedding',
       'queue',
