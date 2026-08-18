@@ -39,6 +39,40 @@ async function defaultExec(): Promise<ExecFn> {
 }
 
 /**
+ * Render a Redis URL as `host:port` — the identity of the instance, with the
+ * credentials dropped. `<unparseable>` when the URL will not parse, which is
+ * itself worth seeing rather than hiding.
+ */
+export function describeRedisTarget(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.port.length > 0 ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+  } catch {
+    return '<unparseable>';
+  }
+}
+
+/**
+ * Print which instance we resolved, then hand the URL back unchanged.
+ *
+ * On STDERR deliberately: `inspect:dlq --json` writes machine-readable output
+ * to stdout, and a fingerprint line there would corrupt it.
+ *
+ * Why this exists at all: an ops probe that reads the WRONG Redis returns a
+ * clean, plausible, entirely wrong answer — an absent key looks identical
+ * whether the key is gone or the client is pointed at an empty localhost. A
+ * probe run through `pnpm ops run` (which injects only `DATABASE_URL`, so
+ * `REDIS_URL` falls through to the local `.env`) put a fabricated "prod key is
+ * absent" claim into a merged PR body on exactly that mechanism. Printing the
+ * host makes a wrong-instance read visible in the output instead of inferable
+ * only in hindsight.
+ */
+function announceTarget(env: Environment, url: string): string {
+  console.error(chalk.dim(`  redis target [${env}]: ${describeRedisTarget(url)}`));
+  return url;
+}
+
+/**
  * Get a Redis URL reachable FROM THIS MACHINE for the environment.
  * - local: `REDIS_URL` env var or the localhost default.
  * - dev/prod: fetched from the Railway CLI, preferring `REDIS_PUBLIC_URL`
@@ -51,7 +85,7 @@ export async function getRailwayRedisUrl(
   execFn?: ExecFn
 ): Promise<string | null> {
   if (env === 'local') {
-    return process.env.REDIS_URL ?? 'redis://localhost:6379';
+    return announceTarget(env, process.env.REDIS_URL ?? 'redis://localhost:6379');
   }
 
   const exec = execFn ?? (await defaultExec());
@@ -70,7 +104,7 @@ export async function getRailwayRedisUrl(
       const vars = JSON.parse(result) as Record<string, string>;
       const url = vars.REDIS_PUBLIC_URL ?? vars.REDIS_URL ?? null;
       if (url !== null) {
-        return url;
+        return announceTarget(env, url);
       }
     } catch {
       // Unknown service name (or CLI hiccup) — try the next casing.
