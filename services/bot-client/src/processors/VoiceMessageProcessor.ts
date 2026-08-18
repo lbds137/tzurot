@@ -14,6 +14,7 @@ import { type VoiceTranscriptionService } from '../services/VoiceTranscriptionSe
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { getAdminSettingsCached } from '../utils/gatewayServiceCalls.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
+import { replyPingIsEnabled } from '../utils/replyPing.js';
 
 const logger = createLogger('VoiceMessageProcessor');
 
@@ -59,7 +60,12 @@ export class VoiceMessageProcessor implements IMessageProcessor {
     // Check if message also targets a personality (any mention is enough —
     // multi-tag fan-out is handled by PersonalityTriggerProcessor; we only
     // need a boolean here to choose the right TTS-routing branch).
-    const isReply = message.reference !== null;
+    // Ping-aware on purpose: this feeds only `continueToPersonalityHandler`,
+    // which is a debug field describing whether a personality will pick the
+    // message up. PersonalityTriggerProcessor suppresses a ping-disabled
+    // reply, so a raw `reference !== null` here would report `true` for
+    // exactly the scenario someone reading this field is investigating.
+    const isReply = message.reference !== null && replyPingIsEnabled(message);
     const mentionMatches = await findPersonalityMentions(
       message.content,
       config.BOT_MENTION_CHAR,

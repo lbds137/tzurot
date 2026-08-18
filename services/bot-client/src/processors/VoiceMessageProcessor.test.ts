@@ -65,6 +65,10 @@ function createMockMessage(overrides: Record<string, unknown> = {}): Message {
     },
     mentions: {
       has: vi.fn().mockReturnValue(false),
+      // No referenced author by default — the reply-ping predicate's fail-open
+      // case, so fixtures that only set `reference` keep their old meaning.
+      repliedUser: null,
+      users: new Map(),
     },
     reference: (overrides.reference as Message['reference']) ?? null,
     attachments: new Map(),
@@ -268,6 +272,33 @@ describe('VoiceMessageProcessor', () => {
 
       expect(mockVoiceService.transcribe).toHaveBeenCalledWith(message, false, true);
       expect(result).toBe(false); // Should continue to personality handler
+    });
+
+    it('reports isReply=false for a reply whose ping was disabled', async () => {
+      // continueToPersonalityHandler is a debug field describing whether a
+      // personality will pick the message up, and PersonalityTriggerProcessor
+      // suppresses a ping-disabled reply. A raw `reference !== null` would
+      // report true for exactly the case someone reading it is investigating.
+      const message = createMockMessage({
+        content: '',
+        reference: { messageId: 'ref-123' } as Message['reference'],
+        mentions: {
+          has: vi.fn().mockReturnValue(false),
+          repliedUser: { id: 'webhook-author-1' },
+          users: new Map(),
+        },
+      });
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
+      mockVoiceService.transcribe.mockResolvedValue({
+        transcript: 'Voice transcript',
+        continueToPersonalityHandler: false,
+      });
+
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await processor.process(message);
+
+      expect(mockVoiceService.transcribe).toHaveBeenCalledWith(message, false, false);
     });
 
     it('should continue processing for voice+bot mention', async () => {
