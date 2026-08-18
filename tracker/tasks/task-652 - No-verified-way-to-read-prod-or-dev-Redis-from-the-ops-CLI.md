@@ -1,9 +1,10 @@
 ---
 id: TASK-652
 title: No verified way to read prod or dev Redis from the ops CLI
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 02:51'
+updated_date: '2026-08-18 04:15'
 labels:
   - 'area:tooling'
   - 'size:M'
