@@ -74,4 +74,21 @@ Also still note whether the test channel is ACTIVATED — an activated channel
 answers via the activation trigger regardless, which the sources field on
 "Multi-tag trigger resolved" distinguishes.
 
+## Finalize checklist (after the capture is read)
+
+1. Decide the gate against the observed `repliedUserIsMentioned` values, not
+   against the code reading. Absence of any capture line is a finding too, not
+   a retry signal.
+2. **Trim the NOT-YET-RUNTIME-VERIFIED block in replyPing.ts.** Once the
+   mechanism is confirmed it becomes permanent stale hedging, which
+   02-code-standards § "A Comment That Asserts Behavior Is a Claim" is against
+   — the comment should then state the verified behavior and name the capture.
+   Raised by review on #2133 and accepted.
+3. Remove the #2139 instrumentation in its cleanup commit (`debug` type both
+   ways, per 05-tooling), and confirm with
+   `git log --grep '^debug[:(]' origin/develop..HEAD`.
+4. The capture must be confirmed before this reaches a RELEASE, not merely
+   before the develop merge — develop auto-deploys, so a merged-but-unverified
+   gate could ride a release cut if the PR sits.
+
 <!-- SECTION:DESCRIPTION:END -->
