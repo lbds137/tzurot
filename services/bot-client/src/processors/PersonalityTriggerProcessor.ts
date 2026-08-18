@@ -49,9 +49,17 @@ const logger = createLogger('PersonalityTriggerProcessor');
  *
  * `mentions.repliedUser` is NOT that signal — discord.js sets it from
  * `referenced_message.author` unconditionally, so it is populated on every
- * reply regardless of the toggle. The toggle shows up as whether that author
- * was also added to the mentions array, which is the same conjunction
- * discord.js's own `isUserMentioned` relies on.
+ * reply regardless of the toggle. That much is settled by reading discord.js.
+ *
+ * NOT YET RUNTIME-VERIFIED: that `mentions.users` membership tracks the
+ * toggle. It is the only field that could carry it, and discord.js's own
+ * `isUserMentioned` gates reply-derived matches on exactly this membership —
+ * but whether Discord omits the author when the ping is off, and whether a
+ * WEBHOOK author is listed at all, are claims about Discord's wire payload
+ * that only a capture can settle. `BotMentionProcessor`'s comment asserts the
+ * author is included "when replying" with no mention of the toggle, which
+ * would make this gate inert; that comment is likewise unverified. See
+ * TASK-649 for the capture that resolves it.
  *
  * Fails OPEN when `repliedUser` is null: without the referenced author (a
  * deleted message, or an uncached partial) the toggle state is unknowable,
