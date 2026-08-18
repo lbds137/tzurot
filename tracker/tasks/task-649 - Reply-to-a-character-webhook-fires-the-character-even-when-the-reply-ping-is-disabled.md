@@ -31,4 +31,47 @@ The open question has TWO failure directions, not one (the second surfaced from 
 Dev capture plan (the deployed debug log emits mentionedUserIds on the suppressed path; the existing "Multi-tag trigger resolved" line emits sources): (1) guild reply to a character webhook, ping ON; (2) same, ping OFF; (3) DM reply to the bot, ping ON; (4) same, ping OFF. Case 3/4 matter because the DM path is a real bot user rather than a webhook pseudo-user and may not share the webhook semantics. Also note whether the reporting channel was activated -- an activated channel answers via the activation trigger regardless, which the sources field distinguishes.
 
 Acceptance: reply with ping ON triggers the character; reply with ping OFF does not; DM replies follow the same rule; both directions confirmed by the dev capture rather than by reading the code.
+## DESIGN CHANGED 2026-08-18 (owner call) — the gate is GUILD-ONLY
+
+Owner: "I feel like reply ping shouldn't matter in DMs - I'd expect DMs to
+always fire regardless of ping status. it should only matter inside a guild
+imho (I'm thinking of semantics of how one would interact with a human user -
+DMs always ping regardless, right?)"
+
+Accepted, and it is the stronger model. The toggle cannot mean "I am not
+addressing you" in a DM: it is not what delivers the notification there, and
+there is no room of other readers for "not you specifically" to distinguish
+against. Replying ping-off in a DM is the same gesture as doing so to a human
+in a DM — still unambiguously addressed to them.
+
+It also makes the WORST failure direction unrepresentable rather than merely
+tested. The dangerous branch was "Discord may not list a webhook/bot author in
+mentions.users even when the ping is ON", which would have silenced every
+reply. Not gating in DMs at all removes that for the DM half outright.
+
+Implemented: replyPingIsEnabled renamed to replyPingPermitsTrigger, with a
+guildId null/undefined check running BEFORE the membership test so no DM path
+can reach it. Pinned by four DM tests including one asserting the mentions
+fields are never read at all in a DM; removing the carve-out turns three red.
+
+## REVISED capture plan — cases 1 and 2 are the gate test
+
+(1) guild reply to a character webhook, ping ON  -> character responds
+(2) guild reply, ping OFF                        -> character stays silent
+(3) DM reply to the bot, ping ON                 -> responds
+(4) DM reply, ping OFF                           -> responds (NOT silent)
+
+Cases 3 and 4 changed meaning: they are no longer gate tests but REGRESSION
+checks that DMs were not affected. Case 4 flipping to silent would mean the
+guild check is not working.
+
+The remaining open question is now guild-only: whether Discord lists a WEBHOOK
+author in mentions.users when the ping is ON. If it does not, case 1 fails and
+the guild gate is a regression — still a real risk, but half the blast radius
+of the original design.
+
+Also still note whether the test channel is ACTIVATED — an activated channel
+answers via the activation trigger regardless, which the sources field on
+"Multi-tag trigger resolved" distinguishes.
+
 <!-- SECTION:DESCRIPTION:END -->
