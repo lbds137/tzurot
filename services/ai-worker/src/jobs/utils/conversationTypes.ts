@@ -9,6 +9,7 @@ import type { MessageRole } from '@tzurot/common-types/constants/message';
 import type {
   StoredReferencedMessage,
   MessageReaction,
+  ForwardedOrigin,
 } from '@tzurot/common-types/types/schemas/message';
 
 /**
@@ -57,6 +58,12 @@ export interface RawHistoryEntry {
     forwardedAttachmentLines?: string[];
     /** Reactions on this message (emoji + who reacted) */
     reactions?: MessageReaction[];
+    /**
+     * Original author and post time of a FORWARDED message's quoted content,
+     * recovered by bot-client at persist time. Absent on rows written before
+     * this existed and on forwards whose original could not be re-fetched.
+     */
+    forwardedFrom?: ForwardedOrigin;
   };
   // AI personality info (for multi-AI channel attribution)
   /** The AI personality ID this message belongs to */

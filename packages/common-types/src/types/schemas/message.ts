@@ -162,6 +162,29 @@ export const messageReactionSchema = z.object({
 });
 
 /**
+ * Origin of a forwarded message's quoted content.
+ *
+ * Discord's `message_snapshots` deliberately omit `author` and `id`, so a
+ * forward's quoted text arrives with no speaker attached. The forwarding
+ * message does carry `message_reference.message_id`, which bot-client resolves
+ * at persist time; this schema is where the recovered identity survives the DB
+ * round-trip.
+ *
+ * Every field is optional and every consumer must fail open: the original can
+ * be deleted, in a channel the bot cannot read, or simply predate this field,
+ * and a forward that renders unattributed is the status quo rather than a
+ * regression.
+ */
+export const forwardedOriginSchema = z.object({
+  /** Display name of the original author (a webhook name for a character). */
+  authorName: z.string().optional(),
+  /** Discord id of the original author — a webhook id for a character. */
+  authorId: z.string().optional(),
+  /** ISO-8601 post time of the ORIGINAL message, not of the forward. */
+  timestamp: z.string().optional(),
+});
+
+/**
  * Message metadata schema
  * Structured metadata stored in conversation_history.message_metadata JSONB column
  * Separates semantic content (in 'content' column) from contextual data
@@ -181,6 +204,12 @@ export const messageMetadataSchema = z.object({
   reactions: z.array(messageReactionSchema).optional(),
   /** Whether this message was forwarded from another channel (persisted to survive DB round-trip) */
   isForwarded: z.boolean().optional(),
+  /**
+   * Recovered identity of a forwarded message's original author. Absent on
+   * rows written before this field existed, and on forwards whose original
+   * could not be resolved — both render as before.
+   */
+  forwardedFrom: forwardedOriginSchema.optional(),
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 
@@ -220,6 +249,8 @@ export type AttachmentEnrichment = z.infer<typeof attachmentEnrichmentSchema>;
 export type ReactionReactor = z.infer<typeof reactionReactorSchema>;
 
 export type MessageReaction = z.infer<typeof messageReactionSchema>;
+
+export type ForwardedOrigin = z.infer<typeof forwardedOriginSchema>;
 
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 

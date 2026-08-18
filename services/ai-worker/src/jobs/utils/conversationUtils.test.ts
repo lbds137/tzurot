@@ -630,6 +630,84 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('type="forward"');
     });
 
+    it('attributes the inner quote to the ORIGINAL author, not the forwarder', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Originally written by someone else',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            forwardedFrom: {
+              authorName: 'COLD',
+              authorId: '1472768398135001108',
+              timestamp: '2026-08-18T11:13:53.053Z',
+            },
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // The two attributions are different people and must not collapse into
+      // one: the <message> is the forwarder, the <quote> is who wrote the text.
+      const quoteTag = /<quote type="forward"[^>]*>/.exec(result)?.[0] ?? '';
+      expect(quoteTag).toContain('from="COLD"');
+      expect(quoteTag).toContain('from_id="1472768398135001108"');
+      expect(quoteTag).toContain('t="');
+      expect(result).toContain('from="Lila"');
+    });
+
+    it('falls back to an unattributed quote for rows with no recovered origin', () => {
+      // Every row written before forwardedFrom existed looks like this, so the
+      // pre-change rendering has to stay reachable rather than become a gap.
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Originally written by someone else',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+        },
+      ];
+
+      const quoteTag =
+        /<quote type="forward"[^>]*>/.exec(
+          formatConversationHistoryAsXml(history, 'TestBot')
+        )?.[0] ?? '';
+
+      expect(quoteTag).toContain('from="Unknown"');
+      expect(quoteTag).not.toContain('t="');
+    });
+
+    it('degrades to an unattributed quote when the origin object is empty', () => {
+      // forwardedOriginSchema accepts {} because every field is optional. The
+      // producer never writes one, but the schema is deliberately NOT tightened
+      // to forbid it: a refine would turn a harmless empty object into a parse
+      // failure that takes down a whole history fetch, which is strictly worse
+      // than rendering the same quote we rendered before this field existed.
+      // That safety is only real if it is pinned, so it is pinned here.
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Originally written by someone else',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: { forwardedFrom: {} },
+        },
+      ];
+
+      const quoteTag =
+        /<quote type="forward"[^>]*>/.exec(
+          formatConversationHistoryAsXml(history, 'TestBot')
+        )?.[0] ?? '';
+
+      expect(quoteTag).toContain('from="Unknown"');
+      expect(quoteTag).not.toContain('t="');
+    });
+
     it('should wrap forwarded MESSAGE content in quoted_messages structure', () => {
       // When a user forwards a message, the content they shared is from an unknown author
       // The forwarding user (from attribute) is NOT the original author

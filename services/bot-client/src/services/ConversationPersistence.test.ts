@@ -15,6 +15,9 @@ vi.mock('../utils/attachmentPlaceholders.js', () => ({
 
 vi.mock('../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn(() => false),
+  // Resolves to undefined by default — the shape a forward takes when its
+  // original cannot be re-fetched, which is also every pre-existing row.
+  resolveForwardedOrigin: vi.fn(() => Promise.resolve(undefined)),
 }));
 
 // Default mock returns no embeds. Tests that need forwarded embed behavior
@@ -248,6 +251,66 @@ describe('ConversationPersistence', () => {
         messageMetadata: { isForwarded: true },
         messageTime: expect.any(Date),
       });
+    });
+
+    it('persists the recovered origin alongside the forwarded flag', async () => {
+      const { isForwardedMessage, resolveForwardedOrigin } =
+        await import('../utils/forwardedMessageUtils.js');
+      vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
+      vi.mocked(resolveForwardedOrigin).mockResolvedValueOnce({
+        authorName: 'COLD',
+        authorId: '1472768398135001108',
+        timestamp: '2026-08-18T11:13:53.053Z',
+      });
+
+      await persistence.saveUserMessage({
+        message: createMockMessage({
+          id: 'discord-msg-fwd-origin',
+          channelId: 'channel-123',
+          guildId: 'guild-123',
+        }),
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Forwarded content',
+      });
+
+      // Asserting the metadata that crosses the gateway seam, not just that the
+      // resolver ran: the value is useless unless it survives to the row, and a
+      // mocked gateway returns the same thing either way.
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageMetadata: {
+            isForwarded: true,
+            forwardedFrom: {
+              authorName: 'COLD',
+              authorId: '1472768398135001108',
+              timestamp: '2026-08-18T11:13:53.053Z',
+            },
+          },
+        })
+      );
+    });
+
+    it('writes no origin key when the forward could not be resolved', async () => {
+      const { isForwardedMessage } = await import('../utils/forwardedMessageUtils.js');
+      vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
+
+      await persistence.saveUserMessage({
+        message: createMockMessage({
+          id: 'discord-msg-fwd-unresolved',
+          channelId: 'channel-123',
+          guildId: 'guild-123',
+        }),
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Forwarded content',
+      });
+
+      // An absent key, not an empty object — absence is what the renderer's
+      // Unknown fallback keys off, and `{}` would be a different state.
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({ messageMetadata: { isForwarded: true } })
+      );
     });
 
     it('should persist embedsXml in messageMetadata for forwarded messages with embeds', async () => {

@@ -309,4 +309,40 @@ describe('storedReferencedMessageSchema — what survives the DB round trip', ()
       stored.attachmentEnrichment
     );
   });
+
+  /**
+   * The Zod strip is invisible to a mocked client: an undeclared key is deleted
+   * before any consumer sees it, so a forward would silently render
+   * unattributed again with every unit test still green. `isForwarded` was lost
+   * exactly this way once (see the regression tests in schemas.test.ts); these
+   * pin the survival of its successor at the boundary itself.
+   */
+  it('preserves forwardedFrom through the boundary parse', () => {
+    const parsed = messageMetadataSchema.parse({
+      isForwarded: true,
+      forwardedFrom: {
+        authorName: 'COLD',
+        authorId: '1472768398135001108',
+        timestamp: '2026-08-18T11:13:53.053Z',
+      },
+    });
+
+    expect(parsed.forwardedFrom).toEqual({
+      authorName: 'COLD',
+      authorId: '1472768398135001108',
+      timestamp: '2026-08-18T11:13:53.053Z',
+    });
+  });
+
+  it('accepts a partially-resolved origin and a forward with none at all', () => {
+    // The original was unreadable but the snapshot still carried its post time.
+    expect(
+      messageMetadataSchema.parse({
+        forwardedFrom: { timestamp: '2026-08-18T11:13:53.053Z' },
+      }).forwardedFrom
+    ).toEqual({ timestamp: '2026-08-18T11:13:53.053Z' });
+
+    // A row written before this field existed stays valid and simply has none.
+    expect(messageMetadataSchema.parse({ isForwarded: true }).forwardedFrom).toBeUndefined();
+  });
 });

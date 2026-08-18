@@ -30,6 +30,10 @@ import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractSnapshotStickerImages } from './stickerAttachments.js';
 import { isVoiceAttachment } from './voiceAttachment.js';
+import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+
+const logger = createLogger('forwardedMessageUtils');
 
 /**
  * Content extracted from a forwarded message or its snapshots
@@ -329,4 +333,74 @@ export function getEffectiveContent(message: Message): string {
 
   // Regular messages: return main content directly
   return message.content;
+}
+
+/**
+ * Recover the identity of a forwarded message's original author and post time.
+ *
+ * Discord's `message_snapshots` omit `author` and `id` — verified against a
+ * live forward, whose snapshot carried only attachments, components, content,
+ * edited_timestamp, embeds, flags, mention_roles, mentions, timestamp and
+ * type. That is why a forward previously rendered as `from="Unknown"` with no
+ * `t=`: there was nothing in the snapshot to attribute it to.
+ *
+ * The forwarding message does carry `message_reference.message_id` and
+ * `channel_id`, and fetching that message returns the full original. The two
+ * halves therefore cost different things and are resolved independently:
+ *
+ * - the **timestamp** comes straight off the snapshot, no network call, so it
+ *   survives even when the original is gone;
+ * - the **author** needs the fetch, and is simply absent when that fails.
+ *
+ * FAILS OPEN at every step. A deleted original, an unreadable channel, or a
+ * revoked permission yields a partial result or `undefined`, and the renderer
+ * falls back to the same unattributed quote it produced before this existed —
+ * a forward is context, and losing its attribution must never cost the message
+ * itself.
+ *
+ * @param message - a message for which `isForwardedMessage` is true
+ * @returns recovered origin fields, or undefined when nothing was recoverable
+ */
+export async function resolveForwardedOrigin(
+  message: Message
+): Promise<ForwardedOrigin | undefined> {
+  if (!isForwardedMessage(message)) {
+    return undefined;
+  }
+
+  const origin: ForwardedOrigin = {};
+
+  // Snapshot timestamp: free, and independent of the fetch below.
+  const snapshotCreatedTimestamp = getSnapshots(message)?.first()?.createdTimestamp;
+  if (snapshotCreatedTimestamp !== null && snapshotCreatedTimestamp !== undefined) {
+    origin.timestamp = new Date(snapshotCreatedTimestamp).toISOString();
+  }
+
+  const reference = message.reference;
+  if (reference?.messageId !== undefined) {
+    try {
+      // A forward can originate in another channel, so the reference's own
+      // channelId is authoritative — reusing message.channel would fetch the
+      // right id against the wrong channel and throw.
+      const channel =
+        reference.channelId === message.channel.id
+          ? message.channel
+          : await message.client.channels.fetch(reference.channelId);
+
+      if (channel?.isTextBased() === true) {
+        const original = await channel.messages.fetch(reference.messageId);
+        // For a character the author IS the webhook, so username is the
+        // character's display name — exactly the attribution we want.
+        origin.authorName = original.author.displayName;
+        origin.authorId = original.author.id;
+      }
+    } catch (error) {
+      logger.debug(
+        { err: error, messageId: message.id },
+        'Could not resolve forwarded origin; quote stays unattributed'
+      );
+    }
+  }
+
+  return origin.timestamp !== undefined || origin.authorName !== undefined ? origin : undefined;
 }
