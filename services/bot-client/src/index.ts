@@ -35,7 +35,10 @@ import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRete
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
-import { ConversationPersistence } from './services/ConversationPersistence.js';
+import {
+  ConversationPersistence,
+  type ConversationPersistenceDeps,
+} from './services/ConversationPersistence.js';
 import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
@@ -217,6 +220,25 @@ function createDmWorkers(): { releaseDmWorker: Worker; retentionNotifyWorker: Wo
   };
 }
 
+/**
+ * Collaborators ConversationPersistence cannot build for itself.
+ *
+ * Extracted from `createServices` rather than inlined there because that
+ * function is at its `max-lines-per-function` ceiling, and the rule is to move
+ * code out rather than compress the reasoning that explains it.
+ */
+function buildPersistenceDeps(replyResolver: ReplyResolutionService): ConversationPersistenceDeps {
+  return {
+    // Access control keys off the FORWARDER, who is who the attribution is
+    // shown to — resolving with anyone else's id could name a character they
+    // cannot otherwise see. The original arrives already fetched, so this
+    // takes the post-fetch entry point rather than the reply-shaped one that
+    // would re-fetch against the wrong channel.
+    resolveForwardedAuthorPersonalityId: async (original, viewerId, isDM) =>
+      (await replyResolver.resolveFromReferencedMessage(original, viewerId, isDM))?.id,
+  };
+}
+
 function createServices(): Services {
   // Composition Root. bot-client never touches Prisma — all DB-backed work
   // goes through the gateway's internal endpoints (HTTP), so there is no
@@ -266,9 +288,12 @@ function createServices(): Services {
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
   const contextBuilder = new MessageContextBuilder(getServiceClient(), denylistCache);
-  const persistence = new ConversationPersistence();
   const voiceTranscription = new VoiceTranscriptionService();
+  // Constructed BEFORE persistence, which injects it: a forwarded message's
+  // quote is attributed by resolving the message it points at, and this is the
+  // service that knows how to map that back to a personality.
   const replyResolver = new ReplyResolutionService(routingPersonalityLoader);
+  const persistence = new ConversationPersistence(buildPersistenceDeps(replyResolver));
 
   // Shared per-slot delivery (MessageHandler, MultiTagCoordinator, and the
   // chat pipeline's in-character error delivery). Built before the pipeline.

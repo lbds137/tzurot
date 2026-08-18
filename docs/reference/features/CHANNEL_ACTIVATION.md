@@ -89,12 +89,15 @@ Behaviors worth knowing:
   instead of replying (runtime-confirmed: a forward drew no response where five
   replies in the same window each did). In an activated channel this does not
   help — every message wakes the character, and a forward's accompanying
-  comment arrives as a separate plain message. Cost worth knowing: a forward
-  reaches the model as `<quote type="forward" from="Unknown">` with no author
-  and no timestamp, where an ordinary message carries both. Discord's snapshot
-  omits `author` and `id` (the original is recoverable via
-  `message_reference.message_id`, which we do not currently fetch); the
-  timestamp we simply drop in rendering. Tracked in TASK-656.
+  comment arrives as a separate plain message. A forwarded message reaches the
+  model attributed to its original author: Discord's snapshot omits `author`
+  and `id`, so bot-client recovers them from `message_reference.message_id`
+  after the row is persisted, off the path that gates AI job submission. Two
+  consequences follow from that being a back-fill. Attribution lands for
+  SUBSEQUENT turns rather than the one that created the forward. And when the
+  original cannot be re-read — deleted, or in a channel the bot cannot see —
+  the quote falls back to `from="Unknown"`, keeping only the timestamp, which
+  the snapshot carries even when the author is gone.
 
 ### Private character access
 

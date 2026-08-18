@@ -9,6 +9,8 @@ import {
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
+  PatchForwardedOriginRequestSchema,
+  PatchForwardedOriginResponseSchema,
   PersistUserMessageRequestSchema,
   PersistUserMessageResponseSchema,
   ConversationSyncRequestSchema,
@@ -1000,5 +1002,76 @@ describe('RetentionNotifyReportResponseSchema', () => {
   it('accepts a processed count and rejects a negative one', () => {
     expect(RetentionNotifyReportResponseSchema.safeParse({ processed: 1 }).success).toBe(true);
     expect(RetentionNotifyReportResponseSchema.safeParse({ processed: -1 }).success).toBe(false);
+  });
+});
+
+describe('PatchForwardedOriginRequestSchema', () => {
+  const VALID = {
+    channelId: '123456789012345678',
+    personalityId: '550e8400-e29b-41d4-a716-446655440000',
+    personaId: '550e8400-e29b-41d4-a716-446655440001',
+    messageTime: '2026-08-18T11:13:53.053Z',
+    forwardedFrom: {
+      authorName: 'COLD',
+      authorId: '1472768398135001108',
+      authorPersonalityId: '550e8400-e29b-41d4-a716-446655440002',
+      timestamp: '2026-08-18T11:13:53.053Z',
+    },
+  };
+
+  it('accepts a fully-resolved origin', () => {
+    expect(PatchForwardedOriginRequestSchema.safeParse(VALID).success).toBe(true);
+  });
+
+  it('accepts an origin carrying only the timestamp', () => {
+    // What a deleted or unreadable original leaves behind: the snapshot still
+    // has a post time even when the author cannot be re-fetched.
+    const result = PatchForwardedOriginRequestSchema.safeParse({
+      ...VALID,
+      forwardedFrom: { timestamp: '2026-08-18T11:13:53.053Z' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('preserves authorPersonalityId through the parse', () => {
+    // The whole point of the field: an undeclared key would be stripped here
+    // and the quote would render without a from_id, with nothing to show for
+    // the resolution that produced it.
+    const result = PatchForwardedOriginRequestSchema.safeParse(VALID);
+    expect(result.success && result.data.forwardedFrom.authorPersonalityId).toBe(
+      '550e8400-e29b-41d4-a716-446655440002'
+    );
+  });
+
+  it('rejects a non-uuid personalityId', () => {
+    // The row id is derived from this; a non-uuid would hash into a well-formed
+    // id addressing nothing, and the miss would look like an ordinary absent row.
+    expect(
+      PatchForwardedOriginRequestSchema.safeParse({ ...VALID, personalityId: 'nope' }).success
+    ).toBe(false);
+  });
+
+  it('rejects a non-datetime messageTime', () => {
+    expect(
+      PatchForwardedOriginRequestSchema.safeParse({ ...VALID, messageTime: 'yesterday' }).success
+    ).toBe(false);
+  });
+
+  it('requires forwardedFrom to be present', () => {
+    const { forwardedFrom: _omitted, ...withoutOrigin } = VALID;
+    expect(PatchForwardedOriginRequestSchema.safeParse(withoutOrigin).success).toBe(false);
+  });
+});
+
+describe('PatchForwardedOriginResponseSchema', () => {
+  it('accepts both outcomes of the back-fill', () => {
+    expect(PatchForwardedOriginResponseSchema.safeParse({ updated: true }).success).toBe(true);
+    expect(PatchForwardedOriginResponseSchema.safeParse({ updated: false }).success).toBe(true);
+  });
+
+  it('rejects a missing updated flag', () => {
+    // `updated: false` is a real answer (no row matched), so an absent field
+    // must not be readable as one.
+    expect(PatchForwardedOriginResponseSchema.safeParse({}).success).toBe(false);
   });
 });

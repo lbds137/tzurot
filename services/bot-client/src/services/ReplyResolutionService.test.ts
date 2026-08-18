@@ -651,7 +651,27 @@ interface MockMessageOptions {
 }
 
 function createMockMessage(options: MockMessageOptions = {}): Message {
-  const fetchedMessage = options.fetchedReferencedMessage;
+  const client = {
+    user: {
+      id: options.clientUserId || 'current-bot-789',
+      // Default tag uses bare `'Tzurot'` so `deriveBotSuffix` produces
+      // ` · Tzurot` — keeps legacy fixtures (`'X | Tzurot'` usernames)
+      // matching via `stripBotSuffix`'s ` | ` back-compat path. Tests that
+      // need to exercise prod-tag shapes should pass `clientUserTag`
+      // explicitly. Production-tag verification lives in
+      // `webhookNaming.test.ts`.
+      tag: options.clientUserTag ?? 'Tzurot',
+    },
+  };
+
+  // The FETCHED message carries the client too. A real one always does —
+  // discord.js attaches it on construction — and the resolution path reads the
+  // bot identity off whichever message it was handed, which for the
+  // post-fetch entry point is this one rather than the reply.
+  const fetchedMessage =
+    options.fetchedReferencedMessage === undefined
+      ? undefined
+      : { client, ...options.fetchedReferencedMessage };
 
   const channel: any = {
     type: options.channelType ?? ChannelType.GuildText,
@@ -668,17 +688,6 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
   return {
     reference: options.reference ?? null,
     channel,
-    client: {
-      user: {
-        id: options.clientUserId || 'current-bot-789',
-        // Default tag uses bare `'Tzurot'` so `deriveBotSuffix` produces
-        // ` · Tzurot` — keeps legacy fixtures (`'X | Tzurot'` usernames)
-        // matching via `stripBotSuffix`'s ` | ` back-compat path. Tests that
-        // need to exercise prod-tag shapes should pass `clientUserTag`
-        // explicitly. Production-tag verification lives in
-        // `webhookNaming.test.ts`.
-        tag: options.clientUserTag ?? 'Tzurot',
-      },
-    },
+    client,
   } as unknown as Message;
 }

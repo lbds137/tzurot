@@ -11,10 +11,7 @@
  */
 
 import { NO_TEXT_CONTENT_PLACEHOLDER } from '@tzurot/common-types/constants/message';
-import {
-  type ForwardedOrigin,
-  type MessageMetadata,
-} from '@tzurot/common-types/types/schemas/message';
+import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
@@ -23,6 +20,7 @@ import { isForwardedMessage, resolveForwardedOrigin } from '../utils/forwardedMe
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import {
   persistAssistantMessageViaGateway,
+  patchForwardedOriginViaGateway,
   persistUserMessageViaGateway,
 } from '../utils/gatewayWriteHelpers.js';
 
@@ -107,11 +105,6 @@ interface SaveUserMessageFromFieldsOptions {
   isForwarded?: boolean;
   /** Embed XML strings for forwarded messages (persisted to survive DB round-trip) */
   embedsXml?: string[];
-  /**
-   * Recovered identity of a forwarded message's original author and post time.
-   * Optional at every level — see `resolveForwardedOrigin`, which fails open.
-   */
-  forwardedFrom?: ForwardedOrigin;
   /** Explicit timestamp (optional, for ensuring user < assistant ordering) */
   timestamp?: Date;
 }
@@ -142,7 +135,32 @@ interface SaveAssistantMessageFromFieldsOptions {
 /**
  * Manages conversation history storage and updates
  */
+/** Collaborators this service cannot construct for itself. */
+export interface ConversationPersistenceDeps {
+  /**
+   * Map a forward's ALREADY-FETCHED original to the internal personality id,
+   * when that message was authored by a character.
+   *
+   * Takes the original rather than the forward on purpose: re-deriving it
+   * inside the resolver means fetching again, and the reply-shaped lookup that
+   * would do so reads the channel the forward LANDED in, which is wrong for
+   * every cross-channel forward and fails silently.
+   *
+   * Injected rather than imported because the mapping needs the personality
+   * service, and this class has no other reason to know it exists. Optional so
+   * the service stays constructible bare in tests — the only cost of omitting
+   * it is a forwarded quote with no `from_id`.
+   */
+  readonly resolveForwardedAuthorPersonalityId?: (
+    original: Message,
+    viewerId: string,
+    isDM: boolean
+  ) => Promise<string | undefined>;
+}
+
 export class ConversationPersistence {
+  constructor(private readonly deps: ConversationPersistenceDeps = {}) {}
+
   /**
    * Save user message with placeholder descriptions
    *
@@ -185,7 +203,7 @@ export class ConversationPersistence {
     // post), while the corresponding assistant row uses `userMessageTime + 1ms`
     // (Discord post + 1ms) — making the assistant's `createdAt` *earlier* than
     // the user's, and reversing every turn-pair in cross-channel-context output.
-    await this.saveUserMessageFromFields({
+    const messageTime = await this.saveUserMessageFromFields({
       channelId: message.channel.id,
       guildId: message.guild?.id ?? null,
       discordMessageId: message.id,
@@ -195,12 +213,59 @@ export class ConversationPersistence {
       attachments,
       isForwarded: isForwarded || undefined,
       embedsXml,
-      // Not gated on isForwarded here: resolveForwardedOrigin re-derives it and
-      // returns undefined for a non-forward, so the function owns its own
-      // contract and stays correct when called from anywhere else.
-      forwardedFrom: await resolveForwardedOrigin(message),
       timestamp: message.createdAt,
     });
+
+    // AFTER the row exists, and deliberately not awaited. Recovering a
+    // forward's origin costs Discord REST round-trips (the snapshot carries
+    // neither author nor id), and this method is awaited before AI job
+    // submission — so resolving inline would put that latency in front of
+    // every forwarded reply. The trade is that the turn which created the
+    // forward may assemble its context before the back-fill lands, so
+    // attribution shows up for SUBSEQUENT turns.
+    if (isForwarded) {
+      void this.backFillForwardedOrigin(message, personality, personaId, messageTime);
+    }
+  }
+
+  /**
+   * Resolve a forward's original author and post time, then attach them to the
+   * row that was just written.
+   *
+   * Never throws and is never awaited: attribution is enrichment, and its
+   * worst failure is the unattributed quote that shipped before this existed.
+   */
+  private async backFillForwardedOrigin(
+    message: Message,
+    personality: LoadedPersonality,
+    personaId: string,
+    messageTime: Date
+  ): Promise<void> {
+    try {
+      const forwardedFrom = await resolveForwardedOrigin(
+        message,
+        this.deps.resolveForwardedAuthorPersonalityId
+      );
+      if (forwardedFrom === undefined) {
+        return;
+      }
+
+      await patchForwardedOriginViaGateway({
+        channelId: message.channel.id,
+        personalityId: personality.id,
+        personaId,
+        // Handed back BY the persist rather than re-read from the message:
+        // the row id derives from it, and the persist applies a `?? new Date()`
+        // fallback that `message.createdAt` would not reproduce.
+        messageTime,
+        forwardedFrom,
+      });
+    } catch (error) {
+      logger.warn(
+        { err: error, messageId: message.id },
+        'Forwarded-origin back-fill failed; quote stays unattributed'
+      );
+    }
   }
 
   /**
@@ -239,7 +304,14 @@ export class ConversationPersistence {
    * Save user message from fields (core implementation).
    * Called directly by slash commands, or via saveUserMessage() wrapper.
    */
-  async saveUserMessageFromFields(options: SaveUserMessageFromFieldsOptions): Promise<void> {
+  /**
+   * @returns the timestamp the row was actually keyed on. Returned rather than
+   * recomputed by callers because the row's deterministic id derives from it,
+   * and the `?? new Date()` fallback below means a caller reading
+   * `message.createdAt` can arrive at a DIFFERENT value — which addresses a
+   * different row and makes any follow-up write silently no-op.
+   */
+  async saveUserMessageFromFields(options: SaveUserMessageFromFieldsOptions): Promise<Date> {
     const {
       channelId,
       guildId,
@@ -250,7 +322,6 @@ export class ConversationPersistence {
       attachments,
       isForwarded,
       embedsXml,
-      forwardedFrom,
       timestamp,
     } = options;
 
@@ -273,16 +344,6 @@ export class ConversationPersistence {
     if (isForwarded === true) {
       metadata = metadata ?? {};
       metadata.isForwarded = true;
-    }
-
-    // Persist the forwarded content's ORIGINAL author and post time. Discord
-    // strips both from the snapshot, so without this the quote renders
-    // unattributed and undated no matter what the renderer does. Gated on the
-    // resolved value rather than on isForwarded: an unresolvable original must
-    // write nothing rather than an empty object.
-    if (forwardedFrom !== undefined) {
-      metadata = metadata ?? {};
-      metadata.forwardedFrom = forwardedFrom;
     }
 
     // Persist embed XML for any embed-bearing message (prevents data loss when
@@ -321,6 +382,8 @@ export class ConversationPersistence {
       },
       'Saved user message'
     );
+
+    return effectiveTimestamp;
   }
 
   /**

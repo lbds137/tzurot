@@ -187,6 +187,61 @@ export class ReplyResolutionService {
   }
 
   /**
+   * Resolve the personality behind a message that has ALREADY been fetched.
+   *
+   * Split out of {@link resolvePersonality} so a caller holding the referenced
+   * message can classify it without a second fetch — and, more importantly,
+   * without going through this class's reply-shaped lookup at all.
+   *
+   * That lookup fetches `reference.messageId` from `message.channel`, which is
+   * correct for a reply (always same-channel) and WRONG for a forward, whose
+   * original can live anywhere. Routing a forward through it silently returned
+   * null for every cross-channel case — the fetch threw against the wrong
+   * channel and the catch-all swallowed it, making "unresolvable" and "not a
+   * character" indistinguishable.
+   *
+   * @param referencedMessage - the message to classify, already fetched from
+   *   whichever channel actually holds it
+   * @param userId - whose access governs the load; keeps the "Reply Loophole"
+   *   closed for this entry point too
+   */
+  async resolveFromReferencedMessage(
+    referencedMessage: Message,
+    userId: string,
+    isDM: boolean
+  ): Promise<LoadedPersonality | null> {
+    const client = referencedMessage.client;
+    if (!this.validateReferencedMessage(referencedMessage, client.user?.id ?? '', isDM)) {
+      return null;
+    }
+
+    const personalityIdOrName = await this.lookupPersonalityIdentifier(
+      referencedMessage,
+      isDM,
+      client.user?.tag ?? null
+    );
+    if (personalityIdOrName === null) {
+      logger.debug('No personality found for referenced message');
+      return null;
+    }
+
+    // Load with access control — prevents the "Reply Loophole"
+    const personality = await this.personalityService.loadPersonality(personalityIdOrName, userId);
+
+    if (!personality) {
+      logger.debug({ personalityIdOrName, userId }, 'Personality not found or access denied');
+      return null;
+    }
+
+    logger.info(
+      { personalityName: personality.displayName, userId, isDM },
+      'Resolved personality from referenced message'
+    );
+
+    return personality;
+  }
+
+  /**
    * Resolve which personality a reply is targeting
    *
    * Access Control:
@@ -209,37 +264,7 @@ export class ReplyResolutionService {
       const referencedMessage = await message.channel.messages.fetch(messageId);
       const isDM = message.channel.type === ChannelType.DM;
 
-      if (!this.validateReferencedMessage(referencedMessage, message.client.user?.id ?? '', isDM)) {
-        return null;
-      }
-
-      const personalityIdOrName = await this.lookupPersonalityIdentifier(
-        referencedMessage,
-        isDM,
-        message.client.user?.tag ?? null
-      );
-      if (personalityIdOrName === null) {
-        logger.debug('No personality found for replied message');
-        return null;
-      }
-
-      // Load with access control — prevents the "Reply Loophole"
-      const personality = await this.personalityService.loadPersonality(
-        personalityIdOrName,
-        userId
-      );
-
-      if (!personality) {
-        logger.debug({ personalityIdOrName, userId }, 'Personality not found or access denied');
-        return null;
-      }
-
-      logger.info(
-        { personalityName: personality.displayName, userId, isDM },
-        'Resolved personality from reply'
-      );
-
-      return personality;
+      return await this.resolveFromReferencedMessage(referencedMessage, userId, isDM);
     } catch (error) {
       if (isExpectedDiscordError(error)) {
         logger.debug({ err: error }, 'Referenced message was deleted');

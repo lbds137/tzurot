@@ -216,6 +216,30 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     },
   },
 
+  patchForwardedOrigin: {
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-forwarded-origin');
+      const personaId = await currentDefaultPersonaId(ctx);
+      return {
+        body: {
+          channelId: '830000000000000020',
+          personalityId: personality.id,
+          personaId,
+          // No row is seeded on purpose: the endpoint answers 200 with
+          // updated:false for a row that does not exist, and that IS its
+          // contract — a fire-and-forget back-fill must not 404 at a caller
+          // who has nothing to do about it.
+          messageTime: new Date().toISOString(),
+          forwardedFrom: {
+            authorName: 'Conformance Character',
+            authorId: '830000000000000021',
+            timestamp: new Date().toISOString(),
+          },
+        },
+      };
+    },
+  },
+
   persistAssistantMessage: {
     seed: async ctx => {
       const personality = await createPersonality(ctx, 'conf-persist-assistant-msg');
