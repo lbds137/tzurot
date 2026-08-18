@@ -8,13 +8,14 @@
  * cache entry.
  *
  * A free function rather than a method on the RAG service because it needs
- * nothing from that class beyond a history client, and because the guard below
+ * nothing from that class beyond a Prisma client, and because the guard below
  * (which summons have a row to write to at all) deserves its own tests.
  */
 
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { type ConversationHistoryService } from '@tzurot/conversation-history';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { writeTriggerReferences } from '@tzurot/conversation-history';
 
 const logger = createLogger('ReferencePersistence');
 
@@ -41,12 +42,12 @@ export interface ReferencePersistenceScope {
  * of its own.
  */
 export async function persistBuiltReferences(opts: {
-  history: ConversationHistoryService;
+  prisma: PrismaClient;
   references: StoredReferencedMessage[];
   personalityId: string;
   scope: ReferencePersistenceScope;
 }): Promise<void> {
-  const { history, references, personalityId, scope } = opts;
+  const { prisma, references, personalityId, scope } = opts;
   const { channelId, activePersonaId, triggerMessageId } = scope;
 
   if (references.length === 0) {
@@ -60,10 +61,9 @@ export async function persistBuiltReferences(opts: {
     return;
   }
 
-  await history.storeTriggerReferences(
-    channelId,
-    personalityId,
-    activePersonaId,
+  await writeTriggerReferences(
+    prisma,
+    { channelId, personalityId, personaId: activePersonaId },
     references,
     triggerMessageId
   );

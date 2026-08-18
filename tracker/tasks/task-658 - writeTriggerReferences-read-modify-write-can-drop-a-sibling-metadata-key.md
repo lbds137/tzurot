@@ -74,4 +74,46 @@ so the capability is present where it is needed.
 Bonus simplification: with a server-side merge, findTriggerMessage no longer needs to
 return messageMetadata at all for the reference path -- the read that CREATES the race
 stops existing rather than being protected.
+
+## SECOND SCOPE CORRECTION 2026-08-18 (the first one was wrong)
+
+There are TWO writers of this column, not three. The scope correction above counted
+updateLastUserMessage as the third by grepping write sites -- but that site writes
+messageMetadata only when its optional `newMetadata` argument is supplied, and NO
+production caller has ever supplied it. Verified two ways: a repo-wide grep for
+`newMetadata` returns only the function itself and tests, and
+`git log -S"newMetadata" --all -- services/` returns nothing at all, so no service
+has ever passed it in the project's history.
+
+That correction was the exact failure 00-critical.md names -- "present and wired in
+code is not live at runtime". A grep for write SITES found a site; it did not ask
+whether the site can fire.
+
+What shipped instead, which is a stronger fix than converting a third writer:
+
+- mergeForwardedOrigin -- already merged server-side.
+- writeTriggerReferences -- now merges server-side via the shared mergeMessageMetadata,
+  and no longer reads the column at all. Not reading is a stronger guarantee than
+  reading carefully.
+- updateLastUserMessage -- the dead `newMetadata` capability is REMOVED. It writes
+  content and token_count only, so it is not a writer of this column and cannot
+  silently become one. Removing the parameter prevents the third writer rather than
+  fixing it.
+
+Also dropped as a consequence: mergeMessageContentAndMetadata (no caller once the
+metadata half of that write went away), and ConversationalRAGService's private
+`history` field (constructed solely for the reference persist, which is now a free
+function taking prisma directly).
+
+The capability split follows the existing precedent rather than the generic-class
+design settled above -- that design was probed and DOES NOT ENFORCE, because TClient
+appears only in a private field. RawCapableConversationHistoryClient now sits in
+ConversationMessageMapper.ts beside TransactionalConversationHistoryClient, asked for
+at the one signature that needs it, and clientCapability.test.ts gates it with
+@ts-expect-error assertions checked by typecheck:spec -- which is real enforcement.
+
+Acceptance (FINAL): both live writers of message_metadata merge server-side; a PGLite
+component test interleaves them on one row and asserts no key is lost (proved able to
+fail by mutating the merge to an overwrite); the narrow client type still cannot reach
+raw SQL, gated at compile time.
 <!-- SECTION:DESCRIPTION:END -->

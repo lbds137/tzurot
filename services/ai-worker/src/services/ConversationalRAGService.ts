@@ -17,7 +17,6 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -78,7 +77,6 @@ export class ConversationalRAGService {
   private responsePostProcessor: ResponsePostProcessor;
   private inputProcessor: ConversationInputProcessor;
   private memoryPersistence: MemoryPersistenceService;
-  private history: ConversationHistoryService;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -103,7 +101,6 @@ export class ConversationalRAGService {
     this.referencedMessageFormatter = new ReferencedMessageFormatter(prisma);
     this.contextWindowManager = new ContextWindowManager();
     this.userReferenceResolver = new UserReferenceResolver(prisma);
-    this.history = new ConversationHistoryService(prisma);
     this.contentBudgetManager = new ContentBudgetManager(
       this.promptBuilder,
       this.contextWindowManager
@@ -366,7 +363,7 @@ export class ConversationalRAGService {
       // for above; without this their only copy is a one-hour cache entry, and
       // the same quote replayed tomorrow renders `status="undescribed"`.
       await persistBuiltReferences({
-        history: this.history,
+        prisma: this.prisma,
         references: inputs.durableReferences,
         personalityId: personality.id,
         scope: context,

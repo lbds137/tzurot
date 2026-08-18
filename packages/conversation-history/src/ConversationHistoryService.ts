@@ -14,13 +14,11 @@ import {
   type ConversationMessage,
   type CrossChannelHistoryGroup,
 } from '@tzurot/common-types/types/conversationMessage';
-import {
-  type MessageMetadata,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types/types/schemas/message';
+import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
+import { findTriggerMessage } from './triggerReferenceWriter.js';
 import {
   buildChannelHistoryWhere,
   conversationHistorySelect,
@@ -36,7 +34,6 @@ import {
   resolveHistoryWindow,
   type HistoryWindowMeta,
 } from './historyWindow.js';
-import { findTriggerMessage, writeTriggerReferences } from './triggerReferenceWriter.js';
 
 const logger = createLogger('ConversationHistoryService');
 
@@ -223,27 +220,36 @@ export class ConversationHistoryService {
   }
 
   /**
-   * Update the trigger user message for a persona in a channel.
-   * Used to enrich user messages with attachment descriptions after AI processing.
+   * Update the trigger user message's content for a persona in a channel.
+   * Used to enrich user messages with attachment descriptions after AI
+   * processing.
    *
-   * @param newContent Updated plain text content (user message + attachment descriptions)
+   * Content and token count ONLY. This deliberately does not touch
+   * `message_metadata`: that column has concurrent writers keying on
+   * different fields of one JSON blob, and every write to it goes through a
+   * server-side merge (see `messageMetadataMerge.ts`) precisely so none can
+   * overwrite another's key. A Prisma update from here would be exactly the
+   * read-modify-write those writers exist to avoid, so the capability is
+   * absent rather than available-and-discouraged.
+   *
+   * @param newContent Updated plain text content (user message + attachment
+   *   descriptions). The token count is recomputed from it rather than passed
+   *   in, so the two cannot disagree.
    * @param options `triggerMessageId` targets the exact row the job was queued
-   *   for (see {@link findTriggerMessage}); `newMetadata` merges onto the row's
-   *   existing metadata rather than replacing it.
+   *   for (see {@link findTriggerMessage}).
    */
   async updateLastUserMessage(
     channelId: string,
     personalityId: string,
     personaId: string,
     newContent: string,
-    options?: { newMetadata?: MessageMetadata; triggerMessageId?: string }
+    options?: { triggerMessageId?: string }
   ): Promise<boolean> {
-    const { newMetadata, triggerMessageId } = options ?? {};
     try {
       const target = await findTriggerMessage(
         this.prisma,
         { channelId, personalityId, personaId },
-        triggerMessageId
+        options?.triggerMessageId
       );
 
       if (target === null) {
@@ -254,35 +260,15 @@ export class ConversationHistoryService {
         return false;
       }
 
-      // Recompute token count for enriched content
       const tokenCount = countTextTokens(newContent);
 
-      // Merge new metadata fields onto the existing row metadata (don't clobber
-      // embedsXml/referencedMessages/etc. that were persisted at message creation).
-      const mergedMetadata =
-        newMetadata !== undefined
-          ? { ...((target.messageMetadata as MessageMetadata | null) ?? {}), ...newMetadata }
-          : undefined;
-
-      // Update the content, token count, and optionally metadata
       await this.prisma.conversationHistory.update({
-        where: {
-          id: target.id,
-        },
-        data: {
-          content: newContent,
-          tokenCount, // Update token count to match enriched content
-          ...(mergedMetadata !== undefined && { messageMetadata: mergedMetadata }),
-        },
+        where: { id: target.id },
+        data: { content: newContent, tokenCount },
       });
 
       logger.debug(
-        {
-          messageId: target.id,
-          tokenCount,
-          hasMetadata: newMetadata !== undefined,
-          targeting: target.targeting,
-        },
+        { messageId: target.id, tokenCount, targeting: target.targeting },
         'Updated user message with enriched content'
       );
       return true;
@@ -290,30 +276,6 @@ export class ConversationHistoryService {
       logger.error({ err: error }, 'Failed to update user message');
       return false;
     }
-  }
-
-  /**
-   * Store the references the worker built for a turn onto that turn's trigger
-   * user message, so quoted media survives replay out of `<chat_log>` instead
-   * of expiring with the ~1h vision cache. Delegates to
-   * {@link writeTriggerReferences} (extracted to keep this file under the
-   * max-lines ceiling).
-   *
-   * @returns number of references stored
-   */
-  async storeTriggerReferences(
-    channelId: string,
-    personalityId: string,
-    personaId: string,
-    references: StoredReferencedMessage[],
-    triggerMessageId?: string
-  ): Promise<number> {
-    return writeTriggerReferences(
-      this.prisma,
-      { channelId, personalityId, personaId },
-      references,
-      triggerMessageId
-    );
   }
 
   /**

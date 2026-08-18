@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import type {
   ConversationHistoryClient,
+  RawCapableConversationHistoryClient,
   TransactionalConversationHistoryClient,
 } from './ConversationMessageMapper.js';
 
@@ -34,6 +35,38 @@ describe('client capability split', () => {
     // No ts-expect-error: this one is SUPPOSED to compile. If the capability
     // ever disappears, this line fails the build.
     void wide.$transaction;
+    expect(true).toBe(true);
+  });
+
+  it('does NOT expose $executeRaw on the plain client (fast-pool guarantee)', () => {
+    const narrow = {} as ConversationHistoryClient;
+    // @ts-expect-error -- $executeRaw must be absent here. The metadata
+    // writers merge server-side and so ask for this capability at their own
+    // signatures; if it appears on the shared type instead, the fast pool can
+    // issue arbitrary SQL under blanket retry. Fix the type, never this line.
+    void narrow.$executeRaw;
+    expect(true).toBe(true);
+  });
+
+  it('exposes $executeRaw on the raw-capable client', () => {
+    const raw = {} as RawCapableConversationHistoryClient;
+    void raw.$executeRaw;
+    expect(true).toBe(true);
+  });
+
+  it('keeps the raw-capable client assignable to the plain one', () => {
+    const raw = {} as RawCapableConversationHistoryClient;
+    const asNarrow: ConversationHistoryClient = raw;
+    expect(asNarrow).toBe(raw);
+  });
+
+  it('keeps the two capabilities independent of each other', () => {
+    const raw = {} as RawCapableConversationHistoryClient;
+    // @ts-expect-error -- raw-SQL capability must not smuggle in transactions.
+    void raw.$transaction;
+    const wide = {} as TransactionalConversationHistoryClient;
+    // @ts-expect-error -- and the transactional one must not smuggle in raw.
+    void wide.$executeRaw;
     expect(true).toBe(true);
   });
 

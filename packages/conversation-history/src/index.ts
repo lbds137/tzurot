@@ -32,6 +32,11 @@ export {
 // — which is how the narrow type got widened in the first place.
 export { type ConversationHistoryClient } from './ConversationMessageMapper.js';
 export { mergeForwardedOrigin } from './forwardedOriginWriter.js';
+// A free function, not a service method: it merges `message_metadata`
+// server-side and so needs `$executeRaw`, which the fast-pool client type
+// deliberately lacks. Consumers satisfy the capability structurally by passing
+// a real PrismaClient — the same way the transactional read is reached.
+export { writeTriggerReferences } from './triggerReferenceWriter.js';
 // RawCapableConversationHistoryClient stays unexported for the same reason
 // TransactionalConversationHistoryClient does: the raw-SQL capability is asked
 // for at the one signature that needs it, not offered to every consumer.

@@ -9,7 +9,6 @@ import {
 } from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 
 // countTextTokens now lives in @tzurot/common-types (consumed by the production
 // service via the barrel), so intercept it through a partial mock rather than a
@@ -722,227 +721,26 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       );
     });
 
-    it('merges new metadata onto existing row metadata (does not clobber referencedMessages)', async () => {
+    it('never writes message_metadata, so it cannot clobber a concurrent key', async () => {
+      // The invariant this method's narrow client enforces structurally, pinned
+      // here as behaviour: the metadata column has concurrent writers that
+      // merge server-side, and any Prisma write of it from this path would be
+      // the read-modify-write they exist to avoid.
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
         id: 'msg-merge',
         content: 'original',
         tokenCount: 2,
         role: MessageRole.User,
-        // Pre-existing metadata that must survive the update
-        messageMetadata: {
-          referencedMessages: [{ discordMessageId: 'ref-1', content: 'quoted' }],
-          embedsXml: ['<embed>keep me</embed>'],
-        },
+        messageMetadata: { embedsXml: ['<embed>keep me</embed>'] },
       });
       mockCountTextTokens.mockReturnValue(9);
       mockPrismaClient.conversationHistory.update.mockResolvedValue({});
 
-      await service.updateLastUserMessage('channel-123', 'personality-456', 'persona-789', 'new', {
-        newMetadata: {
-          voiceTranscripts: ['a transcript'],
-        },
-      });
+      await service.updateLastUserMessage('channel-123', 'personality-456', 'persona-789', 'new');
 
-      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
-        where: { id: 'msg-merge' },
-        data: {
-          content: 'new',
-          tokenCount: 9,
-          messageMetadata: {
-            // pre-existing keys preserved
-            referencedMessages: [{ discordMessageId: 'ref-1', content: 'quoted' }],
-            embedsXml: ['<embed>keep me</embed>'],
-            // new key merged in
-            voiceTranscripts: ['a transcript'],
-          },
-        },
-      });
-    });
-  });
-
-  describe('storeTriggerReferences', () => {
-    // Typed, not inferred: without this the fixture's `kind` widens to `string`
-    // and the compiler stops noticing when the schema's shape moves.
-    const storedRef = (overrides: Partial<StoredReferencedMessage> = {}): StoredReferencedMessage =>
-      ({
-        discordMessageId: 'ref-msg-1',
-        authorUsername: 'alice',
-        authorDisplayName: 'Alice',
-        content: 'look',
-        timestamp: '2026-06-17T00:00:00.000Z',
-        locationContext: '',
-        attachments: [{ url: 'https://cdn/a.png', contentType: 'image/png', name: 'cat.png' }],
-        attachmentEnrichment: [
-          { url: 'https://cdn/a.png', kind: 'image', description: 'a tabby cat' },
-        ],
-        ...overrides,
-      }) satisfies StoredReferencedMessage;
-
-    it('writes the built references onto the row, preserving other metadata keys', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-ref',
-        role: MessageRole.User,
-        content: 'should not change',
-        messageMetadata: { embedsXml: ['<e/>'] },
-      });
-      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
-
-      const count = await service.storeTriggerReferences(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        [storedRef()]
-      );
-
-      expect(count).toBe(1);
-      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
-        where: { id: 'msg-ref' },
-        data: {
-          messageMetadata: {
-            embedsXml: ['<e/>'],
-            referencedMessages: [storedRef()],
-          },
-        },
-      });
-      // content / tokenCount are untouched
       expect(mockPrismaClient.conversationHistory.update.mock.calls[0][0].data).not.toHaveProperty(
-        'content'
+        'messageMetadata'
       );
-    });
-
-    it('replaces (does not merge into) whatever references the row already had', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-ref',
-        role: MessageRole.User,
-        messageMetadata: {
-          referencedMessages: [
-            storedRef({ content: 'a STALE snapshot', attachmentEnrichment: [] }),
-          ],
-        },
-      });
-      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
-
-      await service.storeTriggerReferences('channel-123', 'personality-456', 'persona-789', [
-        storedRef(),
-      ]);
-
-      const written =
-        mockPrismaClient.conversationHistory.update.mock.calls[0][0].data.messageMetadata
-          .referencedMessages;
-      expect(written).toEqual([storedRef()]);
-    });
-
-    it('targets the trigger row EXACTLY when the job carries its Discord id', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-exact',
-        role: MessageRole.User,
-        messageMetadata: null,
-      });
-      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
-
-      await service.storeTriggerReferences(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        [storedRef()],
-        'discord-trigger-9'
-      );
-
-      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith({
-        where: {
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-789',
-          role: MessageRole.User,
-          discordMessageId: { has: 'discord-trigger-9' },
-        },
-      });
-      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'msg-exact' } })
-      );
-    });
-
-    it('falls back to the most recent user row when the exact lookup finds nothing', async () => {
-      // The bot's trigger-message persist is best-effort, so the row may never
-      // have been written under that id — the write must still land.
-      mockPrismaClient.conversationHistory.findFirst
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'msg-recent', role: MessageRole.User, messageMetadata: null });
-      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
-
-      const count = await service.storeTriggerReferences(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        [storedRef()],
-        'discord-trigger-9'
-      );
-
-      expect(count).toBe(1);
-      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledTimes(2);
-      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenLastCalledWith({
-        where: {
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-789',
-          role: MessageRole.User,
-        },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      });
-      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'msg-recent' } })
-      );
-    });
-
-    it('returns 0 without a DB read when there are no references', async () => {
-      const count = await service.storeTriggerReferences(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        []
-      );
-
-      expect(count).toBe(0);
-      expect(mockPrismaClient.conversationHistory.findFirst).not.toHaveBeenCalled();
-    });
-
-    it('returns 0 when no user row exists to write to', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
-
-      const count = await service.storeTriggerReferences(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        [storedRef()]
-      );
-
-      expect(count).toBe(0);
-      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
-    });
-
-    it('never throws — a failed DB read returns 0', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(new Error('db down'));
-
-      await expect(
-        service.storeTriggerReferences('channel-123', 'personality-456', 'persona-789', [
-          storedRef(),
-        ])
-      ).resolves.toBe(0);
-    });
-
-    it('never throws — a failed update returns 0', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-ref',
-        role: MessageRole.User,
-        messageMetadata: null,
-      });
-      mockPrismaClient.conversationHistory.update.mockRejectedValue(new Error('update failed'));
-
-      await expect(
-        service.storeTriggerReferences('channel-123', 'personality-456', 'persona-789', [
-          storedRef(),
-        ])
-      ).resolves.toBe(0);
     });
   });
 

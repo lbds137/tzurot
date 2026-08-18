@@ -47,6 +47,18 @@ export type TransactionalConversationHistoryClient = ConversationHistoryClient &
   Pick<PrismaClient, '$transaction'>;
 
 /**
+ * A client that can additionally issue raw SQL.
+ *
+ * Third member of the same split, and here for the same reason the second one
+ * is: `message_metadata` has several writers keying on different fields of one
+ * JSON blob, so each must merge server-side rather than read-modify-write.
+ * That needs `$executeRaw`, which the fast pool must not have — its blanket
+ * retry-once is safe only for idempotent single-row work.
+ */
+export type RawCapableConversationHistoryClient = ConversationHistoryClient &
+  Pick<PrismaClient, '$executeRaw'>;
+
+/**
  * Prisma select object for conversation history queries
  * Includes persona and owner relations for name resolution
  */

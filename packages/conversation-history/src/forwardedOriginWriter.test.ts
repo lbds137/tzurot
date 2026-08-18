@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mergeForwardedOrigin } from './forwardedOriginWriter.js';
-import type { RawCapableConversationHistoryClient } from './forwardedOriginWriter.js';
+import type { RawCapableConversationHistoryClient } from './ConversationMessageMapper.js';
 
 /**
  * `vi.fn(() => ...)` types its calls as a zero-length tuple, so `calls[0][0]`
