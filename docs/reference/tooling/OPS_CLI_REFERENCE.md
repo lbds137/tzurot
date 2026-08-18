@@ -165,14 +165,15 @@ Quick codebase state for AI session startup:
 
 Runtime state inspection for debugging:
 
-| Command                                    | Description                                      |
-| ------------------------------------------ | ------------------------------------------------ |
-| `pnpm ops inspect:queue`                   | Show BullMQ queue stats                          |
-| `pnpm ops inspect:queue --env prod`        | Inspect production queue                         |
-| `pnpm ops inspect:queue --verbose`         | Show job payloads                                |
-| `pnpm ops inspect:queue --failed-limit 10` | Show more failed jobs                            |
-| `pnpm ops inspect:dlq`                     | View failed jobs in the BullMQ dead-letter queue |
-| `pnpm ops inspect:tts-configs`             | List all `tts_configs` rows for the current env  |
+| Command                                    | Description                                        |
+| ------------------------------------------ | -------------------------------------------------- |
+| `pnpm ops inspect:queue`                   | Show BullMQ queue stats                            |
+| `pnpm ops inspect:queue --env prod`        | Inspect production queue                           |
+| `pnpm ops inspect:queue --verbose`         | Show job payloads                                  |
+| `pnpm ops inspect:queue --failed-limit 10` | Show more failed jobs                              |
+| `pnpm ops inspect:dlq`                     | View failed jobs in the BullMQ dead-letter queue   |
+| `pnpm ops inspect:redis-key <key>`         | Read one key from an env's Redis (prints the host) |
+| `pnpm ops inspect:tts-configs`             | List all `tts_configs` rows for the current env    |
 
 **Output includes:**
 

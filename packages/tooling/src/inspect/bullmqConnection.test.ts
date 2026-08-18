@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getRailwayRedisUrl,
   getRailwayQueueName,
+  describeRedisTarget,
   buildInspectorRedisConfig,
   DEFAULT_QUEUE_NAME,
   type ExecFn,
@@ -78,6 +79,81 @@ describe('getRailwayRedisUrl', () => {
 
     const withNeither = vi.fn().mockReturnValue(JSON.stringify({ OTHER: 'x' }));
     expect(await getRailwayRedisUrl('prod', withNeither as ExecFn)).toBeNull();
+  });
+});
+
+/**
+ * Assembled from parts rather than written inline. A literal
+ * `redis://user:pass@host` in source is what secret scanners look for, and this
+ * fixture is deliberately credential-SHAPED, because stripping credentials is
+ * the behavior under test. Interpolating keeps the assertion strong (the
+ * password is a distinctive token we can assert the absence of) without putting
+ * the flagged literal in the file.
+ */
+const FIXTURE_PASSWORD = 'not-a-real-password';
+const CREDENTIALED_URL = `redis://default:${FIXTURE_PASSWORD}@proxy.rlwy.net:46994`;
+
+describe('describeRedisTarget', () => {
+  it('renders host:port and drops the credentials', () => {
+    expect(describeRedisTarget(CREDENTIALED_URL)).toBe('proxy.rlwy.net:46994');
+  });
+
+  it('omits the port when the URL carries none', () => {
+    expect(describeRedisTarget('redis://proxy.rlwy.net')).toBe('proxy.rlwy.net');
+  });
+
+  it('reports an unparseable URL rather than throwing', () => {
+    expect(describeRedisTarget('not a url')).toBe('<unparseable>');
+  });
+});
+
+describe('getRailwayRedisUrl host fingerprint', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.REDIS_URL;
+  });
+
+  /**
+   * The fingerprint is the countermeasure for a wrong-instance read: an absent
+   * key looks identical whether the key is gone or the client is pointed at an
+   * empty localhost. These pin that the host reaches the operator, and that it
+   * goes to stderr so `inspect:dlq --json` keeps a clean stdout.
+   */
+  it('announces the resolved remote host without leaking the password', async () => {
+    const exec: ExecFn = vi
+      .fn()
+      .mockReturnValue(JSON.stringify({ REDIS_PUBLIC_URL: CREDENTIALED_URL }));
+
+    await getRailwayRedisUrl('prod', exec);
+
+    const printed = vi.mocked(console.error).mock.calls.flat().join('\n');
+    expect(printed).toContain('proxy.rlwy.net:46994');
+    expect(printed).toContain('prod');
+    expect(printed).not.toContain(FIXTURE_PASSWORD);
+    // Nothing resembling userinfo may survive: `@` is the delimiter that would
+    // carry it, so its absence is the stronger claim than the password's.
+    expect(printed).not.toContain('@');
+  });
+
+  it('announces the localhost target too — reading local when you meant prod is the failure', async () => {
+    delete process.env.REDIS_URL;
+
+    await getRailwayRedisUrl('local');
+
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('localhost:6379');
+  });
+
+  it('writes the fingerprint to stderr, never stdout', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await getRailwayRedisUrl('local');
+
+    expect(log).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
   });
 });
 

@@ -39,6 +39,17 @@ export function registerInspectCommands(cli: CAC): void {
     );
 
   cli
+    .command('inspect:redis-key <key>', "Read one key from an environment's Redis")
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--json', 'Output as JSON for scripting')
+    .example('pnpm ops inspect:redis-key openrouter:models --env prod')
+    .example('pnpm ops inspect:redis-key openrouter:models --env dev --json')
+    .action(async (key: string, options: { env?: Environment; json?: boolean }) => {
+      const { inspectRedisKey } = await import('../inspect/redis-key.js');
+      await inspectRedisKey({ env: options.env ?? 'dev', key, json: options.json });
+    });
+
+  cli
     .command('inspect:tts-configs', 'List all tts_configs rows for the current env')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .example('pnpm ops inspect:tts-configs')
