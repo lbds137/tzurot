@@ -183,6 +183,18 @@ export class ServiceClient {
     });
   }
 
+  async patchForwardedOrigin(input: z.input<typeof ROUTE_MANIFEST.patchForwardedOrigin.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.patchForwardedOrigin.output>>> {
+    const fullPath = '/api/internal/conversation/forwarded-origin';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.patchForwardedOrigin.output,
+    });
+  }
+
   async syncConversation(input: z.input<typeof ROUTE_MANIFEST.syncConversation.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.syncConversation.output>>> {
     const fullPath = '/api/internal/conversation/sync';
     return callGateway({
