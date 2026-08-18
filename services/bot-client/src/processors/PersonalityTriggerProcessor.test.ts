@@ -92,6 +92,11 @@ function buildMessage(overrides: Record<string, unknown> = {}): Message {
     channelId: 'channel-1',
     channel: { id: 'channel-1', type: ChannelType.GuildText },
     reference: null,
+    // No referenced author by default, which is the reply-ping gate's
+    // fail-open case — these fixtures don't model the toggle, so they keep
+    // exercising whatever trigger they were written for. The toggle's own
+    // arms are built explicitly in the "reply-ping gate" describe.
+    mentions: { repliedUser: null, users: new Map() },
     reply: vi.fn().mockResolvedValue(undefined),
     client: { user: { id: 'bot-1' } },
     ...overrides,
@@ -395,6 +400,79 @@ describe('PersonalityTriggerProcessor', () => {
       ]);
       expect(arg.slots[0].source).toBe('reply');
       expect(arg.slots[1].source).toBe('mention');
+    });
+  });
+
+  describe('reply-ping gate', () => {
+    // Discord's reply-ping toggle reaches us as whether the referenced
+    // author was ALSO added to the mentions array — `repliedUser` alone is
+    // set on every reply and cannot distinguish the two.
+    const WEBHOOK_AUTHOR_ID = 'webhook-author-1';
+
+    function buildReply(pingEnabled: boolean): Message {
+      return buildMessage({
+        reference: { messageId: 'ref-1' } as never,
+        mentions: {
+          repliedUser: { id: WEBHOOK_AUTHOR_ID },
+          users: pingEnabled
+            ? new Map([[WEBHOOK_AUTHOR_ID, { id: WEBHOOK_AUTHOR_ID }]])
+            : new Map(),
+        },
+      });
+    }
+
+    it('resolves the reply when the ping is enabled', async () => {
+      const alice = buildPersonality('Alice');
+      replyResolver.resolvePersonality.mockResolvedValue(alice);
+
+      await processor.process(buildReply(true));
+
+      expect(replyResolver.resolvePersonality).toHaveBeenCalled();
+      expect(coordinator.startFanOut.mock.calls[0][0].slots[0]).toMatchObject({
+        personality: alice,
+        source: 'reply',
+      });
+    });
+
+    it('does not resolve the reply when the ping is disabled', async () => {
+      replyResolver.resolvePersonality.mockResolvedValue(buildPersonality('Alice'));
+
+      const handled = await processor.process(buildReply(false));
+
+      // Gated before resolution, so the lookup never runs — asserting only
+      // "no slots" would also pass if the gate ran after a wasted fetch.
+      expect(replyResolver.resolvePersonality).not.toHaveBeenCalled();
+      expect(coordinator.startFanOut).not.toHaveBeenCalled();
+      expect(handled).toBe(false);
+    });
+
+    it('still fires other triggers on a ping-disabled reply', async () => {
+      // Suppressing the reply trigger must not suppress the message: an
+      // @-mention in the same text is an independent, explicit address.
+      const bob = buildPersonality('Bob');
+      vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: bob, startIndex: 0 }]);
+
+      await processor.process(buildReply(false));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(1);
+      expect(arg.slots[0].source).toBe('mention');
+    });
+
+    it('falls open when the referenced author is unavailable', async () => {
+      // A deleted or uncached referenced message leaves the toggle state
+      // unknowable; dropping a trigger we cannot classify is the worse error.
+      const alice = buildPersonality('Alice');
+      replyResolver.resolvePersonality.mockResolvedValue(alice);
+
+      await processor.process(
+        buildMessage({
+          reference: { messageId: 'ref-1' } as never,
+          mentions: { repliedUser: null, users: new Map() },
+        })
+      );
+
+      expect(coordinator.startFanOut.mock.calls[0][0].slots[0].source).toBe('reply');
     });
   });
 

@@ -41,6 +41,32 @@ import { shouldNotifyUser } from './notificationCache.js';
 
 const logger = createLogger('PersonalityTriggerProcessor');
 
+/**
+ * Whether the user left Discord's reply-ping ("@ ON/OFF") enabled on a reply.
+ *
+ * The ping is the user-side signal for "I am addressing you", so a reply sent
+ * with it off must not wake the character it points at.
+ *
+ * `mentions.repliedUser` is NOT that signal — discord.js sets it from
+ * `referenced_message.author` unconditionally, so it is populated on every
+ * reply regardless of the toggle. The toggle shows up as whether that author
+ * was also added to the mentions array, which is the same conjunction
+ * discord.js's own `isUserMentioned` relies on.
+ *
+ * Fails OPEN when `repliedUser` is null: without the referenced author (a
+ * deleted message, or an uncached partial) the toggle state is unknowable,
+ * and dropping a trigger we cannot classify is worse than an extra reply.
+ * Both arms are pinned in `PersonalityTriggerProcessor.test.ts`
+ * ("reply-ping gate").
+ */
+function replyPingIsEnabled(message: Message): boolean {
+  const repliedUser = message.mentions.repliedUser;
+  if (repliedUser === null || repliedUser === undefined) {
+    return true;
+  }
+  return message.mentions.users.has(repliedUser.id);
+}
+
 export interface PersonalityTriggerProcessorDeps {
   personalityService: IPersonalityLoader;
   replyResolver: ReplyResolutionService;
@@ -158,14 +184,22 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
 
   /**
    * Resolve the personality this message is a reply to (if any).
-   * Returns null when the message isn't a reply, doesn't reference a
-   * personality webhook, or the user lacks access.
+   * Returns null when the message isn't a reply, the reply-ping was turned
+   * off, the message doesn't reference a personality webhook, or the user
+   * lacks access.
    */
   private async resolveReplyPersonality(
     message: Message,
     userId: string
   ): Promise<LoadedPersonality | null> {
     if (!message.reference) {
+      return null;
+    }
+    if (!replyPingIsEnabled(message)) {
+      logger.debug(
+        { messageId: message.id, mentionedUserIds: [...message.mentions.users.keys()] },
+        'Reply-ping is off — not treating this reply as a trigger'
+      );
       return null;
     }
     try {
