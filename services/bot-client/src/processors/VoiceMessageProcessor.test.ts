@@ -71,6 +71,10 @@ function createMockMessage(overrides: Record<string, unknown> = {}): Message {
       users: new Map(),
     },
     reference: (overrides.reference as Message['reference']) ?? null,
+    // Defaults to a GUILD. The reply-ping predicate ignores the toggle in DMs,
+    // so a fixture without a guild id would route every ping case down the DM
+    // path and quietly assert nothing; DM cases override this explicitly.
+    guildId: 'guild-123',
     attachments: new Map(),
     messageSnapshots: new Map(),
     ...overrides,
@@ -272,6 +276,33 @@ describe('VoiceMessageProcessor', () => {
 
       expect(mockVoiceService.transcribe).toHaveBeenCalledWith(message, false, true);
       expect(result).toBe(false); // Should continue to personality handler
+    });
+
+    it('reports isReply=true for a ping-disabled reply in a DM', async () => {
+      // The toggle carries no "not addressing you" meaning in a DM, so the
+      // trigger fires and this observability field must agree with it. Same
+      // fixture as the guild case below, differing only in guildId.
+      const message = createMockMessage({
+        content: '',
+        guildId: null,
+        reference: { messageId: 'ref-123' } as Message['reference'],
+        mentions: {
+          has: vi.fn().mockReturnValue(false),
+          repliedUser: { id: 'bot-author-1' },
+          users: new Map(),
+        },
+      });
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
+      mockVoiceService.transcribe.mockResolvedValue({
+        transcript: 'Voice transcript',
+        continueToPersonalityHandler: true,
+      });
+
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await processor.process(message);
+
+      expect(mockVoiceService.transcribe).toHaveBeenCalledWith(message, false, true);
     });
 
     it('reports isReply=false for a reply whose ping was disabled', async () => {

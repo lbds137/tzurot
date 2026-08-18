@@ -38,7 +38,7 @@ import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import { getEffectiveContent, isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
 import { shouldNotifyUser } from './notificationCache.js';
-import { replyPingIsEnabled } from '../utils/replyPing.js';
+import { replyPingPermitsTrigger } from '../utils/replyPing.js';
 
 const logger = createLogger('PersonalityTriggerProcessor');
 
@@ -170,7 +170,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     if (!message.reference) {
       return null;
     }
-    if (!replyPingIsEnabled(message)) {
+    if (!replyPingPermitsTrigger(message)) {
       logger.debug(
         { messageId: message.id, mentionedUserIds: [...message.mentions.users.keys()] },
         'Reply-ping is off — not treating this reply as a trigger'

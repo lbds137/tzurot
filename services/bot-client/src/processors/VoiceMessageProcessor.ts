@@ -14,7 +14,7 @@ import { type VoiceTranscriptionService } from '../services/VoiceTranscriptionSe
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { getAdminSettingsCached } from '../utils/gatewayServiceCalls.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
-import { replyPingIsEnabled } from '../utils/replyPing.js';
+import { replyPingPermitsTrigger } from '../utils/replyPing.js';
 
 const logger = createLogger('VoiceMessageProcessor');
 
@@ -65,7 +65,7 @@ export class VoiceMessageProcessor implements IMessageProcessor {
     // message up. PersonalityTriggerProcessor suppresses a ping-disabled
     // reply, so a raw `reference !== null` here would report `true` for
     // exactly the scenario someone reading this field is investigating.
-    const isReply = message.reference !== null && replyPingIsEnabled(message);
+    const isReply = message.reference !== null && replyPingPermitsTrigger(message);
     const mentionMatches = await findPersonalityMentions(
       message.content,
       config.BOT_MENTION_CHAR,

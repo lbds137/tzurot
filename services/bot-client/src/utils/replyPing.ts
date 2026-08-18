@@ -11,14 +11,24 @@
 import type { Message } from 'discord.js';
 
 /**
- * Whether the user left the reply-ping enabled on a reply.
+ * Whether the reply-ping permits this reply to wake the character it points at.
  *
- * The ping is the user-side signal for "I am addressing you", so a reply sent
- * with it off must not wake the character it points at.
+ * **Guild replies**: the ping is the user-side signal for "I am addressing
+ * you", so a reply sent with it off must not wake the character.
  *
- * `mentions.repliedUser` is NOT that signal — discord.js sets it from
+ * **DMs: always permitted, toggle ignored.** The toggle cannot carry that
+ * meaning in a DM, because it is not what delivers the notification there —
+ * the recipient is notified either way, and there is no room full of other
+ * readers for "not you specifically" to distinguish against. Turning the ping
+ * off while replying in a DM is the same gesture as replying to a human in a
+ * DM with it off: still unambiguously addressed to them. Scoping the gate to
+ * guilds also makes the worst failure mode unrepresentable — if Discord turns
+ * out not to list a DM bot author in `mentions.users` at all, a DM-inclusive
+ * gate would silence every DM reply.
+ *
+ * `mentions.repliedUser` is NOT the toggle signal — discord.js sets it from
  * `referenced_message.author` unconditionally, so it is populated on every
- * reply regardless of the toggle. That much is settled by reading discord.js.
+ * reply regardless. That much is settled by reading discord.js.
  *
  * NOT YET RUNTIME-VERIFIED: that `mentions.users` membership tracks the
  * toggle. It is the only field that could carry it, and discord.js's own
@@ -27,8 +37,8 @@ import type { Message } from 'discord.js';
  * WEBHOOK author is listed at all, are claims about Discord's wire payload
  * that only a capture can settle. `BotMentionProcessor`'s comment asserts the
  * author is included "when replying" with no mention of the toggle, which
- * would make this predicate inert; that comment is likewise unverified. See
- * TASK-649 for the capture that resolves it.
+ * would make this predicate inert in guilds; that comment is likewise
+ * unverified. See TASK-649 for the capture that resolves it.
  *
  * Returns true for a NON-reply as well — callers ask this only about replies,
  * and "no toggle was set" is not a suppression signal.
@@ -36,9 +46,15 @@ import type { Message } from 'discord.js';
  * Fails OPEN when `repliedUser` is null: without the referenced author (a
  * deleted message, or an uncached partial) the toggle state is unknowable,
  * and dropping a trigger we cannot classify is worse than an extra reply.
- * Both arms are pinned in `replyPing.test.ts`.
+ * Every arm is pinned in `replyPing.test.ts`.
  */
-export function replyPingIsEnabled(message: Message): boolean {
+export function replyPingPermitsTrigger(message: Message): boolean {
+  // A DM has no guild id. Checked before the toggle so no DM path can ever
+  // reach the membership test.
+  if (message.guildId === null || message.guildId === undefined) {
+    return true;
+  }
+
   const repliedUser = message.mentions.repliedUser;
   if (repliedUser === null || repliedUser === undefined) {
     return true;
