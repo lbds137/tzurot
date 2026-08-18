@@ -26,5 +26,25 @@ Scope note: this is NOT part of TASK-660. That task is the generated blurb and c
 
 Fix shape: give the live reference path the same two-id-space treatment formatFromIdAttribute got in conversationUtils.ts -- persona id for a user-authored quote, personality id for a character-authored one, nothing for the responder own lines. Check the STORED reference path for the same gap before closing; slice A only touched the chat_log renderer.
 
-Acceptance: a character-authored quote in contextual_references carries a from_id that resolves to a character_participant entry; a test pins the user-authored and self-authored cases unchanged.
+## SECOND HALF, from the #2144 review 2026-08-18 — same root cause, folded in rather than filed separately
+
+The quote ROLE attribute has the same defect as the from_id, and the same fix
+unblocks both. deriveRefRole / matchesSiblingPersonality / matchesSelfVariant
+(services/ai-worker/src/services/prompt/referenceRole.ts) decide self-vs-sibling
+for a quoted message ENTIRELY by name, because StoredReferencedMessage
+(packages/common-types/src/types/schemas/message.ts) stores authorUsername,
+authorDisplayName and authorDiscordId -- never a personality UUID.
+
+So the write-time-name-staleness bug TASK-664 fixed for the chat log still
+stands for quotes: a renamed personality's own pre-rename QUOTED lines
+misclassify as role="character", and a same-named sibling is still swallowed as
+self by the prefix match. TASK-664 could not fix it because it had no id to
+compare -- that is the whole point of the fold.
+
+ONE root cause, ONE fix: persist an authorPersonalityId on the reference,
+exactly as forwardedFrom.authorPersonalityId already does for the forwarded
+path. Both the from_id emission and the role decision then key on it. Filing
+these as two tasks would have split one schema change across two owners.
+
+Acceptance: a character-authored quote in contextual_references carries a from_id that resolves to a character_participant entry, AND its role attribute is decided by personality id rather than by name; a renamed personality's own quoted lines still read as role="assistant"; tests pin the user-authored and self-authored cases unchanged, and the id-less fallback keeps today's name behaviour.
 <!-- SECTION:DESCRIPTION:END -->
