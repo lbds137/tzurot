@@ -91,45 +91,84 @@ answers via the activation trigger regardless, which the sources field on
    before the develop merge — develop auto-deploys, so a merged-but-unverified
    gate could ride a release cut if the PR sits.
 
-## CAPTURE READ 2026-08-18 — the gate is NOT IMPLEMENTABLE. #2133 closed.
+## CAPTURE READ 2026-08-18 — round 1, and the OVERCLAIM it produced
 
-Owner ran cases 1 and 2 on dev (container 94dfda596415). Both lines, verbatim
-from `ops logs --env dev --service bot-client --filter REPLY-PING`:
+Owner ran two guild replies to a character webhook on dev (container
+94dfda596415), one ping ON and one ping OFF. Both lines:
 
-    messageId="1539230684525236284" guildId="616105024367624212"
     repliedUserId="1472768398135001108" mentionedUserIds=[] repliedUserIsMentioned=false
 
-    messageId="1539230821825908747" guildId="616105024367624212"
-    repliedUserId="1472768398135001108" mentionedUserIds=[] repliedUserIsMentioned=false
+`mentions.users` empty in BOTH. `repliedUserId` is not the bot client id, so the
+replied author is a character webhook — the case the trigger path serves.
 
-Two distinct messages, 31s apart, one ping ON and one ping OFF per the owner.
-`mentions.users` is EMPTY in BOTH. `repliedUserId` is not the bot client id, so
-the replied author is a character webhook — the case the trigger path serves.
+**What this proves:** `mentions.users.has(repliedUser.id)` returns false for
+every guild reply to a character, so the #2133 predicate as written would have
+SILENCED EVERY REPLY. That is decisive and it is why the predicate's input must
+change.
 
-This is the dangerous branch this task named: the ping-ON reply is
-indistinguishable from the ping-OFF one, so `mentions.users.has(repliedUser.id)`
-returns false for EVERY guild reply. Merging #2133 would have silenced every
-reply to every character in every guild. The gate is inert-and-harmful, not
-merely inert.
+**What I wrongly claimed it proved:** that no signal exists anywhere in
+Discord's payload. That is a negative existence claim built on a ONE-FIELD
+probe — the single field the gate happened to use — with NO POSITIVE CONTROL.
+An empty `mentions` is indistinguishable from a broken instrument. I closed
+#2133 on it; owner pushed back, correctly, and it is reopened.
 
-Leading hypothesis for the mechanism (NOT separately verified): Discord does not
-list a webhook author in the `mentions` array at all, because a webhook is not a
-user there is anything to notify. That would also explain why
-BotMentionProcessor.ts:24-26's "auto-includes author in mentions when replying"
-holds for the BOT USER path it was written about while failing here — that
-comment is still unverified for its own path and is not relied on by this
-finding.
+Failure shape for the corpus: a negative probe result is not a finding until
+the same instrument returns a POSITIVE on a known-present case. The
+positive-control requirement already exists in 00-critical (Grep Rule) but is
+written for greps; nothing attached it to runtime probes.
 
-Single assumption in the reading: that the first reply genuinely had the toggle
-ON. Owner stated it. If Discord greys the toggle out for webhook messages, the
-practical conclusion is unchanged — no distinguishable state reaches the bot.
+## Round 2 — the exhaustive field inventory (read from the type defs)
 
-Verdict: no inbound signal carries reply-ping state for replies to webhooks, so
-the feature as specified cannot be built. Status quo stands: any reply to a
-character wakes it. Reopening requires a NEW signal, not a new gate.
+Every field on Discord`s message object that could carry mention/notification
+state, from discord-api-types 0.38.53 payloads/v10/message.d.ts
+(APIBaseMessageNoChannel + APIMessageMentions), NOT from a guess:
 
-Remaining owner decision (surfaced, not decided here): whether to want a blunter
-substitute — e.g. a config-cascade switch that disables reply-triggering
-entirely per channel/user — or to accept the status quo.
+    mentions          APIUser[]            the replied_user mechanism`s target
+    mention_everyone  boolean
+    mention_roles     role id[]
+    mention_channels  APIChannelMention[]
+    flags             MessageFlags
+
+MessageFlags carries no reply-ping bit. The only notification-adjacent bit is
+SuppressNotifications = 4096 (Discord`s @silent). So on the type surface the
+ONLY field that can carry reply-ping state is `mentions` — which is what makes
+the positive control the whole question rather than a formality.
+
+## CANDIDATE ALTERNATIVE SIGNAL: the @silent flag (4096)
+
+Not the reply-ping toggle, but observable, native, and semantically adjacent:
+a user sending "@silent" gets MessageFlags.SuppressNotifications set, and
+discord.js parses `flags` (Message.js:345). "Reply with @silent -> do not wake
+the character" is implementable TODAY if the capture confirms the bit arrives.
+
+Added to the capture plan rather than assumed. Owner`s call on whether the
+gesture is acceptable UX; the technical question is only whether the bit lands.
+
+## Round 2 capture plan (PR #2140) — positive control is the point
+
+    1  reply to character webhook, ping ON      the target case
+    2  reply to character webhook, ping OFF     the target case
+    3  reply to a REAL USER, ping ON            POSITIVE CONTROL
+    4  reply to a REAL USER, ping OFF           POSITIVE CONTROL
+    5  reply to character webhook, @silent      candidate-signal test
+    6  reply to character webhook, normal       candidate-signal baseline
+
+If 3 and 4 differ, the mechanism is alive and webhooks are a genuine exception.
+If 3 and 4 are IDENTICAL, the instrument or my reading of it is wrong and the
+round-1 webhook result meant nothing.
+
+#2140 logs the raw REST payload`s full top-level key set rather than a chosen
+subset, so a discriminating field can surface even if nobody predicted it.
+
+resolveReplyPersonality runs for every non-forwarded reply, so all six cases
+reach the log line whether or not a character resolves.
+
+## Still owed after the capture
+
+1. Decide the predicate`s input from observed values.
+2. Trim the NOT-YET-RUNTIME-VERIFIED block in replyPing.ts once settled.
+3. Remove #2140 instrumentation in a `debug` cleanup commit; confirm with
+   `git log --grep '^debug[:(]' origin/develop..HEAD`.
+4. Confirm before a RELEASE, not merely before the develop merge.
 
 <!-- SECTION:DESCRIPTION:END -->
