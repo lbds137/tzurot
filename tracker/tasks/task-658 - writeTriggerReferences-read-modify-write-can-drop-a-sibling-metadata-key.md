@@ -28,5 +28,50 @@ Useful fact for whoever picks this up: storeTriggerReferences has exactly ONE ca
 
 Fix shape: generalize the merge in forwardedOriginWriter.ts into a shared mergeMessageMetadata(prisma, id, patch) and route both writers through it, threading a raw-capable client type only along the path that needs it.
 
-Acceptance: both writers of message_metadata merge server-side; a test interleaves them on one row and asserts neither key is lost; the narrow client type still cannot reach raw SQL.
+## SCOPE CORRECTION 2026-08-18 (found while grounding, before any code was written)
+
+There are THREE writers of this column, not two. The third is
+ConversationHistoryService.updateLastUserMessage
+(packages/conversation-history/src/ConversationHistoryService.ts:262-277), which does
+the identical read-then-full-overwrite: it reads target.messageMetadata via
+findTriggerMessage, spreads it, and writes the whole column back.
+
+The triggerReferenceWriter comment says "do not add a third writer of this column
+before it lands" -- that third writer already existed, in the same package, one file
+over. Enumerated mechanically rather than by memory:
+grep -n "messageMetadata:" packages/conversation-history/src/*.ts returns exactly
+these two write sites (triggerReferenceWriter.ts:120 and
+ConversationHistoryService.ts:275) plus the mapper/select reads.
+
+This makes the race WORSE than the original filing describes. Both post-AI writers
+run seconds after the turn, while mergeForwardedOrigin backfills within a second of
+the persist -- so BOTH of them can clobber forwardedFrom, not just one. They also
+target the same rows: forwardedFrom lands on the trigger USER row, which is exactly
+what findTriggerMessage resolves.
+
+updateLastUserMessage is NOT a pure metadata merge and cannot use the same helper
+unchanged: it writes content and token_count in the same UPDATE. The shared merge
+either takes an optional column set, or that call site gets its own raw statement
+writing all three plus updated_at. Decide when building; do not assume the
+forwardedOrigin helper drops in.
+
+Acceptance (REVISED -- the original said "both writers"): ALL THREE writers of
+message_metadata merge server-side; a test interleaves them on one row and asserts
+no key is lost; the narrow client type still cannot reach raw SQL.
+
+Design settled while grounding (2026-08-18), to avoid the widening the original
+filing feared: make ConversationHistoryService generic on its client with the narrow
+type as the DEFAULT, and gate the raw-requiring methods with an explicit `this`
+parameter -- `async storeTriggerReferences(this: ConversationHistoryService<RawCapableConversationHistoryClient>, ...)`.
+Every existing narrow construction (four in api-gateway) compiles untouched, and
+calling a raw-requiring method on a narrow instance becomes a COMPILE error rather
+than a runtime surprise -- which is the acceptance clause enforced by the type system
+instead of by convention. Measured blast radius: the class plus one annotation in
+services/ai-worker/src/services/context/referencePersistence.ts. Verified: ai-worker
+constructs the service with a full PrismaClient at ConversationalRAGService.ts:106,
+so the capability is present where it is needed.
+
+Bonus simplification: with a server-side merge, findTriggerMessage no longer needs to
+return messageMetadata at all for the reference path -- the read that CREATES the race
+stops existing rather than being protected.
 <!-- SECTION:DESCRIPTION:END -->
