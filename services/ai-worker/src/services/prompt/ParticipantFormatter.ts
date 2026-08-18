@@ -59,21 +59,31 @@ function participantDisplayName(info: ParticipantInfo): string {
  * be talking, so the answer (and therefore the note it drives) is stable
  * across turns.
  *
- * Humans only, and that is not an oversight: a SIBLING sharing the responder's
- * name never reaches the roster, because `resolveSpeakerInfo`'s
- * bidirectional-prefix self-match reclassifies its lines as role="assistant"
- * first. The character-side collision that IS reachable is between two roster
- * members, which {@link rosterHasDuplicateNames} covers.
+ * Checks BOTH humans and sibling characters. The character half is reachable
+ * because `Personality.name` carries NO unique constraint in the schema — only
+ * `slug` does — so two personalities genuinely can share a name, and
+ * self-vs-sibling is decided by id rather than by name. A same-named sibling
+ * therefore lands in the roster as a peer, which is correct, and is exactly
+ * the case this note's advice (bind by from_id, never by name) exists for.
+ *
+ * This used to read "humans only, and that is not an oversight", justified by
+ * the name-prefix self-match swallowing any same-named sibling before it could
+ * reach the roster. That justification died with the id comparison; it is
+ * called out because the reasoning looked settled and was not.
  */
 function rosterCollidesWithCharacter(
   participants: ParticipantInfo[],
-  personalityName: string
+  personalityName: string,
+  characters: CharacterParticipant[]
 ): boolean {
   if (personalityName.length === 0) {
     return false;
   }
   const target = personalityName.toLowerCase();
-  return participants.some(info => participantDisplayName(info).toLowerCase() === target);
+  return (
+    participants.some(info => participantDisplayName(info).toLowerCase() === target) ||
+    characters.some(character => character.personalityName.toLowerCase() === target)
+  );
 }
 
 /**
@@ -131,7 +141,7 @@ function buildRosterNotes(
   // colliding user here would put a speaker-derived string in the cached prefix.
   // Phrased without number so it reads correctly whether one roster member
   // collides or several do.
-  if (rosterCollidesWithCharacter(participants, personalityName)) {
+  if (rosterCollidesWithCharacter(participants, personalityName, characters)) {
     notes.push(
       '<note>A name in the roster above matches your own. Names are not unique here — bind identity by from_id, never by name. Anyone appearing under your name is a different person from you.</note>'
     );

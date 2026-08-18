@@ -276,6 +276,31 @@ describe('extractCharacterParticipants', () => {
     ]);
   });
 
+  it('recognises the responder by id even after a rename breaks the name match', () => {
+    // personalityName is stamped at write time. Before the id comparison, a
+    // rename past the old name's prefix made these rows read as a sibling —
+    // so the personality got a roster entry pointing at itself.
+    const result = extractCharacterParticipants(
+      [entry({ personalityId: 'p-self', personalityName: 'OldName' })],
+      'CompletelyNewName',
+      'p-self'
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it('treats a different id as a sibling even when the names would collide', () => {
+    // The mirror: name-prefix collision used to swallow a real sibling. With
+    // both ids present the name is not consulted at all.
+    const result = extractCharacterParticipants(
+      [entry({ personalityId: 'p-alex', personalityName: 'Alex' })],
+      'Alexandra',
+      'p-alexandra'
+    );
+
+    expect(result).toEqual([{ personalityId: 'p-alex', personalityName: 'Alex' }]);
+  });
+
   it('drops a sibling the prefix self-match heuristic mistakes for the responder', () => {
     // resolveSpeakerInfo's self-match is bidirectional-prefix, an accepted edge
     // that used to cost only a mislabeled chat-log role. Reusing it as the
@@ -283,6 +308,8 @@ describe('extractCharacterParticipants', () => {
     // absent from <participants>, so its lines have nothing to bind to. Pinned
     // as KNOWN behaviour rather than asserted as correct — if the heuristic is
     // ever tightened, this test should be updated, not deleted around.
+    // No responder id supplied, so the name heuristic is still the decider —
+    // which is exactly the id-less-row fallback that survives the id fix.
     const result = extractCharacterParticipants(
       [entry({ personalityId: 'p-alex', personalityName: 'Alex' })],
       'Alexandra'

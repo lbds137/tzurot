@@ -313,7 +313,8 @@ ${escapeXmlContent(persona)}
     // makes the gap look reachable until you read the query.
     const characters = extractCharacterParticipants(
       context.rawConversationHistory,
-      personality.name
+      personality.name,
+      personality.id
     );
     const participantsSection = formatParticipantsContext(
       participantPersonas,

@@ -216,9 +216,15 @@ export class MemoryBudgetManager {
    *
    * @param rawHistory - Raw conversation history
    * @param personalityName - Personality name for formatting (determines speaker name)
+   * @param responderPersonalityId - The responding personality's id, so the
+   *   measured shape matches the rendered one for rows carrying their own id
    * @returns Total tokens for all history messages (using tiktoken)
    */
-  countHistoryTokens(rawHistory: RawHistoryEntry[] | undefined, personalityName: string): number {
+  countHistoryTokens(
+    rawHistory: RawHistoryEntry[] | undefined,
+    personalityName: string,
+    responderPersonalityId?: string
+  ): number {
     if (!rawHistory || rawHistory.length === 0) {
       return 0;
     }
@@ -227,7 +233,12 @@ export class MemoryBudgetManager {
 
     let totalTokens = 0;
     for (const entry of rawHistory) {
-      totalTokens += measureHistoryEntryTokens(entry, personalityName, allPersonalityNames);
+      totalTokens += measureHistoryEntryTokens(
+        entry,
+        personalityName,
+        allPersonalityNames,
+        responderPersonalityId
+      );
     }
 
     return totalTokens;

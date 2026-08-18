@@ -15,6 +15,48 @@ const logger = createLogger('participantUtils');
 export type ChatLogRole = 'user' | 'assistant' | 'character';
 
 /**
+ * Is an assistant-role row the RESPONDER's own line, or a sibling character's?
+ *
+ * Ids first. `personalityId` is stamped from the row's own personality and is
+ * stable across renames, so when both sides carry one the answer is exact and
+ * the name never enters into it. That closes a real defect: `personalityName`
+ * is stamped at WRITE time, so renaming a personality past its old name's
+ * prefix made its own history read as a different character — and since the
+ * roster derives membership from this same decision, it also produced a
+ * `<character_participant>` entry showing the personality to itself as a peer.
+ *
+ * The name comparison survives only as the fallback for rows with no id, which
+ * is the case it was always really serving: the extended-context fetch's
+ * registry-miss path stores a webhook DISPLAY name and no id. That fallback
+ * stays prefix-bidirectional, with the known and tested cost that a sibling
+ * whose name is a prefix of the responder's (or the reverse) reads as self.
+ * Ids shrink how often that heuristic is consulted at all; they do not change
+ * its behaviour where it still applies.
+ */
+function resolveAssistantRowRole(
+  msg: RawHistoryEntry,
+  speakerName: string,
+  personalityName: string,
+  responderPersonalityId?: string
+): ChatLogRole {
+  const rowId = msg.personalityId;
+  if (
+    rowId !== undefined &&
+    rowId.length > 0 &&
+    responderPersonalityId !== undefined &&
+    responderPersonalityId.length > 0
+  ) {
+    return rowId === responderPersonalityId ? 'assistant' : 'character';
+  }
+
+  const speakerLower = speakerName.toLowerCase();
+  const personalityLower = personalityName.toLowerCase();
+  const isSelf =
+    speakerLower.startsWith(personalityLower) || personalityLower.startsWith(speakerLower);
+  return isSelf ? 'assistant' : 'character';
+}
+
+/**
  * Resolve speaker name and role from a history entry.
  *
  * Rendered role is relative to the RESPONDING personality: `assistant` is
@@ -29,12 +71,16 @@ export type ChatLogRole = 'user' | 'assistant' | 'character';
  * @param msg - The message to resolve
  * @param personalityName - Current AI personality name (fallback for assistant messages)
  * @param allPersonalityNames - Set of all AI personality names in the conversation (for collision detection)
+ * @param responderPersonalityId - The RESPONDING personality's id. When present
+ *   alongside the row's own `personalityId`, it decides self-vs-sibling
+ *   outright; the name comparison is the fallback for rows that carry no id.
  * @returns Speaker name and role, or null if message should be skipped
  */
 export function resolveSpeakerInfo(
   msg: RawHistoryEntry,
   personalityName: string,
-  allPersonalityNames?: Set<string>
+  allPersonalityNames?: Set<string>,
+  responderPersonalityId?: string
 ): { speakerName: string; role: ChatLogRole; normalizedRole: string } | null {
   const normalizedRole = String(msg.role).toLowerCase();
 
@@ -86,11 +132,12 @@ export function resolveSpeakerInfo(
     // sibling "Alexandra" under an "Alex" responder reads as self by the same
     // rule. (Same accepted bounded edge as referenceRole.ts's self-variant
     // skip.)
-    const speakerLower = speakerName.toLowerCase();
-    const personalityLower = personalityName.toLowerCase();
-    const isSelf =
-      speakerLower.startsWith(personalityLower) || personalityLower.startsWith(speakerLower);
-    const role: ChatLogRole = isSelf ? 'assistant' : 'character';
+    const role: ChatLogRole = resolveAssistantRowRole(
+      msg,
+      speakerName,
+      personalityName,
+      responderPersonalityId
+    );
     return { speakerName, role, normalizedRole };
   }
 
@@ -242,7 +289,8 @@ export interface CharacterParticipant {
  */
 export function extractCharacterParticipants(
   history: RawHistoryEntry[] | undefined,
-  personalityName: string
+  personalityName: string,
+  responderPersonalityId?: string
 ): CharacterParticipant[] {
   if (history === undefined || history.length === 0) {
     return [];
@@ -256,7 +304,7 @@ export function extractCharacterParticipants(
       break;
     }
     const msg = history[i];
-    const speakerInfo = resolveSpeakerInfo(msg, personalityName);
+    const speakerInfo = resolveSpeakerInfo(msg, personalityName, undefined, responderPersonalityId);
     if (speakerInfo?.role !== 'character') {
       continue;
     }

@@ -9,7 +9,10 @@
 import type { HumanMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
-import { buildHistoryMessageIdSet } from '../jobs/utils/conversationUtils.js';
+import {
+  buildHistoryMessageIdSet,
+  type ResponderIdentity,
+} from '../jobs/utils/conversationUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import {
@@ -117,9 +120,14 @@ export class ContentBudgetManager {
       contentToText(currentMessage.content)
     );
 
+    // One object, used by BOTH the pre-measure and the shipped selection below.
+    // The budget identity holds only if the two see identical inputs, so the
+    // responder identity is built once rather than twice.
+    const responder: ResponderIdentity = { name: personality.name, id: personality.id };
+
     const historyTokens = this.contextWindowManager.countHistoryTokens(
       context.rawConversationHistory,
-      personality.name
+      responder
     );
     const memoryReserve = this.contextWindowManager.calculateMemoryBudget(
       contextWindowTokens,
@@ -141,7 +149,7 @@ export class ContentBudgetManager {
       selectedEntries,
     } = this.contextWindowManager.selectAndSerializeHistory(
       context.rawConversationHistory,
-      personality.name,
+      responder,
       historyBudget,
       context.crossChannelHistory,
       context.environment

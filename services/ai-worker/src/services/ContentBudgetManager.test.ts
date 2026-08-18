@@ -216,6 +216,22 @@ describe('ContentBudgetManager', () => {
       const result = budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
       expect(mockContextWindowManager.selectAndSerializeHistory).toHaveBeenCalled();
+
+      // The responder identity crossing this mocked seam, asserted by VALUE.
+      // Both fields are strings, so a mixup (passing the name twice, dropping
+      // the id) is invisible to the compiler, and a mocked collaborator returns
+      // the same thing either way — the id only has an observable effect two
+      // layers down, where this test cannot see it.
+      const [, responder] = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock
+        .calls[0];
+      expect(responder).toEqual({ name: mockPersonality.name, id: mockPersonality.id });
+
+      // The pre-measure must see the SAME identity as the shipped selection,
+      // or the budget identity it underwrites does not hold.
+      const [, measuredResponder] = vi.mocked(mockContextWindowManager.countHistoryTokens).mock
+        .calls[0];
+      expect(measuredResponder).toEqual(responder);
+
       expect(result.serializedHistory).toBe('Serialized history content');
       expect(result.historyTokensUsed).toBe(150);
       expect(result.messagesDropped).toBe(0);

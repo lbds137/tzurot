@@ -635,8 +635,33 @@ describe('PromptBuilder', () => {
               {
                 role: 'assistant',
                 content: 'Hello!',
-                personalityId: 'personality-uuid-self',
+                // The personality's OWN id. Self is decided by id now, so a
+                // fixture using an arbitrary id would describe a sibling.
+                personalityId: minimalPersonality.id,
                 personalityName: 'TestBot',
+              },
+            ],
+          },
+        });
+
+        expect(system).not.toContain('character_participant');
+      });
+
+      it('still recognises its own rows after a rename, where the name no longer matches', () => {
+        // The bug this closes: personalityName is stamped at WRITE time, so a
+        // rename past the old name's prefix made the personality read its own
+        // history as a different character. Because the roster derives
+        // membership from that same decision, it also gained an entry pointing
+        // at itself — which is why this asserts on the roster, not the role.
+        const { system } = buildContainers({
+          context: {
+            ...minimalContext,
+            rawConversationHistory: [
+              {
+                role: 'assistant',
+                content: 'Hello from before the rename.',
+                personalityId: minimalPersonality.id,
+                personalityName: 'CompletelyDifferentOldName',
               },
             ],
           },
