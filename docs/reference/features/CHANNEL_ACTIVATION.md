@@ -69,7 +69,7 @@ simultaneously the reply target and the activation produces one response, not
 two. The list is capped at the multi-tag maximum; the coordinator is told when
 the cap truncated candidates.
 
-Two behaviors worth knowing:
+Behaviors worth knowing:
 
 - **Threads inherit from their parent** — but only when the thread has no
   settings row at all. A thread with an explicit row and a null personality
@@ -79,6 +79,17 @@ Two behaviors worth knowing:
   was authored by the original sender.
 - **Activation is guild-only.** DMs have no channel-level activation; bare DM
   messages fall through to `DMSessionProcessor`.
+- **Discord's reply-ping toggle has no effect on characters.** Discord shows
+  the `@ON`/`@OFF` control when you reply to a character, but characters post
+  through webhooks, and Discord never records a webhook author in a message's
+  `mentions` — measured at 0 of 521 real webhook replies against 276 of 1318
+  for replies to humans, across 240 channels. The toggle state is discarded
+  before it reaches us, so there is nothing to honor and no gate can be built
+  on it. To quote a character's message _without_ waking it, **forward** it
+  instead of replying (runtime-confirmed: a forward drew no response where five
+  replies in the same window each did). In an activated channel this does not
+  help — every message wakes the character, and a forward's accompanying
+  comment arrives as a separate plain message.
 
 ### Private character access
 
