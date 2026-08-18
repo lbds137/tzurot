@@ -459,6 +459,14 @@ export default tseslint.config(
       // inside `ackUpdate`; reply.ts is exempted below.
       '@tzurot/no-raw-defer-update': 'error',
 
+      // Regex XML/HTML tag stripping is banned — CodeQL flags it as incomplete
+      // multi-character sanitization, and a follow-up `[<>]` pass doesn't clear
+      // it. Use `extractXmlTextContent` (fast-xml-parser). Lives in the plugin
+      // rather than `no-restricted-syntax` on purpose: an override block
+      // replaces that rule's array wholesale, so a ban added there stops
+      // applying to every overridden glob without saying so.
+      '@tzurot/no-regex-tag-strip': 'error',
+
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
       // ============================================================================
@@ -605,12 +613,20 @@ export default tseslint.config(
   // What we DO enforce: vitest correctness rules + a fake-timer ban.
   {
     files: ['**/*.test.ts', '**/*.spec.ts'],
-    plugins: { vitest },
+    // `@tzurot` is here for `no-regex-tag-strip` specifically: the violation
+    // that motivated that rule was written in a TEST file, so a ban scoped to
+    // the production block would have missed the exact case it exists for.
+    // The rule is purely syntactic, so it needs no type-aware project.
+    plugins: { vitest, '@tzurot': tzurotPlugin },
     languageOptions: {
       // No type-aware project — these rules are all syntactic.
       parserOptions: { projectService: false, project: false },
     },
     rules: {
+      // See the production block for why this lives in the plugin rather than
+      // in `no-restricted-syntax`. CodeQL scans test files too — the release-PR
+      // run that caught this shape was reading one.
+      '@tzurot/no-regex-tag-strip': 'error',
       // Turn off every type-aware rule pulled in by the global
       // recommendedTypeChecked/stylisticTypeChecked spreads (they'd error with
       // no project). Keeps the syntactic js.configs.recommended rules on.

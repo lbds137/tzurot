@@ -24,6 +24,7 @@ import noDiscordBuildersInCommands from './no-discord-builders-in-commands.js';
 import buttonOrderDangerLast from './button-order-danger-last.js';
 import noRawContentLiterals from './no-raw-content-literals.js';
 import noRawDeferUpdate from './no-raw-defer-update.js';
+import noRegexTagStrip from './no-regex-tag-strip.js';
 
 const plugin = {
   meta: {
@@ -37,6 +38,7 @@ const plugin = {
     'button-order-danger-last': buttonOrderDangerLast,
     'no-raw-content-literals': noRawContentLiterals,
     'no-raw-defer-update': noRawDeferUpdate,
+    'no-regex-tag-strip': noRegexTagStrip,
   },
 };
 
