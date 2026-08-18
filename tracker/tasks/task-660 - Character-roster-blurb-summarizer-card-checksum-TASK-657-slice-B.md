@@ -31,5 +31,7 @@ Fix shape:
 
 NOT YET VERIFIED: how much of FactExtractionService is genuinely reusable versus same-shape-different-code. Read it before claiming reuse.
 
+Carried from the #2143 review: character_participant is ALREADY in PROTECTED_TAGS (packages/common-types/src/utils/promptSanitizer.ts), added by slice A for parity with participant. It is currently inert -- slice A routes the name and id through the strict escapeXml, which needs no tag-boundary protection. When this slice puts generated prose inside the element and routes it through escapeXmlContent, the entry becomes load-bearing. Do NOT add a second entry for it.
+
 Acceptance: editing a character card changes its checksum and enqueues a regeneration; the rendered roster entry carries a third-person blurb within the tunable cap; a turn racing an un-generated blurb renders name-only rather than blocking.
 <!-- SECTION:DESCRIPTION:END -->
