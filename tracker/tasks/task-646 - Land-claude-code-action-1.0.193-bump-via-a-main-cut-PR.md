@@ -1,9 +1,10 @@
 ---
 id: TASK-646
 title: Land claude-code-action 1.0.193 bump via a main-cut PR
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 21:48'
+updated_date: '2026-08-18 10:36'
 labels:
   - 'area:ci'
   - 'size:S'
