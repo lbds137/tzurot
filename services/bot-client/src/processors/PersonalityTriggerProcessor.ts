@@ -168,35 +168,6 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     if (!message.reference) {
       return null;
     }
-    // TEMPORARY DIAGNOSTIC — remove with its cleanup commit.
-    //
-    // Answers one question that code-reading cannot: does Discord list the
-    // replied-to author in `mentions.users` when the reply-ping is ON, and
-    // omit it when OFF? The reply-ping gate depends entirely on that, and it
-    // can fail in either direction — inert if the author is always listed,
-    // or silencing every reply if a webhook author is never listed.
-    //
-    // info, not debug: dev runs at info, and a debug line would be invisible
-    // exactly where the capture happens.
-    //
-    // Every field is read defensively. A diagnostic that throws would break the
-    // very path it exists to observe, and it runs on every reply.
-    const repliedUserId = message.mentions?.repliedUser?.id ?? null;
-    const mentionedUserIds =
-      message.mentions?.users !== undefined ? [...message.mentions.users.keys()] : null;
-    logger.info(
-      {
-        messageId: message.id,
-        guildId: message.guildId,
-        repliedUserId,
-        mentionedUserIds,
-        repliedUserIsMentioned:
-          repliedUserId !== null && mentionedUserIds !== null
-            ? mentionedUserIds.includes(repliedUserId)
-            : null,
-      },
-      'REPLY-PING CAPTURE: inbound reply mention state'
-    );
     try {
       return await this.deps.replyResolver.resolvePersonality(message, userId);
     } catch (err) {
