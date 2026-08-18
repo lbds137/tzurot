@@ -310,6 +310,36 @@ describe('QuoteFormatter', () => {
       );
     });
 
+    it('should attribute the forward when the origin was recovered', () => {
+      const content: ForwardedMessageContent = {
+        from: 'COLD',
+        fromId: '1472768398135001108',
+        timeFormatted: '2026-08-18 (Tue) 11:13',
+        textContent: 'Hello from the other channel',
+      };
+
+      const result = formatForwardedQuote(content);
+
+      expect(result).toBe(
+        '<quote type="forward" from="COLD" from_id="1472768398135001108" ' +
+          't="2026-08-18 (Tue) 11:13">\n' +
+          '<content>Hello from the other channel</content>\n' +
+          '</quote>'
+      );
+    });
+
+    it('keeps the timestamp when only the author could not be recovered', () => {
+      // The snapshot carries a timestamp but never an author, so a deleted or
+      // unreadable original leaves exactly this half-resolved shape.
+      const result = formatForwardedQuote({
+        timeFormatted: '2026-08-18 (Tue) 11:13',
+        textContent: 'Hello from the other channel',
+      });
+
+      expect(result).toContain('from="Unknown"');
+      expect(result).toContain('t="2026-08-18 (Tue) 11:13"');
+    });
+
     it('should format an image-only forwarded message', () => {
       const content: ForwardedMessageContent = {
         attachments: [

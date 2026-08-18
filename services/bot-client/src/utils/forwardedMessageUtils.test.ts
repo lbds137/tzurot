@@ -5,7 +5,7 @@
  * These utilities are the SINGLE SOURCE OF TRUTH for handling Discord forwarded messages.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { Message, MessageSnapshot, Collection } from 'discord.js';
 import { MessageReferenceType } from 'discord.js';
 import {
@@ -19,6 +19,7 @@ import {
   hasForwardedVoiceAttachment,
   hasVoiceAttachments,
   getEffectiveContent,
+  resolveForwardedOrigin,
 } from './forwardedMessageUtils.js';
 
 /**
@@ -641,6 +642,148 @@ describe('forwardedMessageUtils', () => {
       const message = createMockMessage({ content: 'Hello' });
 
       expect(hasVoiceAttachments(message)).toBe(false);
+    });
+  });
+  /**
+   * Its own builder rather than the shared `createMockMessage`: this is the only
+   * group that needs a client, a channel and a snapshot timestamp, and widening
+   * the shared one would hand every other group a channel it never asked for.
+   */
+  describe('resolveForwardedOrigin', () => {
+    function buildForward(options: {
+      snapshotCreatedTimestamp?: number | null;
+      referenceChannelId?: string;
+      referenceMessageId?: string;
+      fetchedAuthor?: { id: string; displayName: string };
+      fetchRejects?: boolean;
+      channelFetch?: ReturnType<typeof vi.fn>;
+      messagesFetch?: ReturnType<typeof vi.fn>;
+    }): Message {
+      const messagesFetch =
+        options.messagesFetch ??
+        vi.fn(() =>
+          options.fetchRejects === true
+            ? Promise.reject(new Error('Unknown Message'))
+            : Promise.resolve({ author: options.fetchedAuthor })
+        );
+      const channel = {
+        id: 'channel-1',
+        isTextBased: () => true,
+        messages: { fetch: messagesFetch },
+      };
+      const snapshot = { createdTimestamp: options.snapshotCreatedTimestamp ?? null };
+
+      return {
+        id: 'forward-1',
+        content: '',
+        channel,
+        client: {
+          channels: { fetch: options.channelFetch ?? vi.fn(() => Promise.resolve(channel)) },
+        },
+        reference: {
+          type: MessageReferenceType.Forward,
+          channelId: options.referenceChannelId ?? 'channel-1',
+          messageId: options.referenceMessageId ?? 'original-1',
+        },
+        messageSnapshots: {
+          size: 1,
+          values: () => [snapshot].values(),
+          first: () => snapshot,
+        },
+      } as unknown as Message;
+    }
+
+    it('recovers the original author and post time', async () => {
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+          fetchedAuthor: { id: '1472768398135001108', displayName: 'COLD' },
+        })
+      );
+
+      expect(origin).toEqual({
+        timestamp: '2026-08-18T11:13:53.000Z',
+        authorName: 'COLD',
+        authorId: '1472768398135001108',
+      });
+    });
+
+    it('fetches from the reference channel, not the channel the forward landed in', async () => {
+      const otherChannelMessagesFetch = vi.fn(() =>
+        Promise.resolve({ author: { id: 'author-9', displayName: 'Elsewhere' } })
+      );
+      const channelFetch = vi.fn(() =>
+        Promise.resolve({
+          id: 'channel-2',
+          isTextBased: () => true,
+          messages: { fetch: otherChannelMessagesFetch },
+        })
+      );
+
+      const origin = await resolveForwardedOrigin(
+        buildForward({ referenceChannelId: 'channel-2', channelFetch })
+      );
+
+      // The seam that matters: a cross-channel forward must resolve against the
+      // reference's own channel. Fetching the right id from the wrong channel
+      // throws, and the fail-open catch would hide it as "unattributed".
+      expect(channelFetch).toHaveBeenCalledWith('channel-2');
+      expect(otherChannelMessagesFetch).toHaveBeenCalledWith('original-1');
+      expect(origin?.authorName).toBe('Elsewhere');
+    });
+
+    it('keeps the timestamp when the original can no longer be fetched', async () => {
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+          fetchRejects: true,
+        })
+      );
+
+      // The two halves cost different things, so they fail independently: the
+      // timestamp comes off the snapshot and survives a deleted original.
+      expect(origin).toEqual({ timestamp: '2026-08-18T11:13:53.000Z' });
+    });
+
+    it('returns undefined when nothing at all is recoverable', async () => {
+      const origin = await resolveForwardedOrigin(
+        buildForward({ snapshotCreatedTimestamp: null, fetchRejects: true })
+      );
+
+      // Not an empty object — persistence gates on undefined so an unresolvable
+      // forward writes no metadata key rather than an empty one.
+      expect(origin).toBeUndefined();
+    });
+
+    it('skips a reference that resolves to a non-text channel', async () => {
+      const messagesFetch = vi.fn();
+      const channelFetch = vi.fn(() =>
+        Promise.resolve({
+          id: 'channel-2',
+          isTextBased: () => false,
+          messages: { fetch: messagesFetch },
+        })
+      );
+
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+          referenceChannelId: 'channel-2',
+          channelFetch,
+        })
+      );
+
+      // Never reaches the message fetch, and the free half still survives.
+      expect(messagesFetch).not.toHaveBeenCalled();
+      expect(origin).toEqual({ timestamp: '2026-08-18T11:13:53.000Z' });
+    });
+
+    it('returns undefined for a message that is not a forward', async () => {
+      const origin = await resolveForwardedOrigin(
+        createMockMessage({ referenceType: MessageReferenceType.Default, content: 'a reply' })
+      );
+
+      expect(origin).toBeUndefined();
     });
   });
 });

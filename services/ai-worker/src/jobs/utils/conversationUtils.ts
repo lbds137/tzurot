@@ -26,6 +26,7 @@ import {
   formatForwardedQuote,
   type RenderableAttachment,
 } from '../../services/prompt/QuoteFormatter.js';
+import { promptTime } from '../../services/prompt/RenderableReference.js';
 
 // Re-export from extracted modules for backward compatibility
 export { extractParticipants } from './participantUtils.js';
@@ -169,7 +170,15 @@ export function formatSingleHistoryEntryAsXml(
   ) {
     // Build ForwardedMessageContent from raw metadata (not pre-formatted helpers)
     // so the shared formatter produces consistent XML across both code paths
+    // Attribution for the forwarded content itself. Discord's snapshot carries
+    // neither author nor id, so these come from bot-client's persist-time
+    // resolution of message_reference.message_id; each is independently
+    // optional, and the formatter falls back to an unattributed quote.
+    const forwardedFrom = msg.messageMetadata?.forwardedFrom;
     const forwardedQuote = formatForwardedQuote({
+      from: forwardedFrom?.authorName,
+      fromId: forwardedFrom?.authorId,
+      timeFormatted: promptTime(forwardedFrom?.timestamp),
       textContent: msg.content,
       embedsXml: msg.messageMetadata?.embedsXml,
       attachments: toRenderableAttachments(msg.messageMetadata),

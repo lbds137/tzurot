@@ -11,12 +11,15 @@
  */
 
 import { NO_TEXT_CONTENT_PLACEHOLDER } from '@tzurot/common-types/constants/message';
-import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
+import {
+  type ForwardedOrigin,
+  type MessageMetadata,
+} from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
-import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
+import { isForwardedMessage, resolveForwardedOrigin } from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import {
   persistAssistantMessageViaGateway,
@@ -104,6 +107,11 @@ interface SaveUserMessageFromFieldsOptions {
   isForwarded?: boolean;
   /** Embed XML strings for forwarded messages (persisted to survive DB round-trip) */
   embedsXml?: string[];
+  /**
+   * Recovered identity of a forwarded message's original author and post time.
+   * Optional at every level — see `resolveForwardedOrigin`, which fails open.
+   */
+  forwardedFrom?: ForwardedOrigin;
   /** Explicit timestamp (optional, for ensuring user < assistant ordering) */
   timestamp?: Date;
 }
@@ -187,6 +195,10 @@ export class ConversationPersistence {
       attachments,
       isForwarded: isForwarded || undefined,
       embedsXml,
+      // Not gated on isForwarded here: resolveForwardedOrigin re-derives it and
+      // returns undefined for a non-forward, so the function owns its own
+      // contract and stays correct when called from anywhere else.
+      forwardedFrom: await resolveForwardedOrigin(message),
       timestamp: message.createdAt,
     });
   }
@@ -238,6 +250,7 @@ export class ConversationPersistence {
       attachments,
       isForwarded,
       embedsXml,
+      forwardedFrom,
       timestamp,
     } = options;
 
@@ -260,6 +273,16 @@ export class ConversationPersistence {
     if (isForwarded === true) {
       metadata = metadata ?? {};
       metadata.isForwarded = true;
+    }
+
+    // Persist the forwarded content's ORIGINAL author and post time. Discord
+    // strips both from the snapshot, so without this the quote renders
+    // unattributed and undated no matter what the renderer does. Gated on the
+    // resolved value rather than on isForwarded: an unresolvable original must
+    // write nothing rather than an empty object.
+    if (forwardedFrom !== undefined) {
+      metadata = metadata ?? {};
+      metadata.forwardedFrom = forwardedFrom;
     }
 
     // Persist embed XML for any embed-bearing message (prevents data loss when

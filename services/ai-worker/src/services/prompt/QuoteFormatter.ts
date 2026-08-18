@@ -443,6 +443,21 @@ function addArraySection<T>(
  * now go through `renderReference`, which reads `isForwarded` as a field.
  */
 export interface ForwardedMessageContent {
+  /**
+   * Display name of the message's ORIGINAL author, recovered at persist time
+   * from `message_reference.message_id` (bot-client's `resolveForwardedOrigin`).
+   * Undefined for rows written before that existed and for forwards whose
+   * original could not be re-fetched — both fall back to `'Unknown'`.
+   */
+  from?: string;
+  /** Discord id of the original author — a webhook id for a character. */
+  fromId?: string;
+  /**
+   * Pre-formatted `t=""` value for the ORIGINAL post time, via `promptTime`.
+   * Comes from the snapshot, which does carry a timestamp even though it
+   * carries no author, so this can be present when `from` is not.
+   */
+  timeFormatted?: string;
   /** Plain text content of the forwarded message */
   textContent?: string;
   /** Pre-formatted embed XML strings (callers must provide well-formed XML) */
@@ -455,13 +470,20 @@ export interface ForwardedMessageContent {
 
 /**
  * Format a forwarded history message as a <quote type="forward"> element.
- * The forwarding message carries no author for the forwarded content itself,
- * so `from` is a literal here rather than a dropped field.
+ *
+ * `from` was once the hardcoded literal `'Unknown'`, on the reasoning that a
+ * forward carries no author for its own content. That holds for Discord's
+ * snapshot — which omits both `author` and `id` — but not for the forward as a
+ * whole: `message_reference.message_id` resolves to the original, and
+ * bot-client now persists what it finds. The literal survives only as the
+ * fallback for rows that predate that and for originals that cannot be read.
  */
 export function formatForwardedQuote(content: ForwardedMessageContent): string {
   return formatQuoteElement({
     type: 'forward',
-    from: 'Unknown',
+    from: content.from ?? 'Unknown',
+    fromId: content.fromId,
+    timeFormatted: content.timeFormatted,
     content: content.textContent,
     embedsXml: content.embedsXml,
     attachments: content.attachments,
