@@ -1,0 +1,35 @@
+---
+id: TASK-660
+title: 'Character roster blurb: summarizer + card checksum (TASK-657 slice B)'
+status: To Do
+assignee: []
+created_date: '2026-08-18 19:04'
+labels:
+  - 'area:ai-worker'
+  - 'size:L'
+  - 'state:ready'
+dependencies: []
+priority: medium
+ordinal: 660000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Slice B of TASK-657. Slice A shipped the roster and from_id binding (names only); this adds the generated third-person blurb inside the character_participant element.
+
+Owner rulings already settled in TASK-657 -- do not re-litigate:
+- Privacy: a GENERATED third-person blurb is NON-disclosure. It renders for every character regardless of definitionPublic (which defaults FALSE, so gating on it would leave the feature off for nearly every character).
+- Generation: do NOT reuse characterInfo verbatim. ShapesPersonalityMapper.ts:186 sets characterInfo from config.user_prompt, so imported characters carry instruction-register text in that field. A summarizer produces the blurb; it is never owner-curated.
+- Length: parity with user personas on the CAP (DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH = 4000, what persona content uses per persona.ts:239) and its governance, not a target length. Build the bound as a tunable constant, never hardcode 4000, so it can be dialled down if bleed reappears.
+
+Fix shape:
+- Columns on personalities: the generated summary plus a source hash. Precedent to copy rather than invent -- UserFeedback.contentHash is sha-256 hex in VarChar(64), with contentHash() in services/ai-worker/src/utils/duplicateDetection.ts:276.
+- Checksum over the card fields the definitionPublic doc comment enumerates (characterInfo, traits, tone/age/appearance/likes/dislikes, goals/examples). Regenerate only on mismatch.
+- Generation runs OFF the blocking path: enqueue on mismatch and fall back to name-only for that turn -- same degrade-gracefully shape as the forwarded-origin backfill in PR #2141.
+- Render the blurb inside character_participant. Settled markup: third-person declarative prose, per-entry IN-BAND name-first frame (block-level framing alone is the mechanism that already failed the identity-bleed incident), and a provenance attribute that is NOT source="user_input" (siblings are system-authored). Slice A deliberately shipped no in-band frame because there is no prose yet; it lands here.
+
+NOT YET VERIFIED: how much of FactExtractionService is genuinely reusable versus same-shape-different-code. Read it before claiming reuse.
+
+Acceptance: editing a character card changes its checksum and enqueues a regeneration; the rendered roster entry carries a third-person blurb within the tunable cap; a turn racing an un-generated blurb renders name-only rather than blocking.
+<!-- SECTION:DESCRIPTION:END -->
