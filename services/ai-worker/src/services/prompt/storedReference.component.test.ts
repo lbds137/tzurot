@@ -25,7 +25,11 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
-import { ConversationHistoryService, getChannelHistoryWindow } from '@tzurot/conversation-history';
+import {
+  ConversationHistoryService,
+  getChannelHistoryWindow,
+  writeTriggerReferences,
+} from '@tzurot/conversation-history';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { type RawHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { formatQuotedSection } from '../../jobs/utils/xmlMetadataFormatters.js';
@@ -37,6 +41,8 @@ const PERSONA = '7c1c0f66-0000-4000-8000-00000000d002';
 const PERSONALITY = '7c1c0f66-0000-4000-8000-00000000d003';
 const SYSTEM_PROMPT = '7c1c0f66-0000-4000-8000-00000000d004';
 const CHANNEL = '900000000000000901';
+/** The trigger row's identity, as the reference write asks for it. */
+const SCOPE = { channelId: CHANNEL, personalityId: PERSONALITY, personaId: PERSONA };
 const TRIGGER_MESSAGE = '900000000000000902';
 
 const IMAGE_URL = 'https://cdn.discord.com/attachments/1/2/whiteboard.png';
@@ -183,13 +189,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
   it('replays the image description and the voice transcript it was built with', async () => {
     const stored = toStoredReference(liveReference(), builtAttachments());
 
-    const written = await history.storeTriggerReferences(
-      CHANNEL,
-      PERSONALITY,
-      PERSONA,
-      [stored],
-      TRIGGER_MESSAGE
-    );
+    const written = await writeTriggerReferences(prisma, SCOPE, [stored], TRIGGER_MESSAGE);
     expect(written).toBe(1);
 
     const rendered = await replayQuotes();
@@ -211,7 +211,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
     // has no second copy and must ride along. This arm is where enrichment kept
     // getting dropped, twice, under green coverage.
     const stored = toStoredReference(liveReference(), builtAttachments());
-    await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
+    await writeTriggerReferences(prisma, SCOPE, [stored], TRIGGER_MESSAGE);
 
     const rendered = await replayQuotes(stored.discordMessageId);
 
@@ -227,7 +227,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
     // history entry renders <image_descriptions>/<voice_transcripts>, so the
     // stub repeating them prints the same paid text twice in one prompt.
     const stored = toStoredReference(liveReference(), builtAttachments());
-    await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
+    await writeTriggerReferences(prisma, SCOPE, [stored], TRIGGER_MESSAGE);
 
     const rendered = await replayQuotes(stored.discordMessageId, {
       imageDescriptions: [{ filename: 'whiteboard.png', description: IMAGE_SENTINEL }],
@@ -252,7 +252,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
     // the live path's carriedByChatLog map, which is why this arm gets its
     // own test.
     const stored = toStoredReference({ ...liveReference(), content: '' }, builtAttachments());
-    await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
+    await writeTriggerReferences(prisma, SCOPE, [stored], TRIGGER_MESSAGE);
 
     const rendered = await replayQuotes(stored.discordMessageId, {
       imageDescriptions: [{ filename: 'whiteboard.png', description: IMAGE_SENTINEL }],
@@ -277,7 +277,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
     ]);
     expect(stored.attachmentEnrichment).toBeUndefined();
 
-    await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
+    await writeTriggerReferences(prisma, SCOPE, [stored], TRIGGER_MESSAGE);
 
     const rendered = await replayQuotes();
     expect(rendered).toContain('status="undescribed"');

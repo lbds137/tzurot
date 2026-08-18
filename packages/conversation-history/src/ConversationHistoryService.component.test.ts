@@ -20,6 +20,8 @@ import {
 } from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { mergeForwardedOrigin } from './forwardedOriginWriter.js';
+import { writeTriggerReferences } from './triggerReferenceWriter.js';
 
 describe('ConversationHistoryService Component Test', () => {
   let prisma: PrismaClient;
@@ -536,6 +538,119 @@ describe('ConversationHistoryService Component Test', () => {
       const tokensAfter = historyAfter[0].tokenCount;
 
       expect(tokensAfter).toBeGreaterThan(tokensBefore!);
+    });
+  });
+
+  describe("message_metadata writers preserve each other's keys", () => {
+    /**
+     * The failure this whole change exists to prevent, run against a real
+     * database rather than argued about.
+     *
+     * Two writers key on different fields of one JSON blob. While the
+     * reference write did a read-modify-write, the last one to commit wrote
+     * back a version of the blob assembled from ITS read — so a key the other
+     * added in between vanished, with no error and no log. Both now merge
+     * server-side, so the same sequence must preserve both keys.
+     *
+     * These writes run SEQUENTIALLY, and the describe block is named for what
+     * they prove — key preservation — rather than for concurrency, which they
+     * do not exercise. That is not a gap being papered over: a read-modify-write
+     * loses data by hoisting its READ above another writer's commit, and no
+     * writer reads the column any more, so there is no read left to hoist. Each
+     * write is one atomic statement, which Postgres serializes per row. The
+     * ordering that used to lose data is therefore inexpressible against this
+     * code, and these sequential writes assert exactly what the racing version
+     * would have failed.
+     */
+    it("keeps every writer's key when both write the same row", async () => {
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Original content',
+        guildId: testGuildId,
+      });
+      const scope = {
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+      };
+      const row = await prisma.conversationHistory.findFirstOrThrow({
+        where: { ...scope, role: MessageRole.User },
+      });
+
+      await mergeForwardedOrigin(prisma, row.id, {
+        authorName: 'Origin Author',
+        timestamp: '2026-06-17T00:00:00.000Z',
+      });
+      await writeTriggerReferences(prisma, scope, [
+        {
+          discordMessageId: 'ref-1',
+          authorUsername: 'alice',
+          authorDisplayName: 'Alice',
+          content: 'look',
+          timestamp: '2026-06-17T00:00:00.000Z',
+          locationContext: '',
+          attachments: [],
+          attachmentEnrichment: [],
+        },
+      ]);
+      // The content enrichment rides alongside: it writes different COLUMNS
+      // and must not disturb the metadata blob either.
+      await service.updateLastUserMessage(
+        testChannelId,
+        testPersonalityId,
+        testPersonaId,
+        'Enriched content'
+      );
+
+      const after = await prisma.conversationHistory.findUniqueOrThrow({ where: { id: row.id } });
+      const metadata = after.messageMetadata as Record<string, unknown>;
+
+      expect(metadata.forwardedFrom).toMatchObject({ authorName: 'Origin Author' });
+      expect(metadata.referencedMessages).toHaveLength(1);
+      expect(after.content).toBe('Enriched content');
+    });
+
+    it('replaces a key it owns rather than deep-merging into it', async () => {
+      // `||` is a TOP-level merge: a writer owning a key must pass that key
+      // complete, and a second write of the same key must not leave fragments
+      // of the first behind.
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Original content',
+        guildId: testGuildId,
+      });
+      const scope = {
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+      };
+      const stale = {
+        discordMessageId: 'ref-stale',
+        authorUsername: 'alice',
+        authorDisplayName: 'Alice',
+        content: 'a STALE snapshot',
+        timestamp: '2026-06-17T00:00:00.000Z',
+        locationContext: '',
+        attachments: [],
+        attachmentEnrichment: [],
+      };
+
+      await writeTriggerReferences(prisma, scope, [stale, { ...stale, discordMessageId: 'ref-2' }]);
+      await writeTriggerReferences(prisma, scope, [{ ...stale, content: 'the fresh one' }]);
+
+      const row = await prisma.conversationHistory.findFirstOrThrow({
+        where: { ...scope, role: MessageRole.User },
+      });
+      const stored = (row.messageMetadata as { referencedMessages: { content: string }[] })
+        .referencedMessages;
+      expect(stored).toHaveLength(1);
+      expect(stored[0].content).toBe('the fresh one');
     });
   });
 

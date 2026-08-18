@@ -6,24 +6,30 @@
  * onto the trigger user message, so a later turn replaying the same quote out
  * of `<chat_log>` renders the description instead of `status="undescribed"`.
  *
- * It is a WRITE, not a patch. The predecessor read the row's existing
- * `referencedMessages` back and merged descriptions into whichever entries it
- * recognised — which meant it silently did nothing at all once bot-client
- * stopped populating that field, because there was never anything to merge
- * into. Writing what the worker built has no such failure mode: the array is
- * either stored or the row was not found, and both say so in the log.
+ * It is a MERGE, not a patch and not an overwrite. The first version read the
+ * row's existing `referencedMessages` back and merged descriptions into
+ * whichever entries it recognised — which silently did nothing once bot-client
+ * stopped populating that field. The second wrote what the worker built, but
+ * spread the row's whole metadata blob to do it, which meant a concurrent
+ * writer of any OTHER key in that blob could lose it. This merges the one key
+ * it owns server-side and never reads the column at all.
  *
- * Extracted from ConversationHistoryService to keep that file under the
- * max-lines ceiling; the service exposes a thin delegating method.
+ * A FREE FUNCTION rather than a method on `ConversationHistoryService`,
+ * because that merge needs `$executeRaw` and the service deliberately holds a
+ * client type without it — api-gateway's fast pool is constructed as the
+ * narrow type precisely so it cannot issue raw or transactional statements.
+ * Same shape `getChannelHistoryWindow` already uses for `$transaction`: the
+ * capability is asked for at the one signature that needs it.
  */
 
 import { MessageRole } from '@tzurot/common-types/constants/message';
-import {
-  type MessageMetadata,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types/types/schemas/message';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { type ConversationHistoryClient } from './ConversationMessageMapper.js';
+import {
+  type ConversationHistoryClient,
+  type RawCapableConversationHistoryClient,
+} from './ConversationMessageMapper.js';
+import { mergeMessageMetadata } from './messageMetadataMerge.js';
 
 const logger = createLogger('TriggerReferenceWriter');
 
@@ -50,25 +56,31 @@ export async function findTriggerMessage(
   prisma: ConversationHistoryClient,
   scope: TriggerMessageScope,
   triggerMessageId: string | undefined
-): Promise<{ id: string; messageMetadata: unknown; targeting: 'exact' | 'recent' } | null> {
+): Promise<{ id: string; targeting: 'exact' | 'recent' } | null> {
   if (triggerMessageId !== undefined && triggerMessageId.length > 0) {
     const exact = await prisma.conversationHistory.findFirst({
       where: { ...scope, role: MessageRole.User, discordMessageId: { has: triggerMessageId } },
     });
     if (exact !== null) {
-      return { id: exact.id, messageMetadata: exact.messageMetadata, targeting: 'exact' };
+      return { id: exact.id, targeting: 'exact' };
     }
   }
 
+  // Neither query filters `deletedAt`, and that is deliberate rather than an
+  // oversight inherited from the pre-merge version. Writing metadata onto a
+  // soft-deleted row is inert — the channel-history read filters
+  // `deletedAt: null` (`buildChannelHistoryWhere`), so nothing renders it.
+  // Filtering here would be WORSE: a trigger row soft-deleted mid-generation
+  // would miss the exact lookup and fall through to the clause below, landing
+  // this turn's references on an unrelated later message. An invisible write
+  // beats a misdirected one.
   const recent = await prisma.conversationHistory.findFirst({
     where: { ...scope, role: MessageRole.User },
     // Tiebreak on id so two user rows sharing a createdAt ms can't resolve to
     // the wrong row — mirrors the deterministic ordering the read path uses.
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   });
-  return recent === null
-    ? null
-    : { id: recent.id, messageMetadata: recent.messageMetadata, targeting: 'recent' };
+  return recent === null ? null : { id: recent.id, targeting: 'recent' };
 }
 
 /**
@@ -82,7 +94,7 @@ export async function findTriggerMessage(
  * @returns number of references stored (0 when nothing was written)
  */
 export async function writeTriggerReferences(
-  prisma: ConversationHistoryClient,
+  prisma: RawCapableConversationHistoryClient,
   scope: TriggerMessageScope,
   references: StoredReferencedMessage[],
   triggerMessageId?: string
@@ -98,27 +110,30 @@ export async function writeTriggerReferences(
       return 0;
     }
 
-    // Shallow merge, so the row's other metadata (embedsXml, isForwarded)
-    // survives. That makes this a read-modify-write, and it is safe for the
-    // key this function owns: THIS is the sole writer of `referencedMessages`.
-    //
-    // It is NOT safe for keys owned by others, and there is now one:
-    // `mergeForwardedOrigin` writes `forwardedFrom` to this same column from
-    // bot-client's post-persist back-fill. If that write commits between this
-    // function's read and its UPDATE, the spread below replaces the blob with
-    // a version that never had `forwardedFrom` and silently drops it. The
-    // normal ordering makes that unlikely — the back-fill fires within a
-    // second of the persist, this runs after a job resolves references — but
-    // ordering is not a guarantee. The fix is to merge server-side the way
-    // that writer does, which needs a raw-capable client where this service
-    // deliberately holds a narrow one. TASK-658; do not add a third writer of
-    // this column before it lands.
-    const metadata = (target.messageMetadata as MessageMetadata | null) ?? {};
+    // Server-side merge, so the row's other metadata (embedsXml, isForwarded,
+    // forwardedFrom) survives without this function ever reading it. The read
+    // is what used to make this unsafe: another writer committing between the
+    // read and the UPDATE had its key overwritten by a spread that never
+    // contained it. Not reading is a stronger guarantee than reading carefully.
+    const result = await mergeMessageMetadata(
+      prisma,
+      target.id,
+      { referencedMessages: references },
+      { operation: 'trigger-references' }
+    );
 
-    await prisma.conversationHistory.update({
-      where: { id: target.id },
-      data: { messageMetadata: { ...metadata, referencedMessages: references } },
-    });
+    if (result !== 'updated') {
+      // Only `missing` is logged here, and only because it means something
+      // different on this path than it does elsewhere: the lookup above found
+      // this row moments ago, so its disappearance is not the ordinary
+      // not-found case. `failed` is deliberately silent — the merge already
+      // warned with the error object attached, and repeating it turns one
+      // database problem into two warn-level events.
+      if (result === 'missing') {
+        logger.warn({ messageId: target.id }, 'Trigger row vanished before the reference merge');
+      }
+      return 0;
+    }
 
     logger.debug(
       { messageId: target.id, references: references.length, targeting: target.targeting },
