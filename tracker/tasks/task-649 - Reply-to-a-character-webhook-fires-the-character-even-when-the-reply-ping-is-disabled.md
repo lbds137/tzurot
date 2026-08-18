@@ -163,12 +163,72 @@ subset, so a discriminating field can surface even if nobody predicted it.
 resolveReplyPersonality runs for every non-forwarded reply, so all six cases
 reach the log line whether or not a character resolves.
 
+## SETTLED 2026-08-18 (read-only, no deploy) — reply-ping is UNOBSERVABLE for webhooks
+
+Round 2 never needed a deploy. Everything below came from read-only REST calls
+against the live API, in the three steps the round-1 claim was missing.
+
+**1. Declared field inventory** (discord-api-types 0.38.53,
+payloads/v10/message.d.ts): the only fields carrying mention/notification state
+are mentions, mention_everyone, mention_roles, mention_channels, flags.
+MessageFlags has no reply-ping bit; the only notification-adjacent one is
+SuppressNotifications = 4096. So `mentions` is the sole candidate, established
+from the declaration rather than from a guess.
+
+**2. Raw refetch of BOTH round-1 replies** (1539230684525236284,
+1539230821825908747 in #rotzot 1377516899461627945). Identical in every field,
+not merely in mentions.users: mentions [], mention_roles [], mention_everyone
+false, flags 0, type 19, and the same top-level key set. Both reference
+webhook 1472768398135001108 (referenced_message.webhook_id equals the author
+id, so the referenced author is confirmed a webhook, not the bot user).
+
+**3. POSITIVE CONTROL over the real corpus** — 435 messages across six
+channels, counting how often a reply`s referenced author appears in its own
+mentions array:
+
+    referenced author = real user     61 present / 82 absent   (143 total)
+    referenced author = webhook        0 present / 52 absent   ( 52 total)
+
+The user row is what round 1 lacked, and it passes decisively: the reply-ping
+mechanism is alive and plainly observable, 61 of 143. Only against that does
+the webhook row mean anything — and it is 0 of 52, never once.
+
+**Conclusion (now earned rather than guessed):** Discord does not list a
+webhook author in `mentions` under any circumstances. Characters post via
+webhooks, so the reply-ping toggle is unobservable for exactly the messages
+the #2133 gate must classify. Round 1 reached this conclusion by luck; a
+correct answer from a one-field probe is still a guess.
+
+## Remaining options for #2133 (OWNER decision — per-message control is the crux)
+
+A. **@silent flag (MessageFlags.SuppressNotifications, 4096).** Native,
+   per-message, semantically exact ("do not notify"). discord.js parses flags
+   (Message.js:345). NOT YET VERIFIED that the bit arrives: 0 of 435 scanned
+   messages had it set, so the corpus proves only that nobody uses it. One
+   owner message settles it read-only, no deploy — send an @silent reply in
+   #rotzot and the flag is refetchable immediately. Cheapest decisive step.
+
+B. **Config-cascade switch disabling reply-triggering** per channel/user/
+   personality. Implementable today with no new signal; a new enum field on
+   configOverrides needs no migration. Blunt: all-or-nothing, loses the
+   per-message granularity the owner actually asked for.
+
+C. **Text-prefix convention** (leading marker on the reply). Per-message and
+   unambiguous, but invents UX Discord does not suggest.
+
+D. **Status quo** — any reply wakes the character.
+
+Recommendation: verify A first, because it is the only native option with the
+granularity the request implies, and verifying costs one message. B is the
+fallback if the @silent gesture reads as too obscure for the userbase.
+
 ## Still owed after the capture
 
-1. Decide the predicate`s input from observed values.
-2. Trim the NOT-YET-RUNTIME-VERIFIED block in replyPing.ts once settled.
-3. Remove #2140 instrumentation in a `debug` cleanup commit; confirm with
-   `git log --grep '^debug[:(]' origin/develop..HEAD`.
-4. Confirm before a RELEASE, not merely before the develop merge.
+1. Owner picks among A-D above; #2133 stays OPEN until then.
+2. If A: one @silent reply in #rotzot, then a read-only refetch confirms the
+   bit. No deploy needed either way.
+3. Instrumentation removal is PR #2140 (the `debug` pair`s second half).
+4. Whatever gate lands, confirm before a RELEASE, not merely before the
+   develop merge -- develop auto-deploys.
 
 <!-- SECTION:DESCRIPTION:END -->
