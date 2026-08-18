@@ -1,6 +1,7 @@
 /**
- * Tests for the interval-scheduler factory — the shared skeleton behind
- * bot-client's periodic background checks.
+ * Tests for the interval-scheduler factory — the shared skeleton behind the
+ * services' periodic background work: bot-client's checks and api-gateway's
+ * model-catalog refresh.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -1,22 +1,23 @@
 /**
- * Interval-scheduler factory — the shared skeleton of bot-client's periodic
- * background checks (verification cleanup, secret-rotation nag, retention nag).
+ * Interval-scheduler factory — the shared skeleton of the services' periodic
+ * background work: bot-client's checks (verification cleanup, secret-rotation
+ * nag, retention nag, nightly db sync) and api-gateway's model-catalog refresh.
  *
  * The shape every consumer shares: a guarded start (no double-scheduling), a
- * recurring `setInterval` run, one startup run after a short delay (bot-client
- * restarts on every deploy, so the startup run is what makes daily checks
+ * recurring `setInterval` run, one startup run after a short delay (services
+ * restart on every deploy, so the startup run is what makes daily checks
  * restart-friendly — restarts make them fire more often, never less), and a
  * stop that clears BOTH timers. Clearing the startup timer matters: without it,
  * a shutdown inside the startup-delay window leaves a stray one-shot check
  * firing after the scheduler was told to stop.
  *
- * Deliberately `setInterval`-based: bot-client is single-instance, and these
- * are idempotent checks. If bot-client ever scales past one replica, this
- * factory is the single seam to swap for BullMQ repeatable jobs (see
+ * Deliberately `setInterval`-based: both consuming services run single-instance
+ * and every consumer's cycle is idempotent. If either scales past one replica,
+ * this factory is the single seam to swap for BullMQ repeatable jobs (see
  * 04-discord.md § Timer Patterns).
  */
 
-import type { createLogger } from '@tzurot/common-types/utils/logger';
+import type { createLogger } from './logger.js';
 
 type Logger = ReturnType<typeof createLogger>;
 
