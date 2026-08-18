@@ -89,7 +89,12 @@ Behaviors worth knowing:
   instead of replying (runtime-confirmed: a forward drew no response where five
   replies in the same window each did). In an activated channel this does not
   help — every message wakes the character, and a forward's accompanying
-  comment arrives as a separate plain message.
+  comment arrives as a separate plain message. Cost worth knowing: a forward
+  reaches the model as `<quote type="forward" from="Unknown">` with no author
+  and no timestamp, where an ordinary message carries both. Discord's snapshot
+  omits `author` and `id` (the original is recoverable via
+  `message_reference.message_id`, which we do not currently fetch); the
+  timestamp we simply drop in rendering. Tracked in TASK-656.
 
 ### Private character access
 
