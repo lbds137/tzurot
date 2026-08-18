@@ -48,6 +48,23 @@ import type { Message } from 'discord.js';
  * and dropping a trigger we cannot classify is worse than an extra reply.
  * Every arm is pinned in `replyPing.test.ts`.
  */
+/*
+ * On why this reads `mentions.users` directly instead of `MessageMentions#has`,
+ * which looks like the first-class API for the job (verified against
+ * discord.js 14.27.0 `MessageMentions.js`):
+ *
+ * - `has(user, { ignoreRepliedUser: true })` additionally requires
+ *   `parsedUsers` membership (line 270), and `parsedUsers` is a regex over the
+ *   message TEXT (line 232) while `users` comes straight off the API payload
+ *   (lines 88-107). A reply-ping never writes the author into the text, so
+ *   that option returns false for a ping-ON reply — it would suppress every
+ *   reply, the worst failure this gate has.
+ * - `has(user)` with defaults also returns true on `@everyone` (line 263) and
+ *   on any mentioned ROLE the user holds (lines 279-283), so an unrelated
+ *   `@everyone` in the message would read as "the ping is on".
+ *
+ * The direct membership test is the narrower and more accurate question.
+ */
 export function replyPingPermitsTrigger(message: Message): boolean {
   // A DM has no guild id. Checked before the toggle so no DM path can ever
   // reach the membership test.
