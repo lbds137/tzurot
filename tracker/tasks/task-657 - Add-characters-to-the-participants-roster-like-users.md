@@ -105,4 +105,63 @@ almost nothing per turn. Qwen independently reached the same floor: "if the
 only goal is resolving from_id, the safest possible entry is name + id."
 A richer blurb needs an owner-authored public-facing field (new column +
 dashboard), which is its own slice, not a characterInfo reuse.
+
+## OWNER RULINGS 2026-08-18 (settled -- do not re-litigate)
+
+RULING 1 -- privacy: a GENERATED third-person blurb counts as NON-disclosure.
+The summary renders for every character regardless of `definitionPublic`.
+Rationale accepted: the character is actively speaking in the channel, so its
+voice, manner and premise are already on display to everyone present; a short
+third-person blurb reveals far less than the card does (no system prompt, no
+conversational examples, no dislikes list). Gating on `definitionPublic` was
+rejected because that flag defaults FALSE, which would leave the feature off
+for nearly every character.
+
+RULING 2 -- generation: do NOT reuse `characterInfo` verbatim. A summarizer
+generates the blurb automatically, so it is never owner-curated. Keyed off a
+CHECKSUM of the character card; regenerate only when the checksum changes.
+
+RULING 3 -- length: target parity with user personas, i.e. the same cap
+(`DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH` = 4000, which is what persona
+`content` uses -- persona.ts:239). Parity is on the CAP and its governance,
+not a target length; real summaries land well under it. Build the bound as a
+tunable constant, never hardcode 4000, so it can be dialled down if bleed
+reappears.
+
+Why parity is affordable here when raw card text would not be: the documented
+bleed's MECHANISM was first-person "I" statements across a long span. A
+third-person summary removes the mechanism rather than merely the volume. The
+roster also sits in the cacheable S1 prefix and is byte-stable turn to turn,
+so the marginal token cost is a cache hit rather than a fresh per-turn payment.
+
+## SLICE PLAN
+
+Scope is no longer size:M -- migration + job + summarizer prompt + roster work
+is multi-PR. Split so the actual gap ships first and independently:
+
+SLICE A -- roster + from_id, names only. Emit `from_id` on role="character"
+lines; add sibling entries to <participants>; exclude the currently-speaking
+character; update the instruction/notes wording. No migration, no summarizer,
+no privacy surface. This closes the gap the task exists for and is shippable
+alone.
+
+SLICE B -- summarizer + checksum + blurb. Columns on `personalities`
+(summary + source hash); checksum over the card fields the `definitionPublic`
+doc comment already enumerates (characterInfo, traits, tone/age/appearance/
+likes/dislikes, goals/examples); generation OFF the blocking path (enqueue on
+mismatch, fall back to name-only for that turn -- same degrade-gracefully
+shape as the forwarded-origin backfill in #2141). Precedent to copy rather
+than invent: `UserFeedback.contentHash` is sha-256 hex in VarChar(64), with
+`contentHash()` in ai-worker's `utils/duplicateDetection.ts`.
+
+MARKUP (settled from the council pass + code corrections above): a
+structurally distinct element for siblings, ONE shared id space, third-person
+declarative prose, per-entry in-band name-first frame, provenance attribute
+that is not `source="user_input"`. Element naming must avoid BOTH
+`<character_info>` and `<character>` -- each already denotes the SELF card
+(PersonalityFieldsFormatter.ts:108 and system_identity respectively).
+`<peer_info>` was the only council proposal colliding with nothing.
+
+NOT YET VERIFIED: how much of `FactExtractionService` is genuinely reusable
+versus same-shape-different-code. Read it before claiming reuse in slice B.
 <!-- SECTION:DESCRIPTION:END -->
