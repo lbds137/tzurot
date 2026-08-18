@@ -50,14 +50,21 @@ Read-side only: thread an optional `personalityId` predicate into
 the cascade option is on. Scope the default to DMs (`guild_id IS NULL`);
 channel-wide context is desirable in guilds, where the room is shared.
 
-## Open product question (owner call, not technical)
+## DECIDED by the owner 2026-08-18 — strict isolation, all or nothing
 
 With isolation ON and two characters tagged in one DM message, each character
 sees its own copy of the user turn - that falls out of the per-character rows
 for free. The undecided half is whether character A should see character B's
-REPLY. Agent recommendation: no. Isolation that leaks the other character's
-output is not isolation, and the strict reading costs nothing given the row
-model.
+REPLY. Agent recommendation was: no. **The owner agreed** — quote: "it should be all
+or nothing. a small optional convenience for people who use DMs a lot (I don't
+so I haven't dogfooded that path as much)".
+
+So the shape is settled: when the option is ON for a DM, a character sees ONLY
+its own rows in that channel — neither the other character's user-turn copies
+nor its replies. Default OFF; this is an opt-in convenience, not a behavior
+change for everyone. The owner flags that they do not use DMs much, so the path
+is comparatively under-dogfooded — worth extra care on manual verification, and
+worth asking the requesting user to confirm the result rather than assuming.
 
 ## Unverified side observation - CHECK BEFORE REPEATING
 
