@@ -42,6 +42,7 @@ import { handleStampUserActivity } from '../internal/usersActivity.js';
 import { handleLookupPersonalityFromMessage } from '../user/conversationLookup.js';
 import { handlePersistAssistantMessage } from '../internal/conversationAssistantMessage.js';
 import { handlePersistUserMessage } from '../internal/conversationUserMessage.js';
+import { handlePatchForwardedOrigin } from '../internal/conversationForwardedOrigin.js';
 import { handleSyncConversation } from '../internal/conversationSync.js';
 import { handleLoadPersonalityInternal } from '../internal/personalityLoad.js';
 import { handleRoutingContextCreate } from '../internal/routingContextCreate.js';
@@ -125,6 +126,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/internal/conversation/message-personality', handleLookupPersonalityFromMessage(deps));
   app.post('/api/internal/conversation/assistant-message', handlePersistAssistantMessage(deps));
   app.post('/api/internal/conversation/user-message', handlePersistUserMessage(deps));
+  app.post('/api/internal/conversation/forwarded-origin', handlePatchForwardedOrigin(deps));
   app.post('/api/internal/conversation/sync', handleSyncConversation(deps));
   app.get('/api/internal/personality/load', handleLoadPersonalityInternal(deps));
   app.post('/api/internal/v1/routing-context', handleRoutingContextCreate(deps));

@@ -182,6 +182,22 @@ export const forwardedOriginSchema = z.object({
   authorId: z.string().optional(),
   /** ISO-8601 post time of the ORIGINAL message, not of the forward. */
   timestamp: z.string().optional(),
+  /**
+   * Internal personality UUID when the original was authored by a CHARACTER.
+   *
+   * This is what the rendered `from_id` carries, NOT `authorId`. Every other
+   * producer of that attribute emits an internal UUID, and the prompt
+   * explicitly instructs the model to match `from_id` against the
+   * `<participants>` roster — so a Discord snowflake there is an identity
+   * token that can never resolve against anything.
+   *
+   * Absent for a forward authored by a human or an unrelated bot, and absent
+   * when the personality could not be resolved. It does not bind to a roster
+   * entry yet either, because characters are not in `<participants>` until
+   * TASK-657 — but it is the value that becomes correct when they are, which
+   * a snowflake never would.
+   */
+  authorPersonalityId: z.string().optional(),
 });
 
 /**

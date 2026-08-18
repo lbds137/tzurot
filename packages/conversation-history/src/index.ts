@@ -31,6 +31,10 @@ export {
 // Exporting it would invite a consumer to type a field as "transaction-capable"
 // — which is how the narrow type got widened in the first place.
 export { type ConversationHistoryClient } from './ConversationMessageMapper.js';
+export { mergeForwardedOrigin } from './forwardedOriginWriter.js';
+// RawCapableConversationHistoryClient stays unexported for the same reason
+// TransactionalConversationHistoryClient does: the raw-SQL capability is asked
+// for at the one signature that needs it, not offered to every consumer.
 export { ConversationRetentionService } from './ConversationRetentionService.js';
 export { ConversationSyncService } from './ConversationSyncService.js';
 export { propagateDeletionToFacts } from './memoryDeletionPropagation.js';

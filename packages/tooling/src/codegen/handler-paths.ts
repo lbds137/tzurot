@@ -151,6 +151,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
   persistAssistantMessage: '../internal/conversationAssistantMessage.js',
   persistUserMessage: '../internal/conversationUserMessage.js',
+  patchForwardedOrigin: '../internal/conversationForwardedOrigin.js',
   syncConversation: '../internal/conversationSync.js',
   loadPersonalityInternal: '../internal/personalityLoad.js',
   routingContextCreate: '../internal/routingContextCreate.js',

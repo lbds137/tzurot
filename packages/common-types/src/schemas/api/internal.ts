@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { loadedPersonalitySchema } from '../../types/schemas/personality.js';
-import { messageMetadataSchema } from '../../types/schemas/message.js';
+import { forwardedOriginSchema, messageMetadataSchema } from '../../types/schemas/message.js';
 import { SYNC_LIMITS } from '../../constants/timing.js';
 import { DISCORD_SNOWFLAKE } from '../../constants/discord.js';
 
@@ -163,6 +163,34 @@ export const PersistUserMessageRequestSchema = z.object({
   /** ISO timestamp of the Discord message (becomes the row's createdAt). */
   messageTime: z.string().datetime(),
 });
+
+/**
+ * POST /api/internal/conversation/forwarded-origin
+ *
+ * Backfills the recovered origin of a forwarded message onto an
+ * already-persisted user row. Separate from the persist call because resolving
+ * the original costs Discord REST round-trips, and doing that inline would put
+ * them on the path that gates AI job submission.
+ *
+ * The row is addressed the same way the persist derives it — the id is a pure
+ * function of (channelId, personalityId, personaId, messageTime) — so no
+ * lookup and no id round-trip is needed.
+ */
+export const PatchForwardedOriginRequestSchema = z.object({
+  channelId: z.string().min(1),
+  personalityId: z.string().uuid(),
+  personaId: z.string().uuid(),
+  /** Same ISO timestamp the persist used; the row id derives from it. */
+  messageTime: z.string().datetime(),
+  forwardedFrom: forwardedOriginSchema,
+});
+
+export const PatchForwardedOriginResponseSchema = z.object({
+  /** False when no row matched — an expected outcome, not an error. */
+  updated: z.boolean(),
+});
+
+export type PatchForwardedOriginResponse = z.infer<typeof PatchForwardedOriginResponseSchema>;
 
 /** Shape intentionally identical to the assistant-message response. */
 export const PersistUserMessageResponseSchema = z.object({

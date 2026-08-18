@@ -45,6 +45,8 @@ import {
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
+  PatchForwardedOriginRequestSchema,
+  PatchForwardedOriginResponseSchema,
   PersistUserMessageRequestSchema,
   PersistUserMessageResponseSchema,
   RecentUsersResponseSchema,
@@ -275,6 +277,24 @@ export const internalRoutes = {
     id: 'persistUserMessage',
     input: PersistUserMessageRequestSchema,
     output: PersistUserMessageResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/conversation/forwarded-origin
+   * Backfills a forwarded message's recovered origin onto its already-persisted
+   * user row. Separate from the persist because resolving the original costs
+   * Discord REST round-trips, and those must not sit on the path that gates AI
+   * job submission. Fire-and-forget from bot-client: a miss is logged, never
+   * retried, and never surfaced to the user.
+   */
+  patchForwardedOrigin: {
+    audience: 'internal',
+    method: 'post',
+    path: '/conversation/forwarded-origin',
+    id: 'patchForwardedOrigin',
+    input: PatchForwardedOriginRequestSchema,
+    output: PatchForwardedOriginResponseSchema,
     serviceOnly: true,
   },
 
