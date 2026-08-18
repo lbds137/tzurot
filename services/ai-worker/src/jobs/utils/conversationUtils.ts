@@ -32,7 +32,7 @@ import { promptTime } from '../../services/prompt/RenderableReference.js';
 export { extractParticipants } from './participantUtils.js';
 import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
 export { convertConversationHistory } from './langchainConverter.js';
-export { RawHistoryEntry, InlineImageDescription } from './conversationTypes.js';
+export { RawHistoryEntry, InlineImageDescription, ResponderIdentity } from './conversationTypes.js';
 
 // Import what we need internally
 import type { RawHistoryEntry } from './conversationTypes.js';
@@ -43,31 +43,6 @@ import {
   formatVoiceSection,
   formatReactionsSection,
 } from './xmlMetadataFormatters.js';
-
-/**
- * Format a single history entry as XML
- *
- * This is the single source of truth for history message formatting.
- * Used by both formatConversationHistoryAsXml (for prompt generation) and
- * MemoryBudgetManager (for token counting).
- *
- * Format: <message from="Name" role="user|assistant|character" time="2m ago">content</message>
- *
- * Role is relative to the responding personality — a sibling persona's
- * message renders as role="character" (see resolveSpeakerInfo).
- *
- * When a user's persona name matches ANY AI personality name in the conversation
- * (e.g., user "Lila" in a channel with "Lila AI"), the user's name is disambiguated
- * as "Lila (@discordUsername)" to prevent confusion.
- *
- * @param msg - Raw history entry to format
- * @param personalityName - Name of the AI personality (for marking its own messages)
- * @param historyEntries - Optional Discord-message-ID → history entry index. The
- *   key decides quote deduplication; the entry answers what the chat log already
- *   renders for a deduped quote, so the stub can subtract what would be a repeat.
- * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
- * @returns Formatted XML string, or empty string if message should be skipped
- */
 
 /**
  * Adapt a forwarded message's persisted enrichment into renderable attachments.
@@ -123,13 +98,46 @@ function formatFromIdAttribute(msg: RawHistoryEntry, role: ChatLogRole): string 
   return fromId !== undefined && fromId.length > 0 ? ` from_id="${escapeXml(fromId)}"` : '';
 }
 
+/**
+ * Format a single history entry as XML
+ *
+ * This is the single source of truth for history message formatting.
+ * Used by both formatConversationHistoryAsXml (for prompt generation) and
+ * MemoryBudgetManager (for token counting).
+ *
+ * Format: <message from="Name" role="user|assistant|character" time="2m ago">content</message>
+ *
+ * Role is relative to the responding personality — a sibling persona's
+ * message renders as role="character" (see resolveSpeakerInfo).
+ *
+ * When a user's persona name matches ANY AI personality name in the conversation
+ * (e.g., user "Lila" in a channel with "Lila AI"), the user's name is disambiguated
+ * as "Lila (@discordUsername)" to prevent confusion.
+ *
+ * @param msg - Raw history entry to format
+ * @param personalityName - Name of the AI personality (for marking its own messages)
+ * @param historyEntries - Optional Discord-message-ID → history entry index. The
+ *   key decides quote deduplication; the entry answers what the chat log already
+ *   renders for a deduped quote, so the stub can subtract what would be a repeat.
+ * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
+ * @param responderPersonalityId - The responding personality's id. Decides
+ *   self-vs-sibling exactly for rows carrying their own `personalityId`;
+ *   omitted, the name comparison decides (see `resolveAssistantRowRole`).
+ * @returns Formatted XML string, or empty string if message should be skipped
+ */
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
   historyEntries?: Map<string, RawHistoryEntry>,
-  allPersonalityNames?: Set<string>
+  allPersonalityNames?: Set<string>,
+  responderPersonalityId?: string
 ): string {
-  const speakerInfo = resolveSpeakerInfo(msg, personalityName, allPersonalityNames);
+  const speakerInfo = resolveSpeakerInfo(
+    msg,
+    personalityName,
+    allPersonalityNames,
+    responderPersonalityId
+  );
   if (speakerInfo === null) {
     return '';
   }
@@ -223,6 +231,14 @@ export function formatSingleHistoryEntryAsXml(
 interface FormatConversationHistoryOptions {
   /** Configuration for time gap markers. If provided, gaps between messages will be marked. */
   timeGapConfig?: TimeGapConfig;
+  /**
+   * The RESPONDING personality's id. Decides self-vs-sibling exactly for rows
+   * that carry their own `personalityId`, instead of comparing a name that was
+   * stamped at write time and goes stale on a rename (see
+   * `resolveAssistantRowRole`). Optional so a caller with no personality in
+   * hand still renders — those rows fall back to the name comparison.
+   */
+  responderPersonalityId?: string;
 }
 
 /**
@@ -351,7 +367,8 @@ export function formatConversationHistoryAsXml(
       msg,
       personalityName,
       historyEntries,
-      allPersonalityNames
+      allPersonalityNames,
+      options?.responderPersonalityId
     );
     if (formatted.length > 0) {
       messages.push(formatted);
@@ -377,7 +394,8 @@ export function formatConversationHistoryAsXml(
  */
 export function formatCrossChannelHistoryAsXml(
   groups: CrossChannelHistoryGroupEntry[],
-  personalityName: string
+  personalityName: string,
+  responderPersonalityId?: string
 ): string {
   if (groups.length === 0) {
     return '';
@@ -393,7 +411,9 @@ export function formatCrossChannelHistoryAsXml(
     hasContent = true;
     parts.push('<channel_history>');
     parts.push(formatLocationAsXml(group.channelEnvironment));
-    const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName);
+    const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName, {
+      responderPersonalityId,
+    });
     if (messagesXml.length > 0) {
       parts.push(messagesXml);
     }

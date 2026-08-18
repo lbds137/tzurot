@@ -21,6 +21,26 @@ export interface InlineImageDescription {
 }
 
 /**
+ * The responding personality's identity, as the history layer needs it.
+ *
+ * Name and id travel together from here down, so they are one parameter rather
+ * than two: `name` is the chat-log `from=` fallback and the legacy self-match,
+ * `id` is what actually decides self-vs-sibling for any row carrying one. The
+ * id is optional because not every caller has a personality in hand (token
+ * pre-measures, the eval harness), and those correctly fall back to the name.
+ *
+ * Bundled rather than appended because `selectAndSerializeHistory` was already
+ * at the five-parameter ceiling; a sixth would have needed a suppression whose
+ * only justification was "we added a parameter".
+ */
+export interface ResponderIdentity {
+  /** The personality's unique name (not display name). */
+  name: string;
+  /** The personality UUID. Stable across renames, unlike the name. */
+  id?: string;
+}
+
+/**
  * Raw conversation history entry (before BaseMessage conversion)
  */
 export interface RawHistoryEntry {

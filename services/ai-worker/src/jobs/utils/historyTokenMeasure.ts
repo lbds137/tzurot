@@ -45,8 +45,15 @@ import type { RawHistoryEntry } from './conversationTypes.js';
 export function measureHistoryEntryTokens(
   entry: RawHistoryEntry,
   personalityName: string,
-  allPersonalityNames?: Set<string>
+  allPersonalityNames?: Set<string>,
+  responderPersonalityId?: string
 ): number {
-  const xml = formatSingleHistoryEntryAsXml(entry, personalityName, undefined, allPersonalityNames);
+  const xml = formatSingleHistoryEntryAsXml(
+    entry,
+    personalityName,
+    undefined,
+    allPersonalityNames,
+    responderPersonalityId
+  );
   return xml.length > 0 ? countTextTokens(xml) : 0;
 }

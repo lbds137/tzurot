@@ -952,6 +952,19 @@ describe('sibling AI characters in the roster', () => {
     expect(formatParticipantsContext(human(), 'Lilith', [kai])).toContain('group conversation');
   });
 
+  it("warns when a sibling character shares the responding personality's own name", () => {
+    // Reachable because Personality.name has NO unique constraint (only slug
+    // does) and self-vs-sibling is decided by id: a different personality that
+    // happens to be called "Lilith" is a genuine peer, not self. Before the id
+    // comparison the name-prefix match swallowed it as self, which is why the
+    // collision check was humans-only and why that is no longer sufficient.
+    const result = formatParticipantsContext(new Map(), 'Lilith', [
+      { personalityId: 'p-other-lilith', personalityName: 'Lilith' },
+    ]);
+
+    expect(result).toContain('matches your own');
+  });
+
   it('warns when a human and a sibling character share a name', () => {
     const result = formatParticipantsContext(human(), 'Lilith', [
       { personalityId: 'p-alice', personalityName: 'Alice' },

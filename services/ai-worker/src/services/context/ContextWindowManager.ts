@@ -14,6 +14,7 @@ import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
   type RawHistoryEntry,
+  type ResponderIdentity,
   collectPersonalityNames,
   formatConversationHistoryAsXml,
 } from '../../jobs/utils/conversationUtils.js';
@@ -63,7 +64,7 @@ export class ContextWindowManager {
    */
   selectAndSerializeHistory(
     rawHistory: RawHistoryEntry[] | undefined,
-    personalityName: string,
+    responder: ResponderIdentity,
     historyBudget: number,
     crossChannelGroups?: CrossChannelHistoryGroupEntry[],
     currentEnvironment?: DiscordEnvironment
@@ -104,7 +105,7 @@ export class ContextWindowManager {
     // wrapper could silently exceed historyBudget.
     const adjustedBudget = historyBudget - currentConversationOverhead;
     const { selectedEntries, currentChannelXml, tokensUsed } = hasCurrentChannel
-      ? this.selectCurrentChannelEntries(rawHistory, personalityName, adjustedBudget)
+      ? this.selectCurrentChannelEntries(rawHistory, responder, adjustedBudget)
       : { selectedEntries: [] as RawHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
 
     // Include wrapper overhead in tokens used (only when content exists to wrap)
@@ -115,12 +116,7 @@ export class ContextWindowManager {
 
     // Serialize cross-channel history if available and budget remains
     const { crossChannelXml, crossChannelMessagesIncluded, crossTokens } = hasCrossChannel
-      ? this.serializeCrossChannel(
-          crossChannelGroups,
-          personalityName,
-          historyBudget,
-          adjustedTokensUsed
-        )
+      ? this.serializeCrossChannel(crossChannelGroups, responder, historyBudget, adjustedTokensUsed)
       : { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
 
     const actualTokens = adjustedTokensUsed + crossTokens;
@@ -144,7 +140,7 @@ export class ContextWindowManager {
   /** Select current-channel entries within budget using recency-based strategy. */
   private selectCurrentChannelEntries(
     rawHistory: RawHistoryEntry[],
-    personalityName: string,
+    responder: ResponderIdentity,
     historyBudget: number
   ): { selectedEntries: RawHistoryEntry[]; currentChannelXml: string; tokensUsed: number } {
     const wrapperOverhead = countTextTokens('<chat_log>\n</chat_log>');
@@ -161,7 +157,7 @@ export class ContextWindowManager {
     // SELECTED subset. A name that appears only in a dropped entry therefore
     // widens the measurement but not the shipped XML — an over-measure, which
     // is the safe direction for a budget.
-    const allPersonalityNames = collectPersonalityNames(rawHistory, personalityName);
+    const allPersonalityNames = collectPersonalityNames(rawHistory, responder.name);
 
     for (let i = rawHistory.length - 1; i >= 0; i--) {
       const entry = rawHistory[i];
@@ -169,7 +165,12 @@ export class ContextWindowManager {
       // so it omits the XML envelope and every metadata section this entry will
       // actually ship. Spending against the same budget the accurate
       // countHistoryTokens sized requires measuring the same way.
-      const entryTokens = measureHistoryEntryTokens(entry, personalityName, allPersonalityNames);
+      const entryTokens = measureHistoryEntryTokens(
+        entry,
+        responder.name,
+        allPersonalityNames,
+        responder.id
+      );
 
       if (estimatedTokens + entryTokens > budgetAfterOverhead) {
         logger.debug(
@@ -183,7 +184,9 @@ export class ContextWindowManager {
       estimatedTokens += entryTokens;
     }
 
-    const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, personalityName);
+    const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, responder.name, {
+      responderPersonalityId: responder.id,
+    });
     // Only count wrapper overhead when we actually have content to wrap
     const tokensUsed =
       selectedEntries.length > 0 ? countTextTokens(currentChannelXml) + wrapperOverhead : 0;
@@ -204,7 +207,7 @@ export class ContextWindowManager {
   /** Serialize cross-channel groups within remaining budget, re-measuring actual tokens. */
   private serializeCrossChannel(
     groups: CrossChannelHistoryGroupEntry[],
-    personalityName: string,
+    responder: ResponderIdentity,
     historyBudget: number,
     currentChannelTokensUsed: number
   ): { crossChannelXml: string; crossChannelMessagesIncluded: number; crossTokens: number } {
@@ -214,8 +217,9 @@ export class ContextWindowManager {
 
     const crossResult = serializeCrossChannelHistory(
       groups,
-      personalityName,
-      historyBudget - currentChannelTokensUsed
+      responder.name,
+      historyBudget - currentChannelTokensUsed,
+      responder.id
     );
 
     if (crossResult.xml.length === 0) {
@@ -303,7 +307,10 @@ export class ContextWindowManager {
    * Delegates to MemoryBudgetManager for the actual counting.
    * See MemoryBudgetManager.countHistoryTokens for details.
    */
-  countHistoryTokens(rawHistory: RawHistoryEntry[] | undefined, personalityName: string): number {
-    return this.memoryBudgetManager.countHistoryTokens(rawHistory, personalityName);
+  countHistoryTokens(
+    rawHistory: RawHistoryEntry[] | undefined,
+    responder: ResponderIdentity
+  ): number {
+    return this.memoryBudgetManager.countHistoryTokens(rawHistory, responder.name, responder.id);
   }
 }

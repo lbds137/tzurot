@@ -54,6 +54,48 @@ function createGroup(
 }
 
 describe('serializeCrossChannelHistory', () => {
+  describe('responder identity by id', () => {
+    /** A group whose assistant row is the responder's own, stamped with a PRE-RENAME name. */
+    function renamedResponderGroup(): CrossChannelHistoryGroupEntry {
+      return createGroup({
+        messages: [
+          {
+            id: 'msg-old',
+            role: MessageRole.Assistant,
+            content: 'Said this before the rename.',
+            createdAt: '2026-02-26T10:00:00Z',
+            tokenCount: 8,
+            personalityId: 'p-self',
+            personalityName: 'OldName',
+          },
+        ],
+      });
+    }
+
+    // No timer hooks here: the enclosing describe already installs fake timers
+    // per test and follows the repo's documented useFakeTimers/restoreAllMocks
+    // pairing. Re-declaring them locally deviated from that for no gain.
+    it("renders the responder's own pre-rename rows as assistant when the id is supplied", () => {
+      const result = serializeCrossChannelHistory(
+        [renamedResponderGroup()],
+        'BrandNewName',
+        5000,
+        'p-self'
+      );
+
+      expect(result.xml).toContain('role="assistant"');
+      expect(result.xml).not.toContain('role="character"');
+    });
+
+    it('falls back to the name comparison when no responder id is supplied', () => {
+      // Pins the fallback rather than asserting it is desirable: this is the
+      // pre-fix behaviour, and it is what an id-less row still gets.
+      const result = serializeCrossChannelHistory([renamedResponderGroup()], 'BrandNewName', 5000);
+
+      expect(result.xml).toContain('role="character"');
+    });
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
   });

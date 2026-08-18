@@ -180,11 +180,17 @@ export function mapToConversationMessage(
     isForwarded: metadata?.isForwarded === true ? true : undefined,
     messageMetadata: metadata,
     // AI personality info for multi-AI channel attribution.
-    // Use the unique `name`, not `displayName`: two personalities can share a
-    // display name (e.g. "Fallen Emily" and "Emily" both displaying "Emily"),
-    // which collapses their chat-log attribution into an indistinguishable
-    // `from="Emily"`. `name` is the disambiguating identifier, and matches how
-    // the active personality is already named throughout the prompt.
+    // Use `name`, not `displayName`: two personalities can share a display name
+    // (e.g. "Fallen Emily" and "Emily" both displaying "Emily"), which collapses
+    // their chat-log attribution into an indistinguishable `from="Emily"`.
+    // `name` is the MORE distinguishing of the two, and matches how the active
+    // personality is named throughout the prompt.
+    //
+    // It is NOT unique, despite what this comment used to claim: only `slug`
+    // carries a unique constraint (`prisma/schema.prisma`, model Personality).
+    // Anything deciding identity must key on `personalityId`, not on this — the
+    // "unique name" phrasing here nearly got a real same-name collision
+    // dismissed as impossible.
     personalityId: record.personalityId,
     personalityName: record.personality.name,
     // Channel info for cross-channel history

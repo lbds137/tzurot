@@ -22,7 +22,7 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 1000);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
 
       expect(result.serializedHistory).toContain('Hello');
       expect(result.serializedHistory).toContain('Hi there!');
@@ -32,7 +32,7 @@ describe('ContextWindowManager', () => {
     });
 
     it('should return empty when history is undefined', () => {
-      const result = manager.selectAndSerializeHistory(undefined, 'TestAI', 1000);
+      const result = manager.selectAndSerializeHistory(undefined, { name: 'TestAI' }, 1000);
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesIncluded).toBe(0);
@@ -43,7 +43,7 @@ describe('ContextWindowManager', () => {
         { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 0);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 0);
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesDropped).toBe(1);
@@ -72,7 +72,12 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 0, crossChannelGroups);
+      const result = manager.selectAndSerializeHistory(
+        rawHistory,
+        { name: 'TestAI' },
+        0,
+        crossChannelGroups
+      );
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesDropped).toBe(1);
@@ -86,7 +91,7 @@ describe('ContextWindowManager', () => {
 
       // Budget of 2 is positive (passes the historyBudget <= 0 check) but smaller than
       // the <chat_log> wrapper overhead (~3+ tokens), so budgetAfterOverhead <= 0
-      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 2);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 2);
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesIncluded).toBe(0);
@@ -124,7 +129,7 @@ describe('ContextWindowManager', () => {
 
       const result = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         5000,
         crossChannelGroups
       );
@@ -166,7 +171,7 @@ describe('ContextWindowManager', () => {
       // Budget that fits current channel but leaves no room for cross-channel (500 token message)
       const result = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         50,
         crossChannelGroups
       );
@@ -196,7 +201,12 @@ describe('ContextWindowManager', () => {
       ];
 
       // rawHistory is empty (first message in new channel), but cross-channel exists
-      const result = manager.selectAndSerializeHistory([], 'TestAI', 5000, crossChannelGroups);
+      const result = manager.selectAndSerializeHistory(
+        [],
+        { name: 'TestAI' },
+        5000,
+        crossChannelGroups
+      );
 
       expect(result.serializedHistory).toContain('Previous conversation in another channel');
       expect(result.serializedHistory).toContain('<prior_conversations>');
@@ -230,7 +240,7 @@ describe('ContextWindowManager', () => {
       const budget = 100;
       const result = manager.selectAndSerializeHistory(
         rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
-        'TestAI',
+        { name: 'TestAI' },
         budget,
         crossChannelGroups
       );
@@ -243,7 +253,7 @@ describe('ContextWindowManager', () => {
     });
 
     it('should return empty when rawHistory is empty and no cross-channel groups', () => {
-      const result = manager.selectAndSerializeHistory([], 'TestAI', 5000);
+      const result = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000);
 
       expect(result.serializedHistory).toBe('');
       expect(result.historyTokensUsed).toBe(0);
@@ -254,7 +264,7 @@ describe('ContextWindowManager', () => {
         { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 1000);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
 
       expect(result.serializedHistory).toContain('Hello');
       expect(result.serializedHistory).not.toContain('<current_conversation>');
@@ -279,7 +289,7 @@ describe('ContextWindowManager', () => {
 
       const result = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         1000,
         undefined,
         environment
@@ -306,7 +316,7 @@ describe('ContextWindowManager', () => {
 
       const result = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         1000,
         undefined,
         environment
@@ -354,7 +364,7 @@ describe('ContextWindowManager', () => {
 
       const result = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         5000,
         crossChannelGroups,
         environment
@@ -400,12 +410,17 @@ describe('ContextWindowManager', () => {
       // No current history — environment is provided but nothing to wrap
       const withEnv = manager.selectAndSerializeHistory(
         [],
-        'TestAI',
+        { name: 'TestAI' },
         5000,
         crossChannelGroups,
         environment
       );
-      const withoutEnv = manager.selectAndSerializeHistory([], 'TestAI', 5000, crossChannelGroups);
+      const withoutEnv = manager.selectAndSerializeHistory(
+        [],
+        { name: 'TestAI' },
+        5000,
+        crossChannelGroups
+      );
 
       // Cross-channel should get the full budget in both cases (no wrapper overhead deducted)
       expect(withEnv.serializedHistory).toContain('Cross msg in other channel');
@@ -430,7 +445,7 @@ describe('ContextWindowManager', () => {
 
       const result = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         10,
         undefined,
         environment
@@ -453,12 +468,12 @@ describe('ContextWindowManager', () => {
 
       const withEnv = manager.selectAndSerializeHistory(
         rawHistory,
-        'TestAI',
+        { name: 'TestAI' },
         1000,
         undefined,
         environment
       );
-      const withoutEnv = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 1000);
+      const withoutEnv = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
 
       // With environment should use more tokens due to wrapper overhead
       expect(withEnv.historyTokensUsed).toBeGreaterThan(withoutEnv.historyTokensUsed);

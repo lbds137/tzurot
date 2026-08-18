@@ -235,7 +235,10 @@ describe.skipIf(!ready)('voice-consistency replay (REAL model spend)', () => {
     // every arm; the datetime section reads the same pinned clock).
     const { serializedHistory } = windowManager.selectAndSerializeHistory(
       rawHistory,
-      personality.name,
+      // Id included so the replay serializes history the way production now
+      // does; without it the harness would exercise the name-only fallback
+      // that production only reaches for id-less rows.
+      { name: personality.name, id: personality.id },
       HISTORY_BUDGET_TOKENS
     );
 

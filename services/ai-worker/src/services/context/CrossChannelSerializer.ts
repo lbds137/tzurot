@@ -24,13 +24,17 @@ const logger = createLogger('CrossChannelSerializer');
  *
  * @param groups - Cross-channel groups ordered by most recent channel first
  * @param personalityName - AI personality name for message formatting
- * @param tokenBudget - Maximum tokens available for cross-channel content
+ * @param tokenBudget - Remaining budget for the cross-channel block
+ * @param responderPersonalityId - The responding personality's id; decides
+ *   self-vs-sibling for rows carrying their own id, so a renamed personality's
+ *   cross-channel rows still read as its own
  * @returns Serialized XML string, or empty string if nothing fits
  */
 export function serializeCrossChannelHistory(
   groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
-  tokenBudget: number
+  tokenBudget: number,
+  responderPersonalityId?: string
 ): { xml: string; messagesIncluded: number } {
   if (groups.length === 0 || tokenBudget <= 0) {
     return { xml: '', messagesIncluded: 0 };
@@ -65,7 +69,12 @@ export function serializeCrossChannelHistory(
     const allPersonalityNames = collectPersonalityNames(messages, personalityName);
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      const msgTokens = measureHistoryEntryTokens(msg, personalityName, allPersonalityNames);
+      const msgTokens = measureHistoryEntryTokens(
+        msg,
+        personalityName,
+        allPersonalityNames,
+        responderPersonalityId
+      );
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
         // Contiguous tail: once we hit a message that doesn't fit, stop selecting from
         // this group entirely. Skipping to older messages would create narrative gaps.
@@ -106,7 +115,11 @@ export function serializeCrossChannelHistory(
   }
 
   const messagesIncluded = selectedGroups.reduce((sum, g) => sum + g.messages.length, 0);
-  const xml = formatCrossChannelHistoryAsXml(selectedGroups, personalityName);
+  const xml = formatCrossChannelHistoryAsXml(
+    selectedGroups,
+    personalityName,
+    responderPersonalityId
+  );
   logger.debug(
     { groupCount: selectedGroups.length, messagesIncluded, tokensUsed, budget: tokenBudget },
     'Serialized channel groups'

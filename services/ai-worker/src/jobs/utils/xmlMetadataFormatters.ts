@@ -116,6 +116,12 @@ export function chatLogEnrichmentFor(
   // Resolved rather than passed in: an entry the chat log declines to render at
   // all (resolveSpeakerInfo returns null) contributes nothing, and that is the
   // same question the renderer asks first.
+  //
+  // Deliberately NOT given the responder's personality id, unlike the renderer
+  // and the token measure. This reads only `null`-ness and `normalizedRole` —
+  // the RAW role — and the id affects neither; it only splits the assistant
+  // role into self vs. sibling. Threading it here would add a parameter to
+  // every caller in exchange for a value this function cannot consult.
   const speakerInfo = resolveSpeakerInfo(msg, personalityName, allPersonalityNames);
   if (speakerInfo === null) {
     return carried;
