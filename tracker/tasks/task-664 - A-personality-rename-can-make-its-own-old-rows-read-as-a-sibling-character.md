@@ -1,9 +1,10 @@
 ---
 id: TASK-664
 title: A personality rename can make its own old rows read as a sibling character
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 20:30'
+updated_date: '2026-08-18 22:04'
 labels:
   - 'area:ai-worker'
   - 'size:S'
