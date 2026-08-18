@@ -165,6 +165,34 @@ export interface ConversationContext {
         reactors: { personaId: string; displayName: string }[];
       }[];
     };
+    /**
+     * The AI personality that authored an assistant row. Both fields are
+     * written by `mapToConversationMessage` on every DB-sourced row
+     * (`personalityId: record.personalityId`, `personalityName:
+     * record.personality.name`); the extended-context fetch's registry-miss
+     * fallback supplies a display name with no id, which is why the id is
+     * optional and consumers skip rows lacking it.
+     *
+     * Declared here because this inline shape is the one the prompt builder
+     * reads through — `RawHistoryEntry` has carried both fields all along, and
+     * their absence here made a populated field invisible to this path.
+     */
+    personalityId?: string;
+    personalityName?: string;
+    /**
+     * The rest of what `mapToConversationMessage` writes and `RawHistoryEntry`
+     * declares. Added with the personality pair rather than after it: the gap
+     * those two closed was never specific to them — this whole inline shape had
+     * drifted behind its producer, and leaving the remaining fields undeclared
+     * would have left the identical latent hazard one field over. Each is
+     * assigned at the same call site (`ConversationMessageMapper.ts`), so a
+     * consumer reading any of them off this path gets a real value while the
+     * type used to deny it existed.
+     */
+    personaId?: string;
+    personaName?: string;
+    discordUsername?: string;
+    isForwarded?: boolean;
   }[];
   oldestHistoryTimestamp?: number;
   /** Oldest timestamp over refs + cross-channel only (see PreparedContext). */

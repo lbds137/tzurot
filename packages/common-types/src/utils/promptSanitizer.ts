@@ -83,6 +83,10 @@ export const PROTECTED_TAGS = [
   // so protecting them is clean containment with no double-escape conflict.
   'about',
   'participant',
+  // Sibling-AI roster entries. Protected by parity with `participant`: same
+  // boundary class (one roster entry must not forge another's), and slice B
+  // puts generated prose inside it.
+  'character_participant',
   'role',
   'note',
 ] as const;

@@ -7,6 +7,10 @@
  *
  * Key features:
  * - <participant id="..."> tags with unique personaId for ID binding
+ * - <character_participant id="..."> tags for SIBLING AI characters present in
+ *   the window, sharing one id space with personas so from_id resolves under a
+ *   single rule; the currently-speaking personality is excluded (its card is
+ *   already in <system_identity>)
  * - Structured fields: <name>, <pronouns> as separate XML elements
  * - escapeXmlContent on the <about> body (targeted escaping: renders structural
  *   tags inert to the LLM while preserving literal <3 / x > 5)
@@ -29,6 +33,7 @@ import { formatDateOnly } from '@tzurot/common-types/utils/dateFormatting';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
+import type { CharacterParticipant } from '../../jobs/utils/participantUtils.js';
 
 /**
  * The display name rendered for a participant — also what collides.
@@ -53,6 +58,12 @@ function participantDisplayName(info: ParticipantInfo): string {
  * standing fact about the conversation, not a property of whoever happens to
  * be talking, so the answer (and therefore the note it drives) is stable
  * across turns.
+ *
+ * Humans only, and that is not an oversight: a SIBLING sharing the responder's
+ * name never reaches the roster, because `resolveSpeakerInfo`'s
+ * bidirectional-prefix self-match reclassifies its lines as role="assistant"
+ * first. The character-side collision that IS reachable is between two roster
+ * members, which {@link rosterHasDuplicateNames} covers.
  */
 function rosterCollidesWithCharacter(
   participants: ParticipantInfo[],
@@ -65,8 +76,53 @@ function rosterCollidesWithCharacter(
   return participants.some(info => participantDisplayName(info).toLowerCase() === target);
 }
 
-/** The trailing `<note>` lines: collision disambiguation + group-conversation hint. */
-function buildRosterNotes(participants: ParticipantInfo[], personalityName: string): string[] {
+/**
+ * Do two roster entries render under the same name?
+ *
+ * Covers human↔character and character↔character collisions, which arrived
+ * with the sibling entries: before them the roster held one entity kind drawn
+ * from one id space, and the only collision worth a note was against the
+ * responder's own name. A human and a sibling character sharing a display name
+ * is exactly the situation the existing note's guidance — bind by from_id,
+ * never by name — was written for, so the trigger is widened rather than the
+ * advice rewritten.
+ *
+ * Names are compared across BOTH kinds in one pass; the id spaces differ, but
+ * the model reads only the rendered name, which is the thing that collides.
+ */
+function rosterHasDuplicateNames(
+  participants: ParticipantInfo[],
+  characters: CharacterParticipant[]
+): boolean {
+  const seen = new Set<string>();
+  for (const name of [
+    ...participants.map(participantDisplayName),
+    ...characters.map(character => character.personalityName),
+  ]) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) {
+      return true;
+    }
+    seen.add(key);
+  }
+  return false;
+}
+
+/**
+ * The trailing `<note>` lines: collision disambiguation + group-conversation hint.
+ *
+ * `characters` widens the group test and feeds the duplicate-name check:
+ * a channel with one human and one sibling character IS a group conversation,
+ * and the from_id-matching hint is exactly what that case needs. The framing of
+ * what a sibling character IS lives in the chat_log role legend
+ * (`buildChatLogSection`), where the role attribute it explains is used —
+ * repeating it here would pay for the same sentence twice every turn.
+ */
+function buildRosterNotes(
+  participants: ParticipantInfo[],
+  personalityName: string,
+  characters: CharacterParticipant[]
+): string[] {
   const notes: string[] = [];
 
   // Name-collision disambiguation. Deliberately names nobody: the concrete
@@ -81,7 +137,24 @@ function buildRosterNotes(participants: ParticipantInfo[], personalityName: stri
     );
   }
 
-  if (participants.length > 1) {
+  // Distinct from the note above: that one is "someone shares YOUR name", this
+  // one is "two of them share EACH OTHER's". Both can fire; they describe
+  // different confusions and neither implies the other.
+  //
+  // Gated on characters being PRESENT, which is a scope decision rather than a
+  // logical one. Two humans sharing a display name is a real, pre-existing
+  // situation this note would also help with — but firing it there would change
+  // the prompt of every existing pure-human channel, and "a humans-only roster
+  // is byte-identical to before" is an invariant this change tests and claims.
+  // Widening it to the humans-only case is its own decision with its own
+  // per-turn cost; TASK-662 carries it.
+  if (characters.length > 0 && rosterHasDuplicateNames(participants, characters)) {
+    notes.push(
+      '<note>Two entries in the roster above share a name. Names are not unique here — bind identity by from_id, never by name.</note>'
+    );
+  }
+
+  if (participants.length + characters.length > 1) {
     notes.push(
       '<note>This is a group conversation. Each chat_log message carries a from_id identifying its speaker — match it to the participant ids above.</note>'
     );
@@ -220,9 +293,48 @@ export function renderParticipantElement(
   return parts;
 }
 
-/** The opening lines every roster block shares — shared with the legacy arm. */
+/**
+ * The opening line of a roster holding humans only — shared with the legacy
+ * eval arm, whose whole purpose is reproducing bytes that shipped. Kept
+ * verbatim for that reason: a channel with no sibling characters renders
+ * exactly what it rendered before this file learned about them, so the common
+ * case pays nothing and the legacy arm needs no frozen copy.
+ */
 export const PARTICIPANTS_INSTRUCTION =
   '<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>';
+
+/**
+ * The opening line when sibling AI characters share the roster.
+ *
+ * Two elements, ONE id space: the model is told to match `from_id` against the
+ * id of either, so adding a kind of participant does not add a lookup rule.
+ * Which element an entry uses is what tells the model whether it is talking to
+ * a human or to another AI — a distinction the chat_log role attribute already
+ * makes per line, and that this makes standing.
+ */
+export const CHARACTER_PARTICIPANTS_INSTRUCTION =
+  '<instruction>These people and AI characters are in this conversation: humans in participant elements, other AI characters in character_participant elements. Match from_id attribute in chat_log messages to the id attribute of either.</instruction>';
+
+/**
+ * Render one sibling AI character as its constituent lines.
+ *
+ * Name and id only. The element is structurally distinct from `<participant>`
+ * rather than a `<participant>` with a flag, because the two carry different
+ * kinds of identity and the model should not have to read an attribute to tell
+ * a human from an AI peer.
+ *
+ * No `<about>` body here yet, which is why this carries no in-band "X is a
+ * separate AI character" frame: that frame exists to bind FIRST-PERSON prose to
+ * its author, and there is no prose. The frame ships with the generated blurb
+ * (TASK-657 slice B) — do not read its absence here as a decision against it.
+ */
+function renderCharacterParticipantElement(character: CharacterParticipant): string[] {
+  return [
+    `<character_participant id="${escapeXml(character.personalityId)}">`,
+    `<name>${escapeXml(character.personalityName)}</name>`,
+    '</character_participant>',
+  ];
+}
 
 /**
  * Format conversation participants with their personas
@@ -242,25 +354,35 @@ export const PARTICIPANTS_INSTRUCTION =
  *     </guild_info>
  *     <about source="user_input">In Lila's own words: I am a transgender demon-angel in human form...</about>
  *   </participant>
+ *   <character_participant id="personality-uuid-456">
+ *     <name>Kai</name>
+ *   </character_participant>
  * </participants>
  * ```
  *
  * @param participantPersonas - Map of resolvedPersonaId (UUID) to ParticipantInfo
  * @param personalityName - The character's own name; drives the name-collision
  *   note when a roster member renders under the same name
+ * @param characters - Sibling AI characters whose lines appear in the window.
+ *   The currently-speaking personality is never among them: membership is
+ *   decided by `resolveSpeakerInfo` (see `extractCharacterParticipants`), which
+ *   resolves its own lines to role="assistant". Its full card is already in
+ *   `<system_identity>`, so a roster entry for it would be duplication paid
+ *   every turn.
  * @returns Formatted participants context string in XML, or empty string if no participants
  */
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
-  personalityName: string
+  personalityName: string,
+  characters: CharacterParticipant[] = []
 ): string {
-  if (participantPersonas.size === 0) {
+  if (participantPersonas.size === 0 && characters.length === 0) {
     return '';
   }
 
   const parts: string[] = [];
   parts.push('<participants>');
-  parts.push(PARTICIPANTS_INSTRUCTION);
+  parts.push(characters.length > 0 ? CHARACTER_PARTICIPANTS_INSTRUCTION : PARTICIPANTS_INSTRUCTION);
 
   // Render in persona-UUID order, not Map-iteration (recency) order. Selection
   // upstream stays recency-based — the MAX_EXTENDED_CONTEXT_PARTICIPANTS cap
@@ -282,7 +404,13 @@ export function formatParticipantsContext(
     parts.push(...renderParticipantElement(info));
   }
 
-  parts.push(...buildRosterNotes(orderedParticipants, personalityName));
+  // Characters after personas, already sorted by personality UUID upstream for
+  // the same cache-prefix stability the persona sort buys.
+  for (const character of characters) {
+    parts.push(...renderCharacterParticipantElement(character));
+  }
+
+  parts.push(...buildRosterNotes(orderedParticipants, personalityName, characters));
 
   parts.push('</participants>');
 

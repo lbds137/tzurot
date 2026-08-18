@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageRole } from '@tzurot/common-types/constants/message';
+import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 
 // Hoisted singleton so log-field assertions can inspect what was emitted.
 const mockLogger = vi.hoisted(() => ({
@@ -16,7 +16,11 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return { ...actual, createLogger: vi.fn(() => mockLogger) };
 });
 
-import { resolveSpeakerInfo, extractParticipants } from './participantUtils.js';
+import {
+  resolveSpeakerInfo,
+  extractParticipants,
+  extractCharacterParticipants,
+} from './participantUtils.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
 describe('resolveSpeakerInfo', () => {
@@ -182,5 +186,145 @@ describe('extractParticipants', () => {
       expect(serialised).not.toContain('Robin');
       expect(serialised).not.toContain('Lila');
     });
+  });
+});
+
+describe('extractCharacterParticipants', () => {
+  const entry = (overrides: Partial<RawHistoryEntry>): RawHistoryEntry =>
+    ({ role: 'assistant', content: 'hi', ...overrides }) as RawHistoryEntry;
+
+  it('collects a sibling character with its personality id and name', () => {
+    const result = extractCharacterParticipants(
+      [entry({ personalityId: 'p-kai', personalityName: 'Kai' })],
+      'Lilith'
+    );
+
+    expect(result).toEqual([{ personalityId: 'p-kai', personalityName: 'Kai' }]);
+  });
+
+  it("excludes the responding personality's own lines", () => {
+    const result = extractCharacterParticipants(
+      [
+        entry({ personalityId: 'p-lilith', personalityName: 'Lilith' }),
+        entry({ personalityId: 'p-kai', personalityName: 'Kai' }),
+      ],
+      'Lilith'
+    );
+
+    expect(result.map(c => c.personalityId)).toEqual(['p-kai']);
+  });
+
+  it('ignores user messages, which carry a persona rather than a personality', () => {
+    const result = extractCharacterParticipants(
+      [entry({ role: 'user', personaId: 'persona-1', personaName: 'Alice' })],
+      'Lilith'
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it('skips a sibling row with no personality id, since from_id could not resolve it', () => {
+    const result = extractCharacterParticipants(
+      [entry({ personalityName: 'Kai' }), entry({ personalityId: '', personalityName: 'Rin' })],
+      'Lilith'
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it('dedups repeated lines from the same character', () => {
+    const result = extractCharacterParticipants(
+      [
+        entry({ personalityId: 'p-kai', personalityName: 'Kai' }),
+        entry({ personalityId: 'p-kai', personalityName: 'Kai' }),
+      ],
+      'Lilith'
+    );
+
+    expect(result).toHaveLength(1);
+  });
+
+  it('shows a renamed sibling under its NEWEST name, not the oldest in the window', () => {
+    // The walk is newest-first, so an unconditional map write would let the
+    // OLDEST occurrence win the name — inverting the recency this function
+    // selects by. The dedup test above cannot catch this: it uses one name for
+    // every occurrence, so both orderings look identical.
+    const result = extractCharacterParticipants(
+      [
+        entry({ personalityId: 'p-kai', personalityName: 'OldName' }),
+        entry({ personalityId: 'p-kai', personalityName: 'NewName' }),
+      ],
+      'Lilith'
+    );
+
+    expect(result).toEqual([{ personalityId: 'p-kai', personalityName: 'NewName' }]);
+  });
+
+  it('orders by personality id so the cached roster does not reshuffle with recency', () => {
+    const recent = [
+      entry({ personalityId: 'p-zed', personalityName: 'Zed' }),
+      entry({ personalityId: 'p-ada', personalityName: 'Ada' }),
+    ];
+    const reversed = [...recent].reverse();
+
+    expect(extractCharacterParticipants(recent, 'Lilith')).toEqual(
+      extractCharacterParticipants(reversed, 'Lilith')
+    );
+    expect(extractCharacterParticipants(recent, 'Lilith').map(c => c.personalityId)).toEqual([
+      'p-ada',
+      'p-zed',
+    ]);
+  });
+
+  it('drops a sibling the prefix self-match heuristic mistakes for the responder', () => {
+    // resolveSpeakerInfo's self-match is bidirectional-prefix, an accepted edge
+    // that used to cost only a mislabeled chat-log role. Reusing it as the
+    // roster membership test widens that: the mislabeled sibling is now also
+    // absent from <participants>, so its lines have nothing to bind to. Pinned
+    // as KNOWN behaviour rather than asserted as correct — if the heuristic is
+    // ever tightened, this test should be updated, not deleted around.
+    const result = extractCharacterParticipants(
+      [entry({ personalityId: 'p-alex', personalityName: 'Alex' })],
+      'Alexandra'
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it('caps the roster and keeps the most recently active siblings', () => {
+    // 12 distinct siblings, oldest first. The cap is 10, so the two OLDEST
+    // must be the ones dropped — selection is recency, not first-seen.
+    const history = Array.from({ length: 12 }, (_, i) =>
+      entry({ personalityId: `p-${String(i).padStart(2, '0')}`, personalityName: `C${i}` })
+    );
+
+    const result = extractCharacterParticipants(history, 'Lilith');
+    const ids = result.map(c => c.personalityId);
+
+    expect(ids).toHaveLength(MESSAGE_LIMITS.MAX_ROSTER_CHARACTERS);
+    expect(ids).not.toContain('p-00');
+    expect(ids).not.toContain('p-01');
+    expect(ids).toContain('p-11');
+  });
+
+  it('does not spend cap slots on repeats of a sibling already collected', () => {
+    // A chatty sibling filling the window must not crowd out the others: the
+    // cap counts DISTINCT characters, which a naive per-row counter would get
+    // wrong.
+    const history = [
+      entry({ personalityId: 'p-old', personalityName: 'Old' }),
+      ...Array.from({ length: 30 }, () =>
+        entry({ personalityId: 'p-chatty', personalityName: 'Chatty' })
+      ),
+    ];
+
+    const ids = extractCharacterParticipants(history, 'Lilith').map(c => c.personalityId);
+
+    expect(ids).toContain('p-old');
+    expect(ids).toContain('p-chatty');
+  });
+
+  it('returns an empty list for absent history', () => {
+    expect(extractCharacterParticipants(undefined, 'Lilith')).toEqual([]);
   });
 });
