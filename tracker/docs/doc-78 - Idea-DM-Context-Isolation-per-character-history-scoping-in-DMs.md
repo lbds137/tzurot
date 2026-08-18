@@ -158,3 +158,37 @@ migrated to typed clients, and only its own tests keep it alive. File-level
 dead-code detection misses it because it is a method on a live class. The
 isolation work touches this file; deleting it there is the natural moment.
 Owner has not ruled on this yet.
+
+## RUNTIME EVIDENCE 2026-08-18 — from an owner-supplied inspect dump
+
+An assembled-prompt dump (COLD in #rotzot, trigger 1539246664223555695) settles
+one claim and bounds another. Both had been code-reads only.
+
+**CONFIRMED — the channel-wide read is real at runtime.** COLD's assembled
+window carries 94 `<message>` elements: 50 role=user, 40 role=assistant, and
+**4 role=character** authored by a SIBLING personality (Lila Elyona). A
+character is demonstrably seeing another character's turns from the same
+channel, which is exactly the mechanism this doc describes. Previously only
+inferred from `ContextAssembler.ts:224` calling `getChannelHistoryWindow`
+unconditionally; now observed. Note this dump is a GUILD channel, and the
+proposed default scopes isolation to DMs — but the leaking read is the same
+unconditional call, so the mechanism is confirmed even though the sample is not
+the target scope.
+
+**NOT REPRODUCED — the duplicate-row concern.** The "Unverified side
+observation" above predicted a multi-tag message might appear TWICE in
+assembled context, since both rows are written and the channel window applies no
+DISTINCT. Tested against this window on the exact signature — N rows from one
+multi-tag message share one speaker, one timestamp and one body:
+
+    same speaker + same timestamp + same body : 0 occurrences
+
+Downgraded, NOT cleared. This window may simply contain no multi-tag message —
+nothing in the dump exposes discord_message_id, so "no instance here" is not
+"cannot happen". Anyone repeating the claim still owes it a dump from a channel
+where one message tagged two characters. What changed is that the ordinary case
+is now known to be clean, so this is not a live defect blocking the work.
+
+**Also visible:** crossChannelMessagesIncluded = 18, so cross-channel history
+was active in this window too — worth keeping distinct from the per-character
+axis when reasoning about what a character can see.
