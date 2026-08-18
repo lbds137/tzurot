@@ -1,9 +1,10 @@
 ---
 id: TASK-656
 title: Forwarded messages reach the model unattributed
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 12:20'
+updated_date: '2026-08-18 14:57'
 labels:
   - 'area:bot-client'
   - 'size:M'
