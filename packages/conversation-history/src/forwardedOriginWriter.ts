@@ -31,6 +31,16 @@ export type RawCapableConversationHistoryClient = ConversationHistoryClient &
   Pick<PrismaClient, '$executeRaw'>;
 
 /**
+ * Outcome of a backfill attempt.
+ *
+ * `missing` and `failed` are both "the quote stays unattributed", but they are
+ * different events: one is the ordinary result of a best-effort persist not
+ * having written the row, the other is a database problem. Collapsing them
+ * into a boolean makes the caller's log a claim it cannot support.
+ */
+export type ForwardedOriginMergeResult = 'updated' | 'missing' | 'failed';
+
+/**
  * Merge `forwardedFrom` into a row's `message_metadata`.
  *
  * Raw SQL rather than a Prisma read-modify-write, and the reason is a
@@ -58,14 +68,17 @@ export type RawCapableConversationHistoryClient = ConversationHistoryClient &
  * sync silently revert this backfill. This is a semantic state change and
  * should win, which is exactly what `03-database.md` reserves the bump for.
  *
- * @returns true when a row was updated; false when none matched, which is an
- *   expected outcome (the persist is best-effort bot-side) and not an error.
+ * @returns `'updated'`, `'missing'` when no row matched (an expected outcome —
+ *   the persist is best-effort bot-side — and not an error), or `'failed'` for
+ *   a database error. The last two are distinguished rather than collapsed to
+ *   `false` so a caller cannot report a DB failure as an ordinary absent row;
+ *   both leave the quote unattributed, but only one is worth alerting on.
  */
 export async function mergeForwardedOrigin(
   prisma: RawCapableConversationHistoryClient,
   id: string,
   origin: ForwardedOrigin
-): Promise<boolean> {
+): Promise<ForwardedOriginMergeResult> {
   try {
     // Serialized once so the parameter is a single jsonb value; the tagged
     // template parameterizes it, so no user-derived text reaches the SQL text.
@@ -80,14 +93,14 @@ export async function mergeForwardedOrigin(
 
     if (rowsAffected === 0) {
       logger.debug({ id }, 'No row matched the forwarded-origin backfill');
-      return false;
+      return 'missing';
     }
-    return true;
+    return 'updated';
   } catch (error) {
     // Attribution is an enrichment. Failing it must never propagate into a
     // path a user can feel — the quote simply renders unattributed, which is
     // what it did before this existed.
     logger.warn({ err: error, id }, 'Failed to back-fill forwarded origin');
-    return false;
+    return 'failed';
   }
 }

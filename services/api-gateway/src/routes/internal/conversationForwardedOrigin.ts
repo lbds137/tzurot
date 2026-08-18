@@ -62,15 +62,23 @@ export const handlePatchForwardedOrigin = (deps: RouteDeps): RequestHandler => {
       new Date(messageTime)
     );
 
-    const updated = await mergeForwardedOrigin(prisma, id, forwardedFrom);
+    const result = await mergeForwardedOrigin(prisma, id, forwardedFrom);
 
-    if (!updated) {
+    // Only the genuine miss is logged here. A `failed` result already produced
+    // a warn inside the writer, with the error attached — repeating it as
+    // "matched no row" would assert something this handler never observed.
+    if (result === 'missing') {
       logger.debug(
         { id, channelId },
         'Forwarded-origin backfill matched no row; quote stays unattributed'
       );
     }
 
-    sendContractSuccess(res, PatchForwardedOriginResponseSchema, { updated });
+    // The wire shape stays boolean deliberately: the caller is a
+    // fire-and-forget backfill that has the same recourse either way (none),
+    // so the distinction is an operator signal rather than a client one.
+    sendContractSuccess(res, PatchForwardedOriginResponseSchema, {
+      updated: result === 'updated',
+    });
   });
 };

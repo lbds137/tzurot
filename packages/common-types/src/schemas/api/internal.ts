@@ -182,7 +182,22 @@ export const PatchForwardedOriginRequestSchema = z.object({
   personaId: z.string().uuid(),
   /** Same ISO timestamp the persist used; the row id derives from it. */
   messageTime: z.string().datetime(),
-  forwardedFrom: forwardedOriginSchema,
+  /**
+   * Tightened here rather than on `forwardedOriginSchema` itself, and the
+   * asymmetry is load-bearing. That schema is also reached through
+   * `messageMetadataSchema`, which `parseMessageMetadata` runs over every
+   * STORED row — and it returns `undefined` for the ENTIRE blob on any
+   * failure, so a `.datetime()` there would turn one malformed field into the
+   * loss of `referencedMessages`, `embedsXml`, `voiceTranscripts` and
+   * `reactions` alongside it.
+   *
+   * A write boundary has no such coupling: rejecting a bad inbound backfill
+   * costs one unattributed quote. So strictness lives at the door, and reads
+   * stay lenient.
+   */
+  forwardedFrom: forwardedOriginSchema.extend({
+    timestamp: z.string().datetime().optional(),
+  }),
 });
 
 export const PatchForwardedOriginResponseSchema = z.object({

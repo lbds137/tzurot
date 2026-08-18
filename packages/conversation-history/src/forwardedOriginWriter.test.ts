@@ -42,17 +42,17 @@ describe('mergeForwardedOrigin', () => {
     const executeRaw = rawMock(1);
 
     await expect(mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN)).resolves.toBe(
-      true
+      'updated'
     );
   });
 
-  it('reports false when no row matched, without throwing', async () => {
+  it('reports a miss when no row matched, without throwing', async () => {
     const executeRaw = rawMock(0);
 
     // The persist is best-effort bot-side, so a missing row is an expected
     // outcome rather than an error — callers branch on it, they do not catch.
     await expect(mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN)).resolves.toBe(
-      false
+      'missing'
     );
   });
 
@@ -62,8 +62,23 @@ describe('mergeForwardedOrigin', () => {
     // Attribution is enrichment. A throw here would surface on a path the user
     // can feel, to buy nothing the unattributed quote does not already give.
     await expect(mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN)).resolves.toBe(
-      false
+      'failed'
     );
+  });
+
+  it('distinguishes a database failure from an ordinary miss', async () => {
+    // Both leave the quote unattributed, so a boolean return would let the
+    // caller log a DB error as "no row matched" — a claim about the database
+    // that nothing observed. The two outcomes are asserted as distinct here
+    // because that is the only property the separate values buy.
+    const missing = await mergeForwardedOrigin(createClient(rawMock(0)), 'row-uuid', ORIGIN);
+    const failed = await mergeForwardedOrigin(
+      createClient(rawMock(new Error('connection reset'))),
+      'row-uuid',
+      ORIGIN
+    );
+
+    expect(missing).not.toBe(failed);
   });
 
   it('merges server-side instead of read-modify-write, and bumps updated_at', async () => {
