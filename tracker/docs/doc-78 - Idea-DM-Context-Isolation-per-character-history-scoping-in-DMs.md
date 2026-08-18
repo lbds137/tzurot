@@ -192,3 +192,46 @@ is now known to be clean, so this is not a live defect blocking the work.
 **Also visible:** crossChannelMessagesIncluded = 18, so cross-channel history
 was active in this window too — worth keeping distinct from the per-character
 axis when reasoning about what a character can see.
+
+## Implementation checklist (read from the code 2026-08-18, not invented)
+
+`configOverrides.ts` documents its own "field #12 checklist" for adding a
+cascade field: OFF domain + registry membership, tier writability, dashboard
+family + tri-state vocabulary, hardcoded default, source-indicator label.
+The concrete sites, in order:
+
+**packages/common-types/src/schemas/api/configOverrides.ts** — four edits, and
+colocated tests make drift impossible rather than merely unlikely:
+
+1. `ConfigOverridesSchema` — the `z.enum([...]).optional()` field.
+2. `HARDCODED_CONFIG_DEFAULTS` — BOTH the `readonly` type member and the value.
+   Default `'always'`, per the decision above.
+3. `ResolvedConfigOverrides` — the effective (never-undefined) member.
+4. `CONFIG_OVERRIDES_KEYS` — the runtime tuple. `satisfies` catches a key that
+   is not on the interface; the colocated test catches the inverse.
+
+NOT in `NULL_TERMINAL_FIELDS`: the enum carries its own `'never'` value, so it
+needs no stored-null OFF sentinel. Absence means inherit, as for every
+non-nullable field.
+
+**Dashboard — NOT automatic**, three registrations (traced from
+`voiceResponseMode`, the structural precedent):
+
+5. `settingsConfig.ts` — the setting definition (~line 151 for its sibling).
+6. `settingsUpdate.ts` — the writable-field allowlist (~line 40).
+7. `settingsDataBuilder.ts` — the union type (~line 65) and the mapping (~89).
+
+A cascade field that is unreachable from the dashboard cannot be set by anyone,
+so these are part of the same change rather than a follow-up — that is the
+scope decision, recorded here so it is not re-litigated.
+
+**Read path** — the actual behaviour, per the "do NOT revert to the old read"
+note above: thread the resolved value to `buildChannelHistoryWhere`
+(ConversationMessageMapper.ts:129) and add the `personality_id` predicate when
+the mode excludes this scope. `guilds-only`/`dms-only` need the channel's
+guild-ness at that call site; confirm it is available there before assuming.
+
+Sequencing note: the enum is four values over two scopes, so the read-side
+predicate is `(mode, isDm) -> boolean`. Write that as a pure helper with its own
+table-driven test — all four values against both scopes is eight cases, cheap to
+pin and the exact place an off-by-one in the lattice would hide.
