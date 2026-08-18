@@ -52,11 +52,13 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 vi.mock('../utils/gatewayWriteHelpers.js', () => ({
   persistAssistantMessageViaGateway: vi.fn().mockResolvedValue(undefined),
   persistUserMessageViaGateway: vi.fn().mockResolvedValue(undefined),
+  patchForwardedOriginViaGateway: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
   persistAssistantMessageViaGateway,
   persistUserMessageViaGateway,
+  patchForwardedOriginViaGateway,
 } from '../utils/gatewayWriteHelpers.js';
 
 describe('ConversationPersistence', () => {
@@ -253,14 +255,20 @@ describe('ConversationPersistence', () => {
       });
     });
 
-    it('persists the recovered origin alongside the forwarded flag', async () => {
+    it('back-fills the recovered origin AFTER the row is written, off the persist', async () => {
       const { isForwardedMessage, resolveForwardedOrigin } =
         await import('../utils/forwardedMessageUtils.js');
       vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
       vi.mocked(resolveForwardedOrigin).mockResolvedValueOnce({
         authorName: 'COLD',
         authorId: '1472768398135001108',
+        authorPersonalityId: 'personality-uuid-cold',
         timestamp: '2026-08-18T11:13:53.053Z',
+      });
+
+      const resolverStub = vi.fn();
+      const persistence = new ConversationPersistence({
+        resolveForwardedAuthorPersonalityId: resolverStub,
       });
 
       await persistence.saveUserMessage({
@@ -273,31 +281,46 @@ describe('ConversationPersistence', () => {
         personaId: 'persona-uuid-123',
         messageContent: 'Forwarded content',
       });
+      // The back-fill is fired without await, so let its microtasks drain.
+      await vi.waitFor(() => expect(patchForwardedOriginViaGateway).toHaveBeenCalled());
 
-      // Asserting the metadata that crosses the gateway seam, not just that the
-      // resolver ran: the value is useless unless it survives to the row, and a
-      // mocked gateway returns the same thing either way.
+      // The injected resolver must actually REACH resolveForwardedOrigin. The
+      // mock returns the same object whether the caller forwarded the callback
+      // or silently dropped it, so without this a refactor could pass
+      // undefined, leave every test green, and stop from_id resolving in prod.
+      expect(resolveForwardedOrigin).toHaveBeenCalledWith(expect.anything(), resolverStub);
+
+      // The persist itself must stay clean: resolving the origin costs Discord
+      // round-trips, and this call is awaited before AI job submission.
       expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messageMetadata: {
-            isForwarded: true,
-            forwardedFrom: {
-              authorName: 'COLD',
-              authorId: '1472768398135001108',
-              timestamp: '2026-08-18T11:13:53.053Z',
-            },
-          },
-        })
+        expect.objectContaining({ messageMetadata: { isForwarded: true } })
       );
+
+      // The back-fill must address the SAME row, which means the SAME
+      // timestamp the persist used — the row id is derived from it, so a
+      // different value silently no-ops against a row that does not exist.
+      const persistCall = vi.mocked(persistUserMessageViaGateway).mock.calls[0][0];
+      expect(patchForwardedOriginViaGateway).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: mockPersonality.id,
+        personaId: 'persona-uuid-123',
+        messageTime: persistCall.messageTime,
+        forwardedFrom: {
+          authorName: 'COLD',
+          authorId: '1472768398135001108',
+          authorPersonalityId: 'personality-uuid-cold',
+          timestamp: '2026-08-18T11:13:53.053Z',
+        },
+      });
     });
 
-    it('writes no origin key when the forward could not be resolved', async () => {
+    it('skips the back-fill entirely when nothing was recoverable', async () => {
       const { isForwardedMessage } = await import('../utils/forwardedMessageUtils.js');
       vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
 
       await persistence.saveUserMessage({
         message: createMockMessage({
-          id: 'discord-msg-fwd-unresolved',
+          id: 'discord-msg-fwd-none',
           channelId: 'channel-123',
           guildId: 'guild-123',
         }),
@@ -306,11 +329,9 @@ describe('ConversationPersistence', () => {
         messageContent: 'Forwarded content',
       });
 
-      // An absent key, not an empty object — absence is what the renderer's
-      // Unknown fallback keys off, and `{}` would be a different state.
-      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
-        expect.objectContaining({ messageMetadata: { isForwarded: true } })
-      );
+      // resolveForwardedOrigin defaults to undefined, so no call should go out
+      // at all — an empty patch would bump updated_at for nothing.
+      expect(patchForwardedOriginViaGateway).not.toHaveBeenCalled();
     });
 
     it('should persist embedsXml in messageMetadata for forwarded messages with embeds', async () => {

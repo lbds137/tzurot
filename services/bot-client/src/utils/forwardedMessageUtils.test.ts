@@ -755,6 +755,49 @@ describe('forwardedMessageUtils', () => {
       expect(origin).toBeUndefined();
     });
 
+    it('hands the personality resolver the ORIGINAL, with the forwarder as viewer', async () => {
+      const original = { author: { id: 'webhook-1', displayName: 'COLD' } };
+      const resolver = vi.fn(() => Promise.resolve('personality-uuid-cold'));
+      const messagesFetch = vi.fn(() => Promise.resolve(original));
+
+      const forward = buildForward({ messagesFetch });
+      // The forwarder — distinct from the webhook that authored the original,
+      // so a mix-up between the two is visible rather than coincidental.
+      (forward as unknown as { author: { id: string } }).author = { id: 'forwarder-1' };
+
+      const origin = await resolveForwardedOrigin(forward, resolver);
+
+      // Passing the FORWARD here instead would send the resolver back through
+      // a reply-shaped lookup that reads the landing channel — silently wrong
+      // for every cross-channel forward, and swallowed by its own catch.
+      expect(resolver).toHaveBeenCalledWith(original, 'forwarder-1', false);
+      expect(origin?.authorPersonalityId).toBe('personality-uuid-cold');
+      // And exactly ONE fetch of the original: the resolver reuses it rather
+      // than fetching a second time.
+      expect(messagesFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the rest of the origin when the personality resolver yields nothing', async () => {
+      const resolver = vi.fn(() => Promise.resolve(undefined));
+
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+          fetchedAuthor: { id: 'webhook-1', displayName: 'COLD' },
+        }),
+        resolver
+      );
+
+      // A forward of a HUMAN's message resolves to no personality, and that
+      // must not cost the display name or the timestamp.
+      expect(origin).toEqual({
+        timestamp: '2026-08-18T11:13:53.000Z',
+        authorName: 'COLD',
+        authorId: 'webhook-1',
+        authorPersonalityId: undefined,
+      });
+    });
+
     it('skips a reference that resolves to a non-text channel', async () => {
       const messagesFetch = vi.fn();
       const channelFetch = vi.fn(() =>

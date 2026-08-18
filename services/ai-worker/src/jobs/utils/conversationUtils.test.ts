@@ -642,6 +642,7 @@ describe('Conversation Utilities', () => {
             forwardedFrom: {
               authorName: 'COLD',
               authorId: '1472768398135001108',
+              authorPersonalityId: 'personality-uuid-cold',
               timestamp: '2026-08-18T11:13:53.053Z',
             },
           },
@@ -654,7 +655,11 @@ describe('Conversation Utilities', () => {
       // one: the <message> is the forwarder, the <quote> is who wrote the text.
       const quoteTag = /<quote type="forward"[^>]*>/.exec(result)?.[0] ?? '';
       expect(quoteTag).toContain('from="COLD"');
-      expect(quoteTag).toContain('from_id="1472768398135001108"');
+      // The INTERNAL id, never the Discord snowflake sitting next to it in the
+      // same object: from_id is matched against the participants roster, and a
+      // snowflake there is an identity token that can never resolve.
+      expect(quoteTag).toContain('from_id="personality-uuid-cold"');
+      expect(quoteTag).not.toContain('1472768398135001108');
       expect(quoteTag).toContain('t="');
       expect(result).toContain('from="Lila"');
     });

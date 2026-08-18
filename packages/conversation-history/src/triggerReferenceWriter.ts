@@ -99,13 +99,20 @@ export async function writeTriggerReferences(
     }
 
     // Shallow merge, so the row's other metadata (embedsXml, isForwarded)
-    // survives. That makes this a read-modify-write, and it is only safe
-    // because THIS is the sole writer of `referencedMessages` on a persisted
-    // row — the other write a job makes to the same row
-    // (`updateLastUserMessage`, for the trigger's own attachment descriptions)
-    // touches `messageMetadata` only when handed an explicit metadata object,
-    // which its one caller never does. A second writer of this key would need
-    // ordering or a deeper merge; today there isn't one.
+    // survives. That makes this a read-modify-write, and it is safe for the
+    // key this function owns: THIS is the sole writer of `referencedMessages`.
+    //
+    // It is NOT safe for keys owned by others, and there is now one:
+    // `mergeForwardedOrigin` writes `forwardedFrom` to this same column from
+    // bot-client's post-persist back-fill. If that write commits between this
+    // function's read and its UPDATE, the spread below replaces the blob with
+    // a version that never had `forwardedFrom` and silently drops it. The
+    // normal ordering makes that unlikely — the back-fill fires within a
+    // second of the persist, this runs after a job resolves references — but
+    // ordering is not a guarantee. The fix is to merge server-side the way
+    // that writer does, which needs a raw-capable client where this service
+    // deliberately holds a narrow one. TASK-658; do not add a third writer of
+    // this column before it lands.
     const metadata = (target.messageMetadata as MessageMetadata | null) ?? {};
 
     await prisma.conversationHistory.update({

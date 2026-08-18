@@ -19,6 +19,7 @@
  */
 
 import {
+  ChannelType,
   type Message,
   type MessageSnapshot,
   type Collection,
@@ -362,7 +363,12 @@ export function getEffectiveContent(message: Message): string {
  * @returns recovered origin fields, or undefined when nothing was recoverable
  */
 export async function resolveForwardedOrigin(
-  message: Message
+  message: Message,
+  resolveAuthorPersonalityId?: (
+    original: Message,
+    viewerId: string,
+    isDM: boolean
+  ) => Promise<string | undefined>
 ): Promise<ForwardedOrigin | undefined> {
   if (!isForwardedMessage(message)) {
     return undefined;
@@ -393,6 +399,21 @@ export async function resolveForwardedOrigin(
         // character's display name — exactly the attribution we want.
         origin.authorName = original.author.displayName;
         origin.authorId = original.author.id;
+
+        // The internal id the rendered `from_id` carries. Handed the ORIGINAL
+        // that was just fetched, never the forward: a resolver that re-derives
+        // it would have to fetch again, and the obvious way to do that (the
+        // reply-shaped lookup) reads the wrong channel for a cross-channel
+        // forward and fails silently.
+        if (resolveAuthorPersonalityId !== undefined) {
+          origin.authorPersonalityId = await resolveAuthorPersonalityId(
+            original,
+            // The FORWARDER, not the original's author — the latter is the
+            // webhook itself, which would make the access check meaningless.
+            message.author.id,
+            message.channel.type === ChannelType.DM
+          );
+        }
       }
     } catch (error) {
       logger.debug(

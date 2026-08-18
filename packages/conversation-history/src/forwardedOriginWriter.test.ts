@@ -11,6 +11,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mergeForwardedOrigin } from './forwardedOriginWriter.js';
 import type { RawCapableConversationHistoryClient } from './forwardedOriginWriter.js';
 
+/**
+ * `vi.fn(() => ...)` types its calls as a zero-length tuple, so `calls[0][0]`
+ * will not compile. The explicit rest parameter is what makes the recorded
+ * arguments readable — and reading them is the point of two tests below.
+ */
+function rawMock(outcome: number | Error): ReturnType<typeof vi.fn> {
+  return vi.fn((..._args: unknown[]) =>
+    outcome instanceof Error ? Promise.reject(outcome) : Promise.resolve(outcome)
+  );
+}
+
 function createClient(executeRaw: ReturnType<typeof vi.fn>): RawCapableConversationHistoryClient {
   return { $executeRaw: executeRaw } as unknown as RawCapableConversationHistoryClient;
 }
@@ -28,7 +39,7 @@ describe('mergeForwardedOrigin', () => {
   });
 
   it('reports success when a row was updated', async () => {
-    const executeRaw = vi.fn(() => Promise.resolve(1));
+    const executeRaw = rawMock(1);
 
     await expect(mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN)).resolves.toBe(
       true
@@ -36,7 +47,7 @@ describe('mergeForwardedOrigin', () => {
   });
 
   it('reports false when no row matched, without throwing', async () => {
-    const executeRaw = vi.fn(() => Promise.resolve(0));
+    const executeRaw = rawMock(0);
 
     // The persist is best-effort bot-side, so a missing row is an expected
     // outcome rather than an error — callers branch on it, they do not catch.
@@ -46,7 +57,7 @@ describe('mergeForwardedOrigin', () => {
   });
 
   it('swallows a database failure rather than propagating it', async () => {
-    const executeRaw = vi.fn(() => Promise.reject(new Error('connection reset')));
+    const executeRaw = rawMock(new Error('connection reset'));
 
     // Attribution is enrichment. A throw here would surface on a path the user
     // can feel, to buy nothing the unattributed quote does not already give.
@@ -56,7 +67,7 @@ describe('mergeForwardedOrigin', () => {
   });
 
   it('merges server-side instead of read-modify-write, and bumps updated_at', async () => {
-    const executeRaw = vi.fn(() => Promise.resolve(1));
+    const executeRaw = rawMock(1);
 
     await mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN);
 
@@ -68,7 +79,7 @@ describe('mergeForwardedOrigin', () => {
     //  - raw SQL bypasses Prisma's @updatedAt, and conversation_history is
     //    sync-tracked (last-write-wins on updated_at), so an un-bumped column
     //    would let a db-sync silently revert this backfill.
-    const sql = (executeRaw.mock.calls[0][0] as unknown as { join?: (s: string) => string }) ?? [];
+    const [sql] = executeRaw.mock.calls[0] as unknown[];
     const sqlText = Array.isArray(sql) ? sql.join('?') : String(sql);
 
     expect(sqlText).toContain('||');
@@ -77,17 +88,19 @@ describe('mergeForwardedOrigin', () => {
   });
 
   it('sends the origin nested under forwardedFrom, not at the top level', async () => {
-    const executeRaw = vi.fn(() => Promise.resolve(1));
+    const executeRaw = rawMock(1);
 
     await mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN);
 
     // The patch merges into message_metadata, so a top-level origin would
     // scatter authorName/timestamp as sibling metadata keys instead of
     // populating the field the renderer reads.
-    const params = executeRaw.mock.calls[0].slice(1);
-    const patch = params.find((p): p is string => typeof p === 'string' && p.includes('{'));
+    const params = (executeRaw.mock.calls[0] as unknown[]).slice(1);
+    const patch = params.find(
+      (value): value is string => typeof value === 'string' && value.includes('{')
+    );
 
     expect(patch).toBeDefined();
-    expect(JSON.parse(patch as string)).toEqual({ forwardedFrom: ORIGIN });
+    expect(JSON.parse(patch ?? '{}')).toEqual({ forwardedFrom: ORIGIN });
   });
 });

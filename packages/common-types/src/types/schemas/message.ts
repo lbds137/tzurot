@@ -176,7 +176,16 @@ export const messageReactionSchema = z.object({
  * regression.
  */
 export const forwardedOriginSchema = z.object({
-  /** Display name of the original author (a webhook name for a character). */
+  /**
+   * Display name of the original author (a webhook name for a character).
+   *
+   * Resolved through the BOT's channel access, not the forwarder's — unlike
+   * `authorPersonalityId` below, which gates on the forwarder to keep the
+   * "Reply Loophole" closed. The asymmetry is deliberate and narrow: Discord's
+   * own forward feature already shows the forwarder the message's full text,
+   * so this adds a display name to something they can already read, whereas a
+   * personality id would name a character they may have no access to.
+   */
   authorName: z.string().optional(),
   /** Discord id of the original author — a webhook id for a character. */
   authorId: z.string().optional(),

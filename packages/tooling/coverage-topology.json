@@ -1724,6 +1724,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:patchForwardedOrigin",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /conversation/forwarded-origin",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:persistAssistantMessage",
       "kind": "http-route",
       "producer": "client",

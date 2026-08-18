@@ -39,7 +39,18 @@ export type RawCapableConversationHistoryClient = ConversationHistoryClient &
  * its own comment notes that is only safe while it is the sole writer. This is
  * a second writer, so a read-modify-write here could interleave with that one
  * and drop whichever key lost the race. Postgres's `||` merges server-side in
- * one statement, so the two writers touch disjoint keys without ordering.
+ * one statement, which removes that hazard from THIS side.
+ *
+ * It does NOT close the race from the other side, and saying so plainly
+ * matters more than the reassurance: if `writeTriggerReferences` reads the row
+ * before this UPDATE commits and writes after, its full-column overwrite
+ * replaces the blob with a spread that never contained `forwardedFrom`, and
+ * the key is gone with no error and no log. In practice this write lands
+ * within a second of the persist while that one runs after the job resolves
+ * references, so the normal ordering is safe — but ordering is not a
+ * guarantee. Closing it structurally means making that writer merge too, which
+ * needs a raw-capable client where its service deliberately holds a narrow
+ * one; TASK-658 rather than widened here.
  *
  * `updated_at` is bumped EXPLICITLY because raw SQL bypasses Prisma's
  * `@updatedAt`, and `conversation_history` is sync-tracked — dev/prod

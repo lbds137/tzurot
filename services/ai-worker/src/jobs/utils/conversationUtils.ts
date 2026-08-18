@@ -177,7 +177,10 @@ export function formatSingleHistoryEntryAsXml(
     const forwardedFrom = msg.messageMetadata?.forwardedFrom;
     const forwardedQuote = formatForwardedQuote({
       from: forwardedFrom?.authorName,
-      fromId: forwardedFrom?.authorId,
+      // authorPersonalityId, NOT authorId: from_id is an INTERNAL id the model
+      // is told to match against the <participants> roster, so a Discord
+      // snowflake there is an identity token that can never resolve.
+      fromId: forwardedFrom?.authorPersonalityId,
       timeFormatted: promptTime(forwardedFrom?.timestamp),
       textContent: msg.content,
       embedsXml: msg.messageMetadata?.embedsXml,

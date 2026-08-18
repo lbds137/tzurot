@@ -190,8 +190,6 @@ export const PatchForwardedOriginResponseSchema = z.object({
   updated: z.boolean(),
 });
 
-export type PatchForwardedOriginResponse = z.infer<typeof PatchForwardedOriginResponseSchema>;
-
 /** Shape intentionally identical to the assistant-message response. */
 export const PersistUserMessageResponseSchema = z.object({
   id: z.string(),

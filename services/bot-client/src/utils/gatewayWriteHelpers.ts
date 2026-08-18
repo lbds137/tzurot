@@ -8,7 +8,10 @@
  */
 
 import { SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
-import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
+import {
+  type ForwardedOrigin,
+  type MessageMetadata,
+} from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from './gatewayClients.js';
 import { withGatewayRetry } from './gatewayRetry.js';
@@ -82,6 +85,16 @@ function buildUserMessagePayload(params: UserMessageWriteParams): {
  * write, called synchronously BEFORE job submission so the next message's
  * history query always sees this row. Throws on failure.
  */
+/** Inputs for the post-persist forwarded-origin back-fill. */
+export interface ForwardedOriginWriteParams {
+  channelId: string;
+  personalityId: string;
+  personaId: string;
+  /** The SAME timestamp the persist used — the row id derives from it. */
+  messageTime: Date;
+  forwardedFrom: ForwardedOrigin;
+}
+
 export async function persistUserMessageViaGateway(params: UserMessageWriteParams): Promise<void> {
   const result = await getServiceClient().persistUserMessage(buildUserMessagePayload(params));
   if (!result.ok) {
@@ -99,6 +112,43 @@ export async function persistUserMessageViaGateway(params: UserMessageWriteParam
     { id: result.data.id, created: result.data.created, channelId: params.channelId },
     'User message persisted via gateway'
   );
+}
+
+/**
+ * Back-fill a forwarded message's recovered origin onto its persisted row.
+ *
+ * Deliberately does NOT throw, unlike its persist sibling above. This runs
+ * fire-and-forget after the row is already written, so there is no caller left
+ * to handle a rejection — an unhandled one would just be noise on a path whose
+ * worst outcome is a quote rendering the way it did before attribution
+ * existed.
+ */
+export async function patchForwardedOriginViaGateway(
+  params: ForwardedOriginWriteParams
+): Promise<void> {
+  try {
+    const result = await getServiceClient().patchForwardedOrigin({
+      channelId: params.channelId,
+      personalityId: params.personalityId,
+      personaId: params.personaId,
+      messageTime: params.messageTime.toISOString(),
+      forwardedFrom: params.forwardedFrom,
+    });
+
+    if (!result.ok) {
+      logger.warn(
+        { status: result.status, error: result.error, channelId: params.channelId },
+        'Forwarded-origin back-fill failed via gateway'
+      );
+      return;
+    }
+    logger.debug(
+      { updated: result.data.updated, channelId: params.channelId },
+      'Forwarded-origin back-fill applied'
+    );
+  } catch (error) {
+    logger.warn({ err: error, channelId: params.channelId }, 'Forwarded-origin back-fill threw');
+  }
 }
 
 function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
