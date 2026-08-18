@@ -79,3 +79,82 @@ real prompt before stating it anywhere.
 Per-character scoping removes a prompt-cache invalidation source: today another
 character speaking in a shared DM churns the first character's cached prefix.
 Adjacent to TASK-651 (S1 participants churn).
+
+## Config shape — DECIDED 2026-08-18 (owner raised the objection that settled it)
+
+The owner's objection: a single global boolean cannot express "isolate in DMs,
+keep extended context everywhere else". Per-channel config does not rescue it —
+DMs are one channel PER USER, so it would mean configuring each one, and every
+new DM starts unset.
+
+**Resolution: an enum, not a boolean.** Precedent already in the schema —
+`voiceResponseMode: z.enum(['always', 'voice-only', 'never'])` at
+configOverrides.ts:45 solves a structurally identical always/situational/never
+problem.
+
+```ts
+shareHistoryAcrossPersonalities: z.enum(['always', 'guilds-only', 'dms-only', 'never'])
+// HARDCODED_CONFIG_DEFAULTS: 'always'  (preserves current behavior)
+```
+
+The owner's case is `guilds-only`, set ONCE at the user tier: every DM isolates,
+guild channels keep sharing, new DMs inherit it. The four values are the
+complete lattice over two scopes, so nothing is arbitrarily omitted. The channel
+tier still permits a single-channel exception.
+
+Default `always` is a deliberate asymmetry with its two siblings
+(`crossChannelHistoryEnabled` and `shareLtmAcrossPersonalities` both default
+false): flipping this one to false would silently isolate every existing
+conversation.
+
+## The general problem, and its promote-when
+
+Per-setting enums solve THIS instance with no new machinery, but every future
+setting needing DM-vs-guild divergence re-invents its own value names.
+
+The general fix is a **DM tier in the cascade** — a `dmOverrides` blob applying
+to all DM channels, between the channel and user tiers — so any setting can
+differ in DMs without becoming scope-aware itself. That is a 6th tier through
+the resolver, schema, and UI.
+
+**Promote when: a SECOND setting needs DM-vs-guild qualification.** At that
+point the enum approach begins duplicating itself, which is the signal the
+abstraction has earned its keep. Until then it is speculative.
+
+## Implementation note — do NOT revert to the old read
+
+The naive reading of "restore pre-extended-context behavior" would be to call a
+personality-filtered read like the retired `getHistory`. That predates
+beta.204's count-cap hysteresis and would reintroduce the per-turn cache churn
+that release removed. Correct shape: add a `personalityId` predicate inside
+`buildChannelHistoryWhere` (ConversationMessageMapper.ts:129), keeping the
+window and its quantization intact.
+
+## History — this axis was collapsed by a refactor, not designed away
+
+`55d3b1bf8 fix(bot-client): use full channel history when extended context
+enabled` introduced channel-wide reads, CONDITIONALLY. Two later commits —
+`c41308d27 remove legacy extendedContext system` and `ebaa79551 consolidate
+context settings into LlmConfig` — deleted the on/off flag and folded extended
+context into plain config. No `extendedContextEnabled` field exists in
+HARDCODED_CONFIG_DEFAULTS today, so the condition in that first commit's title
+is gone and channel-wide became unconditional.
+
+The resulting inconsistency, which is the real argument for this work:
+
+| Sharing axis | Flag | Default |
+| --- | --- | --- |
+| History across CHANNELS | `crossChannelHistoryEnabled` | false |
+| LTM across PERSONALITIES | `shareLtmAcrossPersonalities` | false |
+| History across PERSONALITIES in a channel | none | always on |
+
+Two of three sharing axes are opt-in; the third cannot be turned off.
+
+## Incidental cleanup available
+
+`ConversationHistoryService.getHistory` (ConversationHistoryService.ts:330) has
+ZERO production callers — it backed the /history slash commands before they
+migrated to typed clients, and only its own tests keep it alive. File-level
+dead-code detection misses it because it is a method on a live class. The
+isolation work touches this file; deleting it there is the natural moment.
+Owner has not ruled on this yet.
