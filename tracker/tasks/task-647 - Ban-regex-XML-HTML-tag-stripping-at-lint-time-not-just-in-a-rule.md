@@ -1,9 +1,10 @@
 ---
 id: TASK-647
 title: 'Ban regex XML/HTML tag-stripping at lint time, not just in a rule'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 23:38'
+updated_date: '2026-08-18 03:09'
 labels:
   - 'area:tooling'
   - 'size:S'
