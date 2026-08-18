@@ -91,4 +91,45 @@ answers via the activation trigger regardless, which the sources field on
    before the develop merge — develop auto-deploys, so a merged-but-unverified
    gate could ride a release cut if the PR sits.
 
+## CAPTURE READ 2026-08-18 — the gate is NOT IMPLEMENTABLE. #2133 closed.
+
+Owner ran cases 1 and 2 on dev (container 94dfda596415). Both lines, verbatim
+from `ops logs --env dev --service bot-client --filter REPLY-PING`:
+
+    messageId="1539230684525236284" guildId="616105024367624212"
+    repliedUserId="1472768398135001108" mentionedUserIds=[] repliedUserIsMentioned=false
+
+    messageId="1539230821825908747" guildId="616105024367624212"
+    repliedUserId="1472768398135001108" mentionedUserIds=[] repliedUserIsMentioned=false
+
+Two distinct messages, 31s apart, one ping ON and one ping OFF per the owner.
+`mentions.users` is EMPTY in BOTH. `repliedUserId` is not the bot client id, so
+the replied author is a character webhook — the case the trigger path serves.
+
+This is the dangerous branch this task named: the ping-ON reply is
+indistinguishable from the ping-OFF one, so `mentions.users.has(repliedUser.id)`
+returns false for EVERY guild reply. Merging #2133 would have silenced every
+reply to every character in every guild. The gate is inert-and-harmful, not
+merely inert.
+
+Leading hypothesis for the mechanism (NOT separately verified): Discord does not
+list a webhook author in the `mentions` array at all, because a webhook is not a
+user there is anything to notify. That would also explain why
+BotMentionProcessor.ts:24-26's "auto-includes author in mentions when replying"
+holds for the BOT USER path it was written about while failing here — that
+comment is still unverified for its own path and is not relied on by this
+finding.
+
+Single assumption in the reading: that the first reply genuinely had the toggle
+ON. Owner stated it. If Discord greys the toggle out for webhook messages, the
+practical conclusion is unchanged — no distinguishable state reaches the bot.
+
+Verdict: no inbound signal carries reply-ping state for replies to webhooks, so
+the feature as specified cannot be built. Status quo stands: any reply to a
+character wakes it. Reopening requires a NEW signal, not a new gate.
+
+Remaining owner decision (surfaced, not decided here): whether to want a blunter
+substitute — e.g. a config-cascade switch that disables reply-triggering
+entirely per channel/user — or to accept the status quo.
+
 <!-- SECTION:DESCRIPTION:END -->
