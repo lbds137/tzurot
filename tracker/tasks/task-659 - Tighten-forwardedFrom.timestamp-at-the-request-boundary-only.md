@@ -1,9 +1,10 @@
 ---
 id: TASK-659
 title: Tighten forwardedFrom.timestamp at the request boundary only
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 14:57'
+updated_date: '2026-08-18 16:16'
 labels:
   - 'area:db'
   - 'size:S'
