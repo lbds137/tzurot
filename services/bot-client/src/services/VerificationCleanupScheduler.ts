@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { createIntervalScheduler } from '../utils/intervalScheduler.js';
+import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { getVerificationCleanupService } from './VerificationCleanupService.js';
 
 const logger = createLogger('verification-cleanup-scheduler');

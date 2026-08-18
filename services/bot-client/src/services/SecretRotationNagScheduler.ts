@@ -17,7 +17,7 @@ import { EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from '../utils/gatewayClients.js';
-import { createIntervalScheduler } from '../utils/intervalScheduler.js';
+import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 
 const logger = createLogger('secret-rotation-nag');

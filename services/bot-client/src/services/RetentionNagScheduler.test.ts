@@ -29,7 +29,7 @@ const { mockSchedulerStart, mockSchedulerStop } = vi.hoisted(() => ({
   mockSchedulerStart: vi.fn(),
   mockSchedulerStop: vi.fn(),
 }));
-vi.mock('../utils/intervalScheduler.js', () => ({
+vi.mock('@tzurot/common-types/utils/intervalScheduler', () => ({
   createIntervalScheduler: () => ({ start: mockSchedulerStart, stop: mockSchedulerStop }),
 }));
 

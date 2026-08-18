@@ -33,7 +33,7 @@ import {
   newestPublishedRelease,
   type GitHubRelease,
 } from '@tzurot/common-types/schemas/github/release';
-import { createIntervalScheduler } from '../utils/intervalScheduler.js';
+import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 
 const logger = createLogger('release-flag-nag');
