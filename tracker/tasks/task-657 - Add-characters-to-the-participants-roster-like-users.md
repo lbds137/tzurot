@@ -16,6 +16,8 @@ ordinal: 657000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+SCHEDULED: beta.205, by owner directive 2026-08-18 (see backlog/now.md > Next Release).
+
 Why: owner intake 2026-08-18, during PR #2141 review. Characters are non-human users -- their details belong in the <participants> roster the same way persona details do.
 
 The concrete gap: from_id is emitted ONLY for role="user" messages, bound to personaId (conversationUtils.ts:135-139). Character and assistant messages carry no from_id at all, because there is nothing in the roster for them to bind to. ParticipantFormatter.ts:225 instructs the model "Match from_id attribute in chat_log messages to participant id attribute" -- an instruction that structurally cannot resolve for any character line.
