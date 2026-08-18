@@ -19,6 +19,7 @@ import type {
 } from './ConversationalRAGTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
+import { extractCharacterParticipants } from '../jobs/utils/participantUtils.js';
 import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
 import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
@@ -83,7 +84,7 @@ function buildChatLogSection(
     return '';
   }
   return `<chat_log>
-<instruction>The conversation so far. Each message's role says who wrote it: role="assistant" marks your own earlier lines (${escapeXmlContent(personalityName)}); role="user" marks humans (match from_id to the <participants> roster above); role="character" marks a different AI character — a conversation peer, never you.</instruction>
+<instruction>The conversation so far. Each message's role says who wrote it: role="assistant" marks your own earlier lines (${escapeXmlContent(personalityName)}); role="user" marks humans (match from_id to the <participants> roster above); role="character" marks a different AI character — a conversation peer, never you (its from_id matches the roster too).</instruction>
 ${serializedHistory}
 </chat_log>`;
 }
@@ -294,7 +295,31 @@ ${escapeXmlContent(persona)}
     // current speaker — so this block is byte-stable across speaker changes;
     // the concrete "Name (@username)" disambiguation rides the volatile-tier
     // <from> tag instead (buildDisambiguatedDisplayName, above).
-    const participantsSection = formatParticipantsContext(participantPersonas, personality.name);
+    // Sibling characters come from the FETCHED history, not the selected
+    // subset, and both callers therefore see the same list — which is what the
+    // budget identity in ContentBudgetManager.buildBaseComponents requires,
+    // since the base measurement runs before history selection exists. Same
+    // over-measure direction as `collectPersonalityNames`: a character present
+    // only in a dropped entry keeps its roster line, which costs a few tokens
+    // and keeps the block stable as the window slides.
+    //
+    // Current-channel history only, and cross-channel needs no equivalent: the
+    // `<prior_conversations>` rows render through this same formatter, but
+    // `getCrossChannelHistory` filters on a single `personalityId` — the
+    // RESPONDER's, passed at ContextAssembler.ts's `personalityId:
+    // personality.id` — so every one of those rows resolves to role="assistant"
+    // and can never reach the character branch. Stated with its cite because a
+    // reviewer raised it twice: the schema does carry `personalityId`, which
+    // makes the gap look reachable until you read the query.
+    const characters = extractCharacterParticipants(
+      context.rawConversationHistory,
+      personality.name
+    );
+    const participantsSection = formatParticipantsContext(
+      participantPersonas,
+      personality.name,
+      characters
+    );
 
     // Conversation history as XML (legend lives in buildChatLogSection)
     const chatLogSection = buildChatLogSection(serializedHistory, personality.name);

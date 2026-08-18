@@ -84,10 +84,13 @@ export const MESSAGE_LIMITS = {
    */
   MAX_USERS_PER_REACTION: 5,
   /**
-   * Maximum number of participant personas to include in AI prompt context
-   * These get full persona details (name, pronouns, about text)
+   * Maximum number of SIBLING AI characters to list in the `<participants>`
+   * roster. Selection is by recency (the most recently active siblings in the
+   * fetched window); rendering is still UUID-ordered for cache-prefix
+   * stability. Without this the only bound is MAX_EXTENDED_CONTEXT, so a busy
+   * multi-bot channel could pay for up to 100 roster entries every turn.
    */
-  MAX_PARTICIPANT_PERSONAS: 10,
+  MAX_ROSTER_CHARACTERS: 10,
 } as const;
 
 /**

@@ -594,6 +594,58 @@ describe('PromptBuilder', () => {
       return { system, prefix };
     }
 
+    describe('sibling characters reach the roster', () => {
+      it("tells the model that a character line's from_id matches the roster", () => {
+        // Parity with the role="user" clause, which has always said so. Both
+        // roles now carry from_id, so both clauses state the binding next to
+        // the role they describe.
+        const { system } = buildContainers({ serializedHistory: '<message from="X"/>' });
+
+        expect(system).toContain('its from_id matches the roster too');
+      });
+
+      // The wiring seam: `buildSystemMessage` derives the character roster from
+      // `context.rawConversationHistory` rather than taking it as a parameter,
+      // so nothing upstream can forget to pass it — and nothing but a test that
+      // runs the real derivation can prove the thread is connected.
+      it("renders a sibling character's roster entry from the raw history", () => {
+        const { system } = buildContainers({
+          context: {
+            ...minimalContext,
+            rawConversationHistory: [
+              {
+                role: 'assistant',
+                content: 'Hey.',
+                personalityId: 'personality-uuid-kai',
+                personalityName: 'Kai',
+              },
+            ],
+          },
+        });
+
+        expect(system).toContain('<character_participant id="personality-uuid-kai">');
+        expect(system).toContain('<name>Kai</name>');
+      });
+
+      it('leaves the responding personality out of its own roster', () => {
+        const { system } = buildContainers({
+          context: {
+            ...minimalContext,
+            rawConversationHistory: [
+              {
+                role: 'assistant',
+                content: 'Hello!',
+                personalityId: 'personality-uuid-self',
+                personalityName: 'TestBot',
+              },
+            ],
+          },
+        });
+
+        expect(system).not.toContain('character_participant');
+      });
+    });
+
     describe('prompt-injection resistance (structural tag breakout)', () => {
       it('a malicious personality field cannot break out of its structural section', () => {
         // A public personality (isPublic defaults true) whose character field

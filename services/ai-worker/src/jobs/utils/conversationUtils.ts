@@ -30,7 +30,7 @@ import { promptTime } from '../../services/prompt/RenderableReference.js';
 
 // Re-export from extracted modules for backward compatibility
 export { extractParticipants } from './participantUtils.js';
-import { resolveSpeakerInfo } from './participantUtils.js';
+import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
 export { convertConversationHistory } from './langchainConverter.js';
 export { RawHistoryEntry, InlineImageDescription } from './conversationTypes.js';
 
@@ -104,6 +104,25 @@ function toRenderableAttachments(
  */
 export const HISTORY_ENTRY_OPEN = '<message from="';
 
+/**
+ * The `from_id` attribute binding a chat-log line to a `<participants>` entry.
+ *
+ * Two id spaces feed one attribute: a human's line carries their persona UUID,
+ * a SIBLING character's carries its personality UUID (the matching entry comes
+ * from `renderCharacterParticipantElement`). The responder's OWN lines carry
+ * none — the assistant role already says whose they are, and self is
+ * deliberately absent from the roster, so an id here would point at nothing.
+ *
+ * Keyed on the RENDERED role rather than the raw one, so the roster and the log
+ * cannot disagree: `resolveSpeakerInfo` is the single decider of who counts as
+ * a sibling, and `extractCharacterParticipants` asks it the same question.
+ */
+function formatFromIdAttribute(msg: RawHistoryEntry, role: ChatLogRole): string {
+  const fromId =
+    role === 'user' ? msg.personaId : role === 'character' ? msg.personalityId : undefined;
+  return fromId !== undefined && fromId.length > 0 ? ` from_id="${escapeXml(fromId)}"` : '';
+}
+
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
@@ -132,11 +151,7 @@ export function formatSingleHistoryEntryAsXml(
   // Escape speaker name for use in attribute (quotes could break the XML)
   const safeSpeaker = escapeXml(speakerName);
 
-  // Add from_id attribute for ID binding to participants (user messages only)
-  const fromIdAttr =
-    normalizedRole === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
-      ? ` from_id="${escapeXml(msg.personaId)}"`
-      : '';
+  const fromIdAttr = formatFromIdAttribute(msg, role);
 
   // Format metadata sections using helpers
   const quotedSection = formatQuotedSection(

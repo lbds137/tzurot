@@ -5,7 +5,7 @@
  * Extracted from conversationUtils.ts for better modularity.
  */
 
-import { MessageRole } from '@tzurot/common-types/constants/message';
+import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
@@ -192,4 +192,98 @@ export function extractParticipants(
     personaName,
     isActive: personaId === activePersonaId,
   }));
+}
+
+/**
+ * A sibling AI character present in the conversation window.
+ *
+ * Separate from {@link Participant} because the two are different kinds of
+ * entity with different id spaces — a persona UUID versus a personality UUID —
+ * and the roster tells the model which is which. They share ONE id space at
+ * the prompt level in the sense that matters: `from_id` resolves against every
+ * id in `<participants>` under a single rule, regardless of element.
+ */
+export interface CharacterParticipant {
+  /** The personality UUID a chat-log `from_id` on a role="character" line carries. */
+  personalityId: string;
+  /** The personality's unique name (not display name) — see ConversationMessageMapper. */
+  personalityName: string;
+}
+
+/**
+ * Collect the sibling characters whose lines appear in a history window.
+ *
+ * The membership test is `resolveSpeakerInfo` itself rather than a
+ * reimplementation of its self-match rule, so the roster and the chat log
+ * cannot disagree about who is a sibling: an entry gets a roster entry exactly
+ * when its own line renders as role="character". That also delivers the
+ * owner's exclusion of the CURRENTLY-SPEAKING character for free — its lines
+ * resolve to role="assistant", so it is never collected.
+ *
+ * Rows lacking `personalityId` (the extended-context fetch's registry-miss
+ * fallback writes a display name with no id) are skipped rather than
+ * defaulted: a roster entry no `from_id` can point at is worse than no entry,
+ * and those lines already render unattributed today.
+ *
+ * SELECTION is by recency, capped at MAX_ROSTER_CHARACTERS — the walk runs
+ * newest-first and stops once the cap is full, so a busy multi-bot channel
+ * keeps the siblings actually in play rather than whichever happened to speak
+ * first. Without the cap the only bound is MAX_EXTENDED_CONTEXT (100), and the
+ * roster is paid for on every turn.
+ *
+ * RENDERING is then sorted by personalityId, for the same reason the persona
+ * roster is — this block sits in the provider's prompt-cache prefix, and
+ * recency order reshuffles between turns for no informational gain. Selection
+ * by recency, ordering by id: the same split the persona roster makes.
+ *
+ * A capped-out sibling loses its roster entry, so its lines render with a
+ * `from_id` that resolves to nothing. That is the same degradation an id-less
+ * row already gets, and it is preferred over an unbounded per-turn cost.
+ */
+export function extractCharacterParticipants(
+  history: RawHistoryEntry[] | undefined,
+  personalityName: string
+): CharacterParticipant[] {
+  if (history === undefined || history.length === 0) {
+    return [];
+  }
+
+  const byId = new Map<string, string>();
+  // Newest-first: history arrives chronologically, and the cap must keep the
+  // most recently active siblings rather than the first ones seen.
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (byId.size >= MESSAGE_LIMITS.MAX_ROSTER_CHARACTERS) {
+      break;
+    }
+    const msg = history[i];
+    const speakerInfo = resolveSpeakerInfo(msg, personalityName);
+    if (speakerInfo?.role !== 'character') {
+      continue;
+    }
+    const id = msg.personalityId;
+    if (id === undefined || id.length === 0) {
+      continue;
+    }
+    // FIRST-SEEN WINS, and the guard is load-bearing rather than an
+    // optimization. The walk is newest-first, so an unconditional `set` would
+    // let each older occurrence overwrite the name — leaving the roster showing
+    // a renamed sibling's OLDEST name, the exact opposite of the recency this
+    // function selects by. Keyed on the stable personalityId, so `from_id`
+    // binding is unaffected either way; only the displayed name moves.
+    if (byId.has(id)) {
+      continue;
+    }
+    // resolveSpeakerInfo already resolved the display fallback; storing its
+    // answer keeps the roster name and the chat-log `from=` byte-identical.
+    byId.set(id, speakerInfo.speakerName);
+  }
+
+  return [...byId.entries()]
+    .map(([personalityId, characterName]) => ({
+      personalityId,
+      personalityName: characterName,
+    }))
+    .sort((a, b) =>
+      a.personalityId < b.personalityId ? -1 : a.personalityId > b.personalityId ? 1 : 0
+    );
 }

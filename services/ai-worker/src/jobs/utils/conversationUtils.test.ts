@@ -1741,6 +1741,49 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('role="assistant"');
     });
 
+    it('binds a sibling character line to its roster entry via personalityId', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Hey there.',
+          personalityId: 'personality-uuid-kai',
+          personalityName: 'Kai',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('role="character"');
+      expect(result).toContain('from_id="personality-uuid-kai"');
+    });
+
+    it("omits from_id on the responder's own lines, which have no roster entry", () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Hello!',
+          personalityId: 'personality-uuid-self',
+          personalityName: 'TestBot',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('role="assistant"');
+      expect(result).not.toContain('from_id=');
+    });
+
+    it('omits from_id on a sibling line that carries no personalityId', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'assistant', content: 'Hey.', personalityName: 'Kai' },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('role="character"');
+      expect(result).not.toContain('from_id=');
+    });
+
     it('should escape special characters in personaId', () => {
       const history: RawHistoryEntry[] = [
         {
