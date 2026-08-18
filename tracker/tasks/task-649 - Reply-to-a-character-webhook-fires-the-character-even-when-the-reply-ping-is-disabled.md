@@ -222,6 +222,55 @@ Recommendation: verify A first, because it is the only native option with the
 granularity the request implies, and verifying costs one message. B is the
 fallback if the @silent gesture reads as too obscure for the userbase.
 
+## FINAL 2026-08-18 — full-guild numbers, and the UI gap is owner-confirmed
+
+Widened from 6 channels to the whole guild: 240 channels, 7000 messages.
+
+    reply -> real user      276 of 1318 carry the referenced author in mentions
+    reply -> webhook          0 of  521
+
+Three things make that conclusive rather than suggestive:
+
+1. Discord`s reply ping DEFAULTS TO ON, so the large majority of those 521 real
+   webhook replies were sent with it on. A working signal would show hundreds of
+   hits. It shows none.
+2. mentions is not broken on webhook replies -- 2 of the 521 carry a non-empty
+   mentions array (a human @-mentioned in the text). The array populates
+   normally; it is specifically the webhook AUTHOR that Discord never adds.
+3. The field surface is empirically closed, not merely declared. Union of every
+   top-level key across all 1839 replies: application_id, attachments, author,
+   channel_id, components, content, edited_timestamp, embeds, flags, id,
+   interaction_metadata, mention_everyone, mention_roles, mentions,
+   message_reference, pinned, reactions, referenced_message, sticker_items,
+   timestamp, tts, type, webhook_id. No undeclared field carries a ping bit.
+
+**Owner confirmed the last unknown: Discord DOES show the @ON/@OFF toggle in
+the UI when replying to a webhook message.** So the control is presented to
+users, users gesture with it, and Discord discards it entirely for webhook
+targets, persisting nothing. The user complaint that opened this task was
+correct behaviour on the user`s part meeting a platform gap -- not a
+misunderstanding, and not something our code can close.
+
+Not pursued (no action attached): whether Discord adds a BOT-USER author to
+mentions on a ping-on reply. It would complete the taxonomy, but characters
+post via webhooks and cannot stop doing so without losing per-persona
+identity, so the answer could not change any decision.
+
+## What survives as actionable
+
+The reply-ping GATE is dead -- no signal exists. Two things outlive it:
+
+- **Forward already works.** message_reference.type distinguishes Forward (1)
+  from Reply (0), and PersonalityTriggerProcessor skips BOTH reply and mention
+  resolution for forwards (isForwardedMessage, the `forwarded` ternaries in the
+  Promise.all). So forwarding a character message quotes it without waking it,
+  today, zero code. CODE-VERIFIED, not runtime-confirmed. Caveat: activation is
+  unaffected -- resolveActivatedPersonality runs unconditionally -- so this
+  only helps where reply is the trigger.
+- **The expectation gap is documentable.** Discord sets an expectation it does
+  not honour; help text can say the toggle has no effect on characters and
+  point at Forward. Cheapest real relief for the reported complaint.
+
 ## Still owed after the capture
 
 1. Owner picks among A-D above; #2133 stays OPEN until then.
