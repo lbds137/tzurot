@@ -1,9 +1,10 @@
 ---
 id: TASK-657
 title: 'Add characters to the participants roster, like users'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 13:17'
+updated_date: '2026-08-18 20:40'
 labels:
   - 'area:ai-worker'
   - 'size:M'
