@@ -1057,6 +1057,27 @@ describe('PatchForwardedOriginRequestSchema', () => {
     ).toBe(false);
   });
 
+  it('rejects a malformed origin timestamp', () => {
+    // Strictness lives here rather than on forwardedOriginSchema itself:
+    // that schema is also parsed over STORED rows via messageMetadataSchema,
+    // where parseMessageMetadata discards the ENTIRE blob on any failure.
+    expect(
+      PatchForwardedOriginRequestSchema.safeParse({
+        ...VALID,
+        forwardedFrom: { ...VALID.forwardedFrom, timestamp: 'yesterday' },
+      }).success
+    ).toBe(false);
+  });
+
+  it('still accepts an origin with no timestamp at all', () => {
+    // The tightening is on the VALUE, not on presence — an unresolvable
+    // original legitimately yields an origin with neither author nor time.
+    const { timestamp: _dropped, ...noTime } = VALID.forwardedFrom;
+    expect(
+      PatchForwardedOriginRequestSchema.safeParse({ ...VALID, forwardedFrom: noTime }).success
+    ).toBe(true);
+  });
+
   it('requires forwardedFrom to be present', () => {
     const { forwardedFrom: _omitted, ...withoutOrigin } = VALID;
     expect(PatchForwardedOriginRequestSchema.safeParse(withoutOrigin).success).toBe(false);

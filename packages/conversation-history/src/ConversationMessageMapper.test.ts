@@ -415,4 +415,25 @@ describe('parseMessageMetadata — null/invalid guards', () => {
     const valid = { referencedMessages: [] };
     expect(parseMessageMetadata(valid)).toEqual(valid);
   });
+
+  it('keeps the rest of the blob when a stored forwardedFrom timestamp is malformed', () => {
+    // The reason forwardedOriginSchema.timestamp is a bare string while the
+    // backfill REQUEST schema tightens it to .datetime(): this function is
+    // all-or-nothing, so a strict field here would take referencedMessages,
+    // embedsXml and reactions down with one bad value written by an older
+    // build. Pinned because the tempting "fix" is to tighten the shared
+    // schema, and nothing else would fail if someone did.
+    const stored = {
+      referencedMessages: [],
+      embedsXml: ['<embed />'],
+      isForwarded: true,
+      forwardedFrom: { authorName: 'COLD', timestamp: 'yesterday' },
+    };
+
+    const result = parseMessageMetadata(stored);
+
+    expect(result?.embedsXml).toEqual(['<embed />']);
+    expect(result?.isForwarded).toBe(true);
+    expect(result?.forwardedFrom?.authorName).toBe('COLD');
+  });
 });

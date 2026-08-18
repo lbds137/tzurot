@@ -61,7 +61,7 @@ describe('POST /internal/conversation/forwarded-origin', () => {
   });
 
   it('derives the row id and reports the merge result', async () => {
-    mockMergeForwardedOrigin.mockResolvedValueOnce(true);
+    mockMergeForwardedOrigin.mockResolvedValueOnce('updated');
 
     const res = await request(buildApp()).post('/forwarded-origin').send(VALID_BODY);
 
@@ -77,7 +77,7 @@ describe('POST /internal/conversation/forwarded-origin', () => {
   });
 
   it('reports updated:false for a row that does not exist, with a 200', async () => {
-    mockMergeForwardedOrigin.mockResolvedValueOnce(false);
+    mockMergeForwardedOrigin.mockResolvedValueOnce('missing');
 
     const res = await request(buildApp()).post('/forwarded-origin').send(VALID_BODY);
 
@@ -86,6 +86,30 @@ describe('POST /internal/conversation/forwarded-origin', () => {
     // failure the caller should retry or alert on.
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ updated: false });
+  });
+
+  it('reports updated:false on a database failure too', async () => {
+    mockMergeForwardedOrigin.mockResolvedValueOnce('failed');
+
+    const res = await request(buildApp()).post('/forwarded-origin').send(VALID_BODY);
+
+    // The wire shape stays boolean on purpose — a fire-and-forget backfill has
+    // the same recourse either way. The failure/miss distinction exists for the
+    // operator log, not for this caller.
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: false });
+  });
+
+  it('rejects a malformed forwardedFrom.timestamp at the door', async () => {
+    // Tightened on the REQUEST schema only: the shared origin schema is also
+    // parsed over stored rows, where a strict field would discard the whole
+    // metadata blob rather than one bad value.
+    const res = await request(buildApp())
+      .post('/forwarded-origin')
+      .send({ ...VALID_BODY, forwardedFrom: { timestamp: 'yesterday' } });
+
+    expect(res.status).toBe(400);
+    expect(mockMergeForwardedOrigin).not.toHaveBeenCalled();
   });
 
   it('rejects a body whose origin is not an object', async () => {
@@ -110,7 +134,7 @@ describe('POST /internal/conversation/forwarded-origin', () => {
   });
 
   it('accepts an origin carrying only the timestamp', async () => {
-    mockMergeForwardedOrigin.mockResolvedValueOnce(true);
+    mockMergeForwardedOrigin.mockResolvedValueOnce('updated');
 
     const res = await request(buildApp())
       .post('/forwarded-origin')
