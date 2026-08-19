@@ -8,17 +8,18 @@
  * an exact answer. Nothing downstream ever rehashes a card to discover that it
  * moved.
  *
- * Two shapes, because creates and updates have genuinely different safe forms:
+ * ONE shape, at every call site: the write runs, then {@link stampCardSourceHash}
+ * stamps from the row it returned, both inside one transaction. Creates and
+ * upserts use it as well as updates.
  *
- *  - A CREATE knows the whole card up front, so it computes the digest with
- *    {@link hashRosterBlurbCard} and includes it in the same insert. One write,
- *    atomically consistent, nothing to reconcile.
- *  - An UPDATE only carries a patch. Merging that patch onto the stored row by
- *    hand means either trusting a cast from Prisma's update-input type or
- *    re-deriving the same field-precedence logic the route already implements
- *    (`displayName` mirroring `name`, for one) — both silent when wrong. So an
- *    update stamps AFTER the fact via {@link stampCardSourceHash}, from the row
- *    the write returned, which is the state that actually landed.
+ * An earlier draft inlined the digest into the CREATE payload, since a create
+ * knows the whole card up front and could do it in a single write. That was
+ * dropped for uniformity: an update genuinely cannot take that route — merging
+ * the patch onto the stored row means either trusting a cast from Prisma's
+ * update-input type or re-deriving the field-precedence logic the route already
+ * implements (`displayName` mirroring `name`, for one), and both are silent
+ * when wrong — so inlining creates would have bought one saved round trip on
+ * the rare path in exchange for two shapes to keep correct.
  *
  * The parameter type is the enforcement. `RosterBlurbCard` requires EVERY card
  * field, so a caller whose `select` omits one fails to compile rather than

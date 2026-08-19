@@ -183,6 +183,29 @@ describe('sweepRosterBlurbs', () => {
     expect(usageCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps going when one row's model call throws", async () => {
+    setSettings(true);
+    const a = row({ id: '4f9b0f66-0000-4000-8000-0000000000a1' });
+    const b = row({ id: '4f9b0f66-0000-4000-8000-0000000000a2' });
+    const { prisma, executeRaw } = makePrisma({ stale: [a, b] });
+    const invoke = vi
+      .fn<SystemModelInvoker>()
+      .mockRejectedValueOnce(new Error('429 rate limited'))
+      .mockResolvedValue({
+        content: '{"blurb":"Ilana is an archivist."}',
+        tokensIn: 100,
+        tokensOut: 20,
+        provider: AIProvider.OpenRouter,
+      });
+
+    const stats = await sweepRosterBlurbs(prisma, invoke);
+
+    // The throw costs its own row, not the rest of the tick.
+    expect(stats.failed).toBe(1);
+    expect(stats.generated).toBe(1);
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+  });
+
   it('survives a usage-row failure rather than losing the blurb', async () => {
     setSettings(true);
     const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [row()] });

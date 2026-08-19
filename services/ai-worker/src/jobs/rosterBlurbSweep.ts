@@ -260,7 +260,25 @@ export async function sweepRosterBlurbs(
       continue;
     }
 
-    const { blurb, usage } = await generateRosterBlurb(row, invokeModel);
+    // Per-row, so one flaky character cannot starve the rest of the tick. The
+    // throw shapes here are transient (rate limit, timeout, network) and the
+    // row stays stale, so the next tick retries it — unlike fact extraction,
+    // this job has nothing to lose by simply trying again, which is why it
+    // needs no busy-category classification of its own.
+    //
+    // No usage row on this path, deliberately: a throw carries no token counts,
+    // so there is nothing to bill. That under-reports a provider error that
+    // charged us anyway, which is the honest direction to be wrong in.
+    let generation;
+    try {
+      generation = await generateRosterBlurb(row, invokeModel);
+    } catch (error) {
+      logger.warn({ err: error, personalityId: row.id }, 'Roster blurb model call threw');
+      stats.failed += 1;
+      continue;
+    }
+
+    const { blurb, usage } = generation;
     await logUsage(prisma, row.ownerId, usage, row.id);
     if (blurb === null) {
       stats.failed += 1;
