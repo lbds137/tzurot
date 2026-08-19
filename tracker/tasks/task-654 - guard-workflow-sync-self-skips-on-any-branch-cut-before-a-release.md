@@ -1,9 +1,10 @@
 ---
 id: TASK-654
 title: 'guard:workflow-sync self-skips on any branch cut before a release'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 10:25'
+updated_date: '2026-08-19 02:08'
 labels:
   - 'area:ci'
   - 'size:M'
