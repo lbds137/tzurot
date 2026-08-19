@@ -45,11 +45,35 @@ The floor hop would be attempted after EVERY hop-1 failure.
 
 That may well be correct: reaching this code at all means the outer gate already
 resolved a quota category, so the turn is known quota-limited and the hop-1
-failure's own classifiability arguably says nothing. But it is a SPEND decision,
-not a null-safety tidy-up: a hop-1 failure that is not quota-shaped at all (a
-genuine 5xx, a content-policy 400, a context-length error) would then buy one
-more paid model call per turn. 04-discord.md's spend-idempotency section is the
-neighbourhood.
+failure's own classifiability arguably says nothing.
+
+CORRECTION to this note's first draft, which said gate deletion would "buy one
+more PAID model call per turn". That overstated the money cost on every arm,
+checked against `selectFloorTarget`
+(services/ai-worker/src/services/quotaFallback.ts:232):
+- guest/free path: the floor is `getFreeTextFloor()`, isFreeModel-guarded
+  precisely so an out-of-band settings edit cannot bill the owner. Free.
+- paid path: the floor is `fallbackTextModel` (seeded `openrouter/auto`) run on
+  the USER's own key, not the owner's.
+- a FAILED hop bills ~nothing either way (4xx/5xx are not charged), and a
+  SUCCEEDING hop returned an answer, which is the mechanism working.
+- `checkModelViability` already vetoes the hop when the doom caches show the key
+  credit-exhausted or rate-limited, so the most cost-sensitive states never
+  reach a call at all.
+
+The real cost is FUTILITY AND LATENCY, not owner spend. Quota failures are a
+property of the model or the account, so trying another model is the right move.
+But some hop-1 failures are properties of the REQUEST -- content-policy
+rejection, context-length overflow, an unsupported payload -- and those fail
+identically on the floor because the input is unchanged. Deleting the gate makes
+every one of those buy a third full round-trip with near-zero rescue odds, on a
+turn where the user has already waited through two failures. Secondary: a futile
+request still burns one against the free tier's daily cap.
+
+Counter-argument, which is why this is not clear-cut: for a plain 5xx on hop 1
+the floor genuinely can rescue -- `openrouter/auto` is a router whose stated job
+is to always answer. So gate deletion is not wrong across the board, only for
+the request-shaped subset.
 
 So the acceptance's second arm ("or the current behaviour is deliberately kept
 with the reason recorded in a comment at the gate") is live, and the choice is
@@ -63,7 +87,9 @@ three-way rather than two:
       gate's comment describes, which is the actual dead-end being reported);
   (c) keep as-is with the reason recorded.
 
-(b) is the narrowest fix that closes the reported dead-end without widening
-spend, and is my recommendation — but it is a spend-adjacent call, so it is the
-owner's rather than mine. NOT started; no code written.
+(b) is the narrowest fix: it closes the reported dead-end without extending the
+fallback chain to failure classes it cannot fix. Recommended. With the money
+side corrected above, this is closer to an ordinary engineering call than the
+first draft implied — it needs the owner only for a say on the
+latency-vs-rescue tradeoff. NOT started; no code written.
 <!-- SECTION:DESCRIPTION:END -->
