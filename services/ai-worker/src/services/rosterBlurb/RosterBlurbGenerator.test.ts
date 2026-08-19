@@ -18,7 +18,13 @@ function card(): RosterBlurbCard {
 }
 
 function respondWith(content: string): SystemModelResult {
-  return { content, tokensIn: 120, tokensOut: 40, provider: AIProvider.OpenRouter };
+  return {
+    content,
+    tokensIn: 120,
+    tokensOut: 40,
+    provider: AIProvider.OpenRouter,
+    model: 'z-ai/glm-5.2',
+  };
 }
 
 describe('generateRosterBlurb', () => {

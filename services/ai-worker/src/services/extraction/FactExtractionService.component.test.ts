@@ -9,7 +9,7 @@
  * SQL is valid pgvector.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi, type Mock } from 'vitest';
 import { type PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -20,10 +20,26 @@ import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import type { Redis } from 'ioredis';
 import { FactExtractionService } from './FactExtractionService.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import type { SystemModelInvoker } from '../systemModel/systemModelCall.js';
 
-/** Wrap raw model content in the SystemModelResult shape the invoker now returns. */
-const mockInvoker = (content: string) =>
-  vi.fn().mockResolvedValue({ content, tokensIn: 10, tokensOut: 5, provider: 'openrouter' });
+/**
+ * Wrap raw model content in the SystemModelResult shape the invoker returns.
+ *
+ * Typed on purpose: an untyped `vi.fn().mockResolvedValue({...})` names no
+ * interface, so neither the compiler nor a type-name grep sees it when
+ * SystemModelResult gains a field — which is exactly how this fixture went
+ * stale and broke this suite while every typed fixture was caught at compile
+ * time.
+ */
+const mockInvoker = (content: string): Mock<SystemModelInvoker> =>
+  vi.fn<SystemModelInvoker>().mockResolvedValue({
+    content,
+    tokensIn: 10,
+    tokensOut: 5,
+    provider: AIProvider.OpenRouter,
+    model: 'z-ai/glm-5.2',
+  });
 import { FactStore } from './FactStore.js';
 import { ExtractionBudget } from './ExtractionBudget.js';
 

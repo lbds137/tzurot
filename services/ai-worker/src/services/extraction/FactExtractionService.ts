@@ -15,7 +15,6 @@
  */
 
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
@@ -309,7 +308,10 @@ export class FactExtractionService {
         logger.warn({ ...scope }, 'Extraction usage row skipped — persona row not found');
         return;
       }
-      const model = getSystemSetting('extractionModel');
+      // From the call result, not a re-read: extractionModel is live-editable
+      // and a batch can run 180s, so re-reading here would bill the batch to
+      // whatever the setting says now rather than what it actually used.
+      const model = modelResult.model;
       const provider = modelResult.provider;
       const createdAt = new Date();
       await this.prisma.usageLog.create({
