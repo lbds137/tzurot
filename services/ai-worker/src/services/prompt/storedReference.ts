@@ -28,7 +28,7 @@ import {
   type BuiltAttachment,
   type RenderableAttachment,
 } from './QuoteFormatter.js';
-import { promptTime, type RenderableReference } from './RenderableReference.js';
+import { promptTime, referenceFromId, type RenderableReference } from './RenderableReference.js';
 import { deriveRefRole } from './referenceRole.js';
 import { redactOwnVoiceTranscript } from '../voice/ownVoiceGuard.js';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
@@ -66,6 +66,7 @@ export function toStoredReference(
     authorDisplayName: ref.authorDisplayName,
     authorDiscordId: ref.discordUserId,
     authorRole: ref.authorRole,
+    authorPersonalityId: ref.authorPersonalityId,
     content: ref.content,
     embeds: ref.embeds.length > 0 ? ref.embeds : undefined,
     timestamp: ref.timestamp,
@@ -176,7 +177,8 @@ export function buildStoredAttachments(ref: StoredReferencedMessage): Renderable
 export function fromStoredReference(
   ref: StoredReferencedMessage,
   personalityName: string,
-  allPersonalityNames?: Set<string>
+  allPersonalityNames?: Set<string>,
+  responderPersonalityId?: string
 ): RenderableReference {
   // Hydrated persona name where one resolved, else the Discord display name.
   const from = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
@@ -187,12 +189,21 @@ export function fromStoredReference(
   // human's persona name matching a personality is a collision, not identity.
   const discordName = ref.authorDisplayName || ref.authorUsername;
 
+  const role = deriveRefRole({
+    authorRole: ref.authorRole,
+    authorName: discordName,
+    personalityName,
+    allPersonalityNames,
+    authorPersonalityId: ref.authorPersonalityId,
+    responderPersonalityId,
+  });
+
   return {
     isForwarded: ref.isForwarded,
     from,
-    fromId: ref.resolvedPersonaId,
+    fromId: referenceFromId(role, ref.authorPersonalityId, ref.resolvedPersonaId),
     username: ref.authorUsername,
-    role: deriveRefRole(ref.authorRole, discordName, personalityName, allPersonalityNames),
+    role,
     time: promptTime(ref.timestamp),
     content: ref.content,
     locationContext: usableLocationContext(ref.locationContext),

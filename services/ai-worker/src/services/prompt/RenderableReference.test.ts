@@ -8,6 +8,7 @@ import { enrichmentKey } from './QuoteFormatter.js';
 import {
   dedupeReference,
   promptTime,
+  referenceFromId,
   referenceSearchText,
   renderReference,
   type RenderableReference,
@@ -438,5 +439,31 @@ describe('referenceSearchText', () => {
 
   it('drops empty and whitespace-only pieces', () => {
     expect(referenceSearchText(reference({ content: '   ', attachments: [] }), '  ')).toBe('');
+  });
+});
+
+describe('referenceFromId', () => {
+  const PERSONA = 'persona-uuid-1';
+  const PERSONALITY = 'personality-uuid-1';
+
+  it('binds a human quote to their persona id', () => {
+    expect(referenceFromId('user', PERSONALITY, PERSONA)).toBe(PERSONA);
+  });
+
+  it('binds a sibling character quote to the personality id, not the persona id', () => {
+    expect(referenceFromId('character', PERSONALITY, PERSONA)).toBe(PERSONALITY);
+  });
+
+  it('emits nothing for the responder own line — it has no roster entry to bind to', () => {
+    expect(referenceFromId('assistant', PERSONALITY, PERSONA)).toBeUndefined();
+  });
+
+  it('emits nothing for a foreign bot', () => {
+    expect(referenceFromId('bot', PERSONALITY, PERSONA)).toBeUndefined();
+  });
+
+  it('emits nothing when the id its role calls for is absent', () => {
+    expect(referenceFromId('user', PERSONALITY, undefined)).toBeUndefined();
+    expect(referenceFromId('character', undefined, PERSONA)).toBeUndefined();
   });
 });

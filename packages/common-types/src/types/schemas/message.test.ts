@@ -238,6 +238,21 @@ describe('referencedMessageSchema', () => {
     const result = referencedMessageSchema.safeParse({ ...base, authorRole: 'system' });
     expect(result.success).toBe(false);
   });
+
+  it('carries authorPersonalityId across the bot-client → worker boundary', () => {
+    // bot-client resolves it; ai-worker renders `from_id` from it. Between
+    // them the payload is parsed in strip mode, so an undeclared key would be
+    // deleted with nothing failing — the same seam attachmentEnrichment sits on.
+    const id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const result = referencedMessageSchema.safeParse({ ...base, authorPersonalityId: id });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.authorPersonalityId).toBe(id);
+  });
+
+  it('accepts a reference without authorPersonalityId (human author, or a resolver miss)', () => {
+    const result = referencedMessageSchema.safeParse(base);
+    expect(result.success && result.data.authorPersonalityId).toBeUndefined();
+  });
 });
 
 describe('referenceAuthorRoleSchema', () => {
@@ -294,6 +309,20 @@ describe('storedReferencedMessageSchema — what survives the DB round trip', ()
     const parsed = storedReferencedMessageSchema.parse(stored);
 
     expect(parsed.attachmentEnrichment).toEqual(stored.attachmentEnrichment);
+  });
+
+  it('carries authorPersonalityId through, so a replayed quote can still bind by id', () => {
+    const id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+    expect(
+      storedReferencedMessageSchema.parse({ ...stored, authorPersonalityId: id })
+        .authorPersonalityId
+    ).toBe(id);
+    expect(
+      messageMetadataSchema.parse({
+        referencedMessages: [{ ...stored, authorPersonalityId: id }],
+      }).referencedMessages?.[0].authorPersonalityId
+    ).toBe(id);
   });
 
   it('strips a key the schema does not declare', () => {

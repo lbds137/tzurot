@@ -15,6 +15,12 @@ import { MessageFormatter } from './references/MessageFormatter.js';
 import { LinkExtractor } from './references/LinkExtractor.js';
 import { ReferenceCrawler } from './references/ReferenceCrawler.js';
 import { ReferenceFormatter } from './references/ReferenceFormatter.js';
+import {
+  applyAuthorPersonalityIds,
+  resolveAuthorPersonalityIds,
+  type AuthorPersonalityLookups,
+} from './references/authorPersonalityId.js';
+import { redisService } from '../redis.js';
 import { ReplyReferenceStrategy } from './references/strategies/ReplyReferenceStrategy.js';
 import { LinkReferenceStrategy } from './references/strategies/LinkReferenceStrategy.js';
 
@@ -46,7 +52,23 @@ interface ReferenceExtractionOptions {
   conversationHistoryMessageIds?: string[];
   /** Conversation history timestamps (for time-based fallback matching) */
   conversationHistoryTimestamps?: Date[];
+  /**
+   * Personality-id lookup for `authorPersonalityId` resolution. Defaults to the
+   * Redis webhook-message cache; injected in tests so Redis need not be stood up.
+   */
+  authorPersonalityLookups?: AuthorPersonalityLookups;
 }
+
+/**
+ * The webhook-message cache — the same lookup extended context uses for the
+ * identical question (`getOurPersonalityId`, MessageContextBuilder), so quotes
+ * and the chat log cannot end up disagreeing about who authored a message.
+ * See references/authorPersonalityId.ts for why no second tier is wired in.
+ */
+const DEFAULT_AUTHOR_PERSONALITY_LOOKUPS: AuthorPersonalityLookups = {
+  fromWebhookCache: (discordMessageId: string) =>
+    redisService.getWebhookPersonality(discordMessageId),
+};
 
 /**
  * Message Reference Extractor (Facade)
@@ -57,6 +79,7 @@ export class MessageReferenceExtractor {
   private readonly embedProcessingDelayMs: number;
   private readonly crawler: ReferenceCrawler;
   private readonly formatter: ReferenceFormatter;
+  private readonly authorPersonalityLookups: AuthorPersonalityLookups;
 
   constructor(options: ReferenceExtractionOptions) {
     this.maxReferences = options.maxReferences ?? 10;
@@ -95,6 +118,9 @@ export class MessageReferenceExtractor {
 
     // Initialize formatter
     this.formatter = new ReferenceFormatter(messageFormatter, snapshotFormatter);
+
+    this.authorPersonalityLookups =
+      options.authorPersonalityLookups ?? DEFAULT_AUTHOR_PERSONALITY_LOOKUPS;
   }
 
   /**
@@ -152,6 +178,19 @@ export class MessageReferenceExtractor {
       effectiveContent ?? updatedMessage.content,
       crawlResult.messages,
       this.maxReferences
+    );
+
+    // Step 3: stamp `authorPersonalityId` on any reference our own personas
+    // authored. Deliberately AFTER formatting rather than inside
+    // `buildRawReference`, which is documented pure and synchronous — see
+    // references/authorPersonalityId.ts for that and for why no access gate
+    // belongs here.
+    applyAuthorPersonalityIds(
+      formattedResult.rawReferences,
+      await resolveAuthorPersonalityIds(
+        formattedResult.rawReferences,
+        this.authorPersonalityLookups
+      )
     );
 
     return {
