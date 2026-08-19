@@ -35,6 +35,8 @@ export const SystemSettingsSchema = z.object({
   extractionEnabled: z.boolean(),
   /** Inject extracted facts into the generation prompt. */
   factsInPromptEnabled: z.boolean(),
+  /** Runtime switch for the roster-blurb summarizer sweep (checked per sweep tick). */
+  rosterBlurbEnabled: z.boolean(),
   /** Share GLM-4.5-Air with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
   /** Vision-describe rasterizable stickers (instance-funded, cached per snowflake). */
@@ -191,6 +193,16 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: false,
     seedSource: 'EXTRACTION_ENABLED',
+  },
+  rosterBlurbEnabled: {
+    key: 'rosterBlurbEnabled',
+    label: 'Roster Blurb Generation',
+    description: 'Runtime switch for the roster-blurb summarizer sweep (checked per sweep tick).',
+    group: GROUP_EXTRACTION,
+    control: 'boolean',
+    liveness: 'live',
+    fallback: false,
+    seedSource: 'ROSTER_BLURB_ENABLED',
   },
   factsInPromptEnabled: {
     key: 'factsInPromptEnabled',

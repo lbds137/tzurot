@@ -1,10 +1,9 @@
 /**
- * Provider-routing tests for invokeExtractionModel / resolveExtractionProvider.
+ * Provider-routing tests for invokeSystemModel / resolveSystemModelRoute.
  *
- * Separate from FactExtractionService.test.ts because these need getConfig
- * mocked (zai vs openrouter routes), while that file's tests rely on the real
- * test config. Asserts what crosses the createChatModel seam: provider, key,
- * and the bare-vs-prefixed model id.
+ * These need getConfig mocked (zai vs openrouter routes), which is why they
+ * live apart from the callers' own suites. Asserts what crosses the
+ * createChatModel seam: provider, key, and the bare-vs-prefixed model id.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -30,14 +29,14 @@ vi.mock('../ModelFactory.js', () => ({
   createChatModel: createChatModelMock,
 }));
 
-import { invokeExtractionModel, resolveExtractionProvider } from './FactExtractionService.js';
+import { invokeSystemModel, resolveSystemModelRoute } from './systemModelCall.js';
 import {
   registerSystemSettings,
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 
-/** Register extraction model/provider fixtures through the ambient accessor. */
+/** Register system model/provider fixtures through the ambient accessor. */
 function setExtractionSettings(settings: { model?: string; provider?: string }): void {
   const values: Record<string, unknown> = {
     extractionModel: settings.model ?? 'z-ai/glm-5.2',
@@ -54,13 +53,13 @@ const baseConfig = {
   ZAI_CODING_API_KEY: undefined as string | undefined,
 };
 
-describe('resolveExtractionProvider', () => {
+describe('resolveSystemModelRoute', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('routes to z.ai with the system key when configured', () => {
     setExtractionSettings({ provider: 'zai-coding' });
     getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
-    expect(resolveExtractionProvider()).toEqual({
+    expect(resolveSystemModelRoute()).toEqual({
       provider: 'zai-coding',
       apiKey: 'zai-system-key',
     });
@@ -69,18 +68,18 @@ describe('resolveExtractionProvider', () => {
   it('falls back to OpenRouter when zai-coding is set WITHOUT a key (misconfiguration)', () => {
     setExtractionSettings({ provider: 'zai-coding' });
     getConfigMock.mockReturnValue(baseConfig);
-    expect(resolveExtractionProvider()).toEqual({ provider: 'openrouter' });
+    expect(resolveSystemModelRoute()).toEqual({ provider: 'openrouter' });
   });
 });
 
-describe('invokeExtractionModel provider seam', () => {
+describe('invokeSystemModel provider seam', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('z.ai route: system key attached and the z-ai/ prefix stripped to the bare model id', async () => {
     setExtractionSettings({ provider: 'zai-coding' });
     getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
 
-    const result = await invokeExtractionModel('prompt');
+    const result = await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
 
     expect(createChatModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -101,12 +100,12 @@ describe('invokeExtractionModel provider seam', () => {
     setExtractionSettings({});
     getConfigMock.mockReturnValue(baseConfig);
 
-    await invokeExtractionModel('prompt');
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
 
     const args = createChatModelMock.mock.calls[0][0] as Record<string, unknown>;
     expect(args.modelName).toBe('z-ai/glm-5.2');
     expect(args.provider).toBe('openrouter');
     expect(args).not.toHaveProperty('apiKey');
-    expect(args.appTitleSuffix).toBe('Extraction');
+    expect(args.appTitleSuffix).toBe('Test');
   });
 });

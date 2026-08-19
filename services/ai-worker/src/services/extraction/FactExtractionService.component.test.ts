@@ -21,7 +21,7 @@ import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import type { Redis } from 'ioredis';
 import { FactExtractionService } from './FactExtractionService.js';
 
-/** Wrap raw model content in the ExtractionModelResult shape the invoker now returns. */
+/** Wrap raw model content in the SystemModelResult shape the invoker now returns. */
 const mockInvoker = (content: string) =>
   vi.fn().mockResolvedValue({ content, tokensIn: 10, tokensOut: 5, provider: 'openrouter' });
 import { FactStore } from './FactStore.js';

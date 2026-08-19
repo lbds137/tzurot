@@ -39,6 +39,7 @@ const SYSTEM_GROUP_ORDER: SystemSettingGroup[] = [
 const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   extractionEnabled: '🧠',
   factsInPromptEnabled: '📋',
+  rosterBlurbEnabled: '🪪',
   extractionBatchThreshold: '📦',
   extractionModel: '🤖',
   extractionProvider: '🔀',

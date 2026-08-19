@@ -46,6 +46,13 @@ export const PROTECTED_TAGS = [
   'chat_log',
   'system_identity',
   'character',
+  // The card block in the roster-blurb summarizer prompt (TASK-660 slice B).
+  // Trust boundary by the same test as `character`: the block holds
+  // user-authored card text, routinely in instruction register for imported
+  // characters, and escaping it reaches that prompt's own top-level
+  // instructions. Distinct from `character` on purpose — the summarizer must
+  // treat the block as data ABOUT a character, never as one to embody.
+  'character_card',
   'identity_constraints',
   'constraint',
   // Distilled-fact block (Phase 2 slice 4a) — a user statement escaping <facts>
