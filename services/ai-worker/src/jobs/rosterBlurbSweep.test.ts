@@ -141,6 +141,21 @@ describe('sweepRosterBlurbs', () => {
     expect(writeArgs).toContain(hashRosterBlurbCard(unstamped));
   });
 
+  it('guards the backfill stamp against a row a real write reached first', async () => {
+    setSettings(true);
+    const unstamped = row({ cardSourceHash: null });
+    const { prisma, executeRaw } = makePrisma({ unstamped: [unstamped] });
+
+    await sweepRosterBlurbs(prisma, invokerReturning('{"blurb":"x"}'));
+
+    // Pins the clause, not the race: the batch is read once and written row by
+    // row, so an edit landing in that gap stamps correctly from its own row —
+    // and this UPDATE must then do nothing rather than overwrite it with a
+    // hash of the pre-edit snapshot.
+    const sqlParts = (executeRaw.mock.calls[0][0] as { raw?: string[] }).raw ?? [];
+    expect(sqlParts.join(' ')).toContain('card_source_hash IS NULL');
+  });
+
   it('stores the blurb against the stamp the write path recorded', async () => {
     setSettings(true);
     const stale = row();

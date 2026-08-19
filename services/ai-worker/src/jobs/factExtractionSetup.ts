@@ -152,7 +152,7 @@ function logZaiCoherenceMisconfigurations(): void {
   if (getConfig().ZAI_CODING_API_KEY === undefined) {
     logger.error(
       {},
-      'extractionProvider=zai-coding but ZAI_CODING_API_KEY is not set — extraction falls back to OpenRouter (paid)'
+      'extractionProvider=zai-coding but ZAI_CODING_API_KEY is not set — all background model work (fact extraction AND roster blurbs) falls back to OpenRouter (paid)'
     );
   } else if (getZaiCodingPlanContextLength(model) === null) {
     logger.error(

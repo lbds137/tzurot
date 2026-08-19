@@ -46,9 +46,10 @@ const logger = createLogger('RosterBlurbSweep');
 const STAMP_BATCH_SIZE = 200;
 
 /**
- * Model calls per tick. The hard spend bound: at the sweep's cron cadence this
- * is the most the feature can cost in a period, no matter how many characters
- * exist or how fast their cards churn.
+ * Stale rows examined per tick, and therefore the ceiling on model calls: at
+ * the sweep's cron cadence this is the most the feature can cost in a period,
+ * no matter how many characters exist or how fast their cards churn. Not an
+ * exact call count — an empty card consumes a slot and pays nothing.
  */
 const MAX_GENERATIONS_PER_SWEEP = 10;
 
@@ -112,10 +113,18 @@ async function stampMissingHashes(prisma: PrismaClient): Promise<number> {
   })) as CardRow[];
 
   for (const row of rows) {
+    // The `IS NULL` guard is not redundant with the SELECT above. The batch is
+    // read once and written one row at a time, so a genuine edit can land on a
+    // row between its read and its turn — and that edit stamps correctly from
+    // its own returned row. Without the guard this loop would then overwrite
+    // the correct stamp with a hash of the pre-edit snapshot, leaving
+    // card_source_hash meaning something other than "the digest of this row's
+    // card" until the next edit. The guard makes the backfill a no-op against
+    // any row a real write reached first.
     await prisma.$executeRaw`
       UPDATE personalities
       SET card_source_hash = ${hashRosterBlurbCard(row)}
-      WHERE id = ${row.id}::uuid
+      WHERE id = ${row.id}::uuid AND card_source_hash IS NULL
     `;
   }
   return rows.length;
