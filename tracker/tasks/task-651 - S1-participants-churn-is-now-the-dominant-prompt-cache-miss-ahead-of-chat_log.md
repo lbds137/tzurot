@@ -248,4 +248,36 @@ of the shape rather than a traced value — confirm before designing the query.
 CARRIED FORWARD: the byte-equality acceptance test the owner decision states
 (render the roster twice, guild map populated vs absent, assert identical
 output) is unaffected by any of the above and remains the acceptance.
+
+## OPEN ITEM RESOLVED + WRITE SITE CORRECTED 2026-08-19 (read-only)
+
+1. `guildId` IS reachable at the ai-worker read site, and this is traced rather
+   than shape-read. Producer: `serverId: message.guild?.id` at
+   services/bot-client/src/services/MessageContextBuilder.ts:382 (so it is
+   absent in a DM, which is correct — no guild, no guild info). Declared on the
+   RAG context at services/ai-worker/src/services/ConversationalRAGTypes.ts:87,
+   forwarded at
+   services/ai-worker/src/jobs/handlers/pipeline/steps/conversationContextBuilder.ts:50,
+   and already SPENT as a guild id at
+   services/ai-worker/src/services/context/ContextAssembler.ts:242
+   (`guildId: jobContext.serverId ?? null`). So `context.serverId` sits next to
+   the pick site at MemoryRetriever.ts:496-498 with no new threading.
+
+2. THE WRITE SITES NAMED ABOVE ARE THE WRONG SERVICE. The storage-grounding
+   section names bot-client's `extractGuildInfo` / `rawActiveGuildMemberInfo`
+   as the write path. bot-client may NEVER touch Prisma (01-architecture.md), so
+   that shape needs a new gateway endpoint, and it would key by DISCORD id
+   because it runs BEFORE persona resolution — the stored key would then need
+   remapping on every read.
+
+   ai-worker already holds both halves of the row, post-resolution, in one
+   place: at the end of `mergeExtendedContext`
+   (ContextAssembler.ts:486-558) `participantGuildInfo` is keyed by persona
+   UUID and `location.guildId` is in hand. The active speaker's pair is
+   `activePersonaId` + `raw.rawActiveGuildMemberInfo` at ContextAssembler.ts:327.
+   ai-worker has Prisma. So the write belongs there: one site, both sources,
+   correct key, no new endpoint, no remap on read.
+
+   This does not change the owner's persist decision or the (persona_id,
+   guild_id) table — only which service performs the write.
 <!-- SECTION:DESCRIPTION:END -->
