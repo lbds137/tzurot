@@ -158,6 +158,16 @@ comment is the only thing holding that today, and this hash gates whether a paid
 model call fires — so a future key-list refactor should fail loudly rather than
 silently degrade collision resistance.
 
+Zero-width characters are deliberately NOT stripped by normalizeCardField,
+and the reviewer's suggestion to add them was declined on merit rather than
+deferred. U+200D (zero-width joiner) is semantically load-bearing — it binds
+emoji sequences and is a real letter-joining control in several scripts — so
+stripping the zero-width range would CHANGE content rather than normalize it,
+in a character set a character card is quite likely to contain. The cost of
+not stripping is one wasted regeneration if someone pastes a stray U+200B;
+the cost of stripping is silently corrupting an emoji or an Indic name. NFC
+already covers the composition cases that actually recur.
+
 Also settled in PR 1, so PR 2 inherits rather than re-decides: the checksum
 preserves CASE (a rename is a real staleness event for a blurb that names its
 character), normalizes to Unicode NFC, and collapses whitespace runs; null/undefined/empty/whitespace-only
