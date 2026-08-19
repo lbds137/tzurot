@@ -49,6 +49,14 @@ export interface GuildMemberObservation {
  * because it would replace a good stored row with the absence that causes the
  * flicker. It is distinguishable from a real member who merely holds no roles:
  * that member still carries `joinedAt`.
+ *
+ * The one case it CANNOT distinguish: a real member with no roles, no coloured
+ * role, and a `joinedAt` Discord did not supply (the uncached-member edge case
+ * the column's own schema comment names). That observation is indistinguishable
+ * from having seen nothing, so it is dropped. Self-healing rather than
+ * permanent — any later turn that resolves `joinedAt` writes the row — and the
+ * failure direction is the safe one: a dropped write leaves the previous value
+ * standing, where accepting it would erase one.
  */
 export function isEmptyGuildInfo(info: GuildMemberInfo): boolean {
   return info.roles.length === 0 && info.displayColor === undefined && info.joinedAt === undefined;
