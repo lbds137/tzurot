@@ -231,19 +231,48 @@ services/ai-worker/src/services/systemModel/systemModelCall.ts. Timeout and
 OpenRouter attribution suffix stay per-caller. Fact extraction keeps its own
 entry point; its provider tests moved with the code.
 
-STILL OPEN — the RENDER half, which is what keeps this task alive:
-- render rosterBlurb inside character_participant, with the per-entry IN-BAND
-  name-first frame (block-level framing alone is what failed the identity-bleed
-  incident) and a provenance attribute that is NOT source="user_input"
-- route the prose through escapeXmlContent — that is the moment
-  character_participant's PROTECTED_TAGS entry stops being inert
-- a turn racing an un-generated blurb must render name-only rather than block;
-  that acceptance clause is only trivially true while nothing renders, so it
-  needs a real assertion in the render PR
-- CharacterParticipant (jobs/utils/participantUtils.ts) is built from history
-  rows and carries no personality row, so the render PR must decide where the
-  blurb is fetched and cached — that is its main design question, and it sits
-  on the blocking path
+STILL OPEN — the RENDER half, which is what keeps this task alive. PR #2149
+shipped generation; nothing reads rosterBlurb yet.
+
+GROUNDING DONE 2026-08-19, so the render PR starts from these rather than
+rediscovering them:
+
+- FETCH IN ContextStep, NOT at render. PromptBuilder is a pure formatter
+  (constructed `new PromptBuilder()`, no Prisma anywhere), and
+  extractCharacterParticipants builds the roster from history rows that carry no
+  personality data. More decisively, the roster renders TWICE — once in
+  ContentBudgetManager's pre-pass measurement and once in the shipped prompt —
+  and that file already documents why the responder identity is built once
+  rather than twice ("the budget identity holds only if the two see identical
+  inputs"). A fetch at render time would run twice and any drift would corrupt
+  the token budget. ContextStep is where PreparedContext.rawConversationHistory
+  is already populated and where Prisma is available.
+- THREE read states, not two. An empty STRING means "generated, nothing to say"
+  (a blank card, stored deliberately so the sweep stops re-examining it). `'' !=
+  null` is true in JS, so guarding on null alone renders an empty description.
+  Treat null and '' alike: name-only. The schema comment now says this.
+- Sequencing test required: this is the shared-mutable-context seam from
+  02-code-standards (a pipeline step writing a field a later step reads), so ONE
+  test must run the steps in order. Avoid the `?? []` write-back shape the
+  existing `context.rawConversationHistory ?? []` reads use — it erases the
+  absent-vs-empty distinction "no blurbs yet" depends on.
+- No cache on the first cut. One fetch per turn over at most
+  MAX_ROSTER_CHARACTERS ids; adding a TTL cache before there is evidence it is
+  hot is the speculative-index mistake in a different costume.
+- Still to build: the per-entry IN-BAND name-first frame inside
+  character_participant (block-level framing alone is what failed the
+  identity-bleed incident), a provenance attribute that is NOT
+  source="user_input", routing the prose through escapeXmlContent (the moment
+  character_participant's PROTECTED_TAGS entry stops being inert), and a real
+  assertion that a turn racing an ungenerated blurb renders name-only rather
+  than blocking — that acceptance clause is only trivially true while nothing
+  renders.
+
+CARRIED NIT from the #2149 round-10 review, to fold into the render PR: the
+sweep's "does nothing at all when the runtime switch is off" test asserts
+queryRaw and the model invoker are not called, but not $executeRaw /
+personality.findMany — so it does not pin that stampMissingHashes is skipped.
+Two assertions; not a live bug, the enabled check does short-circuit first.
 
 OWNER DECISION PENDING before the release: rosterBlurbEnabled ships false.
 Turning it on is a corpus-wide spend event (bounded, but it works through every

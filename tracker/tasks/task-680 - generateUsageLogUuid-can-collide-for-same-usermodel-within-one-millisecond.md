@@ -20,9 +20,37 @@ Why: usage_logs ids derive from userId:model:millisecond-timestamp (packages/com
 
 Callers today: FactExtractionService.logExtractionUsage, AIJobProcessor, and rosterBlurbSweep.logUsage. Predates this work; the roster sweep is the first caller to write usage rows in a loop, which is what surfaced it.
 
-Why not fixed at the time: the fix changes an id-derivation function that dev/prod sync depends on being deterministic, so it is a semantic change rather than a nit, and every generation is separated by a real model call — same-millisecond is close to unreachable in practice. My recommendation at the time was to leave it; the owner had not ruled either way when this was filed.
+CORRECTION (2026-08-19, verified after this task was filed): the premise below
+was wrong, and it was the stated reason for the recommendation. `usage_logs` is
+in EXCLUDED_TABLES in services/api-gateway/src/services/sync/config/syncTables.ts
+-- "Environment-specific usage tracking", never synced. So changing the id
+derivation carries NO dev/prod sync risk. That cost is zero.
 
-Fix shape: add a discriminator to the seed so concurrent writers cannot collide. The candidates differ per caller (personalityId for extraction and roster blurbs, jobId for AIJobProcessor), so this needs one decision about the shared signature rather than a per-call-site patch. Verify against DatabaseSyncService before changing it — usage_logs id stability is what makes dev/prod reconciliation work.
+The recommendation to leave it survives for a better reason, found in the same
+check: the only path where a collision is realistically REACHABLE is
+AIJobProcessor (chat completions), because the main worker runs at
+WORKER_CONCURRENCY > 1 and multi-character fan-out produces several completions
+for one user on one model at nearly the same instant. That path already wraps
+its usage write in a retry loop with `const createdAt = new Date()` INSIDE the
+loop (AIJobProcessor.ts ~line 424), so a collision retries 100ms later with a
+different millisecond and a different id. It heals itself.
+
+The two loop-writing paths (FactExtractionService, rosterBlurbSweep) have no
+such retry, but every write is separated by a model call -- seconds of network
+round trip -- so the same millisecond is not reachable. The residual risk is the
+INTERSECTION of the two: a path where collisions are reachable AND unretried. No
+such path exists today.
+
+Promote when (sharper than the original): a new writer emits multiple usage rows
+in a tight loop with NO network call between them -- batching several rows after
+one batch API call, say. That is the only shape that makes collisions both
+reachable and unretried.
+
+Fix shape (also over-scoped originally): the cheap fix is for extraction and the
+roster sweep to adopt the same retry-with-fresh-timestamp pattern AIJobProcessor
+already uses. No signature change, no id-derivation change, no sync concern --
+the original "needs a signature-level decision about a discriminator" framing
+was built on the false sync premise above.
 
 Raised in the PR #2149 round-2 review and flagged again in round 3 as untracked; filed here because a PR-body mention is not a destination.
 <!-- SECTION:DESCRIPTION:END -->
