@@ -219,6 +219,39 @@ describe('sweepRosterBlurbs', () => {
     expect(written.data.model).toBe('model-in-force-when-the-call-started');
   });
 
+  it('keeps going when an empty-card write throws', async () => {
+    setSettings(true);
+    const empty = row({
+      id: '4f9b0f66-0000-4000-8000-0000000000a3',
+      name: null,
+      characterInfo: null,
+    });
+    const good = row({ id: '4f9b0f66-0000-4000-8000-0000000000a4' });
+    const { prisma, executeRaw } = makePrisma({ stale: [empty, good] });
+    executeRaw.mockRejectedValueOnce(new Error('write blip'));
+
+    const stats = await sweepRosterBlurbs(prisma, invokerReturning('{"blurb":"Ilana."}'));
+
+    // The empty-card store is a write like any other; its throw must cost its
+    // own row and not the rest of the tick.
+    expect(stats.failed).toBe(1);
+    expect(stats.generated).toBe(1);
+  });
+
+  it('keeps going when a backfill stamp write throws, and does not count it as stamped', async () => {
+    setSettings(true);
+    const a = row({ id: '4f9b0f66-0000-4000-8000-0000000000a5', cardSourceHash: null });
+    const b = row({ id: '4f9b0f66-0000-4000-8000-0000000000a6', cardSourceHash: null });
+    const { prisma, executeRaw } = makePrisma({ unstamped: [a, b] });
+    executeRaw.mockRejectedValueOnce(new Error('write blip'));
+
+    const stats = await sweepRosterBlurbs(prisma, invokerReturning('{"blurb":"x"}'));
+
+    // A failed write must not report as progress — otherwise a persistently
+    // failing row looks like a backfill that is draining.
+    expect(stats.stamped).toBe(1);
+  });
+
   it("keeps going when one row's model call throws", async () => {
     setSettings(true);
     const a = row({ id: '4f9b0f66-0000-4000-8000-0000000000a1' });

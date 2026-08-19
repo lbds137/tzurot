@@ -117,22 +117,32 @@ async function stampMissingHashes(prisma: PrismaClient): Promise<number> {
     take: STAMP_BATCH_SIZE,
   })) as CardRow[];
 
+  let stamped = 0;
   for (const row of rows) {
-    // The `IS NULL` guard is not redundant with the SELECT above. The batch is
-    // read once and written one row at a time, so a genuine edit can land on a
-    // row between its read and its turn — and that edit stamps correctly from
-    // its own returned row. Without the guard this loop would then overwrite
-    // the correct stamp with a hash of the pre-edit snapshot, leaving
-    // card_source_hash meaning something other than "the digest of this row's
-    // card" until the next edit. The guard makes the backfill a no-op against
-    // any row a real write reached first.
-    await prisma.$executeRaw`
-      UPDATE personalities
-      SET card_source_hash = ${hashRosterBlurbCard(row)}
-      WHERE id = ${row.id}::uuid AND card_source_hash IS NULL
-    `;
+    try {
+      // The `IS NULL` guard is not redundant with the SELECT above. The batch
+      // is read once and written one row at a time, so a genuine edit can land
+      // on a row between its read and its turn — and that edit stamps correctly
+      // from its own returned row. Without the guard this loop would then
+      // overwrite the correct stamp with a hash of the pre-edit snapshot,
+      // leaving card_source_hash meaning something other than "the digest of
+      // this row's card" until the next edit. The guard makes the backfill a
+      // no-op against any row a real write reached first.
+      await prisma.$executeRaw`
+        UPDATE personalities
+        SET card_source_hash = ${hashRosterBlurbCard(row)}
+        WHERE id = ${row.id}::uuid AND card_source_hash IS NULL
+      `;
+      stamped += 1;
+    } catch (error) {
+      // Same isolation as the generation loop: one row's write blip must not
+      // cost the tick. The row keeps its null hash and the next tick retries.
+      logger.warn({ err: error, personalityId: row.id }, 'Card hash stamp failed');
+    }
   }
-  return rows.length;
+  // Rows actually stamped, not rows examined — a failed write must not report
+  // as progress, or a persistently failing row looks like a draining backfill.
+  return stamped;
 }
 
 /**
@@ -274,29 +284,28 @@ export async function sweepRosterBlurbs(
       continue;
     }
 
-    // A card with nothing describable is marked current without a model call —
-    // paying for a blurb about nothing, once per tick forever, is the failure
-    // this short-circuit exists to prevent.
-    if (hash === EMPTY_ROSTER_BLURB_CARD_HASH) {
-      await storeBlurb(prisma, row.id, '', hash);
-      stats.stampedEmpty += 1;
-      continue;
-    }
-
-    // Per-row, so one flaky character cannot starve the rest of the tick. The
-    // throw shapes here are transient (rate limit, timeout, network) and the
-    // row stays stale, so the next tick retries it — unlike fact extraction,
-    // this job has nothing to lose by simply trying again, which is why it
-    // needs no busy-category classification of its own.
-    //
-    // No usage row on this path, deliberately: a throw carries no token counts,
-    // so there is nothing to bill. That under-reports a provider error that
-    // charged us anyway, which is the honest direction to be wrong in.
-    // The whole per-row unit, not just the model call: a throw from the STORE
-    // aborted the loop just as thoroughly, which contradicted the isolation
-    // this try/catch exists to provide.
+    // EVERY per-row action sits inside this try, including the empty-card
+    // write. An earlier revision guarded only the model call, then only the
+    // generation branch — leaving the empty-card store outside, where a blipped
+    // write escaped the loop and cost the rest of the tick. The isolation this
+    // provides is worth nothing if it is not uniform, so the shape to keep is
+    // "one try around the whole row", not "a try around the risky-looking bit".
     try {
+      // A card with nothing describable is marked current without a model call
+      // — paying for a blurb about nothing, once per tick forever, is the
+      // failure this short-circuit exists to prevent.
+      if (hash === EMPTY_ROSTER_BLURB_CARD_HASH) {
+        await storeBlurb(prisma, row.id, '', hash);
+        stats.stampedEmpty += 1;
+        continue;
+      }
+
       const { blurb, usage } = await generateRosterBlurb(row, invokeModel);
+      // Billed BEFORE the store, and deliberately: the tokens are spent either
+      // way, so a store failure must not erase the record of what it cost. If
+      // the store then fails, the next tick regenerates and writes a second
+      // usage row — which is accurate, not double-counting, because the model
+      // genuinely ran twice.
       await logUsage(prisma, row.ownerId, usage, row.id);
       if (blurb === null) {
         stats.failed += 1;
@@ -306,9 +315,9 @@ export async function sweepRosterBlurbs(
       stats.generated += 1;
     } catch (error) {
       // Transient by shape (rate limit, timeout, network, a blipped write) and
-      // the row stays stale, so the next tick retries it. No usage row on a
-      // throw from the model call: it carries no token counts, so there is
-      // nothing to bill.
+      // the row stays stale, so the next tick retries it. No usage row when the
+      // MODEL call throws: it carries no token counts, so there is nothing to
+      // bill.
       logger.warn({ err: error, personalityId: row.id }, 'Roster blurb row failed');
       stats.failed += 1;
     }
