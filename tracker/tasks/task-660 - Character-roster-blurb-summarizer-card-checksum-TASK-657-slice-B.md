@@ -131,4 +131,17 @@ PROTECTED_TAGS (packages/common-types/src/utils/promptSanitizer.ts:89), and
 DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH is what persona content is bounded by.
 Path correction only: that bound lives at
 packages/common-types/src/schemas/api/persona.ts:239, not under types/schemas/.
+
+## PR 1 landed (#2148) — note carried forward for PR 2
+
+hashCharacterCard accepts `string | null | undefined` only. birthMonth/Day/Year
+are `Int?` on the model, so if any of them enters the summarizer's input set the
+call site must convert explicitly — there is no implicit numeric coercion and
+the compiler will say so. Raised by the PR 1 review; no fix needed in PR 1
+because no caller existed yet.
+
+Also settled in PR 1, so PR 2 inherits rather than re-decides: the checksum
+preserves CASE (a rename is a real staleness event for a blurb that names its
+character) and collapses whitespace runs; null/undefined/empty/whitespace-only
+are one absent state.
 <!-- SECTION:DESCRIPTION:END -->
