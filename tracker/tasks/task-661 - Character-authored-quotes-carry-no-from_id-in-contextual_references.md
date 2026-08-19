@@ -47,4 +47,38 @@ path. Both the from_id emission and the role decision then key on it. Filing
 these as two tasks would have split one schema change across two owners.
 
 Acceptance: a character-authored quote in contextual_references carries a from_id that resolves to a character_participant entry, AND its role attribute is decided by personality id rather than by name; a renamed personality's own quoted lines still read as role="assistant"; tests pin the user-authored and self-authored cases unchanged, and the id-less fallback keeps today's name behaviour.
+
+## GROUNDING 2026-08-18 (read-only, while #2145 was in CI) — three things the filing does not say
+
+1. STALE PROSE THIS TASK SHOULD FIX, created by slice A shipping.
+packages/common-types/src/types/schemas/message.ts:205 still says of
+forwardedFrom.authorPersonalityId: "It does not bind to a roster entry yet
+either, because characters are not in `<participants>` until TASK-657 -- but it
+is the value that becomes correct when they are." Slice A SHIPPED in #2143, so
+characters ARE in the roster and that binding now works. The comment asserts the
+opposite of the current behaviour. Same file and same field this task edits, so
+fix it here rather than filing it separately.
+
+2. NAMING DRIFT, same sweep.
+services/ai-worker/src/services/prompt/ParticipantFormatter.ts:339 refers to
+"TASK-657 slice B". Slice B became TASK-660 when it was split into its own unit.
+
+Both found by grepping `TASK-657|until TASK|characters are not in` after
+noticing the first one. Nothing else in the tree matched, so the sweep is
+complete as of eea6191df.
+
+3. A PRIVACY CONSTRAINT THE FIX SHAPE OMITS.
+forwardedFrom is the precedent this task copies, and it is deliberately
+ASYMMETRIC about access (see the docstring on forwardedOriginSchema.authorName,
+message.ts:178-193): authorName resolves through the BOT's channel access, but
+authorPersonalityId gates on the FORWARDER's, to keep the "Reply Loophole"
+closed. The reasoning: Discord's forward feature already shows the forwarder the
+message text, so a display name adds nothing they cannot read -- but a
+personality id NAMES A CHARACTER THEY MAY HAVE NO ACCESS TO.
+
+A quoted message is the same situation. So authorPersonalityId on
+StoredReferencedMessage must replicate the gating, not just the field. The
+current "Fix shape" says "give the live reference path the same two-id-space
+treatment", which reads as a pure mechanical port and would silently drop the
+access check. Do not port the field without the gate.
 <!-- SECTION:DESCRIPTION:END -->

@@ -1,9 +1,10 @@
 ---
 id: TASK-658
 title: writeTriggerReferences read-modify-write can drop a sibling metadata key
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 14:10'
+updated_date: '2026-08-19 00:24'
 labels:
   - 'area:db'
   - 'size:M'
