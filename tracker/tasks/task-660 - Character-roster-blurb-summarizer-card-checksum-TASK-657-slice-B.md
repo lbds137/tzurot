@@ -172,4 +172,60 @@ Also settled in PR 1, so PR 2 inherits rather than re-decides: the checksum
 preserves CASE (a rename is a real staleness event for a blurb that names its
 character), normalizes to Unicode NFC, and collapses whitespace runs; null/undefined/empty/whitespace-only
 are one absent state.
+
+## PR #2149 landed the GENERATION half — what is settled, and what remains
+
+The field set is decided and lives in
+services/ai-worker/src/services/rosterBlurb/rosterBlurbPrompt.ts, which owns
+BOTH the checksum's entry keys and the prompt's inputs so they cannot drift.
+IN: name, displayName, characterInfo, personalityTraits, personalityTone,
+personalityAge, personalityAppearance, personalityLikes, personalityDislikes,
+conversationalGoals. OUT with reasons: conversationalExamples (verbatim
+first-person dialogue invites quoting — removing the material beats prompting
+against it), errorMessage (cannot appear in a description), customFields (no
+register guarantee), birthMonth/Day/Year (personalityAge covers it in prose;
+also Int? where the hash takes strings). Do not re-open this set without
+re-reading the per-field drift test that pins it.
+
+DELIBERATE DEVIATION from this task's stated fix shape, with the reason: the
+fix shape said "enqueue on mismatch" at render time. Shipped instead as a
+scheduled sweep (SCHEDULED_JOBS.ROSTER_BLURB_SWEEP, every 10 min,
+services/ai-worker/src/jobs/rosterBlurbSweep.ts). Hashing at prompt-build time
+would put a card-wide fetch on EVERY turn's blocking path to detect a change
+that only occurs when a human edits a character. Cost of the deviation: a blurb
+can be up to one tick stale — which is the state the render half must degrade
+around regardless. Bounded at 10 model calls per tick; off by default behind
+the new rosterBlurbEnabled system setting.
+
+Blurb writes go through prisma.$executeRaw, NOT update(): personalities is
+sync-tracked and dev<->prod reconciles last-write-wins on updated_at
+(03-database.md), so a client-level write would let a generated blurb win the
+next sync over a genuine card edit made in the other environment. Consequence
+accepted: blurbs do not propagate across environments; each env's sweep
+generates its own.
+
+REUSE landed alongside (standing owner instruction): invokeExtractionModel's
+provider routing and client construction moved to
+services/ai-worker/src/services/systemModel/systemModelCall.ts. Timeout and
+OpenRouter attribution suffix stay per-caller. Fact extraction keeps its own
+entry point; its provider tests moved with the code.
+
+STILL OPEN — the RENDER half, which is what keeps this task alive:
+- render rosterBlurb inside character_participant, with the per-entry IN-BAND
+  name-first frame (block-level framing alone is what failed the identity-bleed
+  incident) and a provenance attribute that is NOT source="user_input"
+- route the prose through escapeXmlContent — that is the moment
+  character_participant's PROTECTED_TAGS entry stops being inert
+- a turn racing an un-generated blurb must render name-only rather than block;
+  that acceptance clause is only trivially true while nothing renders, so it
+  needs a real assertion in the render PR
+- CharacterParticipant (jobs/utils/participantUtils.ts) is built from history
+  rows and carries no personality row, so the render PR must decide where the
+  blurb is fetched and cached — that is its main design question, and it sits
+  on the blocking path
+
+OWNER DECISION PENDING before the release: rosterBlurbEnabled ships false.
+Turning it on is a corpus-wide spend event (bounded, but it works through every
+character). Recommend flipping it in dev first, after the render half lands, so
+real generated blurbs can be read before prod.
 <!-- SECTION:DESCRIPTION:END -->
