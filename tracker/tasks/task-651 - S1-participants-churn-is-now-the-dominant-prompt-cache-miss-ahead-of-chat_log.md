@@ -55,4 +55,65 @@ cached-token figure, and no other `ops cache:*` command does either (checked via
 therefore needs the diagnostic payload's cacheHitRatio, not this command.
 
 Acceptance: the cause of the S1 participants delta between consecutive same-channel generations is identified and named, and either fixed or ruled out with a recorded reason. The cause must be attributed between a genuinely NEW participant (benign, unavoidable, one-time per arrival) and pure window-slide rotation (waste) -- only the second is worth fixing.
+
+## CAUSE IDENTIFIED 2026-08-19 — a field flickers on an EXISTING entry
+
+Read with the new `cache:prefix-diff --show-divergence` (#2146; the instrument
+gap was that the tool named the SECTION and could not show the change). The
+S1-diverging pair on channel 1481138179917615144 breaks in the MIDDLE of one
+participant element: same participant id, same rendered name, same roster
+position, and `<guild_info>` present in the newer prompt while absent in the
+older one. Identifiers withheld here on purpose -- `tracker/` is a public repo
+surface and the window is verbatim prompt text.
+
+So the acceptance criterion's two-way attribution has no bucket for this. It is
+neither a genuinely NEW participant nor window-slide eviction of one: nobody
+enters or leaves. It is unambiguously the WASTE side -- three lines of Discord
+role metadata cost the entire prefix from offset 30,894 onward, roughly 78k
+chars of chat_log.
+
+WHY the two halves can disagree, which is the actual defect:
+
+- roster MEMBERSHIP comes from DB history -- `extractParticipants(historyEntries, ...)`
+  at services/ai-worker/src/jobs/handlers/pipeline/steps/ContextStep.ts:217.
+- the entry's `<guild_info>` comes from a DIFFERENT source, the extended-context
+  Discord fetch, collected at services/bot-client/src/services/DiscordChannelFetcher.ts:289
+  and gated on `msg.member`.
+
+Two windows, one block. A participant holds their roster seat via the DB while
+their guild metadata is sourced from a shorter, per-turn Discord fetch.
+
+TWO code-level candidates for the flip, NOT discriminated at runtime -- the
+EFFECT is runtime-confirmed, this half is code-reading only:
+(a) the participant has no message inside the extended-context fetch window on
+    that turn, so nothing to extract from;
+(b) `msg.member` is null because discord.js had no cached GuildMember at that
+    moment, so the `&& msg.member` guard skips collection.
+Both are per-turn and neither tracks roster membership. The fix does not depend
+on which fires, so discriminating them is optional, not blocking.
+
+FIX SHAPE -- this IS the "move the volatile part down a stability tier" the
+original filing asked for, and the tier is not the problem so much as the
+SOURCE. `<guild_info>` is decoration (roles, colour, join date) drawn from a
+volatile per-turn fetch and rendered into the single most cache-sensitive block
+in the prompt. Options, owner call because it trades information for cost:
+1. drop `<guild_info>` from `<participants>` entirely -- simplest, and its
+   informational value to a character is arguably low;
+2. persist a last-known value per participant so the rendered bytes are stable
+   whether or not this turn's fetch saw them -- keeps the information, costs a
+   write path;
+3. keep it but render it only when it can be rendered on EVERY turn, which in
+   practice means (2).
+Do not "fix" this by widening the extended-context window: that makes the flip
+rarer without making it deterministic, which is the worst of both.
+
+Note ParticipantFormatter's module docstring already states the invariant this
+violates -- every byte it emits must derive from the roster alone. `guild_info`
+derives from a per-turn fetch, so the invariant was already false when written;
+it was reasoned about per-SPEAKER and never per-FETCH.
+
+MEASUREMENT CAVEAT, now resolvable: the "no cached-token figure" note above is
+answered by TASK-643, which names the payload paths -- `llmResponse.promptTokens`
+and `llmResponse.cachedPromptTokens` at the TOP level of llmResponse, not nested
+under `usage`. Convert through those rather than re-deriving.
 <!-- SECTION:DESCRIPTION:END -->
