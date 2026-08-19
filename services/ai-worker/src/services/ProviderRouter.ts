@@ -36,6 +36,7 @@
 
 import {
   AIProvider,
+  isFreeModel,
   isZaiCodingPlanModel,
   ZAI_MODEL_PREFIX,
 } from '@tzurot/common-types/constants/ai';
@@ -351,6 +352,16 @@ export class ProviderRouter {
  * explicit case before the OpenRouter default.
  */
 export function detectVisionProvider(modelName: string): AIProvider {
+  // `:free` is OpenRouter's free-variant suffix and has no counterpart on
+  // z.ai's own API, so a `z-ai/<model>:free` id names an OpenRouter-HOSTED
+  // model that merely lives in z.ai's namespace. Checked before the prefix
+  // rule because the prefix alone would send it to the coding-plan endpoint,
+  // which has never heard of it. Reachable in guest mode: `selectVisionModel`
+  // returns the main model when it has vision support, and a `:free` main
+  // model skips the guest free-force because it already IS free.
+  if (isFreeModel(modelName)) {
+    return AIProvider.OpenRouter;
+  }
   if (modelName.startsWith(ZAI_MODEL_PREFIX)) {
     return AIProvider.ZaiCoding;
   }
