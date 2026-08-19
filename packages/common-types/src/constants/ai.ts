@@ -284,10 +284,14 @@ export const TTS_VOICE_NAME_PREFIX = 'tzurot-';
  * stay synchronized when z.ai's catalog changes.
  *
  * The available-model list lives in `ZAI_MODEL_CATALOG` below — a second
- * enumeration here would go stale silently. GLM-4.5-Air is the
- * Haiku-equivalent tier with 1× quota multiplier — the cheapest probe option.
+ * enumeration here would go stale silently. GLM-4.7 is the cheapest model
+ * z.ai still documents (Input 4.6 / Output 16, against GLM-5-Turbo's 5.7 / 21),
+ * and a validation probe spends a single token regardless. This named
+ * GLM-4.5-Air until a probe showed z.ai rerouting that id to GLM-4.7 anyway —
+ * the request was already going to the same model, only under a name z.ai no
+ * longer publishes.
  */
-export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
+export const ZAI_VALIDATION_MODEL = 'glm-4.7';
 
 /**
  * Catalog of models served by z.ai's GLM Coding Plan endpoint
@@ -424,6 +428,13 @@ const ZAI_MODEL_CATALOG: Readonly<
   // the same page as the regular glm-4.5; no per-model URL exists.
   // `thinkingOff: 'honored'` is MEASURED: a live request with thinking disabled
   // returned zero reasoning tokens.
+  //
+  // RETIRED UPSTREAM: z.ai now serves this id as glm-4.7 (probed — requesting
+  // `glm-4.5-air` responds `model: glm-4.7`), and no longer lists it. The entry
+  // stays so existing presets still resolve a context length and docs URL, but
+  // every value below describes a model no longer distinctly served — including
+  // the measurement above, taken when the id still reached Air. Anything
+  // reasoning about what actually runs should read glm-4.7's entry.
   'glm-4.5-air': {
     docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5',
     contextLength: 128_000,
@@ -681,17 +692,33 @@ export function isFreeModel(modelId: string): boolean {
 
 /**
  * The ONE coding-plan model shareable with free users (the z.ai free-tier
- * piggyback): GLM-4.5-Air bills at the plan's cheapest 1x multiplier. Scope
- * is deliberately a single model — widening it is an owner decision, not a
- * config knob.
+ * piggyback). Scope is deliberately a single model — widening it is an owner
+ * decision, not a config knob.
+ *
+ * This named GLM-4.5-Air until a live probe showed z.ai serving `glm-4.5-air`
+ * requests as `glm-4.7` (requested air → responded 4.7; requested 4.7 →
+ * responded 4.7). z.ai's own docs no longer list Air and describe automatic
+ * rerouting of retired models, so Air is an alias rather than a model we can
+ * still reach. Naming the served model directly costs nothing — it is the same
+ * upstream request — and fixes two things the old name got wrong: the context
+ * cap resolved from {@link ZAI_MODEL_CATALOG} (128K for Air vs the 200K
+ * actually available) and the thinking-support flag.
  */
-export const ZAI_FREE_TIER_MODEL = 'glm-4.5-air';
+export const ZAI_FREE_TIER_MODEL = 'glm-4.7';
+
+/**
+ * The retired id that z.ai reroutes to {@link ZAI_FREE_TIER_MODEL}. Still
+ * recognized so a preset or free-default config written before the rename
+ * keeps qualifying for the piggyback instead of silently dropping to the free
+ * router — the upstream request is identical either way.
+ */
+const ZAI_FREE_TIER_LEGACY_ALIAS = 'glm-4.5-air';
 
 /** True for the piggyback model in bare or `z-ai/`-prefixed form. */
 export function isZaiFreeTierModel(modelId: string): boolean {
   const lower = modelId.toLowerCase();
   const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
-  return bare === ZAI_FREE_TIER_MODEL;
+  return bare === ZAI_FREE_TIER_MODEL || bare === ZAI_FREE_TIER_LEGACY_ALIAS;
 }
 
 /**
