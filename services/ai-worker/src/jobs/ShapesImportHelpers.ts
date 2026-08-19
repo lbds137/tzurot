@@ -77,37 +77,44 @@ async function upsertPersonality(
 ): Promise<void> {
   const customFieldsJson = (mapped.personality.customFields ?? undefined) as
     Prisma.InputJsonValue | undefined;
-  const row = await prisma.personality.upsert({
-    where: { slug: mapped.personality.slug },
-    create: {
-      ...mapped.personality,
-      customFields: customFieldsJson,
-      ownerId,
-      systemPromptId: mapped.systemPrompt.id,
-    },
-    update: {
-      characterInfo: mapped.personality.characterInfo,
-      personalityTraits: mapped.personality.personalityTraits,
-      personalityTone: mapped.personality.personalityTone,
-      personalityAge: mapped.personality.personalityAge,
-      personalityAppearance: mapped.personality.personalityAppearance,
-      personalityLikes: mapped.personality.personalityLikes,
-      personalityDislikes: mapped.personality.personalityDislikes,
-      conversationalGoals: mapped.personality.conversationalGoals,
-      conversationalExamples: mapped.personality.conversationalExamples,
-      errorMessage: mapped.personality.errorMessage,
-      birthMonth: mapped.personality.birthMonth,
-      birthDay: mapped.personality.birthDay,
-      birthYear: mapped.personality.birthYear,
-      customFields: customFieldsJson,
-      systemPromptId: mapped.systemPrompt.id,
-    },
+  // Transaction-scoped like the four api-gateway write paths, and for a sharper
+  // reason on the UPDATE branch: a re-import that crashed between the two
+  // statements would leave the row carrying its PREVIOUS card hash rather than
+  // null, and the sweep's stamping pass only heals nulls — so that row would
+  // look current forever while describing an older card.
+  await prisma.$transaction(async tx => {
+    const row = await tx.personality.upsert({
+      where: { slug: mapped.personality.slug },
+      create: {
+        ...mapped.personality,
+        customFields: customFieldsJson,
+        ownerId,
+        systemPromptId: mapped.systemPrompt.id,
+      },
+      update: {
+        characterInfo: mapped.personality.characterInfo,
+        personalityTraits: mapped.personality.personalityTraits,
+        personalityTone: mapped.personality.personalityTone,
+        personalityAge: mapped.personality.personalityAge,
+        personalityAppearance: mapped.personality.personalityAppearance,
+        personalityLikes: mapped.personality.personalityLikes,
+        personalityDislikes: mapped.personality.personalityDislikes,
+        conversationalGoals: mapped.personality.conversationalGoals,
+        conversationalExamples: mapped.personality.conversationalExamples,
+        errorMessage: mapped.personality.errorMessage,
+        birthMonth: mapped.personality.birthMonth,
+        birthDay: mapped.personality.birthDay,
+        birthYear: mapped.personality.birthYear,
+        customFields: customFieldsJson,
+        systemPromptId: mapped.systemPrompt.id,
+      },
+    });
+    // An import writes a whole card, so it is a card write like any other and
+    // must stamp. Missing it would leave every imported character's blurb
+    // pinned to whatever the card was at its FIRST import, silently, since the
+    // sweep would see the two hashes agree.
+    await stampCardSourceHash(tx, row.id, row);
   });
-  // An import writes a whole card, so it is a card write like any other and
-  // must stamp. Missing it here would leave every imported character's blurb
-  // pinned to whatever the card was at its FIRST import, silently, since the
-  // sweep would see the two hashes agree.
-  await stampCardSourceHash(prisma, row.id, row);
 }
 
 async function upsertLlmConfig(
