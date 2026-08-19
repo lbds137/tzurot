@@ -26,15 +26,13 @@ import {
   type LLMGenerationJobData,
 } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
-import { UserService, PersonaResolver } from '@tzurot/identity';
 import { createTestPGlite, loadPGliteSchema, loadContractFixture } from '@tzurot/test-utils';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { ContextAssembler } from '../../../services/context/ContextAssembler.js';
-import { PrismaContextDataSource } from '../../../services/context/PrismaContextDataSource.js';
 import { ValidationStep } from './steps/ValidationStep.js';
 import { NormalizationStep } from './steps/NormalizationStep.js';
-import { ContextStep } from './steps/ContextStep.js';
+import type { ContextStep } from './steps/ContextStep.js';
+import { buildContextStep } from './contextStepFactory.js';
 import { DependencyStep } from './steps/DependencyStep.js';
 import type { GenerationContext } from './types.js';
 
@@ -78,16 +76,14 @@ describe('BullMQ job-chain contract — consumer pipeline over PGLite', () => {
     await pglite.exec(loadPGliteSchema());
     prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) }) as PrismaClient;
 
-    // Exactly the production wiring (LLMGenerationHandler.buildContextStep):
-    // real data source + assembler; the assembler creates users/personas
-    // on first contact, so the fixture's ids need no pre-seeding.
-    contextStep = new ContextStep(
-      new ContextAssembler({
-        dataSource: new PrismaContextDataSource(prisma),
-        userService: new UserService(prisma),
-        personaResolver: new PersonaResolver(prisma),
-      })
-    );
+    // The production wiring ITSELF, not a copy of it. This used to rebuild the
+    // step by hand under a comment claiming fidelity, and the copy drifted:
+    // it missed the data source the roster-blurb fetch reads, and built its own
+    // UserService where production goes through getOrCreateUserService. A
+    // comment cannot notice a new constructor argument, so the shared factory
+    // is what keeps this honest — the assembler still creates users/personas on
+    // first contact, so the fixture's ids need no pre-seeding.
+    contextStep = buildContextStep(prisma);
   });
 
   afterAll(async () => {

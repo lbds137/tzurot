@@ -9,10 +9,13 @@ import { type MessageRole } from '@tzurot/common-types/constants/message';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import {
   extractParticipants,
   convertConversationHistory,
 } from '../../../utils/conversationUtils.js';
+import { extractCharacterParticipants } from '../../../utils/participantUtils.js';
+import type { ContextDataSource } from '../../../../services/context/types.js';
 import type {
   AssembledCore,
   ContextAssembler,
@@ -100,6 +103,14 @@ type PromptHistorySource = {
   createdAt?: string;
   personaId?: string;
   personaName?: string;
+  /**
+   * Declared because the assembler's rows carry it and this path reads it:
+   * `extractCharacterParticipants` keys the sibling roster on `personalityId`,
+   * and a shape that omitted it would have made every row look sibling-less to
+   * the compiler while carrying a real id at runtime.
+   */
+  personalityId?: string;
+  personalityName?: string;
 }[];
 
 /**
@@ -133,7 +144,10 @@ function extractTimestamp(timestamp: string | Date | undefined | null): number |
 export class ContextStep implements IPipelineStep {
   readonly name = 'ContextPreparation';
 
-  constructor(private readonly contextAssembler?: ContextAssembler) {}
+  constructor(
+    private readonly contextAssembler?: ContextAssembler,
+    private readonly dataSource?: ContextDataSource
+  ) {}
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, config } = context;
@@ -229,6 +243,8 @@ export class ContextStep implements IPipelineStep {
     // Pass cross-channel history through to pipeline (structurally compatible)
     const crossChannelHistory = jobContext.crossChannelHistory;
 
+    const characterBlurbs = await this.fetchCharacterBlurbs(historyEntries, personality);
+
     const preparedContext: PreparedContext = {
       conversationHistory,
       rawConversationHistory: historyEntries,
@@ -236,6 +252,7 @@ export class ContextStep implements IPipelineStep {
       nonHistoryOldestTimestamp,
       participants: allParticipants,
       crossChannelHistory,
+      characterBlurbs,
     };
 
     // Race-window telemetry: if the bot-client queried DB for history BEFORE
@@ -259,6 +276,58 @@ export class ContextStep implements IPipelineStep {
       ...context,
       preparedContext,
     };
+  }
+
+  /**
+   * Fetch the sibling characters' generated roster blurbs.
+   *
+   * HERE rather than at render time, and that placement is the load-bearing
+   * part. `PromptBuilder` is a pure formatter with no Prisma, and the roster
+   * renders TWICE per turn — once in `ContentBudgetManager`'s pre-pass
+   * measurement and once in the shipped prompt. A fetch at render time would
+   * run twice, and any drift between the two answers would corrupt the token
+   * budget, which holds only while both passes see identical inputs.
+   *
+   * The roster is derived with `extractCharacterParticipants` over the SAME
+   * array the prompt builder will read (`PreparedContext.rawConversationHistory`),
+   * so the two agree by construction rather than by a duplicated membership
+   * rule. Should they ever diverge anyway, the failure is a missing blurb —
+   * name-only, the un-generated state — never a wrong one.
+   *
+   * Gated on `rosterBlurbEnabled` FIRST, the same live switch the generator
+   * sweep reads: the flag is the feature's kill switch, so turning it off stops
+   * rendering already-stored blurbs as well as stopping new spend. Off also
+   * means no query at all. The data-source guard behind it is a wiring check
+   * for callers that construct the step without one (unit tests, direct
+   * dispatch); production always wires it — see `buildContextStep`.
+   *
+   * A fetch failure degrades to name-only rather than failing the turn. The
+   * blurb is an enrichment; losing it costs a sentence of context, and the
+   * roster (names + ids, which `from_id` binding depends on) is unaffected.
+   */
+  private async fetchCharacterBlurbs(
+    history: PromptHistorySource,
+    personality: { id?: string; name: string }
+  ): Promise<Record<string, string> | undefined> {
+    if (getSystemSetting('rosterBlurbEnabled') !== true || this.dataSource === undefined) {
+      return undefined;
+    }
+    const ids = extractCharacterParticipants(history, personality.name, personality.id).map(
+      character => character.personalityId
+    );
+    if (ids.length === 0) {
+      return undefined;
+    }
+    try {
+      const blurbs = await this.dataSource.getRosterBlurbsByIds(ids);
+      return blurbs.size > 0 ? Object.fromEntries(blurbs) : undefined;
+    } catch (err) {
+      logger.warn(
+        { err, rosterSize: ids.length },
+        'Roster-blurb fetch failed; rendering name-only'
+      );
+      return undefined;
+    }
   }
 
   /**

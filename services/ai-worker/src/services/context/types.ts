@@ -93,6 +93,18 @@ export interface ContextDataSource {
   getPersonalityNamesByIds(ids: string[]): Promise<Map<string, string>>;
 
   /**
+   * Generated roster blurbs keyed by personality id, for the ids present.
+   *
+   * ONLY renderable blurbs are returned. The column has three states — null
+   * (never generated), `''` (generated, the card had nothing describable), and
+   * real prose — and the first two render identically (name-only), so they are
+   * collapsed into "absent from the map" here rather than at every reader.
+   * `''` reaching a renderer that guards on null alone would emit an empty
+   * description, which is the specific bug that collapse prevents.
+   */
+  getRosterBlurbsByIds(ids: string[]): Promise<Map<string, string>>;
+
+  /**
    * Persisted user identities keyed by Discord message id, for relay-echo
    * recovery. A `/chat` relay-echo (the bot reposting user input as
    * `**Name:** …`) is bot-authored, so the extended-context fetch can't see the

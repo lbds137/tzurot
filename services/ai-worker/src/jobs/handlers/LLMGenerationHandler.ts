@@ -30,15 +30,12 @@ import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
-import { getOrCreateUserService, PersonaResolver } from '@tzurot/identity';
 import type {
   LlmConfigResolver,
   TtsConfigResolver,
   ConfigCascadeResolver,
   SttResolver,
 } from '@tzurot/config-resolver';
-import { PrismaContextDataSource } from '../../services/context/PrismaContextDataSource.js';
-import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
 import { type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import {
@@ -52,6 +49,7 @@ import { type QuotaFallbackCaches } from '../../services/quotaFallback.js';
 import { type QuotaFallbackDeps } from './pipeline/steps/quotaFallbackRunner.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
+import { buildContextStep } from './pipeline/contextStepFactory.js';
 import {
   type IPipelineStep,
   type GenerationContext,
@@ -60,7 +58,6 @@ import {
   DependencyStep,
   ConfigStep,
   AuthStep,
-  ContextStep,
   ExtendedContextResolutionStep,
   DownloadAttachmentsStep,
   GenerationStep,
@@ -197,7 +194,7 @@ export class LLMGenerationHandler {
       // Handler (and thus this pipeline) is constructed once at worker
       // startup — the data source, assembler, and their wrapped services are
       // constructed once here, not re-allocated per job.
-      this.buildContextStep(prisma),
+      buildContextStep(prisma),
       new GenerationStep(ragService, prisma, embeddingService, quotaFallbackDeps, {
         freeTierQuota: freeTierRequestQuota,
         onZaiFreeTierFailure: zaiFreeTierFailureReactor,
@@ -313,21 +310,6 @@ export class LLMGenerationHandler {
         },
       };
     }
-  }
-
-  /**
-   * Construct the ContextStep — the sole context-hydration path: the
-   * hydration data source plus the context assembler (user/persona
-   * re-derivation + shared history merge against the raw envelope).
-   */
-  private buildContextStep(prisma: PrismaClient): ContextStep {
-    const dataSource = new PrismaContextDataSource(prisma);
-    const assembler = new ContextAssembler({
-      dataSource,
-      userService: getOrCreateUserService(prisma),
-      personaResolver: new PersonaResolver(prisma),
-    });
-    return new ContextStep(assembler);
   }
 
   /**

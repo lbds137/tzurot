@@ -35,7 +35,7 @@ export const SystemSettingsSchema = z.object({
   extractionEnabled: z.boolean(),
   /** Inject extracted facts into the generation prompt. */
   factsInPromptEnabled: z.boolean(),
-  /** Runtime switch for the roster-blurb summarizer sweep (checked per sweep tick). */
+  /** Runtime switch for character roster blurbs: the summarizer sweep AND rendering them in the prompt. */
   rosterBlurbEnabled: z.boolean(),
   /** Share GLM-4.5-Air with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
@@ -196,8 +196,9 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
   },
   rosterBlurbEnabled: {
     key: 'rosterBlurbEnabled',
-    label: 'Roster Blurb Generation',
-    description: 'Runtime switch for the roster-blurb summarizer sweep (checked per sweep tick).',
+    label: 'Character Roster Blurbs',
+    description:
+      'Runtime switch for character roster blurbs: the summarizer sweep (per tick) and rendering them in the prompt (per turn). Off stops new spend AND hides stored blurbs.',
     group: GROUP_EXTRACTION,
     control: 'boolean',
     liveness: 'live',

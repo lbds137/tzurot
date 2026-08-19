@@ -123,6 +123,20 @@ export interface ConversationContext {
       joinedAt?: string;
     }
   >;
+  /**
+   * Generated third-person blurbs for the sibling AI characters in the roster,
+   * keyed by personality id. Populated by `ContextStep` — never fetched at
+   * render time, because the roster is rendered twice per turn (the budget
+   * pre-pass and the shipped prompt) and the budget identity holds only while
+   * both see identical inputs.
+   *
+   * An id absent from this record renders name-only. Absence deliberately
+   * collapses three upstream states that are indistinguishable to a reader —
+   * never generated (`rosterBlurb` null), generated with nothing to say
+   * (`rosterBlurb` `''`), and the feature switched off — so no consumer has to
+   * remember that `'' != null` is true in JS.
+   */
+  characterBlurbs?: Record<string, string>;
   conversationHistory?: BaseMessage[];
   rawConversationHistory?: {
     /** Message ID - for extended context messages this IS the Discord message ID */

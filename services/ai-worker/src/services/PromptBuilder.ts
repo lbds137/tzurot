@@ -319,7 +319,8 @@ ${escapeXmlContent(persona)}
     const participantsSection = formatParticipantsContext(
       participantPersonas,
       personality.name,
-      characters
+      characters,
+      context.characterBlurbs
     );
 
     // Conversation history as XML (legend lives in buildChatLogSection)
