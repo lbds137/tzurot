@@ -136,10 +136,36 @@ Binding consequences for whoever builds it:
   If that row is sync-tracked, 03-database.md's LWW rule applies: write it via
   $executeRaw so it does not bump updated_at and hand this env the next
   dev/prod sync. Check syncTables.ts before choosing the column's home.
-- Staleness is acceptable BY CONSTRUCTION here — a last-known role list that is
-  a few turns old is strictly better than one that vanishes, because the whole
-  defect is the vanishing. Do not add a TTL to "keep it fresh"; a TTL
-  reintroduces exactly the flicker this removes, on a slower clock.
+- ANTI-ROT IS A REQUIREMENT, not an afterthought (owner, same conversation:
+  "that last known value needs to be kept from rotting to the best of our
+  ability"). The bullet that stood here first said staleness was acceptable by
+  construction; that was too permissive and is corrected.
+
+  The distinction that makes both goals reachable at once: EXPIRY DELETES,
+  REFRESH REPLACES. A TTL is the wrong tool because it makes the value VANISH
+  when it lapses, which is the exact flicker being removed, just on a slower
+  clock. Refreshing has no such failure mode — the value is only ever
+  overwritten by a newer observation, never emptied.
+
+  So the design is WRITE-THROUGH ON EVERY OBSERVATION: any turn whose
+  extended-context fetch does see the member overwrites the stored value.
+  For an active participant that means the stored copy is written this turn and
+  is not stale at all; the stored copy only carries weight for someone the
+  fetch happened to miss, which is precisely the case that renders nothing
+  today.
+
+  Two further sources worth taking, in rough order of value:
+  (a) the TRIGGERING message itself carries `msg.member` — a participant who
+      just spoke can always be refreshed, independent of the fetch window;
+  (b) Discord emits `guildMemberUpdate` on a role/nickname/colour change, which
+      is the only signal that is actually event-driven rather than
+      opportunistic. If bot-client subscribes, a role change refreshes the
+      stored copy at the moment it happens rather than the next time that
+      person is seen. Check the gateway intents before assuming it arrives.
+
+  What must NOT happen: rendering a value that is known to be old differently
+  from one that is fresh (that is a per-turn byte again), or dropping it on
+  age.
 - Ordering is already handled: ParticipantFormatter sorts by persona UUID, and
   extractGuildInfo sorts roles by position descending. Neither needs revisiting
   — the instability was presence, not order.
