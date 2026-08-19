@@ -238,6 +238,8 @@ CREATE TABLE "personalities" (
     "config_defaults" JSONB,
     "original_owner_discord_id" VARCHAR(20),
     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "roster_blurb" TEXT,
+    "roster_blurb_source_hash" VARCHAR(64),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
