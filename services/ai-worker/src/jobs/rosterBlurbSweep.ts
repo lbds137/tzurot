@@ -128,20 +128,28 @@ async function stampMissingHashes(prisma: PrismaClient): Promise<number> {
       // leaving card_source_hash meaning something other than "the digest of
       // this row's card" until the next edit. The guard makes the backfill a
       // no-op against any row a real write reached first.
-      await prisma.$executeRaw`
+      const affected = await prisma.$executeRaw`
         UPDATE personalities
         SET card_source_hash = ${hashRosterBlurbCard(row)}
         WHERE id = ${row.id}::uuid AND card_source_hash IS NULL
       `;
-      stamped += 1;
+      // Counted only when the row actually moved. The guard above turns this
+      // into a silent no-op when a real write stamped the row first — no throw,
+      // just zero rows affected — so incrementing unconditionally would report
+      // the same false progress the catch below exists to prevent, by a quieter
+      // route. `$executeRaw` resolving to the affected-row count is pinned by a
+      // component test against real Postgres, not assumed.
+      if (affected > 0) {
+        stamped += 1;
+      }
     } catch (error) {
       // Same isolation as the generation loop: one row's write blip must not
       // cost the tick. The row keeps its null hash and the next tick retries.
       logger.warn({ err: error, personalityId: row.id }, 'Card hash stamp failed');
     }
   }
-  // Rows actually stamped, not rows examined — a failed write must not report
-  // as progress, or a persistently failing row looks like a draining backfill.
+  // Rows actually stamped: neither a thrown write nor a guard-no-op counts. A
+  // persistently failing row must not look like a draining backfill.
   return stamped;
 }
 

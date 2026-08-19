@@ -238,6 +238,19 @@ describe('sweepRosterBlurbs', () => {
     expect(stats.generated).toBe(1);
   });
 
+  it('does not count a stamp the guard turned into a no-op', async () => {
+    setSettings(true);
+    const unstamped = row({ cardSourceHash: null });
+    const { prisma, executeRaw } = makePrisma({ unstamped: [unstamped] });
+    // A real write stamped this row between the batch SELECT and its turn, so
+    // the guarded UPDATE matches nothing. No throw — just zero rows affected.
+    executeRaw.mockResolvedValueOnce(0);
+
+    const stats = await sweepRosterBlurbs(prisma, invokerReturning('{"blurb":"x"}'));
+
+    expect(stats.stamped).toBe(0);
+  });
+
   it('keeps going when a backfill stamp write throws, and does not count it as stamped', async () => {
     setSettings(true);
     const a = row({ id: '4f9b0f66-0000-4000-8000-0000000000a5', cardSourceHash: null });

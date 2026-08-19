@@ -106,6 +106,37 @@ beforeEach(async () => {
 
 afterAll(() => resetSystemSettingsRegistration());
 
+describe('the affected-row-count premise the stamp counter rests on', () => {
+  it('resolves $executeRaw to 0 when the guarded UPDATE matches nothing', async () => {
+    // stampMissingHashes counts a row only when `affected > 0`, which assumes
+    // Prisma resolves $executeRaw to the affected-row count rather than, say,
+    // a void or a truthy handle. Probed against real Postgres instead of
+    // trusted, because the whole point of the counter fix is that a guarded
+    // no-op is indistinguishable from success unless this holds.
+    await seedCharacter({ n: 40, characterInfo: 'Already stamped.' });
+
+    const affected = await prisma.$executeRaw`
+      UPDATE personalities
+      SET card_source_hash = 'x'
+      WHERE id = ${id(40)}::uuid AND card_source_hash IS NULL
+    `;
+
+    expect(affected).toBe(0);
+  });
+
+  it('resolves to 1 when the same UPDATE does match', async () => {
+    await seedCharacter({ n: 41, characterInfo: 'Not stamped.', stamp: false });
+
+    const affected = await prisma.$executeRaw`
+      UPDATE personalities
+      SET card_source_hash = 'x'
+      WHERE id = ${id(41)}::uuid AND card_source_hash IS NULL
+    `;
+
+    expect(affected).toBe(1);
+  });
+});
+
 describe('staleness detection against real SQL', () => {
   it('selects a never-generated row, which `!=` would have skipped', async () => {
     // NULL != 'hash' is NULL, not TRUE — the reason the query uses
