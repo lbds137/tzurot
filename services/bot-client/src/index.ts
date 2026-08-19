@@ -30,6 +30,7 @@ import { respondToInteractionDuringMaintenance } from './utils/maintenanceRespon
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
+import { registerGuildMemberInfoReporter } from './services/GuildMemberInfoReporter.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
 import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRetentionNotifyWorker.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
@@ -535,6 +536,10 @@ client.once(Events.ClientReady, () => {
     }
   });
 });
+
+// Event-driven refresh of stored guild membership (roles/colour/nickname), so
+// <participants> stops re-rendering when a per-turn fetch misses someone.
+registerGuildMemberInfoReporter(client);
 
 // Error handling
 client.on(Events.Error, error => {

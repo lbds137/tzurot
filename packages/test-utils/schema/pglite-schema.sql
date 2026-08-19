@@ -591,6 +591,18 @@ CREATE TABLE "secret_rotations" (
     CONSTRAINT "secret_rotations_pkey" PRIMARY KEY ("name")
 );
 
+-- CreateTable
+CREATE TABLE "user_guild_infos" (
+    "user_id" UUID NOT NULL,
+    "guild_id" VARCHAR(20) NOT NULL,
+    "roles" TEXT[],
+    "display_color" VARCHAR(7),
+    "joined_at" TIMESTAMP(3),
+    "observed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_guild_infos_pkey" PRIMARY KEY ("user_id","guild_id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_discord_id_key" ON "users"("discord_id");
 
@@ -1076,6 +1088,9 @@ ALTER TABLE "release_delivery_log" ADD CONSTRAINT "release_delivery_log_user_id_
 
 -- AddForeignKey
 ALTER TABLE "user_feedback" ADD CONSTRAINT "user_feedback_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_guild_infos" ADD CONSTRAINT "user_guild_infos_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- CHECK constraints harvested from prisma/migrations/**/migration.sql
 -- (Prisma's schema-diff generator has no CHECK-constraint representation,

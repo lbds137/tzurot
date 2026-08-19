@@ -37,6 +37,7 @@ import {
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ContextAssembler } from './ContextAssembler.js';
+import { recordGuildMemberInfos } from '@tzurot/common-types/services/guildMemberInfoStore';
 import { PrismaContextDataSource } from './PrismaContextDataSource.js';
 
 const DISCORD_USER_ID = '123456789012345678';
@@ -146,6 +147,11 @@ describe('RawEnvelope contract — consumer derivation over PGLite', () => {
       dataSource: new PrismaContextDataSource(prisma),
       userService: new UserService(prisma),
       personaResolver: new PersonaResolver(prisma),
+      // The real store against the real (PGLite) database — the write path is
+      // part of what these tiers exist to exercise.
+      guildInfoRecorder: {
+        record: (guildId, observations) => recordGuildMemberInfos(prisma, guildId, observations),
+      },
     });
   }, 30000);
 

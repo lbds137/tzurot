@@ -14,6 +14,7 @@
  * contract test by the only path that cannot be forgotten.
  */
 
+import { recordGuildMemberInfos } from '@tzurot/common-types/services/guildMemberInfoStore';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getOrCreateUserService, PersonaResolver } from '@tzurot/identity';
 import { PrismaContextDataSource } from '../../../services/context/PrismaContextDataSource.js';
@@ -35,6 +36,9 @@ export function buildContextStep(prisma: PrismaClient): ContextStep {
     dataSource,
     userService: getOrCreateUserService(prisma),
     personaResolver: new PersonaResolver(prisma),
+    guildInfoRecorder: {
+      record: (guildId, observations) => recordGuildMemberInfos(prisma, guildId, observations),
+    },
   });
   return new ContextStep(assembler, dataSource);
 }

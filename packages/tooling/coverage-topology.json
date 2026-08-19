@@ -1808,6 +1808,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:recordGuildMemberInfo",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /guild-member-info",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:releaseBroadcastDeliveries",
       "kind": "http-route",
       "producer": "client",

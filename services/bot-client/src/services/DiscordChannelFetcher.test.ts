@@ -149,6 +149,9 @@ function createMockMessage(
       roles: config.memberRoles ? { cache: rolesCache } : undefined,
       displayHexColor: config.memberDisplayHexColor ?? '#000000',
       joinedAt: config.memberJoinedAt,
+      // A real GuildMember always carries its guild — the @everyone filter
+      // reads the id from here rather than from the message.
+      guild: config.guildId ? { id: config.guildId } : null,
     };
   }
 

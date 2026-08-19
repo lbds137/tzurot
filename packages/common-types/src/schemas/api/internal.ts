@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { loadedPersonalitySchema } from '../../types/schemas/personality.js';
 import { forwardedOriginSchema, messageMetadataSchema } from '../../types/schemas/message.js';
+import { guildMemberInfoSchema } from '../../types/schemas/discord.js';
 import { SYNC_LIMITS } from '../../constants/timing.js';
 import { DISCORD_SNOWFLAKE } from '../../constants/discord.js';
 
@@ -71,6 +72,30 @@ export const DmSessionSetRequestSchema = z.object({
 export const DmSessionSetResponseSchema = z.object({
   channelId: z.string(),
   personalitySlug: z.string(),
+});
+
+// ============================================================================
+// POST /internal/guild-member-info
+// Records a user's last-known guild membership (roles, colour, join date) so
+// `<participants>` renders the same bytes on turns whose Discord fetch did not
+// observe them. Called by bot-client's `guildMemberUpdate` listener, which is
+// the only event-driven refresh source — every other one is opportunistic.
+// ============================================================================
+
+export const GuildMemberInfoRecordRequestSchema = z.object({
+  guildId: DiscordSnowflakeSchema,
+  discordUserId: DiscordSnowflakeSchema,
+  info: guildMemberInfoSchema,
+});
+
+export const GuildMemberInfoRecordResponseSchema = z.object({
+  /**
+   * False when no user row matched the Discord id — an ordinary outcome, not
+   * an error. A role change fires for every member of a guild, and the vast
+   * majority have never used the bot; provisioning a row for each of them is
+   * exactly what this endpoint must not do.
+   */
+  recorded: z.boolean(),
 });
 
 // ============================================================================

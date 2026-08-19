@@ -39,6 +39,8 @@ import {
   ConversationSyncResponseSchema,
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
+  GuildMemberInfoRecordRequestSchema,
+  GuildMemberInfoRecordResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
   LoadPersonalityInternalResponseSchema,
@@ -204,6 +206,22 @@ export const internalRoutes = {
     id: 'setDmSession',
     input: DmSessionSetRequestSchema,
     output: DmSessionSetResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/guild-member-info
+   * Bot-client reports a `guildMemberUpdate` so the stored last-known
+   * membership refreshes at the moment a role/nickname/colour changes,
+   * rather than the next time that person happens to be fetched.
+   */
+  recordGuildMemberInfo: {
+    audience: 'internal',
+    method: 'post',
+    path: '/guild-member-info',
+    id: 'recordGuildMemberInfo',
+    input: GuildMemberInfoRecordRequestSchema,
+    output: GuildMemberInfoRecordResponseSchema,
     serviceOnly: true,
   },
 

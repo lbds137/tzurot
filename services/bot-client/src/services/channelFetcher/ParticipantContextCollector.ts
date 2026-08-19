@@ -5,7 +5,7 @@
  * Extracted from DiscordChannelFetcher.ts for better modularity.
  */
 
-import type { Message } from 'discord.js';
+import type { GuildMember, Message } from 'discord.js';
 import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 import { INTERNAL_DISCORD_ID_PREFIX } from '@tzurot/common-types/constants/personaId';
 import { type MessageReaction } from '@tzurot/common-types/types/schemas/message';
@@ -23,13 +23,26 @@ export function extractGuildInfo(msg: Message): ParticipantGuildInfo {
   if (!member) {
     return { roles: [] };
   }
+  return extractGuildInfoFromMember(member);
+}
 
+/**
+ * Extract guild member info from a GuildMember directly.
+ *
+ * The member-shaped core of {@link extractGuildInfo}. Split out because the
+ * same bytes are produced from two Discord surfaces — a fetched message on the
+ * extended-context path, and a `guildMemberUpdate` event — and the two must
+ * agree exactly: whichever wrote the persisted row last decides what the
+ * prompt renders, so a divergence between them would be a fresh flicker with
+ * a slower period.
+ */
+export function extractGuildInfoFromMember(member: GuildMember): ParticipantGuildInfo {
   try {
     // Get role names, sorted by position (highest first), excluding @everyone
     const roles =
       member.roles !== undefined
         ? Array.from(member.roles.cache.values())
-            .filter(r => r.id !== msg.guild?.id)
+            .filter(r => r.id !== member.guild.id)
             .sort((a, b) => b.position - a.position)
             .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
             .map(r => r.name)

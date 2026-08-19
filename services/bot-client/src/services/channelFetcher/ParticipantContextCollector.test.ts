@@ -40,6 +40,8 @@ function createMockRoleCache(roles: Role[]): Collection<string, Role> {
   } as unknown as Collection<string, Role>;
 }
 
+const GUILD_ID = 'guild-123';
+
 describe('ParticipantContextCollector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,7 +51,7 @@ describe('ParticipantContextCollector', () => {
     it('should return empty roles when no member present', () => {
       const msg = {
         member: null,
-        guild: { id: 'guild-123' },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);
@@ -70,8 +72,10 @@ describe('ParticipantContextCollector', () => {
           roles: { cache: createMockRoleCache(roles) },
           displayHexColor: '#FF5500',
           joinedAt: new Date('2024-01-15T10:30:00Z'),
+          // A real GuildMember always carries its guild; the @everyone filter reads it.
+          guild: { id: GUILD_ID },
         } as unknown as GuildMember,
-        guild: { id: 'guild-123' },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);
@@ -80,10 +84,9 @@ describe('ParticipantContextCollector', () => {
     });
 
     it('should exclude @everyone role', () => {
-      const guildId = 'guild-123';
       const roles = [
         createMockRole({ id: 'role-1', name: 'Member', position: 1 }),
-        createMockRole({ id: guildId, name: '@everyone', position: 0 }), // @everyone has same ID as guild
+        createMockRole({ id: GUILD_ID, name: '@everyone', position: 0 }), // @everyone has same ID as guild
       ];
 
       const msg = {
@@ -92,8 +95,10 @@ describe('ParticipantContextCollector', () => {
           roles: { cache: createMockRoleCache(roles) },
           displayHexColor: '#000000',
           joinedAt: null,
+          // A real GuildMember always carries its guild; the @everyone filter reads it.
+          guild: { id: GUILD_ID },
         } as unknown as GuildMember,
-        guild: { id: guildId },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);
@@ -113,8 +118,10 @@ describe('ParticipantContextCollector', () => {
           roles: { cache: createMockRoleCache(roles) },
           displayHexColor: '#000000',
           joinedAt: null,
+          // A real GuildMember always carries its guild; the @everyone filter reads it.
+          guild: { id: GUILD_ID },
         } as unknown as GuildMember,
-        guild: { id: 'guild-123' },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);
@@ -129,8 +136,10 @@ describe('ParticipantContextCollector', () => {
           roles: { cache: createMockRoleCache([]) },
           displayHexColor: '#FF5500',
           joinedAt: null,
+          // A real GuildMember always carries its guild; the @everyone filter reads it.
+          guild: { id: GUILD_ID },
         } as unknown as GuildMember,
-        guild: { id: 'guild-123' },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);
@@ -145,8 +154,10 @@ describe('ParticipantContextCollector', () => {
           roles: { cache: createMockRoleCache([]) },
           displayHexColor: '#000000',
           joinedAt: null,
+          // A real GuildMember always carries its guild; the @everyone filter reads it.
+          guild: { id: GUILD_ID },
         } as unknown as GuildMember,
-        guild: { id: 'guild-123' },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);
@@ -162,8 +173,10 @@ describe('ParticipantContextCollector', () => {
           roles: { cache: createMockRoleCache([]) },
           displayHexColor: '#000000',
           joinedAt: joinDate,
+          // A real GuildMember always carries its guild; the @everyone filter reads it.
+          guild: { id: GUILD_ID },
         } as unknown as GuildMember,
-        guild: { id: 'guild-123' },
+        guild: { id: GUILD_ID },
       } as unknown as Message;
 
       const result = extractGuildInfo(msg);

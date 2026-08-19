@@ -10,6 +10,10 @@
 import { type PgvectorMemoryAdapter, type MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import {
+  getGuildMemberInfos,
+  isEmptyGuildInfo,
+} from '@tzurot/common-types/services/guildMemberInfoStore';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
@@ -114,7 +118,7 @@ export class MemoryRetriever {
   private freshChecker?: FreshModeChecker;
 
   constructor(
-    prisma: PrismaClient,
+    private readonly prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter,
     personaResolver?: PersonaResolver,
     freshChecker?: FreshModeChecker
@@ -416,6 +420,9 @@ export class MemoryRetriever {
     // MemoryRetriever.test.ts for the pin on the losing sighting's guildInfo
     // being discarded rather than merged.
     const personaMap = new Map<string, ParticipantInfo>();
+    // resolvedPersonaId -> owning human, so the persisted guild-info fallback
+    // below can key on the person rather than the costume.
+    const ownerByPersonaId = new Map<string, string>();
 
     if (!context.participants || context.participants.length === 0) {
       logger.debug('No participants provided in context');
@@ -507,6 +514,7 @@ export class MemoryRetriever {
         personaId: resolvedPersonaId, // Use resolved UUID for ID binding
         guildInfo,
       });
+      ownerByPersonaId.set(resolvedPersonaId, personaData.ownerId);
 
       // The persona bio is user-authored self-description — never logged.
       // resolvedPersonaId correlates to the DB row when the content matters.
@@ -519,7 +527,60 @@ export class MemoryRetriever {
       );
     }
 
+    await this.applyStoredGuildInfo(personaMap, ownerByPersonaId, context.serverId);
+
     return personaMap;
+  }
+
+  /**
+   * Fill in `guildInfo` for participants this turn's Discord fetch did not
+   * observe, from the last-known value persisted by an earlier turn.
+   *
+   * This is the whole point of the store: `<participants>` is the most
+   * cache-sensitive block in the prompt, and a participant whose roster seat
+   * comes from DB history while their guild metadata comes from a shorter
+   * per-turn fetch would otherwise gain and lose three lines of role metadata
+   * as the fetch window slid past them — evicting every cached byte below.
+   *
+   * Runs as a single batched pass after the map is built rather than inside
+   * the loop, so the fallback costs one query per turn regardless of roster
+   * size.
+   */
+  private async applyStoredGuildInfo(
+    personaMap: Map<string, ParticipantInfo>,
+    ownerByPersonaId: Map<string, string>,
+    guildId: string | undefined
+  ): Promise<void> {
+    if (guildId === undefined || guildId === '') {
+      return;
+    }
+
+    // An observation with no facts in it renders as nothing, exactly like an
+    // absent one — so both are "unobserved" here. Treating only `undefined` as
+    // missing would leave the `{ roles: [] }` that a null `msg.member`
+    // produces looking like a real observation, and the flicker would survive.
+    const needsFallback = [...personaMap.entries()].filter(
+      ([, info]) => info.guildInfo === undefined || isEmptyGuildInfo(info.guildInfo)
+    );
+    if (needsFallback.length === 0) {
+      return;
+    }
+
+    const ownerIds = needsFallback
+      .map(([personaId]) => ownerByPersonaId.get(personaId))
+      .filter((id): id is string => id !== undefined);
+    const stored = await getGuildMemberInfos(this.prisma, guildId, ownerIds);
+    if (stored.size === 0) {
+      return;
+    }
+
+    for (const [personaId, info] of needsFallback) {
+      const ownerId = ownerByPersonaId.get(personaId);
+      const fallback = ownerId !== undefined ? stored.get(ownerId) : undefined;
+      if (fallback !== undefined) {
+        personaMap.set(personaId, { ...info, guildInfo: fallback });
+      }
+    }
   }
 
   /**

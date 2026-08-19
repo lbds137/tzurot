@@ -27,6 +27,15 @@ import type {
   ChannelHistoryWindowParams,
   ChannelHistoryWindowResult,
 } from '@tzurot/conversation-history';
+import type { GuildMemberInfo } from '@tzurot/common-types/types/schemas/discord';
+import type {
+  CrossChannelHistoryGroupEntry,
+  ReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
+import type {
+  MentionedPersona,
+  ReferencedChannel,
+} from '@tzurot/common-types/types/schemas/personality';
 
 export interface CrossChannelHistoryParams {
   /** Active persona whose other-channel conversations to fetch */
@@ -121,4 +130,56 @@ export interface RelayEchoUserIdentity {
   personaId: string;
   personaName: string;
   discordUsername: string;
+}
+
+/** The core surfaces the assembler re-derives. */
+export interface AssembledCore {
+  userInternalId: string;
+  /** Null for an incognito summon — an anonymous poke has no invoking-user persona. */
+  activePersonaId: string | null;
+  activePersonaName: string | null;
+  userTimezone: string;
+  contextEpoch: Date | undefined;
+  /** Hydrated DB history merged with envelope-carried extended context. */
+  history: ConversationMessage[];
+  /**
+   * Enriched references re-derived from the envelope's raw snapshots
+   * (dedup-vs-OWN-history + DB transcript append). Undefined when the
+   * envelope carries no raw references (extraction didn't run bot-side —
+   * weigh-in mode or a sender predating the field).
+   */
+  referencedMessages: ReferencedMessage[] | undefined;
+  /**
+   * The rewritten message content ([Reference N] links + mention names).
+   * For an incognito summon this is the raw content untouched — the bot skips
+   * all rewriting there, and mirroring that also avoids upserting mention users
+   * for anonymous pokes.
+   */
+  messageContent: string;
+  /** Personas resolved from user mentions; undefined when none (payload parity). */
+  mentionedPersonas: MentionedPersona[] | undefined;
+  /** Channels resolved from channel mentions; undefined when none (payload parity). */
+  referencedChannels: ReferencedChannel[] | undefined;
+  /**
+   * Cross-channel history groups, decorated from the envelope's
+   * knownChannelEnvironments (fallback env for cache misses) and serialized
+   * through the shared wire mapper. Undefined when the feature is disabled
+   * or the summon is incognito (payload parity with the bot path); [] when
+   * enabled but nothing eligible was found.
+   */
+  crossChannelHistory: CrossChannelHistoryGroupEntry[] | undefined;
+  /**
+   * Extended-context participant guild info, re-keyed from the envelope's
+   * pre-resolution `discord:*` map to persona UUIDs by the SAME shared
+   * resolver call the bot uses. Undefined when the envelope carries no raw
+   * map (DM, fetch didn't run, or a sender predating the field).
+   */
+  participantGuildInfo: Record<string, GuildMemberInfo> | undefined;
+  /**
+   * The triggering user's guild info, passed through from the envelope's
+   * raw scalar. Unconditional (present even in weigh-in, mirroring the
+   * payload: the bot clears the persona fields for weigh-in but ships this
+   * one, where it's inert downstream because no active persona reads it).
+   */
+  activePersonaGuildInfo: GuildMemberInfo | undefined;
 }

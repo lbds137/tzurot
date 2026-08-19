@@ -148,6 +148,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   retentionNotifyReport: INTERNAL_RETENTION_NOTIFY,
   getModels: '../internal/models.js',
   setDmSession: '../internal/dmSessionSet.js',
+  recordGuildMemberInfo: '../internal/guildMemberInfoRecord.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
   persistAssistantMessage: '../internal/conversationAssistantMessage.js',
   persistUserMessage: '../internal/conversationUserMessage.js',
