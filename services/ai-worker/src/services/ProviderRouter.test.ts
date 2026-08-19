@@ -505,6 +505,11 @@ describe('ProviderRouter', () => {
 describe('detectVisionProvider', () => {
   it('routes z-ai/-prefixed models to ZaiCoding', () => {
     expect(detectVisionProvider('z-ai/glm-4.5-air')).toBe(AIProvider.ZaiCoding);
+    // `:free` is OpenRouter's suffix — z.ai's own API has no such variant, so
+    // a z-ai-namespaced free model is OpenRouter-hosted despite the prefix.
+    // Reachable in guest mode via selectVisionModel's main-model branch.
+    expect(detectVisionProvider('z-ai/glm-5.2:free')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('z-ai/glm-4.5-air:free')).toBe(AIProvider.OpenRouter);
     expect(detectVisionProvider('z-ai/glm-5.1')).toBe(AIProvider.ZaiCoding);
   });
 
