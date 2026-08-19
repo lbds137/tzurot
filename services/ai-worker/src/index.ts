@@ -17,6 +17,7 @@ import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { NullVectorReembedder } from './jobs/NullVectorReembedder.js';
 import { setupFactExtraction } from './jobs/factExtractionSetup.js';
+import { sweepRosterBlurbs } from './jobs/rosterBlurbSweep.js';
 import { logZaiFreeTierBootCoherence } from './services/ZaiFreeTierAdmission.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
@@ -58,6 +59,7 @@ const SCHEDULED_JOBS = {
   CLEANUP_NOTIFICATIONS_RETENTION: 'cleanup-notifications-retention',
   REEMBED_NULL_VECTORS: 'reembed-null-vectors',
   RELEASE_RECONCILE: 'release-reconcile',
+  ROSTER_BLURB_SWEEP: 'roster-blurb-sweep',
 } as const;
 
 // ============================================================================
@@ -239,6 +241,9 @@ const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
   { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION, pattern: '25 9 * * *' },
   { name: SCHEDULED_JOBS.RELEASE_RECONCILE, pattern: '41 * * * *' },
+  // Every 10 minutes: a card edit shows up in the roster within one tick, and
+  // the per-tick generation cap makes the worst-case spend legible at a glance.
+  { name: SCHEDULED_JOBS.ROSTER_BLURB_SWEEP, pattern: '*/10 * * * *' },
 ];
 
 async function registerRepeatableJobs(scheduledQueue: Queue): Promise<void> {
@@ -313,6 +318,12 @@ async function setupScheduledJobs(
         // log is the hourly run's verification trail.
         logger.debug('Triggering release reconcile sweep');
         return triggerReleaseReconcile();
+      }
+      if (job.name === SCHEDULED_JOBS.ROSTER_BLURB_SWEEP) {
+        // No-ops unless the rosterBlurbEnabled system setting is on; the
+        // returned stats are the tick's verification trail (and its spend).
+        logger.debug('Running roster blurb sweep');
+        return sweepRosterBlurbs(prisma);
       }
       return null;
     },

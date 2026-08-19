@@ -6,7 +6,6 @@ import {
   FactExtractionService,
   hasEntityOverlap,
   ExtractionProviderBusyError,
-  resolveExtractionProvider,
 } from './FactExtractionService.js';
 import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import type { FactStore, SimilarFact } from './FactStore.js';
@@ -634,12 +633,5 @@ describe('delay-not-downgrade (provider busy)', () => {
     expect(written).toBe(0);
     // Permanent failures spent the attempt legitimately — no refund.
     expect(s.budget.refund).not.toHaveBeenCalled();
-  });
-});
-
-describe('resolveExtractionProvider', () => {
-  it('defaults to OpenRouter with no key attached', () => {
-    const route = resolveExtractionProvider();
-    expect(route).toEqual({ provider: 'openrouter' });
   });
 });

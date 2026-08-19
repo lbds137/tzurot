@@ -15,10 +15,7 @@
  */
 
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { HumanMessage } from '@langchain/core/messages';
-import { getConfig } from '@tzurot/common-types/config/config';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
-import { AIProvider, ZAI_MODEL_PREFIX } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
@@ -27,7 +24,11 @@ import {
   generateUsageLogUuid,
 } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { createChatModel } from '../ModelFactory.js';
+import {
+  invokeSystemModel,
+  type SystemModelInvoker,
+  type SystemModelResult,
+} from '../systemModel/systemModelCall.js';
 import type { ExtractionBudget } from './ExtractionBudget.js';
 import {
   isProtectedFromAutoSupersession,
@@ -72,16 +73,6 @@ interface EpisodeGroup {
    * fact's recency reflects when its EVIDENCE is from, not when the extractor
    * ran (a bulk backfill of months-old episodes must not mint "fresh" facts). */
   newestSourceAt: Date;
-}
-
-/** One extraction model call's outcome — content plus token usage for cost rows. */
-export interface ExtractionModelResult {
-  content: string;
-  tokensIn: number;
-  tokensOut: number;
-  /** The provider the call ACTUALLY billed — carried into the usage row so an
-   * injected invoker (eval harness, tests) can never mislabel provenance. */
-  provider: AIProvider;
 }
 
 /**
@@ -135,63 +126,26 @@ const BUSY_CATEGORIES = new Set<string>([
 ]);
 
 /**
- * Resolve the provider extraction bills to. 'zai-coding' requires the system
- * coding-plan key — without it we fall back to OpenRouter (the boot-time check
- * in factExtractionSetup logs the misconfiguration loudly once).
+ * The real extraction call — exported for the eval harness (same code path as
+ * prod). Only the deadline and the attribution suffix are extraction's; the
+ * provider routing and client construction are shared with every other
+ * background model caller.
  */
-export function resolveExtractionProvider(): { provider: AIProvider; apiKey?: string } {
-  if (
-    getSystemSetting('extractionProvider') === 'zai-coding' &&
-    getConfig().ZAI_CODING_API_KEY !== undefined
-  ) {
-    return { provider: AIProvider.ZaiCoding, apiKey: getConfig().ZAI_CODING_API_KEY };
-  }
-  return { provider: AIProvider.OpenRouter };
-}
-
-/** Model invocation seam — injectable for tests/eval (defaults to the real call). */
-export type ExtractionModelInvoker = (prompt: string) => Promise<ExtractionModelResult>;
-
-/** The real model call — exported for the eval harness (same code path as prod). */
-export async function invokeExtractionModel(prompt: string): Promise<ExtractionModelResult> {
-  const extractionModel = getSystemSetting('extractionModel');
-  const route = resolveExtractionProvider();
-  // z.ai-direct takes the bare model id ('z-ai/glm-5.2' → 'glm-5.2'), same
-  // mapping ProviderRouter applies to promoted completions.
-  const modelName =
-    route.provider === AIProvider.ZaiCoding && extractionModel.startsWith(ZAI_MODEL_PREFIX)
-      ? extractionModel.slice(ZAI_MODEL_PREFIX.length)
-      : extractionModel;
-  const { model } = createChatModel({
-    modelName,
-    temperature: 0,
-    responseFormat: { type: 'json_object' },
-    // OpenRouter-only attribution header; inert on z.ai-direct (no analog —
-    // usage_logs requestType is the insight surface there).
+export function invokeExtractionModel(prompt: string): Promise<SystemModelResult> {
+  return invokeSystemModel(prompt, {
     appTitleSuffix: 'Extraction',
-    provider: route.provider,
-    ...(route.apiKey !== undefined ? { apiKey: route.apiKey } : {}),
+    timeoutMs: EXTRACTION_TIMEOUT_MS,
   });
-  const response = await model.invoke([new HumanMessage(prompt)], {
-    timeout: EXTRACTION_TIMEOUT_MS,
-  });
-  return {
-    content:
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
-    tokensIn: response.usage_metadata?.input_tokens ?? 0,
-    tokensOut: response.usage_metadata?.output_tokens ?? 0,
-    provider: route.provider,
-  };
 }
 
 export class FactExtractionService {
-  private readonly invokeModel: ExtractionModelInvoker;
+  private readonly invokeModel: SystemModelInvoker;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly factStore: FactStore,
     private readonly budget: ExtractionBudget,
-    invokeModel: ExtractionModelInvoker = invokeExtractionModel
+    invokeModel: SystemModelInvoker = invokeExtractionModel
   ) {
     this.invokeModel = invokeModel;
   }
@@ -281,7 +235,7 @@ export class FactExtractionService {
 
     const prompt = buildExtractionPrompt(group.texts, knownFacts, group.isFiction);
 
-    let modelResult: ExtractionModelResult;
+    let modelResult: SystemModelResult;
     try {
       modelResult = await this.invokeModel(prompt);
     } catch (error) {
@@ -343,7 +297,7 @@ export class FactExtractionService {
    */
   private async logExtractionUsage(
     personaId: string,
-    modelResult: ExtractionModelResult,
+    modelResult: SystemModelResult,
     scope: { personalityId: string; personaId: string }
   ): Promise<void> {
     try {
