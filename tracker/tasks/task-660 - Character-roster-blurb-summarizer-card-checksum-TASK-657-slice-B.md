@@ -146,7 +146,12 @@ other fully-empty card (pinned by a test). PR 2's caller must therefore detect
 two cards' checksums to each other — and should skip enqueueing a model call
 entirely in that state rather than paying for a blurb about nothing.
 
-PR 2 should add a runtime guard on key shape when the real caller lands:
+PR 2 should CONSTRAIN THE KEY TYPE when the real caller lands — a literal
+union of the field names, not a runtime guard. Reviewer's point, and it is the
+better of the two: the field set is fixed and known at that moment, so the
+compiler can enforce what a runtime assert would only detect, and it costs
+nothing while there is still no caller. Falling back to a runtime guard is the
+second choice. Either way the property to protect is:
 hashCharacterCard's entry-boundary uniqueness assumes keys carry no `:` and no
 newline, and keys are NOT normalized on the way in the way values are. A doc
 comment is the only thing holding that today, and this hash gates whether a paid
