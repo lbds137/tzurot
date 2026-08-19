@@ -187,15 +187,36 @@ register guarantee), birthMonth/Day/Year (personalityAge covers it in prose;
 also Int? where the hash takes strings). Do not re-open this set without
 re-reading the per-field drift test that pins it.
 
-DELIBERATE DEVIATION from this task's stated fix shape, with the reason: the
-fix shape said "enqueue on mismatch" at render time. Shipped instead as a
-scheduled sweep (SCHEDULED_JOBS.ROSTER_BLURB_SWEEP, every 10 min,
-services/ai-worker/src/jobs/rosterBlurbSweep.ts). Hashing at prompt-build time
-would put a card-wide fetch on EVERY turn's blocking path to detect a change
-that only occurs when a human edits a character. Cost of the deviation: a blurb
-can be up to one tick stale — which is the state the render half must degrade
-around regardless. Bounded at 10 model calls per tick; off by default behind
-the new rosterBlurbEnabled system setting.
+STALENESS IS DECIDED AT WRITE TIME (owner correction, 2026-08-19). Every write
+path that can change a card stamps personalities.card_source_hash as part of
+that change, and the sweep asks the database which blurbs are stale:
+roster_blurb_source_hash IS DISTINCT FROM card_source_hash. Nothing rehashes a
+card to discover that it changed, and nothing hashes on the request path.
+
+An earlier revision had the sweep DISCOVER staleness by rehashing a page of
+candidates ordered by updatedAt. That was wrong beyond the wasted work: the
+page was a fixed 200 rows used as a proxy for "recently edited", so a character
+edited before 200 other rows moved would fall off it and never regenerate.
+
+Stamping is derived from the row the write RETURNED, inside the same
+transaction -- NOT from merging the patch by hand, which would mean re-deriving
+each route's field precedence (the user update route sets displayName from name
+when the client omits it) and would fail silently by stamping a digest no
+generation can match. stampCardSourceHash's parameter type demands every card
+field, so a select missing one is a compile error.
+
+The five stamping sites: admin create + update, user create + update,
+ShapesImportHelpers.upsertPersonality. Each has a colocated seam test. A sixth
+site added later without a stamp would leave those characters' blurbs
+permanently stale -- that is the known soft spot, and no guard covers it yet.
+
+Generation still runs on the scheduled sweep rather than at the edit, so
+api-gateway needs no coupling to ai-worker's job wiring and a dropped or failed
+generation self-heals next tick. Per-tick spend is bounded by the stale query's
+own LIMIT.
+
+Pre-existing rows carry no stamp, and NULL IS DISTINCT FROM NULL is false, so a
+transitional stamping pass fills them in once and then returns nothing forever.
 
 Blurb writes go through prisma.$executeRaw, NOT update(): personalities is
 sync-tracked and dev<->prod reconciles last-write-wins on updated_at
