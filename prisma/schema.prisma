@@ -151,12 +151,12 @@ model RetentionPurgeLog {
   /// DB-generated (gen_random_uuid) rather than the app-generated deterministic
   /// UUIDs most models use — this is a pure non-relational audit ledger, nothing
   /// needs the id before insert, so there is no determinism requirement.
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// The purged user's Discord snowflake (the user row itself is deleted).
-  targetDiscordId String   @map("target_discord_id") @db.VarChar(20)
-  purgedAt        DateTime @default(now()) @map("purged_at")
+  targetDiscordId String          @map("target_discord_id") @db.VarChar(20)
+  purgedAt        DateTime        @default(now()) @map("purged_at")
   /// Operator/run label identifying who or what triggered the purge run.
-  runContext      String?  @map("run_context")
+  runContext      String?         @map("run_context")
   /// Per-table deletion counts (the AccountDeletionSummary shape).
   deletionCounts  Json            @map("deletion_counts")
   /// Whether the erasure transaction committed.
@@ -457,7 +457,24 @@ model Personality {
   /// Normalization + bounds enforced by PersonalityTagsInputSchema at the
   /// gateway boundary. NOT part of the definition-privacy redaction set —
   /// tags are discovery metadata like the name.
-  tags                   String[] @default([])
+  tags String[] @default([])
+
+  /// Generated third-person blurb rendered inside the character's
+  /// `character_participant` roster entry, so sibling characters know who they
+  /// are talking to. Deferred-set: null on creation and until the summarizer
+  /// job has run; a turn that races an ungenerated blurb renders name-only
+  /// rather than blocking, so reads guard with `!= null` and degrade. NOT
+  /// owner-authored — never populate this from `characterInfo`, which carries
+  /// instruction-register text for imported characters.
+  rosterBlurb           String? @map("roster_blurb")
+  /// Full 64-hex sha-256 of the card fields `rosterBlurb` was generated from
+  /// (`hashCharacterCard`, common-types/utils/characterCardChecksum.ts).
+  /// Deferred-set, and set atomically with `rosterBlurb`: a mismatch against
+  /// the live card — including null here with a blurb present — means the
+  /// blurb is stale and a regeneration is enqueued. PROVISIONAL until the
+  /// summarizer prompt lands: the hashed set must be exactly the prompt's
+  /// input set, and the two are defined together so they cannot drift.
+  rosterBlurbSourceHash String? @map("roster_blurb_source_hash") @db.VarChar(64)
 
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")
