@@ -192,4 +192,60 @@ precede rosterBlurbEnabled going true in PROD.
 Size re-checked at the same time and the filed size:M holds — the owner's
 persist decision is made, so what remains is a schema column, a write path, a
 read into the render, and the anti-rot refresh. No design blocking.
+
+## STORAGE GROUNDING 2026-08-19 (read-only, during #2151 CI) — the natural home is wrong twice, and the second reason is the load-bearing one
+
+The owner decision above says "the natural home is alongside the persona row".
+Checked both halves of that before anyone builds it, and it does not hold.
+
+1. `personas` IS SYNC-TRACKED. It appears in `SyncTableName`, in the sync config
+   map, and in `SYNC_TABLE_ORDER` (services/api-gateway/src/services/sync/config/syncTables.ts,
+   lines 83 / 148 / 351). So the LWW hazard the decision anticipated is real,
+   not hypothetical: a high-frequency guild-info stamp on that row bumps
+   `updated_at` and hands this env the next dev/prod sync. `03-database.md`'s
+   `$executeRaw` workaround would apply.
+
+2. But the workaround should not be reached for, because the shape is wrong for
+   an unrelated reason: GUILD INFO IS PER (PERSONA, GUILD), and a persona row
+   has nowhere to put the guild. `guildMemberInfoSchema`
+   (packages/common-types/src/types/schemas/discord.ts:85) is exactly `roles`,
+   `displayColor`, `joinedAt` — every one of them guild-scoped, all read off
+   `msg.member` in `extractGuildInfo`
+   (services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts:21).
+   A persona active in two guilds would clobber its own value on every turn,
+   which is the same flicker one layer down.
+
+   The per-turn map hides this legitimately — `Record<personaId, GuildMemberInfo>`
+   is unambiguous because one prompt is one channel is one guild. Storage has no
+   such context and must carry the key.
+
+CONSEQUENCE — a NEW TABLE keyed (persona_id, guild_id), deliberately left OUT of
+`SYNC_TABLE_ORDER`. That models the scoping correctly AND sidesteps the LWW rule
+outright rather than working around it, so no `$executeRaw` special-casing is
+needed. Excluding it from sync is defensible on its own terms: the value is a
+cache of Discord state that either env can re-observe for itself, so syncing it
+would propagate one env's staleness to the other.
+
+THE SITES, end to end, so the build does not have to re-derive them:
+- WRITE (opportunistic, per the write-through design): `extractGuildInfo` at
+  ParticipantContextCollector.ts:21, called from DiscordChannelFetcher.ts:289
+  behind the `&& msg.member` guard that is the flicker's proximate cause.
+- WRITE (the always-available source the decision names as (a)): the triggering
+  message's own member, which already ships as `rawActiveGuildMemberInfo`.
+- READ: `ContextAssembler.ts:326-327` sets `participantGuildInfo` +
+  `activePersonaGuildInfo` on the context; `MemoryRetriever.ts:490-508` picks
+  between them per participant; `ParticipantFormatter.ts:295` renders.
+
+  **MemoryRetriever's pick is the one place to add the persisted fallback** —
+  it is already the single point that chooses which of the two live sources
+  applies, so a third (stored) source slots in there without touching the
+  renderer or the assembler. Anywhere else and the fallback has to be repeated.
+
+OPEN, not resolved here: whether `guildId` is reachable at the ai-worker read
+site. It is present on the raw envelope's environment, but that is a code-read
+of the shape rather than a traced value — confirm before designing the query.
+
+CARRIED FORWARD: the byte-equality acceptance test the owner decision states
+(render the roster twice, guild map populated vs absent, assert identical
+output) is unaffected by any of the above and remains the acceptance.
 <!-- SECTION:DESCRIPTION:END -->
