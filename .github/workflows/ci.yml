@@ -56,6 +56,14 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    # Job-scoped, not workflow-wide: only this job runs guard:workflow-sync,
+    # which reads the branch's real PR base via `gh pr view` (this workflow is
+    # push-triggered, so no PR context exists in the environment). A job-level
+    # block REPLACES the top-level one rather than extending it, so `contents`
+    # is restated here.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
 
@@ -174,8 +182,15 @@ jobs:
       # until the next release. Other workflow files (this one included) run
       # from the PR branch and may land via develop normally. The guard skips
       # itself on main-cut branches.
+      #
+      # GH_TOKEN: this workflow is push-triggered, so no PR context exists in
+      # the environment and the guard asks GitHub for the branch's real merge
+      # target. Without the token that lookup fails and the guard fails CLOSED
+      # — which is safe, but turns every main-cut workflow PR red.
       - name: Enforce claude-workflow sync with main
         run: pnpm ops guard:workflow-sync
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check claude/ command references resolve
         run: pnpm ops guard:claude-content-refs
