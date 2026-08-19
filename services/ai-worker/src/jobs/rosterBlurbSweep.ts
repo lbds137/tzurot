@@ -78,7 +78,12 @@ export interface RosterBlurbSweepStats {
   enabled: boolean;
   /** Pre-existing rows given their first `card_source_hash` this tick. */
   stamped: number;
-  /** Stale characters the database returned — may exceed what this tick got to. */
+  /**
+   * Stale characters this tick's query returned — NOT the backlog depth. The
+   * query carries its own LIMIT, so this saturates at MAX_GENERATIONS_PER_SWEEP
+   * and says nothing about how many more are waiting. Do not build a
+   * queue-depth alert on it.
+   */
   staleFound: number;
   /** Stale characters marked current without a model call, their card being empty. */
   stampedEmpty: number;

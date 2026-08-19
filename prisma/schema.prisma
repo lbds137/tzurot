@@ -463,9 +463,17 @@ model Personality {
   /// `character_participant` roster entry, so sibling characters know who they
   /// are talking to. Deferred-set: null on creation and until the summarizer
   /// job has run; a turn that races an ungenerated blurb renders name-only
-  /// rather than blocking, so reads guard with `!= null` and degrade. NOT
-  /// owner-authored — never populate this from `characterInfo`, which carries
-  /// instruction-register text for imported characters.
+  /// rather than blocking. NOT owner-authored — never populate this from
+  /// `characterInfo`, which carries instruction-register text for imported
+  /// characters.
+  ///
+  /// THREE read states, not two — `!= null` alone is the wrong guard. Empty
+  /// STRING means the summarizer ran and found nothing describable (a blank
+  /// card), and it is stored rather than left null precisely so the sweep does
+  /// not re-examine it every tick. `'' != null` is true in JS, so a reader
+  /// guarding only on null will try to render an empty description. Treat
+  /// null (not generated yet) and `''` (generated, nothing to say) alike:
+  /// render name-only for both.
   rosterBlurb           String? @map("roster_blurb")
   /// Full 64-hex sha-256 of the card fields `rosterBlurb` was generated from
   /// (`hashRosterBlurbCard`, common-types/utils/rosterBlurbCard.ts).
