@@ -3,9 +3,10 @@ id: TASK-644
 title: >-
   participantDisplayName does not trim its returned value, which also affects
   collision detection
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 21:21'
+updated_date: '2026-08-19 18:41'
 labels:
   - 'area:ai-worker'
   - 'size:S'

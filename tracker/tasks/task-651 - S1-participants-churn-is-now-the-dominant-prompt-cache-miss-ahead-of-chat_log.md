@@ -169,4 +169,27 @@ Binding consequences for whoever builds it:
 - Ordering is already handled: ParticipantFormatter sorts by persona UUID, and
   extractGuildInfo sorts roles by position descending. Neither needs revisiting
   — the instability was presence, not order.
+
+## COUPLING FOUND 2026-08-19 — TASK-660's blurbs make this cost MORE, and the ordering is why
+
+Grounded during #2150's CI. The render order in ParticipantFormatter is humans
+FIRST, then character entries. The S1 divergence this task fixes is a
+`<guild_info>` flicker on a HUMAN participant — so it breaks the prefix
+UPSTREAM of every character entry, and therefore upstream of every blurb byte
+#2150 just added.
+
+Consequence: each S1 miss now reprocesses the blurbs too. The bound is
+ROSTER_BLURB_MAX_LENGTH (= DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH, 4000) times
+MAX_ROSTER_CHARACTERS (10), so the worst case is tens of thousands of
+newly-uncacheable characters, paid on the ~2-in-5 generations the prod
+measurement showed diverging at S1.
+
+The coupling is to the FLAG, not to the release. rosterBlurbEnabled ships
+false, so nothing is paid until it flips. Stated as a gate rather than a
+priority argument: this task need not precede the beta.205 CUT, but it should
+precede rosterBlurbEnabled going true in PROD.
+
+Size re-checked at the same time and the filed size:M holds — the owner's
+persist decision is made, so what remains is a schema column, a write path, a
+read into the render, and the anti-rot refresh. No design blocking.
 <!-- SECTION:DESCRIPTION:END -->

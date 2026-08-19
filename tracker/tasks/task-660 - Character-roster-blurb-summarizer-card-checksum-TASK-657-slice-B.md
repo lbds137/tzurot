@@ -1,9 +1,10 @@
 ---
 id: TASK-660
 title: 'Character roster blurb: summarizer + card checksum (TASK-657 slice B)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 19:04'
+updated_date: '2026-08-19 18:41'
 labels:
   - 'area:ai-worker'
   - 'size:L'
@@ -278,4 +279,42 @@ OWNER DECISION PENDING before the release: rosterBlurbEnabled ships false.
 Turning it on is a corpus-wide spend event (bounded, but it works through every
 character). Recommend flipping it in dev first, after the render half lands, so
 real generated blurbs can be read before prod.
+
+## DONE — the render half shipped in #2150 (2026-08-19)
+
+Acceptance re-read at close, per clause:
+- "editing a character card changes its checksum and enqueues a regeneration" —
+  MET by #2149, with the wording corrected rather than glossed: it landed as
+  write-time stamping plus a scheduled sweep, not an enqueue. Five write paths
+  stamp card_source_hash; the sweep selects on
+  roster_blurb_source_hash IS DISTINCT FROM card_source_hash.
+- "the rendered roster entry carries a third-person blurb within the tunable
+  cap" — MET. The cap is enforced at generation (fail-to-skip past it).
+- "a turn racing an un-generated blurb renders name-only rather than blocking" —
+  MET, and only genuinely testable now that something renders. Asserted on the
+  formatter AND end-to-end through the real chain in rosterBlurbSeam.test.ts.
+
+Six review rounds. Round 1 found a second copy of the flag description I had
+claimed to fix; round 2 found the job-chain contract test's "exactly the
+production wiring" comment falsified by the new constructor arg (fixed
+structurally — both callers now build through contextStepFactory); rounds 4-6
+each found the PREVIOUS round's fix incomplete in the same shape, ending in a
+blank-name class that MY OWN TASK-644 trim had introduced on both the persona
+and character sides.
+
+STILL OPEN, and deliberately not part of this task:
+- TASK-684 — staleness keys on the card alone, so a prompt/cap/model change
+  never regenerates. Filed from a round-1 Info finding.
+- TASK-683 — the history-row shape drift PromptHistorySource exposed.
+- The FLAG FLIP is an owner decision and a release action, not task work. Two
+  things to watch when it happens, from the round-6 review: fetchCharacterBlurbs
+  adds one awaited PK lookup to the generation path, and
+  extractCharacterParticipants goes to 3x per turn. Both are bounded and both
+  are inert at rosterBlurbEnabled=false; check generation-latency after the
+  flip rather than before.
+- TASK-651 is COUPLED to the flip, found while grounding it: humans render
+  before characters in the participants block, so the guild_info flicker
+  diverges the prefix UPSTREAM of every blurb byte. Turning blurbs on without
+  651 makes each S1 miss more expensive. 651 need not precede the CUT; it must
+  precede the flag going on in PROD.
 <!-- SECTION:DESCRIPTION:END -->
