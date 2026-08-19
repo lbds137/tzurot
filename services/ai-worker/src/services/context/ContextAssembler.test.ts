@@ -68,6 +68,10 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}): ContextAsse
         .mockResolvedValue({ config: { personaId: 'persona-1', preferredName: 'Vee' } }),
       ...(overrides.personaResolver as object),
     },
+    guildInfoRecorder: {
+      record: vi.fn().mockResolvedValue(undefined),
+      ...(overrides.guildInfoRecorder as object),
+    },
   } as unknown as ContextAssemblerDeps;
 }
 
@@ -1252,5 +1256,142 @@ describe('ContextAssembler — extended-context voice transcript re-resolution',
     );
     expect(getMessageByDiscordId).not.toHaveBeenCalled();
     expect(stt).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContextAssembler guild-info write-through', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const SERVER = '123456789012345678';
+
+  function extendedContextEnvelope(): Partial<JobContext> {
+    return {
+      serverId: SERVER,
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: [
+          {
+            id: 'd-ext',
+            role: MessageRole.User,
+            content: 'extended message',
+            createdAt: '2026-06-02T00:00:00.000Z',
+            personaId: 'discord:555',
+            discordMessageId: ['d-ext'],
+          },
+        ],
+        rawExtendedContextUsers: [
+          { discordId: '555', username: 'extuser', displayName: 'Ext User' },
+        ],
+        rawParticipantGuildInfo: {
+          'discord:555': { roles: ['Admin'], displayColor: '#FF00FF' },
+        },
+        rawActiveGuildMemberInfo: { roles: ['Mod'], joinedAt: '2024-01-01T00:00:00.000Z' },
+      },
+    } as Partial<JobContext>;
+  }
+
+  function depsWithRecorder(): {
+    deps: ContextAssemblerDeps;
+    record: ReturnType<typeof vi.fn>;
+  } {
+    const record = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      guildInfoRecorder: { record },
+      userService: {
+        getOrCreateUser: vi.fn().mockResolvedValue({ userId: 'internal-1' }),
+        getOrCreateUsersInBatch: vi.fn().mockResolvedValue(new Map([['555', 'internal-555']])),
+      },
+      personaResolver: {
+        resolve: vi
+          .fn()
+          .mockResolvedValue({ config: { personaId: 'persona-555', preferredName: 'Ext' } }),
+      },
+    });
+    return { deps, record };
+  }
+
+  it('records the extended-context participants against their INTERNAL user ids', async () => {
+    const { deps, record } = depsWithRecorder();
+
+    await new ContextAssembler(deps).assembleCore(
+      makeJobContext(extendedContextEnvelope()),
+      PERSONALITY,
+      undefined
+    );
+
+    // The persisted key is the human, not the persona: the same person can
+    // appear in a roster under two personas, and both must render the same
+    // guild info. Reading the map AFTER the resolver remapped it would have
+    // given `persona-555` here.
+    expect(record).toHaveBeenCalledWith(SERVER, [
+      { userId: 'internal-555', info: { roles: ['Admin'], displayColor: '#FF00FF' } },
+    ]);
+  });
+
+  it('records the triggering message author too — the one always-available source', async () => {
+    const { deps, record } = depsWithRecorder();
+
+    await new ContextAssembler(deps).assembleCore(
+      makeJobContext(extendedContextEnvelope()),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(record).toHaveBeenCalledWith(SERVER, [
+      { userId: 'internal-1', info: { roles: ['Mod'], joinedAt: '2024-01-01T00:00:00.000Z' } },
+    ]);
+  });
+
+  it('skips a participant whose discord id never resolved to a user row', async () => {
+    const { deps, record } = depsWithRecorder();
+    (
+      deps.userService as unknown as { getOrCreateUsersInBatch: ReturnType<typeof vi.fn> }
+    ).getOrCreateUsersInBatch = vi.fn().mockResolvedValue(new Map());
+
+    await new ContextAssembler(deps).assembleCore(
+      makeJobContext(extendedContextEnvelope()),
+      PERSONALITY,
+      undefined
+    );
+
+    // Bots and malformed snowflakes are filtered out before provisioning, so
+    // an unmapped key has no user row to key on — guessing one would attach a
+    // stranger's roles to somebody else.
+    expect(record).toHaveBeenCalledWith(SERVER, []);
+  });
+
+  it('survives a rejecting recorder — the write is dispatched, not depended on', async () => {
+    // The dispatched form swallows failures by design, so this pins the thing
+    // the `.catch()` exists for: a recorder that rejects must not surface as a
+    // job failure, and must not take the assembled context with it. Without
+    // the catch this is an unhandled rejection rather than a passing test.
+    const { deps } = depsWithRecorder();
+    (deps.guildInfoRecorder as { record: ReturnType<typeof vi.fn> }).record = vi
+      .fn()
+      .mockRejectedValue(new Error('connection refused'));
+
+    const core = await new ContextAssembler(deps).assembleCore(
+      makeJobContext(extendedContextEnvelope()),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(core.participantGuildInfo).toBeDefined();
+    await Promise.resolve();
+  });
+
+  it('writes nothing at all in a DM, where there is no guild', async () => {
+    const { deps, record } = depsWithRecorder();
+    const envelope = extendedContextEnvelope();
+
+    await new ContextAssembler(deps).assembleCore(
+      makeJobContext({ ...envelope, serverId: undefined }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(record).not.toHaveBeenCalled();
   });
 });

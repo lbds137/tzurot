@@ -130,6 +130,7 @@ model User {
   personalityConfigs    UserPersonalityConfig[]
   personaHistoryConfigs UserPersonaHistoryConfig[]
   personalityAliases    PersonalityAlias[]         @relation("UserAliases")
+  guildInfos            UserGuildInfo[]
 
   @@index([discordId])
   @@index([defaultLlmConfigId])
@@ -1287,4 +1288,49 @@ model SecretRotation {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("secret_rotations")
+}
+
+/// Last-known Discord guild membership metadata for a user, per guild.
+///
+/// A cache of Discord state, not a system of record: every row can be
+/// re-observed from Discord by either environment, which is why this table is
+/// deliberately absent from `SYNC_TABLE_ORDER` — syncing it would propagate one
+/// env's staleness to the other for no gain, and its high write frequency would
+/// otherwise make it dominate last-write-wins reconciliation.
+///
+/// It exists so `<guild_info>` renders identical bytes whether or not a given
+/// turn's Discord fetch happened to observe the member. Rendering it from the
+/// per-turn fetch alone made three lines of role metadata evict ~78k characters
+/// of prompt prefix whenever the fetch missed someone who was still in the
+/// roster.
+///
+/// Keyed by USER rather than persona because guild membership is a property of
+/// the human, not of the persona they are speaking as: one human wearing two
+/// personas in the same channel must render the same roles under both, and
+/// `guildMemberUpdate` identifies the human.
+///
+/// No code path expires a row: `guildMemberInfoStore` exposes only a record and
+/// a read, so a row changes only when a newer observation overwrites it. A TTL
+/// would reintroduce the same flicker on a slower clock. Rows do cascade away
+/// with their user.
+model UserGuildInfo {
+  userId       String    @map("user_id") @db.Uuid
+  /// Discord guild (server) snowflake this membership is scoped to.
+  guildId      String    @map("guild_id") @db.VarChar(20)
+  /// Role names, highest position first, @everyone excluded, capped at
+  /// MESSAGE_LIMITS.MAX_GUILD_ROLES. Stored already-ordered and already-capped
+  /// so the rendered bytes do not depend on who wrote the row.
+  roles        String[]
+  /// Hex display colour from the highest coloured role. Null when the member
+  /// has no coloured role — Discord reports #000000 for that, which the
+  /// collector maps to absent rather than storing a fake black.
+  displayColor String?   @map("display_color") @db.VarChar(7)
+  /// When the user joined this guild. Null when Discord did not supply it
+  /// (uncached member edge cases); renders as no `joined` attribute.
+  joinedAt     DateTime? @map("joined_at")
+  observedAt   DateTime  @default(now()) @updatedAt @map("observed_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, guildId])
+  @@map("user_guild_infos")
 }

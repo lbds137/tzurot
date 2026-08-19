@@ -60,6 +60,15 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
   // Prisma client. bot-client has no client to hand it, and character writes
   // are the gateway's job regardless.
   'stampCardSourceHash',
+  // services/guildMemberInfoStore — reads and writes user_guild_infos through a
+  // Prisma client. bot-client observes the Discord events that feed this table
+  // but reports them through the gateway's /internal/guild-member-info route;
+  // `isEmptyGuildInfo` is banned alongside the two query functions even though
+  // it is pure, because importing it would pull the module (and its Prisma
+  // types) into bot-client's graph for a four-line predicate.
+  'recordGuildMemberInfos',
+  'getGuildMemberInfos',
+  'isEmptyGuildInfo',
 ] as const;
 
 // The specifier arm spans ANY @tzurot/common-types subpath: the package's

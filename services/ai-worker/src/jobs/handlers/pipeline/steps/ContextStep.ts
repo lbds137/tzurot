@@ -15,11 +15,8 @@ import {
   convertConversationHistory,
 } from '../../../utils/conversationUtils.js';
 import { extractCharacterParticipants } from '../../../utils/participantUtils.js';
-import type { ContextDataSource } from '../../../../services/context/types.js';
-import type {
-  AssembledCore,
-  ContextAssembler,
-} from '../../../../services/context/ContextAssembler.js';
+import type { AssembledCore, ContextDataSource } from '../../../../services/context/types.js';
+import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
 import { transcribeAudio } from '../../../../services/multimodal/AudioProcessor.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 

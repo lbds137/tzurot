@@ -83,6 +83,14 @@ export interface PersonaPromptData {
   pronouns: string | null;
   /** User's persona content/about text */
   content: string;
+  /**
+   * Internal id of the human who owns this persona.
+   *
+   * Carried because some prompt inputs are facts about the PERSON rather than
+   * the persona — guild membership is the first — and one human can appear in
+   * a roster under two personas, which must not be able to disagree.
+   */
+  ownerId: string;
 }
 
 /**
@@ -380,6 +388,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
           preferredName: true,
           pronouns: true,
           content: true,
+          ownerId: true,
         },
       });
 
@@ -391,6 +400,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
         preferredName: persona.preferredName,
         pronouns: persona.pronouns,
         content: persona.content ?? '',
+        ownerId: persona.ownerId,
       };
     } catch (error) {
       logger.error({ err: error, personaId }, 'Failed to get persona data');

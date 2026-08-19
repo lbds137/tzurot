@@ -13,6 +13,7 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PersonaResolver } from '@tzurot/identity';
+import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 
 // Mock PersonaResolver
 const mockPersonaResolver = {
@@ -1208,5 +1209,143 @@ describe('MemoryRetriever', () => {
       );
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('MemoryRetriever persisted guild-info fallback', () => {
+  const SERVER = '123456789012345678';
+  const STORED = {
+    roles: ['Admin'],
+    displayColor: '#FF00FF',
+    joinedAt: '2024-01-01T00:00:00.000Z',
+  };
+
+  let findMany: ReturnType<typeof vi.fn>;
+  let retriever: MemoryRetriever;
+
+  function storedRow(userId: string): Record<string, unknown> {
+    return {
+      userId,
+      guildId: SERVER,
+      roles: STORED.roles,
+      displayColor: STORED.displayColor,
+      joinedAt: new Date(STORED.joinedAt),
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findMany = vi.fn().mockResolvedValue([]);
+    retriever = new MemoryRetriever(
+      { userGuildInfo: { findMany } } as unknown as PrismaClient,
+      undefined,
+      mockPersonaResolver as unknown as PersonaResolver
+    );
+
+    mockPersonaResolver.resolveToUuid.mockImplementation(async (id: string) =>
+      id === 'discord:user1' ? 'persona-1' : 'persona-2'
+    );
+    mockPersonaResolver.getPersonaForPrompt.mockImplementation(async (id: string) => ({
+      preferredName: null,
+      pronouns: null,
+      content: `content for ${id}`,
+      ownerId: id === 'persona-1' ? 'owner-1' : 'owner-2',
+    }));
+  });
+
+  function contextWith(overrides: Partial<ConversationContext> = {}): ConversationContext {
+    return {
+      userId: 'user-123',
+      serverId: SERVER,
+      participants: [
+        { personaId: 'discord:user1', personaName: 'Active User', isActive: true },
+        { personaId: 'discord:user2', personaName: 'Quiet User', isActive: false },
+      ],
+      ...overrides,
+    } as ConversationContext;
+  }
+
+  it("fills a participant this turn's fetch did not observe", async () => {
+    findMany.mockResolvedValue([storedRow('owner-2')]);
+
+    const result = await retriever.getAllParticipantPersonas(contextWith(), 'personality-123');
+
+    expect(result.get('persona-2')?.guildInfo).toEqual(STORED);
+  });
+
+  it('keys the lookup on the OWNING HUMAN, not the persona', async () => {
+    await retriever.getAllParticipantPersonas(contextWith(), 'personality-123');
+
+    // Guild membership belongs to the person. Querying by persona id would
+    // miss every row, silently, and look exactly like "nothing stored yet".
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { guildId: SERVER, userId: { in: ['owner-1', 'owner-2'] } },
+      })
+    );
+  });
+
+  it('does not overwrite what this turn actually observed', async () => {
+    findMany.mockResolvedValue([storedRow('owner-1'), storedRow('owner-2')]);
+
+    const result = await retriever.getAllParticipantPersonas(
+      contextWith({
+        activePersonaGuildInfo: { roles: ['Live'] },
+        participantGuildInfo: { 'discord:user2': { roles: ['AlsoLive'] } },
+      }),
+      'personality-123'
+    );
+
+    expect(result.get('persona-1')?.guildInfo).toEqual({ roles: ['Live'] });
+    expect(result.get('persona-2')?.guildInfo).toEqual({ roles: ['AlsoLive'] });
+  });
+
+  it('treats an empty observation as unobserved', async () => {
+    findMany.mockResolvedValue([storedRow('owner-2')]);
+
+    // `{ roles: [] }` is what a null `msg.member` produces. It renders as
+    // nothing, so treating it as a real observation would leave the flicker
+    // exactly where it was.
+    const result = await retriever.getAllParticipantPersonas(
+      contextWith({ participantGuildInfo: { 'discord:user2': { roles: [] } } }),
+      'personality-123'
+    );
+
+    expect(result.get('persona-2')?.guildInfo).toEqual(STORED);
+  });
+
+  it('skips the query entirely in a DM', async () => {
+    await retriever.getAllParticipantPersonas(
+      contextWith({ serverId: undefined }),
+      'personality-123'
+    );
+
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('renders identical bytes whether or not the live guild map was populated', async () => {
+    // The acceptance criterion for TASK-651, stated end to end: the two runs
+    // differ only in whether this turn's Discord fetch saw the participants,
+    // which is precisely the difference that used to cost the whole prompt
+    // prefix below <participants>.
+    findMany.mockResolvedValue([storedRow('owner-1'), storedRow('owner-2')]);
+
+    const withStoredFallback = await retriever.getAllParticipantPersonas(
+      contextWith(),
+      'personality-123'
+    );
+    const withLiveFetch = await retriever.getAllParticipantPersonas(
+      contextWith({
+        activePersonaGuildInfo: STORED,
+        participantGuildInfo: { 'discord:user2': STORED },
+      }),
+      'personality-123'
+    );
+
+    expect(formatParticipantsContext(withStoredFallback, 'TestBot')).toBe(
+      formatParticipantsContext(withLiveFetch, 'TestBot')
+    );
+    // Guard against the degenerate pass where neither run rendered guild info.
+    expect(formatParticipantsContext(withStoredFallback, 'TestBot')).toContain('<guild_info');
   });
 });

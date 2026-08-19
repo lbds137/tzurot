@@ -4,6 +4,8 @@ import {
   RecentUsersResponseSchema,
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
+  GuildMemberInfoRecordRequestSchema,
+  GuildMemberInfoRecordResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
   MessagePersonalityResponseSchema,
@@ -163,6 +165,44 @@ describe('DmSessionSetRequestSchema and DmSessionSetResponseSchema', () => {
 
   it('request rejects missing channelId', () => {
     expect(DmSessionSetRequestSchema.safeParse({ personalitySlug: 'lila' }).success).toBe(false);
+  });
+});
+
+describe('GuildMemberInfoRecordRequestSchema and GuildMemberInfoRecordResponseSchema', () => {
+  const valid = {
+    guildId: '123456789012345678',
+    discordUserId: '987654321098765432',
+    info: { roles: ['Admin'], displayColor: '#FF00FF', joinedAt: '2024-01-01T00:00:00.000Z' },
+  };
+
+  it('request accepts a full membership observation', () => {
+    expect(GuildMemberInfoRecordRequestSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('request accepts the roles-only shape a colourless member produces', () => {
+    expect(
+      GuildMemberInfoRecordRequestSchema.safeParse({ ...valid, info: { roles: [] } }).success
+    ).toBe(true);
+  });
+
+  it('request rejects a non-snowflake guild id', () => {
+    expect(
+      GuildMemberInfoRecordRequestSchema.safeParse({ ...valid, guildId: 'not-a-snowflake' }).success
+    ).toBe(false);
+  });
+
+  it('request rejects an observation missing its roles array', () => {
+    // `roles` is what the emptiness check reads; an absent array would make
+    // `isEmptyGuildInfo` throw rather than decide.
+    expect(
+      GuildMemberInfoRecordRequestSchema.safeParse({ ...valid, info: { displayColor: '#FFF' } })
+        .success
+    ).toBe(false);
+  });
+
+  it('response reports whether a user row matched', () => {
+    expect(GuildMemberInfoRecordResponseSchema.safeParse({ recorded: false }).success).toBe(true);
+    expect(GuildMemberInfoRecordResponseSchema.safeParse({}).success).toBe(false);
   });
 });
 

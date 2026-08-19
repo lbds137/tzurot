@@ -173,6 +173,20 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     body: { channelId: '830000000000000001', personalitySlug: 'conf-dm-session' },
   },
 
+  recordGuildMemberInfo: {
+    // The actor already has a user row, so this drives the `recorded: true`
+    // arm — the one that actually writes. The Discord id has to come from the
+    // seed because the harness generates the actor.
+    seed: ctx =>
+      Promise.resolve({
+        body: {
+          guildId: '830000000000000002',
+          discordUserId: ctx.actorDiscordId,
+          info: { roles: ['Conformance'], displayColor: '#FF00FF' },
+        },
+      }),
+  },
+
   lookupPersonalityFromMessage: {
     seed: async ctx => {
       const personality = await createPersonality(ctx, 'conf-message-lookup');

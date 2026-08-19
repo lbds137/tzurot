@@ -28,12 +28,13 @@ import {
   type CrossChannelHistoryGroupEntry,
   type ReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
-import {
-  type LoadedPersonality,
-  type MentionedPersona,
-  type ReferencedChannel,
-} from '@tzurot/common-types/types/schemas/personality';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEnvelope';
+import {
+  recordActiveGuildInfo,
+  recordParticipantGuildInfo,
+  type GuildMemberInfoRecorder,
+} from './guildInfoWriteThrough.js';
 import {
   resolveSummonAnonymity,
   type SummonAnonymity,
@@ -51,62 +52,10 @@ import type { PersonaResolver, UserService } from '@tzurot/identity';
 import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
 import { recoverRelayEchoIdentities } from './relayEchoRecovery.js';
-import type { ContextDataSource } from './types.js';
+import type { AssembledCore, ContextDataSource } from './types.js';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 
 const logger = createLogger('ContextAssembler');
-
-/** The core surfaces the assembler re-derives. */
-export interface AssembledCore {
-  userInternalId: string;
-  /** Null for an incognito summon — an anonymous poke has no invoking-user persona. */
-  activePersonaId: string | null;
-  activePersonaName: string | null;
-  userTimezone: string;
-  contextEpoch: Date | undefined;
-  /** Hydrated DB history merged with envelope-carried extended context. */
-  history: ConversationMessage[];
-  /**
-   * Enriched references re-derived from the envelope's raw snapshots
-   * (dedup-vs-OWN-history + DB transcript append). Undefined when the
-   * envelope carries no raw references (extraction didn't run bot-side —
-   * weigh-in mode or a sender predating the field).
-   */
-  referencedMessages: ReferencedMessage[] | undefined;
-  /**
-   * The rewritten message content ([Reference N] links + mention names).
-   * For an incognito summon this is the raw content untouched — the bot skips
-   * all rewriting there, and mirroring that also avoids upserting mention users
-   * for anonymous pokes.
-   */
-  messageContent: string;
-  /** Personas resolved from user mentions; undefined when none (payload parity). */
-  mentionedPersonas: MentionedPersona[] | undefined;
-  /** Channels resolved from channel mentions; undefined when none (payload parity). */
-  referencedChannels: ReferencedChannel[] | undefined;
-  /**
-   * Cross-channel history groups, decorated from the envelope's
-   * knownChannelEnvironments (fallback env for cache misses) and serialized
-   * through the shared wire mapper. Undefined when the feature is disabled
-   * or the summon is incognito (payload parity with the bot path); [] when
-   * enabled but nothing eligible was found.
-   */
-  crossChannelHistory: CrossChannelHistoryGroupEntry[] | undefined;
-  /**
-   * Extended-context participant guild info, re-keyed from the envelope's
-   * pre-resolution `discord:*` map to persona UUIDs by the SAME shared
-   * resolver call the bot uses. Undefined when the envelope carries no raw
-   * map (DM, fetch didn't run, or a sender predating the field).
-   */
-  participantGuildInfo: Record<string, GuildMemberInfo> | undefined;
-  /**
-   * The triggering user's guild info, passed through from the envelope's
-   * raw scalar. Unconditional (present even in weigh-in, mirroring the
-   * payload: the bot clears the persona fields for weigh-in but ships this
-   * one, where it's inert downstream because no active persona reads it).
-   */
-  activePersonaGuildInfo: GuildMemberInfo | undefined;
-}
 
 /** Per-call assembly options (job-scoped values the deps can't carry). */
 export interface AssembleCoreOptions {
@@ -140,6 +89,16 @@ export interface ContextAssemblerDeps {
   dataSource: ContextDataSource;
   userService: UserService;
   personaResolver: PersonaResolver;
+  /**
+   * Write-through sink for this turn's observed guild memberships.
+   *
+   * A separate dep rather than a method on `ContextDataSource`, which
+   * documents itself as a read-only seam for DB-derived context and names
+   * guild member info as envelope-carried. Both statements stay true: what is
+   * persisted here is what the envelope already delivered, and the read seam
+   * keeps its purity.
+   */
+  guildInfoRecorder: GuildMemberInfoRecorder;
 }
 
 /**
@@ -240,6 +199,7 @@ export class ContextAssembler {
       {
         channelId,
         guildId: jobContext.serverId ?? null,
+        activeUserId: user.userId,
       }
     );
 
@@ -483,16 +443,39 @@ export class ContextAssembler {
     });
   }
 
-  /** Steps the envelope's extended context through upsert → resolve → merge. */
+  /**
+   * Steps the envelope's extended context through upsert → resolve → merge,
+   * and writes through the guild memberships it observed on the way.
+   */
   private async mergeExtendedContext(
     raw: RawAssemblyInputs,
     dbHistory: ConversationMessage[],
     personalityId: string,
-    location: { channelId: string; guildId: string | null }
+    location: { channelId: string; guildId: string | null; activeUserId: string }
   ): Promise<{
     history: ConversationMessage[];
     participantGuildInfo: Record<string, GuildMemberInfo> | undefined;
   }> {
+    // Both write-throughs live here because this is where the envelope's
+    // observations are unpacked. The active speaker's rides the TRIGGERING
+    // message rather than the fetch window, so it lands even on the early
+    // return below — a turn with no extended context still observed its own
+    // author.
+    // Dispatched, not awaited: nothing this turn reads the stored value — the
+    // envelope already carries the live one — so blocking generation on a
+    // cache write buys nothing. A lost write costs exactly one more turn of
+    // the flicker this module exists to remove, and the next observation
+    // heals it. (`referencePersistence` awaits its fail-soft write for the
+    // opposite reason: losing that one loses durable data.)
+    void recordActiveGuildInfo(
+      this.deps.guildInfoRecorder,
+      location.guildId,
+      location.activeUserId,
+      raw.rawActiveGuildMemberInfo
+    ).catch((err: unknown) => {
+      logger.warn({ err, userId: location.activeUserId }, 'Active guild-info write-through failed');
+    });
+
     const rawMessages = raw.rawExtendedContextMessages;
     if (rawMessages === undefined || rawMessages.length === 0) {
       // No extended-context messages to merge, but the guild map can still be
@@ -541,6 +524,29 @@ export class ContextAssembler {
 
     if (usersToResolve.length > 0) {
       const userMap = await this.deps.userService.getOrCreateUsersInBatch(usersToResolve);
+      // BEFORE the resolver remaps the map's keys in place: the raw map is
+      // keyed by `discord:<snowflake>`, and `userMap` turns exactly those into
+      // internal user ids. Doing it after the remap would mean persona ids,
+      // which are the wrong key for a fact about a HUMAN in a guild — and
+      // recovering the human from a persona would cost a query this ordering
+      // avoids entirely.
+      //
+      // Dispatched rather than awaited, like the active write above — and
+      // handed its own shallow copy of the key space rather than
+      // `raw.rawParticipantGuildInfo` itself. Passing the original would be
+      // safe today, because the remap below rewrites the structuredClone and
+      // never the raw map; copying makes it safe BY CONSTRUCTION instead, so a
+      // future edit that starts remapping in place cannot silently race a
+      // write still in flight. Values stay shared by reference, which is
+      // correct — the remap moves keys, never the GuildMemberInfo objects.
+      void recordParticipantGuildInfo(
+        this.deps.guildInfoRecorder,
+        raw.rawParticipantGuildInfo === undefined ? undefined : { ...raw.rawParticipantGuildInfo },
+        location.guildId,
+        userMap
+      ).catch((err: unknown) => {
+        logger.warn({ err }, 'Participant guild-info write-through failed');
+      });
       await resolveExtendedContextPersonaIds(
         messages,
         userMap,
