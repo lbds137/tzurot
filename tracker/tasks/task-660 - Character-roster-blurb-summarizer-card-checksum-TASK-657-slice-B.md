@@ -146,8 +146,15 @@ other fully-empty card (pinned by a test). PR 2's caller must therefore detect
 two cards' checksums to each other — and should skip enqueueing a model call
 entirely in that state rather than paying for a blurb about nothing.
 
+PR 2 should add a runtime guard on key shape when the real caller lands:
+hashCharacterCard's entry-boundary uniqueness assumes keys carry no `:` and no
+newline, and keys are NOT normalized on the way in the way values are. A doc
+comment is the only thing holding that today, and this hash gates whether a paid
+model call fires — so a future key-list refactor should fail loudly rather than
+silently degrade collision resistance.
+
 Also settled in PR 1, so PR 2 inherits rather than re-decides: the checksum
 preserves CASE (a rename is a real staleness event for a blurb that names its
-character) and collapses whitespace runs; null/undefined/empty/whitespace-only
+character), normalizes to Unicode NFC, and collapses whitespace runs; null/undefined/empty/whitespace-only
 are one absent state.
 <!-- SECTION:DESCRIPTION:END -->
