@@ -104,6 +104,22 @@ two.
    character's custom failure text; it cannot appear in a third-person blurb)
    burns a model call on every edit to it.
 
+   The clearest demonstration that the privacy list is the wrong source: it
+   does not contain `name` or `displayName` at all (they are not redactable —
+   the roster renders them openly). But a third-person blurb that NAMES the
+   character goes stale the moment it is renamed, and a checksum derived from
+   the redaction list would miss that entirely. The opposite error to the
+   errorMessage one, from the same conflation.
+
+   For reference, the card fields actually available (prisma/schema.prisma,
+   model Personality): characterInfo and personalityTraits (both required),
+   personalityTone/Age/Appearance/Likes/Dislikes, conversationalGoals,
+   conversationalExamples, customFields, errorMessage, birthMonth/Day/Year,
+   plus name/displayName. Which of those the prompt consumes is a judgement
+   call to make once, in PR 2, with the reason recorded — conversationalExamples
+   in particular is a real question, since feeding verbatim example dialogue to
+   a summarizer invites the blurb to quote it.
+
    The checksum set should be exactly the summarizer's INPUT set — the fields
    the prompt actually consumes — decided when the prompt is written in PR 2,
    and the two must be defined together so they cannot drift. If PR 1 lands the
