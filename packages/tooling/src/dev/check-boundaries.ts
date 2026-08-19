@@ -56,6 +56,10 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
   'registerSystemSettings',
   'getSystemSetting',
   'resetSystemSettingsRegistration',
+  // services/cardSourceHash — writes personalities.card_source_hash through a
+  // Prisma client. bot-client has no client to hand it, and character writes
+  // are the gateway's job regardless.
+  'stampCardSourceHash',
 ] as const;
 
 // The specifier arm spans ANY @tzurot/common-types subpath: the package's

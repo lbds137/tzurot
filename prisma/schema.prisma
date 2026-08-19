@@ -468,13 +468,21 @@ model Personality {
   /// instruction-register text for imported characters.
   rosterBlurb           String? @map("roster_blurb")
   /// Full 64-hex sha-256 of the card fields `rosterBlurb` was generated from
-  /// (`hashCharacterCard`, common-types/utils/characterCardChecksum.ts).
-  /// Deferred-set, and set atomically with `rosterBlurb`: a mismatch against
-  /// the live card — including null here with a blurb present — means the
-  /// blurb is stale and a regeneration is enqueued. PROVISIONAL until the
-  /// summarizer prompt lands: the hashed set must be exactly the prompt's
-  /// input set, and the two are defined together so they cannot drift.
+  /// (`hashRosterBlurbCard`, common-types/utils/rosterBlurbCard.ts).
+  /// Deferred-set, and written atomically with `rosterBlurb`: the pair records
+  /// what the stored blurb describes. Compare it against `card_source_hash`
+  /// below to decide staleness; never against a freshly-computed hash, which
+  /// is the reader-side rehash this design exists to avoid.
   rosterBlurbSourceHash String? @map("roster_blurb_source_hash") @db.VarChar(64)
+  /// Full 64-hex sha-256 of this character's CURRENT card, stamped by every
+  /// write path that can change a card field (`hashRosterBlurbCard`,
+  /// common-types/utils/rosterBlurbCard.ts). Deferred-set: null on rows written
+  /// before the column existed, which the sweep's stamping pass fills in once
+  /// and never revisits. Staleness is `roster_blurb_source_hash IS DISTINCT
+  /// FROM card_source_hash` — a pure SQL comparison, which is the whole point:
+  /// no reader ever rehashes a card to discover that it changed, because the
+  /// write that changed it already recorded the new digest.
+  cardSourceHash        String? @map("card_source_hash") @db.VarChar(64)
 
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")

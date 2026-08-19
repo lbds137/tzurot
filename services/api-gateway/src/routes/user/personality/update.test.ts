@@ -78,6 +78,10 @@ function createAsyncGenerator(items: string[]): AsyncGenerator<string> {
 import { handleUpdatePersonality } from './update.js';
 import type { RouteDeps } from '../../routeDeps.js';
 import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import {
+  hashRosterBlurbCard,
+  type RosterBlurbCard,
+} from '@tzurot/common-types/utils/rosterBlurbCard';
 
 describe('PUT /api/user/personality/:slug (update)', () => {
   const mockPrisma = createMockPrisma();
@@ -128,6 +132,33 @@ describe('PUT /api/user/personality/:slug (update)', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it('stamps card_source_hash from the row the write returned', async () => {
+    // Not from the patch and not from the pre-update row: this route derives
+    // `displayName` from `name` when the client omits it, so only the row that
+    // actually landed carries the card the blurb will be generated from.
+    const updated = createMockPersonality({
+      id: '7e570000-0000-4000-8000-000000000007',
+      name: 'Updated Name',
+      slug: 'my-char',
+      displayName: 'Updated Name',
+      characterInfo: 'An archivist.',
+    });
+    mockPrisma.personality.findUnique.mockResolvedValue({
+      id: '7e570000-0000-4000-8000-000000000007',
+      ownerId: MOCK_USER_ID,
+    });
+    mockPrisma.personality.update.mockResolvedValue(updated);
+
+    const handler = getUpdateHandler();
+    const { req, res } = createMockReqRes({ name: 'Updated Name' }, { slug: 'my-char' });
+
+    await handler(req, res);
+
+    expect(mockPrisma.$executeRaw.mock.calls[0]).toContain(
+      hashRosterBlurbCard(updated as unknown as RosterBlurbCard)
+    );
   });
 
   it('should update owned personality', async () => {

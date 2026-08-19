@@ -10,6 +10,10 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import {
+  hashRosterBlurbCard,
+  type RosterBlurbCard,
+} from '@tzurot/common-types/utils/rosterBlurbCard';
 
 // Mock imageProcessor
 vi.mock('../../utils/imageProcessor.js', () => ({
@@ -23,19 +27,40 @@ vi.mock('../../utils/imageProcessor.js', () => ({
 }));
 
 // Create mock Prisma client
-const createMockPrismaClient = () => ({
-  personality: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  llmConfig: {
-    findFirst: vi.fn(),
-  },
-  personalityDefaultConfig: {
-    create: vi.fn(),
-  },
-});
+
+/**
+ * `$transaction` runs its callback against the same mock client, so a route
+ * that groups a write with its `card_source_hash` stamp is exercised exactly
+ * as it runs — both calls land on the mocks the test already asserts against.
+ */
+function attachTransaction<T extends object>(
+  client: T
+): T & {
+  $executeRaw: ReturnType<typeof vi.fn>;
+  $transaction: ReturnType<typeof vi.fn>;
+} {
+  const withRaw = Object.assign(client, {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(),
+  });
+  withRaw.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(withRaw));
+  return withRaw;
+}
+
+const createMockPrismaClient = () =>
+  attachTransaction({
+    personality: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    llmConfig: {
+      findFirst: vi.fn(),
+    },
+    personalityDefaultConfig: {
+      create: vi.fn(),
+    },
+  });
 
 describe('PATCH /api/admin/personality/:slug', () => {
   let app: Express;
@@ -85,6 +110,39 @@ describe('PATCH /api/admin/personality/:slug', () => {
         where: { slug: 'test-bot' },
         data: { name: 'Updated Bot' },
       });
+    });
+
+    it('stamps card_source_hash from the row the write returned', async () => {
+      // The stamp is what makes staleness a pure SQL comparison later, so it
+      // has to be the digest of the card that actually landed — not of the
+      // patch, and not of the pre-update row.
+      const updatedRow = {
+        id: 'personality-123',
+        name: 'Updated Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+        characterInfo: 'An archivist of forgotten things.',
+        personalityTraits: 'dry, precise',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+      };
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+      prisma.personality.update.mockResolvedValue(updatedRow as never);
+
+      await request(app).patch('/admin/personality/test-bot').send({ name: 'Updated Bot' });
+
+      expect(prisma.$executeRaw.mock.calls[0]).toContain(
+        hashRosterBlurbCard(updatedRow as unknown as RosterBlurbCard)
+      );
     });
 
     it('should update multiple fields at once', async () => {

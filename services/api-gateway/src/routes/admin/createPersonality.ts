@@ -22,6 +22,7 @@ import { processAvatarData } from '../../utils/avatarProcessor.js';
 import { processVoiceReferenceData } from '../../utils/voiceReferenceProcessor.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { stampCardSourceHash } from '@tzurot/common-types/services/cardSourceHash';
 
 const logger = createLogger('admin-create-personality');
 
@@ -157,7 +158,11 @@ export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler =
       voiceReferenceBuffer: voiceRefResult?.ok === true ? voiceRefResult.buffer : undefined,
       voiceReferenceMimeType: voiceRefResult?.ok === true ? voiceRefResult.mimeType : undefined,
     });
-    const personality = await prisma.personality.create({ data: createData });
+    const personality = await prisma.$transaction(async tx => {
+      const row = await tx.personality.create({ data: createData });
+      await stampCardSourceHash(tx, row.id, row);
+      return row;
+    });
 
     logger.info({ slug, personalityId: personality.id }, 'Created personality');
 

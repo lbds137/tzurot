@@ -66,8 +66,10 @@ export function createMockPrisma(): {
   systemPrompt: { findFirst: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
   personalityDefaultConfig: { create: ReturnType<typeof vi.fn> };
+  $executeRaw: ReturnType<typeof vi.fn>;
+  $transaction: ReturnType<typeof vi.fn>;
 } {
-  return {
+  const client = {
     user: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -104,7 +106,14 @@ export function createMockPrisma(): {
     personalityDefaultConfig: {
       create: vi.fn(),
     },
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(),
   };
+  // `$transaction` runs its callback against this same client, so a route that
+  // groups a write with its `card_source_hash` stamp is exercised exactly as it
+  // runs — both calls land on the mocks the test already asserts against.
+  client.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(client));
+  return client;
 }
 
 // Base mock personality with all fields needed for POST/PUT responses

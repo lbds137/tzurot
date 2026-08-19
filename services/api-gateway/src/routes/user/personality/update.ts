@@ -27,6 +27,7 @@ import { getParam } from '../../../utils/requestParams.js';
 import { findShadowedGlobalAliases, resolvePersonalityForEdit } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
 import type { RouteDeps } from '../../routeDeps.js';
+import { stampCardSourceHash } from '@tzurot/common-types/services/cardSourceHash';
 
 const logger = createLogger('user-personality-update');
 
@@ -302,10 +303,19 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
     }
     const { avatarUpdated, mediaFields } = mediaResult;
 
-    const updated = await prisma.personality.update({
-      where: { id: personality.id },
-      data: { ...updateData, ...mediaFields },
-      select: PERSONALITY_DETAIL_SELECT,
+    // Stamped from the row the write RETURNED, inside the same transaction.
+    // Merging `updateData` onto the stored card by hand would mean re-deriving
+    // this route's own field precedence (displayName mirroring name, above),
+    // and a mismatch there is silent — it stamps a digest no generation can
+    // match, so the blurb regenerates on every sweep forever.
+    const updated = await prisma.$transaction(async tx => {
+      const row = await tx.personality.update({
+        where: { id: personality.id },
+        data: { ...updateData, ...mediaFields },
+        select: PERSONALITY_DETAIL_SELECT,
+      });
+      await stampCardSourceHash(tx, row.id, row);
+      return row;
     });
 
     if (avatarUpdated) {

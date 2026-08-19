@@ -241,9 +241,14 @@ const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
   { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION, pattern: '25 9 * * *' },
   { name: SCHEDULED_JOBS.RELEASE_RECONCILE, pattern: '41 * * * *' },
-  // Every 10 minutes: a card edit shows up in the roster within one tick, and
-  // the per-tick generation cap makes the worst-case spend legible at a glance.
-  { name: SCHEDULED_JOBS.ROSTER_BLURB_SWEEP, pattern: '*/10 * * * *' },
+  // Every 10 minutes, offset off the :00 marks. A card edit shows up in the
+  // roster within one tick, and the per-tick generation cap makes the
+  // worst-case spend legible. The offset is load-bearing, not cosmetic: a tick
+  // can run up to MAX_GENERATIONS_PER_SWEEP sequential model calls, and the
+  // scheduled worker sets no concurrency (BullMQ default 1), so sharing a
+  // minute mark with process-pending-memories would queue that safety net
+  // behind a long sweep at every single tick rather than occasionally.
+  { name: SCHEDULED_JOBS.ROSTER_BLURB_SWEEP, pattern: '3,13,23,33,43,53 * * * *' },
 ];
 
 async function registerRepeatableJobs(scheduledQueue: Queue): Promise<void> {

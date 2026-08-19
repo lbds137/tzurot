@@ -9,6 +9,10 @@ import { handleCreateGlobalPersonality } from './createPersonality.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import {
+  hashRosterBlurbCard,
+  type RosterBlurbCard,
+} from '@tzurot/common-types/utils/rosterBlurbCard';
 
 /**
  * Stand-in for the owner-auth middleware applied at the mount site in
@@ -34,25 +38,46 @@ vi.mock('../../utils/imageProcessor.js', () => ({
 }));
 
 // Create mock Prisma client
-const createMockPrismaClient = () => ({
-  personality: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  systemPrompt: {
-    findFirst: vi.fn(),
-  },
-  llmConfig: {
-    findFirst: vi.fn(),
-  },
-  personalityDefaultConfig: {
-    create: vi.fn(),
-  },
-  user: {
-    findUnique: vi.fn(),
-  },
-});
+
+/**
+ * `$transaction` runs its callback against the same mock client, so a route
+ * that groups a write with its `card_source_hash` stamp is exercised exactly
+ * as it runs — both calls land on the mocks the test already asserts against.
+ */
+function attachTransaction<T extends object>(
+  client: T
+): T & {
+  $executeRaw: ReturnType<typeof vi.fn>;
+  $transaction: ReturnType<typeof vi.fn>;
+} {
+  const withRaw = Object.assign(client, {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(),
+  });
+  withRaw.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(withRaw));
+  return withRaw;
+}
+
+const createMockPrismaClient = () =>
+  attachTransaction({
+    personality: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    systemPrompt: {
+      findFirst: vi.fn(),
+    },
+    llmConfig: {
+      findFirst: vi.fn(),
+    },
+    personalityDefaultConfig: {
+      create: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
+    },
+  });
 
 describe('POST /api/admin/personality', () => {
   let app: Express;
@@ -129,6 +154,38 @@ describe('POST /api/admin/personality', () => {
         imageEnabled: false,
       }),
     });
+  });
+
+  it('stamps card_source_hash from the row the write returned', async () => {
+    const createdRow = {
+      id: 'new-personality-id',
+      name: 'Ilana',
+      slug: 'ilana',
+      displayName: null,
+      characterInfo: 'An archivist of forgotten things.',
+      personalityTraits: 'dry, precise',
+      personalityTone: null,
+      personalityAge: null,
+      personalityAppearance: null,
+      personalityLikes: null,
+      personalityDislikes: null,
+      conversationalGoals: null,
+    };
+    prisma.personality.findUnique.mockResolvedValue(null);
+    prisma.personality.create.mockResolvedValue(createdRow as never);
+    prisma.systemPrompt.findFirst.mockResolvedValue(null);
+    prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+    await request(app).post('/admin/personality').send({
+      name: 'Ilana',
+      slug: 'ilana',
+      characterInfo: 'An archivist of forgotten things.',
+      personalityTraits: 'dry, precise',
+    });
+
+    expect(prisma.$executeRaw.mock.calls[0]).toContain(
+      hashRosterBlurbCard(createdRow as unknown as RosterBlurbCard)
+    );
   });
 
   it('stores a voice reference and auto-enables voice (parity with the user create route)', async () => {
