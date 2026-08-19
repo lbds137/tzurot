@@ -4,9 +4,10 @@ title: Character-authored quotes carry no from_id in contextual_references
 status: To Do
 assignee: []
 created_date: '2026-08-18 19:46'
+updated_date: '2026-08-19 01:28'
 labels:
   - 'area:ai-worker'
-  - 'size:S'
+  - 'size:M'
   - 'state:ready'
 dependencies: []
 priority: low
@@ -81,4 +82,52 @@ StoredReferencedMessage must replicate the gating, not just the field. The
 current "Fix shape" says "give the live reference path the same two-id-space
 treatment", which reads as a pure mechanical port and would silently drop the
 access check. Do not port the field without the gate.
+
+## DESIGN GROUNDING 2026-08-19 — the fix is NOT a mechanical port, and the size label was wrong
+
+Read end to end before starting. Three findings that change the shape:
+
+1. THE OBVIOUS PLACE TO RESOLVE IS CLOSED. The reference is built by
+MessageFormatter.buildRawReference (services/bot-client/src/handlers/references/MessageFormatter.ts:71),
+whose docstring states it is "Pure and synchronous" because that shape is what
+the raw assembly envelope ships for the worker-side assembler to re-derive from.
+Resolving a personality id is an async lookup. Making that function async to fit
+one field puts a lookup on the AI-job-submission path and breaks a stated
+contract -- do not do it without deciding that trade explicitly.
+
+2. THE MECHANISM ALREADY EXISTS, AND IT IS CHEAP. The extended-context fetcher
+resolves exactly this: options.getOurPersonalityId, wired at
+services/bot-client/src/services/MessageContextBuilder.ts:185 to
+redisService.getWebhookPersonality(discordMessageId) -- a Redis lookup keyed on
+the Discord message id, returning the personality UUID for a message our bot
+sent via webhook. It is consumed at DiscordChannelFetcher.ts:367 and lands on
+ConversationMessage.personalityId (line 489), which is the value TASK-664 made
+the chat log decide self-vs-sibling by. So the reference path needs the same
+call, not a new resolver.
+
+3. THE ACCESS GATE DOES NOT COME FOR FREE FROM THAT MECHANISM, and the two
+candidate resolvers differ on exactly this axis:
+   - getWebhookPersonality is an UNGATED id lookup. Extended context uses it
+     ungated today, which is defensible there because those messages are in the
+     channel the user is already reading.
+   - ReplyResolutionService.resolveFromReferencedMessage
+     (services/bot-client/src/services/ReplyResolutionService.ts:208) is the
+     GATED one -- it ends in personalityService.loadPersonality(id, userId), the
+     Reply Loophole check -- and is what the forwarded path uses.
+
+   A REPLY is same-channel by construction, so the viewer demonstrably has
+   access and the ungated lookup leaks nothing. A MESSAGE LINK can point at
+   another channel, and that is precisely the Reply Loophole shape. So the
+   answer is likely per-reference-kind rather than one resolver for both, and
+   whichever is chosen, the reasoning belongs in a comment at the call site.
+
+CONSEQUENCE: relabelled from size:S. This is a schema change plus a
+resolution-point decision plus an access-gating decision across two services,
+with the persist path (fire-and-forget backfill, as forwardedFrom does) as a
+third option for where the work happens. It is a size:M at least.
+
+The forwarded path is still the right precedent -- but it is a precedent for
+BACKFILLING AFTER PERSIST (ConversationPersistence.backFillForwardedOrigin),
+off the blocking path, not for resolving inline. Copying the field without
+copying that placement puts a network call where the pure builder is.
 <!-- SECTION:DESCRIPTION:END -->
