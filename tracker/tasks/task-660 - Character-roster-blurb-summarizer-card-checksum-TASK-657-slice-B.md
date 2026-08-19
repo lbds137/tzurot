@@ -140,6 +140,12 @@ call site must convert explicitly — there is no implicit numeric coercion and
 the compiler will say so. Raised by the PR 1 review; no fix needed in PR 1
 because no caller existed yet.
 
+A fully-empty card hashes to the sha-256 of the EMPTY STRING, shared by every
+other fully-empty card (pinned by a test). PR 2's caller must therefore detect
+"nothing to summarize" by testing for that specific digest, never by comparing
+two cards' checksums to each other — and should skip enqueueing a model call
+entirely in that state rather than paying for a blurb about nothing.
+
 Also settled in PR 1, so PR 2 inherits rather than re-decides: the checksum
 preserves CASE (a rename is a real staleness event for a blurb that names its
 character) and collapses whitespace runs; null/undefined/empty/whitespace-only
