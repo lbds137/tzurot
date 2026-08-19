@@ -130,4 +130,16 @@ The forwarded path is still the right precedent -- but it is a precedent for
 BACKFILLING AFTER PERSIST (ConversationPersistence.backFillForwardedOrigin),
 off the blocking path, not for resolving inline. Copying the field without
 copying that placement puts a network call where the pure builder is.
+
+## ITEM 2 OF THE GROUNDING IS CLOSED — #2150, 2026-08-19
+
+The "TASK-657 slice B" reference in ParticipantFormatter.ts is gone: the render
+half rewrote that docstring wholesale (the element now HAS an about body, so the
+paragraph explaining why it did not was replaced rather than corrected). Only
+the message.ts:206 stale claim remains, and it is still this task to fix —
+verified by `grep -rn "TASK-657" --include=*.ts services packages`, one hit.
+
+Also relevant to the fix shape: the roster entry a character-authored quote must
+resolve to now carries a description as well as a name, so a from_id that
+resolves lands the model on real prose rather than a bare name.
 <!-- SECTION:DESCRIPTION:END -->
