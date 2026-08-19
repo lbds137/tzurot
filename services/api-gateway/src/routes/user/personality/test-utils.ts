@@ -4,6 +4,7 @@
 
 import { vi } from 'vitest';
 import {
+  attachMockTransaction,
   createMockIsBotOwner,
   createMockCreatedAt,
   createMockUpdatedAt,
@@ -106,14 +107,8 @@ export function createMockPrisma(): {
     personalityDefaultConfig: {
       create: vi.fn(),
     },
-    $executeRaw: vi.fn().mockResolvedValue(1),
-    $transaction: vi.fn(),
   };
-  // `$transaction` runs its callback against this same client, so a route that
-  // groups a write with its `card_source_hash` stamp is exercised exactly as it
-  // runs — both calls land on the mocks the test already asserts against.
-  client.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(client));
-  return client;
+  return attachMockTransaction(client);
 }
 
 // Base mock personality with all fields needed for POST/PUT responses

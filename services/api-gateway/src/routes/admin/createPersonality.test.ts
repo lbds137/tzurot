@@ -8,7 +8,7 @@ import request from 'supertest';
 import { handleCreateGlobalPersonality } from './createPersonality.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { stubRouteResolvers, attachMockTransaction } from '../../test/shared-route-test-utils.js';
 import {
   hashRosterBlurbCard,
   type RosterBlurbCard,
@@ -39,27 +39,8 @@ vi.mock('../../utils/imageProcessor.js', () => ({
 
 // Create mock Prisma client
 
-/**
- * `$transaction` runs its callback against the same mock client, so a route
- * that groups a write with its `card_source_hash` stamp is exercised exactly
- * as it runs — both calls land on the mocks the test already asserts against.
- */
-function attachTransaction<T extends object>(
-  client: T
-): T & {
-  $executeRaw: ReturnType<typeof vi.fn>;
-  $transaction: ReturnType<typeof vi.fn>;
-} {
-  const withRaw = Object.assign(client, {
-    $executeRaw: vi.fn().mockResolvedValue(1),
-    $transaction: vi.fn(),
-  });
-  withRaw.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(withRaw));
-  return withRaw;
-}
-
 const createMockPrismaClient = () =>
-  attachTransaction({
+  attachMockTransaction({
     personality: {
       findUnique: vi.fn(),
       create: vi.fn(),

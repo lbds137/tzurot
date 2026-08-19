@@ -134,3 +134,24 @@ export function stubRouteResolvers(): {
     } as unknown as LlmConfigResolver,
   };
 }
+
+/**
+ * Add `$executeRaw` and a self-applying `$transaction` to a mocked Prisma client.
+ *
+ * Routes that group a write with its `card_source_hash` stamp run both inside
+ * one `$transaction`, so a mock without it throws before the route's own logic
+ * runs. The callback is invoked against the SAME client, which is what lets a
+ * test assert both the Prisma write and the raw stamp on the mocks it already
+ * holds — a `$transaction` that handed back a separate object would hide the
+ * stamp from every existing assertion.
+ */
+export function attachMockTransaction<T extends object>(
+  client: T
+): T & { $executeRaw: ReturnType<typeof vi.fn>; $transaction: ReturnType<typeof vi.fn> } {
+  const withRaw = Object.assign(client, {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(),
+  });
+  withRaw.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(withRaw));
+  return withRaw;
+}
