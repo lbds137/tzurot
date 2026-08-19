@@ -116,4 +116,31 @@ MEASUREMENT CAVEAT, now resolvable: the "no cached-token figure" note above is
 answered by TASK-643, which names the payload paths -- `llmResponse.promptTokens`
 and `llmResponse.cachedPromptTokens` at the TOP level of llmResponse, not nested
 under `usage`. Convert through those rather than re-deriving.
+
+## OWNER DECISION 2026-08-19 — persist a last-known guild_info
+
+Asked as a three-way (drop it / persist a last-known value / accept the misses);
+the owner chose PERSIST. So the information stays and the churn goes, which
+means the fix is a write path rather than a deletion.
+
+Binding consequences for whoever builds it:
+
+- The rendered bytes must be identical whether or not THIS turn's
+  extended-context fetch saw the participant. That is the acceptance test, and
+  it is stateable as a unit test: render the roster twice, once with the guild
+  map populated and once with it absent, and assert byte equality.
+- Storage is per-participant, not per-turn. The natural home is alongside the
+  persona/participant row rather than in the job envelope, precisely because
+  the envelope is the volatile thing that caused this.
+- The write is a HIGH-FREQUENCY, NON-SEMANTIC stamp on whatever row holds it.
+  If that row is sync-tracked, 03-database.md's LWW rule applies: write it via
+  $executeRaw so it does not bump updated_at and hand this env the next
+  dev/prod sync. Check syncTables.ts before choosing the column's home.
+- Staleness is acceptable BY CONSTRUCTION here — a last-known role list that is
+  a few turns old is strictly better than one that vanishes, because the whole
+  defect is the vanishing. Do not add a TTL to "keep it fresh"; a TTL
+  reintroduces exactly the flicker this removes, on a slower clock.
+- Ordering is already handled: ParticipantFormatter sorts by persona UUID, and
+  extractGuildInfo sorts roles by position descending. Neither needs revisiting
+  — the instability was presence, not order.
 <!-- SECTION:DESCRIPTION:END -->
