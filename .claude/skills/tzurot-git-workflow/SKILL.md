@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-16'
+lastUpdated: '2026-08-18'
 ---
 
 # Git Workflow Procedures
@@ -267,6 +267,8 @@ GitHub Actions that validate against the **default branch (`main`)** — notably
 **Scope — the validation is file-scoped.** Only the self-validating claude workflow files (`claude-code-review.yml`, `claude.yml`) trigger the skip; a PR carrying drift in any OTHER workflow file still gets a real review (empirically confirmed: a PR with ci.yml drift received a full claude-review). Non-claude workflows (`ci.yml`) also _execute_ from the PR's own branch, so **routine `ci.yml` edits ride normal develop PRs like any code change** — no main-cut ceremony. `pnpm ops guard:workflow-sync` enforces exactly this scope (claude files only).
 
 **Consequence**: a change to one of the **claude workflow files** that lands on `develop` first **silently disables those reviews on every PR** — they pass as a green ~10-15s no-op (`"Skipping action due to workflow validation"`, no review posted) — until the change reaches `main`. Under the normal flow that's only at the next release, and the release PR's own review skips too, so it compounds across the whole cycle.
+
+**Local runs before the PR exists need `--base main`.** The guard reads the branch's real merge target from GitHub (`gh pr view`) rather than guessing it from git shape — the shape is genuinely ambiguous, because `release:finalize` puts `main`'s HEAD on `develop`'s history and a stale develop-cut branch then looks identical to a main-cut one. Consequence: on a main-cut branch with **no PR open yet**, there is nothing to ask, and the guard fails CLOSED. That is the correct direction for a guard, but it means `pnpm quality` / pre-push goes red until the PR exists. Pass `pnpm ops guard:workflow-sync --base main` (or just open the PR first).
 
 **Rule**: For any change to `claude-code-review.yml` or `claude.yml`, open a PR **cut from `main` and targeting `main`** — never branch from `develop` for this (a develop-based branch targeting `main` drags all of develop's unmerged commits into the diff). The moment it merges, run `pnpm ops release:finalize` to resync `develop` onto `main` — do this before other work piles onto `develop`, since every commit added there (and every open feature branch) then needs rebasing onto the resynced `develop`. Do NOT let a claude-workflow change reach `main` via the routine `develop→main` release merge.
 

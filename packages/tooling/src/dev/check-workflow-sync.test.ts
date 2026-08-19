@@ -8,10 +8,11 @@ import { execFileSync } from 'node:child_process';
 import {
   checkWorkflowSync,
   diffWorkflowsAgainstMain,
-  isMainCutBranch,
+  resolvePrBase,
   resolveExplicitBase,
   WORKFLOW_SYNC_TIMEOUT_MS,
   WORKFLOW_FETCH_TIMEOUT_MS,
+  WORKFLOW_GH_TIMEOUT_MS,
 } from './check-workflow-sync.js';
 
 /** Build a runGit stub from a handler map keyed on the git subcommand. */
@@ -39,7 +40,7 @@ describe('resolveExplicitBase', () => {
   });
 });
 
-describe('defaultRunGit (no injected runGit)', () => {
+describe('default runners (no injected runGit/runGh)', () => {
   it('bounds the LOCAL git shell-outs with WORKFLOW_SYNC_TIMEOUT_MS', () => {
     vi.mocked(execFileSync).mockClear();
     vi.mocked(execFileSync).mockReturnValue('');
@@ -77,45 +78,121 @@ describe('defaultRunGit (no injected runGit)', () => {
 
     vi.mocked(execFileSync).mockReturnValue('');
   });
+
+  it('bounds the gh lookup and PIPES its stderr rather than inheriting it', () => {
+    // The whole "stderr becomes the reason" design in resolvePrBase depends on
+    // this stdio triple: inherited, gh's own error prints raw above the verdict
+    // and reads as a crash; discarded, the reason is unrecoverable.
+    vi.mocked(execFileSync).mockClear();
+    vi.mocked(execFileSync).mockImplementation(((cmd: string, args: string[]) => {
+      // Drift is required to reach the gh lookup at all (drift-first ordering).
+      if (cmd === 'git' && args[0] === 'diff') return '.github/workflows/claude.yml\n';
+      // A real branch name is required too: an undeterminable branch refuses
+      // before the lookup, so gh would never be invoked to inspect.
+      if (cmd === 'git' && args[1] === '--abbrev-ref') return 'feat/thing\n';
+      return '';
+    }) as unknown as typeof execFileSync);
+
+    checkWorkflowSync({ env: {} });
+
+    const ghCalls = vi.mocked(execFileSync).mock.calls.filter(c => c[0] === 'gh');
+    expect(ghCalls.length).toBeGreaterThan(0);
+    for (const call of ghCalls) {
+      expect(call[2]).toMatchObject({
+        timeout: WORKFLOW_GH_TIMEOUT_MS,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    }
+
+    vi.mocked(execFileSync).mockReturnValue('');
+    process.exitCode = undefined;
+  });
 });
 
-describe('isMainCutBranch', () => {
-  it('is true when the merge-base with develop is an ancestor of main (main-cut shape)', () => {
-    const runGit = gitStub({
-      'rev-parse': () => 'ok\n',
-      'merge-base': args => {
-        if (args[1] === '--is-ancestor') return ''; // exit 0 = ancestor
-        return 'mainTipSha\n';
-      },
-    });
-    expect(isMainCutBranch(runGit)).toBe(true);
+describe('resolvePrBase', () => {
+  it('returns the open PR base branch', () => {
+    const runGh = vi.fn(() => 'OPEN main\n');
+    expect(resolvePrBase(runGh, 'chore/release-v3.0.0-beta.205').base).toBe('main');
+    expect(runGh).toHaveBeenCalledWith([
+      'pr',
+      'view',
+      '--json',
+      'baseRefName,state',
+      '--jq',
+      '.state + " " + .baseRefName',
+    ]);
   });
 
-  it('is false when the branch carries develop-exclusive history', () => {
-    const runGit = gitStub({
-      'rev-parse': () => 'ok\n',
-      'merge-base': args => {
-        if (args[1] === '--is-ancestor') throw new Error('exit 1: not an ancestor');
-        return 'developOnlySha\n';
-      },
-    });
-    expect(isMainCutBranch(runGit)).toBe(false);
+  it.each(['MERGED', 'CLOSED'])("refuses a %s PR, whose base is not this branch's target", st => {
+    // gh names no tie-break for a branch with several associated PRs, so a
+    // closed PR→main beside an open PR→develop could hand back "main" and skip
+    // the guard. Refusing on state closes that WITHOUT knowing how gh chooses.
+    // Probed: the field is exactly one of OPEN / CLOSED / MERGED.
+    const runGh = vi.fn(() => `${st} main\n`);
+    const { base, reason } = resolvePrBase(runGh, 'feat/thing');
+    expect(base).toBeNull();
+    expect(reason).toBe(`the branch's PR is ${st}, not OPEN`);
   });
 
-  it('fetches missing refs on shallow checkouts', () => {
-    let fetched = 0;
-    const runGit = gitStub({
-      'rev-parse': () => {
-        throw new Error('unknown revision');
-      },
-      fetch: () => {
-        fetched += 1;
-        return '';
-      },
-      'merge-base': args => (args[1] === '--is-ancestor' ? '' : 'sha\n'),
+  it('refuses to ask on develop, where an open release PR would answer "main"', () => {
+    // A release PR (develop -> main) is routinely open. Answering "main" here
+    // would skip the guard on develop for the whole release window — retiring
+    // the post-merge backstop exactly when drift is most likely in flight.
+    const runGh = vi.fn(() => 'OPEN main\n');
+    expect(resolvePrBase(runGh, 'develop').base).toBeNull();
+    expect(runGh).not.toHaveBeenCalled();
+  });
+
+  it('refuses to ask on main for the same reason', () => {
+    const runGh = vi.fn(() => 'OPEN main\n');
+    expect(resolvePrBase(runGh, 'main').base).toBeNull();
+    expect(runGh).not.toHaveBeenCalled();
+  });
+
+  it('refuses to ask when the branch is undeterminable (detached checkout)', () => {
+    const runGh = vi.fn(() => 'OPEN main\n');
+    const { base, reason } = resolvePrBase(runGh, '');
+    expect(base).toBeNull();
+    expect(reason).toBe('current branch could not be determined');
+    expect(runGh).not.toHaveBeenCalled();
+  });
+
+  it('returns null when gh fails (no PR yet, no token, no gh on PATH)', () => {
+    const runGh = vi.fn(() => {
+      throw new Error('no pull requests found for branch');
     });
-    expect(isMainCutBranch(runGit)).toBe(true);
-    expect(fetched).toBe(2); // origin/develop + origin/main
+    expect(resolvePrBase(runGh, 'feat/thing').base).toBeNull();
+  });
+
+  it('carries gh stderr through as the reason, so a failure says WHY', () => {
+    // stderr is piped rather than inherited or discarded: inherited it prints
+    // raw above the verdict and reads as a crash; discarded, "no PR yet" and
+    // "no token in CI" become indistinguishable.
+    const runGh = vi.fn(() => {
+      const error = new Error('Command failed') as Error & { stderr: string };
+      error.stderr = 'no pull requests found for branch "feat/thing"\n';
+      throw error;
+    });
+    const { base, reason } = resolvePrBase(runGh, 'feat/thing');
+    expect(base).toBeNull();
+    expect(reason).toBe('no pull requests found for branch "feat/thing"');
+  });
+
+  it('never yields an empty reason, which would print a bare ()', () => {
+    const runGh = vi.fn(() => {
+      // A non-Error throw whose String() is empty — the shape under test.
+      throw '';
+    });
+    expect(resolvePrBase(runGh, 'feat/thing').reason).toBe('gh failed without a message');
+  });
+
+  it('returns null on empty output rather than an empty-string base', () => {
+    expect(
+      resolvePrBase(
+        vi.fn(() => '\n'),
+        'feat/thing'
+      ).base
+    ).toBeNull();
   });
 });
 
@@ -176,43 +253,78 @@ describe('checkWorkflowSync', () => {
     process.exitCode = undefined;
   });
 
-  /** develop-based branch (topology says NOT main-cut) with the given diff. */
-  function developBranchGit(diffOut: string): (args: string[]) => string {
+  /** A feature branch with the given guarded-workflow diff output. */
+  function featureBranchGit(diffOut: string): (args: string[]) => string {
     return gitStub({
-      'rev-parse': () => 'ok\n',
-      'merge-base': args => {
-        if (args[1] === '--is-ancestor') throw new Error('not an ancestor');
-        return 'developOnlySha\n';
-      },
+      'rev-parse': args => (args[1] === '--abbrev-ref' ? 'feat/thing\n' : 'ok\n'),
       diff: () => diffOut,
     });
   }
 
+  /** A `gh` stub reporting the given base, or throwing when none is given. */
+  function ghStub(base?: string): (args: string[]) => string {
+    return vi.fn(() => {
+      if (base === undefined) throw new Error('no pull requests found');
+      return `OPEN ${base}\n`;
+    });
+  }
+
   it('passes when workflows are in sync', () => {
-    checkWorkflowSync({ env: {}, runGit: developBranchGit('') });
+    checkWorkflowSync({ env: {}, runGit: featureBranchGit(''), runGh: ghStub('develop') });
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it('makes NO network call on the clean path', () => {
+    // Drift-first ordering is what makes asking GitHub affordable inside
+    // `pnpm quality`. If this ever regresses, every quality run pays a round
+    // trip for a question that only matters when a guarded file changed.
+    const runGh = ghStub('develop');
+    checkWorkflowSync({ env: {}, runGit: featureBranchGit(''), runGh });
+    expect(runGh).not.toHaveBeenCalled();
   });
 
   it('fails when a claude workflow file differs from origin/main', () => {
     checkWorkflowSync({
       env: {},
-      runGit: developBranchGit('.github/workflows/claude-code-review.yml\n'),
+      runGit: featureBranchGit('.github/workflows/claude-code-review.yml\n'),
+      runGh: ghStub('develop'),
     });
     expect(process.exitCode).toBe(1);
   });
 
-  it('skips via topology on a main-cut branch, even with workflow drift', () => {
+  it('skips when the open PR targets main, even with workflow drift', () => {
     // The whole point of a main-cut branch is that its workflows differ from
-    // main — the guard must not block the sanctioned path. No CI env needed.
-    const runGit = gitStub({
-      'rev-parse': () => 'ok\n',
-      'merge-base': args => (args[1] === '--is-ancestor' ? '' : 'mainTipSha\n'),
-      diff: () => {
-        throw new Error('diff must not run on the skip path');
-      },
+    // main — the guard must not block the sanctioned path.
+    checkWorkflowSync({
+      env: {},
+      runGit: featureBranchGit('.github/workflows/claude.yml\n'),
+      runGh: ghStub('main'),
     });
-    checkWorkflowSync({ env: {}, runGit });
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it('FAILS on a develop-cut branch whose merge-base sits on main (the #2125 shape)', () => {
+    // The regression this change exists for. The old topology test read this
+    // branch as main-cut and printed success; the base is now asked of GitHub,
+    // which says develop.
+    checkWorkflowSync({
+      env: {},
+      runGit: featureBranchGit('.github/workflows/claude.yml\n'),
+      runGh: ghStub('develop'),
+    });
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('fails CLOSED when the base is unknowable (no PR, no gh, no token)', () => {
+    // Opposite direction from the git-comparison failure below, deliberately:
+    // there the guard cannot SEE the drift, here it has already seen it and
+    // only the intent is missing. A drift that is real gets reported.
+    checkWorkflowSync({
+      env: {},
+      runGit: featureBranchGit('.github/workflows/claude.yml\n'),
+      runGh: ghStub(),
+    });
+    expect(process.exitCode).toBe(1);
   });
 
   it('skips via explicit --base main without touching git', () => {
@@ -232,15 +344,66 @@ describe('checkWorkflowSync', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it('enforces when an explicit base targets develop, skipping the topology test', () => {
-    // An explicit develop target must not be overridden by topology (e.g. the
-    // develop==main window where every branch looks main-cut).
+  it('applies the develop refusal through the FULL pipeline, not just resolvePrBase', () => {
+    // resolvePrBase is unit-tested with a hand-picked 'develop' string; this
+    // runs the real checkWorkflowSync -> currentBranchName -> resolvePrBase
+    // path, which is where a branch-name bug would actually bite.
+    const runGh = ghStub('main');
     const runGit = gitStub({
-      'rev-parse': () => 'ok\n',
+      'rev-parse': args => (args[1] === '--abbrev-ref' ? 'develop\n' : 'ok\n'),
       diff: () => '.github/workflows/claude.yml\n',
     });
-    checkWorkflowSync({ env: { GITHUB_BASE_REF: 'develop' }, runGit });
+    checkWorkflowSync({ env: {}, runGit, runGh });
     expect(process.exitCode).toBe(1);
+    expect(runGh).not.toHaveBeenCalled();
+  });
+
+  it('does not mistake a detached HEAD for a branch literally named HEAD', () => {
+    // `git rev-parse --abbrev-ref HEAD` PRINTS the string "HEAD" on a detached
+    // checkout rather than throwing. Untranslated it reads as a branch name,
+    // which is neither develop nor main — so the refusal would silently not
+    // apply. Same translation release/finalize.ts already makes.
+    const runGh = ghStub('main');
+    const runGit = gitStub({
+      'rev-parse': args => (args[1] === '--abbrev-ref' ? 'HEAD\n' : 'ok\n'),
+      diff: () => '.github/workflows/claude.yml\n',
+    });
+    checkWorkflowSync({ env: {}, runGit, runGh });
+    // An undeterminable branch refuses like a long-lived one: gh is never
+    // asked, and the drift is reported. Untranslated, "HEAD" would read as an
+    // ordinary branch name, sail past both refusals, and let gh's answer
+    // ("main", from the release PR) skip the guard.
+    expect(runGh).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('prefers GITHUB_REF_NAME over whatever the working tree says', () => {
+    // The two sources must actually DISAGREE for this to test anything: with a
+    // detached tree both paths refuse anyway (via the empty-branch guard), so
+    // that fixture cannot tell the preference from its absence. Here git
+    // reports an ordinary feature branch — which would sail past both refusals
+    // and let gh's "main" skip the guard — while Actions reports develop.
+    const runGh = ghStub('main');
+    const runGit = gitStub({
+      'rev-parse': args => (args[1] === '--abbrev-ref' ? 'feat/thing\n' : 'ok\n'),
+      diff: () => '.github/workflows/claude.yml\n',
+    });
+    checkWorkflowSync({ env: { GITHUB_REF_NAME: 'develop' }, runGit, runGh });
+    expect(process.exitCode).toBe(1);
+    expect(runGh).not.toHaveBeenCalled();
+  });
+
+  it('enforces on an explicit develop base without asking GitHub', () => {
+    // An explicit target has already declared the answer; re-asking would let
+    // a stale or unrelated PR override it.
+    const runGh = ghStub('main');
+    checkWorkflowSync({
+      env: { GITHUB_BASE_REF: 'develop' },
+      runGit: featureBranchGit('.github/workflows/claude.yml\n'),
+      runGh,
+    });
+    expect(process.exitCode).toBe(1);
+    expect(runGh).not.toHaveBeenCalled();
   });
 
   it('fails open with a warning when git comparison is impossible', () => {
