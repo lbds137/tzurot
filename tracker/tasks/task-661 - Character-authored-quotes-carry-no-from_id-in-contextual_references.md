@@ -1,10 +1,10 @@
 ---
 id: TASK-661
 title: Character-authored quotes carry no from_id in contextual_references
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 19:46'
-updated_date: '2026-08-19 01:28'
+updated_date: '2026-08-19 20:16'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -183,4 +183,61 @@ consumer has to re-derive access it cannot see.
 The alternative — persisting a kind discriminator so the gate can run later —
 should be rejected explicitly rather than by omission: it moves an access
 decision downstream of the only place with the information to make it.
+
+## CLOSED — #2151, merged 2026-08-19 20:16Z (3cb5aa2d6)
+
+Acceptance re-read clause by clause at PR time, not from memory:
+
+- from_id on a character-authored quote — MET. `referenceFromId`
+  (ai-worker/src/services/prompt/RenderableReference.ts) emits the personality
+  id under role="character", mirroring `formatFromIdAttribute`'s chat-log rule
+  so the two cannot drift. It binds to a `<character_participant>` entry
+  whenever that character has spoken in the channel the roster derives from —
+  the same scoping every from_id has had since slice A, not a new limit.
+- role decided by id, not name — MET when both ids are present; `deriveRefRole`
+  takes the id shortcut first and the name path decides otherwise, which the
+  fourth clause permits.
+- a renamed personality's own quoted lines still read assistant — MET, pinned
+  by a test where the name comparison would say character and the id says
+  assistant.
+- user/self cases unchanged + id-less fallback keeps name behaviour — MET. All
+  26 existing deriveRefRole call sites converted to the options object with
+  expectations untouched.
+
+GROUNDING ITEM 1 CLOSED: the message.ts stale claim is rewritten.
+`grep -rn "TASK-657" --include=*.ts services packages` is now empty. (Item 2
+had already been closed by #2150; item 3 is answered below.)
+
+WHERE THE GROUNDING WAS WRONG, recorded because the reasoning is reusable:
+
+- THE ACCESS GATE IS ALREADY CLOSED UPSTREAM. Item 3 said "do not port the
+  field without the gate", and the caution was right to raise — but a reference
+  exists only because the message was FETCHED, and both fetch paths verify the
+  INVOKER's access, not the bot's: a reply is same-channel by construction
+  (ReplyReferenceStrategy skips forward-typed refs), and a link goes through
+  LinkExtractor.verifyInvokerCanAccessSource, which fails closed on every
+  branch (verified in the implementation, not its docstring). A message the
+  invoker cannot see never becomes a reference. The forwarded path still needs
+  its own gate for the opposite reason: a forward's text arrives in
+  message_snapshots with no fetch and so no access check at all. Consequence:
+  the per-kind resolver split the second-pass grounding designed was not built.
+
+- A SECOND RESOLUTION TIER WAS BUILT AND REMOVED. The gateway's
+  lookupPersonalityFromMessage ends in getMessageByDiscordId, a
+  `discordMessageId has ?` match over conversation_history returning whichever
+  row holds the id — including a USER row, whose personalityId is the
+  personality being ADDRESSED. It would have stamped a human's quoted message
+  with a character's id. Only the webhook-message cache is authorship-proving,
+  so resolution is single-tier; the rejection is documented on the interface so
+  nobody re-adds it on the same "more coverage is more correct" reasoning.
+
+REVIEW: two rounds. Round 1 found one real gap — forwarded-snapshot references
+carry the FORWARDING message's id (Discord omits the original's), so any cache
+hit would name the wrong personality; excluded outright in `needsLookup`, on
+identity rather than access, with two tests. Round 2 verified the claims
+independently and found nothing.
+
+STILL OPEN, deliberately: no backfill. Stored history predating this carries no
+authorPersonalityId and keeps the name fallback until it ages out of the ~30-day
+window. No migration — the field rides the existing message_metadata JSONB.
 <!-- SECTION:DESCRIPTION:END -->
