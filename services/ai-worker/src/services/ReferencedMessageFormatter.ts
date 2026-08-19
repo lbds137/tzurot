@@ -28,6 +28,7 @@ import {
 import {
   dedupeReference,
   promptTime,
+  referenceFromId,
   referenceSearchText,
   renderReference,
   type RenderableReference,
@@ -401,25 +402,29 @@ export class ReferencedMessageFormatter {
     const discordName = ref.authorDisplayName || ref.authorUsername;
     const persona = personaMap.get(ref.discordUserId);
 
+    // Deliberately the DISCORD name, not the hydrated one: the name half of
+    // role derivation matches against the responding personality's own display
+    // name and its siblings' — all Discord-vocabulary — so feeding it a persona
+    // name would silently break the self/sibling match that keeps a persona's
+    // own line from reading as a user's.
+    const role = deriveRefRole({
+      authorRole: ref.authorRole,
+      authorName: discordName,
+      personalityName: personality.displayName,
+      allPersonalityNames: apiKeys?.allPersonalityNames,
+      authorPersonalityId: ref.authorPersonalityId,
+      responderPersonalityId: personality.id,
+    });
+
     return {
       built,
       renderable: {
         number: ref.referenceNumber,
         isForwarded: ref.isForwarded,
         from: persona?.personaName ?? discordName,
-        fromId: persona?.personaId,
+        fromId: referenceFromId(role, ref.authorPersonalityId, persona?.personaId),
         username: ref.authorUsername,
-        // Deliberately the DISCORD name, not the hydrated one: role derivation
-        // is a name-match against the responding personality's own display
-        // name and its siblings' — all Discord-vocabulary — so feeding it a
-        // persona name would silently break the self/sibling match that keeps
-        // a persona's own line from reading as a user's.
-        role: deriveRefRole(
-          ref.authorRole,
-          discordName,
-          personality.displayName,
-          apiKeys?.allPersonalityNames
-        ),
+        role,
         time: promptTime(ref.timestamp),
         content: ref.content,
         locationContext: ref.locationContext,

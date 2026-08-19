@@ -137,13 +137,27 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'assistant', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'assistant',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toBe('');
     });
 
     it('returns empty string when no referencedMessages', () => {
       const msg = makeEntry();
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toBe('');
     });
 
@@ -163,7 +177,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('from="User One"');
       expect(result).toContain('role="user"');
@@ -188,7 +209,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('from="Lila"');
       expect(result).toContain('from_id="persona-uuid-123"');
       expect(result).not.toContain('Long Discord Name');
@@ -225,7 +253,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain(
         '<image filename="photo.png" type="image/png">A sunset over the ocean</image>'
       );
@@ -275,7 +310,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
 
       // The described one carries its description...
       expect(result).toContain(
@@ -322,7 +364,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       // Both modalities render, under the one wrapper.
       expect(result).toContain('<image filename="photo.png" type="image/png">A cat</image>');
       expect(result).toContain('<file filename="doc.pdf" type="application/pdf"/>');
@@ -353,7 +402,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       // Without a hydrated description the image is still named, with the reason
       // it has no text — rather than being omitted or rendered as a bare marker.
       expect(result).toContain(
@@ -400,7 +456,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
 
       // Shared audio file: NOT a failed transcription.
       expect(result).toContain('<file filename="song.mp3" type="audio/mp3"/>');
@@ -439,7 +502,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('<image>SENTINEL_ORPHAN_DESCRIPTION</image>');
     });
 
@@ -460,7 +530,14 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const historyIds = historyIndex('already-in-history');
-      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: historyIds,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('[Referenced message — full text in the chat log]');
       expect(result).toContain('Duplicated message that is in history');
@@ -507,13 +584,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(
-        msg,
-        'user',
-        personalityName,
-        historyIndex('already-in-history'),
-        undefined
-      );
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: historyIndex('already-in-history'),
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
 
       expect(mockDedupeReference).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -558,7 +636,14 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const historyIds = historyIndex('already-in-history');
-      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: historyIds,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('role="bot"');
     });
 
@@ -580,7 +665,14 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const historyIds = historyIndex('in-history');
-      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: historyIds,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       // Should contain truncated content with '...'
       expect(result).toContain('X'.repeat(100) + '...');
       expect(result).not.toContain('X'.repeat(101));
@@ -611,7 +703,14 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const historyIds = historyIndex('in-history');
-      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: historyIds,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('<quoted_messages>');
       // Full ref for User Two
       expect(result).toContain('from="User Two"');
@@ -637,7 +736,14 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      const result = formatQuotedSection({
+        msg: msg,
+        normalizedRole: 'user',
+        personalityName: personalityName,
+        historyEntries: undefined,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+      });
       expect(result).toContain('role="assistant"');
     });
   });

@@ -66,6 +66,27 @@ export const referencedMessageSchema = z.object({
   // Precomputed authorship role (bot-client classifies via applicationId, which the
   // worker can't see). Absent on legacy refs → worker falls back to name-based role.
   authorRole: referenceAuthorRoleSchema.optional(),
+  /**
+   * Internal personality UUID when one of OUR personas authored the quoted
+   * message — the value the rendered `from_id` carries for a `role="character"`
+   * quote, and what decides self-vs-sibling without a name comparison.
+   *
+   * Resolved in bot-client after the reference set is built — the
+   * webhook-message cache it reads is bot-client's own, written when it posts
+   * as a persona — so the pure synchronous `buildRawReference` stays pure.
+   * Absent when the author is a human, a foreign bot, or one of our webhooks
+   * whose cache entry has aged out; every consumer then falls back to the name
+   * match, which is the pre-existing behaviour rather than a degradation.
+   *
+   * Deliberately NOT access-gated here, unlike `forwardedOriginSchema.authorPersonalityId`:
+   * a reference only exists if the message was FETCHED, and both fetch paths
+   * already verify the invoker's access (a reply is same-channel by
+   * construction; a link goes through `LinkExtractor.verifyInvokerCanAccessSource`).
+   * A forward has no such fetch — Discord hands over the snapshot text with no
+   * access check at all — which is exactly why that field needs its own gate
+   * and this one does not.
+   */
+  authorPersonalityId: z.string().optional(),
   discordUserId: z.string(), // Discord user ID for persona lookup
   authorUsername: z.string(),
   authorDisplayName: z.string(),
@@ -124,6 +145,9 @@ export const storedReferencedMessageSchema = z.object({
   // Persistent — carried from the live reference's classification (see
   // referenceAuthorRoleSchema). Absent on pre-classifier history → name fallback.
   authorRole: referenceAuthorRoleSchema.optional(),
+  // Persistent — carried from the live reference (see the field's doc on
+  // referencedMessageSchema). Absent on pre-resolver history → name fallback.
+  authorPersonalityId: z.string().optional(),
   // Ephemeral — set by hydration in ai-worker before prompt formatting
   resolvedPersonaId: z.string().optional(),
   resolvedPersonaName: z.string().optional(),
@@ -201,10 +225,10 @@ export const forwardedOriginSchema = z.object({
    * token that can never resolve against anything.
    *
    * Absent for a forward authored by a human or an unrelated bot, and absent
-   * when the personality could not be resolved. It does not bind to a roster
-   * entry yet either, because characters are not in `<participants>` until
-   * TASK-657 — but it is the value that becomes correct when they are, which
-   * a snowflake never would.
+   * when the personality could not be resolved. It binds to a
+   * `<character_participant>` entry whenever that character has spoken in the
+   * channel the roster is built from; outside that, it is an id the model
+   * cannot expand, which a snowflake would never have been either.
    */
   authorPersonalityId: z.string().optional(),
 });

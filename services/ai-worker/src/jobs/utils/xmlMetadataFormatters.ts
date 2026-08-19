@@ -28,13 +28,32 @@ import { resolveSpeakerInfo } from './participantUtils.js';
  * how much of the quote is redundant. Only the second can be derived, so only
  * the second stops the stub asserting things about a renderer it cannot see.
  */
-export function formatQuotedSection(
-  msg: RawHistoryEntry,
-  normalizedRole: string,
-  personalityName: string,
-  historyEntries: Map<string, RawHistoryEntry> | undefined,
-  allPersonalityNames: Set<string> | undefined
-): string {
+export interface QuotedSectionInput {
+  msg: RawHistoryEntry;
+  normalizedRole: string;
+  /** The responding personality's name, for the role name-match fallback. */
+  personalityName: string;
+  /** Discord-message-id → history entry, for dedup and its subtraction set. */
+  historyEntries: Map<string, RawHistoryEntry> | undefined;
+  allPersonalityNames: Set<string> | undefined;
+  /**
+   * The responding personality's id. With a quote's own `authorPersonalityId`
+   * it decides self-vs-sibling exactly; absent, the name comparison decides
+   * (the same pairing `formatSingleHistoryEntryAsXml` already threads for
+   * chat-log rows).
+   */
+  responderPersonalityId: string | undefined;
+}
+
+export function formatQuotedSection(input: QuotedSectionInput): string {
+  const {
+    msg,
+    normalizedRole,
+    personalityName,
+    historyEntries,
+    allPersonalityNames,
+    responderPersonalityId,
+  } = input;
   if (normalizedRole !== 'user') {
     return '';
   }
@@ -64,7 +83,9 @@ export function formatQuotedSection(
   }
 
   const formattedFull = fullRefs.map(ref =>
-    renderReference(fromStoredReference(ref, personalityName, allPersonalityNames))
+    renderReference(
+      fromStoredReference(ref, personalityName, allPersonalityNames, responderPersonalityId)
+    )
   );
 
   // Deduped refs are the SAME reference, projected — not a second build. Media
@@ -77,7 +98,7 @@ export function formatQuotedSection(
     const entry = historyEntries?.get(ref.discordMessageId);
     return renderReference(
       dedupeReference(
-        fromStoredReference(ref, personalityName, allPersonalityNames),
+        fromStoredReference(ref, personalityName, allPersonalityNames, responderPersonalityId),
         entry === undefined
           ? undefined
           : chatLogEnrichmentFor(entry, personalityName, allPersonalityNames)

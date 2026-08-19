@@ -627,6 +627,42 @@ describe('ReferencedMessageFormatter', () => {
       expect(matches.formatted).not.toContain('username=');
     });
 
+    it('binds a sibling character quote to its personality id, not a persona id', async () => {
+      // A persona DOES resolve for the author id here, so the assertion
+      // discriminates between the two id spaces rather than between an id and
+      // nothing.
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['discord-1', resolved('persona-uuid-1', 'Vladlena')]])
+      );
+
+      const { formatted } = await formatter.formatReferencedMessages(
+        [makeRef({ authorRole: 'assistant', authorPersonalityId: 'sibling-personality' })],
+        mockPersonality
+      );
+
+      expect(formatted).toContain('from_id="sibling-personality"');
+      expect(formatted).toContain('role="character"');
+      expect(formatted).not.toContain('persona-uuid-1');
+    });
+
+    it('reads the responder own quoted line as assistant, by id rather than by name', async () => {
+      const { formatted } = await formatter.formatReferencedMessages(
+        [
+          makeRef({
+            authorRole: 'assistant',
+            authorPersonalityId: 'test-personality',
+            // A display name matching NOTHING, so only the id can produce
+            // `assistant` — the name path would demote or misread it.
+            authorDisplayName: 'Renamed Since',
+          }),
+        ],
+        mockPersonality
+      );
+
+      expect(formatted).toContain('role="assistant"');
+      expect(formatted).not.toContain('from_id=');
+    });
+
     it('derives the role from the DISCORD name, not the hydrated persona name', async () => {
       // Both directions of the substitution that would break role derivation if
       // the hydrated name were fed to it. deriveRefRole matches against the
@@ -641,8 +677,11 @@ describe('ReferencedMessageFormatter', () => {
         [makeRef({ authorUsername: 'test-bot', authorDisplayName: 'Test Bot' })],
         mockPersonality
       );
+      // No `from_id`: the two-id-space rule emits a persona id only under
+      // role="user" (see referenceFromId). The `from` name is still hydrated —
+      // that half is what this test is about.
       expect(ownLine.formatted).toContain(
-        '<quote number="1" from="Vladlena" from_id="persona-uuid-1" username="test-bot" role="assistant"'
+        '<quote number="1" from="Vladlena" username="test-bot" role="assistant"'
       );
 
       // ...and the converse: a human whose PERSONA name happens to match the

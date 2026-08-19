@@ -63,6 +63,17 @@ describe('toStoredReference', () => {
     ]);
   });
 
+  it('carries authorPersonalityId onto the stored row, and absence stays absent', () => {
+    // The id is what lets a replayed quote decide self-vs-sibling by identity
+    // instead of by name; dropping it here would make the fix live for exactly
+    // one turn.
+    const id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    expect(toStoredReference(liveRef({ authorPersonalityId: id }), []).authorPersonalityId).toBe(
+      id
+    );
+    expect(toStoredReference(liveRef(), []).authorPersonalityId).toBeUndefined();
+  });
+
   it('leaves enrichment UNDEFINED when nothing was computed', () => {
     // Not `[]`. Absence has to keep meaning "never computed" — a retryable
     // state — rather than "computed, produced nothing".
@@ -299,6 +310,44 @@ describe('fromStoredReference', () => {
       'Ref Bot'
     );
     expect(ownLine.role).toBe('assistant');
+  });
+
+  it('binds a sibling character quote to its personality id, not a persona id', () => {
+    const SELF = '11111111-2222-4333-8444-555555555555';
+    const SIBLING = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+    const renderable = fromStoredReference(
+      {
+        ...stored,
+        authorRole: 'assistant',
+        authorDisplayName: 'Ha-Shem',
+        authorPersonalityId: SIBLING,
+        // Hydration can resolve a persona for the author id; under a
+        // non-user role that id is the wrong space, so it must not win.
+        resolvedPersonaId: 'persona-9',
+      },
+      'Ref Bot',
+      undefined,
+      SELF
+    );
+
+    expect(renderable.role).toBe('character');
+    expect(renderable.fromId).toBe(SIBLING);
+  });
+
+  it('reads the responder own replayed line as assistant, with no from_id', () => {
+    const SELF = '11111111-2222-4333-8444-555555555555';
+
+    const renderable = fromStoredReference(
+      { ...stored, authorRole: 'assistant', authorPersonalityId: SELF },
+      // A name that matches NOTHING, so only the id can produce `assistant`.
+      'Ref Bot',
+      undefined,
+      SELF
+    );
+
+    expect(renderable.role).toBe('assistant');
+    expect(renderable.fromId).toBeUndefined();
   });
 
   it('suppresses a pre-XML location block rather than rendering it as prose', () => {

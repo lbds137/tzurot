@@ -162,13 +162,14 @@ export function formatSingleHistoryEntryAsXml(
   const fromIdAttr = formatFromIdAttribute(msg, role);
 
   // Format metadata sections using helpers
-  const quotedSection = formatQuotedSection(
+  const quotedSection = formatQuotedSection({
     msg,
     normalizedRole,
     personalityName,
     historyEntries,
-    allPersonalityNames
-  );
+    allPersonalityNames,
+    responderPersonalityId,
+  });
   const imageSection = formatImageSection(msg);
   const embedsSection = formatEmbedsSection(msg);
   // Assistant transcripts are suppressed inside formatVoiceSection — the rule

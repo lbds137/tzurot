@@ -163,27 +163,33 @@ describe('built references survive the round trip (component, PGLite)', () => {
     const rows = (await getChannelHistoryWindow(prisma, { channelId: CHANNEL, cap: 10 })).messages;
     const trigger = rows.find(row => row.role === MessageRole.User);
     expect(trigger).toBeDefined();
-    return formatQuotedSection(
+    return formatQuotedSection({
       // ConversationMessage → RawHistoryEntry is a structural widening; the
       // metadata object is the same one `parseMessageMetadata` produced.
-      { role: 'user', content: trigger?.content ?? '', messageMetadata: trigger?.messageMetadata },
-      'user',
-      'Ref Bot',
-      dedupId === undefined
-        ? undefined
-        : new Map([
-            [
-              dedupId,
-              {
-                role: 'user',
-                content: '',
-                discordMessageId: [dedupId],
-                messageMetadata: chatLogCarries,
-              },
-            ],
-          ]),
-      undefined
-    );
+      msg: {
+        role: 'user',
+        content: trigger?.content ?? '',
+        messageMetadata: trigger?.messageMetadata,
+      },
+      normalizedRole: 'user',
+      personalityName: 'Ref Bot',
+      historyEntries:
+        dedupId === undefined
+          ? undefined
+          : new Map([
+              [
+                dedupId,
+                {
+                  role: 'user',
+                  content: '',
+                  discordMessageId: [dedupId],
+                  messageMetadata: chatLogCarries,
+                },
+              ],
+            ]),
+      allPersonalityNames: undefined,
+      responderPersonalityId: undefined,
+    });
   }
 
   it('replays the image description and the voice transcript it was built with', async () => {

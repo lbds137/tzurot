@@ -117,6 +117,51 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       expect(references[0].content).toBe('Original message');
     });
 
+    it('stamps authorPersonalityId on a reference our own webhook authored', async () => {
+      // The WIRING test for the resolver: its own unit tests prove the lookup
+      // logic, and neither they nor any other test in this file can see that
+      // `extractReferencesWithReplacement` actually calls it. Resolution fails
+      // soft by design, so a dropped call looks exactly like a cache miss —
+      // every suite here stays green with the whole step deleted.
+      const PERSONALITY = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+      const fromWebhookCache = vi.fn().mockResolvedValue(PERSONALITY);
+      const wired = new MessageReferenceExtractor({
+        maxReferences: 10,
+        embedProcessingDelayMs: 0,
+        authorPersonalityLookups: { fromWebhookCache },
+      });
+
+      const referencedMessage = createMockMessage({
+        id: 'referenced-123',
+        content: 'a sibling character line',
+        author: createMockUser({ username: 'Ha-Shem', bot: true }),
+        createdAt: new Date('2025-11-02T12:00:00Z'),
+        channel: createConfiguredChannel(),
+        webhookId: 'webhook-1',
+        // `classifyReferenceAuthorRole` reads BOTH off the REFERENCED message:
+        // applicationId === client.user.id is what makes it our own webhook.
+        applicationId: 'client-1',
+        client: { user: { id: 'client-1' } } as any as Client,
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-123',
+        content: 'Reply message',
+        channel: mockChannel,
+        reference: { messageId: 'referenced-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+        client: { user: { id: 'client-1' } } as any as Client,
+      });
+      mockChannel.messages = { fetch: vi.fn().mockResolvedValue(message) };
+
+      const { rawReferences: references } = await wired.extractReferencesWithReplacement(message);
+
+      expect(fromWebhookCache).toHaveBeenCalledWith('referenced-123');
+      expect(references[0].authorRole).toBe('assistant');
+      expect(references[0].authorPersonalityId).toBe(PERSONALITY);
+    });
+
     it('should extract and format link references', async () => {
       const linkedMessage = createMockMessage({
         id: 'linked-456',

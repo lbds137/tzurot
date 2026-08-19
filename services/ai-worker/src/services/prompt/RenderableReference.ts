@@ -61,7 +61,11 @@ export interface RenderableReference {
   isForwarded?: boolean;
   /** Author display name — the persona name where one is resolved. */
   from: string;
-  /** Author persona UUID, for `<participants>` ID binding, when resolved. */
+  /**
+   * Author UUID for `<participants>` binding, when resolved — a PERSONA id
+   * under `role="user"` and a PERSONALITY id under `role="character"`. Build it
+   * with `referenceFromId` so both adapters agree on which id space applies.
+   */
   fromId?: string;
   /** Discord username. Emitted only when it differs from `from` (see `renderReference`). */
   username?: string;
@@ -74,6 +78,38 @@ export interface RenderableReference {
   /** Pre-formatted embed XML (trusted internal source). */
   embedsXml?: string[];
   attachments: RenderableAttachment[];
+}
+
+/**
+ * Which id, if any, a quote's `from_id` carries — the two-id-space rule, in one
+ * place so the live and stored adapters cannot drift apart.
+ *
+ * Mirrors `formatFromIdAttribute` in `conversationUtils.ts`, which decides the
+ * same question for a `<chat_log>` line. Roster and quotes disagreeing about
+ * who a message is from is the defect class slice A removed for the chat log;
+ * sharing the rule is what keeps it removed here.
+ *
+ * - `user` → the persona id, so the model can bind a human to their roster entry
+ * - `character` → the personality id of the SIBLING persona that wrote it
+ * - `assistant` → nothing: the quote is the responder's own line, and the
+ *   responder is deliberately absent from the roster (it has its full card)
+ * - `bot` → nothing: a foreign bot has no entry to bind to
+ *
+ * The two omissions are a change from carrying `personaId` unconditionally. A
+ * persona is keyed by a HUMAN's Discord user id, while an `assistant`/`bot`
+ * quote's author id is a webhook or bot id, so a persona rarely resolved there
+ * at all — but when one did, it emitted a persona id under a non-user role,
+ * which is a mis-binding rather than a weaker one.
+ */
+export function referenceFromId(
+  role: RenderedQuoteRole,
+  authorPersonalityId: string | undefined,
+  personaId: string | undefined
+): string | undefined {
+  if (role === 'user') {
+    return personaId;
+  }
+  return role === 'character' ? authorPersonalityId : undefined;
 }
 
 /**

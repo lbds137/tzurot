@@ -123,10 +123,54 @@ function matchesSiblingPersonality(
   return false;
 }
 
+/** Everything the role decision can draw on for one reference. */
+export interface RefRoleInput {
+  /** The receive-time stamp, absent in the cases the module doc enumerates. */
+  authorRole: ReferenceAuthorRole | undefined;
+  /** The DISCORD display name — never a hydrated persona name. */
+  authorName: string;
+  /** The responding personality's name, in this caller's vocabulary. */
+  personalityName: string;
+  /** Every personality name visible in this turn, for the name fallback. */
+  allPersonalityNames?: Set<string>;
+  /** The quoted message's author personality id, when one resolved. */
+  authorPersonalityId?: string;
+  /** The responding personality's own id. */
+  responderPersonalityId?: string;
+}
+
+/**
+ * Whether the two ids are both present and can therefore decide the role
+ * outright, with the stamp consulted only to catch a contradiction.
+ *
+ * An id says WHICH persona authored the line, where the stamp is deliberately
+ * persona-agnostic — so it settles self-vs-sibling exactly, and survives a
+ * rename that the name comparison below does not (the quote-path half of
+ * TASK-664). It is trusted even when the stamp is absent: the id comes from our
+ * own webhook-message mapping, which is positive proof our bot sent the
+ * message, and that is more than the missing stamp withheld.
+ *
+ * A `user` or `bot` stamp is authoritative and blocks the shortcut. Nothing
+ * currently produces an id alongside one of those stamps — the resolver does
+ * not run for them — so this is a guard against a future producer, not a
+ * live case.
+ */
+function idsDecideRole(input: RefRoleInput): boolean {
+  return (
+    input.authorRole !== 'user' &&
+    input.authorRole !== 'bot' &&
+    input.authorPersonalityId !== undefined &&
+    input.responderPersonalityId !== undefined
+  );
+}
+
 /**
  * Resolve a reference's rendered quote role, relative to the RESPONDING
  * personality:
  *
+ * - both personality ids known (and the stamp does not contradict them) →
+ *   `assistant` when they match, `character` when they differ. Exact, and
+ *   rename-immune; see `idsDecideRole`.
  * - stamped `assistant` (one of our personas) → `character` when the author
  *   positively matches a SIBLING personality in `allPersonalityNames`, else
  *   `assistant` (see `matchesSiblingPersonality` for why unmatched stays put)
@@ -141,12 +185,11 @@ function matchesSiblingPersonality(
  * name collision AND the reference being in the window. A legacy third-party bot
  * (not one of our personalities) reads as `user` until its reference ages out.
  */
-export function deriveRefRole(
-  authorRole: ReferenceAuthorRole | undefined,
-  authorName: string,
-  personalityName: string,
-  allPersonalityNames?: Set<string>
-): RenderedQuoteRole {
+export function deriveRefRole(input: RefRoleInput): RenderedQuoteRole {
+  const { authorRole, authorName, personalityName, allPersonalityNames } = input;
+  if (idsDecideRole(input)) {
+    return input.authorPersonalityId === input.responderPersonalityId ? 'assistant' : 'character';
+  }
   if (authorRole === 'assistant') {
     return matchesSiblingPersonality(authorName, personalityName, allPersonalityNames)
       ? 'character'
