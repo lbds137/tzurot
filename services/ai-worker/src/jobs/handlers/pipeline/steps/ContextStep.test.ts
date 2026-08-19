@@ -21,14 +21,20 @@ import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 
 // Use vi.hoisted to create mock functions before they're used in vi.mock
-const { mockExtractParticipants, mockConvertConversationHistory, mockTranscribeAudio, mockLogger } =
-  vi.hoisted(() => ({
-    mockExtractParticipants: vi.fn(),
-    mockConvertConversationHistory: vi.fn(),
-    mockTranscribeAudio: vi.fn(),
-    // Module-level mock logger so tests can assert call shape on warn/info
-    mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  }));
+const {
+  mockExtractParticipants,
+  mockConvertConversationHistory,
+  mockTranscribeAudio,
+  mockLogger,
+  settingsState,
+} = vi.hoisted(() => ({
+  mockExtractParticipants: vi.fn(),
+  mockConvertConversationHistory: vi.fn(),
+  mockTranscribeAudio: vi.fn(),
+  // Module-level mock logger so tests can assert call shape on warn/info
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  settingsState: { rosterBlurbEnabled: false },
+}));
 
 // Mock common-types logger — use the hoisted mockLogger so tests can inspect
 // log calls for race-window telemetry assertions.
@@ -49,6 +55,15 @@ vi.mock('../../../utils/conversationUtils.js', () => ({
 
 vi.mock('../../../../services/multimodal/AudioProcessor.js', () => ({
   transcribeAudio: mockTranscribeAudio,
+}));
+
+// The roster-blurb feature switch. Defaults OFF so every pre-existing test in
+// this file sees the shipped default (no fetch, no behaviour change); the
+// blurb suite flips it per test. Hoisted rather than a plain `let` — the mock
+// factory runs at import time, which is before a module-level `let` initializes.
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: (key: string) =>
+    key === 'rosterBlurbEnabled' ? settingsState.rosterBlurbEnabled : undefined,
 }));
 
 const TEST_PERSONALITY: LoadedPersonality = {
@@ -1007,5 +1022,107 @@ describe('reTranscribeExtendedContextVoice', () => {
   it('returns null (graceful) when transcription throws', async () => {
     mockTranscribeAudio.mockRejectedValue(new Error('expired CDN url'));
     expect(await reTranscribeExtendedContextVoice(attachment, undefined)).toBeNull();
+  });
+});
+
+describe('ContextStep roster blurbs', () => {
+  const sibling = (id: string, name: string) => ({
+    role: MessageRole.Assistant,
+    content: 'hi',
+    personalityId: id,
+    personalityName: name,
+  });
+
+  /** A step whose assembler returns `history` and whose data source is `blurbs`. */
+  function blurbStep(history: unknown[], getRosterBlurbsByIds = vi.fn()) {
+    const assembleCore = vi.fn().mockResolvedValue(makeAssembled({ history }));
+    const step = new ContextStep({ assembleCore } as never, { getRosterBlurbsByIds } as never);
+    return { step, getRosterBlurbsByIds };
+  }
+
+  const run = async (step: ContextStep, job = envelopeJob()) =>
+    (await step.process({ job, config } as unknown as GenerationContext)).preparedContext;
+
+  beforeEach(() => {
+    settingsState.rosterBlurbEnabled = false;
+    mockExtractParticipants.mockReturnValue([]);
+    mockConvertConversationHistory.mockReturnValue([]);
+  });
+
+  it('does not query at all while the feature switch is off', async () => {
+    const { step, getRosterBlurbsByIds } = blurbStep([sibling('p-kai', 'Kai')]);
+
+    const prepared = await run(step);
+
+    expect(getRosterBlurbsByIds).not.toHaveBeenCalled();
+    expect(prepared?.characterBlurbs).toBeUndefined();
+  });
+
+  it('fetches blurbs for exactly the sibling characters in the window', async () => {
+    // The ids come from the real `extractCharacterParticipants` over the same
+    // array the prompt builder will read, so the fetch cannot drift from the
+    // roster. The responder's own lines resolve to role="assistant" and are
+    // therefore never fetched.
+    settingsState.rosterBlurbEnabled = true;
+    const { step, getRosterBlurbsByIds } = blurbStep(
+      [
+        sibling('p-kai', 'Kai'),
+        sibling(TEST_PERSONALITY.id, TEST_PERSONALITY.name),
+        { role: MessageRole.User, content: 'hey', personaId: 'persona-1', personaName: 'Alice' },
+      ],
+      vi.fn().mockResolvedValue(new Map([['p-kai', 'Kai is an archivist.']]))
+    );
+
+    const prepared = await run(step);
+
+    expect(getRosterBlurbsByIds).toHaveBeenCalledWith(['p-kai']);
+    expect(prepared?.characterBlurbs).toEqual({ 'p-kai': 'Kai is an archivist.' });
+  });
+
+  it('skips the query when the window holds no sibling characters', async () => {
+    settingsState.rosterBlurbEnabled = true;
+    const { step, getRosterBlurbsByIds } = blurbStep([
+      { role: MessageRole.User, content: 'hey', personaId: 'persona-1', personaName: 'Alice' },
+    ]);
+
+    expect((await run(step))?.characterBlurbs).toBeUndefined();
+    expect(getRosterBlurbsByIds).not.toHaveBeenCalled();
+  });
+
+  it('leaves blurbs undefined when no sibling has a renderable one', async () => {
+    // The un-generated state: the sweep has not reached these characters yet.
+    // The turn renders name-only rather than waiting for generation.
+    settingsState.rosterBlurbEnabled = true;
+    const { step } = blurbStep([sibling('p-kai', 'Kai')], vi.fn().mockResolvedValue(new Map()));
+
+    expect((await run(step))?.characterBlurbs).toBeUndefined();
+  });
+
+  it('degrades to name-only when the fetch throws, rather than failing the turn', async () => {
+    settingsState.rosterBlurbEnabled = true;
+    const { step } = blurbStep(
+      [sibling('p-kai', 'Kai')],
+      vi.fn().mockRejectedValue(new Error('db down'))
+    );
+
+    const prepared = await run(step);
+
+    expect(prepared?.characterBlurbs).toBeUndefined();
+    expect(prepared?.rawConversationHistory).toHaveLength(1);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ rosterSize: 1 }),
+      expect.stringContaining('name-only')
+    );
+  });
+
+  it('leaves blurbs undefined when no data source is wired', async () => {
+    settingsState.rosterBlurbEnabled = true;
+    const assembleCore = vi
+      .fn()
+      .mockResolvedValue(makeAssembled({ history: [sibling('p-kai', 'Kai')] }));
+
+    const prepared = await run(new ContextStep({ assembleCore } as never));
+
+    expect(prepared?.characterBlurbs).toBeUndefined();
   });
 });

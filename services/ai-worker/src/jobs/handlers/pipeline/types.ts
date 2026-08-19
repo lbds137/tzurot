@@ -189,6 +189,16 @@ export interface PreparedContext {
   participants: Participant[];
   /** Cross-channel conversation history groups (from other channels with same personality) */
   crossChannelHistory?: CrossChannelHistoryGroupEntry[];
+  /**
+   * Generated roster blurbs for the sibling characters in this window, keyed by
+   * personality id. Fetched in ContextStep rather than at render time because
+   * the roster renders twice per turn (budget pre-pass + shipped prompt) and
+   * both passes must see identical input. Undefined when the feature switch is
+   * off, when no sibling has a renderable blurb, or when the fetch failed —
+   * all three render name-only, which is the degrade this feature is designed
+   * around.
+   */
+  characterBlurbs?: Record<string, string>;
 }
 
 /**

@@ -67,6 +67,7 @@ function makePrisma(options: { stale?: Row[]; unstamped?: Row[] } = {}): {
   executeRaw: Mock;
   queryRaw: Mock;
   usageCreate: Mock;
+  findMany: Mock;
 } {
   const stale = options.stale ?? [];
   const unstamped = options.unstamped ?? [];
@@ -84,7 +85,7 @@ function makePrisma(options: { stale?: Row[]; unstamped?: Row[] } = {}): {
     $executeRaw: executeRaw,
     $queryRaw: queryRaw,
   } as unknown as PrismaClient;
-  return { prisma, executeRaw, queryRaw, usageCreate };
+  return { prisma, executeRaw, queryRaw, usageCreate, findMany };
 }
 
 function invokerReturning(content: string): Mock<SystemModelInvoker> {
@@ -102,7 +103,10 @@ describe('sweepRosterBlurbs', () => {
 
   it('does nothing at all when the runtime switch is off', async () => {
     setSettings(false);
-    const { prisma, queryRaw } = makePrisma({ stale: [row()] });
+    const { prisma, queryRaw, executeRaw, findMany } = makePrisma({
+      stale: [row()],
+      unstamped: [row()],
+    });
     const invoke = invokerReturning('{"blurb":"x"}');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
@@ -110,6 +114,11 @@ describe('sweepRosterBlurbs', () => {
     expect(stats.enabled).toBe(false);
     expect(queryRaw).not.toHaveBeenCalled();
     expect(invoke).not.toHaveBeenCalled();
+    // The backfill stamping pass is the OTHER half of a tick, and it reaches
+    // the database through a different pair of calls. Asserting only the
+    // generation half left "does nothing at all" claiming more than it tested.
+    expect(findMany).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('asks the database for the stale set rather than hashing to find it', async () => {

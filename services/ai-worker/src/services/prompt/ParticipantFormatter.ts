@@ -17,6 +17,10 @@
  * - source="user_input" attribution to clarify first-person content origin
  * - an "In <name>'s own words:" lead-in ON the <about> body, so a first-person
  *   bio is bound to its author in the prose and not only by tag nesting
+ * - a sibling character's generated blurb in its own <about
+ *   source="generated_summary"> body, carrying the parallel in-band lead-in
+ *   ("<name>, a separate AI character in this conversation:") for the same
+ *   reason: the enclosing tag alone did not hold identity in the bleed incident
  * - Optional guild info (roles, color, join date) for Discord server context
  *
  * Every byte this module emits is derived from the roster alone — never from
@@ -45,10 +49,54 @@ import type { CharacterParticipant } from '../../jobs/utils/participantUtils.js'
  * `displayName ?? username` (identity's UserService), so an empty value is not
  * reachable from there — the guard is here because proving no OTHER writer can
  * ever store `''` is a repo-wide negative, and this costs one predicate.
+ *
+ * The RETURNED value is trimmed too, not only the fallback decision. That is a
+ * deliberate semantic choice rather than cosmetics: this string feeds
+ * `rosterCollidesWithCharacter` and `rosterHasDuplicateNames`, so trimming
+ * changes whether a whitespace-padded name is detected as colliding, and
+ * therefore whether a note enters the S1 cache prefix. The answer that makes
+ * sense is the one pinned here — the model reads the RENDERED name, so two
+ * names that render identically must collide, and `" Lila"` and `"Lila"` render
+ * identically. Untrimmed, the padded one also produced `In  Lila's own words:`
+ * with a doubled space.
  */
 function participantDisplayName(info: ParticipantInfo): string {
   const preferred = info.preferredName;
-  return preferred !== undefined && preferred.trim().length > 0 ? preferred : info.personaName;
+  const chosen =
+    preferred !== undefined && preferred.trim().length > 0 ? preferred : info.personaName;
+  return chosen.trim();
+}
+
+/**
+ * Is this a name that can be rendered and reasoned about?
+ *
+ * Both `Persona.name` and `Personality.name` are `z.string().min(1).max(255)`
+ * with NO `.trim()` (schemas/api/persona.ts:218, personality.ts:425), so
+ * `" "` is a schema-valid name on either side. It has a length, so `min(1)`
+ * passes; it has no display form, so nothing downstream can frame prose with
+ * it. Callers use this to fall back to an unframed render rather than emitting
+ * a sentence with a hole where the name goes.
+ */
+function isRenderableName(name: string): boolean {
+  return name.trim().length > 0;
+}
+
+/**
+ * The display name rendered for a sibling character — the character-side mirror
+ * of {@link participantDisplayName}, and trimmed for the same reason.
+ *
+ * `Personality.name` is `z.string().min(1).max(255)` with NO `.trim()`
+ * (schemas/api/personality.ts), so a padded name is reachable rather than
+ * hypothetical. Untrimmed it renders `<name> Kai</name>`, reads as
+ * `" Kai, a separate AI character..."` in the lead-in, and — the part that
+ * actually matters — fails to collide with a roster `Kai`, suppressing the
+ * disambiguation note in exactly the case a reader cannot tell apart.
+ *
+ * The rule is the one TASK-644 pinned on the persona side: the model reads the
+ * RENDERED name, so two names that render identically must collide.
+ */
+function characterDisplayName(character: CharacterParticipant): string {
+  return character.personalityName.trim();
 }
 
 /**
@@ -82,7 +130,7 @@ function rosterCollidesWithCharacter(
   const target = personalityName.toLowerCase();
   return (
     participants.some(info => participantDisplayName(info).toLowerCase() === target) ||
-    characters.some(character => character.personalityName.toLowerCase() === target)
+    characters.some(character => characterDisplayName(character).toLowerCase() === target)
   );
 }
 
@@ -107,7 +155,7 @@ function rosterHasDuplicateNames(
   const seen = new Set<string>();
   for (const name of [
     ...participants.map(participantDisplayName),
-    ...characters.map(character => character.personalityName),
+    ...characters.map(characterDisplayName),
   ]) {
     const key = name.toLowerCase();
     if (seen.has(key)) {
@@ -291,10 +339,18 @@ export function renderParticipantElement(
   // concatenating raw content behind it renders " Hi" as a double space. Only
   // the LEADING side is trimmed: trailing whitespace sits at the end of the
   // element where it costs nothing and is not the author's to lose.
+  // A blank display name gets NO lead-in. `name` is `z.string().min(1)` with no
+  // `.trim()` on both the persona and personality schemas, so an all-whitespace
+  // name is schema-valid — and trimming it (TASK-644) turns it into the empty
+  // string rather than the whitespace it used to render. A frame reading
+  // "In 's own words:" asserts an authorship it cannot name, which is worse
+  // than the bare body the frozen legacy arm already renders. Same rule on the
+  // character side below: no name, no frame.
   const hasBio = info.content.trim().length > 0;
+  const displayName = participantDisplayName(info);
   const aboutBody =
-    attributeAbout && hasBio
-      ? `${aboutLeadIn(participantDisplayName(info))}${escapeXmlContent(info.content.trimStart())}`
+    attributeAbout && hasBio && displayName.length > 0
+      ? `${aboutLeadIn(displayName)}${escapeXmlContent(info.content.trimStart())}`
       : escapeXmlContent(info.content);
   parts.push(`<about source="user_input">${aboutBody}</about>`);
 
@@ -326,24 +382,72 @@ export const CHARACTER_PARTICIPANTS_INSTRUCTION =
   '<instruction>These people and AI characters are in this conversation: humans in participant elements, other AI characters in character_participant elements. Match from_id attribute in chat_log messages to the id attribute of either.</instruction>';
 
 /**
+ * The lead-in that binds a sibling character's description to that character,
+ * in the prose the model is actually reading.
+ *
+ * Same mechanism and same reason as {@link aboutLeadIn}, one register over. The
+ * human case restates authorship because a first-person bio nested under
+ * someone else's element was read as the speaker's own words; here the prose is
+ * third person and already names the character, so the confusion this guards
+ * against is the other one — a description of a DIFFERENT AI being read as the
+ * responder's own card, which sits a few hundred bytes earlier in
+ * `<system_identity>` in exactly that register. The appositive states the
+ * separateness in-band rather than leaving it to the enclosing tag.
+ *
+ * Name-first, and `escapeXml` (strict) like `<name>` renders the same string.
+ */
+function characterAboutLeadIn(characterName: string): string {
+  return `${escapeXml(characterName)}, a separate AI character in this conversation: `;
+}
+
+/**
  * Render one sibling AI character as its constituent lines.
  *
- * Name and id only. The element is structurally distinct from `<participant>`
- * rather than a `<participant>` with a flag, because the two carry different
- * kinds of identity and the model should not have to read an attribute to tell
- * a human from an AI peer.
+ * The element is structurally distinct from `<participant>` rather than a
+ * `<participant>` with a flag, because the two carry different kinds of
+ * identity and the model should not have to read an attribute to tell a human
+ * from an AI peer.
  *
- * No `<about>` body here yet, which is why this carries no in-band "X is a
- * separate AI character" frame: that frame exists to bind FIRST-PERSON prose to
- * its author, and there is no prose. The frame ships with the generated blurb
- * (TASK-657 slice B) — do not read its absence here as a decision against it.
+ * `source="generated_summary"` and NOT `source="user_input"`: the sibling
+ * elements carry text their subject wrote, and this one carries text the
+ * summarizer wrote ABOUT its subject. A character card is not owner-curated
+ * prose — imported characters carry instruction-register text in
+ * `characterInfo` — so labelling this body as user input would assert a
+ * provenance it does not have.
+ *
+ * The body routes through `escapeXmlContent` rather than `escapeXml`, matching
+ * `<about>`: it renders structural tags inert while preserving a literal `<3`.
+ * This is the moment `character_participant`'s PROTECTED_TAGS entry stops being
+ * inert — until there was prose inside the element, nothing could forge a
+ * closing form for it.
+ *
+ * A blurb of `undefined` renders name-only, which is the un-generated state and
+ * also what an empty stored blurb collapses to upstream — see
+ * {@link ConversationContext.characterBlurbs}.
  */
-function renderCharacterParticipantElement(character: CharacterParticipant): string[] {
-  return [
+function renderCharacterParticipantElement(
+  character: CharacterParticipant,
+  blurb: string | undefined
+): string[] {
+  const name = characterDisplayName(character);
+  const parts = [
     `<character_participant id="${escapeXml(character.personalityId)}">`,
-    `<name>${escapeXml(character.personalityName)}</name>`,
-    '</character_participant>',
+    `<name>${escapeXml(name)}</name>`,
   ];
+  // No renderable name means no blurb at all, not an unframed one. The
+  // character `<about>` exists ONLY to carry the framed blurb, and the frame
+  // IS the identity-containment mechanism — an unframed description of a
+  // sibling AI, sitting a few hundred bytes after the responder's own card in
+  // the same third-person register, is the bleed this element was built to
+  // prevent. The entry still renders name-only, so `from_id` (which is
+  // id-keyed, never name-keyed) still binds.
+  if (blurb !== undefined && blurb.length > 0 && isRenderableName(name)) {
+    parts.push(
+      `<about source="generated_summary">${characterAboutLeadIn(name)}${escapeXmlContent(blurb)}</about>`
+    );
+  }
+  parts.push('</character_participant>');
+  return parts;
 }
 
 /**
@@ -366,6 +470,7 @@ function renderCharacterParticipantElement(character: CharacterParticipant): str
  *   </participant>
  *   <character_participant id="personality-uuid-456">
  *     <name>Kai</name>
+ *     <about source="generated_summary">Kai, a separate AI character in this conversation: Kai is a dry-witted archivist who...</about>
  *   </character_participant>
  * </participants>
  * ```
@@ -379,12 +484,17 @@ function renderCharacterParticipantElement(character: CharacterParticipant): str
  *   resolves its own lines to role="assistant". Its full card is already in
  *   `<system_identity>`, so a roster entry for it would be duplication paid
  *   every turn.
+ * @param characterBlurbs - Generated third-person descriptions keyed by
+ *   personality UUID. An id absent from this record renders name-only, which is
+ *   both the un-generated state and the generated-but-blank one — the two are
+ *   collapsed upstream, at the fetch, so this file has one state to render.
  * @returns Formatted participants context string in XML, or empty string if no participants
  */
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
   personalityName: string,
-  characters: CharacterParticipant[] = []
+  characters: CharacterParticipant[] = [],
+  characterBlurbs: Readonly<Record<string, string>> = {}
 ): string {
   if (participantPersonas.size === 0 && characters.length === 0) {
     return '';
@@ -417,7 +527,9 @@ export function formatParticipantsContext(
   // Characters after personas, already sorted by personality UUID upstream for
   // the same cache-prefix stability the persona sort buys.
   for (const character of characters) {
-    parts.push(...renderCharacterParticipantElement(character));
+    parts.push(
+      ...renderCharacterParticipantElement(character, characterBlurbs[character.personalityId])
+    );
   }
 
   parts.push(...buildRosterNotes(orderedParticipants, personalityName, characters));

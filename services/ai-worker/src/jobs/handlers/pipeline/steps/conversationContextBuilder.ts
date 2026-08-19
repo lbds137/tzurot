@@ -78,5 +78,6 @@ export function buildConversationContext(
     referencedMessages: jobContext.referencedMessages,
     referencedChannels: jobContext.referencedChannels,
     crossChannelHistory: preparedContext.crossChannelHistory,
+    characterBlurbs: preparedContext.characterBlurbs,
   };
 }

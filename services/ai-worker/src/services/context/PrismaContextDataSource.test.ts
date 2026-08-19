@@ -215,6 +215,58 @@ describe('PrismaContextDataSource', () => {
     });
   });
 
+  describe('getRosterBlurbsByIds', () => {
+    it('returns an id-to-blurb map for the queried ids', async () => {
+      mockPersonalityFindMany.mockResolvedValue([
+        { id: 'pers-1', rosterBlurb: 'Kai is an archivist.' },
+        { id: 'pers-2', rosterBlurb: 'Rin is a storm-caller.' },
+      ]);
+
+      const result = await source.getRosterBlurbsByIds(['pers-1', 'pers-2']);
+
+      expect(mockPersonalityFindMany).toHaveBeenCalledWith({
+        where: { id: { in: ['pers-1', 'pers-2'] }, rosterBlurb: { not: null } },
+        select: { id: true, rosterBlurb: true },
+        take: 2,
+      });
+      expect(result).toEqual(
+        new Map([
+          ['pers-1', 'Kai is an archivist.'],
+          ['pers-2', 'Rin is a storm-caller.'],
+        ])
+      );
+    });
+
+    it('drops an empty-string blurb, which the DB filter cannot express', async () => {
+      // '' means "generated, the card had nothing describable" — a real stored
+      // value, so `not: null` lets it through. It renders identically to the
+      // never-generated state, and collapsing the two HERE is what saves every
+      // downstream reader from remembering that `'' != null` is true in JS.
+      mockPersonalityFindMany.mockResolvedValue([
+        { id: 'pers-1', rosterBlurb: '' },
+        { id: 'pers-2', rosterBlurb: 'Rin is a storm-caller.' },
+      ]);
+
+      const result = await source.getRosterBlurbsByIds(['pers-1', 'pers-2']);
+
+      expect(result.has('pers-1')).toBe(false);
+      expect(result.get('pers-2')).toBe('Rin is a storm-caller.');
+    });
+
+    it('drops a null blurb that slipped past the query filter', async () => {
+      mockPersonalityFindMany.mockResolvedValue([{ id: 'pers-1', rosterBlurb: null }]);
+
+      expect((await source.getRosterBlurbsByIds(['pers-1'])).size).toBe(0);
+    });
+
+    it('short-circuits to an empty map without querying when given no ids', async () => {
+      const result = await source.getRosterBlurbsByIds([]);
+
+      expect(result.size).toBe(0);
+      expect(mockPersonalityFindMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getUserIdentitiesByDiscordIds', () => {
     it('maps persisted user rows to identities keyed by discord message id', async () => {
       mockConversationHistoryFindMany.mockResolvedValue([

@@ -104,6 +104,25 @@ export class PrismaContextDataSource implements ContextDataSource {
     return new Map(rows.map(row => [row.id, row.name]));
   }
 
+  async getRosterBlurbsByIds(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.personality.findMany({
+      where: { id: { in: ids }, rosterBlurb: { not: null } },
+      select: { id: true, rosterBlurb: true },
+      take: ids.length,
+    });
+    // The `not: null` above cannot express the empty-string half of the
+    // collapse (a stored `''` is a real value), so the renderable test is
+    // repeated here in the one place that decides it.
+    return new Map(
+      rows
+        .filter((row): row is { id: string; rosterBlurb: string } => (row.rosterBlurb ?? '') !== '')
+        .map(row => [row.id, row.rosterBlurb])
+    );
+  }
+
   async getUserIdentitiesByDiscordIds(
     discordIds: string[]
   ): Promise<Map<string, RelayEchoUserIdentity>> {
