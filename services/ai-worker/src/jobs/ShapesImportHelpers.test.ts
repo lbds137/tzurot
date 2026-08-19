@@ -84,7 +84,7 @@ vi.mock('../services/shapes/ShapesPersonalityMapper.js', () => ({
 
 // Mock Prisma
 function createMockPrisma() {
-  return {
+  const client = {
     systemPrompt: { upsert: vi.fn().mockResolvedValue({}) },
     personality: {
       upsert: vi.fn().mockResolvedValue({
@@ -107,7 +107,12 @@ function createMockPrisma() {
     personalityDefaultConfig: { upsert: vi.fn().mockResolvedValue({}) },
     personalityOwner: { upsert: vi.fn().mockResolvedValue({}) },
     $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(),
   };
+  // Runs the callback against this same client, so the upsert and its
+  // `card_source_hash` stamp both land on the mocks the tests assert against.
+  client.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(client));
+  return client;
 }
 
 const MOCK_CONFIG = {

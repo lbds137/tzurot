@@ -36,10 +36,14 @@ const logger = createLogger('RosterBlurbSweep');
  * Rows the one-time stamping pass fills per tick.
  *
  * Only pre-existing rows land here, and only until they are all stamped, so
- * this bounds a migration rather than steady-state work. Deliberately generous
- * — it costs one hash per row and no model call.
+ * this bounds a migration rather than steady-state work. Each row costs one
+ * hash and one UPDATE round trip and no model call, so the batch is sized to
+ * bound a tick's wall-clock on the single-concurrency scheduled worker rather
+ * than to drain fast. Draining fast would buy nothing anyway: generation moves
+ * at MAX_GENERATIONS_PER_SWEEP per tick, which is the real floor on how long a
+ * first backfill takes.
  */
-const STAMP_BATCH_SIZE = 500;
+const STAMP_BATCH_SIZE = 200;
 
 /**
  * Model calls per tick. The hard spend bound: at the sweep's cron cadence this
@@ -92,9 +96,13 @@ export interface RosterBlurbSweepStats {
  * Once drained the query returns nothing and the pass costs one indexed lookup
  * per tick.
  *
- * Note that a freshly stamped row is NOT generated in the same tick. Its stamp
- * lands, and the next tick's stale query picks it up on the ordinary path —
- * which keeps the two passes independent and the per-tick spend bound honest.
+ * A freshly stamped row IS eligible for generation in the same tick: its
+ * `roster_blurb_source_hash` is still null, and `NULL IS DISTINCT FROM
+ * 'somehash'` is TRUE, so it satisfies the stale predicate immediately. That
+ * is fine for spend (the query's own LIMIT is the bound) but it means legacy
+ * backfill competes with genuine edits for the same per-tick budget — which
+ * `findStale`'s ORDER BY resolves in the edits' favour. Verified against real
+ * SQL in the PGLite component test, not asserted from reading.
  */
 async function stampMissingHashes(prisma: PrismaClient): Promise<number> {
   const rows = (await prisma.personality.findMany({
@@ -178,12 +186,21 @@ async function logUsage(
  * `!=` yields null (not true) when one is — a never-generated blurb would then
  * never be selected, which is precisely the row that most needs generating.
  * Rows with no stamp yet are excluded here and belong to the stamping pass.
+ *
+ * ORDER BY puts rows that ALREADY have a blurb first. Those are edits to
+ * characters whose blurb is on screen right now and has gone wrong; a
+ * never-generated row has nothing to be wrong. Without it, a first-run backfill
+ * of a large table would spend every tick's budget on legacy rows in whatever
+ * order the planner returned, and a card edited during that window would wait
+ * behind all of them. Postgres sorts `false` before `true`, so the null-hash
+ * rows land last.
  */
 async function findStale(prisma: PrismaClient): Promise<{ id: string }[]> {
   return prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM personalities
     WHERE card_source_hash IS NOT NULL
       AND roster_blurb_source_hash IS DISTINCT FROM card_source_hash
+    ORDER BY (roster_blurb_source_hash IS NULL)
     LIMIT ${MAX_GENERATIONS_PER_SWEEP}
   `;
 }
