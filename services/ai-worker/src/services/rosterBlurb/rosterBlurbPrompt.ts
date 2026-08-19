@@ -87,7 +87,12 @@ export const rosterBlurbResponseSchema = z.object({
  *
  * Absent fields are omitted entirely rather than rendered empty, matching the
  * checksum's absent-state collapse — the summarizer and the staleness signal
- * see the same card in the same state.
+ * agree on which fields are present.
+ *
+ * They do NOT agree byte-for-byte on the values, and are not meant to: the
+ * checksum normalizes to NFC and collapses whitespace runs, while this only
+ * trims. A future reader should not assume the two representations move in
+ * lockstep — the prompt needs to be legible, not identical to the hash input.
  *
  * Values go through `escapeXmlContent`, which neutralizes the closing form of
  * every PROTECTED_TAGS entry — `character_card` among them, added for this
