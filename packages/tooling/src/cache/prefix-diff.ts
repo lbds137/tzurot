@@ -120,8 +120,82 @@ export function extractPromptRow(row: {
   };
 }
 
+/**
+ * Render the bytes on either side of a divergence.
+ *
+ * The section annotation names WHERE the prefix broke; it cannot say WHAT
+ * changed, and that is the question every real investigation asks next — "S1
+ * participants" is compatible with a roster member arriving, one leaving, a
+ * bio edit, a reordering, and a field flickering on an entry that did not
+ * otherwise move. Each has a different fix, and the section name separates
+ * none of them. Reading it previously meant hand-rolling a query against the
+ * diagnostic store, which is exactly the standalone script this repo does not
+ * keep.
+ *
+ * (That list is deliberately not totalled: it grows as causes are found, and a
+ * stale count is a well-formed number that nothing flags.)
+ *
+ * The shared tail is included because a divergence is rarely legible from the
+ * differing side alone: `Kai</name>` versus `Mira</name>` only means something
+ * once you can see the `<name>` it hangs off.
+ *
+ * Newlines are rendered as `⏎` so each side stays one terminal line — a raw
+ * multi-line window makes the two sides impossible to compare by eye, which is
+ * the entire point of printing them together.
+ *
+ * NOTE: the window is verbatim prompt text and can contain a participant's
+ * persona bio. It prints to the operator's terminal only; do not paste it into
+ * a commit message, PR body, or task file.
+ */
+export function renderDivergenceWindow(
+  older: string,
+  newer: string,
+  offset: number,
+  contextChars: number
+): string {
+  // Newlines become ⏎; every OTHER control character becomes ·. The wider
+  // sweep is not tidiness — this window is verbatim prompt text, which carries
+  // user-authored persona bios and Discord messages, and it is printed straight
+  // to a terminal. A bare CR rewinds the cursor and overwrites the label that
+  // says which side you are looking at; an ESC introduces an ANSI sequence.
+  // Neither is exotic in pasted text, and both defeat the one-line side-by-side
+  // rendering this whole function exists to produce.
+  const oneLine = (text: string): string =>
+    [...text.replaceAll('\n', '⏎')]
+      .map(char => {
+        const code = char.codePointAt(0) ?? 0;
+        return code < 0x20 || code === 0x7f ? '·' : char;
+      })
+      .join('');
+  // The ellipsis is a CLAIM that text was elided, so it is only printed when
+  // some was. Below the context width the tail IS the start of the prompt, and
+  // an unconditional … says otherwise — in a tool whose whole job is to stop
+  // you guessing about the bytes, that is the one lie it must not tell. A space
+  // stands in when nothing was cut, so the three lines stay column-aligned.
+  const elision = offset > contextChars ? '…' : ' ';
+  const tail = oneLine(older.slice(Math.max(0, offset - contextChars), offset));
+  // The SAME claim on the opposite edge. The shared tail marks what was cut off
+  // its left; a differing side longer than the window is cut off its right, and
+  // saying nothing there reads as "this is the whole change" — the identical
+  // misreading the leading … exists to prevent. Trailing rather than leading,
+  // because that is the end the text runs off.
+  const trailing = (text: string): string => (text.length > offset + contextChars ? '…' : '');
+  return (
+    `  shared tail ${elision}${tail}\n` +
+    // EIGHT spaces, not seven: the shared-tail line spends one column on the
+    // elision slot, so matching only the label widths leaves these two a column
+    // to the left. Byte-counted rather than eyeballed, and pinned by an exact
+    // whole-line assertion in the tests — `toContain` cannot see a column.
+    `  older        ${oneLine(older.slice(offset, offset + contextChars))}${trailing(older)}\n` +
+    `  newer        ${oneLine(newer.slice(offset, offset + contextChars))}${trailing(newer)}`
+  );
+}
+
 /** One formatted line block per consecutive pair (oldest→newest order). */
-export function buildPairReports(rows: PromptRow[]): string[] {
+export function buildPairReports(
+  rows: PromptRow[],
+  options: { showDivergence?: number } = {}
+): string[] {
   const reports: string[] = [];
   for (let i = 1; i < rows.length; i++) {
     const older = rows[i - 1];
@@ -146,11 +220,21 @@ export function buildPairReports(rows: PromptRow[]): string[] {
           ? ' — newer prompt is a truncated prefix of the older one (shrink)'
           : ' (offset beyond the stored section map — map may be stale)';
     }
-    reports.push(
+    let report =
       `${header}\n` +
-        `  common prefix ${cmp.commonPrefixChars}/${cmp.newerLength} chars (${percent}%)\n` +
-        `  first divergence at offset ${cmp.commonPrefixChars}: ${where}`
-    );
+      `  common prefix ${cmp.commonPrefixChars}/${cmp.newerLength} chars (${percent}%)\n` +
+      `  first divergence at offset ${cmp.commonPrefixChars}: ${where}`;
+    if (options.showDivergence !== undefined && options.showDivergence > 0) {
+      report +=
+        '\n' +
+        renderDivergenceWindow(
+          older.systemPrompt,
+          newer.systemPrompt,
+          cmp.commonPrefixChars,
+          options.showDivergence
+        );
+    }
+    reports.push(report);
   }
   return reports;
 }
@@ -197,6 +281,8 @@ interface PrefixDiffOptions {
   channelId: string;
   personalityId?: string;
   limit: number;
+  /** Chars of context to print on either side of each divergence; omitted = off. */
+  showDivergence?: number;
 }
 
 /**
@@ -303,7 +389,9 @@ export async function runPrefixDiff(options: PrefixDiffOptions): Promise<void> {
     return;
   }
 
-  for (const report of buildPairReports(promptRows)) {
+  for (const report of buildPairReports(promptRows, {
+    showDivergence: options.showDivergence,
+  })) {
     console.log(report + '\n');
   }
   const withSections = promptRows.filter(row => (row.sections?.length ?? 0) > 0).length;

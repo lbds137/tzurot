@@ -29,6 +29,7 @@ import {
   sectionAtOffset,
   extractPromptRow,
   buildPairReports,
+  renderDivergenceWindow,
   buildFetchScript,
   parsePayloadLine,
   runPrefixDiff,
@@ -131,6 +132,97 @@ describe('extractPromptRow', () => {
   });
 });
 
+describe('renderDivergenceWindow', () => {
+  it('clamps the shared tail at the start of the prompt', () => {
+    // The prompt must be LONGER than the context width for this to
+    // discriminate: `slice()` reads a negative start as an offset from the END,
+    // so an unclamped `offset - contextChars` here would start past `offset`
+    // and yield an empty tail. A short prompt hides that — slice clamps a
+    // negative start to 0 once its magnitude exceeds the length, so the naive
+    // form passes on a 4-char fixture and the assertion proves nothing.
+    const prompt = `${'a'.repeat(500)}X`;
+    const window = renderDivergenceWindow(prompt, `${'a'.repeat(500)}Y`, 10, 100);
+    // No ellipsis: the clamp means the tail IS the prompt's start, so nothing
+    // was elided and claiming otherwise would be the tool misleading its reader.
+    // Scoped to the TAIL line: the older/newer sides legitimately carry their
+    // own trailing … here, since 500 chars of prompt run past the window.
+    const tailLine = window.split('\n')[0];
+    expect(tailLine).toBe(`  shared tail  ${'a'.repeat(10)}`);
+    expect(tailLine).not.toContain('…');
+  });
+
+  it('marks the tail with … only when text was actually elided', () => {
+    const prompt = `${'a'.repeat(500)}X`;
+    const clamped = renderDivergenceWindow(prompt, `${'a'.repeat(500)}Y`, 400, 10);
+    expect(clamped).toContain(`shared tail …${'a'.repeat(10)}\n`);
+  });
+
+  it('aligns all three content columns exactly', () => {
+    // Whole-line equality, not toContain: alignment is a property of column
+    // POSITION, and a substring assertion is blind to it — which is exactly how
+    // a one-column drift shipped past an otherwise thorough suite. The
+    // shared-tail line spends a column on the elision slot, so its label
+    // padding is one shorter than the other two by construction.
+    const unclamped = renderDivergenceWindow('abcdefXY', 'abcdefZW', 6, 6);
+    expect(unclamped.split('\n')).toEqual([
+      '  shared tail  abcdef',
+      '  older        XY',
+      '  newer        ZW',
+    ]);
+
+    // The elided case must land in the SAME columns — the … occupies the slot
+    // the space held above, which is the entire reason the slot exists.
+    const clamped = renderDivergenceWindow('abcdefXY', 'abcdefZW', 6, 3);
+    expect(clamped.split('\n')).toEqual([
+      '  shared tail …def',
+      '  older        XY',
+      '  newer        ZW',
+    ]);
+  });
+
+  it('marks a differing side that runs past the window, on the right edge', () => {
+    // The mirror of the shared tail's leading …. Without it the operator reads
+    // a truncated window as the complete change — which for a long element is
+    // exactly the wrong conclusion about what actually differs.
+    const older = `head${'A'.repeat(50)}`;
+    const newer = `head${'B'.repeat(50)}`;
+    const window = renderDivergenceWindow(older, newer, 4, 10);
+    expect(window).toContain(`older        ${'A'.repeat(10)}…`);
+    expect(window).toContain(`newer        ${'B'.repeat(10)}…`);
+  });
+
+  it('leaves a side unmarked when it fits inside the window', () => {
+    const window = renderDivergenceWindow('headAB', 'headCD', 4, 10);
+    expect(window).toContain('older        AB\n');
+    expect(window.endsWith('newer        CD')).toBe(true);
+  });
+
+  it('renders newlines as ⏎ so each side stays one line', () => {
+    const window = renderDivergenceWindow('head\nOLD\nmore', 'head\nNEW\nmore', 5, 20);
+    expect(window).toContain('older        OLD⏎more');
+    expect(window).toContain('newer        NEW⏎more');
+    // Three lines total: the label lines themselves, nothing wrapped.
+    expect(window.split('\n')).toHaveLength(3);
+  });
+
+  it('neutralises carriage returns and escapes, which would garble the render', () => {
+    // Verbatim prompt text includes user-authored bios and pasted messages, and
+    // this goes straight to a terminal: a CR rewinds the cursor over the label
+    // identifying which side is which, and an ESC opens an ANSI sequence.
+    const window = renderDivergenceWindow('head\rOLD\u001b[31m', 'head\rNEW', 4, 20);
+    expect(window).toContain('older        ·OLD·[31m');
+    expect(window).toContain('newer        ·NEW');
+    expect(window).not.toContain('\r');
+    expect(window).not.toContain('\u001b');
+  });
+
+  it('renders an empty older side when the newer prompt merely grew', () => {
+    const window = renderDivergenceWindow('prefix', 'prefix plus', 6, 20);
+    expect(window).toContain('older        \n');
+    expect(window).toContain('newer         plus');
+  });
+});
+
 describe('buildPairReports', () => {
   function promptRow(requestId: string, systemPrompt: string): PromptRow {
     return {
@@ -158,6 +250,32 @@ describe('buildPairReports', () => {
     ]);
     expect(reports[0]).toContain('first divergence at offset 7');
     expect(reports[0]).toContain('S1 system_identity');
+  });
+
+  it('omits the divergence window unless asked for', () => {
+    const reports = buildPairReports([
+      promptRow('aaaaaaaa', 'stable OLD'),
+      promptRow('bbbbbbbb', 'stable NEW'),
+    ]);
+    expect(reports[0]).not.toContain('shared tail');
+  });
+
+  it('prints both sides of the divergence when showDivergence is set', () => {
+    const reports = buildPairReports(
+      [promptRow('aaaaaaaa', 'stable OLD'), promptRow('bbbbbbbb', 'stable NEW')],
+      { showDivergence: 10 }
+    );
+    expect(reports[0]).toContain('shared tail  stable ');
+    expect(reports[0]).toContain('older        OLD');
+    expect(reports[0]).toContain('newer        NEW');
+  });
+
+  it('treats a zero width as off rather than emitting an empty window', () => {
+    const reports = buildPairReports(
+      [promptRow('aaaaaaaa', 'stable OLD'), promptRow('bbbbbbbb', 'stable NEW')],
+      { showDivergence: 0 }
+    );
+    expect(reports[0]).not.toContain('shared tail');
   });
 
   it('produces one report per consecutive pair', () => {
