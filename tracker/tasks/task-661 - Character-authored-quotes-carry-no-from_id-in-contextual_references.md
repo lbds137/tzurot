@@ -142,4 +142,45 @@ verified by `grep -rn "TASK-657" --include=*.ts services packages`, one hit.
 Also relevant to the fix shape: the roster entry a character-authored quote must
 resolve to now carries a description as well as a name, so a from_id that
 resolves lands the model on real prose rather than a bare name.
+
+## GROUNDING 2026-08-19 (second pass, during #2150 CI) — the plumbing already exists, and the per-kind gate does not fit the stored shape
+
+The previous pass's three structural claims were re-verified against the code
+and all three hold exactly as written (buildRawReference's purity docstring,
+the getOurPersonalityId wiring at MessageContextBuilder.ts:185 →
+DiscordChannelFetcher.ts:367, and fromLiveReference's lone `fromId:
+persona?.personaId` at ReferencedMessageFormatter.ts:410). Two things to ADD.
+
+1. THE FIELD RIDES ALONGSIDE ONE THAT ALREADY MAKES THIS TRIP, which the
+earlier size read did not account for. `authorRole` (referenceAuthorRoleSchema,
+message.ts:49) is `'assistant' | 'user' | 'bot'`, classified once in bot-client
+and carried to BOTH the live prompt shape (referencedMessageSchema) and the
+stored snapshot (storedReferencedMessageSchema). So `assistant` already means
+"one of our personas" on both paths — what is missing is only WHICH one, which
+is why the role decision still falls back to a name comparison.
+
+That means the new id is additive beside an existing field with proven
+end-to-end plumbing, in the same two schemas, rather than a new path to build.
+The genuinely open work is the RESOLUTION POINT and the ACCESS GATE — not the
+transport. Do not re-derive the transport; copy authorRole's.
+
+2. THE PER-REFERENCE-KIND GATE CANNOT BE DECIDED DOWNSTREAM — there is no kind
+discriminator on the stored shape. Read whole (message.ts:112-138):
+storedReferencedMessageSchema carries discordMessageId, authorUsername,
+authorDisplayName, content, embeds, timestamp, locationContext, attachments,
+isForwarded, authorDiscordId, authorRole, resolvedPersonaId, resolvedPersonaName,
+attachmentEnrichment. Nothing distinguishes a REPLY from a MESSAGE LINK.
+
+So the previous pass's "likely per-reference-kind rather than one resolver"
+resolves cleanly, and in the direction that avoids a second new field: the kind
+is known in bot-client at resolution time and nowhere afterwards, so GATE AT
+RESOLUTION and store only the already-authorized id. A reply resolves through
+the ungated lookup (same-channel by construction, so the viewer demonstrably has
+access); a message link resolves through the gated one (the Reply Loophole
+shape). The stored field then carries a fact rather than a policy, and no
+consumer has to re-derive access it cannot see.
+
+The alternative — persisting a kind discriminator so the gate can run later —
+should be rejected explicitly rather than by omission: it moves an access
+decision downstream of the only place with the information to make it.
 <!-- SECTION:DESCRIPTION:END -->
