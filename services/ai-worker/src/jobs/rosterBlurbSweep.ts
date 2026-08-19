@@ -170,12 +170,15 @@ async function storeBlurb(
 async function logUsage(
   prisma: PrismaClient,
   ownerId: string,
-  usage: { tokensIn: number; tokensOut: number; provider: string },
+  usage: { tokensIn: number; tokensOut: number; provider: string; model: string },
   personalityId: string
 ): Promise<void> {
   try {
     const createdAt = new Date();
-    const model = getSystemSetting('extractionModel');
+    // The model the call resolved at ITS start, not whatever the live setting
+    // says now — an admin can change extractionModel during a 60s call, and
+    // re-reading it here would bill this generation to the wrong model.
+    const model = usage.model;
     await prisma.usageLog.create({
       data: {
         id: generateUsageLogUuid(ownerId, model, createdAt),
@@ -262,6 +265,12 @@ export async function sweepRosterBlurbs(
   for (const row of rows) {
     const hash = row.cardSourceHash;
     if (hash === null) {
+      // Unreachable while findStale filters on card_source_hash IS NOT NULL.
+      // Counted and logged rather than skipped silently, so a future query
+      // change surfaces as a visible failure instead of a tick that quietly
+      // converges slower than its stats claim.
+      logger.warn({ personalityId: row.id }, 'Stale row had no card hash — skipping');
+      stats.failed += 1;
       continue;
     }
 
@@ -283,23 +292,26 @@ export async function sweepRosterBlurbs(
     // No usage row on this path, deliberately: a throw carries no token counts,
     // so there is nothing to bill. That under-reports a provider error that
     // charged us anyway, which is the honest direction to be wrong in.
-    let generation;
+    // The whole per-row unit, not just the model call: a throw from the STORE
+    // aborted the loop just as thoroughly, which contradicted the isolation
+    // this try/catch exists to provide.
     try {
-      generation = await generateRosterBlurb(row, invokeModel);
+      const { blurb, usage } = await generateRosterBlurb(row, invokeModel);
+      await logUsage(prisma, row.ownerId, usage, row.id);
+      if (blurb === null) {
+        stats.failed += 1;
+        continue;
+      }
+      await storeBlurb(prisma, row.id, blurb, hash);
+      stats.generated += 1;
     } catch (error) {
-      logger.warn({ err: error, personalityId: row.id }, 'Roster blurb model call threw');
+      // Transient by shape (rate limit, timeout, network, a blipped write) and
+      // the row stays stale, so the next tick retries it. No usage row on a
+      // throw from the model call: it carries no token counts, so there is
+      // nothing to bill.
+      logger.warn({ err: error, personalityId: row.id }, 'Roster blurb row failed');
       stats.failed += 1;
-      continue;
     }
-
-    const { blurb, usage } = generation;
-    await logUsage(prisma, row.ownerId, usage, row.id);
-    if (blurb === null) {
-      stats.failed += 1;
-      continue;
-    }
-    await storeBlurb(prisma, row.id, blurb, hash);
-    stats.generated += 1;
   }
 
   logger.info({ ...stats }, 'Roster blurb sweep complete');

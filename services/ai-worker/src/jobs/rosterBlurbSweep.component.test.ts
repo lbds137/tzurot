@@ -75,6 +75,7 @@ function invoker(): SystemModelInvoker {
     tokensIn: 10,
     tokensOut: 5,
     provider: AIProvider.OpenRouter,
+    model: 'z-ai/glm-5.2',
   });
 }
 

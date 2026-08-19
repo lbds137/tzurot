@@ -93,6 +93,7 @@ function invokerReturning(content: string): Mock<SystemModelInvoker> {
     tokensIn: 100,
     tokensOut: 20,
     provider: AIProvider.OpenRouter,
+    model: 'z-ai/glm-5.2',
   });
 }
 
@@ -198,6 +199,26 @@ describe('sweepRosterBlurbs', () => {
     expect(usageCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('bills the model the call resolved, not whatever the live setting says now', async () => {
+    setSettings(true);
+    const { prisma, usageCreate } = makePrisma({ stale: [row()] });
+    const invoke = vi.fn<SystemModelInvoker>().mockResolvedValue({
+      content: '{"blurb":"Ilana is an archivist."}',
+      tokensIn: 100,
+      tokensOut: 20,
+      provider: AIProvider.OpenRouter,
+      // Resolved when the call STARTED. extractionModel is live-editable and
+      // these calls run up to 60s, so re-reading the setting at write time
+      // would attribute this generation to the wrong model.
+      model: 'model-in-force-when-the-call-started',
+    });
+
+    await sweepRosterBlurbs(prisma, invoke);
+
+    const written = usageCreate.mock.calls[0][0] as { data: { model: string } };
+    expect(written.data.model).toBe('model-in-force-when-the-call-started');
+  });
+
   it("keeps going when one row's model call throws", async () => {
     setSettings(true);
     const a = row({ id: '4f9b0f66-0000-4000-8000-0000000000a1' });
@@ -211,6 +232,7 @@ describe('sweepRosterBlurbs', () => {
         tokensIn: 100,
         tokensOut: 20,
         provider: AIProvider.OpenRouter,
+        model: 'z-ai/glm-5.2',
       });
 
     const stats = await sweepRosterBlurbs(prisma, invoke);

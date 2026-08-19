@@ -93,6 +93,10 @@ describe('invokeSystemModel provider seam', () => {
       tokensIn: 10,
       tokensOut: 5,
       provider: 'zai-coding',
+      // The SETTING's form, not the bare id the request carried. Callers write
+      // this into usage_logs, whose model column has always recorded the
+      // prefixed name regardless of which route billed it.
+      model: 'z-ai/glm-5.2',
     });
   });
 

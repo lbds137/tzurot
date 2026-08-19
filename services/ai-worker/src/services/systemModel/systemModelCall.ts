@@ -29,6 +29,20 @@ export interface SystemModelResult {
   /** The provider the call ACTUALLY billed — carried into the usage row so an
    * injected invoker (eval harness, tests) can never mislabel provenance. */
   provider: AIProvider;
+  /**
+   * The model this call ACTUALLY used, resolved once at call start.
+   *
+   * Carried for the same reason as `provider`, and against a sharper hazard:
+   * `extractionModel` is a `liveness: 'live'` setting an admin can change
+   * mid-flight, and these calls run for up to 180s. A caller that re-read the
+   * setting when writing its usage row would attribute the spend to whatever
+   * the model is NOW, not what it billed. Read this instead of the setting.
+   *
+   * The value is the setting as written (`z-ai/glm-5.2`), not the bare id the
+   * z.ai-direct route sends — that keeps the ledger's model column in one
+   * format across providers, which is what it has always recorded.
+   */
+  model: string;
 }
 
 /** Model invocation seam — injectable for tests/eval (defaults to the real call). */
@@ -89,5 +103,6 @@ export async function invokeSystemModel(
     tokensIn: response.usage_metadata?.input_tokens ?? 0,
     tokensOut: response.usage_metadata?.output_tokens ?? 0,
     provider: route.provider,
+    model: systemModel,
   };
 }
