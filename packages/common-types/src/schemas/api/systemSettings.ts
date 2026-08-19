@@ -43,9 +43,9 @@ export const SystemSettingsSchema = z.object({
   stickerVisionEnabled: z.boolean(),
   /** Episodes per (channel, personality) before an extraction batch enqueues. */
   extractionBatchThreshold: z.number().int().min(1).max(50),
-  /** Extraction engine — switching models MUST re-run `pnpm eval:extraction` first. */
+  /** Background-work engine (fact extraction AND roster blurbs) — switching models MUST re-run `pnpm eval:extraction` first. */
   extractionModel: z.string().min(1),
-  /** Which provider bills extraction; 'zai-coding' requires ZAI_CODING_API_KEY on BOTH ai-worker and api-gateway. */
+  /** Which provider bills background work (extraction AND roster blurbs); 'zai-coding' requires ZAI_CODING_API_KEY on BOTH ai-worker and api-gateway. */
   extractionProvider: z.enum(['openrouter', 'zai-coding']),
   /** The shared free key's daily free-request allowance (the pie). */
   freeTierGlobalDailyBudget: z.number().int().min(1),
@@ -202,7 +202,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     control: 'boolean',
     liveness: 'live',
     fallback: false,
-    seedSource: 'ROSTER_BLURB_ENABLED',
+    seedSource: SEED_SOURCE_NEW,
   },
   factsInPromptEnabled: {
     key: 'factsInPromptEnabled',
@@ -230,7 +230,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     key: 'extractionModel',
     label: 'Extraction Model',
     description:
-      'Extraction engine. Switching models must re-run `pnpm eval:extraction` first — the quality gate is model-specific.',
+      'Engine for ALL background model work — fact extraction and roster-blurb summarization both bill it. Switching models must re-run `pnpm eval:extraction` first; the quality gate is model-specific.',
     group: GROUP_EXTRACTION,
     control: 'model',
     liveness: 'live',
@@ -247,7 +247,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     key: 'extractionProvider',
     label: 'Extraction Provider',
     description:
-      "Which provider bills extraction; 'zai-coding' requires ZAI_CODING_API_KEY on BOTH ai-worker (bills the calls) and api-gateway (validates writes to this setting).",
+      "Which provider bills ALL background model work (fact extraction and roster blurbs); 'zai-coding' requires ZAI_CODING_API_KEY on BOTH ai-worker (bills the calls) and api-gateway (validates writes to this setting).",
     group: GROUP_EXTRACTION,
     control: 'enum',
     liveness: 'live',

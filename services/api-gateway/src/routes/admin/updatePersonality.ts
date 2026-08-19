@@ -20,6 +20,7 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import { validateSlug } from '../../utils/validators.js';
 import { processAvatarData } from '../../utils/avatarProcessor.js';
+import { stampCardSourceHash } from '@tzurot/common-types/services/cardSourceHash';
 
 const logger = createLogger('admin-update-personality');
 
@@ -164,9 +165,12 @@ export const handleUpdateGlobalPersonality = (deps: RouteDeps): RequestHandler =
       validated,
       avatarResult?.ok === true ? avatarResult.buffer : undefined
     );
-    const personality = await prisma.personality.update({
-      where: { slug },
-      data: updateData,
+    // Stamped from the returned row, in the same transaction as the write it
+    // describes — see the same pattern in the user-facing update route.
+    const personality = await prisma.$transaction(async tx => {
+      const row = await tx.personality.update({ where: { slug }, data: updateData });
+      await stampCardSourceHash(tx, row.id, row);
+      return row;
     });
 
     logger.info({ slug, personalityId: personality.id }, 'Updated personality');

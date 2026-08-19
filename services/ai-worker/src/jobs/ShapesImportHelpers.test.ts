@@ -8,6 +8,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
 import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
+import {
+  hashRosterBlurbCard,
+  type RosterBlurbCard,
+} from '@tzurot/common-types/utils/rosterBlurbCard';
 
 // Mock common-types
 vi.mock('@tzurot/common-types/types/shapes-import', async () => {
@@ -83,12 +87,26 @@ function createMockPrisma() {
   return {
     systemPrompt: { upsert: vi.fn().mockResolvedValue({}) },
     personality: {
-      upsert: vi.fn().mockResolvedValue({ id: 'pers-id', slug: 'test-shape' }),
+      upsert: vi.fn().mockResolvedValue({
+        id: 'pers-id',
+        slug: 'test-shape',
+        name: 'Test Shape',
+        displayName: null,
+        characterInfo: 'char info',
+        personalityTraits: 'traits',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+      }),
       update: vi.fn().mockResolvedValue({}),
     },
     llmConfig: { upsert: vi.fn().mockResolvedValue({}) },
     personalityDefaultConfig: { upsert: vi.fn().mockResolvedValue({}) },
     personalityOwner: { upsert: vi.fn().mockResolvedValue({}) },
+    $executeRaw: vi.fn().mockResolvedValue(1),
   };
 }
 
@@ -124,6 +142,18 @@ describe('createFullPersonality', () => {
     expect(mockPrisma.llmConfig.upsert).toHaveBeenCalledTimes(1);
     expect(mockPrisma.personalityDefaultConfig.upsert).toHaveBeenCalledTimes(1);
     expect(mockPrisma.personalityOwner.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('stamps card_source_hash for the imported card', async () => {
+    // An import writes a whole card, so it stamps like any other card write.
+    // Without it the sweep would see the two hashes agree and pin every
+    // imported character's blurb to its first-ever import, silently.
+    await createFullPersonality(mockPrisma as never, MOCK_CONFIG, 'test-shape', 'owner-id');
+
+    const upserted = await mockPrisma.personality.upsert.mock.results[0].value;
+    expect(mockPrisma.$executeRaw.mock.calls[0]).toContain(
+      hashRosterBlurbCard(upserted as RosterBlurbCard)
+    );
   });
 
   it('should pass ownerId to personality and llmConfig', async () => {

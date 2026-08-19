@@ -240,6 +240,7 @@ CREATE TABLE "personalities" (
     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "roster_blurb" TEXT,
     "roster_blurb_source_hash" VARCHAR(64),
+    "card_source_hash" VARCHAR(64),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

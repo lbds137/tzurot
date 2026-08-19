@@ -19,11 +19,8 @@ import {
   type SystemModelInvoker,
   type SystemModelResult,
 } from '../systemModel/systemModelCall.js';
-import {
-  buildRosterBlurbPrompt,
-  rosterBlurbResponseSchema,
-  type RosterBlurbCard,
-} from './rosterBlurbPrompt.js';
+import type { RosterBlurbCard } from '@tzurot/common-types/utils/rosterBlurbCard';
+import { buildRosterBlurbPrompt, rosterBlurbResponseSchema } from './rosterBlurbPrompt.js';
 
 const logger = createLogger('RosterBlurbGenerator');
 

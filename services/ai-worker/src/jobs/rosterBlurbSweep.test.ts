@@ -7,13 +7,13 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
-import { sweepRosterBlurbs } from './rosterBlurbSweep.js';
 import {
-  buildRosterBlurbCard,
-  CARD_FIELDS,
+  EMPTY_ROSTER_BLURB_CARD_HASH,
   hashRosterBlurbCard,
+  ROSTER_BLURB_CARD_FIELDS,
   type RosterBlurbCard,
-} from '../services/rosterBlurb/rosterBlurbPrompt.js';
+} from '@tzurot/common-types/utils/rosterBlurbCard';
+import { sweepRosterBlurbs } from './rosterBlurbSweep.js';
 import type { SystemModelInvoker } from '../services/systemModel/systemModelCall.js';
 
 function setSettings(rosterBlurbEnabled: boolean): void {
@@ -28,40 +28,63 @@ function setSettings(rosterBlurbEnabled: boolean): void {
 
 afterEach(() => resetSystemSettingsRegistration());
 
-const EMPTY_CARD = Object.fromEntries(CARD_FIELDS.map(f => [f.key, null])) as RosterBlurbCard;
+const EMPTY_CARD = Object.fromEntries(
+  ROSTER_BLURB_CARD_FIELDS.map(k => [k, null])
+) as RosterBlurbCard;
 
 interface Row extends RosterBlurbCard {
   id: string;
   ownerId: string;
-  rosterBlurbSourceHash: string | null;
+  cardSourceHash: string | null;
 }
 
 function row(overrides: Partial<Row> = {}): Row {
-  return {
+  const base: Row = {
     ...EMPTY_CARD,
     id: '4f9b0f66-0000-4000-8000-0000000000aa',
     ownerId: '4f9b0f66-0000-4000-8000-0000000000bb',
-    rosterBlurbSourceHash: null,
+    cardSourceHash: null,
     name: 'Ilana',
     characterInfo: 'A dry-witted archivist.',
     ...overrides,
   };
+  // Default the stamp to the card's real digest, which is what every write
+  // path guarantees — a test that wants a mismatch must say so explicitly.
+  return overrides.cardSourceHash === undefined
+    ? { ...base, cardSourceHash: hashRosterBlurbCard(base) }
+    : base;
 }
 
-/** Prisma double: both candidate queries return `rows`, writes are recorded. */
-function makePrisma(rows: Row[]): {
+/**
+ * Prisma double.
+ *
+ * `stale` is what the raw staleness query returns; `unstamped` is what the
+ * transitional stamping pass finds. `findMany` serves whichever the sweep is
+ * asking for, in call order: stamping pass first, then the batch fetch.
+ */
+function makePrisma(options: { stale?: Row[]; unstamped?: Row[] } = {}): {
   prisma: PrismaClient;
-  executeRaw: ReturnType<typeof vi.fn>;
-  usageCreate: ReturnType<typeof vi.fn>;
+  executeRaw: Mock;
+  queryRaw: Mock;
+  usageCreate: Mock;
 } {
+  const stale = options.stale ?? [];
+  const unstamped = options.unstamped ?? [];
   const executeRaw = vi.fn().mockResolvedValue(1);
   const usageCreate = vi.fn().mockResolvedValue({});
+  const queryRaw = vi.fn().mockResolvedValue(stale.map(r => ({ id: r.id })));
+  const findMany = vi
+    .fn()
+    .mockResolvedValueOnce(unstamped)
+    .mockResolvedValueOnce(stale)
+    .mockResolvedValue([]);
   const prisma = {
-    personality: { findMany: vi.fn().mockResolvedValue(rows) },
+    personality: { findMany },
     usageLog: { create: usageCreate },
     $executeRaw: executeRaw,
+    $queryRaw: queryRaw,
   } as unknown as PrismaClient;
-  return { prisma, executeRaw, usageCreate };
+  return { prisma, executeRaw, queryRaw, usageCreate };
 }
 
 function invokerReturning(content: string): Mock<SystemModelInvoker> {
@@ -78,67 +101,79 @@ describe('sweepRosterBlurbs', () => {
 
   it('does nothing at all when the runtime switch is off', async () => {
     setSettings(false);
-    const { prisma } = makePrisma([row()]);
+    const { prisma, queryRaw } = makePrisma({ stale: [row()] });
     const invoke = invokerReturning('{"blurb":"x"}');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
     expect(stats.enabled).toBe(false);
-    expect(stats.scanned).toBe(0);
-    expect(prisma.personality.findMany).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('skips a character whose stored hash still matches its card', async () => {
+  it('asks the database for the stale set rather than hashing to find it', async () => {
     setSettings(true);
-    const fresh = row();
-    fresh.rosterBlurbSourceHash = hashRosterBlurbCard(buildRosterBlurbCard(fresh));
-    const { prisma, executeRaw } = makePrisma([fresh]);
+    const { prisma, queryRaw } = makePrisma();
+
+    await sweepRosterBlurbs(prisma, invokerReturning('{"blurb":"x"}'));
+
+    // The comparison must be SQL, and it must be IS DISTINCT FROM: plain `!=`
+    // yields null when either side is null, so a never-generated blurb — the
+    // row that most needs generating — would never be selected.
+    const sqlParts = (queryRaw.mock.calls[0][0] as { raw?: string[] }).raw ?? [];
+    const sql = sqlParts.join(' ');
+    expect(sql).toContain('IS DISTINCT FROM');
+    expect(sql).toContain('card_source_hash');
+  });
+
+  it('stamps pre-existing unstamped rows without generating them the same tick', async () => {
+    setSettings(true);
+    const unstamped = row({ cardSourceHash: null });
+    const { prisma, executeRaw } = makePrisma({ unstamped: [unstamped] });
     const invoke = invokerReturning('{"blurb":"x"}');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
-    expect(stats.scanned).toBe(1);
-    expect(stats.stale).toBe(0);
+    expect(stats.stamped).toBe(1);
+    expect(stats.generated).toBe(0);
     expect(invoke).not.toHaveBeenCalled();
-    expect(executeRaw).not.toHaveBeenCalled();
+    const writeArgs = executeRaw.mock.calls[0] as unknown[];
+    expect(writeArgs).toContain(hashRosterBlurbCard(unstamped));
   });
 
-  it('generates and stores a blurb against the hash it was generated from', async () => {
+  it('stores the blurb against the stamp the write path recorded', async () => {
     setSettings(true);
-    const stale = row({ rosterBlurbSourceHash: 'deadbeef' });
-    const { prisma, executeRaw, usageCreate } = makePrisma([stale]);
+    const stale = row();
+    const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [stale] });
     const invoke = invokerReturning('{"blurb":"Ilana is a dry-witted archivist."}');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
-    expect(stats).toMatchObject({ stale: 1, generated: 1, failed: 0, stampedEmpty: 0 });
-    expect(invoke).toHaveBeenCalledTimes(1);
-    // The stored hash must be the CURRENT card's, never the stale stored one.
-    const expectedHash = hashRosterBlurbCard(buildRosterBlurbCard(stale));
+    expect(stats).toMatchObject({ staleFound: 1, generated: 1, failed: 0 });
     const writeArgs = executeRaw.mock.calls[0] as unknown[];
     expect(writeArgs).toContain('Ilana is a dry-witted archivist.');
-    expect(writeArgs).toContain(expectedHash);
+    expect(writeArgs).toContain(stale.cardSourceHash);
     expect(usageCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('stamps an empty card without paying for a blurb about nothing', async () => {
+  it('marks an empty card current without paying for a blurb about nothing', async () => {
     setSettings(true);
     const empty = row({ name: null, characterInfo: null });
-    const { prisma, executeRaw } = makePrisma([empty]);
+    expect(empty.cardSourceHash).toBe(EMPTY_ROSTER_BLURB_CARD_HASH);
+    const { prisma, executeRaw } = makePrisma({ stale: [empty] });
     const invoke = invokerReturning('{"blurb":"x"}');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
-    expect(stats).toMatchObject({ stale: 1, stampedEmpty: 1, generated: 0 });
+    expect(stats).toMatchObject({ stampedEmpty: 1, generated: 0 });
     expect(invoke).not.toHaveBeenCalled();
-    // Stamped anyway — otherwise every tick would rediscover it as stale.
+    // Marked anyway — otherwise every tick would rediscover it as stale.
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('bills a failed parse and stores nothing', async () => {
     setSettings(true);
-    const { prisma, executeRaw, usageCreate } = makePrisma([row()]);
+    const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [row()] });
     const invoke = invokerReturning('not json at all');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
@@ -148,24 +183,9 @@ describe('sweepRosterBlurbs', () => {
     expect(usageCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('caps model calls per tick however many characters are stale', async () => {
-    setSettings(true);
-    const rows = Array.from({ length: 25 }, (_, i) =>
-      row({ id: `4f9b0f66-0000-4000-8000-0000000000${String(i).padStart(2, '0')}` })
-    );
-    const { prisma } = makePrisma(rows);
-    const invoke = invokerReturning('{"blurb":"Ilana is an archivist."}');
-
-    const stats = await sweepRosterBlurbs(prisma, invoke);
-
-    expect(stats.scanned).toBe(25);
-    expect(stats.generated).toBe(10);
-    expect(invoke).toHaveBeenCalledTimes(10);
-  });
-
   it('survives a usage-row failure rather than losing the blurb', async () => {
     setSettings(true);
-    const { prisma, executeRaw, usageCreate } = makePrisma([row()]);
+    const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [row()] });
     usageCreate.mockRejectedValue(new Error('db hiccup'));
     const invoke = invokerReturning('{"blurb":"Ilana is an archivist."}');
 
@@ -173,5 +193,16 @@ describe('sweepRosterBlurbs', () => {
 
     expect(stats.generated).toBe(1);
     expect(executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds the stale query itself rather than trimming after the fetch', async () => {
+    setSettings(true);
+    const { prisma, queryRaw } = makePrisma();
+
+    await sweepRosterBlurbs(prisma, invokerReturning('{"blurb":"x"}'));
+
+    // The per-tick spend bound is the LIMIT, not a break in the loop — the
+    // database never hands back more rows than this tick may pay for.
+    expect(queryRaw.mock.calls[0]).toContain(10);
   });
 });

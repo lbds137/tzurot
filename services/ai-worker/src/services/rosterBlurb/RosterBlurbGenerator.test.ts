@@ -3,16 +3,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { generateRosterBlurb } from './RosterBlurbGenerator.js';
 import {
-  buildRosterBlurbPrompt,
-  CARD_FIELDS,
-  ROSTER_BLURB_MAX_LENGTH,
+  ROSTER_BLURB_CARD_FIELDS,
   type RosterBlurbCard,
-} from './rosterBlurbPrompt.js';
+} from '@tzurot/common-types/utils/rosterBlurbCard';
+import { buildRosterBlurbPrompt, ROSTER_BLURB_MAX_LENGTH } from './rosterBlurbPrompt.js';
 import type { SystemModelResult } from '../systemModel/systemModelCall.js';
 
 function card(): RosterBlurbCard {
   return {
-    ...(Object.fromEntries(CARD_FIELDS.map(f => [f.key, null])) as RosterBlurbCard),
+    ...(Object.fromEntries(ROSTER_BLURB_CARD_FIELDS.map(k => [k, null])) as RosterBlurbCard),
     name: 'Ilana',
     characterInfo: 'You are Ilana, a dry-witted archivist.',
   };

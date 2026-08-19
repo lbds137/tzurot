@@ -58,6 +58,10 @@ vi.mock('../../../utils/imageProcessor.js', () => ({
 
 import { handleCreatePersonality } from './create.js';
 import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import {
+  hashRosterBlurbCard,
+  type RosterBlurbCard,
+} from '@tzurot/common-types/utils/rosterBlurbCard';
 
 describe('POST /api/user/personality (create)', () => {
   const mockPrisma = createMockPrisma();
@@ -251,6 +255,27 @@ describe('POST /api/user/personality (create)', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(mockPrisma.personality.create).not.toHaveBeenCalled();
+  });
+
+  it('stamps card_source_hash from the row the write returned', async () => {
+    // The stamp is what makes staleness a pure SQL comparison later, so it has
+    // to be the digest of the card that actually landed.
+    const created = createMockPersonality({ characterInfo: 'An archivist.' });
+    mockPrisma.personality.create.mockResolvedValue(created);
+
+    const handler = getCreateHandler();
+    const { req, res } = createMockReqRes({
+      name: 'New Character',
+      slug: 'new-char',
+      characterInfo: 'An archivist.',
+      personalityTraits: 'traits',
+    });
+
+    await handler(req, res);
+
+    expect(mockPrisma.$executeRaw.mock.calls[0]).toContain(
+      hashRosterBlurbCard(created as unknown as RosterBlurbCard)
+    );
   });
 
   it('warns (does not block) when the new name/slug shadows GLOBAL aliases', async () => {

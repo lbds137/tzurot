@@ -25,6 +25,7 @@ import { findShadowedGlobalAliases } from './helpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
+import { stampCardSourceHash } from '@tzurot/common-types/services/cardSourceHash';
 
 const logger = createLogger('user-personality-create');
 
@@ -137,9 +138,13 @@ export const handleCreatePersonality = (deps: RouteDeps): RequestHandler => {
       voiceReferenceBuffer: voiceRefResult?.ok === true ? voiceRefResult.buffer : undefined,
       voiceReferenceMimeType: voiceRefResult?.ok === true ? voiceRefResult.mimeType : undefined,
     });
-    const personality = await prisma.personality.create({
-      data: createData,
-      select: PERSONALITY_DETAIL_SELECT,
+    const personality = await prisma.$transaction(async tx => {
+      const row = await tx.personality.create({
+        data: createData,
+        select: PERSONALITY_DETAIL_SELECT,
+      });
+      await stampCardSourceHash(tx, row.id, row);
+      return row;
     });
 
     logger.info({ discordUserId, slug, personalityId: personality.id }, 'Created personality');

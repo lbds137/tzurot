@@ -5,14 +5,18 @@
  * blurb that renders inside that character's `character_participant` roster
  * entry so sibling characters know who they are talking to.
  *
- * THIS MODULE OWNS THE FIELD SET, and owns it for both consumers on purpose.
- * `hashCharacterCard`'s docstring refuses to define the set precisely because
- * it must equal the summarizer's INPUT set: a field in the checksum the prompt
- * never reads burns a paid model call on every edit to it, and a field the
- * prompt reads but the checksum omits leaves a stale blurb in place forever.
- * Here they cannot drift, because {@link hashRosterBlurbCard} and
- * {@link buildRosterBlurbPrompt} take the SAME `RosterBlurbCard` type, built by
- * the same {@link buildRosterBlurbCard} from the same {@link CARD_FIELDS} list.
+ * The FIELD SET is not here — it lives in common-types
+ * (`utils/rosterBlurbCard.ts`) because api-gateway needs it too, to stamp
+ * `card_source_hash` on every card write. What is here is everything that is
+ * genuinely the prompt's: how each field is LABELLED for the model, the output
+ * cap, and the response schema.
+ *
+ * Because the two halves now sit in different packages, colocation no longer
+ * protects the invariant that the checksum's field set equals the prompt's
+ * input set. Two mechanisms replace it: `CARD_LABELS` is keyed by
+ * `RosterBlurbCardField`, so a field added upstream without a label is a
+ * compile error; and the per-field drift test beside this file asserts every
+ * field moves the hash AND the prompt.
  *
  * Shape mirrored from `extraction/extractionPrompt.ts`: Zod response schema
  * beside the prompt builder, the schema IS the fail-to-skip contract (the
@@ -22,11 +26,12 @@
  */
 
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
-import {
-  hashCharacterCard,
-  type CardFieldValue,
-} from '@tzurot/common-types/utils/characterCardChecksum';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import {
+  ROSTER_BLURB_CARD_FIELDS,
+  type RosterBlurbCard,
+  type RosterBlurbCardField,
+} from '@tzurot/common-types/utils/rosterBlurbCard';
 import { z } from 'zod';
 
 /**
@@ -43,85 +48,25 @@ import { z } from 'zod';
 export const ROSTER_BLURB_MAX_LENGTH = DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH;
 
 /**
- * The summarizer's input fields, in render order, with the label each one gets
- * inside the card block.
+ * How each field is introduced to the model inside the card block.
  *
- * Chosen once, here, with the reason per exclusion (TASK-660 left this open
- * deliberately — the redaction list in `definitionPublic`'s doc comment answers
- * a privacy question, not a staleness one, and copying it would both omit
- * `name`/`displayName` and pull in fields no blurb can contain):
- *
- *  - `conversationalExamples` is OUT. It holds verbatim first-person example
- *    dialogue, and feeding it to a summarizer invites the blurb to quote it —
- *    removing the material beats prompting against it.
- *  - `errorMessage` is OUT. It is the character's custom failure text; it
- *    cannot appear in a third-person description, so hashing it would buy
- *    nothing but a regenerated blurb every time someone edits it.
- *  - `customFields` is OUT. Arbitrary JSON with no register guarantee.
- *  - `birthMonth`/`birthDay`/`birthYear` are OUT. `personalityAge` already
- *    carries age in prose, and these are `Int?` on the model — they would need
- *    an explicit conversion for a hash that accepts strings only.
- *
- * The keys double as the checksum's entry keys, so they are constrained by
- * `hashCharacterCard`'s unenforced precondition: no `:` and no newline. That is
- * pinned by a test in this module rather than by the type system, because the
- * property is about the characters inside each key and a future rename is
- * exactly what would break it silently.
+ * Keyed by `RosterBlurbCardField`, so adding a field to the shared set without
+ * deciding how it is labelled here fails to compile — which is the point: an
+ * unlabelled field would otherwise render as a hashed input the model never
+ * sees, the exact drift the two halves are meant to be unable to have.
  */
-export const CARD_FIELDS = [
-  { key: 'name', label: 'Name' },
-  { key: 'displayName', label: 'Also known as' },
-  { key: 'characterInfo', label: 'About' },
-  { key: 'personalityTraits', label: 'Traits' },
-  { key: 'personalityTone', label: 'Tone' },
-  { key: 'personalityAge', label: 'Age' },
-  { key: 'personalityAppearance', label: 'Appearance' },
-  { key: 'personalityLikes', label: 'Likes' },
-  { key: 'personalityDislikes', label: 'Dislikes' },
-  { key: 'conversationalGoals', label: 'Goals' },
-] as const;
-
-/** A field name the summarizer reads — and therefore a checksum entry key. */
-export type RosterBlurbCardField = (typeof CARD_FIELDS)[number]['key'];
-
-/** The card as both the checksum and the prompt see it. */
-export type RosterBlurbCard = Record<RosterBlurbCardField, CardFieldValue>;
-
-/**
- * Project a personality row onto exactly the summarizer's input fields.
- *
- * The RUNTIME narrowing is the point, not the typing: a Prisma `Personality`
- * satisfies `RosterBlurbCard` structurally and could be handed straight to
- * `hashCharacterCard`, which would then hash all forty-odd of its columns and
- * regenerate every blurb on an unrelated column's edit. Passing a row through
- * here drops everything the prompt does not read.
- */
-export function buildRosterBlurbCard(source: RosterBlurbCard): RosterBlurbCard {
-  return Object.fromEntries(
-    CARD_FIELDS.map(field => [field.key, source[field.key]])
-  ) as RosterBlurbCard;
-}
-
-/** Staleness checksum over the same fields {@link buildRosterBlurbPrompt} reads. */
-export function hashRosterBlurbCard(card: RosterBlurbCard): string {
-  return hashCharacterCard(card);
-}
-
-/**
- * The digest every card with no describable content shares.
- *
- * `hashCharacterCard` treats null, undefined, `''` and whitespace-only as one
- * absent state, so a card whose every field is empty hashes to the sha-256 of
- * the empty string — the same value for every such character. A caller must
- * therefore detect "nothing to summarize" by comparing against THIS constant,
- * never by comparing two cards' checksums to each other, and should skip the
- * model call entirely in that state rather than pay for a blurb about nothing.
- *
- * Derived rather than transcribed so it cannot drift from the hash it describes.
- */
-export const EMPTY_ROSTER_BLURB_CARD_HASH = hashRosterBlurbCard(
-  buildRosterBlurbCard(Object.fromEntries(CARD_FIELDS.map(f => [f.key, null])) as RosterBlurbCard)
-);
+const CARD_LABELS: Record<RosterBlurbCardField, string> = {
+  name: 'Name',
+  displayName: 'Also known as',
+  characterInfo: 'About',
+  personalityTraits: 'Traits',
+  personalityTone: 'Tone',
+  personalityAge: 'Age',
+  personalityAppearance: 'Appearance',
+  personalityLikes: 'Likes',
+  personalityDislikes: 'Dislikes',
+  conversationalGoals: 'Goals',
+};
 
 /**
  * The model's response contract.
@@ -151,12 +96,12 @@ export const rosterBlurbResponseSchema = z.object({
  * block and address the summarizer directly.
  */
 function renderCard(card: RosterBlurbCard): string {
-  return CARD_FIELDS.map(field => {
-    const value = card[field.key];
+  return ROSTER_BLURB_CARD_FIELDS.map(key => {
+    const value = card[key];
     if (value === null || value === undefined || value.trim().length === 0) {
       return null;
     }
-    return `${field.label}: ${escapeXmlContent(value.trim())}`;
+    return `${CARD_LABELS[key]}: ${escapeXmlContent(value.trim())}`;
   })
     .filter((line): line is string => line !== null)
     .join('\n');

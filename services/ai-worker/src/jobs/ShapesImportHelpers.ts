@@ -15,6 +15,7 @@ import {
   mapShapesConfigToPersonality,
   type MappedPersonalityData,
 } from '../services/shapes/ShapesPersonalityMapper.js';
+import { stampCardSourceHash } from '@tzurot/common-types/services/cardSourceHash';
 
 const logger = createLogger('ShapesImportJob');
 
@@ -76,7 +77,7 @@ async function upsertPersonality(
 ): Promise<void> {
   const customFieldsJson = (mapped.personality.customFields ?? undefined) as
     Prisma.InputJsonValue | undefined;
-  await prisma.personality.upsert({
+  const row = await prisma.personality.upsert({
     where: { slug: mapped.personality.slug },
     create: {
       ...mapped.personality,
@@ -102,6 +103,11 @@ async function upsertPersonality(
       systemPromptId: mapped.systemPrompt.id,
     },
   });
+  // An import writes a whole card, so it is a card write like any other and
+  // must stamp. Missing it here would leave every imported character's blurb
+  // pinned to whatever the card was at its FIRST import, silently, since the
+  // sweep would see the two hashes agree.
+  await stampCardSourceHash(prisma, row.id, row);
 }
 
 async function upsertLlmConfig(
