@@ -221,7 +221,10 @@ async function tryZaiFreeTierUpgrade(
     );
     return null;
   }
-  logger.info({ userId }, 'Guest upgraded to GLM-4.5-Air on the system coding plan');
+  logger.info(
+    { userId, model: ZAI_FREE_TIER_MODEL },
+    'Guest upgraded to the piggyback model on the system coding plan'
+  );
   // A guest who personally selected the BARE piggyback id lands here with no
   // model change at all, and gets no note; the `z-ai/`-prefixed form and the
   // free-default arm both do change it, so both announce.
