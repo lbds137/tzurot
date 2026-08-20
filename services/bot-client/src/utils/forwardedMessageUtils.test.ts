@@ -655,19 +655,27 @@ describe('forwardedMessageUtils', () => {
       referenceChannelId?: string;
       referenceMessageId?: string;
       fetchedAuthor?: { id: string; displayName: string };
+      /** Marks the fetched original as webhook-authored. */
+      fetchedWebhookId?: string;
       fetchRejects?: boolean;
       channelFetch?: ReturnType<typeof vi.fn>;
       messagesFetch?: ReturnType<typeof vi.fn>;
+      clientUserTag?: string;
+      channelType?: number;
     }): Message {
       const messagesFetch =
         options.messagesFetch ??
         vi.fn(() =>
           options.fetchRejects === true
             ? Promise.reject(new Error('Unknown Message'))
-            : Promise.resolve({ author: options.fetchedAuthor })
+            : Promise.resolve({
+                author: options.fetchedAuthor,
+                webhookId: options.fetchedWebhookId ?? null,
+              })
         );
       const channel = {
         id: 'channel-1',
+        type: options.channelType ?? 0,
         isTextBased: () => true,
         messages: { fetch: messagesFetch },
       };
@@ -677,7 +685,9 @@ describe('forwardedMessageUtils', () => {
         id: 'forward-1',
         content: '',
         channel,
+        author: { id: 'forwarder-1' },
         client: {
+          user: options.clientUserTag !== undefined ? { tag: options.clientUserTag } : undefined,
           channels: { fetch: options.channelFetch ?? vi.fn(() => Promise.resolve(channel)) },
         },
         reference: {
@@ -706,6 +716,63 @@ describe('forwardedMessageUtils', () => {
         authorName: 'COLD',
         authorId: '1472768398135001108',
       });
+    });
+
+    it("strips our bot suffix from a webhook-authored original's name", async () => {
+      // A webhook author's displayName IS the webhook username, so a
+      // character's message previously persisted as "COLD · Tzurot" — the
+      // bot's own name injected into a character attribution.
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          fetchedAuthor: { id: 'wh-1', displayName: 'COLD · Tzurot' },
+          fetchedWebhookId: 'webhook-1',
+          clientUserTag: 'Tzurot#1234',
+        })
+      );
+
+      expect(origin?.authorName).toBe('COLD');
+    });
+
+    it('leaves a foreign webhook name without our suffix unchanged', async () => {
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          fetchedAuthor: { id: 'wh-2', displayName: 'Some Other Bot' },
+          fetchedWebhookId: 'webhook-2',
+          clientUserTag: 'Tzurot#1234',
+        })
+      );
+
+      expect(origin?.authorName).toBe('Some Other Bot');
+    });
+
+    it("classifies the ORIGIN channel's surface for the personality lookup, not the landing channel's", async () => {
+      // A DM-origin forward landing in a guild: the validator decides what
+      // shape the ORIGINAL must have, so classifying the landing channel
+      // silently rejects both cross-surface directions.
+      const dmChannel = {
+        id: 'dm-1',
+        type: 1, // ChannelType.DM
+        isTextBased: () => true,
+        messages: {
+          fetch: vi.fn(() =>
+            Promise.resolve({ author: { id: 'bot-1', displayName: 'COLD' }, webhookId: null })
+          ),
+        },
+      };
+      const resolver = vi.fn((_original: unknown, _viewerId: string, _isDM: boolean) =>
+        Promise.resolve('personality-uuid')
+      );
+
+      await resolveForwardedOrigin(
+        buildForward({
+          referenceChannelId: 'dm-1',
+          channelFetch: vi.fn(() => Promise.resolve(dmChannel)),
+        }),
+        resolver
+      );
+
+      expect(resolver).toHaveBeenCalledTimes(1);
+      expect(resolver.mock.calls[0][2]).toBe(true); // the ORIGIN is a DM
     });
 
     it('fetches from the reference channel, not the channel the forward landed in', async () => {
