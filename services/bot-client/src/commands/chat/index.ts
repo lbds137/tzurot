@@ -16,6 +16,7 @@
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   defineCommand,
@@ -66,7 +67,7 @@ export default defineCommand({
         .setName('message')
         .setDescription('Message to send to the character')
         .setRequired(true)
-        .setMaxLength(2000)
+        .setMaxLength(DISCORD_LIMITS.CHAT_MESSAGE_INPUT_MAX_LENGTH)
     ),
   execute,
   autocomplete,

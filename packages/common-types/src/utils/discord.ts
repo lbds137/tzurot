@@ -74,19 +74,33 @@ export function truncateText(
 interface ChunkState {
   chunks: string[];
   currentChunk: string;
+  /**
+   * Whether a FORCE-split (an unbroken token wider than the budget) marks its
+   * fragments with a trailing '...'. Carried on the state rather than passed
+   * down as another parameter so the chain stays under the max-params cap.
+   * Callers that persist or re-assemble the fragments turn it off; see
+   * {@link SplitMessageOptions.decorateForcedSplits}.
+   */
+  decorateForcedSplits: boolean;
 }
 
 /**
  * Force-splits a long word (like a URL) that exceeds maxLength
+ *
+ * With `decorate` off the fragments carry no marker AND give up the 10-char
+ * reserve, which exists only to make room for that marker: the fragments then
+ * concatenate back to exactly the input word. Pinned by 'concatenates back to
+ * the exact input when decoration is off' in `discord.test.ts`.
  * @internal
  */
-function splitLongWord(word: string, maxLength: number): string[] {
+function splitLongWord(word: string, maxLength: number, decorate: boolean): string[] {
   const wordChunks: string[] = [];
   // Floor of 1: a maxLength ≤ 10 would otherwise yield a non-positive step
   // and loop forever on an unsplittable word.
-  const chunkSize = Math.max(1, maxLength - 10); // Leave room for "..."
+  const chunkSize = decorate ? Math.max(1, maxLength - 10) : Math.max(1, maxLength);
   for (let i = 0; i < word.length; i += chunkSize) {
-    wordChunks.push(word.slice(i, i + chunkSize) + '...');
+    const fragment = word.slice(i, i + chunkSize);
+    wordChunks.push(decorate ? fragment + '...' : fragment);
   }
   return wordChunks;
 }
@@ -103,7 +117,7 @@ function processWordsIntoChunks(words: string[], maxLength: number, state: Chunk
         state.chunks.push(state.currentChunk.trim());
         state.currentChunk = '';
       }
-      state.chunks.push(...splitLongWord(word, maxLength));
+      state.chunks.push(...splitLongWord(word, maxLength, state.decorateForcedSplits));
     } else if ((state.currentChunk + ' ' + word).length > maxLength) {
       state.chunks.push(state.currentChunk.trim());
       state.currentChunk = word;
@@ -147,13 +161,14 @@ function processSentencesIntoChunks(
  */
 function splitAtNaturalBoundaries(
   content: string,
-  maxLength = DISCORD_MAX_MESSAGE_LENGTH
+  maxLength = DISCORD_MAX_MESSAGE_LENGTH,
+  decorateForcedSplits = true
 ): string[] {
   if (content.length <= maxLength) {
     return [content];
   }
 
-  const state: ChunkState = { chunks: [], currentChunk: '' };
+  const state: ChunkState = { chunks: [], currentChunk: '', decorateForcedSplits };
 
   // First try to split on double newlines (paragraphs)
   const paragraphs = content.split(/\n\n+/);
@@ -196,16 +211,51 @@ function splitAtNaturalBoundaries(
  *
  * @param content - The content to split
  * @param maxLength - Maximum length per chunk (default: Discord's 2000 char limit)
+ * @param opts - See {@link SplitMessageOptions}
  */
 /** Budget reserved on fallback re-splits for the markers rebalanceFences adds
  * (a closing fence plus a re-opening fence with a language tag; tags are
- * clamped to LANG_TAG_MAX so the budget always covers them). */
+ * clamped to LANG_TAG_MAX so the budget always covers them).
+ *
+ * Taken only on the DECORATED path. With `decorateForcedSplits` off nothing is
+ * spliced in, so there is nothing to reserve for and the re-split runs at the
+ * full budget — see {@link SplitMessageOptions.decorateForcedSplits}. */
 const FENCE_REBALANCE_HEADROOM = 32;
 /** Longest language tag carried onto a continuation chunk (headroom math:
  * 3 close + newline + 3 open + tag + newline = 8 + tag ≤ 32 - margin). */
 const LANG_TAG_MAX = 16;
 
-export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
+/** Options for {@link splitMessage}. */
+export interface SplitMessageOptions {
+  /**
+   * Add synthetic markup where content had to be cut mid-structure. Two
+   * mechanisms, both governed by this one flag:
+   * - a trailing '...' on each fragment of a FORCE-split — an unbroken token
+   *   wider than the budget, e.g. a long URL or a base64 run;
+   * - re-closing and re-opening fence markers (```) spliced around a cut that
+   *   lands inside a code block, so each fragment renders as valid markdown.
+   *
+   * Defaults to `true`, which suits a display-only sender: the markup tells a
+   * reader the content was cut and keeps the rendering intact. Turn it OFF when
+   * the chunks are stored, re-sent, or re-assembled as the user's own text — the
+   * markup is otherwise written into that copy verbatim and cannot be told apart
+   * from what the user typed.
+   *
+   * With it off, NO synthetic markup of any kind is added, so the fragments
+   * always concatenate back to exactly the input. The cost is that a cut landing
+   * inside a code block renders unbalanced across the chunked display — the same
+   * "an unmarked cut is the honest rendering" trade this option already makes for
+   * the force-split marker.
+   */
+  decorateForcedSplits?: boolean;
+}
+
+export function splitMessage(
+  content: string,
+  maxLength = DISCORD_MAX_MESSAGE_LENGTH,
+  opts: SplitMessageOptions = {}
+): string[] {
+  const { decorateForcedSplits = true } = opts;
   // Defensive check: handle undefined/null/non-string input
   // Utility functions should be robust to bad input
   if (!content || typeof content !== 'string') {
@@ -217,7 +267,7 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
 
   // No code blocks - use simple natural boundary splitting
   if (codeBlocks.length === 0) {
-    return splitAtNaturalBoundaries(content, maxLength);
+    return splitAtNaturalBoundaries(content, maxLength, decorateForcedSplits);
   }
 
   // Replace code blocks with placeholders to protect them during splitting
@@ -231,7 +281,7 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
   });
 
   // Split the content with placeholders
-  const chunks = splitAtNaturalBoundaries(processedContent, maxLength);
+  const chunks = splitAtNaturalBoundaries(processedContent, maxLength, decorateForcedSplits);
 
   // Restore code blocks
   const restoredChunks = chunks.map(chunk => {
@@ -243,19 +293,26 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
   });
 
   // Check if any restored chunks exceed the limit (can happen if code block is large)
-  // If so, re-split those chunks — the block WILL be cut, so the split runs
-  // with headroom for the fence markers rebalanceFences adds, and the
-  // rebalance pass re-closes/re-opens the fence at each boundary so every
-  // chunk renders valid markdown on its own.
+  // If so, re-split those chunks — the block WILL be cut. On the decorated path the
+  // split runs with headroom for the fence markers rebalanceFences adds, and the
+  // rebalance pass re-closes/re-opens the fence at each boundary so every chunk
+  // renders valid markdown on its own. Undecorated, the rebalance is skipped
+  // entirely (splicing fences the user never typed is the same injection the
+  // option exists to prevent, just via markup instead of '...'), and with nothing
+  // to splice in the re-split takes the full budget.
   const finalChunks: string[] = [];
   for (const chunk of restoredChunks) {
     if (chunk.length > maxLength) {
+      if (!decorateForcedSplits) {
+        finalChunks.push(...splitAtNaturalBoundaries(chunk, maxLength, false));
+        continue;
+      }
       // Rebalance ONLY this oversized chunk's own fragments — running the
       // parity heuristic across never-split chunks would let a stray
       // unpaired ``` elsewhere in the message inject phantom fences into
       // content the splitter never touched.
       const budget = Math.max(1, maxLength - FENCE_REBALANCE_HEADROOM);
-      finalChunks.push(...rebalanceFences(splitAtNaturalBoundaries(chunk, budget)));
+      finalChunks.push(...rebalanceFences(splitAtNaturalBoundaries(chunk, budget, true)));
     } else {
       finalChunks.push(chunk);
     }

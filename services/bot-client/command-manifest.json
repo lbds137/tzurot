@@ -686,7 +686,7 @@
             "name": "message",
             "description": "Message to send to the character",
             "required": true,
-            "max_length": 2000
+            "max_length": 4000
           }
         ],
         "name": "chat",
@@ -2111,7 +2111,7 @@
             "name": "message",
             "description": "Message to send (leave empty to have the random pick react to recent chat)",
             "required": false,
-            "max_length": 2000
+            "max_length": 4000
           },
           {
             "name": "incognito",

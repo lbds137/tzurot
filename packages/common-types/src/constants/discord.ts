@@ -52,7 +52,9 @@ export const CHARACTER_VIEW_LIMITS = {
  * Discord API limits and constraints
  */
 export const DISCORD_LIMITS = {
-  /** Discord message content character limit */
+  /** Discord's bot/webhook message content character limit (Nitro-independent —
+   *  a Nitro subscription raises what a HUMAN may type, never what the API
+   *  accepts from a bot). The chunk budget every sender splits against. */
   MESSAGE_LENGTH: 2000,
   /** Discord embed description character limit */
   EMBED_DESCRIPTION: 4096,
@@ -66,6 +68,12 @@ export const DISCORD_LIMITS = {
   AUTOCOMPLETE_MAX_CHOICES: 25,
   /** Maximum length for modal text input (paragraph style) */
   MODAL_INPUT_MAX_LENGTH: 4000,
+  /** Max `message` option length on the `/chat`-family commands — Nitro's max
+   *  message length, so a Nitro user can hand a character everything they could
+   *  have typed by hand. Deliverable despite exceeding MESSAGE_LENGTH because
+   *  the channel echo is chunked at send time (characterTurn.ts). Distinct from
+   *  MODAL_INPUT_MAX_LENGTH: same number, unrelated surface. */
+  CHAT_MESSAGE_INPUT_MAX_LENGTH: 4000,
   /** Maximum length for short paragraph fields (traits, tone, error message) */
   SHORT_PARAGRAPH_MAX_LENGTH: 1000,
   /** Maximum length for a personality slug (mirrors slugSchema's .max in personality.ts; edit-modal caps must match to avoid a 400) */

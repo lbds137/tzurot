@@ -115,18 +115,23 @@ vi.mock('../../redis.js', () => ({
   redisService: { storeWebhookMessage: vi.fn() },
 }));
 
+// One shared logger object rather than a fresh one per createLogger() call: the
+// module under test binds its logger at import time, so a per-call object would be
+// unreachable from here and the warn-on-failed-persist path unobservable.
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -134,6 +139,12 @@ describe('Character Turn Engine (push delivery)', () => {
   // A distinctive createdAt so tests can assert the echo's REAL Discord time (not a
   // pre-send new Date()) anchors both the user row and the assistant's userMessageTime.
   const ECHO_CREATED_AT = new Date('2026-07-01T23:10:54.101Z');
+  // Distinctive tokens at the head, middle, and tail of the chunking fixture: each must
+  // survive into exactly one persisted slice, which is what proves nothing was dropped
+  // at a chunk boundary and nothing was written twice.
+  const SENTINEL_START = 'ZQ-ECHO-HEAD-TOKEN';
+  const SENTINEL_MIDDLE = 'ZQ-ECHO-MIDDLE-TOKEN';
+  const SENTINEL_END = 'ZQ-ECHO-TAIL-TOKEN';
   const createMockMessage = (id: string = 'user-msg-123') => ({
     id,
     client: { user: { id: 'bot-user-123' } },
@@ -152,7 +163,10 @@ describe('Character Turn Engine (push delivery)', () => {
   };
 
   const createMockChannel = (type: ChannelType = ChannelType.GuildText) => {
-    const sentMessage = createMockMessage();
+    // Every send resolves to a DISTINCT message (own id, strictly later createdAt),
+    // the way Discord really answers: a single shared resolved value would make a
+    // chunked echo's per-chunk id/timestamp anchoring unobservable.
+    let sendCount = 0;
     return {
       type,
       id: 'channel-123',
@@ -163,7 +177,13 @@ describe('Character Turn Engine (push delivery)', () => {
       // Real Discord channels always carry a back-reference to the client; the
       // empty-channel synthetic anchor reads `channel.client.user` via it.
       client: { user: { id: 'bot-user-123' } },
-      send: vi.fn().mockResolvedValue(sentMessage),
+      send: vi.fn().mockImplementation(() => {
+        const nth = sendCount++;
+        return Promise.resolve({
+          ...createMockMessage(nth === 0 ? 'user-msg-123' : `user-msg-123-${nth + 1}`),
+          createdAt: new Date(ECHO_CREATED_AT.getTime() + nth * 1000),
+        });
+      }),
       sendTyping: vi.fn().mockResolvedValue(undefined),
       messages: {
         fetch: vi
@@ -478,6 +498,246 @@ describe('Character Turn Engine (push delivery)', () => {
       await handleChat(ctx);
 
       expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('**Cool Name:**'));
+    });
+
+    it('sends and persists exactly one row for a message that fits in one Discord message', async () => {
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', 'Short and sweet', channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChat(ctx);
+
+      expect(channel.send).toHaveBeenCalledTimes(1);
+      expect(channel.send).toHaveBeenCalledWith('**TestUser:** Short and sweet');
+      expect(mockConversationPersistence.saveUserMessageFromFields).toHaveBeenCalledTimes(1);
+      expect(mockConversationPersistence.saveUserMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          discordMessageId: 'user-msg-123',
+          messageContent: 'Short and sweet',
+          timestamp: ECHO_CREATED_AT,
+        })
+      );
+    });
+
+    it('chunks an over-long message into one Discord message AND one history row per chunk', async () => {
+      // The `message` option accepts up to 4000 chars (Nitro parity) while a Discord
+      // message caps at 2000, so the echo must split. Each chunk is its own history row;
+      // the LAST chunk is the anchor the rest of the turn hangs off.
+      // Short words rather than sentences, deliberately: splitMessage packs whole
+      // SENTENCES first and only falls through to word packing inside an oversized
+      // one, so a sentence-shaped fixture leaves up to a full sentence of slack under
+      // the budget — enough to absorb a mis-sized budget and let the ≤2000 assertion
+      // pass either way. Word packing lands within one word of the budget, which is
+      // what makes that assertion able to fail (canary-verified).
+      const filler = (label: string): string =>
+        Array.from({ length: 180 }, (_, i) => `w${label}${String(i).padStart(3, '0')}`).join(' ');
+      const longMessage = `${SENTINEL_START} ${filler('a')} ${SENTINEL_MIDDLE} ${filler('b')} ${SENTINEL_END}.`;
+      expect(longMessage.length).toBeGreaterThan(2000);
+
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', longMessage, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChat(ctx);
+
+      const sendCalls = vi.mocked(channel.send).mock.calls.map(call => call[0] as string);
+      expect(sendCalls.length).toBeGreaterThanOrEqual(2);
+      for (const sent of sendCalls) {
+        // EVERY chunk carries the display prefix, and the prefix counts against the
+        // 2000-char budget — dropping it from the budget makes the first chunk overflow.
+        expect(sent.startsWith('**TestUser:** ')).toBe(true);
+        expect(sent.length).toBeLessThanOrEqual(2000);
+      }
+
+      const echoes = await Promise.all(
+        vi.mocked(channel.send).mock.results.map(result => result.value)
+      );
+      const persistCalls = mockConversationPersistence.saveUserMessageFromFields.mock.calls.map(
+        call => call[0]
+      );
+      expect(persistCalls).toHaveLength(sendCalls.length);
+      persistCalls.forEach((persisted, index) => {
+        // Each row carries ITS OWN chunk's message id and Discord timestamp...
+        expect(persisted.discordMessageId).toBe(echoes[index].id);
+        expect(persisted.timestamp).toBe(echoes[index].createdAt);
+        // ...and the stored content is the raw slice, never the display prefix.
+        expect(persisted.messageContent).not.toContain('**TestUser:**');
+      });
+
+      // splitMessage may trim whitespace at a boundary, so assert sentinel COVERAGE
+      // (nothing lost, nothing duplicated) rather than a concat-equals-input identity.
+      for (const sentinel of [SENTINEL_START, SENTINEL_MIDDLE, SENTINEL_END]) {
+        const carrying = persistCalls.filter(persisted =>
+          persisted.messageContent.includes(sentinel)
+        );
+        expect(carrying).toHaveLength(1);
+      }
+
+      // The turn anchors on the LAST chunk — that id is what the worker gets as the
+      // trigger, and what the assistant row's ordering derives from.
+      const lastEchoId = echoes[echoes.length - 1].id;
+      expect(lastEchoId).not.toBe(echoes[0].id);
+      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ triggerMessageId: lastEchoId })
+      );
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({ userMessageTime: echoes[echoes.length - 1].createdAt })
+      );
+    });
+
+    it('slices an unbroken over-budget token verbatim — no ellipsis written to history', async () => {
+      // A URL / base64 run longer than one Discord message has no natural boundary, so
+      // splitMessage FORCE-splits it. Its default marks each fragment with a trailing
+      // '...', which the echo path would store as if the user had typed it; the echo
+      // opts that off, so the persisted slices must rejoin to the original byte for byte.
+      const longToken = `${SENTINEL_START}${'QWxhZGRpbjpvcGVuIHNlc2FtZQ'.repeat(100)}${SENTINEL_END}`;
+      expect(longToken.length).toBeGreaterThan(2000);
+      expect(longToken).not.toMatch(/\s/);
+
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', longToken, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChat(ctx);
+
+      const persisted = mockConversationPersistence.saveUserMessageFromFields.mock.calls.map(
+        call => call[0].messageContent as string
+      );
+      expect(persisted.length).toBeGreaterThanOrEqual(2);
+      // Force-splitting does no whitespace trimming, so exact concat-equality is the
+      // assertion here (unlike the word-packed fixture above, which rejoins on spaces).
+      expect(persisted.join('')).toBe(longToken);
+      persisted.forEach(slice => {
+        expect(slice).not.toContain('...');
+      });
+
+      const sendCalls = vi.mocked(channel.send).mock.calls.map(call => call[0] as string);
+      sendCalls.forEach(sent => {
+        expect(sent.startsWith('**TestUser:** ')).toBe(true);
+        expect(sent.length).toBeLessThanOrEqual(2000);
+        expect(sent).not.toContain('...');
+      });
+    });
+
+    it('writes no fence markup into history when an over-budget code block is chunked', async () => {
+      // The second injection path: a cut inside a fenced block normally gets extra ```
+      // spliced in to keep each chunk rendering. Those fences would be stored as the
+      // user's own text and fed back to the model as if they had typed them.
+      const body = Array.from(
+        { length: 60 },
+        (_, i) => `  const ${SENTINEL_START}${i} = compute(${i}); // ${SENTINEL_END}${i}`
+      ).join('\n');
+      const message = '```js\n' + body + '\n```';
+      expect(message.length).toBeGreaterThan(2000);
+      const fenceCount = (text: string): number => (text.match(/```/g) ?? []).length;
+
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', message, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChat(ctx);
+
+      const persisted = mockConversationPersistence.saveUserMessageFromFields.mock.calls.map(
+        call => call[0].messageContent as string
+      );
+      expect(persisted.length).toBeGreaterThanOrEqual(2);
+      expect(persisted.reduce((total, slice) => total + fenceCount(slice), 0)).toBe(
+        fenceCount(message)
+      );
+      persisted.forEach(slice => {
+        expect(slice).not.toContain('...');
+      });
+      // Whitespace is re-flowed at chunk boundaries by the splitter itself; what must
+      // hold is that no NON-whitespace character was added or lost.
+      const withoutWhitespace = (text: string): string => text.replace(/\s+/g, '');
+      expect(withoutWhitespace(persisted.join(''))).toBe(withoutWhitespace(message));
+    });
+
+    it('aborts the turn without persisting anything when a later chunk fails to send', async () => {
+      // Sends run to completion BEFORE any persistence, so a mid-send failure leaves the
+      // earlier chunks posted in the channel but writes NO history rows and submits no job
+      // — the turn falls through to the same generic error reply as any other failure.
+      const channel = createMockChannel(ChannelType.GuildText);
+      const firstEcho = { id: 'user-msg-123', createdAt: ECHO_CREATED_AT };
+      let sendCalls = 0;
+      vi.mocked(channel.send).mockImplementation(() => {
+        sendCalls += 1;
+        return sendCalls === 1
+          ? Promise.resolve(firstEcho)
+          : Promise.reject(new Error('Discord rejected the chunk'));
+      });
+      const filler = (label: string): string =>
+        Array.from({ length: 180 }, (_, i) => `w${label}${String(i).padStart(3, '0')}`).join(' ');
+      const ctx = createMockContext('test-char', `${filler('a')} ${filler('b')}`, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChat(ctx);
+
+      expect(sendCalls).toBeGreaterThanOrEqual(2);
+      expect(mockConversationPersistence.saveUserMessageFromFields).not.toHaveBeenCalled();
+      expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
+      expect(ctx.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to process the chat request'),
+      });
+    });
+
+    it('completes the turn when one chunk fails to persist, warning instead of throwing', async () => {
+      // Persistence is best-effort on every arm: a failed row costs that chunk its place
+      // in history, but must not take the turn down with it.
+      const filler = (label: string): string =>
+        Array.from({ length: 180 }, (_, i) => `w${label}${String(i).padStart(3, '0')}`).join(' ');
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', `${filler('a')} ${filler('b')}`, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockConversationPersistence.saveUserMessageFromFields.mockRejectedValueOnce(
+        new Error('db unavailable')
+      );
+
+      await handleChat(ctx);
+
+      expect(
+        mockConversationPersistence.saveUserMessageFromFields.mock.calls.length
+      ).toBeGreaterThanOrEqual(2);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to save user message'
+      );
+      // The turn still reaches the gateway — the failed row is not fatal.
+      expect(mockGatewayClient.generate).toHaveBeenCalled();
+      expect(mockJobTracker.trackJob).toHaveBeenCalled();
+    });
+
+    it('warns without failing the turn when the SINGLE-chunk fire-and-forget persist rejects', async () => {
+      // The one-chunk arm keeps the fire-and-forget strategy, so its failure surfaces
+      // only on a later microtask — the other persistence-failure test above covers the
+      // awaited multi-chunk arm, and the two are distinct strategies.
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', 'Short and sweet', channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockConversationPersistence.saveUserMessageFromFields.mockRejectedValueOnce(
+        new Error('db unavailable')
+      );
+
+      await handleChat(ctx);
+      // Let the detached persist promise's catch land.
+      await vi.runAllTimersAsync();
+
+      expect(channel.send).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to save user message'
+      );
+      expect(mockGatewayClient.generate).toHaveBeenCalled();
+      expect(mockJobTracker.trackJob).toHaveBeenCalled();
     });
 
     it('passes triggerMessageId to gateway.generate', async () => {

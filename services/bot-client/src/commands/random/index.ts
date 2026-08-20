@@ -16,6 +16,7 @@
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   defineCommand,
@@ -54,7 +55,7 @@ export default defineCommand({
           'Message to send (leave empty to have the random pick react to recent chat)'
         )
         .setRequired(false)
-        .setMaxLength(2000)
+        .setMaxLength(DISCORD_LIMITS.CHAT_MESSAGE_INPUT_MAX_LENGTH)
     )
     .addBooleanOption(option =>
       option
