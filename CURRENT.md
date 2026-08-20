@@ -22,6 +22,10 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 - GLM (b): a retarget succeeding where a demoted turn previously dead-ended (now.md entry stays until hardening (b) lands).
 - `rosterBlurbEnabled` stays **false** — flip gated on TASK-700 (blurb retry-storm hardening); the flip is a corpus-wide spend event and owner-timed.
 
+## ▶️ NEXT UNIT (for the next session — Opus orchestrator per the settled default)
+
+**beta.206 sub-theme 1: the forward batch** — TASK-706 (start here; evidence + fix shape on the task) · 668 · 43 · 667 · 563 (parked branch `fix/task-563-reference-audio-voice-gate` exists — resume, don't rebuild). Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 carries, not chat_log XML attributes it deletes (`prompt-assembly-architecture.md` §9c). Then TASK-700 (blurb-flip gate). Phase 2 build specs derive from §9c — design is settled, no re-litigating.
+
 ## 📋 Open items (near-term)
 
 - **Purge EXECUTED (owner-authorized 2026-08-16)**: 20 never-used accounts erased, 0 characters touched, userbase 228→208. Remaining: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call).
