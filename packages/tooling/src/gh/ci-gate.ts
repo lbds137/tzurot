@@ -55,6 +55,17 @@ export const GATE_DEFAULTS = {
    * Real drift persists, so the re-read costs it nothing.
    */
   HEAD_RECHECK_MS: 3_000,
+  /**
+   * claude-review cycles on one PR at which the gate prints the hand-off
+   * warning. Mirrors the ~6-round hard cap in /tzurot-review-response § 5a —
+   * measured marathons (13, 10 and 8 rounds in one mined window) were
+   * self-fed, with later rounds fixing earlier rounds' fixes, and nothing
+   * mechanical surfaced the cap while it was being crossed. Firing AT 6 —
+   * one cycle before the skill's "past ~6" hand-off point — is deliberate:
+   * the warning must land while the decision is still ahead, so do not
+   * "correct" this to > 6.
+   */
+  REVIEW_ROUND_WARN_THRESHOLD: 6,
 } as const;
 
 export interface WorkflowRun {
@@ -316,31 +327,15 @@ export function fetchRuns(
   sha: string,
   warn: (message: string) => void = console.warn
 ): WorkflowRun[] {
-  let raw: string;
-  try {
-    raw = execFileSync(
-      'gh',
-      [
-        'api',
-        `repos/${REPO}/actions/runs?head_sha=${encodeURIComponent(sha)}&per_page=${RUNS_PAGE_SIZE}`,
-        '--jq',
-        '.workflow_runs',
-      ],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: RUNS_FETCH_TIMEOUT_MS }
-    );
-  } catch (error) {
-    const { stderr, signal } = error as { stderr?: string; signal?: string | null };
-    const reported = (stderr ?? '') || (error as Error).message || '';
-    const first = reported.trim().split('\n')[0] ?? '';
-    // A timeout kill carries no stderr and only a bare "Command failed" message,
-    // which reads as an unexplained failure. Name the signal, the way
-    // `runChecks` separates "killed by SIGTERM" from a spawn failure — and keep
-    // the detail non-empty either way, because a blank failure line is the
-    // silence this gate exists to remove.
-    const killed = signal !== undefined && signal !== null ? `killed by ${signal}` : '';
-    const detail = [first, killed].filter(part => part !== '').join(' — ');
-    throw new GhApiError(detail === '' ? 'gh api failed with no output' : detail);
-  }
+  const raw = ghCall(
+    [
+      'api',
+      `repos/${REPO}/actions/runs?head_sha=${encodeURIComponent(sha)}&per_page=${RUNS_PAGE_SIZE}`,
+      '--jq',
+      '.workflow_runs',
+    ],
+    RUNS_FETCH_TIMEOUT_MS
+  );
   let runs: WorkflowRun[];
   try {
     runs = JSON.parse(raw) as WorkflowRun[];
@@ -357,6 +352,116 @@ export function fetchRuns(
 }
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+export const REVIEW_COUNT_TIMEOUT_MS = 15_000;
+
+/**
+ * Run one bounded `gh` call, shaping failures the way `fetchRuns` does: name
+ * the kill signal when there is one, keep the detail non-empty either way,
+ * and surface everything as GhApiError so callers own the loudness decision.
+ */
+function ghCall(args: string[], timeoutMs: number): string {
+  try {
+    return execFileSync('gh', args, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    });
+  } catch (error) {
+    const { stderr, signal } = error as { stderr?: string; signal?: string | null };
+    const reported = (stderr ?? '') || (error as Error).message || '';
+    const first = reported.trim().split('\n')[0] ?? '';
+    const killed = signal !== undefined && signal !== null ? `killed by ${signal}` : '';
+    const detail = [first, killed].filter(part => part !== '').join(' — ');
+    throw new GhApiError(detail === '' ? 'gh failed with no output' : detail);
+  }
+}
+
+/** The workflow whose runs ARE the review cycles — one run per reviewed push. */
+export const REVIEW_WORKFLOW_FILE = 'claude-code-review.yml';
+
+/**
+ * Count claude-review cycles on the PR by counting the review WORKFLOW's runs
+ * for the PR's head branch — not `claude[bot]` issue comments, which the
+ * `@claude` mention workflow also posts from the same login, so a chatty
+ * review thread would inflate a comment-based count past the cap. A rerun
+ * bumps a run's attempt counter rather than creating a run, so reruns don't
+ * inflate this either. Known, accepted gap: the runs query is scoped by
+ * BRANCH NAME, not PR — a reused branch name (a prior same-name PR closed
+ * without deleting its branch) would inflate the count with the old PR's
+ * runs. Rare under the delete-on-merge convention, and the warning is
+ * advisory, so the cheap query wins over per-PR run attribution. Second
+ * accepted gap, the more common one on an actively-steered PR: the count
+ * cannot see OWNER INTERVENTIONS, which reset the skill's own round cap —
+ * six pushes with the owner actively directing throughout still counts as
+ * six. The warning text says "counts reviewed pushes" for exactly that
+ * reason; the §5a judgment stays with the reader. The 1:1 push-to-run
+ * assumption also rests on claude-code-review.yml triggering ONLY on
+ * pull_request [opened, synchronize] — another trigger (dispatch, schedule)
+ * would silently inflate this count. Throws on
+ * any gh/parse failure; the caller decides how loud an unavailable count
+ * should be.
+ */
+export function countReviewCycles(prNumber: number): number {
+  const headRef = ghCall(
+    ['pr', 'view', String(prNumber), '--json', 'headRefName', '--jq', '.headRefName'],
+    REVIEW_COUNT_TIMEOUT_MS
+  ).trim();
+  if (headRef === '') {
+    throw new GhApiError(`PR #${prNumber} has no head branch name`);
+  }
+  const raw = ghCall(
+    [
+      'api',
+      // `.total_count` is the API's own full count, so pagination cannot
+      // silently truncate it the way an array-length count would past page 1.
+      `repos/${REPO}/actions/workflows/${REVIEW_WORKFLOW_FILE}/runs?branch=${encodeURIComponent(headRef)}&per_page=1`,
+      '--jq',
+      '.total_count',
+    ],
+    REVIEW_COUNT_TIMEOUT_MS
+  );
+  // Number('') is 0, not NaN — an empty stdout would read as "checked, zero
+  // rounds", the silent-skip shape this whole path exists to avoid.
+  const trimmed = raw.trim();
+  const total = trimmed === '' ? Number.NaN : Number(trimmed);
+  if (Number.isNaN(total)) {
+    throw new GhApiError(`unparseable review-cycle count: ${trimmed.slice(0, 120)}`);
+  }
+  return total;
+}
+
+/**
+ * Print the § 5a hand-off warning when the PR's review-cycle count has
+ * reached the cap. Advisory and fail-open BY DESIGN: the gate's job is CI
+ * state, and a count hiccup must not turn a green gate red — but the
+ * unavailability is still printed, because a silent skip would read as
+ * "under the cap" (the same silence-looks-like-success shape the sentinels
+ * exist to remove).
+ */
+export function reportReviewRounds(
+  prNumber: number,
+  log: (message: string) => void,
+  count: (pr: number) => number = countReviewCycles
+): void {
+  let cycles: number;
+  try {
+    cycles = count(prNumber);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    log(`⚠️  review-cycle count unavailable (${detail}) — the round-cap check did not run.`);
+    return;
+  }
+  if (cycles >= GATE_DEFAULTS.REVIEW_ROUND_WARN_THRESHOLD) {
+    log(
+      `⚠️  REVIEW_ROUND_CAP: ${cycles} claude-review cycles on PR #${prNumber} — ` +
+        'at the ~6-round cap. This counts reviewed pushes and cannot see owner ' +
+        'interventions (which reset the cap), so judge before acting: if the rounds ' +
+        'were self-fed, hand the open findings to a fresh-context implementer or the ' +
+        'owner (/tzurot-review-response § 5a).'
+    );
+  }
+}
 
 export interface WaitDeps {
   fetch: (sha: string) => WorkflowRun[];
@@ -529,6 +634,8 @@ export interface GateRunDeps {
   log: (message: string) => void;
   commitExists: (sha: string) => boolean;
   prHead: (prNumber: number) => string | undefined;
+  /** Injectable for tests; defaults to the live gh count. */
+  reviewRounds: (prNumber: number, log: (message: string) => void) => void;
 }
 
 export async function runCiGate(
@@ -591,6 +698,7 @@ export async function runCiGate(
   }
 
   log(SENTINELS[outcome]);
+  (overrides.reviewRounds ?? reportReviewRounds)(args.prNumber, log);
   checks(args.prNumber, false);
 
   if (outcome !== 'releasable') process.exitCode = 1;

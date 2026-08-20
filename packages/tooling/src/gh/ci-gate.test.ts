@@ -10,6 +10,7 @@ import {
   confirmHeadSha,
   describeHeadMismatch,
   parseGateState,
+  reportReviewRounds,
   RUNS_PAGE_SIZE as GATE_PAGE_SIZE,
   SENTINELS,
   shouldReportError,
@@ -383,6 +384,115 @@ describe('waitForCi', () => {
   });
 });
 
+describe('countReviewCycles', () => {
+  /** Per-call scripted mock: countReviewCycles makes two differently-shaped calls. */
+  async function withGh(
+    responses: (args: string[]) => string,
+    run: (mod: typeof import('./ci-gate.js')) => number
+  ): Promise<{ result?: number; error?: unknown; calls: string[][] }> {
+    vi.resetModules();
+    const calls: string[][] = [];
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) => {
+        calls.push(args);
+        return responses(args);
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    let result: number | undefined;
+    let error: unknown;
+    try {
+      result = run(mod);
+    } catch (thrown) {
+      error = thrown;
+    }
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+    return { result, error, calls };
+  }
+
+  it('counts review WORKFLOW runs for the head branch, not claude[bot] comments', async () => {
+    // The same login also posts from the @claude mention workflow, so a
+    // comment-based count inflates on chatty threads — the workflow-run count
+    // is the review-cycle signal.
+    const { result, calls } = await withGh(
+      args => (args[1] === 'view' ? 'my-branch\n' : '7'),
+      mod => mod.countReviewCycles(2124)
+    );
+    expect(result).toBe(7);
+    expect(calls[0].slice(0, 3)).toEqual(['pr', 'view', '2124']);
+    expect(calls[1][1]).toContain(
+      '/actions/workflows/claude-code-review.yml/runs?branch=my-branch'
+    );
+  });
+
+  it('an empty head-branch answer throws rather than counting the wrong branch', async () => {
+    const { error } = await withGh(
+      args => (args[1] === 'view' ? '' : '3'),
+      mod => mod.countReviewCycles(2124)
+    );
+    expect(String(error)).toContain('no head branch name');
+  });
+
+  it('an EMPTY run-count response throws instead of coercing to zero', async () => {
+    // Number('') is 0 — uncaught, an empty stdout would read as "checked,
+    // zero rounds" and skip the warning silently.
+    const { error } = await withGh(
+      args => (args[1] === 'view' ? 'b\n' : ''),
+      mod => mod.countReviewCycles(2124)
+    );
+    expect(String(error)).toContain('unparseable review-cycle count');
+  });
+
+  it('an unparseable run count throws with the payload named', async () => {
+    const { error } = await withGh(
+      args => (args[1] === 'view' ? 'b\n' : 'not-a-number'),
+      mod => mod.countReviewCycles(2124)
+    );
+    expect(String(error)).toContain('unparseable review-cycle count');
+  });
+});
+
+describe('reportReviewRounds', () => {
+  it('warns with the count and the hand-off pointer at the threshold', () => {
+    const lines: string[] = [];
+    reportReviewRounds(
+      2124,
+      m => lines.push(m),
+      () => 6
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('REVIEW_ROUND_CAP: 6 claude-review cycles on PR #2124');
+    expect(lines[0]).toContain('/tzurot-review-response § 5a');
+  });
+
+  it('stays silent below the threshold', () => {
+    const lines: string[] = [];
+    reportReviewRounds(
+      2124,
+      m => lines.push(m),
+      () => 5
+    );
+    expect(lines).toHaveLength(0);
+  });
+
+  it('a count failure prints the unavailability instead of failing the gate', () => {
+    // Fail-open is deliberate, but SILENT fail-open would read as under-cap —
+    // the line is the difference between "checked, fine" and "did not check".
+    const lines: string[] = [];
+    reportReviewRounds(
+      2124,
+      m => lines.push(m),
+      () => {
+        throw new Error('gh exploded');
+      }
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('review-cycle count unavailable');
+    expect(lines[0]).toContain('gh exploded');
+  });
+});
+
 describe('runCiGate (orchestration)', () => {
   const SHA = 'a'.repeat(40);
 
@@ -422,6 +532,8 @@ describe('runCiGate (orchestration)', () => {
       log: (m: string) => events.push(`log:${m}`),
       commitExists: () => true,
       prHead: () => SHA,
+      // Hermetic: the default implementation shells out to gh.
+      reviewRounds: (pr: number) => events.push(`reviewRounds:${pr}`),
     };
     return { events, overrides };
   }
@@ -477,6 +589,7 @@ describe('runCiGate (orchestration)', () => {
       'checks:1992:watch',
       `settle:${GATE_DEFAULTS.SETTLE_MS}`,
       `log:${SENTINELS.releasable}`,
+      'reviewRounds:1992',
       'checks:1992:report',
     ]);
     expect(exitCode).toBeUndefined(); // the happy path must not mark the run failed
@@ -490,6 +603,8 @@ describe('runCiGate (orchestration)', () => {
     const exitCode = await captureExitCode(() => runCiGate(1992, { sha: SHA }, overrides));
     expect(events).toContain(`log:${SENTINELS.timeout}`);
     expect(events).not.toContain(`log:${SENTINELS.releasable}`);
+    // Round pressure is independent of CI state, so the count runs here too.
+    expect(events).toContain('reviewRounds:1992');
     expect(events).toContain('checks:1992:report');
     expect(exitCode).toBe(1);
   });
@@ -503,6 +618,7 @@ describe('runCiGate (orchestration)', () => {
     expect(events.some(e => e.startsWith('settle:'))).toBe(false);
     expect(events).toContain('checks:1992:report');
     expect(events).toContain(`log:${SENTINELS['startup-failure']}`);
+    expect(events).toContain('reviewRounds:1992');
     expect(exitCode).toBe(1);
   });
 });
@@ -559,8 +675,12 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
         // `pulls/N` returns the PR head, which must MATCH or the gate refuses
         // to arm; the runs query returns a releasable state; `gh pr checks`
         // returns its report.
+        if (args[0] === 'pr' && args[1] === 'view') return 'feat-branch\n';
         if (args[0] !== 'api') return '';
-        return args[1].includes('/pulls/') ? 'A'.repeat(40) : JSON.stringify([DONE('CI')]);
+        if (args[1].includes('/pulls/')) return 'A'.repeat(40);
+        // The review-cycle count: at the cap, so the REAL warning path runs.
+        if (args[1].includes('/actions/workflows/')) return '6';
+        return JSON.stringify([DONE('CI')]);
       },
     }));
     const mod = await import('./ci-gate.js');
@@ -580,12 +700,17 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
 
     // The real settle ran (the promise only resolved after advancing the clock),
     // and every real dependency was reached in order.
-    expect(argvs.map(a => a[0])).toEqual(['cat-file', 'api', 'api', 'pr', 'pr']);
+    expect(argvs.map(a => a[0])).toEqual(['cat-file', 'api', 'api', 'pr', 'pr', 'api', 'pr']);
     expect(argvs[1][1]).toContain('/pulls/1992'); // head check precedes the wait
     expect(argvs[2][1]).toContain('head_sha=');
     expect(argvs[3]).toContain('--watch');
-    expect(argvs[4]).not.toContain('--watch');
+    expect(argvs[4]).toContain('view'); // round-cap: resolve the head branch after the sentinel
+    expect(argvs[5][1]).toContain(
+      '/actions/workflows/claude-code-review.yml/runs?branch=feat-branch'
+    );
+    expect(argvs[6]).not.toContain('--watch');
     expect(logs).toContain(mod.SENTINELS.releasable);
+    expect(logs.some(l => l.includes('REVIEW_ROUND_CAP: 6'))).toBe(true);
     // The uppercase SHA was normalized before `git cat-file` AND before the
     // head comparison — an uppercase --sha must not read as drift.
     expect(argvs[0][2]).toBe(`${'a'.repeat(40)}^{commit}`);
