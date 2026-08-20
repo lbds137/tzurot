@@ -3,9 +3,10 @@ id: TASK-694
 title: >-
   Guest turn on the free default has no fallback when that model rate-limits -
   terminal error instead of the openrouter/free floor
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 03:15'
+updated_date: '2026-08-20 04:54'
 labels:
   - 'area:ai-worker'
   - 'size:M'
