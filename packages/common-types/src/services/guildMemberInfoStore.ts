@@ -81,15 +81,33 @@ export async function recordGuildMemberInfos(
   try {
     await prisma.$transaction(
       writable.map(({ userId, info }) => {
-        const row = {
+        // Per-field write-back semantics differ on purpose. `roles` and
+        // `displayColor` always write: an empty role list or an absent color
+        // on an otherwise non-empty observation is a real state a member can
+        // be in (role-less, colorless), so the new value wins. Not verified:
+        // whether a partial member fetch can carry `joinedAt` while its role
+        // cache is unresolved — if that shape exists at runtime, `roles`
+        // inherits the same quality-vs-state ambiguity fixed for `joinedAt`
+        // below, and this write needs the same treatment (revisit with a
+        // runtime capture, not a code read). `joinedAt`
+        // writes ONLY when the observation carries it: a join date can become
+        // unknown only through observation quality (the uncached-member edge
+        // the schema comment names), never through a state change — so
+        // null-ing a stored value would erase a fact with the very absence
+        // this module exists to paper over, and re-break the stable prompt
+        // block on the next render.
+        const base = {
           roles: info.roles,
           displayColor: info.displayColor ?? null,
-          joinedAt: info.joinedAt !== undefined ? new Date(info.joinedAt) : null,
         };
+        const joinedAt = info.joinedAt !== undefined ? new Date(info.joinedAt) : null;
         return prisma.userGuildInfo.upsert({
           where: { userId_guildId: { userId, guildId } },
-          create: { userId, guildId, ...row },
-          update: row,
+          create: { userId, guildId, ...base, joinedAt },
+          update: {
+            ...base,
+            ...(info.joinedAt !== undefined ? { joinedAt } : {}),
+          },
         });
       })
     );
