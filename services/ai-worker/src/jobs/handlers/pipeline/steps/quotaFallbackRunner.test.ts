@@ -900,6 +900,55 @@ describe('D12 availability-class entry + two-hop floor descent', () => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
+  it('an INHERITED-category turn still reaches the floor on an unclassifiable hop-1 failure', async () => {
+    // The demoted route's 400 classifies as nothing and the hop-1 target's
+    // failure is unclassifiable too — but the user is demonstrably
+    // rate-limited (that is why the demotion fired), so the floor stays
+    // reachable.
+    const primary = vi.fn().mockRejectedValue(new Error('z-ai/glm-5.3 is not a valid model ID'));
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.AUTHENTICATION))
+      .mockResolvedValueOnce(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ inheritedQuotaCategory: ApiErrorCategory.RATE_LIMIT }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'paid/default' } }),
+    });
+
+    expect(retry).toHaveBeenCalledTimes(2);
+    const hop2Opts = retry.mock.calls[1][0] as GenerateAttemptOpts;
+    expect(hop2Opts.personality.model).toBe('divergent/paid-floor');
+    expect(result.quotaFallback).toEqual({
+      fromModel: 'expensive/primary',
+      toModel: 'divergent/paid-floor',
+      category: ApiErrorCategory.RATE_LIMIT,
+      mode: 'reactive',
+    });
+  });
+
+  it('a LIVE-classified turn keeps the gate: an unclassifiable hop-1 failure stays terminal', async () => {
+    const original = quotaError(ApiErrorCategory.RATE_LIMIT);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(), // no inheritedQuotaCategory — the category is live
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      })
+    ).rejects.toBe(original);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
   it('hop 2 is vetoed by the doom cache (floor already rate-limited for this scope)', async () => {
     const original = quotaError(ApiErrorCategory.SERVER_ERROR);
     const primary = vi.fn().mockRejectedValue(original);
@@ -1123,6 +1172,70 @@ describe('hop-1 floor promotion (no tier-aware retarget exists)', () => {
       expect.objectContaining({ floorModel: 'openrouter/free' }),
       'No hop-1 retarget available — promoting the floor to the hop-1 target'
     );
+  });
+
+  it('an inherited CREDIT_EXHAUSTION turn also passes the widened gate to the free floor', async () => {
+    // The inherited category is not always RATE_LIMIT: a proactive demotion
+    // can inherit CREDIT_EXHAUSTION, whose hop 1 is the forced-system-key
+    // free default. This pins that the widened gate serves that arm too —
+    // re-introducing the "no solvent entity" exclusion at THIS layer would
+    // redden it while every RATE_LIMIT test stayed green.
+    const original = new Error('z-ai/glm-5.3 is not a valid model ID');
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.AUTHENTICATION))
+      .mockResolvedValueOnce(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: { ...buildOpts(), inheritedQuotaCategory: ApiErrorCategory.CREDIT_EXHAUSTION },
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+    });
+
+    // Hop 1 is the forced free default; hop 2 descends to the free floor
+    // (the static registry fallback — this describe registers no settings).
+    expect(retry).toHaveBeenCalledTimes(2);
+    expect((retry.mock.calls[0][0] as GenerateAttemptOpts).personality.model).toBe(
+      'freebie/model:free'
+    );
+    expect((retry.mock.calls[1][0] as GenerateAttemptOpts).personality.model).toBe(
+      'openrouter/free'
+    );
+    expect(result.quotaFallback?.category).toBe(ApiErrorCategory.CREDIT_EXHAUSTION);
+  });
+
+  it('a floor-promoted hop-1 target failing unclassifiably still self-excludes on hop 2', async () => {
+    // Composes two separately-tested behaviors the PR body only inferred
+    // together: the widened gate lets an INHERITED-category turn attempt
+    // hop 2, and `excludeModels` then vetoes re-trying the very floor that
+    // was promoted to hop 1 — terminal, with exactly one retry attempt.
+    const original = new Error('z-ai/glm-5.3 is not a valid model ID');
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: {
+          ...guestOnFreeDefaultOpts(),
+          inheritedQuotaCategory: ApiErrorCategory.RATE_LIMIT,
+        },
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+      })
+    ).rejects.toBe(original);
+
+    // Hop 1 received the promoted floor; hop 2 was gated OPEN (inherited)
+    // but the floor self-excluded, so exactly one retry crossed the seam.
+    expect(retry).toHaveBeenCalledTimes(1);
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/free');
   });
 
   it('the same rescue fires on the rate-limit CACHE-HIT error shape', async () => {
