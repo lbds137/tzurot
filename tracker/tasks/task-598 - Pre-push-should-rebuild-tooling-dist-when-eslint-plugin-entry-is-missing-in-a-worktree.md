@@ -46,4 +46,17 @@ RECURRENCE: 7 hits over three days. Hits 6 and 7 were in the same PR (2101), bot
 FIX SHAPE, REVISED: a presence check for packages/tooling/dist/eslint/index.js is still the right guard, but the trigger is "no dist at all after a reported cache hit", and it must run AFTER the turbo invocation that reports the hit. Note .husky/pre-push:146 runs `build lint test` in ONE invocation, so nothing can be inserted between the restore and the lint — the check either splits that invocation or wraps it as a retry-once-on-ERR_MODULE_NOT_FOUND. Prefer investigating the shared-cache hypothesis first: if turbo has a config for per-worktree output materialization, that is the real fix and the hook guard becomes unnecessary.
 
 Note: assistant-generated tooling-friction task - counts against the session net.
+HIT 8 (2026-08-20, PR 2166 worktree) — AND A THIRD MECHANISM THAT NEITHER HYPOTHESIS NAMES. Read this before running the discriminating test for B, because hit 8 is evidence AGAINST B being the whole story and points at something structural that is cheap to check.
+
+The discriminating detail: the failing turbo run reported `Tasks: 23 successful, 38 total / Cached: 1 cached, 38 total`. Only ONE task of 38 came from cache. So on this hit there was essentially no restore to clear anything — hypothesis B (a restore wiping the output directory) cannot explain it. Builds were EXECUTING, and lint still could not find the artifact.
+
+HYPOTHESIS C, from turbo.json rather than from cache archaeology: the lint task never declares a dependency on the build that produces the file it needs. turbo.json declares lint as dependsOn ["^build"]. The caret means the builds of a package's DEPENDENCIES — it does NOT include the package's own build. So @tzurot/tooling#lint has no ordering edge to @tzurot/tooling#build. Meanwhile the ROOT eslint.config.js line 9 is a static import of ./packages/tooling/dist/eslint/index.js, which is exactly that package's own build output. Nothing in the task graph makes the build finish first, so turbo is free to schedule lint against a dist that does not exist yet.
+
+This is an UNDECLARED DEPENDENCY, not a cache defect. Note the same task declares eslint.config.js in lint.inputs, so the config file is tracked as an input while the artifact it imports is not expressed at all.
+
+It also explains the pattern better than A or B: the main checkout almost always has a dist lying around from an earlier run, so the missing edge is invisible there; a worktree is where an empty-or-cleared dist actually coincides with a lint. It explains why a forced tooling build sticks only until something removes dist again, and why a session-start rebuild cannot hold — neither adds the missing edge.
+
+STATUS: code-read, NOT runtime-confirmed. What is verified is the turbo.json declaration and the eslint.config.js import; the causal claim that this ordering produced these eight failures is inference. Cheap test: run the pre-push turbo invocation in a worktree with packages/tooling/dist removed and see whether lint is scheduled before build completes.
+
+REVISED FIX SHAPE if C holds: add the missing edge rather than a hook guard — lint dependsOn ["^build", "@tzurot/tooling#build"] (turbo supports that explicit cross-package form). That fixes every consumer of the root config at once, needs no hook change, and costs the main checkout nothing because the build is already cached there. The hook presence-check stays a fallback worth having only if the edge turns out not to be sufficient.
 <!-- SECTION:DESCRIPTION:END -->
