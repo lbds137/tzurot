@@ -3,9 +3,10 @@ id: TASK-645
 title: >-
   Floor-hop gate ignores the inherited quota category, same dead-end one hop
   down
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 21:21'
+updated_date: '2026-08-20 16:20'
 labels:
   - 'area:ai-worker'
   - 'size:S'
