@@ -112,6 +112,50 @@ describe('MessageFormatter', () => {
       expect(result.webhookId).toBe('webhook-789');
     });
 
+    it('strips our bot suffix from a webhook-authored referenced message', () => {
+      // A webhook author's displayName IS the webhook username — without the
+      // strip, replying to a character rendered from="Name · Bot" in the
+      // prompt, injecting the bot's own name into a character attribution.
+      const message = createMockMessage({
+        author: createMockUser({ username: 'COLD · Tzurot', globalName: null }),
+        webhookId: 'webhook-1',
+        client: { user: { id: 'bot-id', tag: 'Tzurot#1234' } } as any,
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+      expect(result.authorDisplayName).toBe('COLD');
+    });
+
+    it('leaves a foreign webhook name without our suffix unchanged', () => {
+      const message = createMockMessage({
+        author: createMockUser({ username: 'Some Other Bot', globalName: null }),
+        webhookId: 'webhook-2',
+        client: { user: { id: 'bot-id', tag: 'Tzurot#1234' } } as any,
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+      expect(result.authorDisplayName).toBe('Some Other Bot');
+    });
+
+    it('passes the raw name through when the client user tag is unavailable', () => {
+      // Degraded branch: no tag means no derivable suffix — fall back to the
+      // raw name rather than guessing at a suffix shape.
+      const message = createMockMessage({
+        author: createMockUser({ username: 'COLD · Tzurot', globalName: null }),
+        webhookId: 'webhook-1',
+        client: { user: { id: 'bot-id' } } as any,
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+      expect(result.authorDisplayName).toBe('COLD · Tzurot');
+    });
+
     it('should describe a sticker-only referenced message instead of rendering it blank', () => {
       const stickers = new Map([['1', { name: 'partyblob', description: null }]]);
       const message = createMockMessage({

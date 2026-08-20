@@ -733,6 +733,18 @@ describe('forwardedMessageUtils', () => {
       expect(origin?.authorName).toBe('COLD');
     });
 
+    it('passes the raw name through when the client user tag is unavailable', async () => {
+      // Degraded branch: no tag, no derivable suffix — raw name over guessing.
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          fetchedAuthor: { id: 'wh-1', displayName: 'COLD · Tzurot' },
+          fetchedWebhookId: 'webhook-1',
+        })
+      );
+
+      expect(origin?.authorName).toBe('COLD · Tzurot');
+    });
+
     it('leaves a foreign webhook name without our suffix unchanged', async () => {
       const origin = await resolveForwardedOrigin(
         buildForward({

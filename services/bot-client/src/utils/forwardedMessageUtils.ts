@@ -31,7 +31,7 @@ import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractSnapshotStickerImages } from './stickerAttachments.js';
 import { isVoiceAttachment } from './voiceAttachment.js';
-import { deriveBotSuffix, extractPersonalityName } from './webhookNaming.js';
+import { resolveWebhookAwareDisplayName } from './webhookNaming.js';
 import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
@@ -373,9 +373,7 @@ export function getEffectiveContent(message: Message): string {
  * passes through unchanged; a human's displayName is untouched.
  */
 function resolveOriginAuthorName(original: Message, botTag: string | undefined): string {
-  return original.webhookId !== null && original.webhookId !== undefined
-    ? extractPersonalityName(original.author.displayName, deriveBotSuffix(botTag))
-    : original.author.displayName;
+  return resolveWebhookAwareDisplayName(original.author.displayName, original.webhookId, botTag);
 }
 
 export async function resolveForwardedOrigin(

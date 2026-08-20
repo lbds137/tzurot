@@ -26,6 +26,7 @@ import {
   type ParsedMessageLink,
 } from '@tzurot/common-types/utils/messageLinkParser';
 import { buildMessageContent } from './MessageContentBuilder.js';
+import { resolveWebhookAwareDisplayName } from './webhookNaming.js';
 
 const logger = createLogger('HistoryLinkResolver');
 
@@ -348,11 +349,17 @@ async function fetchAndFormatMessage(
       includeAttachments: false,
     });
 
-    const author =
+    // Webhook-authored (character) messages: member is null and globalName is
+    // null for webhook pseudo-users, so the fallback lands on the raw webhook
+    // username — strip our bot suffix like every other reference producer.
+    const author = resolveWebhookAwareDisplayName(
       message.member?.displayName ??
-      message.author.globalName ??
-      message.author.username ??
-      'Unknown';
+        message.author.globalName ??
+        message.author.username ??
+        'Unknown',
+      message.webhookId,
+      client.user?.tag
+    );
 
     return {
       content,

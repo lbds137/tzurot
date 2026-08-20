@@ -130,3 +130,24 @@ export function extractPersonalityName(webhookUsername: string, botSuffix: strin
   const stripped = stripBotSuffix(webhookUsername, botSuffix);
   return stripped ?? webhookUsername;
 }
+
+/**
+ * The display name a reference/quote producer should persist for a message
+ * author: our own webhook's bot suffix stripped, everything else untouched.
+ *
+ * All three reference producers (live replies, forwarded origins, resolved
+ * history links) share this — a webhook author's displayName IS the webhook
+ * username, so without the strip a character quote renders "Name · Bot",
+ * injecting the bot's own name into a character attribution. A foreign
+ * webhook name carries no suffix and passes through; a missing bot tag
+ * degrades to the raw name rather than guessing at a suffix shape.
+ */
+export function resolveWebhookAwareDisplayName(
+  rawName: string,
+  webhookId: string | null | undefined,
+  botTag: string | null | undefined
+): string {
+  return webhookId !== null && webhookId !== undefined
+    ? extractPersonalityName(rawName, deriveBotSuffix(botTag))
+    : rawName;
+}
