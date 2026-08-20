@@ -18,7 +18,7 @@ ordinal: 679000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Why: rosterBlurbSweep runs on a `3,13,23,33,43,53 * * * *` cron forever. Both of its queries are unindexed over personalities — the stamping pass filters `card_source_hash IS NULL`, and findStale compares `roster_blurb_source_hash IS DISTINCT FROM card_source_hash`, a two-column comparison no ordinary index can serve.
+Why: rosterBlurbSweep runs on a `4,14,24,34,44,54 * * * * (corrected — the filed 3,13,… schedule was changed in commit 125dd3b5a; TASK-681 records why)` cron forever. Both of its queries are unindexed over personalities — the stamping pass filters `card_source_hash IS NULL`, and findStale compares `roster_blurb_source_hash IS DISTINCT FROM card_source_hash`, a two-column comparison no ordinary index can serve.
 
 Not fixed at authoring time on merit, not deferral: 03-database.md § Indexes Ship With Their Query warns that a speculative index costs write-path maintenance immediately while its read benefit may never arrive. personalities holds one row per character definition, so a seq scan every 10 minutes is currently far cheaper than maintaining an index on a table that takes writes on every character edit and import.
 
