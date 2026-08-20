@@ -58,6 +58,19 @@ After a bulk rename/move, also grep for the OLD token in its variant forms —
 bare basename, each prefix depth, backticked mention — before declaring the
 sweep complete; the canonical-form grep alone has under-swept three times.
 
+## A changed premise sweeps its prose
+
+Trigger: a design change, a premise correction, or a review finding against
+any claim you wrote. Stale prose survives re-reading because it still reads
+fluently — sweep by GREPPING the old claim's distinctive tokens, never by
+re-reading. Five observed shapes: (1) prose about code outlives the design
+change that invalidated it; (2) the sweep reaches schema comments and tracker
+tasks, not just code; (3) a comment naming a runtime condition is testable —
+test it or hedge it; (4) a review finding is a SAMPLE, not an inventory — fix
+the class in the file before any commit message claims the invariant; (5)
+porting a sibling's guard means porting its MECHANISM — a one-line copy of a
+multi-line sibling drops something.
+
 ## Lossy steps are for known output shapes
 
 A filter pipe is only the most visible member of the class: ANY lossy step

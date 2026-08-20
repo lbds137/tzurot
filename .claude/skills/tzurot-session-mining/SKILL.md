@@ -1,7 +1,7 @@
 ---
 name: tzurot-session-mining
 description: 'Mine Claude session logs for recurring friction and convert findings into structural fixes (rules/skills/hooks). Invoke with /tzurot-session-mining periodically or when a failure pattern feels recurrent but unquantified.'
-lastUpdated: '2026-08-05'
+lastUpdated: '2026-08-20'
 ---
 
 # Session Friction Mining
@@ -142,6 +142,19 @@ the tell, e.g. the user's own "again", "tbh", "has come up a few times").
 **Per-report trailing sections**: `RECURRING WITHIN THIS FILE` (patterns with
 2+ hits) and `TOP 10 LOAD-BEARING QUOTES` (the quotes a future session most
 needs to have read).
+
+**Driver-attribution + orchestrator-quality lens**: when the mined window
+spans model switches, or the run evaluates orchestrator-mode work, add to the
+miner prompt: (a) pin the driver timeline from the session JSONL's per-message
+`.message.model` field (`<synthetic>` entries are harness placeholders, not
+switches) and tag every item with the driver in effect at its timestamp;
+(b) flag separate ORCH-numbered items for review rounds exceeding ~3 on one
+PR, defect origin (spec vs worker vs orchestrator's own edits), self-fed
+review loops (round N fixing round N-1's fix), work claims a reviewer or owner
+had to correct, and worker-caught wrong premises in dispatched specs; (c) add
+a `DRIVER SPLIT` trailing section (item counts per driver per category).
+Attribute honestly — when the lens targets one driver but the evidence lands
+on another, the report's caveat header says so.
 
 **Corpus caveat header**: each report opens by stating the corpus's date
 range, message count, and how much survives only via compaction summaries.

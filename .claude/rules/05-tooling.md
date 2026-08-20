@@ -285,6 +285,15 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 | `CI_GATE_STARTUP_FAILURE` | a run died before dispatch (zero jobs, invisible in `gh pr checks`) | `gh run rerun <run-id>`, then re-arm |
 | _none of them_            | the Monitor's own 30-min `timeout_ms` killed the process            | re-arm                               |
 
+**After the sentinel, the gate also counts claude-review cycles on the PR** and
+prints `⚠️ REVIEW_ROUND_CAP` at ≥6 — that line is the mechanical trigger for
+`/tzurot-review-response` § 5a: stop iterating in this context and hand the open
+findings to a fresh-context implementer or the owner. The count is advisory and
+fail-open; an `unavailable` line means the check did not run, not that the PR is
+under the cap. One known inflation: a PR editing the claude workflow files still
+creates a review-workflow run per push while the action self-skips, so a
+workflow-sync PR can trip the warning on push churn rather than real rounds.
+
 After a session restart, a re-fetch may re-surface already-reported comments once (the dedup timestamp lives in conversation state) — expected, not a dedup bug.
 
 ### Release Notes Format
