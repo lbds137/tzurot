@@ -23,4 +23,6 @@ What: after the release carrying TASK-651 deploys, run `pnpm ops cache:prefix-di
 Note the first turn after deploy still flickers by construction -- a participant has no stored row until something observes them once. Take the measurement over a window that is not the deploy itself.
 
 Acceptance: a post-deploy pair set is read and the S1-cut fraction is recorded on TASK-651. If S1 is still a cut point, name what else in the block moves.
+
+CAUTION (2026-08-20, from the TASK-670 audit): run the re-measure WITH --personality (or per-stream after TASK-698 lands). The default mixed read pairs consecutive rows across interleaved personalities streams, and a cross-stream pair is not a real cache miss — the recorded 2/5 and 2/8 S1-cut baselines may carry that artifact, so compare per-stream numbers to per-stream numbers.
 <!-- SECTION:DESCRIPTION:END -->
