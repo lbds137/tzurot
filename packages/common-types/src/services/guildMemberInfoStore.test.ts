@@ -81,6 +81,30 @@ describe('recordGuildMemberInfos', () => {
     });
   });
 
+  it('omits joinedAt from the UPDATE when the observation does not carry it', async () => {
+    // A partially-degraded observation (roles resolved, joinedAt absent — the
+    // uncached-member edge the schema comment names) must not null a stored
+    // join date: the absence is observation quality, not a state change.
+    await recordGuildMemberInfos(asClient(prisma), GUILD, [
+      { userId: USER, info: { roles: ['Admin'] } },
+    ]);
+
+    const [op] = prisma.userGuildInfo.upsert.mock.calls[0];
+    expect(op.update).not.toHaveProperty('joinedAt');
+    expect(op.update.roles).toEqual(['Admin']);
+    // The CREATE arm still materializes the column (no prior value to erase).
+    expect(op.create).toHaveProperty('joinedAt', null);
+  });
+
+  it('writes joinedAt on UPDATE when the observation carries it', async () => {
+    await recordGuildMemberInfos(asClient(prisma), GUILD, [
+      { userId: USER, info: { roles: [], joinedAt: '2024-01-01T00:00:00.000Z' } },
+    ]);
+
+    const [op] = prisma.userGuildInfo.upsert.mock.calls[0];
+    expect(op.update.joinedAt).toEqual(new Date('2024-01-01T00:00:00.000Z'));
+  });
+
   it('drops empty observations rather than clobbering a stored row', async () => {
     await recordGuildMemberInfos(asClient(prisma), GUILD, [{ userId: USER, info: { roles: [] } }]);
 
