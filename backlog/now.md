@@ -28,18 +28,19 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 ---
 
-### 🚢 Next Release — beta.206 (theme: **blurbs go live**)
+### 🚢 Next Release — beta.206 (theme: **forwards attributed everywhere, blurbs live, chat_log cached**)
 
-_Drafted at the beta.205 cut (2026-08-20). The cut-criterion here is the primary trigger; the count/file caps in `10-working-posture.md` § Ship in bounded units are backstops._
+_Drafted at the beta.205 cut (2026-08-20); scope set by owner directive same day: "forward fixes + TASK-700 + doc-17 Phase 2, all in beta.206." Three sub-themes, built in that order. Another large train by choice — the ~10-runtime-PR backstop is expected to bind and is accepted, as with beta.205's maximalist directive._
 
-- **Theme: turn the roster blurbs on safely.** beta.205 shipped the whole blurb pipeline inert behind `rosterBlurbEnabled: false`; this release does what the flip is gated on: **TASK-700** (blurb retry-storm hardening — a failing summarizer must not re-bill every sweep tick) plus whatever the flip's first corpus pass surfaces. The flip itself is an owner-timed runtime toggle (corpus-wide spend event), not a deploy — the release makes it SAFE, the owner pulls the trigger. Post-flip: the generation-latency check noted by the #2150 round-6 review (`fetchCharacterBlurbs` adds one awaited PK lookup; `extractCharacterParticipants` goes 3x per turn).
-- **Supporting candidates (drain-order, not commitments)**: **TASK-704** (the deterministic embed-site sweep — finish the clamp class #2161/#2163 opened) · **TASK-702/703** (the two disclosed retired-id gaps from #2153: `RESTRICTED_PARAM_MODELS` keying and vision-routing) · **TASK-697** (floor-hop edge hardening, deferred at the round cap) · **TASK-705** (roles/displayColor quality-vs-state question, owner input) · **TASK-698** (prefix-diff pairs grouped by personalityId — unblocks trustworthy cache reads for TASK-685).
+- **Sub-theme 1 — the forward batch (build first)**: **TASK-706** (ambient forwards render Unknown — attribution only exists as persisted metadata, so the extended-context path structurally can't attribute; found by the owner's beta.205 smoke) · **TASK-668** (origin channel on the quote — same resolver, access-gated) · **TASK-165** (SnapshotFormatter forwarded references always read `role="user"`) · **TASK-43** (user-mentions in forwarded snapshots) · **TASK-667** rides as forward-adjacent (embed-description binding, surfaced via a forwarded tweet — a binding fix, not a forward fix; include unless it balloons).
+- **Sub-theme 2 — blurbs go live**: **TASK-700** (retry-storm hardening — the flag-flip gate). The flip itself is an owner-timed runtime toggle (corpus-wide spend event), not a deploy; post-flip latency check per the #2150 round-6 review note.
+- **Sub-theme 3 — doc-17 Phase 2 (the epic resumes)**: chat_log/history extraction — the 58%-of-request cache lever, unblocked since the voice gate closed (2026-08-15). **Starts with a Fable design refresh**: re-read `docs/proposals/backlog/prompt-assembly-architecture.md` against current code (hysteresis, guild-info persistence, and the S1 audit all landed since), decide the §2.5 chunked-eviction integration, council pass, then Opus-orchestrated build. Multi-PR by construction.
 - **In already**: _(empty at cut time; grows as PRs merge)_
-- **Waiting on**: TASK-700 (the flip gate — the theme's one hard dependency).
-- **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue) · token-budget-layer eviction (dormant by design, §2.5.1) · the beta.205 watches (floor-promotion, GLM (b)) — those clear on log signals, not on a release.
-- **Deploy notes**: nothing premigrate-worthy filed yet; TASK-700 is code-only as scoped. The beta.205 post-deploy owner actions (free default → `glm-4.7`, two smoke items) live in CURRENT.md's checklist and must be done before the flip anyway.
-- **Cut when**: TASK-700 has shipped and the flip-readiness story is coherent (hardening + latency expectations written down); backstops ~10 runtime PRs / ~250 files (currently 0/0 — `pnpm ops release:range` for live values).
-- **vNext+1 sketch**: prompt-cache measurement theme — TASK-685's post-deploy S1 re-measure once TASK-698 makes cross-stream reads trustworthy, plus whatever the flip's cache-cost read surfaces.
+- **Waiting on**: the Phase 2 design refresh (nothing else blocks — forward batch and TASK-700 are `state:ready`).
+- **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue) · doc-12 observability (named counter-candidate at the beta.205 planning conversation; deferred by this scope pick, not ruled out) · the beta.205 watches (floor-promotion, GLM (b)) — those clear on log signals, not on a release.
+- **Deploy notes**: nothing premigrate-worthy filed yet; Phase 2 may add prompt-shape changes that warrant a cache-read before/after (TASK-685's re-measure pairs with it, gated on TASK-698's per-personality grouping). The blurb flip happens post-deploy, owner-timed, after the free-default/latency context is calm.
+- **Cut when**: all three sub-themes shipped (owner scope directive) — or a sub-theme stalls and the owner re-cuts; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range` for live values).
+- **vNext+1 sketch**: doc-12 observability (the "incidents reach the owner before the tooling" layer) is first in line per the planning conversation; the flip's cache-cost read and TASK-685 feed it.
 
 ### 🎯 Current Focus (max 3)
 
