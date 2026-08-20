@@ -196,6 +196,35 @@ describe('HistoryLinkResolver', () => {
       expect(refs![0].attachments![0].contentType).toBe('image/png');
     });
 
+    it('strips our bot suffix from a link-resolved webhook-authored message', async () => {
+      // A linked character message: member is null and globalName is null for
+      // webhook pseudo-users, so the author fallback lands on the raw webhook
+      // username — which carries the bot suffix without the producer strip.
+      const linkedMessage = {
+        ...createMockMessage({ id: LINKED_MSG_ID, content: 'Character words' }),
+        member: null,
+        webhookId: 'webhook-1',
+        author: { id: 'wh-user-1', globalName: null, username: 'COLD · Tzurot' },
+      } as unknown as Message;
+
+      const messages = [
+        createMockMessage({
+          id: 'msg-1',
+          content: `See https://discord.com/channels/${DEFAULT_GUILD_ID}/${DEFAULT_CHANNEL_ID}/${LINKED_MSG_ID}`,
+        }),
+      ];
+
+      const client = createMockClient({
+        messages: new Map([[LINKED_MSG_ID, linkedMessage]]),
+      });
+      (client as { user?: unknown }).user = { tag: 'Tzurot#1234' };
+
+      const result = await resolveHistoryLinks(messages, { client, budget: 100 });
+
+      const refs = result.resolvedReferences.get('msg-1');
+      expect(refs![0].authorDisplayName).toBe('COLD');
+    });
+
     it('skips links to messages already in context', async () => {
       // msg-2 is a numeric ID that will be in context
       const MSG_2_ID = '555666777888999000';

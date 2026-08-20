@@ -21,6 +21,7 @@ import {
   extractForwardedAttachments,
   extractForwardedContent,
 } from '../../utils/forwardedMessageUtils.js';
+import { resolveWebhookAwareDisplayName } from '../../utils/webhookNaming.js';
 
 /** Attachment array type (non-nullable return from extractAttachments) */
 type AttachmentList = NonNullable<ReturnType<typeof extractAttachments>>;
@@ -28,6 +29,7 @@ type AttachmentList = NonNullable<ReturnType<typeof extractAttachments>>;
 /**
  * Service for formatting Discord messages into referenced messages
  */
+
 export class MessageFormatter {
   /**
    * Resolve message content and attachments, handling forwarded vs regular messages
@@ -98,7 +100,19 @@ export class MessageFormatter {
         }),
         discordUserId: message.author.id,
         authorUsername: message.author.username,
-        authorDisplayName: message.author.displayName ?? message.author.username,
+        // A webhook author's displayName IS the webhook username, which for
+        // our own characters carries the bot suffix ("Name · Bot"). Both
+        // downstream renderers (live references and stored-history replay)
+        // fall through persona resolution to this raw name for
+        // webhook-authored quotes, so stripping happens HERE at the producer
+        // — the one site both consumers share, and the only service that
+        // knows the bot's tag. Foreign webhook names carry no suffix and
+        // pass through unchanged; humans are untouched.
+        authorDisplayName: resolveWebhookAwareDisplayName(
+          message.author.displayName ?? message.author.username,
+          message.webhookId,
+          message.client.user?.tag
+        ),
         content,
         embeds: EmbedParser.parseMessageEmbeds(message),
         timestamp: message.createdAt.toISOString(),

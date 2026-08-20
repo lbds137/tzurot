@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { deriveBotSuffix, stripBotSuffix, extractPersonalityName } from './webhookNaming.js';
+import {
+  deriveBotSuffix,
+  stripBotSuffix,
+  extractPersonalityName,
+  resolveWebhookAwareDisplayName,
+} from './webhookNaming.js';
 
 describe('deriveBotSuffix', () => {
   it('produces canonical " · BotName" from a simple tag', () => {
@@ -104,5 +109,23 @@ describe('extractPersonalityName', () => {
 
   it('falls back to the raw username when botSuffix is empty', () => {
     expect(extractPersonalityName('Weaver · Tzurot', '')).toBe('Weaver · Tzurot');
+  });
+});
+
+describe('resolveWebhookAwareDisplayName', () => {
+  it('strips our suffix only for webhook-authored names', () => {
+    expect(resolveWebhookAwareDisplayName('COLD · Tzurot', 'wh-1', 'Tzurot#1234')).toBe('COLD');
+    // Human (no webhookId): untouched even when the name happens to match.
+    expect(resolveWebhookAwareDisplayName('COLD · Tzurot', null, 'Tzurot#1234')).toBe(
+      'COLD · Tzurot'
+    );
+    // Foreign webhook: no suffix to strip, passthrough.
+    expect(resolveWebhookAwareDisplayName('Some Other Bot', 'wh-2', 'Tzurot#1234')).toBe(
+      'Some Other Bot'
+    );
+    // Degraded: no bot tag means no derivable suffix, raw name over guessing.
+    expect(resolveWebhookAwareDisplayName('COLD · Tzurot', 'wh-1', undefined)).toBe(
+      'COLD · Tzurot'
+    );
   });
 });
