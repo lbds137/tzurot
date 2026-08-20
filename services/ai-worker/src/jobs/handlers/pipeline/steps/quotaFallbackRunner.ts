@@ -135,7 +135,8 @@ export async function runWithQuotaFallback(options: {
     // route returned. When that is a 400 (a model OpenRouter has not published
     // yet), classification yields null and the turn dead-ends — even though the
     // user is demonstrably rate-limited, which is why the demotion happened.
-    const category = classifyQuotaFailure(originalError) ?? opts.inheritedQuotaCategory ?? null;
+    const liveCategory = classifyQuotaFailure(originalError);
+    const category = liveCategory ?? opts.inheritedQuotaCategory ?? null;
     if (category === null) {
       throw originalError;
     }
@@ -226,6 +227,9 @@ export async function runWithQuotaFallback(options: {
       // the pre-retarget `user:<id>` bucket no longer describes it.
       caches: deps.caches,
       cacheKeyId: deriveCacheKeyId(credentials.apiKey, userId, credentials.isGuestMode),
+      // Past the gate above, a null live classification means the category came
+      // from `inheritedQuotaCategory` — the `?? null` arm would have rethrown.
+      categoryInherited: liveCategory === null,
     });
   }
 }
@@ -485,8 +489,10 @@ async function executeRetarget(options: {
   originalError: unknown;
   caches: QuotaFallbackCaches;
   cacheKeyId: string;
+  /** True when this turn's category came from a proactive demotion, not a live error. */
+  categoryInherited: boolean;
 }): Promise<QuotaFallbackRunResult> {
-  const { retry, opts, info, originalError, caches, cacheKeyId } = options;
+  const { retry, opts, info, originalError, caches, cacheKeyId, categoryInherited } = options;
   try {
     const result = await retry(opts);
     // OpenRouter actually served this request; report it so the footer's
@@ -500,6 +506,7 @@ async function executeRetarget(options: {
       retryError,
       caches,
       cacheKeyId,
+      categoryInherited,
     });
     if (floorOutcome.kind === 'success') {
       return floorOutcome.result;
@@ -523,10 +530,20 @@ type FloorHopOutcome =
   | { kind: 'not-attempted' };
 
 /**
- * The bounded second hop (D12). Not attempted when the retry's failure is
- * not retargetable, the floor is already among this turn's failed models, or
- * the doom caches veto it. Never throws: a floor-selection error must not
- * replace the pristine original the caller propagates.
+ * The bounded second hop (D12). Not attempted when the retry's failure is not
+ * retargetable AND this turn's category was not inherited, when the floor is
+ * already among this turn's failed models, or when the doom caches veto it.
+ * Never throws: a floor-selection error must not replace the pristine original
+ * the caller propagates.
+ *
+ * The retargetability gate exists because a quota failure is a property of the
+ * MODEL or the ACCOUNT, so another model can rescue it, while a request-shaped
+ * failure (content policy, context overflow) would fail identically on the
+ * floor. An inherited-category turn is the exception: the category came from a
+ * proactive demotion, which fires only when the route is already known
+ * quota-scarce (rate-limited or credit-exhausted), and the hop-1 error's
+ * own unclassifiability says nothing about
+ * the turn — so the floor stays reachable there.
  */
 async function attemptFloorHop(params: {
   retry: (opts: GenerateAttemptOpts) => Promise<GenerateAttemptResult>;
@@ -535,9 +552,11 @@ async function attemptFloorHop(params: {
   retryError: unknown;
   caches: QuotaFallbackCaches;
   cacheKeyId: string;
+  /** True when this turn's category came from a proactive demotion, not a live error. */
+  categoryInherited: boolean;
 }): Promise<FloorHopOutcome> {
-  const { retry, opts, info, retryError, caches, cacheKeyId } = params;
-  if (classifyQuotaFailure(retryError) === null) {
+  const { retry, opts, info, retryError, caches, cacheKeyId, categoryInherited } = params;
+  if (classifyQuotaFailure(retryError) === null && !categoryInherited) {
     return { kind: 'not-attempted' };
   }
   const floorTarget = await selectFloorTarget({
