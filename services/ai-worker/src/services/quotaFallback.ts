@@ -221,7 +221,10 @@ export async function checkModelViability(options: {
 }
 
 /**
- * The SECOND descent hop (D12): the floor beneath the tier-aware default.
+ * The floor beneath the tier-aware default. Two call sites share it: the
+ * SECOND descent hop (D12) after a failed hop-1 retarget, and the hop-1
+ * PROMOTION in quotaFallbackRunner when no tiered retarget exists at all
+ * (the failing model IS the tier's own default).
  * Free users land on `fallbackTextModelFree` (isFreeModel-guarded so an
  * out-of-band bag edit can never bill the owner — same firewall as the
  * guest-safe default below); paid users on `fallbackTextModel` (their own
