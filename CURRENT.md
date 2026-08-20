@@ -8,7 +8,7 @@
 
 ## 🚀 beta.205 SHIPPED (2026-08-20) — post-deploy checklist
 
-Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-package bump, all 3 migrations additive with null-semantics comments, cross-PR roster seams, `rosterBlurbEnabled: false` inert claim, no debug/secret leftovers). Privacy policy gained a "Server membership details" bullet for `user_guild_infos` — **owner: review the wording** (docs/legal/PRIVACY_POLICY.md, renders live at /privacy).
+Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-package bump, all 3 migrations additive with null-semantics comments, cross-PR roster seams, `rosterBlurbEnabled: false` inert claim, no debug/secret leftovers). Privacy policy gained a "Server membership details" bullet for `user_guild_infos` — wording **approved by owner 2026-08-20**.
 
 **Owner actions (in order):**
 
