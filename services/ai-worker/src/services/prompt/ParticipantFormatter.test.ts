@@ -1232,6 +1232,56 @@ describe('whitespace-padded display names', () => {
   });
 });
 
+describe('whitespace-padded RESPONDER name', () => {
+  // The other half of the matrix: the tests above pad the ROSTER side, which
+  // the display-name helpers already trim. The responder's own name arrives as
+  // a bare parameter and is trimmed by nobody, so an untrimmed comparison
+  // misses the same pairs from the other direction.
+  const roster = (preferredName: string): Map<string, ParticipantInfo> =>
+    new Map<string, ParticipantInfo>([
+      [
+        'persona-1',
+        {
+          personaName: 'alice',
+          preferredName,
+          content: 'A developer',
+          isActive: true,
+          personaId: 'persona-1',
+        },
+      ],
+    ]);
+
+  it('detects a clean roster name colliding with a padded responder', () => {
+    expect(formatParticipantsContext(roster('Lilith'), ' Lilith ')).toContain('matches your own');
+  });
+
+  it('detects a padded roster name colliding with a padded responder', () => {
+    expect(formatParticipantsContext(roster(' Lilith '), ' Lilith ')).toContain('matches your own');
+  });
+
+  it('detects a padded sibling character colliding with a padded responder', () => {
+    const sibling: CharacterParticipant = { personalityId: 'p-x', personalityName: ' Lilith ' };
+
+    expect(formatParticipantsContext(roster('Alice'), ' Lilith ', [sibling])).toContain(
+      'matches your own'
+    );
+  });
+
+  it('emits no collision note for a responder with no renderable name', () => {
+    // A blank responder normalizes to '', which would match every other blank
+    // name in the roster. Nothing renders there for a reader to confuse, so the
+    // note has nothing to warn about.
+    const blank = new Map<string, ParticipantInfo>([
+      [
+        'persona-1',
+        { personaName: '  ', content: 'A developer', isActive: true, personaId: 'persona-1' },
+      ],
+    ]);
+
+    expect(formatParticipantsContext(blank, '   ')).not.toContain('matches your own');
+  });
+});
+
 describe('whitespace-padded character names', () => {
   const human = (): Map<string, ParticipantInfo> =>
     new Map<string, ParticipantInfo>([
@@ -1302,6 +1352,29 @@ describe('names with no renderable form', () => {
     ]);
 
     expect(formatParticipantsContext(blank, 'Lilith')).toContain('<participant id="persona-1">');
+  });
+
+  it('does not call two unrenderable names a shared name', () => {
+    // Both key to '' in the duplicate-name set. Nothing renders for either, so
+    // there is no shared name for a reader to confuse — the note would be
+    // advice about a collision that does not exist on the page.
+    const twoBlank = new Map<string, ParticipantInfo>([
+      ['persona-1', { personaName: '  ', content: 'a', isActive: true, personaId: 'persona-1' }],
+      ['persona-2', { personaName: ' ', content: 'b', isActive: false, personaId: 'persona-2' }],
+    ]);
+    const kai: CharacterParticipant = { personalityId: 'p-kai', personalityName: 'Kai' };
+
+    expect(formatParticipantsContext(twoBlank, 'Lilith', [kai])).not.toContain('share a name');
+  });
+
+  it('still detects a genuine duplicate beside an unrenderable name', () => {
+    const mixed = new Map<string, ParticipantInfo>([
+      ['persona-1', { personaName: '  ', content: 'a', isActive: true, personaId: 'persona-1' }],
+      ['persona-2', { personaName: 'Kai', content: 'b', isActive: false, personaId: 'persona-2' }],
+    ]);
+    const kai: CharacterParticipant = { personalityId: 'p-kai', personalityName: 'Kai' };
+
+    expect(formatParticipantsContext(mixed, 'Lilith', [kai])).toContain('share a name');
   });
 
   it('renders a blank-named character name-only, dropping the blurb with its frame', () => {

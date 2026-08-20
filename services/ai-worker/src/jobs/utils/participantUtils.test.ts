@@ -77,6 +77,60 @@ describe('resolveSpeakerInfo', () => {
       );
       expect(result?.role).toBe('character');
     });
+
+    describe('whitespace-padded names', () => {
+      // Neither Personality.name nor the webhook display name is trimmed by a
+      // schema, and the roster renders the TRIMMED form — so a name that
+      // renders identically to the responder's must resolve to the same role.
+      // A trailing pad was always absorbed by the prefix test; a LEADING pad
+      // on either side breaks it, which is the reachable half of the class.
+
+      it("keeps role='assistant' when the responder's own name is padded", () => {
+        const result = resolveSpeakerInfo(
+          msg({ role: 'assistant', personalityName: 'Yeshua' }),
+          ' Yeshua '
+        );
+        expect(result?.role).toBe('assistant');
+      });
+
+      it("keeps role='assistant' when the stored row name is padded", () => {
+        const result = resolveSpeakerInfo(
+          msg({ role: 'assistant', personalityName: ' Yeshua ' }),
+          'Yeshua'
+        );
+        expect(result?.role).toBe('assistant');
+      });
+
+      it('does not claim every row as its own when the responder name is blank', () => {
+        // Post-trim a whitespace-only name is '', and startsWith('') matches
+        // every string — without a guard the responder would claim an
+        // unrelated sibling's line as its own words.
+        const result = resolveSpeakerInfo(
+          msg({ role: 'assistant', personalityName: 'Ha-Shem' }),
+          '   '
+        );
+        expect(result?.role).toBe('character');
+      });
+
+      it("still demotes a genuine sibling when the responder's name is padded", () => {
+        const result = resolveSpeakerInfo(
+          msg({ role: 'assistant', personalityName: 'Ha-Shem' }),
+          ' Yeshua '
+        );
+        expect(result?.role).toBe('character');
+      });
+
+      it('leaves the rendered speaker name untouched', () => {
+        // Comparisons normalize; the stored/rendered value does not. `from=`
+        // carries these bytes verbatim, so trimming here would move prompt
+        // bytes for every padded-name channel.
+        const result = resolveSpeakerInfo(
+          msg({ role: 'assistant', personalityName: ' Yeshua ' }),
+          'Yeshua'
+        );
+        expect(result?.speakerName).toBe(' Yeshua ');
+      });
+    });
   });
 
   describe('user messages', () => {
@@ -98,6 +152,36 @@ describe('resolveSpeakerInfo', () => {
         msg({ personaName: 'Lila', discordUsername: 'lbds137' }),
         'Yeshua',
         new Set(['Lila', 'Yeshua'])
+      );
+      expect(result?.speakerName).toBe('Lila (@lbds137)');
+    });
+
+    it('disambiguates a padded persona name against a clean personality name', () => {
+      // Neither name is schema-trimmed and the roster renders the trimmed
+      // form, so these two are indistinguishable to a reader — exactly the
+      // confusion the disambiguation exists for.
+      const result = resolveSpeakerInfo(
+        msg({ personaName: ' Yeshua ', discordUsername: 'robin123' }),
+        'Yeshua'
+      );
+      expect(result?.speakerName).toBe(' Yeshua  (@robin123)');
+    });
+
+    it('does not disambiguate a persona name that renders as nothing', () => {
+      // Both trim to '' and compare equal, but neither renders — appending a
+      // username to an empty display name disambiguates nothing.
+      const result = resolveSpeakerInfo(
+        msg({ personaName: '   ', discordUsername: 'robin123' }),
+        ' '
+      );
+      expect(result?.speakerName).toBe('   ');
+    });
+
+    it('disambiguates against a padded entry in the personality-name set', () => {
+      const result = resolveSpeakerInfo(
+        msg({ personaName: 'Lila', discordUsername: 'lbds137' }),
+        'Yeshua',
+        new Set([' Lila ', 'Yeshua'])
       );
       expect(result?.speakerName).toBe('Lila (@lbds137)');
     });
@@ -192,6 +276,21 @@ describe('extractParticipants', () => {
 describe('extractCharacterParticipants', () => {
   const entry = (overrides: Partial<RawHistoryEntry>): RawHistoryEntry =>
     ({ role: 'assistant', content: 'hi', ...overrides }) as RawHistoryEntry;
+
+  it('excludes the responder from its own roster when the name path decides and the name is padded', () => {
+    // The row HAS a personalityId; the name path runs because no
+    // responderPersonalityId is supplied, which is the id-less fallback this
+    // heuristic still serves. The membership test is resolveSpeakerInfo's
+    // role, so an untrimmed compare put the RESPONDER into its own
+    // <character_participant> roster, showing the personality to itself as a
+    // peer.
+    const result = extractCharacterParticipants(
+      [entry({ personalityId: 'p-self', personalityName: 'Lilith' })],
+      ' Lilith '
+    );
+
+    expect(result).toEqual([]);
+  });
 
   it('collects a sibling character with its personality id and name', () => {
     const result = extractCharacterParticipants(

@@ -32,6 +32,25 @@ describe('MessageFormatters', () => {
       const result = buildDisambiguatedDisplayName('Lila', undefined, 'lbds137');
       expect(result).toBe('Lila');
     });
+
+    it('disambiguates a padded persona name against a clean personality name', () => {
+      // Neither name is schema-trimmed and the roster renders the trimmed
+      // form, so these render identically and must disambiguate together.
+      const result = buildDisambiguatedDisplayName(' Lila ', 'Lila', 'lbds137');
+      expect(result).toBe(' Lila  (@lbds137)');
+    });
+
+    it('disambiguates a clean persona name against a padded personality name', () => {
+      const result = buildDisambiguatedDisplayName('Lila', ' Lila ', 'lbds137');
+      expect(result).toBe('Lila (@lbds137)');
+    });
+
+    it('does not disambiguate two names that both render as nothing', () => {
+      // Both trim to '' and compare equal, but neither renders — appending a
+      // username to an empty display name disambiguates nothing.
+      const result = buildDisambiguatedDisplayName('   ', ' ', 'robin123');
+      expect(result).toBe('   ');
+    });
   });
 
   describe('buildMessageWithAttachments', () => {

@@ -51,9 +51,27 @@ export type RenderedQuoteRole = ReferenceAuthorRole | 'character';
  * Whether an author name matches ONE personality name by prefix.
  * Prefix-match because webhook usernames are `${displayName}${botSuffix}`, so the
  * personality's display name is a prefix of the author name, not the whole of it.
+ *
+ * Both sides are trimmed first. `Personality.name` is `z.string().min(1)` with
+ * no `.trim()`, so a LEADING pad on either comparand breaks the prefix test
+ * outright — a `" Lilith"` responder stops matching its own `"Lilith"` quote
+ * author, which resolves the persona's own line as a sibling's. A trailing pad
+ * was always absorbed by the prefix, so only one direction of the class was
+ * visible. Every caller in this module routes through here, so the whole
+ * quote-tier name fallback normalizes in one place.
  */
 function matchesPersonality(authorName: string, personalityName: string): boolean {
-  return authorName.toLowerCase().startsWith(personalityName.toLowerCase());
+  const author = authorName.trim().toLowerCase();
+  const personality = personalityName.trim().toLowerCase();
+  // An empty comparand never matches, checked before the prefix test rather
+  // than left to it: `startsWith('')` is true for every string, so one blank
+  // name would make EVERY quote author a self-variant of the responder and
+  // resolve every reference to `assistant`. Blank carries no name evidence,
+  // so it takes the same no-match exit an unrelated name takes.
+  if (author.length === 0 || personality.length === 0) {
+    return false;
+  }
+  return author.startsWith(personality);
 }
 
 /**
