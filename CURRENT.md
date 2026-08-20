@@ -12,9 +12,9 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 
 **Owner actions (in order):**
 
-- [ ] **Repoint the guest free default → `glm-4.7`** once prod deploy settles. Required: post-#2153 the retired `glm-4.5-air` resolves via OpenRouter as a PAID model, so the free-guard would silently substitute `openrouter/free`.
-- [ ] **Smoke: `/character edit` on `literal-crow-orev-kheshbon` (prod)** — the reported embed crash; fix shipped in #2161/#2163. PASS = the dashboard opens. Needs-smoke: the crash was runtime-confirmed on this exact character, and dev could not reproduce its imported payload.
-- [ ] **Smoke: export-clear round-trip (beta.201 S1, deferred by owner to this batch).** On dev, pick a character with at least one genuinely **empty** optional field (or blank one out, e.g. appearance/likes) → `/character export` → `/character import` the JSON back. PASS = import succeeds AND the field is still empty afterward; FAIL = import error, or the field comes back filled with an old value. Judge by any field EXCEPT `customFields` (TASK-590, known-lossy gateway-side, excluded on purpose). Attachment-bearing (needs file upload). This is the ONLY carried attachment smoke item.
+- [x] **Repoint the guest free default → `glm-4.7`** — DONE (owner, 2026-08-20 post-deploy). Required: post-#2153 the retired `glm-4.5-air` resolves via OpenRouter as a PAID model, so the free-guard would silently substitute `openrouter/free`.
+- [x] **Smoke: `/character edit` on `literal-crow-orev-kheshbon` (prod)** — **PASS** (owner, 2026-08-20): the dashboard opens. The #2161/#2163 clamp fix is now runtime-confirmed on the exact payload that crashed prod.
+- [x] **Smoke: export-clear round-trip (beta.201 S1)** — **PASS** (owner, 2026-08-20): cleared the crow's age field → export → reimport → field still blank. Original instruction kept for the record: On dev, pick a character with at least one genuinely **empty** optional field (or blank one out, e.g. appearance/likes) → `/character export` → `/character import` the JSON back. PASS = import succeeds AND the field is still empty afterward; FAIL = import error, or the field comes back filled with an old value. Judge by any field EXCEPT `customFields` (TASK-590, known-lossy gateway-side, excluded on purpose). Attachment-bearing (needs file upload). This is the ONLY carried attachment smoke item.
 
 **Watches (log-signal, no action needed):**
 
