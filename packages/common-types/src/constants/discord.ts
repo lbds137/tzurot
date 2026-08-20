@@ -60,6 +60,12 @@ export const DISCORD_LIMITS = {
   EMBED_DESCRIPTION: 4096,
   /** Discord embed field value character limit */
   EMBED_FIELD: 1024,
+  /** Discord embed title character limit */
+  EMBED_TITLE: 256,
+  /** Discord embed field NAME character limit */
+  EMBED_FIELD_NAME: 256,
+  /** Discord embed footer text character limit */
+  EMBED_FOOTER: 2048,
   /** Maximum avatar file size (10MB) */
   AVATAR_SIZE: 10 * 1024 * 1024,
   /** Maximum webhook cache size */

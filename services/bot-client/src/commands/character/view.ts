@@ -23,6 +23,7 @@ import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
+import { clampEmbedText, EMBED_CAPS } from '../../utils/embedLimits.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { replyError } from '../../utils/dashboard/replyError.js';
 import { fetchCharacter } from './api.js';
@@ -85,10 +86,14 @@ function buildOverviewPage(
 
   embed.addFields({
     name: '🪪 Identity',
-    value:
+    // Clamped: two escaped 255-char names (escaping can double each) exceed
+    // the 1024-char field cap, and discord.js THROWS rather than truncating.
+    value: clampEmbedText(
       `**Name:** ${escapeMarkdown(character.name)}\n` +
-      `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
-      `**Slug:** \`${character.slug}\``,
+        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
+        `**Slug:** \`${character.slug}\``,
+      EMBED_CAPS.fieldValue
+    ),
     inline: false,
   });
 
@@ -204,7 +209,7 @@ const PAGE_BUILDERS = [
 export function buildRedactedViewPage(character: CharacterData): ViewPageResult {
   const displayName = escapeMarkdown(character.displayName ?? character.name);
   const embed = new EmbedBuilder()
-    .setTitle(`👁️ ${displayName}`)
+    .setTitle(clampEmbedText(`👁️ ${displayName}`, EMBED_CAPS.title))
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTimestamp()
     .setDescription(
@@ -214,10 +219,14 @@ export function buildRedactedViewPage(character: CharacterData): ViewPageResult 
     )
     .addFields({
       name: '🪪 Identity',
-      value:
+      // Same clamp as buildOverviewPage's Identity field — this is the same
+      // concatenation, reachable via browse's redacted detail view.
+      value: clampEmbedText(
         `**Name:** ${escapeMarkdown(character.name)}\n` +
-        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
-        `**Slug:** \`${character.slug}\``,
+          `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
+          `**Slug:** \`${character.slug}\``,
+        EMBED_CAPS.fieldValue
+      ),
       inline: false,
     });
 
@@ -248,7 +257,7 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
   const truncatedFields: string[] = [];
 
   const embed = new EmbedBuilder()
-    .setTitle(`👁️ ${displayName} — ${VIEW_PAGE_TITLES[safePage]}`)
+    .setTitle(clampEmbedText(`👁️ ${displayName} — ${VIEW_PAGE_TITLES[safePage]}`, EMBED_CAPS.title))
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTimestamp();
 

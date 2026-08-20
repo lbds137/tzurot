@@ -21,13 +21,18 @@ import {
   SectionStatus,
   buildDashboardCustomId,
 } from './types.js';
+import { clampEmbedText, EMBED_CAPS } from '../embedLimits.js';
 
 /**
  * Build a dashboard embed for an entity
  */
 export function buildDashboardEmbed<T>(config: DashboardConfig<T>, data: T): EmbedBuilder {
+  // Every dynamic string is clamped to its Discord cap: discord.js validates
+  // at build time and THROWS on overflow, so one schema-legal-but-long value
+  // (a 1000-char tone in a preview, a 255-char display name in the title)
+  // would otherwise take the whole dashboard down instead of rendering short.
   const embed = new EmbedBuilder()
-    .setTitle(config.getTitle(data))
+    .setTitle(clampEmbedText(config.getTitle(data), EMBED_CAPS.title))
     .setColor(config.color ?? DISCORD_COLORS.BLURPLE)
     .setTimestamp();
 
@@ -35,7 +40,7 @@ export function buildDashboardEmbed<T>(config: DashboardConfig<T>, data: T): Emb
   if (config.getDescription) {
     const description = config.getDescription(data);
     if (description.length > 0) {
-      embed.setDescription(description);
+      embed.setDescription(clampEmbedText(description, EMBED_CAPS.description));
     }
   }
 
@@ -46,15 +51,15 @@ export function buildDashboardEmbed<T>(config: DashboardConfig<T>, data: T): Emb
     const preview = section.getPreview(data);
 
     embed.addFields({
-      name: `${section.label} ${statusEmoji}`,
-      value: preview || '_Not configured_',
+      name: clampEmbedText(`${section.label} ${statusEmoji}`, EMBED_CAPS.fieldName),
+      value: clampEmbedText(preview || '_Not configured_', EMBED_CAPS.fieldValue),
       inline: false,
     });
   }
 
   // Add footer if provided
   if (config.getFooter) {
-    embed.setFooter({ text: config.getFooter(data) });
+    embed.setFooter({ text: clampEmbedText(config.getFooter(data), EMBED_CAPS.footer) });
   }
 
   return embed;
