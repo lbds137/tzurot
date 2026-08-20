@@ -79,6 +79,10 @@ export default defineCommand({
             .setName('slug')
             .setDescription('The shapes.inc character username/slug')
             .setRequired(true)
+            // Crash guard, not a validation nicety: without a ceiling the
+            // Discord default (6000) flows into embed interpolation sites
+            // and discord.js THROWS at build time on the over-limit result.
+            .setMaxLength(100)
             .setAutocomplete(true)
         )
         .addStringOption(option =>
@@ -97,6 +101,10 @@ export default defineCommand({
             .setName('slug')
             .setDescription('The shapes.inc character username/slug')
             .setRequired(true)
+            // Crash guard, not a validation nicety: without a ceiling the
+            // Discord default (6000) flows into embed interpolation sites
+            // and discord.js THROWS at build time on the over-limit result.
+            .setMaxLength(100)
             .setAutocomplete(true)
         )
         .addStringOption(option =>

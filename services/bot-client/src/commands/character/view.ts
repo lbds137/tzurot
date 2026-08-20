@@ -23,7 +23,7 @@ import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
-import { clampEmbedText, EMBED_CAPS } from '../../utils/embedLimits.js';
+import { cappedInlineField, clampEmbedText, EMBED_CAPS } from '../../utils/embedLimits.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { replyError } from '../../utils/dashboard/replyError.js';
 import { fetchCharacter } from './api.js';
@@ -115,8 +115,8 @@ function buildOverviewPage(
   embed.addFields({ name: '🎭 Personality Traits', value: traits.value, inline: false });
 
   embed.addFields(
-    { name: '🎨 Tone', value: character.personalityTone ?? UX_SENTINELS.NOT_SET, inline: true },
-    { name: '📅 Age', value: character.personalityAge ?? UX_SENTINELS.NOT_SET, inline: true }
+    cappedInlineField('🎨 Tone', character.personalityTone ?? UX_SENTINELS.NOT_SET),
+    cappedInlineField('📅 Age', character.personalityAge ?? UX_SENTINELS.NOT_SET)
   );
 }
 

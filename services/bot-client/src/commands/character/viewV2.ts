@@ -19,6 +19,7 @@
  * not be masked.
  */
 
+import { clampEmbedText } from '../../utils/embedLimits.js';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -86,17 +87,25 @@ function fieldBlock(character: CharacterData, fieldName: string, maxLength?: num
   };
 }
 
+/**
+ * Components-V2 text displays cap at 4000 chars and discord.js validates at
+ * build time. Today's maximal escaped-name pair lands ~1100, so this is
+ * margin against a future field addition, not an active overflow.
+ */
+const TEXT_DISPLAY_MAX = 4000;
+
 /** Identity block shared by page 0 and the redacted view. */
 function identityBlock(character: CharacterData): string {
   const displayName =
     character.displayName !== null && character.displayName !== undefined
       ? escapeMarkdown(character.displayName)
       : UX_SENTINELS.NOT_SET;
-  return (
+  return clampEmbedText(
     `**🪪 Identity**\n` +
-    `**Name:** ${escapeMarkdown(character.name)}\n` +
-    `**Display Name:** ${displayName}\n` +
-    `**Slug:** \`${character.slug}\``
+      `**Name:** ${escapeMarkdown(character.name)}\n` +
+      `**Display Name:** ${displayName}\n` +
+      `**Slug:** \`${character.slug}\``,
+    TEXT_DISPLAY_MAX
   );
 }
 
@@ -122,8 +131,14 @@ function overviewBlocks(character: CharacterData): ViewBlock[] {
   // Tone and Age are SEPARATE blocks, mirroring the embed view's separate
   // inline fields — a mid-line `·` join scrunched Age onto the tail of an
   // arbitrarily long Tone paragraph (owner eval finding).
-  const tone = `**🎨 Tone**\n${character.personalityTone ?? UX_SENTINELS.NOT_SET}`;
-  const age = `**📅 Age**\n${character.personalityAge ?? UX_SENTINELS.NOT_SET}`;
+  const tone = clampEmbedText(
+    `**🎨 Tone**\n${character.personalityTone ?? UX_SENTINELS.NOT_SET}`,
+    TEXT_DISPLAY_MAX
+  );
+  const age = clampEmbedText(
+    `**📅 Age**\n${character.personalityAge ?? UX_SENTINELS.NOT_SET}`,
+    TEXT_DISPLAY_MAX
+  );
 
   const tags = tagsBlockText(character.tags);
 
@@ -248,7 +263,7 @@ function buildRedactedV2(character: CharacterData): ViewV2Result {
   const container = new ContainerBuilder()
     .setAccentColor(DISCORD_COLORS.BLURPLE)
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`## 👁️ ${displayName}`),
+      new TextDisplayBuilder().setContent(clampEmbedText(`## 👁️ ${displayName}`, TEXT_DISPLAY_MAX)),
       new TextDisplayBuilder().setContent(
         "🔒 **This character's definition is private.**\n" +
           'The creator has chosen not to share the character card. ' +
@@ -285,7 +300,12 @@ export function buildCharacterViewV2(
 
   const displayName = escapeMarkdown(character.displayName ?? character.name);
   const safePage = Math.max(0, Math.min(page, VIEW_TOTAL_PAGES - 1));
-  const title = `## 👁️ ${displayName} — ${VIEW_PAGE_TITLES[safePage]}`;
+  // Clamped like every other text display: an oversized escaped name would
+  // throw at build time in BOTH header branches below.
+  const title = clampEmbedText(
+    `## 👁️ ${displayName} — ${VIEW_PAGE_TITLES[safePage]}`,
+    TEXT_DISPLAY_MAX
+  );
 
   const container = new ContainerBuilder().setAccentColor(DISCORD_COLORS.BLURPLE);
 

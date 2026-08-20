@@ -23,6 +23,33 @@ function toJson(card: ReturnType<typeof buildEntityDetailCard>): EmbedJson {
 }
 
 describe('buildEntityDetailCard', () => {
+  it('caps an uncapped over-limit description at the platform cap instead of throwing', () => {
+    // The prod-adjacent repro: an AI-extracted fact statement has no schema
+    // cap, and discord.js THROWS on an over-limit description at build time.
+    const card = buildEntityDetailCard({
+      title: 'Fact Details',
+      description: 'x'.repeat(5000),
+    });
+    const json = toJson(card);
+    expect(json.description?.length).toBe(4096);
+    expect(json.description?.endsWith('\u2026')).toBe(true);
+    // The flag tells the truth on the floor path too.
+    expect(card.descriptionTruncated).toBe(true);
+  });
+
+  it('clamps title, field values and footer at their platform caps', () => {
+    const card = buildEntityDetailCard({
+      title: 't'.repeat(300),
+      fields: [{ name: 'n'.repeat(300), value: 'v'.repeat(1100) }],
+      footer: 'f'.repeat(2100),
+    });
+    const json = toJson(card);
+    expect(json.title?.length).toBe(256);
+    expect(json.fields?.[0].name.length).toBe(256);
+    expect(json.fields?.[0].value.length).toBe(1024);
+    expect(json.footer?.text.length).toBe(2048);
+  });
+
   it('applies defaults: BLURPLE, no footer, no timestamp, no description', () => {
     const card = buildEntityDetailCard({ title: '📄 Thing Details' });
     const json = toJson(card);
