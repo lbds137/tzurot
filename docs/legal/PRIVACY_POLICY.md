@@ -2,7 +2,7 @@
 
 **Status: In effect.**
 
-_Last updated: 2026-07-26_
+_Last updated: 2026-08-20_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -11,6 +11,8 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 **Account basics.** Your Discord user ID, username, timezone (if you set one), your notification preferences, and whether you have completed the 18+ verification (a yes/no flag with a timestamp — we never ask for or store your birthdate or identity documents).
 
 **Messages.** The content of messages in conversations the bot participates in, kept so characters can hold a coherent conversation. This includes message text, attachments' AI-generated descriptions, channel and server IDs, and reply context. Please don't share sensitive personal information (health, financial, or identity details) in conversations — the bot never asks for it and does not need it.
+
+**Server membership details.** For servers where you talk with characters, the bot keeps your last-observed role names, role color, and join date, used to describe conversation participants to the AI consistently between messages. These are deleted with your account.
 
 **Memories and facts.** The bot builds long-term memory for characters: conversation summaries and short factual statements extracted from what is said (for example, "this user's cat is named Miso"), stored with embeddings for retrieval. These are derived from your messages and are about you.
 
