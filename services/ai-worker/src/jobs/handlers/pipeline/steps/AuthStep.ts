@@ -488,7 +488,7 @@ export class AuthStep implements IPipelineStep {
 
       // Guest Mode: enforce free-model-only on top of any router decision —
       // or, when the free default is the z.ai piggyback preset and admission
-      // passes, upgrade to GLM-4.5-Air on the system coding-plan key.
+      // passes, upgrade to GLM-4.7 on the system coding-plan key.
       // Carries the guest substitution's footer announce past the block, so
       // BOTH guest exits (z.ai upgrade and plain free-model override) report
       // it — the swap is never silent on either arm.

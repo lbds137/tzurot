@@ -246,14 +246,15 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
   });
 
   it('a NON-free free-default (the z.ai piggyback preset) degrades guest targets to the free router', async () => {
-    // The admin free default may be z-ai/glm-4.5-air — paid on OpenRouter. A
+    // The admin free default may be the z.ai piggyback preset — paid on
+    // OpenRouter, since the coding plan is a separate billing surface. A
     // guest retarget must never bill it to the system key; the dynamic router
     // substitutes (the z.ai upgrade happens only at AuthStep admission).
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
       isGuestMode: true,
-      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
       caches: buildCaches(),
     });
     expect(target?.config.model).toBe('openrouter/free');
@@ -278,7 +279,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
         ...base,
         category: ApiErrorCategory.QUOTA_EXCEEDED,
         isGuestMode: true,
-        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
         caches: buildCaches(),
       });
       expect(target?.config.model).toBe('divergent/floor:free');
@@ -290,7 +291,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
         ...base,
         category: ApiErrorCategory.QUOTA_EXCEEDED,
         isGuestMode: true,
-        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
         caches: buildCaches(),
       });
       expect(target?.config.model).toBe('openrouter/free');
@@ -302,7 +303,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       isGuestMode: false,
-      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
       caches: buildCaches(),
     });
     expect(target?.config.model).toBe('openrouter/free');

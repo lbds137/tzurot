@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL, isFreeModel } from '../../constants/ai.js';
+import {
+  AUTO_ROUTER_MODEL,
+  FREE_ROUTER_MODEL,
+  isFreeModel,
+  ZAI_FREE_TIER_MODEL,
+} from '../../constants/ai.js';
 import { MULTI_TAG } from '../../constants/message.js';
 import {
   SystemSettingsSchema,
@@ -249,5 +254,16 @@ describe('response wire contracts', () => {
         updatedAt: '2026-07-12T10:00:00.000Z',
       }).success
     ).toBe(false);
+  });
+});
+
+describe('admin-visible copy tracks the constants it describes', () => {
+  it("the z.ai free-tier toggle's description names the model guests actually ride", () => {
+    // This description renders verbatim into the /admin settings embed, so it
+    // is the one place a human reads the piggyback model's name. It drifted
+    // once already: the constant moved off glm-4.5-air after a probe showed
+    // z.ai rerouting that id, and the description kept naming the retired one.
+    const { description } = SYSTEM_SETTINGS_REGISTRY.zaiFreeTierEnabled;
+    expect(description.toLowerCase()).toContain(ZAI_FREE_TIER_MODEL);
   });
 });

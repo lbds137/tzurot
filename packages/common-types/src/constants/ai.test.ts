@@ -110,11 +110,13 @@ describe('buildModelInfoUrl', () => {
       );
     });
 
-    it('should map glm-4.5-air to the parent glm-4.5 docs page (no per-Air page exists)', () => {
-      // z.ai documents the Air variant on the same page as regular glm-4.5;
-      // there is no dedicated /guides/llm/glm-4.5-air page (would 404).
+    it('falls back to the overview page for an id the plan no longer carries', () => {
+      // glm-4.5-air was a catalog member until z.ai retired it (the id now
+      // serves glm-4.7). With no entry there is no per-model page to link, so
+      // the z.ai branch degrades to the devpack overview rather than emitting
+      // a /guides/llm/glm-4.5-air URL that would 404.
       expect(buildModelInfoUrl('glm-4.5-air', 'zai-coding')).toBe(
-        'https://docs.z.ai/guides/llm/glm-4.5'
+        'https://docs.z.ai/devpack/overview'
       );
     });
 
@@ -206,10 +208,18 @@ describe('buildModelInfoUrl', () => {
 
 describe('isFreeModelForUser', () => {
   it('treats the piggyback model as free for GUESTS only', () => {
-    expect(isFreeModelForUser('z-ai/glm-4.5-air', true)).toBe(true);
-    expect(isFreeModelForUser('glm-4.5-air', true)).toBe(true);
+    expect(isFreeModelForUser('z-ai/glm-4.7', true)).toBe(true);
+    expect(isFreeModelForUser('glm-4.7', true)).toBe(true);
     // Key-holders are billed on their own key — not free for them
-    expect(isFreeModelForUser('z-ai/glm-4.5-air', false)).toBe(false);
+    expect(isFreeModelForUser('z-ai/glm-4.7', false)).toBe(false);
+  });
+
+  it('does NOT treat the retired Air id as free for anyone', () => {
+    // z.ai reroutes glm-4.5-air to glm-4.7, but OpenRouter still serves Air as
+    // a distinct PAID model with no :free variant — so honouring the old id
+    // here would hand guests a billable model on the strength of a reroute.
+    expect(isFreeModelForUser('z-ai/glm-4.5-air', true)).toBe(false);
+    expect(isFreeModelForUser('glm-4.5-air', true)).toBe(false);
   });
 
   it('literal free models are free for every audience', () => {
@@ -318,7 +328,7 @@ describe('isZaiCodingPlanModel', () => {
     // (rather than just exporting the array).
     expect(isZaiCodingPlanModel('GLM-5.1')).toBe(true);
     expect(isZaiCodingPlanModel('Glm-4.7')).toBe(true);
-    expect(isZaiCodingPlanModel('GLM-4.5-AIR')).toBe(true);
+    expect(isZaiCodingPlanModel('GLM-5.2')).toBe(true);
   });
 
   it('should accept the routable z-ai/-prefixed slug form (what validation surfaces receive)', () => {
@@ -345,7 +355,17 @@ describe('getZaiCodingPlanContextLength', () => {
     expect(getZaiCodingPlanContextLength('glm-5.1')).toBe(200_000);
     expect(getZaiCodingPlanContextLength('glm-5-turbo')).toBe(200_000);
     expect(getZaiCodingPlanContextLength('glm-4.7')).toBe(200_000);
-    expect(getZaiCodingPlanContextLength('glm-4.5-air')).toBe(128_000);
+  });
+
+  it('reports the retired Air id as absent rather than 128K', () => {
+    // Asserted, not merely deleted: every other catalog predicate is pinned
+    // against this id, and leaving the membership half to an omission is the
+    // one corner where "the retired id is really gone" would rest on nothing.
+    // A null here is what sends the id to OpenRouter, where Air still is Air.
+    expect(getZaiCodingPlanContextLength('glm-4.5-air')).toBeNull();
+    expect(getZaiCodingPlanContextLength('z-ai/glm-4.5-air')).toBeNull();
+    expect(isZaiCodingPlanModel('glm-4.5-air')).toBe(false);
+    expect(isZaiCodingPlanModel('z-ai/glm-4.5-air')).toBe(false);
   });
 
   it('should return 1M for glm-5.2 (z.ai flagship; catalog is authoritative on z.ai-direct)', () => {
@@ -385,10 +405,9 @@ describe('listZaiCodingPlanModels', () => {
     const byName = new Map(models.map(m => [m.model, m]));
     // The catalog lineup per docs.z.ai/devpack/overview.
     expect([...byName.keys()].sort()).toEqual(
-      ['glm-4.5-air', 'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3'].sort()
+      ['glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3'].sort()
     );
     expect(byName.get('glm-5.2')?.contextLength).toBe(1_000_000);
-    expect(byName.get('glm-4.5-air')?.contextLength).toBe(128_000);
     // z.ai-only entries must carry `released` — it is the only `created`
     // source for the /models recency sort until an OpenRouter listing exists.
     expect(byName.get('glm-5.3')?.released).toBe('2026-08-14');
@@ -450,9 +469,12 @@ describe('zaiCodingPlanModelCapabilities', () => {
 
 describe('zaiThinkingOffSupport', () => {
   it('reports the recorded support level per model', () => {
-    expect(zaiThinkingOffSupport('glm-4.5-air')).toBe('honored');
+    // No current member reports 'honored' — glm-4.5-air was the only one, and
+    // it left the catalog when z.ai retired the id. The level stays in the
+    // union because it is a real z.ai behaviour a future model can report.
     expect(zaiThinkingOffSupport('glm-4.7')).toBe('unsupported');
     expect(zaiThinkingOffSupport('glm-5.2')).toBe('best-effort');
+    expect(zaiThinkingOffSupport('glm-4.5-air')).toBeUndefined();
   });
 
   it('covers the whole GLM-5.x family as best-effort', () => {
