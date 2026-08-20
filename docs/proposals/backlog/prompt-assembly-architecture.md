@@ -423,3 +423,73 @@ concern — the shipped hash is already correctly scoped to the cached region.
 **Split recorded**: O1 eviction chunk, 2–2 (GLM + DeepSeek 10%; Kimi + Qwen
 conditional 25%) — presented to the owner with the suffix-re-bill economics and a
 25% recommendation; the ratio is a config constant either way.
+
+## 9c. Phase 2 refresh record (2026-08-20, pre-build)
+
+Grounding pass before the Phase 2 build starts (beta.206 sub-theme 3), run against
+the post-beta.205 tree. Seams verified by direct read: the provider call is exactly
+`[systemPrompt, currentMessage]` (`ConversationalRAGService.ts` — the human message
+carries the budget-selected memory blocks and must never be rebuilt); `chat_log` is
+the sole H-tier section inside the system message (`PromptBuilder` registry);
+selection + serialization live in `ContextWindowManager.selectAndSerializeHistory`
+(newest-first walk; its `selectedEntries` set feeds the STM/LTM memory-dedup
+pre-pass); the count-cap hysteresis lives at the FETCH (`getChannelHistoryWindow`,
+`contextEpoch`, `headRowId`) — extraction changes rendering, not the fetch, so that
+shipped layer carries.
+
+**World-moved deltas the build must honor:**
+
+- **Identity is id-keyed now.** #2143/#2144/#2151/#2159 landed `from_id` on
+  character lines and made self-vs-sibling a `personalityId` comparison. §2.3's
+  kwargs metadata must carry `personalityId` as the identity key; name-based
+  anything regresses #2144's invariant. Headers are display; kwargs are identity.
+- **Two windowing layers, not one.** §2.5.2's count-cap hysteresis SHIPPED
+  (beta.204, measured 27k→54–98k prefix-cut improvement) and must survive the
+  extraction unchanged; §2.5's token-budget chunked eviction stays dormant-but-built
+  per §2.5.1 consequence 2.
+- **Extended-context entries are metadata-poor** (the owner's headline question).
+  `mergeWithHistory` erases provenance upstream of the converter, so multi-user
+  attribution inherits `resolveSpeakerInfo` unchanged — but live-fetched entries
+  lack the persisted metadata DB rows carry (TASK-706, ambient forwards, is the
+  proven instance). The typed IR (below) makes that gap compiler-visible: the
+  extended-context conversion populates the same typed fields or marks them absent.
+  The beta.206 forward batch (706/668/43/667/563) lands BEFORE Phase 2 and must use
+  entry-metadata shapes the extraction carries, not chat_log XML attributes it
+  deletes. Extended-context window slide invalidates the prefix equally before and
+  after extraction — not a Phase 2 regression; TASK-698-grouped prefix-diff reads
+  decide later whether it needs its own hysteresis.
+- **Cross-channel history had no home in §2.3** (it renders today as a separate
+  block before the current channel). Decided (council, adopted in refined form):
+  cross-channel becomes its OWN user-role message between the system message and
+  the current-channel real messages — S0+S1 goes 100% stable, cross-channel churn
+  invalidates only from its own position, empty omits the message.
+- **`selectAndSerializeHistory`'s docstring ("inside the system prompt to prevent
+  identity bleeding") is a deliberate defense Phase 2 reverses** — the accepted
+  mitigations (§2.3 headers, roster reframing, assistant-role purity) answer it,
+  plus a "voice lock" paragraph at the S1 tail and tier-aware mitigation profiles
+  for weak models (council Q5, partial adoption: response-prefill and per-message
+  turn delimiters REJECTED — prefill conflicts with echo-stripping, delimiters cost
+  tokens on the dominant route; both parked as measured-escalation options for the
+  Phase 2 exit snapshot review). Sweep the identity-bleeding prose when the
+  premise changes.
+
+**Council pass (2026-08-20, single-model opus-4.6; dispositions applied):** Q1
+no-merge stands (Anthropic auto-combines; only Gemini-NATIVE rejects consecutive
+same-role, not in our path — add a provider-merge hook-point comment; RE-PROBE
+consecutive-user acceptance on z.ai/OpenRouter with a one-shot call during the
+build, council memory is not a probe). Q2 assistant self-timestamps go
+kwargs-only (imitation risk; temporal signal comes from surrounding attributed
+messages; single-line A/B escape hatch if "I just told you" temporal errors
+appear). Q3 as above. Q4 slicing adopted:
+
+| PR | Contents |
+| --- | --- |
+| **2.1** | `StructuredHistoryEntry` typed IR + the existing XML serializer as its first consumer, **byte-parity, flag-free** (prefix-diff verifies in prod). Memory-dedup pre-pass moves onto the IR here. Absorbs TASK-683 (three hand-copies of the history-row shape). |
+| **2.2** | (optional) cross-channel restructure if non-trivial — the IR's `channel` field enables it |
+| **2.3** | Real-messages consumer behind a flag: S0+S1-only system message, cross-channel user message, current-channel real messages with headers + kwargs; inline replies §2.4 |
+| **2.4** | Windowing rebuild: count-cap layer carried byte-for-byte, §2.5 chunked eviction built (dormant); seam test pinning the selectedEntries↔memory-dedup contract |
+| **2.5** | Flag flip: staged rollout, prefix-diff before/after (per-personality grouping, TASK-698 first), snapshot review per §6; voice-consistency harness re-arms with extraction arms |
+
+The working delta with full reasoning lives in the session scratchpad (machine-local,
+disposable); this section is the durable record. Build specs derive from this
+section plus §2.3–2.5 as amended.
