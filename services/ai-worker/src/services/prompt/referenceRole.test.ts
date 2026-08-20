@@ -33,6 +33,41 @@ describe('deriveRefRole name matching (fallback path)', () => {
     ).toBe('user');
   });
 
+  it('matches when the responding personality name carries a leading pad', () => {
+    // Personality.name is z.string().min(1) with no .trim(), and a LEADING pad
+    // breaks the prefix test outright — the persona's own quoted line would
+    // resolve to 'user', the self-reply confusion the classifier prevents.
+    expect(
+      deriveRefRole({ authorRole: undefined, authorName: 'Lilith ▽', personalityName: ' Lilith ' })
+    ).toBe('assistant');
+  });
+
+  it('matches when the author name carries a leading pad', () => {
+    expect(
+      deriveRefRole({ authorRole: undefined, authorName: ' Lilith ▽', personalityName: 'Lilith' })
+    ).toBe('assistant');
+  });
+
+  it('demotes a sibling to character when the sibling set entry is padded', () => {
+    expect(
+      deriveRefRole({
+        authorRole: undefined,
+        authorName: 'Lila ▽',
+        personalityName: 'Lilith',
+        allPersonalityNames: new Set([' Lila ', 'Lilith']),
+      })
+    ).toBe('character');
+  });
+
+  it('does not match every author when the responding personality name is blank', () => {
+    // Post-trim a whitespace-only name is '', and startsWith('') matches every
+    // string — without a guard every quoted author would read as the persona
+    // itself, the self-reply confusion inverted.
+    expect(
+      deriveRefRole({ authorRole: undefined, authorName: 'Some Human', personalityName: '   ' })
+    ).toBe('user');
+  });
+
   it('resolves a non-persona author to user even with a personality set', () => {
     expect(
       deriveRefRole({

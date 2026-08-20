@@ -118,16 +118,25 @@ function characterDisplayName(character: CharacterParticipant): string {
  * the name-prefix self-match swallowing any same-named sibling before it could
  * reach the roster. That justification died with the id comparison; it is
  * called out because the reasoning looked settled and was not.
+ *
+ * The responder's OWN name is normalized here too, not only the roster side.
+ * Both display-name helpers above already trim, so comparing the raw parameter
+ * against them makes `" Lilith "` fail to match a roster `Lilith` — and, worse,
+ * fail to match a roster `" Lilith "`, which renders identically to it. Same
+ * rule as the helpers: two names that RENDER identically must collide, so the
+ * comparison runs on the rendered form on both sides. Blank-guarded via
+ * `isRenderableName` because a name with no renderable form has nothing to
+ * collide with, and its empty normal form would match every other blank name.
  */
 function rosterCollidesWithCharacter(
   participants: ParticipantInfo[],
   personalityName: string,
   characters: CharacterParticipant[]
 ): boolean {
-  if (personalityName.length === 0) {
+  if (!isRenderableName(personalityName)) {
     return false;
   }
-  const target = personalityName.toLowerCase();
+  const target = personalityName.trim().toLowerCase();
   return (
     participants.some(info => participantDisplayName(info).toLowerCase() === target) ||
     characters.some(character => characterDisplayName(character).toLowerCase() === target)
@@ -157,6 +166,12 @@ function rosterHasDuplicateNames(
     ...participants.map(participantDisplayName),
     ...characters.map(characterDisplayName),
   ]) {
+    // Both display helpers return '' for a name with no renderable form, so
+    // two such entries would key alike and fire a note about a shared name
+    // that appears nowhere on the page. Nothing renders, so nothing collides.
+    if (!isRenderableName(name)) {
+      continue;
+    }
     const key = name.toLowerCase();
     if (seen.has(key)) {
       return true;

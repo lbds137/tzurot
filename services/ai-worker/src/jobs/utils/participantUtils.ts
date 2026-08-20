@@ -32,6 +32,16 @@ export type ChatLogRole = 'user' | 'assistant' | 'character';
  * whose name is a prefix of the responder's (or the reverse) reads as self.
  * Ids shrink how often that heuristic is consulted at all; they do not change
  * its behaviour where it still applies.
+ *
+ * Both comparands are trimmed before the prefix test. `Personality.name` is
+ * `z.string().min(1).max(255)` with no `.trim()`, and the roster renders the
+ * trimmed form, so an untrimmed compare splits one rendered identity in two:
+ * a `"Lilith"` row under a `" Lilith "` responder matches neither prefix
+ * direction and demotes the responder's OWN line to `character`, which the
+ * roster then shows the personality to itself as a peer for. A leading-pad
+ * asymmetry is the reachable half — a TRAILING pad already matched by prefix,
+ * which is why only one direction of the class was visible. Names that render
+ * identically must resolve to the same role, in both pad directions.
  */
 function resolveAssistantRowRole(
   msg: RawHistoryEntry,
@@ -49,10 +59,18 @@ function resolveAssistantRowRole(
     return rowId === responderPersonalityId ? 'assistant' : 'character';
   }
 
-  const speakerLower = speakerName.toLowerCase();
-  const personalityLower = personalityName.toLowerCase();
+  const speakerLower = speakerName.trim().toLowerCase();
+  const personalityLower = personalityName.trim().toLowerCase();
+  // An empty comparand is checked BEFORE the prefix test, not left to it:
+  // `startsWith('')` is true for every string, so one blank name would claim
+  // every assistant row as the responder's own — a sibling's words presented
+  // to the model as its own, which is the failure this whole split prevents.
+  // Blank carries no name evidence, so it takes the same no-match exit an
+  // unrelated name takes.
   const isSelf =
-    speakerLower.startsWith(personalityLower) || personalityLower.startsWith(speakerLower);
+    speakerLower.length > 0 &&
+    personalityLower.length > 0 &&
+    (speakerLower.startsWith(personalityLower) || personalityLower.startsWith(speakerLower));
   return isSelf ? 'assistant' : 'character';
 }
 
@@ -92,11 +110,23 @@ export function resolveSpeakerInfo(
     // Disambiguate when persona name matches ANY AI personality name in the conversation
     // This handles multi-AI channels where user "Lila" could be confused with "Lila AI"
     // Format: "Lila (@lbds137)" to make it clear who is who
-    const speakerLower = speakerName.toLowerCase();
+    // Compared as RENDERED (trimmed), on both sides and for every set entry:
+    // neither a persona name nor a personality name is schema-trimmed, so a
+    // padded pair that a reader cannot tell apart would otherwise skip the
+    // disambiguation in exactly the case it exists for.
+    const speakerLower = speakerName.trim().toLowerCase();
+    // Guarded on the speaker alone, and that is sufficient rather than partial:
+    // both tests below are strict EQUALITY, so a non-empty speaker can never
+    // match a blank comparand, and a blank speaker is the only way '' reaches
+    // either side. Unguarded, two names that both render as nothing would
+    // "collide" and append a username to an empty display name.
     const needsDisambiguation =
-      speakerLower === personalityName.toLowerCase() ||
-      (allPersonalityNames !== undefined &&
-        Array.from(allPersonalityNames).some(name => name.toLowerCase() === speakerLower));
+      speakerLower.length > 0 &&
+      (speakerLower === personalityName.trim().toLowerCase() ||
+        (allPersonalityNames !== undefined &&
+          Array.from(allPersonalityNames).some(
+            name => name.trim().toLowerCase() === speakerLower
+          )));
 
     if (
       needsDisambiguation &&
@@ -321,8 +351,12 @@ export function extractCharacterParticipants(
     if (byId.has(id)) {
       continue;
     }
-    // resolveSpeakerInfo already resolved the display fallback; storing its
-    // answer keeps the roster name and the chat-log `from=` byte-identical.
+    // resolveSpeakerInfo already resolved the display fallback, so storing its
+    // answer gives both renders one source string. They are NOT byte-identical
+    // downstream: the roster emits the TRIMMED form of this name, while the
+    // chat-log `from=` carries it verbatim. `from_id` is the binding either
+    // way, and the trim-insensitive name comparisons throughout this path are
+    // what keep the two rendered forms resolving to one identity.
     byId.set(id, speakerInfo.speakerName);
   }
 

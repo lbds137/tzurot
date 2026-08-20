@@ -16,6 +16,12 @@ import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
  * the same disambiguation format used in conversationUtils.ts for history messages:
  * "Lila (@discordUsername)".
  *
+ * The comparison runs on the trimmed forms while the RETURNED value keeps the
+ * caller's bytes: neither name is schema-trimmed, and the roster renders the
+ * trimmed form, so `" Lila "` and `"Lila"` are one name to a reader and must
+ * disambiguate together. Trimming the output too would change rendered prompt
+ * bytes, which is a separate decision from what compares equal.
+ *
  * @param activePersonaName - User's persona display name
  * @param personalityName - AI personality's name
  * @param discordUsername - User's Discord username for disambiguation
@@ -26,10 +32,15 @@ export function buildDisambiguatedDisplayName(
   personalityName: string | undefined,
   discordUsername: string | undefined
 ): string {
+  // Both length guards are on the TRIMMED forms: the compare below normalizes,
+  // so a raw-length guard lets two all-whitespace names through as "equal" and
+  // appends a username to a name that renders as nothing at all.
+  const persona = activePersonaName.trim().toLowerCase();
+  const personality = personalityName?.trim().toLowerCase() ?? '';
   const needsDisambiguation =
-    personalityName !== undefined &&
-    personalityName.length > 0 &&
-    activePersonaName.toLowerCase() === personalityName.toLowerCase() &&
+    persona.length > 0 &&
+    personality.length > 0 &&
+    persona === personality &&
     discordUsername !== undefined &&
     discordUsername.length > 0;
 
