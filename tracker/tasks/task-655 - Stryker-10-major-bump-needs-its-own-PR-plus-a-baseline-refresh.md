@@ -1,9 +1,10 @@
 ---
 id: TASK-655
 title: Stryker 10 major bump needs its own PR plus a baseline refresh
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 10:55'
+updated_date: '2026-08-20 04:13'
 labels:
   - 'area:tooling'
   - 'size:M'
