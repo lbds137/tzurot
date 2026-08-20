@@ -4,7 +4,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ButtonStyle, MessageFlags } from 'discord.js';
-import { _testExports, handleView, handleViewPagination, handleExpandField } from './view.js';
+import {
+  _testExports,
+  buildRedactedViewPage,
+  handleView,
+  handleViewPagination,
+  handleExpandField,
+} from './view.js';
 import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
@@ -419,6 +425,40 @@ describe('buildCharacterViewPage', () => {
       const json = embed.toJSON();
 
       expect(json.title).toContain('Conversation');
+    });
+  });
+
+  describe('payload-cap clamps', () => {
+    it('overview identity field stays inside the 1024-char cap for maximal escaped names', () => {
+      // Two schema-legal 255-char names, doubled by markdown escaping, exceed
+      // the field cap — discord.js would THROW at addFields without the clamp.
+      // Backticks escape 2:1 (measured: 255 → 510), so two maximal names
+      // plus the field chrome exceed 1024 — the pre-clamp build THREW here.
+      const character = createTestCharacter({
+        name: '`'.repeat(255),
+        displayName: '`'.repeat(255),
+      });
+      const { embed } = buildCharacterViewPage(character, 0);
+      const identity = embed.toJSON().fields?.find(f => f.name.includes('Identity'));
+      expect(identity?.value.length).toBeLessThanOrEqual(1024);
+    });
+
+    it('redacted view builds (rather than throws) for maximal escaped names', () => {
+      // The same concatenation exists on the redacted detail page reached via
+      // browse — the sibling instance a review caught unclamped.
+      const character = createTestCharacter({
+        name: '`'.repeat(255),
+        displayName: '`'.repeat(255),
+      });
+      const { embed } = buildRedactedViewPage(character);
+      const identity = embed.toJSON().fields?.find(f => f.name.includes('Identity'));
+      expect(identity?.value.length).toBeLessThanOrEqual(1024);
+    });
+
+    it('view title stays inside the 256-char cap for a maximal display name', () => {
+      const character = createTestCharacter({ displayName: 'n'.repeat(255) });
+      const { embed } = buildCharacterViewPage(character, 0);
+      expect(embed.toJSON().title?.length).toBeLessThanOrEqual(256);
     });
   });
 

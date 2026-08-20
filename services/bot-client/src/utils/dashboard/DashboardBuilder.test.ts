@@ -98,6 +98,31 @@ describe('DashboardBuilder', () => {
       expect(embed.data.fields?.[1].value).toBe('A test description');
     });
 
+    it('builds (rather than throws) when a section preview exceeds the 1024-char field cap', () => {
+      // The prod repro: a schema-legal import (1000-char tone, escaped) made
+      // the identity preview exceed the field cap, discord.js threw at
+      // addFields, and the whole edit dashboard died. The builder clamps now.
+      const config = createTestConfig();
+      config.sections = [
+        {
+          ...config.sections[0],
+          getPreview: () => 'x'.repeat(2000),
+        },
+      ];
+
+      const embed = buildDashboardEmbed(config, testEntity);
+      expect(embed.data.fields?.[0].value).toHaveLength(1024);
+      expect(embed.data.fields?.[0].value?.endsWith('\u2026')).toBe(true);
+    });
+
+    it('builds (rather than throws) when the title exceeds the 256-char cap', () => {
+      const config = createTestConfig();
+      config.getTitle = () => `Editing: ${'n'.repeat(300)}`;
+
+      const embed = buildDashboardEmbed(config, testEntity);
+      expect(embed.data.title).toHaveLength(256);
+    });
+
     it('should show placeholder for empty sections', () => {
       const config = createTestConfig();
       const emptyEntity: TestEntity = { id: '1', name: '', description: null };

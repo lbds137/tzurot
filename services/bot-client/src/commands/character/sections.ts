@@ -101,13 +101,17 @@ export const identitySection: SectionDefinition<CharacterData> = {
     return SectionStatus.EMPTY;
   },
   getPreview: (data: CharacterData) => {
+    // Truncate like every sibling section: tone is schema-legal to 1000
+    // chars and escaping can double a name, while the whole preview must fit
+    // one 1024-char embed field — an untruncated join here threw at embed
+    // build time and took the edit dashboard down for a legal import.
     const display = escapeMarkdown(data.displayName ?? data.name);
-    const parts: string[] = [`**${display}** (slug: \`${data.slug}\`)`];
+    const parts: string[] = [`**${truncatePreview(display, 100)}** (slug: \`${data.slug}\`)`];
     if (data.personalityTone !== null && data.personalityTone.length > 0) {
-      parts.push(`🎭 ${escapeMarkdown(data.personalityTone)}`);
+      parts.push(`🎭 ${truncatePreview(escapeMarkdown(data.personalityTone), 60)}`);
     }
     if (data.personalityAge !== null && data.personalityAge.length > 0) {
-      parts.push(`📅 ${escapeMarkdown(data.personalityAge)}`);
+      parts.push(`📅 ${truncatePreview(escapeMarkdown(data.personalityAge), 30)}`);
     }
     return parts.join(' • ');
   },

@@ -72,6 +72,21 @@ describe('Character Dashboard Sections', () => {
       expect(preview).toContain('Fallback');
     });
 
+    it('keeps the preview inside one embed field for maximal schema-legal inputs', () => {
+      // The prod repro class: tone is legal to 1000 chars and markdown
+      // escaping expands a symbol-heavy name, while the whole preview must fit
+      // a 1024-char embed field. Every part truncates now, like the sibling
+      // sections always did.
+      const character = createTestCharacter({
+        displayName: '*'.repeat(255),
+        personalityTone: '*'.repeat(1000),
+        // Age caps at 100 in the schema — the fixture stays schema-legal.
+        personalityAge: '*'.repeat(100),
+      });
+      const preview = identitySection.getPreview(character);
+      expect(preview.length).toBeLessThanOrEqual(1024);
+    });
+
     it('should include slug in preview', () => {
       const character = createTestCharacter({ slug: 'my-slug' });
       const preview = identitySection.getPreview(character);
