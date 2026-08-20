@@ -29,4 +29,8 @@ The open question is a cost/benefit one for the owner rather than a defect: is t
 Fix shape if accepted: drop the characters.length > 0 conjunct, update the byte-identity test to expect the note in the two-humans case, and note the widening in the release notes since it changes existing channels prompts.
 
 Acceptance: the decision is recorded either way; if widened, the humans-only duplicate case renders the note and the test asserting byte-identity is updated rather than deleted.
+
+## OWNER DECISION 2026-08-20
+
+Widen — drop the characters.length > 0 conjunct so the duplicate-name note fires for pure-human rosters too. Rationale: the two-humans collision is real (TASK-528), the cost is ~30 CACHED S1 tokens and only in channels that actually carry a collision, and misattribution is the failure class the beta.205 theme exists to kill. Per the task's fix shape: update the byte-identity test to expect the note in the two-humans case (not delete it), and add a release-notes line since existing channels' prompts change.
 <!-- SECTION:DESCRIPTION:END -->

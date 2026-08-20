@@ -92,4 +92,8 @@ fallback chain to failure classes it cannot fix. Recommended. With the money
 side corrected above, this is closer to an ordinary engineering call than the
 first draft implied — it needs the owner only for a say on the
 latency-vs-rescue tradeoff. NOT started; no code written.
+
+## OWNER DECISION 2026-08-20
+
+Option (b) — keep a gate, widened narrowly: attempt the floor hop when the hop-1 retry's error is quota-shaped (classifyQuotaFailure !== null) OR the ORIGINAL category came from opts.inheritedQuotaCategory (the proactive-demotion dead-end actually reported). Rationale: closes the reported dead-end without extending the fallback chain to request-shaped failures (content-policy, context overflow) the floor cannot rescue; money is not at stake (floor is free for guests, user-billed otherwise), so the trade was latency-vs-rescue and the narrow gate wins it. Buildable now — slated as a beta.205 rider.
 <!-- SECTION:DESCRIPTION:END -->
