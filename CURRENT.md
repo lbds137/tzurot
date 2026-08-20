@@ -35,7 +35,7 @@ Three holistic release reviews, no blocking findings. They verified the 17-packa
 ## 📋 Open items (near-term)
 
 - **Purge EXECUTED (owner-authorized 2026-08-16)**: 20 never-used accounts erased (cohort had grown 18→20 by run time), 0 characters touched, post-run preview confirms 0 eligible, userbase 228→208. Tombstones propagate to dev on next sync (the #2120-safe direction). Remaining: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call).
-- **S1 (beta.201, #2090 export-clear round-trip) — STILL OPEN**: export a character with an **empty** field → re-import → confirm it stays empty. TASK-590 (`customFields` lossy gateway-side) is the known gap left out on purpose.
+- **S1 (beta.201, #2090 export-clear round-trip) — DEFERRED BY OWNER 2026-08-20 → run in the beta.205 release-kickoff smoke batch.** The full instruction, self-contained for when it's time: on dev, pick a character with at least one genuinely **empty** optional field (or blank one out, e.g. appearance/likes) → `/character export` → `/character import` the JSON back. PASS = import succeeds AND the field is still empty afterward; FAIL = import error, or the field comes back filled with an old value. Judge by any field EXCEPT `customFields` (TASK-590, known-lossy gateway-side, excluded on purpose). Attachment-bearing (needs file upload). This is the ONLY carried attachment smoke item.
 - **Housekeeping**: `3f50da50.jsonl` (155MB, fully mined) is a disk-space deletion candidate — owner's explicit okay still needed.
 
 ## 🔧 DRAIN CAMPAIGN — resumes now (doc-77 shipped); batching is the method
