@@ -36,6 +36,7 @@ import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import { fetchFact, correctFact, forgetFact, setFactLock, type FactItem } from './factsApi.js';
+import { clampEmbedText } from '../../utils/embedLimits.js';
 
 const logger = createLogger('memory-facts-detail');
 
@@ -318,7 +319,11 @@ export async function handleForgetButton(
     .setTitle('⚠️ Forget This Fact?')
     .setColor(DISCORD_COLORS.ERROR)
     .setDescription(
-      `> ${escapeMarkdown(fact.statement)}\n\n` +
+      // The STATEMENT is clamped, not the whole description: fact.statement
+      // has no schema cap and escaping can grow it, and clamping the joined
+      // string would truncate the warning text — the part that must survive.
+      // 3800 leaves room for the static warning inside the 4096 cap.
+      `> ${clampEmbedText(escapeMarkdown(fact.statement), 3800)}\n\n` +
         `The character will permanently forget this, and it will **never be re-learned** ` +
         `from past conversations.\n\n**This cannot be undone.**`
     );

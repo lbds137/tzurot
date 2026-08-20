@@ -128,6 +128,29 @@ describe('buildCharacterViewV2', () => {
     );
   });
 
+  it('clamps every page-0 text display at the 4000-char cap for oversized names', () => {
+    // Deliberately schema-ILLEGAL fixture: today's maximal legal names land
+    // ~1,100 chars, so the clamp is margin — this synthetic input is what
+    // proves the assertion can fail if TEXT_DISPLAY_MAX, identityBlock, or
+    // clampEmbedText regresses (a future edit would otherwise throw at build
+    // time with no test to catch it).
+    const tree = toTree(
+      buildCharacterViewV2(
+        createTestCharacter({ name: '`'.repeat(5000), displayName: '`'.repeat(5000) }),
+        0,
+        null,
+        false
+      )
+    );
+
+    const flat = flatten(tree);
+    const texts = flat.filter(n => typeof n.content === 'string');
+    expect(texts.length).toBeGreaterThan(0);
+    for (const node of texts) {
+      expect(node.content!.length).toBeLessThanOrEqual(4000);
+    }
+  });
+
   it('renders a plain title (no Section) when there is no avatar', () => {
     const tree = toTree(buildCharacterViewV2(createTestCharacter(), 0, null, false));
 

@@ -18,6 +18,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { truncateByCodePoints } from './modal/toolkit.js';
+import { clampEmbedText, EMBED_CAPS } from './embedLimits.js';
 
 /** One embed field; `inline` defaults to false. */
 export interface DetailCardField {
@@ -83,7 +84,18 @@ function resolveDescription(options: EntityDetailCardOptions): {
   if (description === undefined || description.length === 0) {
     return { description: undefined, truncated: false };
   }
-  if (descriptionCap === undefined || [...description].length <= descriptionCap) {
+  if (descriptionCap === undefined) {
+    // No caller cap does NOT mean unbounded: discord.js THROWS on an
+    // over-limit description at build time, so an uncapped AI-extracted or
+    // imported value would take the whole detail view down. The platform cap
+    // is the non-optional floor; callers opt into TIGHTER caps, never out.
+    const floored = clampEmbedText(description, EMBED_CAPS.description);
+    // `truncated` reflects reality on the floor path too: a caller reading
+    // the flag to offer a "view full" affordance must not be told an actually
+    // cut description is whole.
+    return { description: floored, truncated: floored !== description };
+  }
+  if ([...description].length <= descriptionCap) {
     return { description, truncated: false };
   }
   const notice = truncationNotice ?? '';
@@ -93,8 +105,10 @@ function resolveDescription(options: EntityDetailCardOptions): {
 
 /** Build a single-entity detail embed from plain data. */
 export function buildEntityDetailCard(options: EntityDetailCardOptions): EntityDetailCard {
+  // Title/fields/footer are clamped at the payload boundary for the same
+  // reason as the description floor above — build-time throws, not truncation.
   const embed = new EmbedBuilder()
-    .setTitle(options.title)
+    .setTitle(clampEmbedText(options.title, EMBED_CAPS.title))
     .setColor(options.color ?? DISCORD_COLORS.BLURPLE);
 
   const { description, truncated } = resolveDescription(options);
@@ -110,14 +124,18 @@ export function buildEntityDetailCard(options: EntityDetailCardOptions): EntityD
     .map(slot =>
       slot === 'spacer'
         ? SPACER_FIELD
-        : { name: slot.name, value: slot.value, inline: slot.inline ?? false }
+        : {
+            name: clampEmbedText(slot.name, EMBED_CAPS.fieldName),
+            value: clampEmbedText(slot.value, EMBED_CAPS.fieldValue),
+            inline: slot.inline ?? false,
+          }
     );
   if (fields.length > 0) {
     embed.addFields(fields);
   }
 
   if (options.footer !== undefined && options.footer.length > 0) {
-    embed.setFooter({ text: options.footer });
+    embed.setFooter({ text: clampEmbedText(options.footer, EMBED_CAPS.footer) });
   }
   if (options.timestamp === true) {
     embed.setTimestamp();
