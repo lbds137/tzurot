@@ -1,9 +1,10 @@
 ---
 id: TASK-687
 title: Confirm which model z.ai actually serves for glm-4.5-air requests
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 22:46'
+updated_date: '2026-08-20 01:22'
 labels:
   - 'area:ai-worker'
   - 'size:S'
