@@ -183,6 +183,86 @@ Another paragraph here with more content.`;
       });
     });
 
+    it('marks every fragment of a force-split token by default', () => {
+      // The default suits a display-only sender: the trailing marker is what tells a
+      // reader an unbroken token was cut rather than ending there.
+      const token = 'Zq7' + 'x'.repeat(117);
+      const result = splitMessage(token, 50);
+
+      expect(result.length).toBeGreaterThan(1);
+      result.forEach(fragment => {
+        expect(fragment.endsWith('...')).toBe(true);
+        expect(fragment.length).toBeLessThanOrEqual(50);
+      });
+      // The markers are ADDED text: strip them and the original token is back.
+      expect(result.map(fragment => fragment.slice(0, -3)).join('')).toBe(token);
+    });
+
+    it('concatenates back to the exact input when decoration is off', () => {
+      // The opt-out exists for callers that STORE or re-send the fragments as the
+      // user's own text, where an injected '...' is indistinguishable from typed
+      // ellipses. Exactness is the whole guarantee — the 10-char marker reserve is
+      // dropped too, since nothing needs room reserved.
+      const token = 'Zq7' + 'x'.repeat(117);
+      const result = splitMessage(token, 50, { decorateForcedSplits: false });
+
+      expect(result.length).toBeGreaterThan(1);
+      expect(result.join('')).toBe(token);
+      // The full budget is used, not budget-minus-marker-reserve.
+      expect(result[0].length).toBe(50);
+      result.forEach(fragment => {
+        expect(fragment).not.toContain('...');
+        expect(fragment.length).toBeLessThanOrEqual(50);
+      });
+    });
+
+    it('splices no fence markers into an over-budget code block when decoration is off', () => {
+      // The other injection mechanism the flag governs: a cut landing inside a fenced
+      // block normally gets re-closing/re-opening ``` spliced around it so each chunk
+      // renders as valid markdown. Stored as the user's own text, that markup is
+      // indistinguishable from fences they typed.
+      const body = Array.from(
+        { length: 60 },
+        (_, i) => `  const lineNumber${i} = compute(${i});`
+      ).join('\n');
+      const input = '```js\n' + body + '\n```';
+      expect(input.length).toBeGreaterThan(1986);
+      const fenceCount = (text: string): number => (text.match(/```/g) ?? []).length;
+
+      const result = splitMessage(input, 1986, { decorateForcedSplits: false });
+
+      expect(result.length).toBeGreaterThan(1);
+      // Not one fence more than the input carried.
+      expect(result.reduce((total, chunk) => total + fenceCount(chunk), 0)).toBe(fenceCount(input));
+      result.forEach(chunk => {
+        expect(chunk).not.toContain('...');
+      });
+      // Byte-exact concat is NOT the guarantee here: the natural-boundary splitter
+      // re-flows whitespace (it word-splits and rejoins on single spaces, trimming each
+      // fragment), independently of this option. What the option guarantees is that
+      // nothing OTHER than whitespace differs — no synthetic character is added.
+      const withoutWhitespace = (text: string): string => text.replace(/\s+/g, '');
+      expect(withoutWhitespace(result.join(''))).toBe(withoutWhitespace(input));
+    });
+
+    it('rebalances fences across an over-budget code block by default', () => {
+      // The display-side default: extra fences ARE added, so each chunk closes and
+      // reopens the block and renders on its own.
+      const body = Array.from(
+        { length: 60 },
+        (_, i) => `  const lineNumber${i} = compute(${i});`
+      ).join('\n');
+      const input = '```js\n' + body + '\n```';
+      const fenceCount = (text: string): number => (text.match(/```/g) ?? []).length;
+
+      const result = splitMessage(input, 1986);
+
+      expect(result.length).toBeGreaterThan(1);
+      expect(result.reduce((total, chunk) => total + fenceCount(chunk), 0)).toBeGreaterThan(
+        fenceCount(input)
+      );
+    });
+
     it('should handle sentence boundary splitting', () => {
       const content = 'First sentence. Second sentence. Third sentence. Fourth sentence.';
       const result = splitMessage(content, 40);

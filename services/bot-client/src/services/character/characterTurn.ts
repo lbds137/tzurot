@@ -29,7 +29,9 @@ import {
   randomOptions,
   chimeInOptions,
 } from '@tzurot/common-types/generated/commandOptions';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { isTypingChannel, type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { splitMessage } from '@tzurot/common-types/utils/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -218,38 +220,87 @@ interface SendUserMessageParams {
 }
 
 /**
- * Send user message to Discord and save to conversation history.
- * Returns the Message object for context building and trigger tracking.
+ * Send the user's message to Discord as the channel echo and save it to
+ * conversation history.
+ *
+ * The `message` slash option accepts up to CHAT_MESSAGE_INPUT_MAX_LENGTH, which is
+ * more than one Discord message can carry, so the echo is split into
+ * MESSAGE_LENGTH-budgeted chunks (the display prefix counts against that budget)
+ * and EACH chunk becomes both its own Discord message and its own conversation
+ * row. The LAST chunk is returned as the turn's anchor: the worker re-derives the
+ * current turn from the anchor's own content, so the earlier chunks reach the
+ * prompt as ordinary history rows instead of needing a wire-level change.
+ *
+ * Returns the anchor Message for context building and trigger tracking.
  */
 async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise<Message> {
   const { channel, displayName, message, personality, personaId, guildId } = params;
 
-  const userMsg = await channel.send(`**${displayName}:** ${message}`);
+  const prefix = `**${displayName}:** `;
+  // decorateForcedSplits off: content wider than the budget is cut either way, but the
+  // default decorations — a '...' marker on a force-split token, re-closing/re-opening
+  // ``` fences around a cut inside a code block — would be stored in the history row and
+  // re-sent to the model as if the user had typed them. Off, the splitter adds no
+  // synthetic character at all (it still re-flows whitespace at a boundary, which is its
+  // own behavior and not decoration). That holds for the display side too: the text is
+  // the user's own, and an unmarked cut is the honest rendering.
+  const chunks = splitMessage(message, DISCORD_LIMITS.MESSAGE_LENGTH - prefix.length, {
+    decorateForcedSplits: false,
+  });
+  if (chunks.length === 0) {
+    throw new Error('splitMessage returned no chunks for a non-empty message');
+  }
 
-  // Fire-and-forget persistence: Trade-off between responsiveness and guaranteed persistence.
-  // If save fails (DB issues), the Discord message is still sent but won't be in history.
+  // Send every chunk before persisting any of them, so a mid-send throw reaches
+  // runCharacterTurn's catch with nothing half-written to the DB. That is the DB half
+  // of the story only: the chunks already sent stay POSTED in the channel, orphaned
+  // without history rows, while the turn itself aborts and no reply is generated. The
+  // accepted trade-off is which side may be inconsistent — visible-but-unrecorded
+  // beats a partially-recorded turn the model would then read as complete. Pinned by
+  // 'aborts the turn without persisting anything when a later chunk fails to send'.
+  const echoes: Message[] = [];
+  for (const chunk of chunks) {
+    echoes.push(await channel.send(prefix + chunk));
+  }
+
+  // Persist each row at ITS OWN echo's Discord createdAt so a stored row's timestamp equals
+  // its snowflake time. The caller anchors the assistant row to the last echo's createdAt +
+  // 1ms, so the pair stays ordered (user < assistant) AND consistent with the real Discord
+  // timeline — a pre-send timestamp would land the pair ahead of the echo's snowflake and let
+  // the extended-context merge (which sees the echo at its real snowflake time) invert them.
+  // The stored content is UNPREFIXED: the `**Name:**` prefix is a channel-display affordance,
+  // not part of what the user said.
+  const persist = async (echo: Message, content: string): Promise<void> => {
+    try {
+      await getConversationPersistence().saveUserMessageFromFields({
+        channelId: channel.id,
+        guildId,
+        discordMessageId: echo.id,
+        personality,
+        personaId,
+        messageContent: content,
+        timestamp: echo.createdAt,
+      });
+    } catch (err) {
+      logger.warn({ err, messageId: echo.id }, 'Failed to save user message');
+    }
+  };
+
+  // Single chunk — fire-and-forget: a trade-off between responsiveness and guaranteed
+  // persistence (on a DB failure the Discord message still posts but misses history).
   // This matches the @mention pattern and prioritizes UX over perfect data consistency.
   //
-  // Persist at the ECHO's own Discord createdAt so the stored row's timestamp equals its
-  // snowflake time. The caller anchors the assistant row to echo.createdAt + 1ms, so the pair
-  // stays ordered (user < assistant) AND consistent with the real Discord timeline — a
-  // pre-send timestamp would land the pair ahead of the echo's snowflake and let the
-  // extended-context merge (which sees the echo at its real snowflake time) invert them.
-  void getConversationPersistence()
-    .saveUserMessageFromFields({
-      channelId: channel.id,
-      guildId,
-      discordMessageId: userMsg.id,
-      personality,
-      personaId,
-      messageContent: message,
-      timestamp: userMsg.createdAt,
-    })
-    .catch(err => {
-      logger.warn({ err, messageId: userMsg.id }, 'Failed to save user message');
-    });
+  // Multiple chunks — awaited: only the LAST chunk rides along as the anchor, so the
+  // earlier ones reach the turn solely through the stored history, and a fire-and-forget
+  // write could still be in flight when the job reads it. A failed write is still only
+  // warned about (the catch above), never thrown — the same trade-off, different timing.
+  if (echoes.length === 1) {
+    void persist(echoes[0], chunks[0]);
+  } else {
+    await Promise.all(echoes.map((echo, index) => persist(echo, chunks[index])));
+  }
 
-  return userMsg;
+  return echoes[echoes.length - 1];
 }
 
 /** Parameters for building chat context */
