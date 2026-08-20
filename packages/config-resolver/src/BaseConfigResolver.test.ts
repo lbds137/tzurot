@@ -193,6 +193,49 @@ describe('BaseConfigResolver', () => {
       expect(userMock).toHaveBeenCalledTimes(1);
     });
 
+    it('caches per-personality override resolutions (priority-1 arm writes the cache too)', async () => {
+      // The generic caching test above resolves through the personality-fallback arm;
+      // each waterfall arm has its OWN cache.set, so each needs its own pin — deleting
+      // the priority-1 write would silently send every override resolve back to the DB.
+      const userMock = vi.fn().mockResolvedValue({
+        internalId: 'internal-x',
+        defaultOverride: null,
+      });
+      const overrideMock = vi.fn().mockResolvedValue({
+        override: { name: 'per-personality', displayName: 'Per-Personality' },
+        name: 'Per-Personality',
+      });
+      resolver.mockUserWithDefault = userMock;
+      resolver.mockPerPersonalityOverride = overrideMock;
+
+      const first = await resolver.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+      const second = await resolver.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+
+      expect(first.source).toBe('user-personality');
+      expect(second).toEqual(first);
+      expect(userMock).toHaveBeenCalledTimes(1);
+      expect(overrideMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches user-default resolutions (priority-2 arm writes the cache too)', async () => {
+      const userMock = vi.fn().mockResolvedValue({
+        internalId: 'internal-x',
+        defaultOverride: {
+          override: { name: 'user-default', displayName: 'User-Default' },
+          name: 'User-Default',
+        },
+      });
+      resolver.mockUserWithDefault = userMock;
+      resolver.mockPerPersonalityOverride = async () => null;
+
+      const first = await resolver.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+      const second = await resolver.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+
+      expect(first.source).toBe('user-default');
+      expect(second).toEqual(first);
+      expect(userMock).toHaveBeenCalledTimes(1);
+    });
+
     it('uses different cache keys for different personalities', async () => {
       const userMock = vi.fn().mockResolvedValue({
         internalId: 'internal-x',

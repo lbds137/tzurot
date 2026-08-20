@@ -1,25 +1,25 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-06T19:10:02.993Z",
+  "lastUpdated": "2026-08-20T03:00:23.625Z",
   "packages": {
     "config-resolver": {
-      "score": 87.17,
+      "score": 86.89,
       "graceMargin": 1
     },
     "cache-invalidation": {
-      "score": 88.98,
+      "score": 89.44,
       "graceMargin": 1
     },
     "conversation-history": {
-      "score": 85.04,
+      "score": 86.34,
       "graceMargin": 1
     },
     "identity": {
-      "score": 78.48,
+      "score": 78.83,
       "graceMargin": 1
     },
     "clients": {
-      "score": 94.48,
+      "score": 96.44,
       "graceMargin": 1
     }
   },
@@ -27,7 +27,7 @@
     "toolVersion": "mutation-check/1",
     "configHash": "60999849d8ff",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "64e06cb54e17cc4de4045205cabf5d48ffd33da3",
-    "generatedAt": "2026-07-06T19:10:02.992Z"
+    "generatedFromSha": "23b6b330b60114dd9dd8f5e95a01ab6eb0ac2e9e",
+    "generatedAt": "2026-08-20T03:00:23.625Z"
   }
 }
