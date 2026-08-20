@@ -76,14 +76,14 @@ describe('handleView', () => {
     // A failed wallet fetch means keys are UNKNOWN — a key-holder viewing the
     // conditionally-free model mid-blip must not be told it is free (they are
     // billed on their own key). Empty-Set-on-failure regressed exactly this.
-    viewModelId = 'z-ai/glm-4.5-air';
+    viewModelId = 'z-ai/glm-4.7';
     catalogMock.fetchCatalogModelById.mockResolvedValue(
-      // glm-4.5-air is a real coding-plan member, so the builder's computed
+      // glm-4.7 is a real coding-plan member, so the builder's computed
       // isZaiCoding default is true; this suite doesn't exercise the ⚡ badge,
       // so pin the original false rather than let the default drift in.
       catalogModel({
-        id: 'z-ai/glm-4.5-air',
-        name: 'GLM 4.5 Air',
+        id: 'z-ai/glm-4.7',
+        name: 'GLM 4.7',
         source: 'both',
         isZaiCoding: false,
       })
@@ -100,14 +100,14 @@ describe('handleView', () => {
   });
 
   it('renders the piggyback model as free for a CONFIRMED keyless user', async () => {
-    viewModelId = 'z-ai/glm-4.5-air';
+    viewModelId = 'z-ai/glm-4.7';
     catalogMock.fetchCatalogModelById.mockResolvedValue(
-      // glm-4.5-air is a real coding-plan member, so the builder's computed
+      // glm-4.7 is a real coding-plan member, so the builder's computed
       // isZaiCoding default is true; this suite doesn't exercise the ⚡ badge,
       // so pin the original false rather than let the default drift in.
       catalogModel({
-        id: 'z-ai/glm-4.5-air',
-        name: 'GLM 4.5 Air',
+        id: 'z-ai/glm-4.7',
+        name: 'GLM 4.7',
         source: 'both',
         isZaiCoding: false,
       })

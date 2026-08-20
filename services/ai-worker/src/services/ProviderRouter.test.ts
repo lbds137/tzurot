@@ -519,6 +519,15 @@ describe('detectVisionProvider', () => {
     expect(detectVisionProvider('glm-4.5-air')).toBe(AIProvider.ZaiCoding);
   });
 
+  it('keeps a BARE glm-*:free id on OpenRouter too', () => {
+    // The :free guard runs before both the prefix rule and the bare-glm rule,
+    // so it protects the slash-less form as well. Asserted because the guard
+    // is broader than the z-ai/-prefixed case that motivated it, and nothing
+    // else pins that half.
+    expect(detectVisionProvider('glm-5.2:free')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('glm-4.5-air:free')).toBe(AIProvider.OpenRouter);
+  });
+
   it('routes vendor/model formats to OpenRouter', () => {
     expect(detectVisionProvider('qwen/qwen3.5-397b-a17b')).toBe(AIProvider.OpenRouter);
     expect(detectVisionProvider('anthropic/claude-sonnet-4')).toBe(AIProvider.OpenRouter);

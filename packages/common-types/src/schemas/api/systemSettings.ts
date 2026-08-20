@@ -37,7 +37,7 @@ export const SystemSettingsSchema = z.object({
   factsInPromptEnabled: z.boolean(),
   /** Runtime switch for character roster blurbs: the summarizer sweep AND rendering them in the prompt. */
   rosterBlurbEnabled: z.boolean(),
-  /** Share GLM-4.5-Air with guests via the system z.ai coding-plan key. */
+  /** Share GLM-4.7 with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
   /** Vision-describe rasterizable stickers (instance-funded, cached per snowflake). */
   stickerVisionEnabled: z.boolean(),
@@ -304,7 +304,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
   zaiFreeTierEnabled: {
     key: 'zaiFreeTierEnabled',
     label: 'z.ai Free Tier Enabled',
-    description: 'Share GLM-4.5-Air with guests via the system z.ai coding-plan key.',
+    description: 'Share GLM-4.7 with guests via the system z.ai coding-plan key.',
     group: GROUP_ZAI,
     control: 'boolean',
     liveness: 'live',

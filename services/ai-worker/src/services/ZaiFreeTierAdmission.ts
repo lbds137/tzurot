@@ -1,6 +1,6 @@
 /**
  * z.ai free-tier admission — the single gate deciding whether a GUEST request
- * may ride GLM-4.5-Air on the owner's coding-plan key.
+ * may ride GLM-4.7 on the owner's coding-plan key.
  *
  * Admission requires ALL of (checked cheapest-first):
  *   1. the `zaiFreeTierEnabled` setting on and the system coding-plan key present.

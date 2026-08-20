@@ -285,11 +285,14 @@ export const TTS_VOICE_NAME_PREFIX = 'tzurot-';
  *
  * The available-model list lives in `ZAI_MODEL_CATALOG` below — a second
  * enumeration here would go stale silently. GLM-4.7 is the cheapest model
- * z.ai still documents (Input 4.6 / Output 16, against GLM-5-Turbo's 5.7 / 21),
- * and a validation probe spends a single token regardless. This named
- * GLM-4.5-Air until a probe showed z.ai rerouting that id to GLM-4.7 anyway —
- * the request was already going to the same model, only under a name z.ai no
- * longer publishes.
+ * z.ai still documents (Input 4.6 / Output 16, against GLM-5-Turbo's 5.7 / 21
+ * — z.ai's published multipliers as read, which nothing here re-checks and a
+ * reprice would silently outdate). A validation probe spends a single token
+ * regardless, so the comparison motivates the choice without depending on it.
+ *
+ * This named GLM-4.5-Air until a probe showed z.ai rerouting that id to
+ * GLM-4.7 anyway — the request was already going to the same model, only under
+ * a name z.ai no longer publishes.
  */
 export const ZAI_VALIDATION_MODEL = 'glm-4.7';
 
@@ -303,10 +306,10 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    isn't here, promotion would 404, so the request stays on OpenRouter.
  *
  * 2. **Model docs URL** — `buildModelInfoUrl()` (z.ai branch) reads the
- *    `docsUrl` for the response footer link. Most models have a dedicated
- *    docs page at `docs.z.ai/guides/llm/<model>`; `glm-4.5-air` is the
- *    exception — z.ai docs that variant on the parent `glm-4.5` page, so we
- *    link there instead.
+ *    `docsUrl` for the response footer link. Every catalog member has a
+ *    dedicated docs page at `docs.z.ai/guides/llm/<model>`; the field is
+ *    explicit anyway, since z.ai has docked a variant on its parent family's
+ *    page before and would again.
  *
  * 3. **Context length** — `getZaiCodingPlanContextLength()` reads the
  *    `contextLength` for the context-window cap. This is load-bearing: when a
@@ -327,9 +330,9 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    rounded-down label (OpenRouter's card for glm-5.1 is 202752, z.ai shows
  *    "200K"), so the decimal reading sits at or below the real served limit,
  *    which is the safe direction for a cap. glm-5/5.1/5-turbo/4.7 = 200K,
- *    glm-4.5-air = 128K, glm-5.2/5.3 = 1M. (z.ai documents 128K max output for the
- *    GLM-5 family and 5-turbo, 96K for glm-4.5-air — output headroom the cap
- *    formula reserves automatically; recorded here so the next audit has it.)
+ *    glm-5.2/5.3 = 1M. (z.ai documents 128K max output for the GLM-5 family
+ *    and 5-turbo — output headroom the cap formula reserves automatically;
+ *    recorded here so the next audit has it.)
  *
  * Source of truth for membership: docs.z.ai/devpack/overview. Source of truth
  * for context lengths + docs URLs: the per-model pages under
@@ -423,22 +426,6 @@ const ZAI_MODEL_CATALOG: Readonly<
     docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7',
     contextLength: 200_000,
     thinkingOff: 'unsupported',
-  },
-  // glm-4.5-air uses the parent family page — z.ai docs the Air variant on
-  // the same page as the regular glm-4.5; no per-model URL exists.
-  // `thinkingOff: 'honored'` is MEASURED: a live request with thinking disabled
-  // returned zero reasoning tokens.
-  //
-  // RETIRED UPSTREAM: z.ai now serves this id as glm-4.7 (probed — requesting
-  // `glm-4.5-air` responds `model: glm-4.7`), and no longer lists it. The entry
-  // stays so existing presets still resolve a context length and docs URL, but
-  // every value below describes a model no longer distinctly served — including
-  // the measurement above, taken when the id still reached Air. Anything
-  // reasoning about what actually runs should read glm-4.7's entry.
-  'glm-4.5-air': {
-    docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5',
-    contextLength: 128_000,
-    thinkingOff: 'honored',
   },
 };
 
@@ -582,8 +569,7 @@ export function listZaiCodingPlanModels(): ZaiCodingPlanModelInfo[] {
 /**
  * Build a model-info URL for the response footer based on which provider
  * was actually used. For z.ai-coding direct routes, link to z.ai's docs
- * page for the model (or the parent family page when no per-model page
- * exists, e.g., glm-4.5-air); for OpenRouter (including z.ai fallthrough
+ * page for the model; for OpenRouter (including z.ai fallthrough
  * where ProviderRouter rewrote the model to `z-ai/<model>`), link to
  * OpenRouter's model card page.
  *
@@ -698,27 +684,24 @@ export function isFreeModel(modelId: string): boolean {
  * This named GLM-4.5-Air until a live probe showed z.ai serving `glm-4.5-air`
  * requests as `glm-4.7` (requested air → responded 4.7; requested 4.7 →
  * responded 4.7). z.ai's own docs no longer list Air and describe automatic
- * rerouting of retired models, so Air is an alias rather than a model we can
- * still reach. Naming the served model directly costs nothing — it is the same
- * upstream request — and fixes two things the old name got wrong: the context
- * cap resolved from {@link ZAI_MODEL_CATALOG} (128K for Air vs the 200K
- * actually available) and the thinking-support flag.
+ * rerouting of retired models. Naming the served model directly costs nothing
+ * — it is the same upstream request — and fixes two things the old name got
+ * wrong: the context cap resolved from {@link ZAI_MODEL_CATALOG} (128K for Air
+ * vs the 200K actually available) and the thinking-support flag.
+ *
+ * The Air id is NOT kept as an alias here. It is still a distinct, PAID model
+ * on OpenRouter (131_072 context, no `:free` variant), so recognizing it as
+ * free-tier-eligible would have granted guests a paid model on the strength of
+ * z.ai's reroute alone. Dropping it from {@link ZAI_MODEL_CATALOG} likewise
+ * sends the id to OpenRouter, which is the only place it still resolves to Air.
  */
 export const ZAI_FREE_TIER_MODEL = 'glm-4.7';
-
-/**
- * The retired id that z.ai reroutes to {@link ZAI_FREE_TIER_MODEL}. Still
- * recognized so a preset or free-default config written before the rename
- * keeps qualifying for the piggyback instead of silently dropping to the free
- * router — the upstream request is identical either way.
- */
-const ZAI_FREE_TIER_LEGACY_ALIAS = 'glm-4.5-air';
 
 /** True for the piggyback model in bare or `z-ai/`-prefixed form. */
 export function isZaiFreeTierModel(modelId: string): boolean {
   const lower = modelId.toLowerCase();
   const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
-  return bare === ZAI_FREE_TIER_MODEL || bare === ZAI_FREE_TIER_LEGACY_ALIAS;
+  return bare === ZAI_FREE_TIER_MODEL;
 }
 
 /**

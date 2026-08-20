@@ -2,7 +2,7 @@
  * Guest-mode model overrides — extracted from AuthStep.
  *
  * A guest (no BYOK key) never runs a non-free model on the system OpenRouter
- * key. The z.ai piggyback model (`z-ai/glm-4.5-air` — NOT free on OpenRouter)
+ * key. The z.ai piggyback model (`z-ai/glm-4.7` — NOT free on OpenRouter)
  * is CONDITIONALLY free (owner semantics): while per-request admission holds
  * (flag + key + kill switch + plan headroom + quota), it behaves like any
  * free model at every resolution step — personal selection or global
