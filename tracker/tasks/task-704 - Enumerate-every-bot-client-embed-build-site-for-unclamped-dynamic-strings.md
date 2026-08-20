@@ -21,4 +21,6 @@ Why: the 2026-08-20 prod incident (owner-reported): /character edit died because
 What: enumerate deterministically (grep addFields, setTitle, setDescription, setFooter across services/bot-client/src, minus test files), classify each site static-safe vs dynamic, and route every dynamic site through clampEmbedText (utils/embedLimits.ts) or a bounded truncation. Check the Components-V2 renderer (viewV2.ts) against its own component text caps too.
 
 Acceptance: the enumeration (site list with per-site verdicts) is in the closing PR body; every dynamic site is clamped or has a stated boundedness argument; a canary shows at least one newly-clamped site would have thrown pre-fix.
+
+Two members added from the #2161 review rounds: (1) clampEmbedText / truncatePreview / truncateField all slice by UTF-16 code unit, so a cut landing inside a surrogate pair leaves a broken glyph before the ellipsis - fix once code-point-safe with a boundary test straddling an astral character (cosmetic only, cannot re-throw); (2) the aggregate ~6000-char total-embed limit is NOT enforced by discord.js at build time (probed: 7x1024-char fields build fine), so it is an API-side rejection class distinct from the build-time throws - decide whether the sweep should budget totals or accept the API error as the backstop.
 <!-- SECTION:DESCRIPTION:END -->
