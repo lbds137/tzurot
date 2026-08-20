@@ -3,9 +3,10 @@ id: TASK-690
 title: >-
   /chat and /random echo the user message unchunked, so a long message overflows
   Discord
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 01:17'
+updated_date: '2026-08-20 04:10'
 labels:
   - 'area:bot-client'
   - 'size:M'

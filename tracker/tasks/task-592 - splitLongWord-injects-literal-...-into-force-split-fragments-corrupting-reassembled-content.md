@@ -3,9 +3,10 @@ id: TASK-592
 title: >-
   splitLongWord injects literal "..." into force-split fragments, corrupting
   reassembled content
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 21:31'
+updated_date: '2026-08-20 04:10'
 labels:
   - 'area:common-types'
   - 'size:S'
