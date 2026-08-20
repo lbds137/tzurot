@@ -15,10 +15,32 @@ import {
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
+import { RetryError } from '../../../../utils/retry.js';
 
 // The bot owner (`owner-1`) bypasses the free-tier meter entirely.
 vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
   isBotOwner: (id: string) => id === 'owner-1',
+}));
+
+// The hop-1 floor-promotion decision is observable ONLY through its log lines
+// on the skip paths (the turn rethrows the original error either way), so the
+// runner's logger is spied on. `importOriginal` keeps every other export of
+// the logger module intact for the rest of the import graph.
+const { mockLogger } = vi.hoisted(() => {
+  const instance = {
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    child: () => instance,
+  };
+  return { mockLogger: instance };
+});
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createLogger: () => mockLogger,
 }));
 
 /** Mock free-tier quota; `allowed` drives whether the forced fallback proceeds. */
@@ -669,10 +691,17 @@ describe('runWithQuotaFallback', () => {
     expect(retry).not.toHaveBeenCalled();
   });
 
-  it('rethrows the original when no target exists (no admin default configured)', async () => {
+  it('rethrows the original when NOTHING is attemptable (no admin default, floor vetoed)', async () => {
+    // No admin default alone is no longer terminal — the floor is promoted to
+    // hop 1 (see the "hop-1 floor promotion" suite). Terminal now requires the
+    // floor to be unavailable too, so the doom cache vetoes it here.
     const original = quotaError(ApiErrorCategory.QUOTA_EXCEEDED);
     const primary = vi.fn().mockRejectedValue(original);
     const retry = vi.fn();
+    const deps = buildDeps({});
+    (deps.caches.rateLimit.isRateLimited as ReturnType<typeof vi.fn>).mockResolvedValue({
+      rateLimited: true,
+    });
 
     await expect(
       runWithQuotaFallback({
@@ -681,7 +710,7 @@ describe('runWithQuotaFallback', () => {
         opts: buildOpts(),
         userId: '123',
         requestId: 'req-1',
-        deps: buildDeps({}),
+        deps,
       })
     ).rejects.toBe(original);
     expect(retry).not.toHaveBeenCalled();
@@ -999,6 +1028,332 @@ describe('composeQuotaFallbackInfo', () => {
       toModel: 'divergent/paid-floor',
       category: ApiErrorCategory.RATE_LIMIT,
       mode: 'reactive',
+    });
+  });
+});
+
+describe('hop-1 floor promotion (no tier-aware retarget exists)', () => {
+  // No `registerSystemSettings` here on purpose: unregistered reads serve the
+  // registry fallbacks, so the free floor is the static `openrouter/free` and
+  // the paid floor the static `openrouter/auto`.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetSystemSettingsRegistration();
+    for (const method of [
+      mockLogger.trace,
+      mockLogger.debug,
+      mockLogger.info,
+      mockLogger.warn,
+      mockLogger.error,
+      mockLogger.fatal,
+    ]) {
+      method.mockClear();
+    }
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  /** The proactively-substituted guest: the failing model IS the free default. */
+  function guestOnFreeDefaultOpts(): GenerateAttemptOpts {
+    return buildOpts({
+      isGuestMode: true,
+      apiKey: 'sk-system-key',
+      personality: {
+        id: 'p1',
+        name: 'Testy',
+        model: 'freebie/model:free',
+        temperature: 0.9,
+      } as unknown as GenerateAttemptOpts['personality'],
+    });
+  }
+
+  /** A live upstream 429 as the runner sees it: the retry ladder's wrapper. */
+  function exhaustedRateLimitRetryError(): RetryError {
+    return new RetryError(
+      'Failed after 3 attempts',
+      3,
+      new ApiError('Rate limit exceeded', {
+        type: ApiErrorType.TRANSIENT,
+        category: ApiErrorCategory.RATE_LIMIT,
+        statusCode: 429,
+        userMessage: 'x',
+        technicalMessage: 'x',
+        referenceId: 'ref',
+        shouldRetry: true,
+      })
+    );
+  }
+
+  /** The RateLimitCache short-circuit's synthetic error (see LLMInvoker). */
+  function cachedRateLimitError(): ApiError {
+    return new ApiError('Rate limit cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.RATE_LIMIT,
+      statusCode: 429,
+      userMessage: 'x',
+      technicalMessage: 'x',
+      referenceId: 'rate-limit-cache-hit',
+      shouldRetry: false,
+    });
+  }
+
+  it('a guest already on the free default rescues to the free floor (live 429)', async () => {
+    const primary = vi.fn().mockRejectedValue(exhaustedRateLimitRetryError());
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: guestOnFreeDefaultOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+    });
+
+    // The model crossing the invocation seam is the floor, not the dead default.
+    expect(retry).toHaveBeenCalledTimes(1);
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/free');
+    expect(result.quotaFallback).toEqual({
+      fromModel: 'freebie/model:free',
+      toModel: 'openrouter/free',
+      category: ApiErrorCategory.RATE_LIMIT,
+      mode: 'reactive',
+    });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ floorModel: 'openrouter/free' }),
+      'No hop-1 retarget available — promoting the floor to the hop-1 target'
+    );
+  });
+
+  it('the same rescue fires on the rate-limit CACHE-HIT error shape', async () => {
+    const primary = vi.fn().mockRejectedValue(cachedRateLimitError());
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: guestOnFreeDefaultOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+    });
+
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/free');
+    expect(result.quotaFallback?.toModel).toBe('openrouter/free');
+  });
+
+  it('the floor viability check for a guest runs under the SYSTEM bucket', async () => {
+    const primary = vi.fn().mockRejectedValue(exhaustedRateLimitRetryError());
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const deps = buildDeps({ free: { model: 'freebie/model:free' } });
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: guestOnFreeDefaultOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps,
+    });
+
+    expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+      cacheKeyId: 'system',
+      model: 'openrouter/free',
+    });
+  });
+
+  it('guest CREDIT_EXHAUSTION stays terminal — the floor is never attempted', async () => {
+    const original = quotaError(ApiErrorCategory.CREDIT_EXHAUSTION);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn();
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: guestOnFreeDefaultOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).not.toHaveBeenCalled();
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ failingModel: 'freebie/model:free' }),
+      'No hop-1 retarget and the floor is not attempted: credit exhaustion leaves no solvent billing entity'
+    );
+  });
+
+  it('NON-guest CREDIT_EXHAUSTION stays terminal too — the carve-out is category-gated, not guest-gated', async () => {
+    // A mutation scoping the carve-out to isGuestMode would survive the guest
+    // test alone; this pins the category gate for the BYOK arm.
+    const original = quotaError(ApiErrorCategory.CREDIT_EXHAUSTION);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn();
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(), // BYOK; global default === failing model in buildDeps below
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'expensive/primary' } }),
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('a doom-vetoed floor stays terminal and logs the skip', async () => {
+    const original = exhaustedRateLimitRetryError();
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn();
+    const deps = buildDeps({ free: { model: 'freebie/model:free' } });
+    (deps.caches.rateLimit.isRateLimited as ReturnType<typeof vi.fn>).mockImplementation(
+      ({ model }: { model: string }) =>
+        Promise.resolve({ rateLimited: model === 'openrouter/free' })
+    );
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: guestOnFreeDefaultOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps,
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).not.toHaveBeenCalled();
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failingModel: 'freebie/model:free',
+        cause: 'the doom caches veto it',
+      }),
+      'No hop-1 retarget and the floor is unavailable — terminal'
+    );
+  });
+
+  it('a floor-selection FAILURE degrades to terminal instead of masking the original error', async () => {
+    // The never-throws contract on the promotion path: a thrown selection error
+    // is logged as itself and the pristine original propagates.
+    const original = exhaustedRateLimitRetryError();
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn();
+    const deps = buildDeps({ free: { model: 'freebie/model:free' } });
+    (deps.caches.creditExhaustion.isCreditExhausted as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('redis exploded')
+    );
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: guestOnFreeDefaultOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps,
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).not.toHaveBeenCalled();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), failingModel: 'freebie/model:free' }),
+      'Floor selection threw — treating the floor as unavailable'
+    );
+  });
+
+  it('promotes the floor for a non-rate-limit category too (SERVER_ERROR) — the carve-out is CREDIT_EXHAUSTION alone', async () => {
+    // Pins the category-agnostic claim in selectHopOneFloorTarget's doc: a
+    // mutation gating the promotion to RATE_LIMIT only would survive the two
+    // rate-limit-shaped tests above and the CE carve-out test alone.
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.SERVER_ERROR));
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: guestOnFreeDefaultOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+    });
+
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/free');
+    expect(result.quotaFallback?.category).toBe(ApiErrorCategory.SERVER_ERROR);
+  });
+
+  it('a z.ai-admitted GUEST floor-promotes onto the SYSTEM key, not a nonexistent BYOK key', async () => {
+    // The guest ladder admits onto the z.ai piggyback, so the personality
+    // carries a non-OpenRouter provider while the floor target is OpenRouter.
+    // A guest has no BYOK OpenRouter key, so resolving one would abort the
+    // retarget; the system key is their OpenRouter billing identity.
+    const primary = vi.fn().mockRejectedValue(exhaustedRateLimitRetryError());
+    const retry = vi.fn().mockResolvedValue(okResult);
+    // A guest has NO BYOK OpenRouter key — the resolver returns undefined,
+    // which is what makes the system-key arm load-bearing rather than cosmetic.
+    const deps = buildDeps({
+      free: { model: 'freebie/model:free' },
+      userOpenRouterKey: undefined,
+    });
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({
+        isGuestMode: true,
+        apiKey: 'sk-zai-system-key',
+        effectiveProvider: AIProvider.ZaiCoding,
+        personality: {
+          id: 'p1',
+          name: 'Testy',
+          model: 'freebie/model:free',
+          provider: AIProvider.ZaiCoding,
+          temperature: 0.9,
+        } as unknown as GenerateAttemptOpts['personality'],
+      }),
+      userId: '123',
+      requestId: 'req-1',
+      deps,
+    });
+
+    // Both halves of what crosses the invocation seam: the floor model AND
+    // the system credential it must run on.
+    expect(retry).toHaveBeenCalledTimes(1);
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/free');
+    expect(hop1Opts.apiKey).toBe('sk-system-key');
+    expect(hop1Opts.isGuestMode).toBe(true);
+    expect(deps.resolveUserOpenRouterKey).not.toHaveBeenCalled();
+    expect(result.quotaFallback?.toModel).toBe('openrouter/free');
+  });
+
+  it('a NON-guest whose global default is the failing model rescues to the paid floor on their own key', async () => {
+    const primary = vi.fn().mockRejectedValue(exhaustedRateLimitRetryError());
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const deps = buildDeps({ global: { model: 'expensive/primary' } });
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(), // BYOK, personality.model === 'expensive/primary'
+      userId: '123',
+      requestId: 'req-1',
+      deps,
+    });
+
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/auto');
+    expect(hop1Opts.apiKey).toBe('sk-user-key');
+    expect(result.quotaFallback?.toModel).toBe('openrouter/auto');
+    expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+      cacheKeyId: 'user:123',
+      model: 'openrouter/auto',
     });
   });
 });

@@ -17,6 +17,8 @@
  */
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
@@ -29,8 +31,10 @@ import {
   selectQuotaFallbackTarget,
   type QuotaFallbackCaches,
   type QuotaFallbackInfo,
+  type QuotaFallbackTarget,
 } from '../../../../services/quotaFallback.js';
-import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import { getFreeTextFloor } from '../../../../services/freeFloors.js';
+import { deriveCacheKeyId, SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
   attachFallbackFailure,
@@ -141,7 +145,7 @@ export async function runWithQuotaFallback(options: {
     // key's presence — flagless derivation filed guest failures under
     // `user:<id>` while the invocation path writes doom marks under `system`.
     const cacheKeyId = deriveCacheKeyId(opts.apiKey, userId, opts.isGuestMode);
-    const target = await selectQuotaFallbackTarget({
+    const tieredTarget = await selectQuotaFallbackTarget({
       category,
       isGuestMode: opts.isGuestMode,
       failingModel: opts.personality.model,
@@ -149,6 +153,19 @@ export async function runWithQuotaFallback(options: {
       configResolver: deps.configResolver,
       caches: deps.caches,
     });
+    // No tier-aware retarget exists when the failing model IS the tier's own
+    // default — the proactively-substituted guest turn, and the user whose
+    // global default is the failing model. The floor is then the only rescue,
+    // and it has to be reachable as hop 1 because hop 2 only runs after a
+    // hop-1 attempt.
+    const target =
+      tieredTarget ??
+      (await selectHopOneFloorTarget({
+        category,
+        opts,
+        cacheKeyId,
+        caches: deps.caches,
+      }));
     if (target === null) {
       throw originalError;
     }
@@ -211,6 +228,99 @@ export async function runWithQuotaFallback(options: {
       cacheKeyId: deriveCacheKeyId(credentials.apiKey, userId, credentials.isGuestMode),
     });
   }
+}
+
+/**
+ * The floor promoted to HOP 1, for the turns that have no tier-aware retarget
+ * at all: a guest already running the free default, or a user whose global
+ * default is the failing model. Invariant — such a turn can never produce a
+ * hop-1 target, so without this the floor is unreachable and the turn is
+ * terminal. The returned target flows through the SAME downstream path a
+ * normal hop-1 target takes (credential resolution, metering, the audit line,
+ * the retry); `attemptFloorHop` then self-excludes because hop 2's
+ * `excludeModels` already carries this model as `info.toModel`. Pinned by
+ * `quotaFallbackRunner.test.ts` › "hop-1 floor promotion".
+ *
+ * Category-agnostic on purpose: ANY retargetable category that dead-ends on
+ * a same-model tiered selection gets the floor (a dead end is a dead end,
+ * whatever produced it) — with one carve-out.
+ *
+ * Deliberately NOT extended to CREDIT_EXHAUSTION, whose terminal selection is
+ * a policy, not an oversight: for a guest the system key itself is broke and
+ * no different billing entity exists, and a BYOK user's floor would run on
+ * that same broke account. Whether OpenRouter still serves `:free` routes on
+ * a credit-exhausted key is an unverified external claim, so this arm stays
+ * exactly as terminal as it is today.
+ *
+ * Viability identity mirrors `selectQuotaFallbackTarget`: guest semantics
+ * execute on the system key, so they are checked under the system bucket;
+ * everyone else under their own. Never throws — a floor-selection failure
+ * degrades to null and the pristine original propagates.
+ */
+async function selectHopOneFloorTarget(params: {
+  category: NonNullable<ReturnType<typeof classifyQuotaFailure>>;
+  opts: GenerateAttemptOpts;
+  cacheKeyId: string;
+  caches: QuotaFallbackCaches;
+}): Promise<QuotaFallbackTarget | null> {
+  const { category, opts, cacheKeyId, caches } = params;
+  const failingModel = opts.personality.model;
+  if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
+    logger.debug(
+      { jobId: opts.jobId, failingModel, isGuestMode: opts.isGuestMode, category },
+      'No hop-1 retarget and the floor is not attempted: credit exhaustion leaves no solvent billing entity'
+    );
+    return null;
+  }
+  const floorTarget = await selectFloorTarget({
+    isGuestMode: opts.isGuestMode,
+    excludeModels: [failingModel],
+    cacheKeyId: opts.isGuestMode ? SYSTEM_CACHE_KEY_ID : cacheKeyId,
+    caches,
+  }).catch((err: unknown) => {
+    // A selection failure is not a veto — log it as itself so it can't hide
+    // under the "unavailable" message below.
+    logger.warn(
+      { err, jobId: opts.jobId, failingModel, isGuestMode: opts.isGuestMode },
+      'Floor selection threw — treating the floor as unavailable'
+    );
+    return null;
+  });
+  if (floorTarget === null) {
+    // Which of the three unavailability causes applies is diagnosable from the
+    // floor id itself: empty = unconfigured, equal to the failing model =
+    // excluded, anything else = the doom caches vetoed a configured floor.
+    const floor = opts.isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
+    const cause =
+      floor.length === 0
+        ? 'no floor model is configured'
+        : floor === failingModel
+          ? 'the floor IS the failing model'
+          : 'the doom caches veto it';
+    logger.debug(
+      {
+        jobId: opts.jobId,
+        failingModel,
+        floorModel: floor,
+        isGuestMode: opts.isGuestMode,
+        category,
+        cause,
+      },
+      'No hop-1 retarget and the floor is unavailable — terminal'
+    );
+    return null;
+  }
+  logger.info(
+    {
+      jobId: opts.jobId,
+      failingModel,
+      floorModel: floorTarget.config.model,
+      isGuestMode: opts.isGuestMode,
+      category,
+    },
+    'No hop-1 retarget available — promoting the floor to the hop-1 target'
+  );
+  return floorTarget;
 }
 
 /**
@@ -313,9 +423,16 @@ export function composeQuotaFallbackInfo(
  * - forced entity swap (credit-exhausted BYOK) → the system OpenRouter key
  *   with guest semantics (the free target bills the owner);
  * - the failing attempt ran on a NON-OpenRouter credential (e.g. a
- *   z.ai-promoted request carries the user's z.ai key) → the user's OWN
- *   OpenRouter key, never the system key (a paid default on the system key
- *   would be owner cost);
+ *   z.ai-promoted request carries the user's z.ai key), and the caller is
+ *   BYOK → the user's OWN OpenRouter key, never the system key (a paid
+ *   default on the system key would be owner cost);
+ * - the same non-OpenRouter case with GUEST semantics → the system key. A
+ *   guest has no BYOK OpenRouter key by construction, so asking for one
+ *   resolves undefined and dead-ends a turn whose correct credential is
+ *   obvious; the system key IS a guest's OpenRouter billing identity. No
+ *   owner-cost exposure opens up, because every guest-reachable target is
+ *   free-guarded at selection (`resolveGuestSafeFreeDefault` and
+ *   `selectFloorTarget`'s isFreeModel-guarded floor);
  * - otherwise the original key already fits the OpenRouter target.
  */
 async function resolveRetryCredentials(
@@ -335,6 +452,10 @@ async function resolveRetryCredentials(
     }
     const provider: string | undefined = opts.personality.provider;
     if (provider !== undefined && provider !== (AIProvider.OpenRouter as string)) {
+      if (opts.isGuestMode) {
+        const systemKey = await deps.resolveSystemKey();
+        return systemKey === undefined ? null : { apiKey: systemKey, isGuestMode: true };
+      }
       const openRouterKey = await deps.resolveUserOpenRouterKey(userId);
       return openRouterKey === undefined
         ? null
