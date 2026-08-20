@@ -121,7 +121,10 @@ export async function persistUserMessageViaGateway(params: UserMessageWriteParam
  * fire-and-forget after the row is already written, so there is no caller left
  * to handle a rejection — an unhandled one would just be noise on a path whose
  * worst outcome is a quote rendering the way it did before attribution
- * existed.
+ * existed. That loss is PERMANENT, not just raced: there is no retry here and
+ * no heal-on-read for forwardedFrom, so a transient gateway failure (or a
+ * restart between the persist and this call) leaves that row unattributed
+ * forever — an accepted cost of keeping the send path unblocked.
  */
 export async function patchForwardedOriginViaGateway(
   params: ForwardedOriginWriteParams

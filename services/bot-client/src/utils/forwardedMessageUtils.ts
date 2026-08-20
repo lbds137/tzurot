@@ -31,6 +31,7 @@ import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractSnapshotStickerImages } from './stickerAttachments.js';
 import { isVoiceAttachment } from './voiceAttachment.js';
+import { deriveBotSuffix, extractPersonalityName } from './webhookNaming.js';
 import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
@@ -362,6 +363,21 @@ export function getEffectiveContent(message: Message): string {
  * @param message - a message for which `isForwardedMessage` is true
  * @returns recovered origin fields, or undefined when nothing was recoverable
  */
+/**
+ * The origin author's display name for the quote attribution.
+ *
+ * A webhook author's displayName IS the webhook username, which for our own
+ * characters carries the bot suffix ("Name · Bot") — strip it so the quote
+ * binds to the character's rendered name, the way every other consumer of
+ * webhook usernames does. A foreign webhook's name carries no such suffix and
+ * passes through unchanged; a human's displayName is untouched.
+ */
+function resolveOriginAuthorName(original: Message, botTag: string | undefined): string {
+  return original.webhookId !== null && original.webhookId !== undefined
+    ? extractPersonalityName(original.author.displayName, deriveBotSuffix(botTag))
+    : original.author.displayName;
+}
+
 export async function resolveForwardedOrigin(
   message: Message,
   resolveAuthorPersonalityId?: (
@@ -395,9 +411,7 @@ export async function resolveForwardedOrigin(
 
       if (channel?.isTextBased() === true) {
         const original = await channel.messages.fetch(reference.messageId);
-        // For a character the author IS the webhook, so username is the
-        // character's display name — exactly the attribution we want.
-        origin.authorName = original.author.displayName;
+        origin.authorName = resolveOriginAuthorName(original, message.client.user?.tag);
         origin.authorId = original.author.id;
 
         // The internal id the rendered `from_id` carries. Handed the ORIGINAL
@@ -411,7 +425,12 @@ export async function resolveForwardedOrigin(
             // The FORWARDER, not the original's author — the latter is the
             // webhook itself, which would make the access check meaningless.
             message.author.id,
-            message.channel.type === ChannelType.DM
+            // The ORIGIN channel's surface, never the forward's landing
+            // channel: the validator decides what shape the ORIGINAL must
+            // have (DM = bot-user author, guild = webhook author), so a
+            // cross-surface forward classified by the landing channel
+            // silently rejects both directions.
+            channel.type === ChannelType.DM
           );
         }
       }
