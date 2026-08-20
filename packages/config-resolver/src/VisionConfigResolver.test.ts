@@ -324,6 +324,27 @@ describe('VisionConfigResolver', () => {
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
     });
 
+    it('clearCache() clears the resolve cache too (the super half of the override)', async () => {
+      // The override is two clears: super.clearCache() (resolve cache) + the negative
+      // sentinel. The sentinel half is pinned below; without THIS pin, dropping the
+      // super call would leave stale resolved configs served after a pub/sub
+      // invalidation while the sentinel test stays green.
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        visionConfig: visionRow({ model: 'user-pers-vision', name: 'user-pers-override' }),
+      });
+
+      await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+      resolver.clearCache();
+      await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(2);
+    });
+
     it('clearCache() clears the negative sentinel so a newly-created global default is seen', async () => {
       // First call: no global default yet → negative sentinel set.
       mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({

@@ -174,6 +174,17 @@ describe('SttResolver', () => {
       expect(mockFindFirst).toHaveBeenCalledTimes(2);
     });
 
+    it('clearCache evicts every entry', async () => {
+      mockFindFirst.mockResolvedValue(userRow({ defaultSttProviderId: 'mistral' }));
+      const resolver = new SttResolver(mockPrisma);
+
+      await resolver.resolveProvider('discord-1');
+      resolver.clearCache();
+      await resolver.resolveProvider('discord-1');
+
+      expect(mockFindFirst).toHaveBeenCalledTimes(2);
+    });
+
     it('does NOT cache failures (transient errors should retry next call)', async () => {
       mockFindFirst.mockRejectedValueOnce(new Error('blip'));
       mockFindFirst.mockResolvedValueOnce(userRow({ defaultSttProviderId: 'mistral' }));
