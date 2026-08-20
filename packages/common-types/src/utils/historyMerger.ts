@@ -61,8 +61,84 @@ export function recoverEmptyDbContent(
 }
 
 /**
- * Enrich DB messages with extended context metadata (reactions, embeds).
- * Reactions are only available from live Discord fetch, not stored in DB.
+ * Overlay `fallback`'s fields onto `primary`, keeping every value `primary`
+ * already defines. Deliberately key-generic rather than field-by-field: the
+ * forwarded-origin shape gains fields over time, and an explicit field list
+ * would silently stop healing each new one until someone remembered to add it.
+ */
+function fillMissingFields<T extends object>(primary: T | undefined, fallback: T): T {
+  if (primary === undefined) {
+    return fallback;
+  }
+  const defined = Object.fromEntries(
+    Object.entries(primary).filter(([, value]) => value !== undefined)
+  );
+  return { ...fallback, ...defined };
+}
+
+/**
+ * Copy one extended-context message's metadata onto its DB row.
+ *
+ * Reactions overwrite: ConversationPersistence never writes them, so the live
+ * fetch is their only source and there is no stored value to preserve. Every
+ * other field is FILL-IF-ABSENT, so a persisted value stays authoritative.
+ *
+ * @returns whether reactions were enriched (the caller's counted signal)
+ */
+function enrichOneDbMessage(dbMsg: ConversationMessage, extendedMsg: ConversationMessage): boolean {
+  let reactionsEnriched = false;
+
+  // Copy reactions from extended context to DB message
+  if (extendedMsg.messageMetadata?.reactions !== undefined) {
+    dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
+    dbMsg.messageMetadata.reactions = extendedMsg.messageMetadata.reactions;
+    reactionsEnriched = true;
+  }
+
+  // Copy embeds from extended context if not already present
+  if (
+    extendedMsg.messageMetadata?.embedsXml !== undefined &&
+    dbMsg.messageMetadata?.embedsXml === undefined
+  ) {
+    dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
+    dbMsg.messageMetadata.embedsXml = extendedMsg.messageMetadata.embedsXml;
+  }
+
+  // Heal the forwarded origin from extended context, FIELD BY FIELD.
+  // Not incidental: the persistence-side backfill that writes this field is
+  // deliberately un-awaited, so the turn that created a forward can assemble
+  // its context before the patch lands, and a failed patch never retries. The
+  // live fetch now carries the same data, so this merge heals the race, the
+  // never-persisted case, and the PARTIAL case.
+  //
+  // Partial is why this is per-field rather than per-object. A resolve takes
+  // its timestamp off the snapshot for free but needs a network fetch for the
+  // author, so a fetch failure yields a timestamp-only origin — which the
+  // persistence path still writes. Gating on the whole object being absent
+  // would leave that row stuck timestamp-only forever, because the retry-capable
+  // side is this one.
+  const extendedOrigin = extendedMsg.messageMetadata?.forwardedFrom;
+  if (extendedOrigin !== undefined) {
+    dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
+    dbMsg.messageMetadata.forwardedFrom = fillMissingFields(
+      dbMsg.messageMetadata.forwardedFrom,
+      extendedOrigin
+    );
+  }
+
+  // Copy isForwarded flag from extended context (safety net for pre-persistence data)
+  // New messages persist isForwarded in messageMetadata via ConversationPersistence
+  if (extendedMsg.isForwarded === true && dbMsg.isForwarded !== true) {
+    dbMsg.isForwarded = true;
+  }
+
+  return reactionsEnriched;
+}
+
+/**
+ * Enrich DB messages with extended context metadata (reactions, embeds,
+ * forwarded origin). Reactions are only available from a live Discord fetch,
+ * not stored in the DB.
  */
 export function enrichDbMessagesWithExtendedMetadata(
   dbHistory: ConversationMessage[],
@@ -80,26 +156,8 @@ export function enrichDbMessagesWithExtendedMetadata(
       continue;
     }
 
-    // Copy reactions from extended context to DB message
-    if (extendedMsg.messageMetadata?.reactions !== undefined) {
-      dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
-      dbMsg.messageMetadata.reactions = extendedMsg.messageMetadata.reactions;
+    if (enrichOneDbMessage(dbMsg, extendedMsg)) {
       reactionsEnrichedCount++;
-    }
-
-    // Copy embeds from extended context if not already present
-    if (
-      extendedMsg.messageMetadata?.embedsXml !== undefined &&
-      dbMsg.messageMetadata?.embedsXml === undefined
-    ) {
-      dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
-      dbMsg.messageMetadata.embedsXml = extendedMsg.messageMetadata.embedsXml;
-    }
-
-    // Copy isForwarded flag from extended context (safety net for pre-persistence data)
-    // New messages persist isForwarded in messageMetadata via ConversationPersistence
-    if (extendedMsg.isForwarded === true && dbMsg.isForwarded !== true) {
-      dbMsg.isForwarded = true;
     }
   }
 

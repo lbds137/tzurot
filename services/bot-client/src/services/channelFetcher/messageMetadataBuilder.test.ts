@@ -47,6 +47,41 @@ describe('buildMessageMetadata', () => {
     });
   });
 
+  describe('forwarded origin', () => {
+    const origin = { authorName: 'Alice', authorId: '42', timestamp: '2020-01-01T00:00:00.000Z' };
+
+    it('carries the resolved origin onto the metadata', () => {
+      const result = buildMessageMetadata(
+        'm1',
+        carriers({ isForwarded: true, forwardedFrom: origin })
+      );
+      expect(result?.forwardedFrom).toEqual(origin);
+    });
+
+    it('creates the metadata object when the origin is the only carrier', () => {
+      expect(
+        buildMessageMetadata('m1', carriers({ isForwarded: true, forwardedFrom: origin }))
+      ).toEqual({
+        forwardedFrom: origin,
+      });
+    });
+
+    it('leaves metadata undefined when no origin was resolved', () => {
+      expect(buildMessageMetadata('m1', carriers({ isForwarded: true }))).toBeUndefined();
+    });
+
+    it('sits alongside the other carriers on one metadata object', () => {
+      const result = buildMessageMetadata(
+        'm1',
+        carriers({ isForwarded: true, attachments: [imageAttachment], forwardedFrom: origin })
+      );
+      expect(result).toEqual({
+        forwardedAttachmentLines: ['[image/png: x.png]'],
+        forwardedFrom: origin,
+      });
+    });
+  });
+
   describe('forwarded attachment lines', () => {
     it('describes only image attachments of a forwarded message', () => {
       const result = buildMessageMetadata(

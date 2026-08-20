@@ -1,6 +1,9 @@
 import type { ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
-import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import type {
+  ForwardedOrigin,
+  StoredReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
 
 /** The content-derived carriers a converted message can contribute to metadata. */
 export interface BuiltMessageContentCarriers {
@@ -8,6 +11,12 @@ export interface BuiltMessageContentCarriers {
   attachments: AttachmentMetadata[];
   embedsXml?: string[];
   voiceTranscripts?: string[];
+  /**
+   * Recovered identity of a forwarded message's original author, when the
+   * caller has one in hand. Absent for non-forwards and for forwards whose
+   * origin could not be resolved — both render unattributed, as before.
+   */
+  forwardedFrom?: ForwardedOrigin;
 }
 
 /**
@@ -16,6 +25,7 @@ export interface BuiltMessageContentCarriers {
  * - the embed / voice-transcript payloads produced by content building;
  * - forwarded-image description lines, the text fallback the model reads when
  *   vision isn't available for a forwarded attachment;
+ * - the forwarded origin, when the caller resolved one;
  * - link-resolved references, appended to any references already present.
  *
  * Stays `undefined` when no carrier applies, so the field is absent on the wire
@@ -26,7 +36,7 @@ export function buildMessageMetadata(
   carriers: BuiltMessageContentCarriers,
   resolvedReferences?: Map<string, StoredReferencedMessage[]>
 ): ConversationMessage['messageMetadata'] {
-  const { isForwarded, attachments, embedsXml, voiceTranscripts } = carriers;
+  const { isForwarded, attachments, embedsXml, voiceTranscripts, forwardedFrom } = carriers;
 
   const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
   let messageMetadata: ConversationMessage['messageMetadata'] = hasMetadata
@@ -42,6 +52,13 @@ export function buildMessageMetadata(
       messageMetadata = messageMetadata ?? {};
       messageMetadata.forwardedAttachmentLines = imageLines;
     }
+  }
+
+  // The renderer reads `forwardedFrom` to attribute a forward's quote; it is
+  // absent for every non-forward and for unresolvable forwards.
+  if (forwardedFrom !== undefined) {
+    messageMetadata = messageMetadata ?? {};
+    messageMetadata.forwardedFrom = forwardedFrom;
   }
 
   // Merge resolved link references into messageMetadata

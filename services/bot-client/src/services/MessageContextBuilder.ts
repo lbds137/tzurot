@@ -16,7 +16,10 @@ import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { buildBlockDeniedChecker } from './contextBuilder/blockDeniedChecker.js';
-import { hasVoiceAttachments } from '../utils/forwardedMessageUtils.js';
+import {
+  hasVoiceAttachments,
+  type ForwardedAuthorPersonalityResolver,
+} from '../utils/forwardedMessageUtils.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { deriveBotSuffix } from '../utils/webhookNaming.js';
@@ -97,6 +100,12 @@ export class MessageContextBuilder {
   private transcriptRetriever: TranscriptRetriever;
   private denylistCache?: DenylistCache;
   /**
+   * Resolver used to attribute a forwarded message's original author when the
+   * forward is seen only through extended context (never processed, never
+   * persisted). Optional: without it those forwards stay unattributed.
+   */
+  private resolveForwardedAuthorPersonalityId?: ForwardedAuthorPersonalityResolver;
+  /**
    * Cached canonical bot suffix (e.g. ` · Tzurot`). The bot's Discord tag
    * doesn't change at runtime, so a single lookup per service instance is
    * sufficient. Lazily computed on first context build because the Discord
@@ -112,7 +121,8 @@ export class MessageContextBuilder {
 
   constructor(
     private serviceClient: ServiceClient,
-    denylistCache?: DenylistCache
+    denylistCache?: DenylistCache,
+    resolveForwardedAuthorPersonalityId?: ForwardedAuthorPersonalityResolver
   ) {
     // MentionResolver is now a stateless guild-cache rewriter (channel/role only);
     // user→persona resolution moved worker-side, so no Prisma/PersonaResolver here.
@@ -120,6 +130,7 @@ export class MessageContextBuilder {
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever();
     this.denylistCache = denylistCache;
+    this.resolveForwardedAuthorPersonalityId = resolveForwardedAuthorPersonalityId;
   }
 
   /**
@@ -187,6 +198,7 @@ export class MessageContextBuilder {
         contextEpoch,
         maxAge: options.extendedContext.maxAge,
         isBlockDenied: buildBlockDeniedChecker(this.denylistCache, message, personality.id),
+        resolveForwardedAuthorPersonalityId: this.resolveForwardedAuthorPersonalityId,
       }
     );
 

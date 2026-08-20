@@ -32,6 +32,7 @@ function createMockMessage(overrides: {
     }>;
     embedsXml?: string[];
     voiceTranscripts?: string[];
+    forwardedFrom?: { authorName?: string; authorId?: string; timestamp?: string };
   };
 }): ConversationMessage {
   return {
@@ -290,6 +291,101 @@ describe('HistoryMerger', () => {
       enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
 
       expect(dbHistory[0].messageMetadata?.embedsXml).toEqual(['<embed>DB Embed</embed>']);
+    });
+
+    it('copies the forwarded origin from extended context when the DB row lacks it', () => {
+      // The persistence-side backfill is deliberately un-awaited and never
+      // retries, so a DB row can permanently lack an origin the live fetch has.
+      const forwardedFrom = {
+        authorName: 'COLD',
+        authorId: 'a-1',
+        timestamp: '2026-08-18T11:13:53.000Z',
+      };
+      const dbHistory = [createMockMessage({ discordMessageId: ['msg-1'], content: 'Test' })];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          createMockMessage({ discordMessageId: ['msg-1'], messageMetadata: { forwardedFrom } }),
+        ],
+      ]);
+
+      enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+
+      expect(dbHistory[0].messageMetadata?.forwardedFrom).toEqual(forwardedFrom);
+    });
+
+    it('does not overwrite a forwarded origin already on the DB message', () => {
+      const persisted = { authorName: 'Persisted', authorId: 'a-1' };
+      const dbHistory = [
+        createMockMessage({
+          discordMessageId: ['msg-1'],
+          content: 'Test',
+          messageMetadata: { forwardedFrom: persisted },
+        }),
+      ];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          createMockMessage({
+            discordMessageId: ['msg-1'],
+            messageMetadata: { forwardedFrom: { authorName: 'Live', authorId: 'a-2' } },
+          }),
+        ],
+      ]);
+
+      enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+
+      expect(dbHistory[0].messageMetadata?.forwardedFrom).toEqual(persisted);
+    });
+
+    it('completes a partially-persisted origin without disturbing its known fields', () => {
+      // A resolve takes its timestamp off the snapshot for free but needs a
+      // network fetch for the author, so a fetch failure persists a
+      // timestamp-only origin. Gating the merge on the whole object being
+      // absent would strand that row partially attributed forever, because
+      // this side is the one that retries.
+      const dbHistory = [
+        createMockMessage({
+          discordMessageId: ['msg-1'],
+          content: 'Test',
+          messageMetadata: { forwardedFrom: { timestamp: '2026-08-18T11:13:53.000Z' } },
+        }),
+      ];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          createMockMessage({
+            discordMessageId: ['msg-1'],
+            messageMetadata: {
+              forwardedFrom: {
+                authorName: 'COLD',
+                authorId: 'a-1',
+                timestamp: '2026-01-01T00:00:00.000Z',
+              },
+            },
+          }),
+        ],
+      ]);
+
+      enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+
+      expect(dbHistory[0].messageMetadata?.forwardedFrom).toEqual({
+        authorName: 'COLD',
+        authorId: 'a-1',
+        // The persisted timestamp wins over the live one: present beats fresh.
+        timestamp: '2026-08-18T11:13:53.000Z',
+      });
+    });
+
+    it('leaves the forwarded origin absent when neither side has one', () => {
+      const dbHistory = [createMockMessage({ discordMessageId: ['msg-1'], content: 'Test' })];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        ['msg-1', createMockMessage({ discordMessageId: ['msg-1'] })],
+      ]);
+
+      enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+
+      expect(dbHistory[0].messageMetadata?.forwardedFrom).toBeUndefined();
     });
 
     it('should copy isForwarded flag from extended context to DB messages', () => {
