@@ -16,7 +16,11 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
-import { isForwardedMessage, resolveForwardedOrigin } from '../utils/forwardedMessageUtils.js';
+import {
+  isForwardedMessage,
+  resolveForwardedOrigin,
+  type ForwardedAuthorPersonalityResolver,
+} from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import {
   persistAssistantMessageViaGateway,
@@ -138,24 +142,15 @@ interface SaveAssistantMessageFromFieldsOptions {
 /** Collaborators this service cannot construct for itself. */
 export interface ConversationPersistenceDeps {
   /**
-   * Map a forward's ALREADY-FETCHED original to the internal personality id,
-   * when that message was authored by a character.
-   *
-   * Takes the original rather than the forward on purpose: re-deriving it
-   * inside the resolver means fetching again, and the reply-shaped lookup that
-   * would do so reads the channel the forward LANDED in, which is wrong for
-   * every cross-channel forward and fails silently.
+   * Maps a forward's original to the internal personality id — parameter
+   * semantics on {@link ForwardedAuthorPersonalityResolver}.
    *
    * Injected rather than imported because the mapping needs the personality
    * service, and this class has no other reason to know it exists. Optional so
    * the service stays constructible bare in tests — the only cost of omitting
    * it is a forwarded quote with no `from_id`.
    */
-  readonly resolveForwardedAuthorPersonalityId?: (
-    original: Message,
-    viewerId: string,
-    isDM: boolean
-  ) => Promise<string | undefined>;
+  readonly resolveForwardedAuthorPersonalityId?: ForwardedAuthorPersonalityResolver;
 }
 
 export class ConversationPersistence {

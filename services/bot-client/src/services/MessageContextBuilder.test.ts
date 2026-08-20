@@ -690,6 +690,50 @@ describe('MessageContextBuilder', () => {
       );
     });
 
+    it('hands the forwarded-author resolver across the seam to the channel fetch', async () => {
+      // The constructor -> field -> options chain is the whole wiring for
+      // extended-context forward attribution, and DiscordChannelFetcher is
+      // mocked here, so nothing else in this suite would notice it breaking:
+      // forwards would silently regress to from="Unknown".
+      const resolveForwardedAuthorPersonalityId = vi.fn(() => Promise.resolve('personality-uuid'));
+      const wiredBuilder = new MessageContextBuilder(
+        {} as any,
+        undefined,
+        resolveForwardedAuthorPersonalityId
+      );
+
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        rawReferences: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockReturnValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        keptCount: 0,
+      });
+
+      await wiredBuilder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        extendedContext: {
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+      });
+
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(
+        mockMessage.channel,
+        expect.objectContaining({ resolveForwardedAuthorPersonalityId })
+      );
+    });
+
     it('should NOT apply the per-user epoch in weigh-in mode even when one is set', async () => {
       const contextEpoch = new Date('2025-01-15T12:00:00Z');
 

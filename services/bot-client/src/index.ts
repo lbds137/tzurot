@@ -21,6 +21,7 @@ import {
 } from './utils/gatewayServiceCalls.js';
 import { WebhookManager } from './utils/WebhookManager.js';
 import { getServiceClient } from './utils/gatewayClients.js';
+import type { ForwardedAuthorPersonalityResolver } from './utils/forwardedMessageUtils.js';
 import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { handleCommandWithContext } from './handlers/commandDispatch.js';
@@ -230,14 +231,47 @@ function createDmWorkers(): { releaseDmWorker: Worker; retentionNotifyWorker: Wo
  */
 function buildPersistenceDeps(replyResolver: ReplyResolutionService): ConversationPersistenceDeps {
   return {
-    // Access control keys off the FORWARDER, who is who the attribution is
-    // shown to — resolving with anyone else's id could name a character they
-    // cannot otherwise see. The original arrives already fetched, so this
-    // takes the post-fetch entry point rather than the reply-shaped one that
-    // would re-fetch against the wrong channel.
-    resolveForwardedAuthorPersonalityId: async (original, viewerId, isDM) =>
-      (await replyResolver.resolveFromReferencedMessage(original, viewerId, isDM))?.id,
+    resolveForwardedAuthorPersonalityId: buildForwardedAuthorResolver(replyResolver),
   };
+}
+
+/**
+ * The single definition of "which of OUR personalities authored this forwarded
+ * message's original?".
+ *
+ * Two consumers resolve forward attribution — the persistence path (a forward
+ * the bot processed) and the extended-context fetch path (a forward it only
+ * ever saw in the fetch window) — and they must not drift, because this
+ * function carries the access-control semantics of the attribution.
+ *
+ * Access control keys off the FORWARDER, who is who the attribution is shown
+ * to — resolving with anyone else's id could name a character they cannot
+ * otherwise see. The original arrives already fetched, so this takes the
+ * post-fetch entry point rather than the reply-shaped one that would re-fetch
+ * against the wrong channel.
+ */
+function buildForwardedAuthorResolver(
+  replyResolver: ReplyResolutionService
+): ForwardedAuthorPersonalityResolver {
+  return async (original, viewerId, isDM) =>
+    (await replyResolver.resolveFromReferencedMessage(original, viewerId, isDM))?.id;
+}
+
+/**
+ * Extracted from `createServices` for the same reason as
+ * {@link buildPersistenceDeps}: that function sits at its
+ * `max-lines-per-function` ceiling, so collaborators it can't build inline move
+ * out rather than having their reasoning compressed.
+ */
+function buildContextBuilder(
+  denylistCache: DenylistCache,
+  replyResolver: ReplyResolutionService
+): MessageContextBuilder {
+  return new MessageContextBuilder(
+    getServiceClient(),
+    denylistCache,
+    buildForwardedAuthorResolver(replyResolver)
+  );
 }
 
 function createServices(): Services {
@@ -288,12 +322,13 @@ function createServices(): Services {
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
-  const contextBuilder = new MessageContextBuilder(getServiceClient(), denylistCache);
-  const voiceTranscription = new VoiceTranscriptionService();
-  // Constructed BEFORE persistence, which injects it: a forwarded message's
-  // quote is attributed by resolving the message it points at, and this is the
-  // service that knows how to map that back to a personality.
+  // Constructed BEFORE both consumers of forward attribution (the context
+  // builder and persistence): a forwarded message's quote is attributed by
+  // resolving the message it points at, and this is the service that knows how
+  // to map that back to a personality.
   const replyResolver = new ReplyResolutionService(routingPersonalityLoader);
+  const contextBuilder = buildContextBuilder(denylistCache, replyResolver);
+  const voiceTranscription = new VoiceTranscriptionService();
   const persistence = new ConversationPersistence(buildPersistenceDeps(replyResolver));
 
   // Shared per-slot delivery (MessageHandler, MultiTagCoordinator, and the

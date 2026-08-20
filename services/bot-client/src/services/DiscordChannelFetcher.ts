@@ -19,6 +19,8 @@ import {
 import { mergeWithHistory } from '@tzurot/common-types/utils/historyMerger';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
+import { getCachedForwardedOrigin } from '../utils/forwardedOriginCache.js';
+import { primeForwardOriginsForWindow } from './channelFetcher/forwardOriginPrePass.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { collectExtendedContextAttachments } from './channelFetcher/extendedContextAttachmentCollector.js';
 import {
@@ -239,6 +241,10 @@ export class DiscordChannelFetcher {
     // iteration. `null` maxAge collapses to undefined (no filter).
     const historyCutoff = computeHistoryCutoff(options.maxAge, options.contextEpoch);
 
+    // Bounded parallel pre-pass so the conversion loop below reads cache-only —
+    // see forwardOriginPrePass.ts for why it cannot live inside that loop.
+    await primeForwardOriginsForWindow(sortedMessages, options);
+
     for (const msg of sortedMessages) {
       // Apply filters
       if (!isUserContentMessage(msg)) {
@@ -443,7 +449,15 @@ export class DiscordChannelFetcher {
       getTranscript: options.getTranscript,
     });
 
-    const carriers = { isForwarded, attachments, embedsXml, voiceTranscripts };
+    const carriers: BuiltMessageContentCarriers = {
+      isForwarded,
+      attachments,
+      embedsXml,
+      voiceTranscripts,
+      // Cache-only read: the pre-pass in processMessages already did any
+      // fetching, so this never adds latency to the conversion loop.
+      forwardedFrom: isForwarded ? getCachedForwardedOrigin(msg.id) : undefined,
+    };
 
     if (!this.hasProcessableContent(msg.id, rawContent, carriers, resolvedReferences)) {
       return null;

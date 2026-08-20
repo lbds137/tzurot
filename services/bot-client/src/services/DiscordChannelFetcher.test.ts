@@ -8,6 +8,11 @@ import type { Message, TextChannel } from 'discord.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { executeDatabaseSync } from './channelFetcher/SyncExecutor.js';
+import { resolveForwardedOrigin } from '../utils/forwardedMessageUtils.js';
+import {
+  __resetForwardedOriginCacheForTests,
+  MAX_FORWARD_ORIGIN_RESOLUTIONS_PER_FETCH,
+} from '../utils/forwardedOriginCache.js';
 import { OPT_OUT_FOOTER } from './releaseDm/releaseDmContext.js';
 
 // Mock the logger (keep everything else from actual module)
@@ -52,6 +57,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 vi.mock('./channelFetcher/SyncExecutor.js', () => ({
   executeDatabaseSync: vi.fn().mockResolvedValue({ updated: 0, deleted: 0 }),
 }));
+
+// Partial mock: only the network-touching origin resolver is replaced, so the
+// pre-pass, the real cache, and convertMessage all run for real — this is the
+// wiring seam, and mocking the cache too would hide it.
+vi.mock('../utils/forwardedMessageUtils.js', async () => {
+  const actual = await vi.importActual<typeof import('../utils/forwardedMessageUtils.js')>(
+    '../utils/forwardedMessageUtils.js'
+  );
+  return { ...actual, resolveForwardedOrigin: vi.fn(() => Promise.resolve(undefined)) };
+});
 
 // Mock role interface for testing
 interface MockRole {
@@ -222,6 +237,8 @@ describe('DiscordChannelFetcher', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetForwardedOriginCacheForTests();
+    vi.mocked(resolveForwardedOrigin).mockResolvedValue(undefined);
     fetcher = new DiscordChannelFetcher();
   });
 
@@ -283,6 +300,102 @@ describe('DiscordChannelFetcher', () => {
       // Forwards are never filtered out even with empty extracted content.
       expect(result.fetchedCount).toBe(1);
       expect(result.messages).toHaveLength(1);
+    });
+
+    describe('forwarded origin attribution', () => {
+      const forwardOrigin = {
+        authorName: 'COLD',
+        authorId: 'orig-author',
+        timestamp: '2026-08-18T11:13:53.000Z',
+      };
+
+      function forwardMessage(id: string, minute: number): Message {
+        return createMockMessage({
+          id,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          reference: {
+            messageId: `orig-${id}`,
+            type: MessageReferenceType.Forward,
+            channelId: 'src',
+          },
+          createdAt: new Date(Date.UTC(2024, 0, 1, 12, minute, 0)),
+        });
+      }
+
+      it('carries the resolved origin into the outgoing message metadata', async () => {
+        vi.mocked(resolveForwardedOrigin).mockResolvedValue(forwardOrigin);
+        const channel = createMockChannel([forwardMessage('fwd-1', 0)]);
+
+        const result = await fetcher.fetchRecentMessages(channel, {
+          botUserId: 'bot123',
+          resolveForwardedAuthorPersonalityId: vi.fn(() => Promise.resolve(undefined)),
+        });
+
+        // The whole point of the fix: a forward seen only through extended
+        // context must reach the worker carrying its attribution.
+        expect(result.messages[0].messageMetadata?.forwardedFrom).toEqual(forwardOrigin);
+      });
+
+      it('hands the resolver across the seam to resolveForwardedOrigin', async () => {
+        const resolver = vi.fn(() => Promise.resolve('personality-uuid'));
+        const message = forwardMessage('fwd-1', 0);
+        const channel = createMockChannel([message]);
+
+        await fetcher.fetchRecentMessages(channel, {
+          botUserId: 'bot123',
+          resolveForwardedAuthorPersonalityId: resolver,
+        });
+
+        // Dropping the resolver here would still attribute the author, just
+        // never the `from_id` — invisible in the returned object alone.
+        expect(resolveForwardedOrigin).toHaveBeenCalledWith(message, resolver);
+      });
+
+      it('skips the pre-pass entirely when no resolver is wired', async () => {
+        const channel = createMockChannel([forwardMessage('fwd-1', 0)]);
+
+        const result = await fetcher.fetchRecentMessages(channel, { botUserId: 'bot123' });
+
+        expect(resolveForwardedOrigin).not.toHaveBeenCalled();
+        expect(result.messages[0].messageMetadata?.forwardedFrom).toBeUndefined();
+      });
+
+      it('resolves nothing when the window holds no forwards', async () => {
+        const channel = createMockChannel([
+          createMockMessage({ id: '1', content: 'plain', authorId: 'user1' }),
+        ]);
+
+        await fetcher.fetchRecentMessages(channel, {
+          botUserId: 'bot123',
+          resolveForwardedAuthorPersonalityId: vi.fn(() => Promise.resolve(undefined)),
+        });
+
+        expect(resolveForwardedOrigin).not.toHaveBeenCalled();
+      });
+
+      it('caps resolutions at the newest N forwards', async () => {
+        const overCap = MAX_FORWARD_ORIGIN_RESOLUTIONS_PER_FETCH + 2;
+        const messages = Array.from({ length: overCap }, (_, i) => forwardMessage(`fwd-${i}`, i));
+        const channel = createMockChannel(messages);
+
+        await fetcher.fetchRecentMessages(channel, {
+          botUserId: 'bot123',
+          resolveForwardedAuthorPersonalityId: vi.fn(() => Promise.resolve(undefined)),
+        });
+
+        expect(resolveForwardedOrigin).toHaveBeenCalledTimes(
+          MAX_FORWARD_ORIGIN_RESOLUTIONS_PER_FETCH
+        );
+        // Oldest-first ordering means the dropped ones are the OLDEST; the two
+        // assertions below pin which end of the window the cap keeps.
+        const resolvedIds = vi
+          .mocked(resolveForwardedOrigin)
+          .mock.calls.map(call => (call[0] as Message).id);
+        expect(resolvedIds).toContain(`fwd-${overCap - 1}`);
+        expect(resolvedIds).not.toContain('fwd-0');
+      });
     });
 
     it('identifies our webhook character reply as assistant role (registry detection)', async () => {

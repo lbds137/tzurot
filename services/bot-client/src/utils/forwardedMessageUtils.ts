@@ -376,13 +376,34 @@ function resolveOriginAuthorName(original: Message, botTag: string | undefined):
   return resolveWebhookAwareDisplayName(original.author.displayName, original.webhookId, botTag);
 }
 
+/**
+ * Maps a forward's ALREADY-FETCHED original to one of our internal personality
+ * ids, or `undefined` when the original wasn't authored by a character.
+ *
+ * The three parameters are not interchangeable, which is why this is one named
+ * type rather than a shape re-declared per call site:
+ *
+ * - `original` — the ORIGINAL message, already fetched. Never the forward:
+ *   re-deriving the original inside an implementation means fetching again,
+ *   and the reply-shaped lookup that would do so reads the channel the forward
+ *   LANDED in, which is wrong for every cross-channel forward.
+ * - `viewerId` — the FORWARDER, who is who the attribution is shown to.
+ *   Resolving against anyone else's id could name a character they cannot
+ *   otherwise see, so this is the access-control input.
+ * - `isDM` — whether the ORIGIN channel is a DM, never the landing channel's
+ *   surface. An implementation decides what shape the original must have (DM =
+ *   bot-user author, guild = webhook author), so classifying by the landing
+ *   channel silently rejects both cross-surface directions.
+ */
+export type ForwardedAuthorPersonalityResolver = (
+  original: Message,
+  viewerId: string,
+  isDM: boolean
+) => Promise<string | undefined>;
+
 export async function resolveForwardedOrigin(
   message: Message,
-  resolveAuthorPersonalityId?: (
-    original: Message,
-    viewerId: string,
-    isDM: boolean
-  ) => Promise<string | undefined>
+  resolveAuthorPersonalityId?: ForwardedAuthorPersonalityResolver
 ): Promise<ForwardedOrigin | undefined> {
   if (!isForwardedMessage(message)) {
     return undefined;
@@ -411,6 +432,20 @@ export async function resolveForwardedOrigin(
         const original = await channel.messages.fetch(reference.messageId);
         origin.authorName = resolveOriginAuthorName(original, message.client.user?.tag);
         origin.authorId = original.author.id;
+
+        // Snapshot data is present on the live MESSAGE_CREATE event but can be
+        // ABSENT on a REST re-fetch (see extractForwardedContent), which is
+        // exactly what the extended-context path does — so the snapshot
+        // timestamp above may be missing there.
+        //
+        // Equal by construction, not coincidence: a snapshot carries no id of
+        // its own, so discord.js builds it with the reference's messageId as its
+        // id and derives createdTimestamp from that snowflake. The original we
+        // just fetched IS that message, so both timestamps decode from one
+        // snowflake — an exact fallback, not an approximation. Snapshot still
+        // wins when present: it survives a deleted original, and this branch
+        // cannot run without a successful fetch.
+        origin.timestamp ??= original.createdAt.toISOString();
 
         // The internal id the rendered `from_id` carries. Handed the ORIGINAL
         // that was just fetched, never the forward: a resolver that re-derives

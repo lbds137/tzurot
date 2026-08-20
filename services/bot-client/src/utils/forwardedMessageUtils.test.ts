@@ -650,11 +650,20 @@ describe('forwardedMessageUtils', () => {
    * the shared one would hand every other group a channel it never asked for.
    */
   describe('resolveForwardedOrigin', () => {
+    /** Distinct from every snapshot timestamp used below, so the two are never confusable. */
+    const DEFAULT_ORIGINAL_CREATED_AT = new Date(Date.UTC(2026, 7, 19, 9, 0, 0));
+
     function buildForward(options: {
       snapshotCreatedTimestamp?: number | null;
       referenceChannelId?: string;
       referenceMessageId?: string;
       fetchedAuthor?: { id: string; displayName: string };
+      /**
+       * Creation time of the FETCHED original. Every real Discord message has
+       * one, and it is the fallback the resolver uses when a REST re-fetch left
+       * the snapshot timestamp absent.
+       */
+      fetchedCreatedAt?: Date;
       /** Marks the fetched original as webhook-authored. */
       fetchedWebhookId?: string;
       fetchRejects?: boolean;
@@ -671,6 +680,7 @@ describe('forwardedMessageUtils', () => {
             : Promise.resolve({
                 author: options.fetchedAuthor,
                 webhookId: options.fetchedWebhookId ?? null,
+                createdAt: options.fetchedCreatedAt ?? DEFAULT_ORIGINAL_CREATED_AT,
               })
         );
       const channel = {
@@ -767,7 +777,11 @@ describe('forwardedMessageUtils', () => {
         isTextBased: () => true,
         messages: {
           fetch: vi.fn(() =>
-            Promise.resolve({ author: { id: 'bot-1', displayName: 'COLD' }, webhookId: null })
+            Promise.resolve({
+              author: { id: 'bot-1', displayName: 'COLD' },
+              webhookId: null,
+              createdAt: DEFAULT_ORIGINAL_CREATED_AT,
+            })
           ),
         },
       };
@@ -789,7 +803,10 @@ describe('forwardedMessageUtils', () => {
 
     it('fetches from the reference channel, not the channel the forward landed in', async () => {
       const otherChannelMessagesFetch = vi.fn(() =>
-        Promise.resolve({ author: { id: 'author-9', displayName: 'Elsewhere' } })
+        Promise.resolve({
+          author: { id: 'author-9', displayName: 'Elsewhere' },
+          createdAt: DEFAULT_ORIGINAL_CREATED_AT,
+        })
       );
       const channelFetch = vi.fn(() =>
         Promise.resolve({
@@ -809,6 +826,33 @@ describe('forwardedMessageUtils', () => {
       expect(channelFetch).toHaveBeenCalledWith('channel-2');
       expect(otherChannelMessagesFetch).toHaveBeenCalledWith('original-1');
       expect(origin?.authorName).toBe('Elsewhere');
+    });
+
+    it("falls back to the fetched original's creation time when the snapshot has none", async () => {
+      // A REST re-fetch can omit snapshot data entirely (see
+      // extractForwardedContent), which is exactly what the extended-context
+      // path does — so without this the whole path renders with no t=.
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          snapshotCreatedTimestamp: null,
+          fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+          fetchedCreatedAt: new Date(Date.UTC(2026, 7, 19, 9, 0, 0)),
+        })
+      );
+
+      expect(origin?.timestamp).toBe('2026-08-19T09:00:00.000Z');
+    });
+
+    it('prefers the snapshot timestamp over the fetched original', async () => {
+      const origin = await resolveForwardedOrigin(
+        buildForward({
+          snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+          fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+          fetchedCreatedAt: new Date(Date.UTC(2026, 7, 19, 9, 0, 0)),
+        })
+      );
+
+      expect(origin?.timestamp).toBe('2026-08-18T11:13:53.000Z');
     });
 
     it('keeps the timestamp when the original can no longer be fetched', async () => {
@@ -835,7 +879,10 @@ describe('forwardedMessageUtils', () => {
     });
 
     it('hands the personality resolver the ORIGINAL, with the forwarder as viewer', async () => {
-      const original = { author: { id: 'webhook-1', displayName: 'COLD' } };
+      const original = {
+        author: { id: 'webhook-1', displayName: 'COLD' },
+        createdAt: DEFAULT_ORIGINAL_CREATED_AT,
+      };
       const resolver = vi.fn(() => Promise.resolve('personality-uuid-cold'));
       const messagesFetch = vi.fn(() => Promise.resolve(original));
 

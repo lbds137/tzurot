@@ -11,6 +11,7 @@ import type {
   AttachmentMetadata,
   GuildMemberInfo,
 } from '@tzurot/common-types/types/schemas/discord';
+import type { ForwardedAuthorPersonalityResolver } from '../../utils/forwardedMessageUtils.js';
 
 /**
  * Guild member info for participant context.
@@ -115,6 +116,21 @@ export interface FetchOptions {
   maxAge?: number | null;
   /** Optional callback to check if a user is BLOCK-denied (filters their messages from context) */
   isBlockDenied?: (discordUserId: string) => boolean;
+  /**
+   * Optional resolver for "which of OUR personalities authored this message?",
+   * used to attribute a forwarded message's original author. Shares the
+   * {@link ForwardedAuthorPersonalityResolver} type with
+   * `ConversationPersistenceDeps.resolveForwardedAuthorPersonalityId` — one
+   * declaration, so the access-control semantics cannot drift between the
+   * persisted and extended-context paths — and in production both are wired
+   * from one factory.
+   *
+   * Optional: when omitted, forwards seen only through extended context stay
+   * unattributed (the renderer falls back to the same `from="Unknown"` quote it
+   * produced before). Production always wires it; the option exists for tests
+   * and for callers that never carry forwards.
+   */
+  resolveForwardedAuthorPersonalityId?: ForwardedAuthorPersonalityResolver;
 }
 
 /**
