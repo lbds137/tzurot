@@ -448,9 +448,13 @@ export function buildModelFooterText(
  * Used by:
  * - stripBotFooters (utils/discord.ts): Utility function to remove footers
  * - DiscordChannelFetcher: Strips footers during opportunistic sync
- * - duplicateDetection: Strips footers before similarity comparison
+ * - ai-worker crossTurnDetection.ts and RetryDecisionHelper.ts: strip before
+ *   similarity comparison, so a footer never counts as response text
  * - extractForwardedContentForPrompt (bot-client forwardedMessageUtils.ts):
  *   strips footers from a forwarded snapshot before it reaches the LLM prompt
+ * - SnapshotFormatter.formatSnapshot (bot-client): calls stripBotFooters
+ *   DIRECTLY rather than via the accessor above — it runs once per snapshot,
+ *   while the accessor reads only the first
  *
  * NOTE: Keep these patterns in sync with BOT_FOOTER_TEXT constants above.
  */
