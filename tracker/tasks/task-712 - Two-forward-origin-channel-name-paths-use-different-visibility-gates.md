@@ -1,10 +1,10 @@
 ---
 id: TASK-712
 title: Two forward-origin channel-name paths use different visibility gates
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 01:47'
-updated_date: '2026-08-21 03:17'
+updated_date: '2026-08-21 16:55'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -47,4 +47,37 @@ So the ripple is exactly four sync methods becoming async, and it STOPS at line 
 That is bounded and tractable, so build the async version. The recorded fallback - gate on the synchronous ViewChannel half alone and accept private threads staying bot-cache-gated - is NOT needed and should not be reached for; it stays on the task only as the documented second-best if something unforeseen blocks the thread-through.
 
 One thing the async conversion must not lose: format is sync today and its callers may rely on that only through the one call site above, but appendForwardedSnapshots loops over snapshots and mutates FormatState in order (s.nextNumber increments, trackLink last-write-wins). Awaiting inside that loop must keep the iteration SEQUENTIAL - a Promise.all over snapshots would reorder the numbering the comment at ReferenceFormatter.ts:132-134 depends on.
+SHIPPED — PR #2170, merged 2026-08-21. Owner option (a) as decided.
+
+Acceptance, quoted and answered per clause:
+"the two paths either share a gate or carry a recorded reason for differing; whichever way, the
+reason lives next to buildForwardMarker so the next reader does not have to rediscover the
+divergence."
+- SHARE A GATE: MET. Identical four-step fail-closed check, same order, with the private-thread
+  step routed through the TASK-710 helper.
+- REASON LIVES NEXT TO buildForwardMarker: MET. The docstring states what is shared and points at
+  the sibling for the three common steps rationale; the bot-cached-but-forwarder-blind case is
+  stated in place, because the cache read exists only on this path.
+
+CLOSED WITHOUT A SMOKE ITEM, deliberately, unlike 706/668/708. This is a TIGHTENING: every change
+moves an input from named to the generic marker that already existed. A runtime pass looks
+identical to today for every viewer who has access, so a smoke could not distinguish success from
+no-op. The behaviour that changed is only observable to a forwarder who LACKS access to the origin
+channel, which the owner cannot easily stage against themselves.
+
+Delivered beyond the acceptance:
+- The gate is evaluated once per forwarded MESSAGE rather than once per snapshot (review finding,
+  closed as TASK-715 in the same PR), which also made the loop body synchronous.
+- A zero-snapshot forward resolves no marker at all.
+- A seam test asserts permissionsFor and members.fetch receive the FORWARDER id. Canary showed 28
+  other tests could not distinguish the forwarder id from the bot id, so the whole point of the
+  task was previously untested even though every outcome passed.
+
+Left open, tracked, NOT dropped: TASK-716 (the gate is shared by convention rather than mechanism)
+and TASK-717 (the throws-for-non-member premise, now under three consumers, fails toward granting).
+
+Process note worth keeping: seven review rounds, and every finding after the first was about the
+PROSE rather than the code -- a stale test description, a self-contradicting docstring, a false
+no-fetch claim, an overstated ordering claim, and a base commit message describing a design that
+had stopped existing three rounds earlier. The gate logic was never challenged after round 1.
 <!-- SECTION:DESCRIPTION:END -->
