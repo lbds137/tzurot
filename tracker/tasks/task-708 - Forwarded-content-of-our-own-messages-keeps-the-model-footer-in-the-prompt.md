@@ -89,4 +89,13 @@ AGENT RECOMMENDATION, owner call: DECLINE PR 2 on merit, and archive this task o
 - Case 2 makes a wrong answer LOSE the human's attribution, which is strictly worse than the nit being fixed. The failure directions are asymmetric.
 - The classification signal exists only where a resolved origin is in hand, so PR 2 structurally cannot cover the current-turn envelope path. It would ship a partial that is inconsistent across paths - the exact shape PR 1 was designed to avoid.
 Surfaced rather than decided because the boundary rule fails closed and this touches what the model sees. If the owner would rather have it, build it against the classification above, scoped to the fetcher and persist paths, and record the envelope-path gap as deliberate.
+CLASS ENUMERATION CORRECTION, 2026-08-21, from PR 2168 review round 1. The CLASS ENUMERATION section above lists SIX members and presents them as the class. It is SEVEN. The missing member is handlers/references/SnapshotFormatter.ts:118, which builds reference content from snapshot.content DIRECTLY.
+
+Why that enumeration missed it, which is the transferable part: every member it found was found by tracing extractForwardedContent and getEffectiveContent - i.e. by FUNCTION. SnapshotFormatter calls neither. It reads the snapshot field itself, so it is invisible to any search keyed on the accessors' names, and the PR's survivor grep inherited exactly the same blind spot and reported clean. Per 00-critical.md's Grep Rule the pattern was never positive-controlled against a known-present instance; had it been, the boundary assumption would have failed immediately.
+
+The member is not obscure. It is reached via ReferenceFormatter.appendForwardedSnapshots whenever a forward reference is NOT already deduplicated - the ordinary first-crawl case (replying to, or linking to, a forward) - and it is the path that renders a quote block, which is the exact surface the original report showed. The report's "two separate quotes in the one payload carried it" is consistent with one quote from the MessageFormatter path and one from here.
+
+The correct enumeration key for this class is BEHAVIOUR: every direct read of a forwarded snapshot's content. Swept that way across non-test bot-client/src, the class closes at those seven members plus non-prompt hits (the accessors' own internals, comment prose, and one debug log line now tracked under doc-80).
+
+NOTE for anyone re-reading the NON-MEMBERS list above: it remains correct. LinkReferenceStrategy and the mention-detection call are genuine non-members and shipped unchanged, each with an in-place comment saying why.
 <!-- SECTION:DESCRIPTION:END -->
