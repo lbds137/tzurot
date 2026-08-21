@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { Message, MessageSnapshot, Collection } from 'discord.js';
-import { ChannelType, MessageReferenceType, PermissionFlagsBits } from 'discord.js';
+import type { Message, MessageSnapshot } from 'discord.js';
+import { ChannelType, Collection, MessageReferenceType, PermissionFlagsBits } from 'discord.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -22,6 +22,7 @@ import {
   getEffectiveContentForPrompt,
   resolveForwardedOrigin,
 } from './forwardedMessageUtils.js';
+import { SnapshotFormatter } from '../handlers/references/SnapshotFormatter.js';
 
 /**
  * Create a mock Discord message for testing
@@ -1208,6 +1209,98 @@ describe('forwardedMessageUtils', () => {
         expect(origin?.channelName).toBeUndefined();
         expect(permissionsFor).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  /**
+   * `resolveOriginChannelName` is exported and consumed by TWO callers:
+   * `resolveForwardedOrigin` above, and `SnapshotFormatter.buildForwardMarker`.
+   * Every other describe block in this file exercises the gate only through
+   * `resolveForwardedOrigin` — that alone can't tell a genuinely shared
+   * implementation from two independently-maintained copies that merely agree
+   * today. This block runs the identical private-thread fixture through BOTH
+   * consumers and asserts they move together: a change to the shared gate has
+   * exactly one place to land, and this is what proves it.
+   */
+  describe('resolveOriginChannelName — shared gate, not a documentary convention', () => {
+    const FORWARDER_ID = 'forwarder-shared-1';
+
+    function buildPrivateThreadChannel(
+      threadMembersFetch: ReturnType<typeof vi.fn> = vi.fn(() =>
+        Promise.resolve({ id: FORWARDER_ID })
+      )
+    ) {
+      return {
+        id: 'origin-thread-shared',
+        type: ChannelType.PrivateThread,
+        name: 'private-planning',
+        isTextBased: () => true,
+        isDMBased: () => false,
+        isThread: () => true,
+        permissionsFor: vi.fn(() => ({
+          has: (flag: bigint) => flag === PermissionFlagsBits.ViewChannel,
+        })),
+        members: { fetch: threadMembersFetch },
+        messages: {
+          fetch: vi.fn(() =>
+            Promise.resolve({
+              author: { id: 'author-shared-1', displayName: 'COLD' },
+              webhookId: null,
+              createdAt: new Date(Date.UTC(2026, 7, 19, 9, 0, 0)),
+            })
+          ),
+        },
+      };
+    }
+
+    function buildForwardedFromMessage(channel: ReturnType<typeof buildPrivateThreadChannel>) {
+      return {
+        id: 'forward-shared-1',
+        content: '',
+        author: { id: FORWARDER_ID },
+        channel,
+        client: {
+          user: undefined,
+          channels: {
+            fetch: vi.fn(() => Promise.resolve(channel)),
+            cache: new Collection([[channel.id, channel]]),
+          },
+        },
+        reference: {
+          type: MessageReferenceType.Forward,
+          channelId: channel.id,
+          messageId: 'original-shared-1',
+        },
+        messageSnapshots: {
+          size: 1,
+          values: () => [{ createdTimestamp: null }].values(),
+          first: () => ({ createdTimestamp: null }),
+        },
+      } as unknown as Message;
+    }
+
+    it('a private-thread membership DENIAL degrades both resolveForwardedOrigin AND buildForwardMarker', async () => {
+      const deniedChannel = buildPrivateThreadChannel(
+        vi.fn(() => Promise.reject(new Error('Unknown Member')))
+      );
+      const forwardedFrom = buildForwardedFromMessage(deniedChannel);
+
+      const origin = await resolveForwardedOrigin(forwardedFrom);
+      const marker = await new SnapshotFormatter().buildForwardMarker(forwardedFrom);
+
+      expect(origin?.channelName).toBeUndefined();
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('a private-thread membership GRANT reaches both consumers too — the denial above is the gate, not an unrelated fixture failure', async () => {
+      const grantedChannel = buildPrivateThreadChannel();
+      const forwardedFrom = buildForwardedFromMessage(grantedChannel);
+
+      const origin = await resolveForwardedOrigin(forwardedFrom);
+      const marker = await new SnapshotFormatter().buildForwardMarker(forwardedFrom);
+
+      expect(origin?.channelName).toBe('private-planning');
+      expect(marker).toBe('(forwarded from #private-planning)');
     });
   });
 });
