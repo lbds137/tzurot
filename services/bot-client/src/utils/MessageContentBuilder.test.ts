@@ -387,6 +387,53 @@ describe('MessageContentBuilder', () => {
       expect(result.attachments[1].name).toBe('forwarded-doc.pdf');
     });
 
+    it('echoes snapshot-embed filenames that match the minted attachments (real collaborators)', async () => {
+      // Wiring pin for the embed-name binding: the attachments are minted by
+      // the REAL extractEmbedImages walk and the embeds XML by the REAL
+      // EmbedParser, through this builder's own forwarded-snapshot region.
+      // The low-level cross-producer test pins the naming formula; this one
+      // pins that the call site hands BOTH collaborators the same embeds
+      // array in the same order — the property a future reorder/filter of
+      // one side would silently break.
+      const snapshotEmbeds = [
+        {
+          image: { url: 'https://cdn.discord.com/embeds/one.png' },
+          thumbnail: { url: 'https://cdn.discord.com/embeds/one-thumb.png' },
+        },
+        {
+          image: { url: 'https://cdn.discord.com/embeds/two.png' },
+        },
+      ];
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Forwarded with embeds',
+        embeds: snapshotEmbeds,
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = await buildMessageContent(message);
+
+      const mintedNames = result.attachments.map(a => a.name);
+      expect(mintedNames).toEqual([
+        'embed-1-image.png',
+        'embed-1-thumbnail.png',
+        'embed-2-image.png',
+      ]);
+
+      const embedsXml = (result.embedsXml ?? []).join('\n');
+      for (const name of mintedNames) {
+        expect(embedsXml).toContain(`filename="${name}"`);
+      }
+    });
+
     it('should combine forwarded snapshot attachments with main message attachments', async () => {
       // Snapshot with image
       const snapshotAttachments = new Collection<string, Attachment>();

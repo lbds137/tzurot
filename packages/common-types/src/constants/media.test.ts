@@ -92,8 +92,9 @@ describe('Media Constants', () => {
 
   describe('EMBED_NAMING', () => {
     it('should have correct naming patterns', () => {
-      expect(EMBED_NAMING.IMAGE_PREFIX).toBe('embed-image-');
-      expect(EMBED_NAMING.THUMBNAIL_PREFIX).toBe('embed-thumbnail-');
+      expect(EMBED_NAMING.PREFIX).toBe('embed-');
+      expect(EMBED_NAMING.IMAGE_SLOT).toBe('image');
+      expect(EMBED_NAMING.THUMBNAIL_SLOT).toBe('thumbnail');
       expect(EMBED_NAMING.DEFAULT_EXTENSION).toBe('.png');
     });
   });

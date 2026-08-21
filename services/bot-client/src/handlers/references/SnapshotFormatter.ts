@@ -132,7 +132,7 @@ export class SnapshotFormatter {
                 'toJSON' in embed && typeof embed.toJSON === 'function'
                   ? embed.toJSON()
                   : (embed as APIEmbed);
-              return `<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed)}\n</embed>`;
+              return `<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed, index)}\n</embed>`;
             })
             .join('\n')
         : '';

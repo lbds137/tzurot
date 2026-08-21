@@ -567,14 +567,14 @@ describe('xmlMetadataFormatters', () => {
               attachments: [
                 {
                   id: 'att-1',
-                  url: 'https://cdn.discord.com/embed-image-1.png',
+                  url: 'https://cdn.discord.com/embed-1-image.png',
                   contentType: 'image/png',
-                  name: 'embed-image-1.png',
+                  name: 'embed-1-image.png',
                 },
               ],
               attachmentEnrichment: [
                 {
-                  url: 'https://cdn.discord.com/embed-image-1.png',
+                  url: 'https://cdn.discord.com/embed-1-image.png',
                   kind: 'image',
                   description: 'SENTINEL_STORED_VISION',
                 },
@@ -598,7 +598,7 @@ describe('xmlMetadataFormatters', () => {
           attachments: [
             {
               kind: 'image',
-              filename: 'embed-image-1.png',
+              filename: 'embed-1-image.png',
               contentType: 'image/png',
               description: 'SENTINEL_STORED_VISION',
             },
@@ -612,7 +612,7 @@ describe('xmlMetadataFormatters', () => {
       );
       expect(result).toContain('SENTINEL_STORED_VISION');
       // One element for the picture, never a description plus a marker.
-      expect(result).not.toContain('[image/png: embed-image-1.png]');
+      expect(result).not.toContain('[image/png: embed-1-image.png]');
       expect(result.match(/<image /g)).toHaveLength(1);
     });
 

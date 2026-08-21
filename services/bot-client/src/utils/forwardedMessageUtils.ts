@@ -271,6 +271,10 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
     ? extractForwardedAttachments(message)
     : [
         ...(extractAttachments(message.attachments) ?? []),
+        // This call exists only to test isVoiceMessage on the resulting
+        // metadata; the returned boolean can't carry a name, so the synthetic
+        // embed names minted here are discarded and never reach a prompt —
+        // deliberately outside the embed-name/XML binding.
         ...(extractEmbedImages(message.embeds) ?? []),
       ];
 
