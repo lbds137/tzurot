@@ -23,7 +23,6 @@ import {
   type Message,
   type MessageSnapshot,
   type Collection,
-  type APIEmbed,
   MessageReferenceType,
   PermissionFlagsBits,
   type TextBasedChannel,
@@ -39,22 +38,6 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { stripBotFooters } from '@tzurot/common-types/utils/discord';
 
 const logger = createLogger('forwardedMessageUtils');
-
-/**
- * Content extracted from a forwarded message or its snapshots
- */
-interface ForwardedContentResult {
-  /** Text content from forwarded message */
-  content: string;
-  /** Attachments from forwarded message (files, images, voice) */
-  attachments: AttachmentMetadata[];
-  /** Embeds from forwarded message */
-  embeds: (APIEmbed | { toJSON(): APIEmbed })[];
-  /** Whether content was extracted from snapshots (vs fallback to main message) */
-  fromSnapshot: boolean;
-  /** Original message ID from the forward reference (if available) */
-  originalMessageId: string | undefined;
-}
 
 /**
  * Check if a message is a forwarded message.
@@ -249,77 +232,19 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
 }
 
 /**
- * Extract embeds from a forwarded message's snapshots.
- *
- * @param message - Discord message (should be a forwarded message)
- * @returns Array of embeds from snapshots
- */
-function extractForwardedEmbeds(message: Message): (APIEmbed | { toJSON(): APIEmbed })[] {
-  const embeds: (APIEmbed | { toJSON(): APIEmbed })[] = [];
-
-  const snapshots = getSnapshots(message);
-  if (snapshots === undefined) {
-    return embeds;
-  }
-
-  for (const snapshot of snapshots.values()) {
-    if (snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
-      embeds.push(...snapshot.embeds);
-    }
-  }
-
-  return embeds;
-}
-
-/**
- * Extract all content from a forwarded message (comprehensive extraction).
- *
- * This is the canonical method for extracting all content from a forwarded message.
- * It extracts text content, attachments, and embeds from snapshots with proper fallbacks.
- *
- * Use this when you need complete content extraction for processing.
- *
- * @param message - Discord message (should be a forwarded message)
- * @returns Comprehensive content result with all extracted data
- */
-export function extractAllForwardedContent(message: Message): ForwardedContentResult {
-  const hasSnapshots = hasForwardedSnapshots(message);
-
-  if (!hasSnapshots) {
-    // No snapshots - fall back to main message data
-    // This handles the edge case where Discord doesn't populate snapshots
-    const mainAttachments = extractAttachments(message.attachments);
-    const embedImages = extractEmbedImages(message.embeds);
-
-    return {
-      content: message.content,
-      attachments: [...(mainAttachments ?? []), ...(embedImages ?? [])],
-      embeds: message.embeds ?? [],
-      fromSnapshot: false,
-      originalMessageId: message.reference?.messageId,
-    };
-  }
-
-  // Extract from snapshots
-  return {
-    content: extractForwardedContent(message),
-    attachments: extractForwardedAttachments(message),
-    embeds: extractForwardedEmbeds(message),
-    fromSnapshot: true,
-    originalMessageId: message.reference?.messageId,
-  };
-}
-
-/**
  * Check if a forwarded message contains voice message attachments.
  *
  * Reads the precomputed `AttachmentMetadata.isVoiceMessage` flag rather than
- * re-running {@link isVoiceAttachment} here: `extractAllForwardedContent` →
- * `extractAttachments` already evaluated the predicate against the RAW attachment
- * (before normalizing a null content-type to `application/octet-stream`), so the
- * flag preserves the duration fallback for content-type-absent voice snapshots.
- * Calling `isVoiceAttachment` on the already-normalized metadata here would lose
- * that fallback and disagree with the flag on the very same object.
+ * re-running {@link isVoiceAttachment} here: `extractAttachments` already
+ * evaluated the predicate against the RAW attachment (before normalizing a
+ * null content-type to `application/octet-stream`), so the flag preserves the
+ * duration fallback for content-type-absent voice snapshots. Calling
+ * `isVoiceAttachment` on the already-normalized metadata here would lose that
+ * fallback and disagree with the flag on the very same object.
+ *
+ * Mirrors {@link extractForwardedAttachments}'s no-snapshots fallback: when
+ * Discord hasn't populated snapshots, attachments come from the wrapping
+ * message itself rather than reading nothing.
  *
  * @param message - Discord message (should be a forwarded message)
  * @returns true if the forwarded message contains voice attachments
@@ -329,7 +254,13 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
     return false;
   }
 
-  const { attachments } = extractAllForwardedContent(message);
+  const attachments = hasForwardedSnapshots(message)
+    ? extractForwardedAttachments(message)
+    : [
+        ...(extractAttachments(message.attachments) ?? []),
+        ...(extractEmbedImages(message.embeds) ?? []),
+      ];
+
   return attachments.some(a => a.isVoiceMessage === true);
 }
 
