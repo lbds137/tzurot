@@ -5,7 +5,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 import { createMockMessage } from '../../test/mocks/Discord.mock.js';
-import { Collection, type Channel, type MessageSnapshot, type APIEmbed } from 'discord.js';
+import {
+  ChannelType,
+  Collection,
+  PermissionFlagsBits,
+  type Channel,
+  type MessageSnapshot,
+  type APIEmbed,
+} from 'discord.js';
 
 // Mock the utility functions
 vi.mock('../../utils/discordContext.js', () => ({
@@ -46,6 +53,11 @@ vi.mock('../../utils/EmbedParser.js', () => ({
 }));
 
 describe('SnapshotFormatter', () => {
+  // Most tests here exercise snapshot FORMATTING, for which the marker is an
+  // opaque passed-in string. The gate that produces it is tested directly
+  // against buildForwardMarker in the 'Location Context' block below.
+  const GENERIC_MARKER = '(forwarded message)';
+
   let formatter: SnapshotFormatter;
 
   beforeEach(() => {
@@ -65,7 +77,7 @@ describe('SnapshotFormatter', () => {
   }
 
   describe('forwarded stickers', () => {
-    it('attaches a forwarded snapshot sticker so vision can describe it', () => {
+    it('attaches a forwarded snapshot sticker so vision can describe it', async () => {
       // A forward carries its stickers on the SNAPSHOT, not on the forwarding
       // message, and this path formats the snapshot directly — so it needs its
       // own extractor. Before this, a forwarded sticker reached the model as a
@@ -86,7 +98,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.attachments).toEqual([
         expect.objectContaining({ id: '77', isSticker: true, contentType: 'image/png' }),
@@ -96,7 +108,7 @@ describe('SnapshotFormatter', () => {
       expect(result.content).toBe('Snapshot content\n\n[Stickers: shipit]');
     });
 
-    it('renders the sticker name line for a non-rasterizable (Lottie) sticker', () => {
+    it('renders the sticker name line for a non-rasterizable (Lottie) sticker', async () => {
       // A Lottie sticker has no raster form, so stickersToAttachments filters
       // it out — the name line is its ONLY trace. Before this, a forwarded
       // Lottie sticker was entirely invisible to the model: empty content,
@@ -117,13 +129,13 @@ describe('SnapshotFormatter', () => {
         ]),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage());
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage(), GENERIC_MARKER);
 
       expect(result.content).toBe('[Stickers: wave — Wumpus waves hello]');
       expect(result.attachments).toBeUndefined();
     });
 
-    it('appends the sticker name line after existing snapshot content', () => {
+    it('appends the sticker name line after existing snapshot content', async () => {
       const snapshot = createMockSnapshot({
         content: 'look at this',
         stickers: new Map([
@@ -140,12 +152,12 @@ describe('SnapshotFormatter', () => {
         ]),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage());
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage(), GENERIC_MARKER);
 
       expect(result.content).toBe('look at this\n\n[Stickers: shipit]');
     });
 
-    it('scopes the name line to THIS snapshot — the forwarding message stickers stay out', () => {
+    it('scopes the name line to THIS snapshot — the forwarding message stickers stay out', async () => {
       // formatSnapshot runs once per snapshot; pulling the containing
       // message's (or sibling snapshots') stickers in would duplicate names
       // across every reference entry of a multi-snapshot forward.
@@ -156,14 +168,14 @@ describe('SnapshotFormatter', () => {
         ]),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.content).toBe('plain text');
     });
   });
 
   describe('Basic Formatting', () => {
-    it('should format a simple snapshot', () => {
+    it('should format a simple snapshot', async () => {
       const snapshot = createMockSnapshot({
         content: 'Forwarded message content',
         createdTimestamp: 1704110400000,
@@ -174,7 +186,7 @@ describe('SnapshotFormatter', () => {
         createdAt: new Date('2025-01-01T14:00:00Z'),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result).toEqual({
         referenceNumber: 1,
@@ -193,19 +205,24 @@ describe('SnapshotFormatter', () => {
       });
     });
 
-    it('strips our own -# footer from a forwarded snapshot of one of our replies', () => {
+    it('strips our own -# footer from a forwarded snapshot of one of our replies', async () => {
       const snapshot = createMockSnapshot({
         content:
           'The answer is 42.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
         createdTimestamp: 1704110400000,
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage({ id: 'fwd-1' }));
+      const result = formatter.formatSnapshot(
+        snapshot,
+        1,
+        createMockMessage({ id: 'fwd-1' }),
+        GENERIC_MARKER
+      );
 
       expect(result.content).toBe('The answer is 42.');
     });
 
-    it('strips footers per-snapshot, not just from the first one', () => {
+    it('strips footers per-snapshot, not just from the first one', async () => {
       // formatSnapshot runs once per snapshot in a multi-snapshot forward, so
       // the strip cannot delegate to an accessor that reads only the first.
       const second = createMockSnapshot({
@@ -213,35 +230,45 @@ describe('SnapshotFormatter', () => {
         createdTimestamp: 1704110400000,
       });
 
-      const result = formatter.formatSnapshot(second, 2, createMockMessage({ id: 'fwd-1' }));
+      const result = formatter.formatSnapshot(
+        second,
+        2,
+        createMockMessage({ id: 'fwd-1' }),
+        GENERIC_MARKER
+      );
 
       expect(result.content).toBe('Second reply.');
     });
 
-    it("leaves a forwarded human's own -# subtext alone", () => {
+    it("leaves a forwarded human's own -# subtext alone", async () => {
       const snapshot = createMockSnapshot({
         content: 'my hot take\n-# just my opinion though',
         createdTimestamp: 1704110400000,
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage({ id: 'fwd-1' }));
+      const result = formatter.formatSnapshot(
+        snapshot,
+        1,
+        createMockMessage({ id: 'fwd-1' }),
+        GENERIC_MARKER
+      );
 
       expect(result.content).toBe('my hot take\n-# just my opinion though');
     });
 
-    it('should handle empty content', () => {
+    it('should handle empty content', async () => {
       const snapshot = createMockSnapshot({
         content: null as any,
       });
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.content).toBe('');
     });
 
-    it('should use forwardedFrom timestamp when snapshot has no timestamp', () => {
+    it('should use forwardedFrom timestamp when snapshot has no timestamp', async () => {
       const snapshot = createMockSnapshot({
         createdTimestamp: null as any,
       });
@@ -250,16 +277,16 @@ describe('SnapshotFormatter', () => {
         createdAt: new Date('2025-01-01T15:00:00Z'),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.timestamp).toBe('2025-01-01T15:00:00.000Z');
     });
 
-    it('should always mark as forwarded', () => {
+    it('should always mark as forwarded', async () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 5, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 5, forwardedFrom, GENERIC_MARKER);
 
       expect(result.isForwarded).toBe(true);
       expect(result.referenceNumber).toBe(5);
@@ -284,20 +311,20 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].url).toBe('https://example.com/image.png');
     });
 
-    it('should handle null attachments', () => {
+    it('should handle null attachments', async () => {
       const snapshot = createMockSnapshot({
         attachments: null,
       });
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.attachments).toBeUndefined();
     });
@@ -328,7 +355,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.attachments).toHaveLength(2);
       expect(result.attachments?.[0].url).toBe('https://example.com/file.pdf');
@@ -337,7 +364,7 @@ describe('SnapshotFormatter', () => {
   });
 
   describe('Embeds', () => {
-    it('should format single embed', () => {
+    it('should format single embed', async () => {
       const snapshot = createMockSnapshot({
         embeds: [
           {
@@ -349,12 +376,12 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.embeds).toBe('<embed>\nEmbed Title\nEmbed Description\n</embed>');
     });
 
-    it('should format multiple embeds with numbers', () => {
+    it('should format multiple embeds with numbers', async () => {
       const snapshot = createMockSnapshot({
         embeds: [
           {
@@ -370,14 +397,14 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.embeds).toBe(
         '<embed number="1">\nFirst Embed\nFirst Description\n</embed>\n<embed number="2">\nSecond Embed\nSecond Description\n</embed>'
       );
     });
 
-    it('should handle embeds with toJSON method', () => {
+    it('should handle embeds with toJSON method', async () => {
       const snapshot = createMockSnapshot({
         embeds: [
           {
@@ -392,100 +419,291 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.embeds).toBe('<embed>\nJSON Embed\nJSON Description\n</embed>');
     });
 
-    it('should handle empty embeds array', () => {
+    it('should handle empty embeds array', async () => {
       const snapshot = createMockSnapshot({
         embeds: [],
       });
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.embeds).toBe('');
     });
 
-    it('should handle null embeds', () => {
+    it('should handle null embeds', async () => {
       const snapshot = createMockSnapshot({
         embeds: null as any,
       });
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.embeds).toBe('');
     });
   });
 
   describe('Location Context', () => {
-    it('should append "(forwarded message)" to location context', () => {
-      const snapshot = createMockSnapshot();
+    /**
+     * Builds a mock origin channel with the shape `buildForwardMarker`'s gate
+     * needs: `isTextBased`/`isDMBased` (Channel narrowing),
+     * `permissionsFor` (ViewChannel), and `isThread` (the entry point
+     * `satisfiesPrivateThreadMembership` always calls first, even on the
+     * non-thread happy path).
+     */
+    function createMockOriginChannel(
+      overrides: {
+        name?: string;
+        isDM?: boolean;
+        isThread?: boolean;
+        isPrivateThread?: boolean;
+        permissionsForResult?: { has: (flag: bigint) => boolean } | null;
+        threadMembersFetch?: ReturnType<typeof vi.fn>;
+      } = {}
+    ): Channel {
+      return {
+        name: overrides.name ?? 'announcements',
+        isTextBased: () => true,
+        isDMBased: () => overrides.isDM ?? false,
+        isThread: () => overrides.isThread ?? false,
+        type:
+          overrides.isPrivateThread === true ? ChannelType.PrivateThread : ChannelType.GuildText,
+        // `??` alone can't distinguish "not provided" from an intentional
+        // `null` override (the uncached-member fixture) — both are nullish.
+        permissionsFor: vi.fn(() =>
+          'permissionsForResult' in overrides
+            ? overrides.permissionsForResult
+            : { has: (flag: bigint) => flag === PermissionFlagsBits.ViewChannel }
+        ),
+        members: {
+          fetch: overrides.threadMembersFetch ?? vi.fn(() => Promise.resolve({ id: 'member' })),
+        },
+      } as unknown as Channel;
+    }
+
+    /** The default forwarder id `createMockMessage()`'s author carries. */
+    const DEFAULT_FORWARDER_ID = '123456789012345678';
+
+    it('should append "(forwarded message)" to location context', async () => {
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
 
-      expect(result.locationContext).toBe(
-        '<location type="guild"><server name="Test Guild"/></location> (forwarded message)'
-      );
+      expect(marker).toBe('(forwarded message)');
     });
 
-    it('surfaces the origin channel name when the bot can see it (cached)', () => {
-      const snapshot = createMockSnapshot();
+    it('surfaces the origin channel name when the forwarder CAN view it', async () => {
       const forwardedFrom = createMockMessage({
         reference: { channelId: 'origin-chan-1' } as never,
         client: {
           channels: {
             cache: new Collection<string, Channel>([
-              ['origin-chan-1', { name: 'announcements' } as unknown as Channel],
+              ['origin-chan-1', createMockOriginChannel({ name: 'announcements' })],
             ]),
           },
         } as never,
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
 
-      expect(result.locationContext).toBe(
-        '<location type="guild"><server name="Test Guild"/></location> (forwarded from #announcements)'
-      );
+      expect(marker).toBe('(forwarded from #announcements)');
     });
 
-    it('degrades to the generic marker when the origin channel is not in cache (e.g. cross-server)', () => {
-      const snapshot = createMockSnapshot();
+    it('degrades to the generic marker when the origin channel is not in cache (e.g. cross-server)', async () => {
       const forwardedFrom = createMockMessage({
         reference: { channelId: 'origin-chan-unknown' } as never,
         client: { channels: { cache: new Collection<string, Channel>() } } as never,
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
 
-      expect(result.locationContext).toBe(
-        '<location type="guild"><server name="Test Guild"/></location> (forwarded message)'
-      );
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('degrades to the generic marker when the forwarder LACKS ViewChannel on the origin channel', async () => {
+      // The behaviour change this task exists for: the bot can see the
+      // channel (it's cached), but the FORWARDER cannot — so the name must
+      // not leak.
+      const forwardedFrom = createMockMessage({
+        author: { id: DEFAULT_FORWARDER_ID } as never,
+        reference: { channelId: 'origin-chan-private' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              [
+                'origin-chan-private',
+                createMockOriginChannel({
+                  name: 'secret-channel',
+                  permissionsForResult: { has: () => false },
+                }),
+              ],
+            ]),
+          },
+        } as never,
+      });
+
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
+
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('degrades to the generic marker when the forwarder cannot be resolved from cache (permissionsFor returns null)', async () => {
+      const forwardedFrom = createMockMessage({
+        author: { id: DEFAULT_FORWARDER_ID } as never,
+        reference: { channelId: 'origin-chan-uncached' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              [
+                'origin-chan-uncached',
+                createMockOriginChannel({ name: 'general', permissionsForResult: null }),
+              ],
+            ]),
+          },
+        } as never,
+      });
+
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
+
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('degrades to the generic marker for a DM origin channel', async () => {
+      const forwardedFrom = createMockMessage({
+        author: { id: DEFAULT_FORWARDER_ID } as never,
+        reference: { channelId: 'origin-dm-1' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              ['origin-dm-1', createMockOriginChannel({ isDM: true })],
+            ]),
+          },
+        } as never,
+      });
+
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
+
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('degrades to the generic marker for a private thread the forwarder is NOT a member of', async () => {
+      const forwardedFrom = createMockMessage({
+        author: { id: DEFAULT_FORWARDER_ID } as never,
+        reference: { channelId: 'origin-thread-1' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              [
+                'origin-thread-1',
+                createMockOriginChannel({
+                  name: 'private-planning',
+                  isThread: true,
+                  isPrivateThread: true,
+                  // Parent ViewChannel still granted — private threads carry
+                  // an explicit member list on top of that.
+                  threadMembersFetch: vi.fn(() => Promise.reject(new Error('Unknown Member'))),
+                }),
+              ],
+            ]),
+          },
+        } as never,
+      });
+
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
+
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('degrades to the generic marker for a cached but NON-text-based channel', async () => {
+      // Distinct from the not-in-cache case: that one short-circuits on
+      // `undefined` without ever invoking `isTextBased()`. This one has a real
+      // object in the cache whose `isTextBased()` returns false, so it pins the
+      // guard actually running rather than the optional chain absorbing it.
+      const forwardedFrom = createMockMessage({
+        author: { id: DEFAULT_FORWARDER_ID } as never,
+        reference: { channelId: 'origin-voice-1' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              [
+                'origin-voice-1',
+                {
+                  ...createMockOriginChannel({ name: 'stage-room' }),
+                  isTextBased: () => false,
+                } as unknown as Channel,
+              ],
+            ]),
+          },
+        } as never,
+      });
+
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
+
+      expect(marker).toBe('(forwarded message)');
+    });
+
+    it('gates on the FORWARDER id, not the bot — asserted at both access seams', async () => {
+      // Every other test here mocks `permissionsFor`/`members.fetch` to ignore
+      // their argument, so a gate that checked the BOT's access instead of the
+      // forwarder's would satisfy all of them while defeating the entire point
+      // of the check. These two assertions are what distinguish the cases.
+      const forwarderId = '999888777666555444';
+      const permissionsFor = vi.fn(() => ({ has: () => true }));
+      const membersFetch = vi.fn(() => Promise.resolve({ id: forwarderId }));
+      const forwardedFrom = createMockMessage({
+        author: { id: forwarderId } as never,
+        reference: { channelId: 'origin-thread-2' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              [
+                'origin-thread-2',
+                {
+                  ...createMockOriginChannel({
+                    name: 'planning',
+                    isThread: true,
+                    isPrivateThread: true,
+                  }),
+                  permissionsFor,
+                  members: { fetch: membersFetch },
+                } as unknown as Channel,
+              ],
+            ]),
+          },
+        } as never,
+      });
+
+      const marker = await formatter.buildForwardMarker(forwardedFrom);
+
+      expect(permissionsFor).toHaveBeenCalledWith(forwarderId);
+      expect(membersFetch).toHaveBeenCalledWith(forwarderId);
+      expect(marker).toBe('(forwarded from #planning)');
     });
   });
 
   describe('Author Information', () => {
-    it('should always use "Unknown User" for author fields', () => {
+    it('should always use "Unknown User" for author fields', async () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.authorUsername).toBe('Unknown User');
       expect(result.authorDisplayName).toBe('Unknown User');
       expect(result.discordUserId).toBe('unknown');
     });
 
-    it('should not include webhook ID', () => {
+    it('should not include webhook ID', async () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.webhookId).toBeUndefined();
     });

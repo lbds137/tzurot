@@ -62,13 +62,14 @@ describe('ReferenceFormatter', () => {
           locationContext: '',
           isForwarded: true,
         })),
+      buildForwardMarker: vi.fn(() => Promise.resolve('(forwarded message)')),
     } as any;
 
     formatter = new ReferenceFormatter(mockMessageFormatter, mockSnapshotFormatter);
   });
 
   describe('Sorting', () => {
-    it('should sort by depth first (BFS order)', () => {
+    it('should sort by depth first (BFS order)', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'depth-2',
@@ -100,7 +101,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       // Depth 1 should come before depth 2
       expect(result.rawReferences).toHaveLength(2);
@@ -110,7 +111,7 @@ describe('ReferenceFormatter', () => {
       expect(result.rawReferences[1].referenceNumber).toBe(2);
     });
 
-    it('should sort chronologically within same depth level', () => {
+    it('should sort chronologically within same depth level', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'newer',
@@ -142,7 +143,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       // Older message should come first within same depth
       expect(result.rawReferences).toHaveLength(2);
@@ -150,7 +151,7 @@ describe('ReferenceFormatter', () => {
       expect(result.rawReferences[1].discordMessageId).toBe('newer');
     });
 
-    it('should combine depth and chronological sorting', () => {
+    it('should combine depth and chronological sorting', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'depth1-newer',
@@ -196,7 +197,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       // Expected order: depth 1 (older), depth 1 (newer), depth 2 (older)
       expect(result.rawReferences).toHaveLength(3);
@@ -207,7 +208,7 @@ describe('ReferenceFormatter', () => {
   });
 
   describe('Reference Numbering', () => {
-    it('should assign sequential reference numbers starting from 1', () => {
+    it('should assign sequential reference numbers starting from 1', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'ref-1',
@@ -253,7 +254,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       expect(result.rawReferences[0].referenceNumber).toBe(1);
       expect(result.rawReferences[1].referenceNumber).toBe(2);
@@ -262,7 +263,7 @@ describe('ReferenceFormatter', () => {
   });
 
   describe('Link Replacement', () => {
-    it('should replace Discord links with [Reference N] placeholders', () => {
+    it('should replace Discord links with [Reference N] placeholders', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'ref-1',
@@ -283,12 +284,12 @@ describe('ReferenceFormatter', () => {
 
       const originalContent = 'Check this https://discord.com/channels/123/456/789';
 
-      const result = formatter.format(originalContent, crawledMessages, 10);
+      const result = await formatter.format(originalContent, crawledMessages, 10);
 
       expect(result.updatedContent).toBe('Check this [Reference 1]');
     });
 
-    it('should replace multiple links with correct reference numbers', () => {
+    it('should replace multiple links with correct reference numbers', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'ref-1',
@@ -325,12 +326,12 @@ describe('ReferenceFormatter', () => {
       const originalContent =
         'See https://discord.com/channels/111/222/333 and https://discord.com/channels/444/555/666';
 
-      const result = formatter.format(originalContent, crawledMessages, 10);
+      const result = await formatter.format(originalContent, crawledMessages, 10);
 
       expect(result.updatedContent).toBe('See [Reference 1] and [Reference 2]');
     });
 
-    it('should not replace links for references without discordUrl', () => {
+    it('should not replace links for references without discordUrl', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'ref-1',
@@ -351,7 +352,7 @@ describe('ReferenceFormatter', () => {
 
       const originalContent = 'This is a reply reference';
 
-      const result = formatter.format(originalContent, crawledMessages, 10);
+      const result = await formatter.format(originalContent, crawledMessages, 10);
 
       // Content should remain unchanged
       expect(result.updatedContent).toBe('This is a reply reference');
@@ -363,7 +364,7 @@ describe('ReferenceFormatter', () => {
   // history and projects the stub at render time, so this side ships the full
   // snapshot and lets the worker subtract.
   describe('Deduplicated References', () => {
-    it('emits the FULL snapshot for a deduped reference', () => {
+    it('emits the FULL snapshot for a deduped reference', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'deduped-1',
@@ -383,7 +384,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       expect(result.rawReferences).toHaveLength(1);
       const ref = result.rawReferences[0];
@@ -399,7 +400,7 @@ describe('ReferenceFormatter', () => {
       );
     });
 
-    it("does NOT truncate the content — capping is the renderer's single decision", () => {
+    it("does NOT truncate the content — capping is the renderer's single decision", async () => {
       const longContent = 'A'.repeat(200);
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
@@ -420,12 +421,12 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       expect(result.rawReferences[0].content).toBe(longContent);
     });
 
-    it('leaves short content alone too', () => {
+    it('leaves short content alone too', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'deduped-short',
@@ -445,12 +446,12 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       expect(result.rawReferences[0].content).toBe('Short');
     });
 
-    it('ships an image-only reference with its attachments INTACT', () => {
+    it('ships an image-only reference with its attachments INTACT', async () => {
       // The stub this replaced folded a `[image/png: photo.png]` text marker
       // into the content and dropped the attachment list. That cost the worker
       // the only structured record of what was attached, so an image whose
@@ -492,7 +493,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       const ref = result.rawReferences[0];
       expect(ref.content).toBe('');
@@ -501,7 +502,7 @@ describe('ReferenceFormatter', () => {
       ]);
     });
 
-    it('should use snapshot content for deduped forwarded messages', () => {
+    it('should use snapshot content for deduped forwarded messages', async () => {
       // Forwarded messages have empty message.content — real content is in snapshots
       const snapshotsMap = new Map();
       snapshotsMap.set('snapshot-0', {
@@ -538,7 +539,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       expect(result.rawReferences).toHaveLength(1);
       const ref = result.rawReferences[0];
@@ -546,7 +547,7 @@ describe('ReferenceFormatter', () => {
       expect(ref.content).toBe('Forwarded snapshot content here');
     });
 
-    it('should replace Discord links for deduped stubs with discordUrl', () => {
+    it('should replace Discord links for deduped stubs with discordUrl', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'deduped-link',
@@ -567,7 +568,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format(
+      const result = await formatter.format(
         'See https://discord.com/channels/1/2/3',
         crawledMessages,
         10
@@ -578,7 +579,7 @@ describe('ReferenceFormatter', () => {
   });
 
   describe('Limit Enforcement', () => {
-    it('should apply maxReferences limit', () => {
+    it('should apply maxReferences limit', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>();
 
       // Add 15 messages
@@ -596,7 +597,7 @@ describe('ReferenceFormatter', () => {
         });
       }
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       // Should limit to 10
       expect(result.rawReferences).toHaveLength(10);
@@ -604,7 +605,7 @@ describe('ReferenceFormatter', () => {
   });
 
   describe('Raw assembly envelope', () => {
-    it('carries the untruncated snapshot for a deduped reference', () => {
+    it('carries the untruncated snapshot for a deduped reference', async () => {
       const longContent = 'B'.repeat(200);
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
@@ -621,7 +622,7 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('content', crawledMessages, 10);
+      const result = await formatter.format('content', crawledMessages, 10);
 
       // The deduped branch ships the full snapshot: the worker re-derives dedup
       // against its own hydrated history and projects the stub at render time.
@@ -630,7 +631,7 @@ describe('ReferenceFormatter', () => {
       expect(result.rawReferences[0].referenceNumber).toBe(1);
     });
 
-    it('collects the raw snapshot for regular messages (pre-enrichment content)', () => {
+    it('collects the raw snapshot for regular messages (pre-enrichment content)', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'regular-raw',
@@ -645,14 +646,14 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('content', crawledMessages, 10);
+      const result = await formatter.format('content', crawledMessages, 10);
 
       expect(result.rawReferences).toHaveLength(1);
       expect(result.rawReferences[0].content).toBe('plain message');
       expect(result.rawReferences[0].referenceNumber).toBe(1);
     });
 
-    it('collects one raw entry per forwarded snapshot with consistent numbering', () => {
+    it('collects one raw entry per forwarded snapshot with consistent numbering', async () => {
       const snapshotsMap = new Map();
       snapshotsMap.set('s0', { content: 'first snapshot', attachments: new Map(), embeds: [] });
       snapshotsMap.set('s1', { content: 'second snapshot', attachments: new Map(), embeds: [] });
@@ -684,12 +685,114 @@ describe('ReferenceFormatter', () => {
         ],
       ]);
 
-      const result = formatter.format('', crawledMessages, 10);
+      const result = await formatter.format('', crawledMessages, 10);
 
       // Each snapshot expands to its own raw entry, numbered sequentially.
       expect(result.rawReferences).toHaveLength(2);
       expect(result.rawReferences.map(r => r.referenceNumber)).toEqual([1, 2]);
       expect(result.rawReferences[1].content).toBe('second snapshot');
+    });
+
+    it('resolves no marker at all for a forward with zero snapshots', async () => {
+      // isForwardedMessage is true on reference.type alone, so this arm is
+      // reachable with an empty collection — forwardedMessageUtils' own
+      // docstring records that Discord does not always populate snapshots.
+      // Resolving the marker here would spend a permission gate, and on a
+      // private-thread origin a REST fetch, on a value nothing consumes.
+      const emptySnapshots = {
+        size: 0,
+        values: () => new Map().values(),
+        first: () => undefined,
+      } as unknown as Collection<string, MessageSnapshot>;
+
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-empty',
+        content: '',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots: emptySnapshots,
+      });
+
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'forwarded-empty',
+          {
+            message: forwardedMessage,
+            metadata: {
+              messageId: 'forwarded-empty',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              discordUrl: 'https://discord.com/channels/1/2/3',
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      expect(mockSnapshotFormatter.buildForwardMarker).not.toHaveBeenCalled();
+      expect(mockSnapshotFormatter.formatSnapshot).not.toHaveBeenCalled();
+      expect(result.rawReferences).toEqual([]);
+    });
+
+    it('resolves the forward marker ONCE for a multi-snapshot forward', async () => {
+      // The marker depends only on the forwarding message, and producing it runs
+      // a permission gate that reaches a REST fetch on a private-thread origin.
+      // Computing it per snapshot would repeat that call for an answer that
+      // cannot differ between iterations, so the count is the assertion.
+      const snapshotsMap = new Map();
+      snapshotsMap.set('s0', { content: 'first snapshot', attachments: new Map(), embeds: [] });
+      snapshotsMap.set('s1', { content: 'second snapshot', attachments: new Map(), embeds: [] });
+      const messageSnapshots = {
+        size: snapshotsMap.size,
+        values: () => snapshotsMap.values(),
+        first: () => snapshotsMap.values().next().value,
+      } as unknown as Collection<string, MessageSnapshot>;
+
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-once',
+        content: '',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'forwarded-once',
+          {
+            message: forwardedMessage,
+            metadata: {
+              messageId: 'forwarded-once',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              discordUrl: 'https://discord.com/channels/1/2/3',
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format(
+        'See https://discord.com/channels/1/2/3',
+        crawledMessages,
+        10
+      );
+
+      expect(mockSnapshotFormatter.buildForwardMarker).toHaveBeenCalledTimes(1);
+      expect(mockSnapshotFormatter.formatSnapshot).toHaveBeenCalledTimes(2);
+      // Every snapshot receives the SAME resolved marker — the point of hoisting
+      // is one answer per forward, not merely one call.
+      const markers = vi
+        .mocked(mockSnapshotFormatter.formatSnapshot)
+        .mock.calls.map(call => call[3]);
+      expect(markers).toEqual(['(forwarded message)', '(forwarded message)']);
+      // Ordering is now structural rather than disciplined: the loop body has no
+      // await left, so numbering cannot interleave. Still pinned, because the
+      // numbering contract is what callers depend on.
+      expect(result.rawReferences.map(r => r.referenceNumber)).toEqual([1, 2]);
+      // All snapshots share the crawled entry's discordUrl and trackLink uses
+      // Map.set, so the LAST snapshot's number wins the link.
+      expect(result.updatedContent).toBe('See [Reference 2]');
     });
   });
 });
