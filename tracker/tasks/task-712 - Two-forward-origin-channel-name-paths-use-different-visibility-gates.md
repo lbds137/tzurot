@@ -4,10 +4,11 @@ title: Two forward-origin channel-name paths use different visibility gates
 status: To Do
 assignee: []
 created_date: '2026-08-21 01:47'
+updated_date: '2026-08-21 03:17'
 labels:
   - 'area:bot-client'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 712000
@@ -27,4 +28,14 @@ Pre-existing, not a regression from 2167 - which is why it was filed rather than
 Decide between: (a) port the 2167 gate so both paths agree on fail-closed, (b) decide the bot-cache gate is sufficient here and record WHY the two paths may legitimately differ, or (c) route both through one helper once TASK-710 extracts the private-thread check. Note (b) needs a real argument - the two paths carry the same data to the same consumer.
 
 Acceptance: the two paths either share a gate or carry a recorded reason for differing; whichever way, the reason lives next to buildForwardMarker so the next reader does not have to rediscover the divergence.
+
+OWNER DECISION 2026-08-21: INCLUDED in beta.206, resolving to option (a) — port the gate so both paths agree on fail-closed. Options (b) record-why-they-differ and (c) wait-for-TASK-710 are closed; do not re-open them.
+
+What that means concretely, so the next session does not re-derive it: buildForwardMarker gains the same forwarder-scoped check resolveOriginChannelName has — permissionsFor(forwarder) must carry ViewChannel, plus the private-thread membership lookup — and falls back to the existing generic (forwarded message) marker when it does not, exactly as it already does for an uncached channel. The fallback path is already there, so this changes which inputs reach it, not what it renders.
+
+Two things to settle at build time rather than now:
+- buildForwardMarker is SYNCHRONOUS and the private-thread check is async. Either make it async and thread that through ReferencedMessageFormatter.fromLiveReference, or gate only on the synchronous ViewChannel half here and accept that private threads stay bot-cache-gated on this path. Prefer the former; if the call chain makes it ugly, the latter is still strictly better than today and should be recorded as a deliberate partial.
+- Sequence AFTER TASK-710 if both land in this release. 710 extracts the shared membership helper, and doing 712 first means writing a third copy of the check that 710 then has to collapse.
+
+Not a blocker for either, but note the persisted consequence: this string goes into messageMetadata.referencedMessages, so tightening the gate changes only NEW rows. Existing rows keep whatever they captured. That is consistent with the snapshot-at-resolution semantics the forwardedOriginCache docstring describes, and needs no backfill.
 <!-- SECTION:DESCRIPTION:END -->
