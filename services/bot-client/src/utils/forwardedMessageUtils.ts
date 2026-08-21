@@ -177,9 +177,14 @@ export function extractForwardedContent(message: Message): string {
  * `-# Model: …` / incognito / auto-response markup into the model's context.
  *
  * The strip is unconditional — no authorship or origin check — because it is
- * scoped to OUR markup: {@link stripBotFooters}'s patterns match only our
- * exact footer shapes, so removing them is correct regardless of who
- * forwarded the message. It is our own text to remove, not theirs.
+ * scoped to OUR markup: `stripBotFooters`'s patterns each require a
+ * distinctive emoji plus an exact phrase, or `-# Model: ` / `-# Transcribed
+ * by ` followed by a well-formed `[text](<url>)` link. It is our own text to
+ * remove, not the forwarder's. The one place that reaches past our exact
+ * output is the `MODEL` pattern's documented ACCEPTED WIDENING
+ * (`BOT_FOOTER_PATTERNS` in common-types), whose stated cost — the author's
+ * own quoted text missing from what is fed back to the model — is precisely
+ * this path, and was judged acceptable there.
  *
  * @param message - Discord message (should be a forwarded message)
  * @returns Forwarded content with bot footers removed
@@ -242,9 +247,11 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
  * `isVoiceAttachment` on the already-normalized metadata here would lose that
  * fallback and disagree with the flag on the very same object.
  *
- * Mirrors {@link extractForwardedAttachments}'s no-snapshots fallback: when
- * Discord hasn't populated snapshots, attachments come from the wrapping
- * message itself rather than reading nothing.
+ * The no-snapshots fallback is this function's own, NOT inherited from
+ * {@link extractForwardedAttachments} — that one returns an empty array when
+ * Discord hasn't populated snapshots. Reading the wrapping message's
+ * attachments instead is what lets a snapshot-less forward of a voice note
+ * still be recognized, and is pinned by this function's tests.
  *
  * @param message - Discord message (should be a forwarded message)
  * @returns true if the forwarded message contains voice attachments
