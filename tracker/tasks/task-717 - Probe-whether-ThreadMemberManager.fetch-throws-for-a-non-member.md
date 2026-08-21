@@ -1,9 +1,10 @@
 ---
 id: TASK-717
 title: Probe whether ThreadMemberManager.fetch throws for a non-member
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 16:53'
+updated_date: '2026-08-21 19:04'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -27,4 +28,6 @@ Blast radius, all three sharing the single premise: LinkExtractor.verifyInvokerC
 Why this is state:owner rather than state:ready: it cannot be settled by reading types or by a unit test, because it is a question about what the Discord API does at runtime. It needs a live call against a real private thread with a real non-member id -- a dev session with the owner driving, or a one-commit debug probe on a path that reaches a private thread. A mocked test would only re-encode the assumption being questioned.
 
 Acceptance: the throws-for-non-member behaviour is confirmed or refuted by a runtime observation; the threadAccess docstring is updated to say which, citing the observation; and if refuted, all three call sites are corrected together in one change.
+
+Resolution: CONFIRMED, by the live probe this task called for (dev bot, owner-staged private thread, discord.js 14.27.0). The non-member fetch threw DiscordAPIError[10007] Unknown Member (HTTP 404) -- identically on an immediate retry, so no cache layer converts the miss into a resolve -- while the member fetch resolved a ThreadMember. The threadAccess docstring now cites the observation (PR #2173). Clause 3 (correct all three call sites) is N/A: the claim held.
 <!-- SECTION:DESCRIPTION:END -->

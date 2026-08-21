@@ -32,7 +32,7 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 
 **TASK-43 re-scoped, not built.** Its filed blocker ("MessageSnapshot strips mention metadata") is FALSE at the type level — re-verified against the shipped typings. The probe shipped in #2171 answers the half a declaration cannot; the fix shape is chosen from its result, not before it.
 
-**Filed this session, all tracked:** TASK-714 (embed XML emits the original URL while vision fetches the proxy), TASK-715 (**Done** — shipped in the PR that filed it), TASK-716, TASK-717 (`state:owner` — the throws-for-non-member premise now has three consumers and fails toward GRANTING).
+**Filed this session, all tracked:** TASK-714 (embed XML emits the original URL while vision fetches the proxy), TASK-715 (**Done** — shipped in the PR that filed it), TASK-716, TASK-717 (**Done** — the throws-for-non-member premise was CONFIRMED by a live probe, `DiscordAPIError[10007]`/404; docstring cites it, #2173).
 
 Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 carries, not chat_log XML attributes it deletes (`prompt-assembly-architecture.md` §9c). Phase 2 build specs derive from §9c — design is settled, no re-litigating.
 
