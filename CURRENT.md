@@ -22,9 +22,22 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 - GLM (b): a retarget succeeding where a demoted turn previously dead-ended (now.md entry stays until hardening (b) lands).
 - `rosterBlurbEnabled` stays **false** — flip gated on TASK-700 (blurb retry-storm hardening); the flip is a corpus-wide spend event and owner-timed.
 
-## ▶️ NEXT UNIT (for the next session — Opus orchestrator per the settled default)
+## ▶️ NEXT UNIT — beta.206 sub-theme 1 (the forward batch)
 
-**beta.206 sub-theme 1: the forward batch** — TASK-706 (start here; evidence + fix shape on the task) · 668 · 43 · 667 · 563 (parked branch `fix/task-563-reference-audio-voice-gate` exists — resume, don't rebuild). Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 carries, not chat_log XML attributes it deletes (`prompt-assembly-architecture.md` §9c). Then TASK-700 (blurb-flip gate). Phase 2 build specs derive from §9c — design is settled, no re-litigating.
+**Done:** TASK-706 (#2166, merged 2026-08-21) — extended-context forwards now carry attribution. Task stays OPEN: acceptance clause 1 is runtime-unverified, see the smoke queue below.
+
+**Next, in order:** TASK-668 (spec staged; its prescribed access gate was WRONG and is corrected on the task — use a channel-visibility check, not the personality-visibility one) → TASK-708 (its gate signal was ALSO wrong and is corrected — authorship via webhookId, not access via authorPersonalityId) → TASK-43 (**re-scope first**: the "MessageSnapshot strips mentions" blocker is false at the type level; the recorded next step is a runtime probe, not an implementation) → TASK-667 (binding decision recorded: derive the synthetic name from embed index + slot) → TASK-563 (parked branch is on origin and safe; 1 ahead / 450 behind, so rebase).
+
+Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 carries, not chat_log XML attributes it deletes (`prompt-assembly-architecture.md` §9c). Then TASK-700 (blurb-flip gate). Phase 2 build specs derive from §9c — design is settled, no re-litigating.
+
+## 🔬 beta.206 smoke queue (batch at release kickoff — do NOT drip-feed)
+
+- [ ] **Forward attribution in extended context** (TASK-706 / #2166) — _needs-smoke: the fix is pinned at the seam by unit tests, but no runtime observation exists yet; the whole bug class was "code looked right, path never ran."_
+  - **Repro**: in dev, post a forward into a channel where the bot is **NOT** activated. Then, on a **later** message in that same channel, trigger a character (any character, any trigger style).
+  - **Invariant**: the forward must reach the model attributed, on a turn AFTER the one that created it. The trigger-message path already worked — this is specifically the ambient/non-trigger case.
+  - **Masking state**: if the same forward was already processed as a trigger, its attribution comes from the DB and proves nothing. Use a fresh forward the bot never responded to.
+  - **Expect**: the quote renders with the original author's name and a `t=` timestamp. Failure looks like `from="Unknown"` with no `t=` — today's behavior.
+  - **Report**: `/inspect` output or a debug payload is ideal; a pass/fail is fine.
 
 ## 📋 Open items (near-term)
 
