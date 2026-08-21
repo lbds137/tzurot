@@ -20,13 +20,22 @@
  * briefly.
  *
  * Accepted staleness, stated because the rest of this path is fussy about
- * access control: `authorPersonalityId` is produced by a real permission check,
- * and caching it means a personality deleted or made private mid-window keeps
- * rendering its `from_id` until the entry expires. Accepted rather than
- * overlooked — what leaks is a display name and an internal id inside a prompt,
- * never a capability, and re-resolving per turn would cost the Discord round
- * trips this cache exists to remove. The other fields cannot go stale at all:
- * an original's author and post time are immutable.
+ * access control. TWO fields are produced by a real permission check and can
+ * therefore go stale: `authorPersonalityId` (a personality deleted or made
+ * private mid-window keeps rendering its `from_id`) and `channelName` (a
+ * forwarder who loses `ViewChannel` on the origin keeps seeing it named).
+ * Accepted rather than overlooked — what leaks is a display name, an internal
+ * id and a channel name inside a prompt, never a capability, and re-resolving
+ * per turn would cost the Discord round trips this cache exists to remove.
+ *
+ * The TTL is not the real exposure bound in either case, and it would be
+ * misleading to read it as one: `ConversationPersistence.backFillForwardedOrigin`
+ * writes the SAME resolved object onto the conversation row, where it lives for
+ * the row's lifetime. Both fields are snapshot-at-resolution by design — the row
+ * records what was true when the forward was posted — so tightening this cache
+ * while that copy persists would buy nothing.
+ *
+ * Only the original's author name and post time are genuinely immutable.
  */
 
 import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';

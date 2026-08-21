@@ -353,6 +353,7 @@ describe('storedReferencedMessageSchema — what survives the DB round trip', ()
         authorName: 'COLD',
         authorId: '1472768398135001108',
         timestamp: '2026-08-18T11:13:53.053Z',
+        channelName: 'lilith',
       },
     });
 
@@ -360,6 +361,7 @@ describe('storedReferencedMessageSchema — what survives the DB round trip', ()
       authorName: 'COLD',
       authorId: '1472768398135001108',
       timestamp: '2026-08-18T11:13:53.053Z',
+      channelName: 'lilith',
     });
   });
 

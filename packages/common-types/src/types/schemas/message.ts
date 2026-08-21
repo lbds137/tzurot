@@ -231,6 +231,27 @@ export const forwardedOriginSchema = z.object({
    * cannot expand, which a snowflake would never have been either.
    */
   authorPersonalityId: z.string().optional(),
+  /**
+   * Name of the channel the original message was posted in.
+   *
+   * Resolved through the FORWARDER's channel access, not the bot's, so a
+   * forwarder never learns the name of a channel they cannot see. That is a
+   * CHANNEL-visibility check and is deliberately not the gate
+   * `authorPersonalityId` uses — a personality-visibility check, which is
+   * `undefined` for every forward of a human message and so would suppress
+   * this field in the common case.
+   *
+   * The two senses of "fail" here point opposite ways, so both are named. The
+   * GATE fails CLOSED: anything it cannot verify yields no name. CONSUMERS
+   * fail OPEN, per this schema's module docstring: absence renders an
+   * unattributed quote rather than an error.
+   *
+   * Absence covers four cases this field cannot tell apart: the original was
+   * a DM (no channel to name), the forwarder lacks `ViewChannel` on the origin
+   * channel, they could not be resolved from cache, or the origin is a private
+   * thread they are no longer a member of.
+   */
+  channelName: z.string().optional(),
 });
 
 /**

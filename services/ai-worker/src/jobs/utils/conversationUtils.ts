@@ -206,6 +206,7 @@ export function formatSingleHistoryEntryAsXml(
       // snowflake there is an identity token that can never resolve.
       fromId: forwardedFrom?.authorPersonalityId,
       timeFormatted: promptTime(forwardedFrom?.timestamp),
+      channel: forwardedFrom?.channelName,
       textContent: msg.content,
       embedsXml: msg.messageMetadata?.embedsXml,
       attachments: toRenderableAttachments(msg.messageMetadata),

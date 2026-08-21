@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Message, MessageSnapshot, Collection } from 'discord.js';
-import { MessageReferenceType } from 'discord.js';
+import { ChannelType, MessageReferenceType, PermissionFlagsBits } from 'discord.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -671,6 +671,28 @@ describe('forwardedMessageUtils', () => {
       messagesFetch?: ReturnType<typeof vi.fn>;
       clientUserTag?: string;
       channelType?: number;
+      /** The origin channel's display name, for the `channel=` attribution. */
+      channelName?: string;
+      /** Whether the origin channel is a DM — narrows the attribution gate off entirely. */
+      channelIsDM?: boolean;
+      /**
+       * What `channel.permissionsFor(forwarderId)` returns — `null` for an
+       * uncached/unresolvable member (the default, matching Discord's own
+       * fail shape), or a bitfield-like object for a resolved one.
+       */
+      permissionsForResult?: { has: (flag: bigint) => boolean } | null;
+      /**
+       * Whether the origin channel is a thread. Combined with `channelType`
+       * PrivateThread, this is what reaches the membership lookup — a public
+       * thread is a thread but must NOT trigger it.
+       */
+      channelIsThread?: boolean;
+      /**
+       * What `thread.members.fetch(forwarderId)` does. Discord's manager
+       * THROWS for a non-member rather than resolving null, so the rejecting
+       * shape is the real non-member fixture.
+       */
+      threadMembersFetch?: ReturnType<typeof vi.fn>;
     }): Message {
       const messagesFetch =
         options.messagesFetch ??
@@ -686,7 +708,14 @@ describe('forwardedMessageUtils', () => {
       const channel = {
         id: 'channel-1',
         type: options.channelType ?? 0,
+        name: options.channelName,
         isTextBased: () => true,
+        isDMBased: () => options.channelIsDM ?? false,
+        isThread: () => options.channelIsThread ?? false,
+        permissionsFor: vi.fn(() => options.permissionsForResult ?? null),
+        members: {
+          fetch: options.threadMembersFetch ?? vi.fn(() => Promise.resolve({ id: 'forwarder-1' })),
+        },
         messages: { fetch: messagesFetch },
       };
       const snapshot = { createdTimestamp: options.snapshotCreatedTimestamp ?? null };
@@ -775,6 +804,7 @@ describe('forwardedMessageUtils', () => {
         id: 'dm-1',
         type: 1, // ChannelType.DM
         isTextBased: () => true,
+        isDMBased: () => true,
         messages: {
           fetch: vi.fn(() =>
             Promise.resolve({
@@ -812,6 +842,8 @@ describe('forwardedMessageUtils', () => {
         Promise.resolve({
           id: 'channel-2',
           isTextBased: () => true,
+          isDMBased: () => false,
+          permissionsFor: () => null,
           messages: { fetch: otherChannelMessagesFetch },
         })
       );
@@ -953,6 +985,164 @@ describe('forwardedMessageUtils', () => {
       );
 
       expect(origin).toBeUndefined();
+    });
+
+    describe('channel attribution', () => {
+      it('populates channelName when the forwarder can view the origin channel', async () => {
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'general',
+            permissionsForResult: { has: flag => flag === PermissionFlagsBits.ViewChannel },
+          })
+        );
+
+        expect(origin?.channelName).toBe('general');
+      });
+
+      it('omits channelName when the forwarder lacks ViewChannel on the origin channel', async () => {
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'secret-channel',
+            // Resolved, but WITHOUT ViewChannel — a distinct fail-closed path
+            // from the unresolvable-member case below.
+            permissionsForResult: { has: () => false },
+          })
+        );
+
+        expect(origin?.channelName).toBeUndefined();
+      });
+
+      it('omits channelName when the origin member cannot be resolved from cache', async () => {
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'general',
+            // permissionsFor returns null — the default, and a DIFFERENT
+            // fail-closed path than a resolved bitfield missing ViewChannel.
+            permissionsForResult: null,
+          })
+        );
+
+        expect(origin?.channelName).toBeUndefined();
+      });
+
+      it('names a PRIVATE thread the forwarder is still a member of', async () => {
+        const threadMembersFetch = vi.fn(() => Promise.resolve({ id: 'forwarder-1' }));
+
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'private-planning',
+            channelType: ChannelType.PrivateThread,
+            channelIsThread: true,
+            permissionsForResult: { has: flag => flag === PermissionFlagsBits.ViewChannel },
+            threadMembersFetch,
+          })
+        );
+
+        expect(origin?.channelName).toBe('private-planning');
+        expect(threadMembersFetch).toHaveBeenCalledWith('forwarder-1');
+      });
+
+      it('omits a PRIVATE thread name when the forwarder is no longer a member', async () => {
+        // The gap ViewChannel alone cannot see: threads hold no overwrites of
+        // their own, so `permissionsFor` reports the PARENT's — which someone
+        // removed from the thread typically still has.
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'private-planning',
+            channelType: ChannelType.PrivateThread,
+            channelIsThread: true,
+            // Parent ViewChannel still granted — this is the whole point.
+            permissionsForResult: { has: flag => flag === PermissionFlagsBits.ViewChannel },
+            threadMembersFetch: vi.fn(() => Promise.reject(new Error('Unknown Member'))),
+          })
+        );
+
+        expect(origin?.channelName).toBeUndefined();
+      });
+
+      it('names a PUBLIC thread without a membership lookup', async () => {
+        // Public and announcement threads are treated as inheriting parent
+        // access, matching the reasoning already recorded in
+        // `LinkExtractor.verifyInvokerCanAccessSource`; not independently
+        // probed against Discord here. Skipping the lookup for them keeps
+        // this PR's no-extra-REST property everywhere but private threads.
+        const threadMembersFetch = vi.fn(() => Promise.resolve({ id: 'forwarder-1' }));
+
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'public-thread',
+            channelType: ChannelType.PublicThread,
+            channelIsThread: true,
+            permissionsForResult: { has: flag => flag === PermissionFlagsBits.ViewChannel },
+            threadMembersFetch,
+          })
+        );
+
+        expect(origin?.channelName).toBe('public-thread');
+        expect(threadMembersFetch).not.toHaveBeenCalled();
+      });
+
+      it('names an ANNOUNCEMENT thread without a membership lookup', async () => {
+        // The docstring claims announcement threads inherit parent access
+        // alongside public ones; without this the claim rests on the enum
+        // value never being constructed in a test.
+        const threadMembersFetch = vi.fn(() => Promise.resolve({ id: 'forwarder-1' }));
+
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            snapshotCreatedTimestamp: Date.UTC(2026, 7, 18, 11, 13, 53),
+            fetchedAuthor: { id: 'author-1', displayName: 'COLD' },
+            channelName: 'announcements-thread',
+            channelType: ChannelType.AnnouncementThread,
+            channelIsThread: true,
+            permissionsForResult: { has: flag => flag === PermissionFlagsBits.ViewChannel },
+            threadMembersFetch,
+          })
+        );
+
+        expect(origin?.channelName).toBe('announcements-thread');
+        expect(threadMembersFetch).not.toHaveBeenCalled();
+      });
+
+      it('omits channelName for a DM origin and never calls permissionsFor', async () => {
+        const permissionsFor = vi.fn(() => ({ has: () => true }));
+        const messagesFetch = vi.fn(() =>
+          Promise.resolve({
+            author: { id: 'author-1', displayName: 'COLD' },
+            webhookId: null,
+            createdAt: DEFAULT_ORIGINAL_CREATED_AT,
+          })
+        );
+        const dmChannel = {
+          id: 'dm-2',
+          isTextBased: () => true,
+          isDMBased: () => true,
+          permissionsFor,
+          messages: { fetch: messagesFetch },
+        };
+
+        const origin = await resolveForwardedOrigin(
+          buildForward({
+            referenceChannelId: 'dm-2',
+            channelFetch: vi.fn(() => Promise.resolve(dmChannel)),
+          })
+        );
+
+        expect(origin?.channelName).toBeUndefined();
+        expect(permissionsFor).not.toHaveBeenCalled();
+      });
     });
   });
 });

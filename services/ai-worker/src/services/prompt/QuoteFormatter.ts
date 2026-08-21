@@ -226,6 +226,14 @@ export interface QuoteElementOptions {
    * which renderer reached it. One slot, one format.
    */
   timeFormatted?: string;
+  /**
+   * Name of the channel the ORIGINAL message was posted in (forwarded quotes
+   * only). Absent renders no `channel=` attribute at all — it is never an
+   * empty string or a placeholder. `ForwardedOrigin.channelName` enumerates
+   * what absence covers; the short version is that its visibility gate fails
+   * closed, so anything unverifiable arrives here as `undefined`.
+   */
+  channel?: string;
   /** Text content */
   content?: string;
   /** Location context XML (pre-formatted) */
@@ -283,6 +291,7 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     ['username', opts.username],
     ['role', opts.role],
     ['t', opts.timeFormatted],
+    ['channel', opts.channel],
   ];
   const attrs = attrDefs
     .filter((entry): entry is [string, string | number] => entry[1] !== undefined)
@@ -458,6 +467,16 @@ export interface ForwardedMessageContent {
    * carries no author, so this can be present when `from` is not.
    */
   timeFormatted?: string;
+  /**
+   * Name of the channel the ORIGINAL message was posted in, recovered at
+   * persist time from `message_reference.message_id` (bot-client's
+   * `resolveForwardedOrigin`). Absent for a DM origin, a forwarder without
+   * `ViewChannel` on the origin channel, a forwarder not resolvable from
+   * cache, a private thread the forwarder has since been removed from, and
+   * rows written before this field existed — all five fall back to no
+   * `channel=` attribute.
+   */
+  channel?: string;
   /** Plain text content of the forwarded message */
   textContent?: string;
   /** Pre-formatted embed XML strings (callers must provide well-formed XML) */
@@ -484,6 +503,7 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
     from: content.from ?? 'Unknown',
     fromId: content.fromId,
     timeFormatted: content.timeFormatted,
+    channel: content.channel,
     content: content.textContent,
     embedsXml: content.embedsXml,
     attachments: content.attachments,
