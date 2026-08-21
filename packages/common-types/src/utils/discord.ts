@@ -480,8 +480,14 @@ export function stripBotFooters(content: string): string {
  * This prefix is added for DM messages so users can see which personality
  * is responding (since webhooks don't work in DMs). However, it should
  * NOT be stored in conversation history - it pollutes long-term memory.
+ *
+ * The ONE pattern behind both `stripDmPrefix` and `extractMessagePrefixName`,
+ * deliberately: "the name the extractor recovers is strippable by the
+ * stripper" is an invariant callers compose (extract → compare → strip), and
+ * two separately-maintained regexes would have to agree on match boundaries
+ * forever. The capture group costs the stripper nothing.
  */
-const DM_PREFIX_PATTERN = /^\*\*[^*]+:\*\*\s*/;
+const DM_PREFIX_PATTERN = /^\*\*([^*]+):\*\*\s*/;
 
 /**
  * Strip the DM personality prefix from message content.
@@ -497,12 +503,6 @@ export function stripDmPrefix(content: string): string {
 }
 
 /**
- * Capturing variant of {@link DM_PREFIX_PATTERN} — the same `**Name:** ` shape
- * but with the name captured so callers can recover the attribution.
- */
-const DM_PREFIX_NAME_PATTERN = /^\*\*([^*]+):\*\*\s*/;
-
-/**
  * Extract the display name from a bot-added `**Name:** ` prefix, or `null` if
  * the content has no such prefix.
  *
@@ -512,12 +512,18 @@ const DM_PREFIX_NAME_PATTERN = /^\*\*([^*]+):\*\*\s*/;
  *  - DM personality response → the name is the PERSONALITY's display name.
  *  - slash-command / chime-in relay echo → the name is the USER's display name.
  *
- * Apply ONLY to messages WE authored (same contract as
- * {@link normalizeMessageForContext}); a real user typing literal `**foo:** bar`
- * would otherwise be mis-attributed.
+ * The safe scope depends on what the caller does with the result:
+ *  - ATTRIBUTION (treating the name as the message's real author) is scoped to
+ *    messages WE authored, the same contract as
+ *    {@link normalizeMessageForContext} — a real user typing literal
+ *    `**foo:** bar` would otherwise be mis-attributed.
+ *  - EQUALITY COMPARISON against an already-resolved attribution is safe on any
+ *    content, including a real user's, because a non-match changes nothing. The
+ *    quote renderer uses it this way to detect a prefix that merely duplicates
+ *    the attribution it already carries.
  */
 export function extractMessagePrefixName(content: string): string | null {
-  const match = DM_PREFIX_NAME_PATTERN.exec(content);
+  const match = DM_PREFIX_PATTERN.exec(content);
   return match !== null ? match[1].trim() : null;
 }
 

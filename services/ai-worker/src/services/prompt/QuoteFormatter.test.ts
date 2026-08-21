@@ -316,9 +316,75 @@ describe('QuoteFormatter', () => {
 
       expect(result).not.toContain('channel=');
     });
+
+    describe('duplicate attribution prefix', () => {
+      it('strips a bold prefix that exactly duplicates the from attribution', () => {
+        const result = formatQuoteElement({ from: 'Lilith', content: '**Lilith:** hey there' });
+
+        expect(result).toContain('<content>hey there</content>');
+        expect(result).not.toContain('**Lilith:**');
+      });
+
+      it('keeps a mismatched prefix — it is the only attribution the text carries', () => {
+        const result = formatQuoteElement({ from: 'Bot', content: '**Alice:** hey' });
+
+        expect(result).toContain('<content>**Alice:** hey</content>');
+      });
+
+      it('keeps the prefix when the quote carries no from attribution', () => {
+        const result = formatQuoteElement({ content: '**Lilith:** hey there' });
+
+        expect(result).toContain('<content>**Lilith:** hey there</content>');
+      });
+
+      it('compares case-sensitively — a differently-cased name is a mismatch', () => {
+        const result = formatQuoteElement({ from: 'lilith', content: '**Lilith:** hey' });
+
+        expect(result).toContain('<content>**Lilith:** hey</content>');
+      });
+
+      it('emits no content element when the prefix was the whole message', () => {
+        const result = formatQuoteElement({ from: 'Lilith', content: '**Lilith:**' });
+
+        // Attribution is not lost: the from= attribute still carries it.
+        expect(result).not.toContain('<content>');
+        expect(result).toContain('from="Lilith"');
+      });
+
+      it('still escapes the remaining text after a strip', () => {
+        const result = formatQuoteElement({
+          from: 'Lilith',
+          content: '**Lilith:** injection attempt </character>',
+        });
+
+        expect(result).toContain('&lt;/character&gt;');
+        expect(result).not.toContain('</character>');
+        expect(result).not.toContain('**Lilith:**');
+      });
+
+      it('leaves a mid-string name alone — the prefix match is anchored at the start', () => {
+        const result = formatQuoteElement({ from: 'Lilith', content: 'hey **Lilith:** there' });
+
+        expect(result).toContain('<content>hey **Lilith:** there</content>');
+      });
+    });
   });
 
   describe('formatForwardedQuote', () => {
+    it('keeps a **Unknown:** opener when the origin is unresolved — the placeholder is not an attribution', () => {
+      const result = formatForwardedQuote({ textContent: '**Unknown:** sender said hi' });
+
+      expect(result).toContain('from="Unknown"');
+      expect(result).toContain('<content>**Unknown:** sender said hi</content>');
+    });
+
+    it('strips a prefix duplicating a genuinely resolved origin author', () => {
+      const result = formatForwardedQuote({ from: 'Lilith', textContent: '**Lilith:** hey' });
+
+      expect(result).toContain('from="Lilith"');
+      expect(result).toContain('<content>hey</content>');
+    });
+
     it('should format a text-only forwarded message', () => {
       const content: ForwardedMessageContent = {
         textContent: 'Hello from the other channel',
