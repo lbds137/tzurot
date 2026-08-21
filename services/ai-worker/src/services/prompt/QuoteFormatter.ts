@@ -13,6 +13,7 @@
 
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type RenderedQuoteRole } from './referenceRole.js';
+import { extractMessagePrefixName, stripDmPrefix } from '@tzurot/common-types/utils/discord';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 
@@ -209,6 +210,14 @@ export interface QuoteElementOptions {
   type?: 'forward';
   /** Author display name */
   from?: string;
+  /**
+   * Placeholder rendered as the `from=` attribute when `from` is undefined
+   * (e.g. `'Unknown'` for a forward whose origin could not be resolved).
+   * Deliberately a separate field: it is NEVER fed to the duplicate-attribution
+   * comparison, so an unresolved identity cannot strip content that happens to
+   * open with the placeholder's own text (`**Unknown:** …`).
+   */
+  fromFallback?: string;
   /** Author persona ID (UUID) */
   fromId?: string;
   /** Author username */
@@ -258,6 +267,50 @@ export interface QuoteElementOptions {
 }
 
 /**
+ * The content to render, with a leading bold `**Name:** ` opener removed when
+ * the name it carries is EXACTLY the quote's own `from=` attribution.
+ *
+ * Strip only on exact match: the quote already attributes via `from=`, so a
+ * matching prefix is pure duplication. On any mismatch the prefix is KEPT,
+ * because it is then the only attribution the text carries — `from="Bot"` with
+ * an `**Alice:**` opener means the bot relayed Alice, which is signal, not
+ * noise. Every other case (no `from`, no prefix, a differently-cased name, a
+ * name appearing mid-string) lands on the same mismatch arm, so the gate fails
+ * safe by construction.
+ *
+ * Reaching for {@link extractMessagePrefixName} on arbitrary quote content is
+ * safe BECAUSE the recovered name is only ever compared for equality, never
+ * used as an attribution: a real user's typed `**foo:** bar` cannot be
+ * mis-attributed here — it fails to match and renders unchanged.
+ *
+ * ACCEPTED RESIDUAL: a message whose author literally opened with their OWN
+ * resolved name (`from="Alice"` + typed `**Alice:** …`) is indistinguishable
+ * from a bot-inserted duplicate and gets stripped too. The cost is bounded —
+ * the attribution survives in `from=`, only the stylistic self-signature is
+ * lost — and the same bound covers old persisted rows whose `from` value is a
+ * literal placeholder string, and replayed history whose stored `from` was
+ * re-resolved to a different string than the one the live render used (a
+ * rename or adapter difference can make a genuine self-signature coincide).
+ * The inverse drift — a real bot-inserted duplicate whose producer-cased name
+ * no longer equals `from=` — is merely left un-stripped, which is the
+ * fail-safe direction this gate accepts everywhere; no case-parity between
+ * the prefix producer and the `from=` producer is assumed or required.
+ * Callers with an UNRESOLVED identity must not
+ * synthesize a `from` value; pass `fromFallback` instead, which renders the
+ * attribute without entering this comparison.
+ *
+ * Every claim above is pinned by the `duplicate attribution prefix` tests in
+ * this module's colocated test file.
+ */
+function contentWithoutDuplicateAttribution(opts: QuoteElementOptions): string | undefined {
+  const { content, from } = opts;
+  if (content === undefined || from === undefined) {
+    return content;
+  }
+  return extractMessagePrefixName(content) === from ? stripDmPrefix(content) : content;
+}
+
+/**
  * Format a single <quote> element with consistent structure.
  *
  * Output format:
@@ -286,7 +339,7 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
   const attrDefs: [string, string | number | undefined][] = [
     ['number', opts.number],
     ['type', opts.type],
-    ['from', opts.from],
+    ['from', opts.from ?? opts.fromFallback],
     ['from_id', opts.fromId],
     ['username', opts.username],
     ['role', opts.role],
@@ -305,7 +358,11 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
   // pre-formatted XML from trusted internal sources (ReferencedMessageFormatter;
   // bot-client's EmbedParser, which escapeXml's every embed field) — those two
   // are passed through verbatim; do NOT route raw user input through them.
-  addNonEmpty(parts, opts.content, c => `<content>${escapeXmlContent(c)}</content>`);
+  addNonEmpty(
+    parts,
+    contentWithoutDuplicateAttribution(opts),
+    c => `<content>${escapeXmlContent(c)}</content>`
+  );
   addNonEmpty(parts, opts.locationContext, loc => loc);
   addArraySection(parts, opts.embedsXml, 'embeds', e => e);
   // One <attachments> section for both producers. legacyAttachmentLines carry
@@ -500,7 +557,8 @@ export interface ForwardedMessageContent {
 export function formatForwardedQuote(content: ForwardedMessageContent): string {
   return formatQuoteElement({
     type: 'forward',
-    from: content.from ?? 'Unknown',
+    from: content.from,
+    fromFallback: 'Unknown',
     fromId: content.fromId,
     timeFormatted: content.timeFormatted,
     channel: content.channel,
