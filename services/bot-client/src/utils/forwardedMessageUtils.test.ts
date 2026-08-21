@@ -16,7 +16,6 @@ import {
   extractForwardedContent,
   extractForwardedContentForPrompt,
   extractForwardedAttachments,
-  extractAllForwardedContent,
   hasForwardedVoiceAttachment,
   hasVoiceAttachments,
   getEffectiveContent,
@@ -434,48 +433,6 @@ describe('forwardedMessageUtils', () => {
     });
   });
 
-  describe('extractAllForwardedContent', () => {
-    it('should extract all content from snapshots', () => {
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        referenceMessageId: 'original-123',
-        snapshots: [
-          {
-            content: 'Forwarded text',
-            attachments: [{ url: 'https://cdn.discord.com/image.png', contentType: 'image/png' }],
-            embeds: [{ title: 'Embed Title' }],
-          },
-        ],
-      });
-
-      const result = extractAllForwardedContent(message);
-
-      expect(result.content).toBe('Forwarded text');
-      expect(result.attachments).toHaveLength(1);
-      expect(result.embeds).toHaveLength(1);
-      expect(result.fromSnapshot).toBe(true);
-      expect(result.originalMessageId).toBe('original-123');
-    });
-
-    it('should fall back to main message when no snapshots', () => {
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        referenceMessageId: 'original-456',
-        content: 'Main content',
-        attachments: [{ url: 'https://cdn.discord.com/main.png', contentType: 'image/png' }],
-        embeds: [{ title: 'Main Embed' }],
-      });
-
-      const result = extractAllForwardedContent(message);
-
-      expect(result.content).toBe('Main content');
-      expect(result.attachments).toHaveLength(1);
-      expect(result.embeds).toHaveLength(1);
-      expect(result.fromSnapshot).toBe(false);
-      expect(result.originalMessageId).toBe('original-456');
-    });
-  });
-
   describe('hasForwardedVoiceAttachment', () => {
     it('should return true when forwarded message has voice attachment', () => {
       const message = createMockMessage({
@@ -577,6 +534,20 @@ describe('forwardedMessageUtils', () => {
       });
 
       expect(hasForwardedVoiceAttachment(message)).toBe(false);
+    });
+
+    it('should detect a voice attachment on a forward with no snapshots, via the main-message fallback', () => {
+      // Discord sometimes doesn't populate snapshots (see module docstring);
+      // this pins that hasForwardedVoiceAttachment's inlined fallback still
+      // reads the wrapping message's own attachments in that case.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        attachments: [
+          { url: 'https://cdn.discord.com/voice.ogg', contentType: 'audio/ogg', duration: 5.5 },
+        ],
+      });
+
+      expect(hasForwardedVoiceAttachment(message)).toBe(true);
     });
   });
 
