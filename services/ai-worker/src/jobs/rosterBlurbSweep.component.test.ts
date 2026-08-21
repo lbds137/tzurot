@@ -39,15 +39,23 @@ function id(n: number): string {
   return `4f9b0f66-0000-4000-8000-0000000000${n.toString(16).padStart(2, '0')}`;
 }
 
-/** Insert one character. `blurbHash` null = never generated. */
-async function seedCharacter(options: {
-  n: number;
+/** The exact card `seedCharacter` writes, so a test can hash it itself. */
+function cardFor(
+  n: number,
+  characterInfo: string
+): {
+  name: string;
+  displayName: null;
   characterInfo: string;
-  blurbHash?: string | null;
-  stamp?: boolean;
-}): Promise<void> {
-  const { n, characterInfo, blurbHash = null, stamp = true } = options;
-  const card = {
+  personalityTraits: string;
+  personalityTone: null;
+  personalityAge: null;
+  personalityAppearance: null;
+  personalityLikes: null;
+  personalityDislikes: null;
+  conversationalGoals: null;
+} {
+  return {
     name: `char-${n}`,
     displayName: null,
     characterInfo,
@@ -59,6 +67,17 @@ async function seedCharacter(options: {
     personalityDislikes: null,
     conversationalGoals: null,
   };
+}
+
+/** Insert one character. `blurbHash` null = never generated. */
+async function seedCharacter(options: {
+  n: number;
+  characterInfo: string;
+  blurbHash?: string | null;
+  stamp?: boolean;
+}): Promise<void> {
+  const { n, characterInfo, blurbHash = null, stamp = true } = options;
+  const card = cardFor(n, characterInfo);
   await prisma.$executeRaw`
     INSERT INTO personalities
       (id, name, slug, character_info, personality_traits, owner_id, updated_at,
@@ -77,6 +96,48 @@ function invoker(): SystemModelInvoker {
     provider: AIProvider.OpenRouter,
     model: 'z-ai/glm-5.2',
   });
+}
+
+/** A model call that is PAID FOR and returns something unparseable. */
+function unparseableInvoker(): SystemModelInvoker {
+  return vi.fn<SystemModelInvoker>().mockResolvedValue({
+    content: 'not json at all',
+    tokensIn: 10,
+    tokensOut: 5,
+    provider: AIProvider.OpenRouter,
+    model: 'z-ai/glm-5.2',
+  });
+}
+
+interface FailureState {
+  roster_blurb_attempts: number;
+  roster_blurb_last_failed_at: Date | null;
+  roster_blurb_failed_source_hash: string | null;
+}
+
+/** Stamp failure state onto a seeded row, as a run of failed sweeps would. */
+async function seedFailureState(options: {
+  n: number;
+  attempts: number;
+  failedHash: string;
+  minutesAgo: number;
+}): Promise<void> {
+  const { n, attempts, failedHash, minutesAgo } = options;
+  await prisma.$executeRaw`
+    UPDATE personalities
+    SET roster_blurb_attempts = ${attempts},
+        roster_blurb_failed_source_hash = ${failedHash},
+        roster_blurb_last_failed_at = NOW() - (interval '1 minute' * ${minutesAgo}::int)
+    WHERE id = ${id(n)}::uuid
+  `;
+}
+
+async function failureState(n: number): Promise<FailureState> {
+  const rows = await prisma.$queryRaw<FailureState[]>`
+    SELECT roster_blurb_attempts, roster_blurb_last_failed_at, roster_blurb_failed_source_hash
+    FROM personalities WHERE id = ${id(n)}::uuid
+  `;
+  return rows[0];
 }
 
 beforeAll(async () => {
@@ -149,18 +210,7 @@ describe('staleness detection against real SQL', () => {
   });
 
   it('skips a row whose stored blurb hash already matches its card', async () => {
-    const card = {
-      name: 'char-2',
-      displayName: null,
-      characterInfo: 'An archivist.',
-      personalityTraits: 'traits',
-      personalityTone: null,
-      personalityAge: null,
-      personalityAppearance: null,
-      personalityLikes: null,
-      personalityDislikes: null,
-      conversationalGoals: null,
-    };
+    const card = cardFor(2, 'An archivist.');
     await seedCharacter({
       n: 2,
       characterInfo: 'An archivist.',
@@ -244,5 +294,158 @@ describe('staleness detection against real SQL', () => {
       SELECT updated_at FROM personalities WHERE id = ${id(7)}::uuid
     `;
     expect(after[0].updated_at.getTime()).toBe(before[0].updated_at.getTime());
+  });
+});
+
+describe('failure backoff against real SQL', () => {
+  it('holds a row inside its backoff window, then admits it once the window passes', async () => {
+    const info = 'An archivist.';
+    await seedCharacter({ n: 50, characterInfo: info });
+    const hash = hashRosterBlurbCard(cardFor(50, info));
+    await seedFailureState({ n: 50, attempts: 1, failedHash: hash, minutesAgo: 30 });
+
+    const held = await sweepRosterBlurbs(prisma, invoker());
+    expect(held.staleFound).toBe(0);
+
+    // After one failure the wait is one hour. The row is otherwise unchanged —
+    // only the clock moved.
+    await seedFailureState({ n: 50, attempts: 1, failedHash: hash, minutesAgo: 90 });
+    const admitted = await sweepRosterBlurbs(prisma, invoker());
+    expect(admitted.generated).toBe(1);
+  });
+
+  it('doubles the wait with each attempt rather than retrying on a flat interval', async () => {
+    const info = 'A second archivist.';
+    await seedCharacter({ n: 51, characterInfo: info });
+    const hash = hashRosterBlurbCard(cardFor(51, info));
+
+    // Two failures means a two-hour wait: 90 minutes is not enough, where at
+    // attempts=1 it would have been.
+    await seedFailureState({ n: 51, attempts: 2, failedHash: hash, minutesAgo: 90 });
+    expect((await sweepRosterBlurbs(prisma, invoker())).staleFound).toBe(0);
+
+    await seedFailureState({ n: 51, attempts: 2, failedHash: hash, minutesAgo: 180 });
+    expect((await sweepRosterBlurbs(prisma, invoker())).generated).toBe(1);
+  });
+
+  it('freezes a row at the attempt cap no matter how long it waits', async () => {
+    const info = 'A hopeless card.';
+    await seedCharacter({ n: 52, characterInfo: info });
+    await seedFailureState({
+      n: 52,
+      attempts: 5,
+      failedHash: hashRosterBlurbCard(cardFor(52, info)),
+      minutesAgo: 60 * 24 * 100,
+    });
+
+    const invoke = invoker();
+    const stats = await sweepRosterBlurbs(prisma, invoke);
+
+    // A hundred days later it is still frozen — the cap is not a long backoff.
+    expect(stats.staleFound).toBe(0);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('re-admits a frozen row the moment its card changes, and restarts the count', async () => {
+    const info = 'A hopeless card.';
+    await seedCharacter({ n: 53, characterInfo: info });
+    await seedFailureState({
+      n: 53,
+      attempts: 5,
+      failedHash: hashRosterBlurbCard(cardFor(53, info)),
+      minutesAgo: 60,
+    });
+
+    // An edit, exactly as a write path performs it: the card fields and the
+    // stamp move together.
+    const editedInfo = 'Rewritten from scratch.';
+    const editedHash = hashRosterBlurbCard(cardFor(53, editedInfo));
+    await prisma.$executeRaw`
+      UPDATE personalities
+      SET character_info = ${editedInfo}, card_source_hash = ${editedHash}
+      WHERE id = ${id(53)}::uuid
+    `;
+
+    const stats = await sweepRosterBlurbs(prisma, unparseableInvoker());
+
+    expect(stats.staleFound).toBe(1);
+    expect(stats.failedBilled).toBe(1);
+    // The recorded failures were about a card that no longer exists, so the
+    // count starts over against the new one rather than freezing it on arrival.
+    const state = await failureState(53);
+    expect(state.roster_blurb_attempts).toBe(1);
+    expect(state.roster_blurb_failed_source_hash).toBe(editedHash);
+  });
+
+  it('stops re-billing a deterministically failing card after its first failure', async () => {
+    const info = 'A card the model refuses.';
+    await seedCharacter({ n: 54, characterInfo: info });
+
+    const first = unparseableInvoker();
+    const firstStats = await sweepRosterBlurbs(prisma, first);
+
+    expect(firstStats.failedBilled).toBe(1);
+    expect(first).toHaveBeenCalledTimes(1);
+    const state = await failureState(54);
+    expect(state.roster_blurb_attempts).toBe(1);
+    expect(state.roster_blurb_failed_source_hash).toBe(hashRosterBlurbCard(cardFor(54, info)));
+    expect(state.roster_blurb_last_failed_at).not.toBeNull();
+
+    // The defect this whole gate exists for: the very next tick used to select
+    // the same row and pay for the same refusal again, every ten minutes.
+    const second = unparseableInvoker();
+    const secondStats = await sweepRosterBlurbs(prisma, second);
+
+    expect(secondStats.staleFound).toBe(0);
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it('increments the count when the same unchanged card fails again after re-admission', async () => {
+    const info = 'A card that keeps failing.';
+    await seedCharacter({ n: 57, characterInfo: info });
+    const hash = hashRosterBlurbCard(cardFor(57, info));
+    await seedFailureState({ n: 57, attempts: 1, failedHash: hash, minutesAgo: 90 });
+
+    const stats = await sweepRosterBlurbs(prisma, unparseableInvoker());
+
+    expect(stats.failedBilled).toBe(1);
+    // Same card, second billed failure: the stamp INCREMENTS rather than
+    // restarting at 1. This is the branch that walks a deterministically
+    // failing card toward the cap — without it the storm returns, just with a
+    // one-hour period instead of a ten-minute one.
+    const state = await failureState(57);
+    expect(state.roster_blurb_attempts).toBe(2);
+    expect(state.roster_blurb_failed_source_hash).toBe(hash);
+  });
+
+  it('clears failure state when a later generation finally succeeds', async () => {
+    const info = 'A card that recovers.';
+    await seedCharacter({ n: 55, characterInfo: info });
+    await seedFailureState({
+      n: 55,
+      attempts: 3,
+      failedHash: hashRosterBlurbCard(cardFor(55, info)),
+      minutesAgo: 600,
+    });
+
+    const stats = await sweepRosterBlurbs(prisma, invoker());
+
+    expect(stats.generated).toBe(1);
+    const state = await failureState(55);
+    expect(state.roster_blurb_attempts).toBe(0);
+    expect(state.roster_blurb_last_failed_at).toBeNull();
+    expect(state.roster_blurb_failed_source_hash).toBeNull();
+  });
+
+  it('leaves a never-failed row admitted with no waiting at all', async () => {
+    // The gate must cost the happy path nothing: attempts=0 with a null failed
+    // hash is admitted by the first arm, so the backoff arm is never consulted.
+    await seedCharacter({ n: 56, characterInfo: 'A fresh character.' });
+
+    const stats = await sweepRosterBlurbs(prisma, invoker());
+
+    expect(stats.generated).toBe(1);
+    const state = await failureState(56);
+    expect(state.roster_blurb_attempts).toBe(0);
   });
 });

@@ -134,6 +134,21 @@ describe('sweepRosterBlurbs', () => {
     const sql = sqlParts.join(' ');
     expect(sql).toContain('IS DISTINCT FROM');
     expect(sql).toContain('card_source_hash');
+    // The admission gate is part of the same query, not a post-filter: a row
+    // inside its backoff window must never be returned in the first place,
+    // because being returned is what costs money.
+    expect(sql).toContain('roster_blurb_failed_source_hash IS DISTINCT FROM card_source_hash');
+    expect(sql).toContain('roster_blurb_attempts <');
+    expect(sql).toContain('power(2, roster_blurb_attempts - 1)');
+    // The cap is pinned POSITIONALLY: template segment i precedes interpolated
+    // value i, so the value in the slot right after `roster_blurb_attempts <`
+    // must be the cap — "the number 5 appears somewhere in the args" would
+    // pass with the cap interpolated into an unrelated position.
+    const capSegment = sqlParts.findIndex(part =>
+      part.trimEnd().endsWith('roster_blurb_attempts <')
+    );
+    expect(capSegment).toBeGreaterThanOrEqual(0);
+    expect(queryRaw.mock.calls[0][capSegment + 1]).toBe(5);
   });
 
   it('stamps pre-existing unstamped rows without generating them the same tick', async () => {
@@ -174,11 +189,23 @@ describe('sweepRosterBlurbs', () => {
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
-    expect(stats).toMatchObject({ staleFound: 1, generated: 1, failed: 0 });
+    expect(stats).toMatchObject({
+      staleFound: 1,
+      generated: 1,
+      failedBilled: 0,
+      failedZeroSpend: 0,
+    });
     const writeArgs = executeRaw.mock.calls[0] as unknown[];
     expect(writeArgs).toContain('Ilana is a dry-witted archivist.');
     expect(writeArgs).toContain(stale.cardSourceHash);
     expect(usageCreate).toHaveBeenCalledTimes(1);
+    // A success clears failure state in the same statement that makes the row
+    // current — otherwise a row that failed four times and then succeeded would
+    // sit one failure away from a freeze it no longer deserves.
+    const storeSql = ((executeRaw.mock.calls[0][0] as { raw?: string[] }).raw ?? []).join(' ');
+    expect(storeSql).toContain('roster_blurb_attempts = 0');
+    expect(storeSql).toContain('roster_blurb_last_failed_at = NULL');
+    expect(storeSql).toContain('roster_blurb_failed_source_hash = NULL');
   });
 
   it('marks an empty card current without paying for a blurb about nothing', async () => {
@@ -196,16 +223,43 @@ describe('sweepRosterBlurbs', () => {
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
-  it('bills a failed parse and stores nothing', async () => {
+  it('bills a failed parse, stores no blurb, and stamps the row so it backs off', async () => {
     setSettings(true);
-    const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [row()] });
+    const stale = row();
+    const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [stale] });
     const invoke = invokerReturning('not json at all');
 
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
-    expect(stats).toMatchObject({ failed: 1, generated: 0 });
-    expect(executeRaw).not.toHaveBeenCalled();
+    expect(stats).toMatchObject({ failedBilled: 1, failedZeroSpend: 0, generated: 0 });
     expect(usageCreate).toHaveBeenCalledTimes(1);
+    // Exactly one write, and it is the failure stamp — no blurb, no source
+    // hash. The stamp is what stops this row being re-billed next tick.
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    const sql = ((executeRaw.mock.calls[0][0] as { raw?: string[] }).raw ?? []).join(' ');
+    expect(sql).toContain('roster_blurb_attempts');
+    expect(sql).toContain('roster_blurb_failed_source_hash');
+    expect(sql).toContain('roster_blurb_last_failed_at = NOW()');
+    expect(sql).not.toContain('roster_blurb_source_hash =');
+    // The stamp is keyed to the exact card that failed, on the row that failed.
+    const writeArgs = executeRaw.mock.calls[0] as unknown[];
+    expect(writeArgs).toContain(stale.cardSourceHash);
+    expect(writeArgs).toContain(stale.id);
+  });
+
+  it('records no attempt state when the model call throws', async () => {
+    setSettings(true);
+    const { prisma, executeRaw, usageCreate } = makePrisma({ stale: [row()] });
+    const invoke = vi.fn<SystemModelInvoker>().mockRejectedValue(new Error('429 rate limited'));
+
+    const stats = await sweepRosterBlurbs(prisma, invoke);
+
+    // Zero-spend by shape: no usage row, and no stamp either. Counting a
+    // provider outage toward the cap would freeze rows that never cost
+    // anything.
+    expect(stats).toMatchObject({ failedZeroSpend: 1, failedBilled: 0, generated: 0 });
+    expect(usageCreate).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('bills the model the call resolved, not whatever the live setting says now', async () => {
@@ -243,7 +297,7 @@ describe('sweepRosterBlurbs', () => {
 
     // The empty-card store is a write like any other; its throw must cost its
     // own row and not the rest of the tick.
-    expect(stats.failed).toBe(1);
+    expect(stats.failedZeroSpend).toBe(1);
     expect(stats.generated).toBe(1);
   });
 
@@ -293,7 +347,7 @@ describe('sweepRosterBlurbs', () => {
     const stats = await sweepRosterBlurbs(prisma, invoke);
 
     // The throw costs its own row, not the rest of the tick.
-    expect(stats.failed).toBe(1);
+    expect(stats.failedZeroSpend).toBe(1);
     expect(stats.generated).toBe(1);
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
