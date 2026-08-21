@@ -59,6 +59,11 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **Not a failure**: a forwarded HUMAN message whose own text uses `-#` subtext keeps it — that is deliberate and pinned by a test.
   - **Report**: `/inspect` or a debug payload; pass/fail is fine.
 
+- [ ] **Rider on ANY of the three forward smokes above** (TASK-43 / #2171) — _no separate round needed._
+  - **One extra requirement**: the forwarded message must contain an **at-mention in its own text** (`@someone`). Any of the three repros above works otherwise.
+  - **Why it matters**: a forward with no at-mention logs a zero count, which reads as "Discord sends no mentions" when it is actually "nothing to send." That would settle the question the wrong way.
+  - **Nothing to report by hand** — the probe writes it to the bot-client logs; the log line is `TASK-43 probe: forward mention sources`.
+
 ## 📋 Open items (near-term)
 
 - **Purge EXECUTED (owner-authorized 2026-08-16)**: 20 never-used accounts erased, 0 characters touched, userbase 228→208. Remaining: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call).
