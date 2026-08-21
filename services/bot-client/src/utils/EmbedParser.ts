@@ -7,6 +7,8 @@
 
 import { type APIEmbed, type APIEmbedField, type Message } from 'discord.js';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
+import { EMBED_NAMING } from '@tzurot/common-types/constants/media';
+import { embedImageAttachmentName } from './embedAttachmentName.js';
 
 /**
  * Check if a string value is present and non-empty
@@ -74,9 +76,13 @@ export class EmbedParser {
   /**
    * Parse a single embed into XML format
    * @param embed - Discord embed object
+   * @param embedIndex - Zero-based index of this embed within its message's embed
+   * array; used to derive the same synthetic attachment filename the extractor
+   * mints for this embed's image/thumbnail, so a vision description in the
+   * attachments block can be bound back to this embed
    * @returns Formatted embed XML string
    */
-  static parseEmbed(embed: APIEmbed): string {
+  static parseEmbed(embed: APIEmbed, embedIndex: number): string {
     const parts: string[] = [];
 
     // Add title with optional URL
@@ -99,14 +105,22 @@ export class EmbedParser {
     // Add fields
     parts.push(...formatFields(embed.fields));
 
-    // Add image
+    // Add image — the filename is the join key to the <attachments> entry the
+    // vision pipeline produces for this same embed slot; both sides derive it
+    // from the embed index independently (see embedAttachmentName.ts).
     if (hasValue(embed.image?.url)) {
-      parts.push(`<image url="${escapeXml(embed.image.url)}"/>`);
+      const imageFilename = embedImageAttachmentName(embedIndex, EMBED_NAMING.IMAGE_SLOT);
+      parts.push(
+        `<image filename="${escapeXml(imageFilename)}" url="${escapeXml(embed.image.url)}"/>`
+      );
     }
 
     // Add thumbnail
     if (hasValue(embed.thumbnail?.url)) {
-      parts.push(`<thumbnail url="${escapeXml(embed.thumbnail.url)}"/>`);
+      const thumbnailFilename = embedImageAttachmentName(embedIndex, EMBED_NAMING.THUMBNAIL_SLOT);
+      parts.push(
+        `<thumbnail filename="${escapeXml(thumbnailFilename)}" url="${escapeXml(embed.thumbnail.url)}"/>`
+      );
     }
 
     // Add footer
@@ -140,7 +154,7 @@ export class EmbedParser {
 
     const embedStrings = message.embeds.map((embed, index) => {
       const numAttr = message.embeds.length > 1 ? ` number="${index + 1}"` : '';
-      return `<embed${numAttr}>\n${this.parseEmbed(embed.toJSON())}\n</embed>`;
+      return `<embed${numAttr}>\n${this.parseEmbed(embed.toJSON(), index)}\n</embed>`;
     });
 
     return embedStrings.join('\n');

@@ -27,7 +27,7 @@ describe('extractEmbedImages', () => {
 
     expect(result).toHaveLength(1);
     expect(result![0].url).toBe('https://example.com/image.png');
-    expect(result![0].name).toBe('embed-image-1.png');
+    expect(result![0].name).toBe('embed-1-image.png');
     expect(result![0].contentType).toBe('image/png');
     expect(result![0].size).toBeUndefined();
   });
@@ -44,7 +44,7 @@ describe('extractEmbedImages', () => {
 
     expect(result).toHaveLength(1);
     expect(result![0].url).toBe('https://example.com/thumb.png');
-    expect(result![0].name).toBe('embed-thumbnail-1.png');
+    expect(result![0].name).toBe('embed-1-thumbnail.png');
   });
 
   it('should extract both image and thumbnail from same embed', () => {
@@ -59,9 +59,13 @@ describe('extractEmbedImages', () => {
 
     expect(result).toHaveLength(2);
     expect(result![0].url).toBe('https://example.com/image.png');
-    expect(result![0].name).toBe('embed-image-1.png');
+    expect(result![0].name).toBe('embed-1-image.png');
     expect(result![1].url).toBe('https://example.com/thumb.png');
-    expect(result![1].name).toBe('embed-thumbnail-2.png');
+    // Under the old running-counter scheme this was `embed-thumbnail-2.png` —
+    // interleaved numbering that gave the same embed two different indices
+    // for its two slots. The fix: both slots of the same embed now share its
+    // index.
+    expect(result![1].name).toBe('embed-1-thumbnail.png');
   });
 
   it('should extract images from multiple embeds', () => {
@@ -80,9 +84,34 @@ describe('extractEmbedImages', () => {
 
     expect(result).toHaveLength(2);
     expect(result![0].url).toBe('https://example.com/image1.png');
-    expect(result![0].name).toBe('embed-image-1.png');
+    expect(result![0].name).toBe('embed-1-image.png');
     expect(result![1].url).toBe('https://example.com/image2.png');
-    expect(result![1].name).toBe('embed-image-2.png');
+    expect(result![1].name).toBe('embed-2-image.png');
+  });
+
+  it('names both slots of the first embed by its own index, not an interleaved counter', () => {
+    // Two embeds: the first carries both image and thumbnail, the second an
+    // image. Under the old running-counter scheme this produced
+    // embed-image-1, embed-thumbnail-2, embed-image-3 — the second embed's
+    // image was misnumbered "3" because the counter didn't reset per embed,
+    // and the first embed's two slots didn't share an index at all.
+    const embeds = [
+      {
+        image: { url: 'https://example.com/e1-image.png' },
+        thumbnail: { url: 'https://example.com/e1-thumb.png' },
+      },
+      {
+        image: { url: 'https://example.com/e2-image.png' },
+        thumbnail: null,
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(3);
+    expect(result![0].name).toBe('embed-1-image.png');
+    expect(result![1].name).toBe('embed-1-thumbnail.png');
+    expect(result![2].name).toBe('embed-2-image.png');
   });
 
   it('should return undefined when embeds have no images', () => {

@@ -1964,9 +1964,9 @@ describe('ReferencedMessageFormatter', () => {
         locationContext: '',
         attachments: [
           {
-            url: 'https://cdn.example.com/embed-image-1.png',
+            url: 'https://cdn.example.com/embed-1-image.png',
             contentType: 'image/png',
-            name: 'embed-image-1.png',
+            name: 'embed-1-image.png',
             size: 1000,
           },
         ],
@@ -1980,10 +1980,10 @@ describe('ReferencedMessageFormatter', () => {
         {
           type: AttachmentType.Image,
           description: VISION_SENTINEL,
-          originalUrl: 'https://cdn.example.com/embed-image-1.png',
+          originalUrl: 'https://cdn.example.com/embed-1-image.png',
           metadata: {
-            url: 'https://cdn.example.com/embed-image-1.png',
-            name: 'embed-image-1.png',
+            url: 'https://cdn.example.com/embed-1-image.png',
+            name: 'embed-1-image.png',
             contentType: 'image/png',
             size: 1000,
           },

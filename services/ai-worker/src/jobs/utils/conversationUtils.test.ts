@@ -1033,14 +1033,14 @@ describe('Conversation Utilities', () => {
         locationContext: '',
         attachments: [
           {
-            url: 'https://cdn.discord.com/embed-image-1.png',
+            url: 'https://cdn.discord.com/embed-1-image.png',
             contentType: 'image/png',
-            name: 'embed-image-1.png',
+            name: 'embed-1-image.png',
           },
         ],
         attachmentEnrichment: [
           {
-            url: 'https://cdn.discord.com/embed-image-1.png',
+            url: 'https://cdn.discord.com/embed-1-image.png',
             kind: 'image',
             description: 'SENTINEL_REPLAY_VISION',
           },
@@ -1067,7 +1067,7 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       expect(result).toContain(
-        '<image filename="embed-image-1.png" type="image/png">SENTINEL_REPLAY_VISION</image>'
+        '<image filename="embed-1-image.png" type="image/png">SENTINEL_REPLAY_VISION</image>'
       );
     });
 

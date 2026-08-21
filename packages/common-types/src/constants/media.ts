@@ -124,10 +124,12 @@ export enum AttachmentType {
  * Used when converting Discord embeds to attachment metadata
  */
 export const EMBED_NAMING = {
-  /** Prefix for embed image attachments */
-  IMAGE_PREFIX: 'embed-image-',
-  /** Prefix for embed thumbnail attachments */
-  THUMBNAIL_PREFIX: 'embed-thumbnail-',
+  /** Prefix opening every embed-derived synthetic attachment name */
+  PREFIX: 'embed-',
+  /** Slot suffix for an embed's main image */
+  IMAGE_SLOT: 'image',
+  /** Slot suffix for an embed's thumbnail */
+  THUMBNAIL_SLOT: 'thumbnail',
   /** Default file extension for embed images */
   DEFAULT_EXTENSION: '.png',
 } as const;
