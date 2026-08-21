@@ -492,6 +492,26 @@ model Personality {
   /// no reader ever rehashes a card to discover that it changed, because the
   /// write that changed it already recorded the new digest.
   cardSourceHash        String? @map("card_source_hash") @db.VarChar(64)
+  /// Consecutive failed blurb generations for the card identified by
+  /// `roster_blurb_failed_source_hash`. Deferred-set-by-failure: 0 on every
+  /// row until the sweep's generation for it fails, incremented per failure,
+  /// reset to 0 by a successful store or (implicitly) by a card edit — the
+  /// sweep re-admits and restarts the count when `card_source_hash` no longer
+  /// equals the failed hash. Written via $executeRaw only: this table is
+  /// sync-tracked, and a failure stamp must never bump `updated_at`.
+  rosterBlurbAttempts Int @default(0) @map("roster_blurb_attempts")
+  /// When the most recent blurb generation for this card failed. Null until a
+  /// failure occurs and after any success; paired atomically with the attempt
+  /// counter. The sweep admits a failed row again only after an exponential
+  /// backoff from this stamp (or a card edit). Same $executeRaw-only rule as
+  /// the counter.
+  rosterBlurbLastFailedAt DateTime? @map("roster_blurb_last_failed_at")
+  /// The `card_source_hash` the recorded failures belong to. Null until a
+  /// failure occurs and after any success. Keys the failure state to one exact
+  /// card: if the current `card_source_hash` differs, the failures are about a
+  /// card that no longer exists and the row is admitted immediately. Same
+  /// $executeRaw-only rule as the counter.
+  rosterBlurbFailedSourceHash String? @map("roster_blurb_failed_source_hash") @db.VarChar(64)
 
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")
