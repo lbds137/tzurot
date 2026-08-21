@@ -72,4 +72,21 @@ PR 2 (smaller, lower severity, optional): the prefix half, gated on authorship. 
 This RETIRES the earlier note that the whole task needs the webhookId/bot-user authorship signal. That signal is needed ONLY for PR 2. PR 1 — the actual leak the owner observed — needs nothing but a synchronous strip.
 
 Not a defect, checked so nobody re-checks: the payload quoted at the top of this task renders the footer as "- via Z.AI Coding Plan", which looks like it would defeat the MODEL pattern's " • " tail. buildModelFooterText emits ` • via ${providerLabel}` (constants/discord.ts:424-426) — a bullet. The hyphen is a transcription artifact in this task's own prose, and the tail is optional in the pattern regardless.
+PR 1 SHIPPED - PR 2168, opened 2026-08-21. All six prompt-bound members switched via two new accessors (extractForwardedContentForPrompt, getEffectiveContentForPrompt); the two byte-faithful non-members carry in-place comments; the false normalizeMessageForContext docstring claim corrected; the colocated dead surface removed. The acceptance clauses above are met at the unit level, clause 1 pending the queued runtime smoke. Do not close this task on the merge.
+
+PR 2 FIX-SHAPE CORRECTION #3, 2026-08-21, found while deciding whether PR 2 is worth building. THE RECORDED AUTHORSHIP GATE IS INSUFFICIENT, for the third time on this task and the same reason as the first two: the proposed signal answers a different question than the one that decides the case.
+
+The correction above says to gate the prefix half on authorship - webhookId, or an author id equal to our own client user id - because our own markup is ours to strip. That reasoning holds for the footer half and does NOT carry to the prefix half, because TWO different code paths emit a bold Name: prefix and WE WROTE BOTH:
+
+1. DiscordResponseSender.ts:181 - a personality response in a NON-webhook channel (the DM case): `**${personality.displayName}:** ${content}`. The name is OUR CHARACTER'S. Stripping a forward of this is correct - the quote element already carries from=, so the prefix is duplicate attribution.
+
+2. characterTurn.ts:239 - the relay echo of the USER'S OWN slash-command input: `**${displayName}:** ` where displayName is the HUMAN'S. The name is the USER'S. Stripping a forward of this DELETES the only attribution the text carries, and the quote's from= names the bot/webhook rather than the human - so the strip actively LOSES information rather than cleaning it.
+
+Both messages pass any authorship check, so authorship cannot separate them. The discriminator is which of the two paths wrote it, resolved from the message's author/registry status - exactly the distinction DiscordChannelFetcher.ts:475's existing comment already draws for extractMessagePrefixName ("for an assistant DM response it's the personality's display name; for a relay-echo of user input it's the USER's display name"). Any PR 2 must reuse that classification, not invent an authorship test.
+
+AGENT RECOMMENDATION, owner call: DECLINE PR 2 on merit, and archive this task once PR 1's smoke passes. The reasons are severity and asymmetric risk, not effort:
+- The remaining defect is a duplicated display name inside a quote that already carries from=. That is a prompt-tidiness nit, not the markup leak the owner reported.
+- Case 2 makes a wrong answer LOSE the human's attribution, which is strictly worse than the nit being fixed. The failure directions are asymmetric.
+- The classification signal exists only where a resolved origin is in hand, so PR 2 structurally cannot cover the current-turn envelope path. It would ship a partial that is inconsistent across paths - the exact shape PR 1 was designed to avoid.
+Surfaced rather than decided because the boundary rule fails closed and this touches what the model sees. If the owner would rather have it, build it against the classification above, scoped to the fetcher and persist paths, and record the envelope-path gap as deliberate.
 <!-- SECTION:DESCRIPTION:END -->
