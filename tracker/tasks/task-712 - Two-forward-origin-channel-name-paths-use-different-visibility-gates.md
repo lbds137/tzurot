@@ -38,4 +38,13 @@ Two things to settle at build time rather than now:
 - Sequence AFTER TASK-710 if both land in this release. 710 extracts the shared membership helper, and doing 712 first means writing a third copy of the check that 710 then has to collapse.
 
 Not a blocker for either, but note the persisted consequence: this string goes into messageMetadata.referencedMessages, so tightening the gate changes only NEW rows. Existing rows keep whatever they captured. That is consistent with the snapshot-at-resolution semantics the forwardedOriginCache docstring describes, and needs no backfill.
+ASYNC RIPPLE MEASURED 2026-08-21, resolving the first of the two build-time questions above in favour of the full async gate. Traced the call chain by grep, each hop cited:
+
+buildForwardMarker (SnapshotFormatter.ts:34, private, sync) <- formatSnapshot (SnapshotFormatter.ts:58, sync) <- appendForwardedSnapshots (ReferenceFormatter.ts:121, sync) <- format (ReferenceFormatter.ts:55, sync) <- MessageReferenceExtractor.extractReferencesWithReplacement:177, WHICH IS ALREADY ASYNC (declared async at :144).
+
+So the ripple is exactly four sync methods becoming async, and it STOPS at line 177 with an added await - no caller past that point changes, because the nearest enclosing method is already async. ReferenceFormatter.format has exactly one production consumer (MessageReferenceExtractor), confirmed by grep for ReferenceFormatter across services/ and packages/ non-test. The sibling appendSingleReference is untouched.
+
+That is bounded and tractable, so build the async version. The recorded fallback - gate on the synchronous ViewChannel half alone and accept private threads staying bot-cache-gated - is NOT needed and should not be reached for; it stays on the task only as the documented second-best if something unforeseen blocks the thread-through.
+
+One thing the async conversion must not lose: format is sync today and its callers may rely on that only through the one call site above, but appendForwardedSnapshots loops over snapshots and mutates FormatState in order (s.nextNumber increments, trackLink last-write-wins). Awaiting inside that loop must keep the iteration SEQUENTIAL - a Promise.all over snapshots would reorder the numbering the comment at ReferenceFormatter.ts:132-134 depends on.
 <!-- SECTION:DESCRIPTION:END -->
