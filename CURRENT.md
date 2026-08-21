@@ -24,9 +24,9 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 
 ## ▶️ NEXT UNIT — beta.206 sub-theme 1 (the forward batch)
 
-**Done:** TASK-706 (#2166, merged 2026-08-21) — extended-context forwards now carry attribution. Task stays OPEN: acceptance clause 1 is runtime-unverified, see the smoke queue below.
+**Done:** TASK-706 (#2166) and TASK-668 (#2167), both merged 2026-08-21. Forwards now carry attribution AND their origin channel. Both tasks stay OPEN — each has one acceptance clause that is runtime-unverified; see the smoke queue below.
 
-**Next, in order:** TASK-668 (spec staged; its prescribed access gate was WRONG and is corrected on the task — use a channel-visibility check, not the personality-visibility one) → TASK-708 (its gate signal was ALSO wrong and is corrected — authorship via webhookId, not access via authorPersonalityId) → TASK-43 (**re-scope first**: the "MessageSnapshot strips mentions" blocker is false at the type level; the recorded next step is a runtime probe, not an implementation) → TASK-667 (binding decision recorded: derive the synthetic name from embed index + slot) → TASK-563 (parked branch is on origin and safe; 1 ahead / 450 behind, so rebase).
+**Next, in order:** TASK-708 (**re-scoped twice, read the task before building**: size raised to L, the class is SIX prompt-bound sites not the three it names, and the split is footer-half / prefix-half rather than by code path — the footer strip is synchronous and needs no authorship signal, which is what makes the current-turn envelope path reachable) → TASK-43 (**re-scope first**: the "MessageSnapshot strips mentions" blocker is false at the type level; the recorded next step is a runtime probe, not an implementation) → TASK-667 (binding decision recorded: derive the synthetic name from embed index + slot) → TASK-563 (parked branch is on origin and safe; 1 ahead / 450 behind, so rebase).
 
 Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 carries, not chat_log XML attributes it deletes (`prompt-assembly-architecture.md` §9c). Then TASK-700 (blurb-flip gate). Phase 2 build specs derive from §9c — design is settled, no re-litigating.
 
@@ -38,6 +38,14 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **Masking state**: if the same forward was already processed as a trigger, its attribution comes from the DB and proves nothing. Use a fresh forward the bot never responded to.
   - **Expect**: the quote renders with the original author's name and a `t=` timestamp. Failure looks like `from="Unknown"` with no `t=` — today's behavior.
   - **Report**: `/inspect` output or a debug payload is ideal; a pass/fail is fine.
+
+- [ ] **Origin channel on a forwarded quote** (TASK-668 / #2167) — _needs-smoke: the visibility gate is pinned by unit tests from every angle, but no runtime observation exists that the name actually reaches the model. Same class as the item above — the code looked right there too._
+  - **Repro**: in dev, forward a message **from a different channel** into one where a character will respond, then trigger a character on it. Any character, any trigger style.
+  - **Invariant**: the quote carries the ORIGIN channel's name — where the forward came FROM, not where it landed.
+  - **Masking state**: forward from a channel **you can see**. The gate is deliberately fail-closed on the forwarder's access, so a forward out of a channel you lack `ViewChannel` on will correctly render no channel at all — a real pass looks identical to a failure there.
+  - **Expect**: `<quote type="forward" from="…" t="…" channel="origin-channel-name">`. Failure is the same quote with no `channel=` attribute.
+  - **Optional second case** if convenient: forward from a **private thread you are in** → still named. Forward from a DM → no `channel=` at all, by design, not a bug.
+  - **Report**: `/inspect` or a debug payload; pass/fail is fine.
 
 ## 📋 Open items (near-term)
 

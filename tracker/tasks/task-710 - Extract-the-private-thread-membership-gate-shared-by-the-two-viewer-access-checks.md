@@ -32,4 +32,10 @@ Fix shape: extract the thread half alone, not the whole check - the two differ l
 Why not in PR 2167: consolidating means editing LinkExtractor, a security path that PR has no other reason to touch. Risky breadth, deferred deliberately rather than for convenience.
 
 Acceptance: one exported helper with its own tests including a non-member canary; both call sites converted; a comment at the helper naming why ViewChannel alone is insufficient so the next reader does not re-derive it.
+
+FOLD IN WHEN CONSOLIDATING (PR 2167 round 6, non-blocking, deliberately not fixed there): the catch around thread.members.fetch cannot distinguish "the forwarder is not a member" from "the BOT lacks permission to list this thread's members" - a missing Manage Threads on our side rejects for a reason that has nothing to do with the forwarder. Both outcomes omit the channel name, so the behaviour is a false NEGATIVE and consistent with the fail-closed posture; it is not a correctness bug.
+
+What it does mean is that the failure mode is broader than the name suggests, and the consolidated helper is where that belongs - either in its docstring, or as a logged distinction if the two cases ever need telling apart operationally. LinkExtractor's copy has the identical property and the identical silence about it.
+
+Note the existing comment at the fetch is accurate as written ("reaching the next line is itself the proof of membership") - a successful fetch does prove membership. It is the CONVERSE that does not hold, and nothing currently claims it does. So this is an addition to make, not a correction.
 <!-- SECTION:DESCRIPTION:END -->

@@ -38,4 +38,17 @@ Use a direct viewability check on the ORIGIN channel for the FORWARDER instead, 
 DM origin renders as NO channel attribute at all, not an empty one and not a literal. A DM has no channel name, and inventing a token would hand the model a fake identifier while adding no provenance a human reader of the same message has.
 
 Render side is one line: formatQuoteElement builds its attributes from a data-driven attrDefs array (QuoteFormatter.ts:274-283), so the new attribute is one entry. Verify at build time whether guard:prompt-tags classifies attributes or only tags - it appears to be tags only, which would mean no registration is needed.
+
+SHIPPED PENDING SMOKE — PR 2167, merged 2026-08-21 (87ad3f52d). Deliberately NOT closed.
+
+Acceptance, per clause:
+1. "a cross-channel forward renders its origin channel and original post time" - the post-time half shipped in beta.205 (2141/2166). The channel half is unit-tested from every gate angle but has NO runtime observation, which is the same gap that made TASK-706 worth smoking. Smoke item queued in CURRENT.md under the beta.206 batch. MET at the unit level, UNVERIFIED at runtime.
+2. "a forward whose origin the FORWARDER cannot read renders exactly as it does today" - MET. Three distinct fail-closed paths tested: permissionsFor null, a bitfield without ViewChannel, and a private thread the forwarder is no longer in.
+3. "the DM case is decided and pinned by a test" - MET. No channel attribute at all, and the test asserts permissionsFor is never even called.
+
+Close this when the smoke item passes, not before.
+
+Scope narrowed, deliberately: channelId was dropped. Nothing reads a channel id, and a snowflake in the prompt is a token the model cannot expand - the same reasoning the authorPersonalityId docs give for why from_id is not authorId.
+
+Two follow-ups came out of the review rather than the build: TASK-710 (the private-thread membership check now exists in two places and should be one) and TASK-712 (SnapshotFormatter.buildForwardMarker renders the same data on the live-reference path with no forwarder check at all - owner call, security posture).
 <!-- SECTION:DESCRIPTION:END -->
