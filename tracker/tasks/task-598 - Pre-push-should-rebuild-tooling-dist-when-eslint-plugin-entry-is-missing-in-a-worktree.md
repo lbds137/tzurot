@@ -59,4 +59,22 @@ It also explains the pattern better than A or B: the main checkout almost always
 STATUS: code-read, NOT runtime-confirmed. What is verified is the turbo.json declaration and the eslint.config.js import; the causal claim that this ordering produced these eight failures is inference. Cheap test: run the pre-push turbo invocation in a worktree with packages/tooling/dist removed and see whether lint is scheduled before build completes.
 
 REVISED FIX SHAPE if C holds: add the missing edge rather than a hook guard — lint dependsOn ["^build", "@tzurot/tooling#build"] (turbo supports that explicit cross-package form). That fixes every consumer of the root config at once, needs no hook change, and costs the main checkout nothing because the build is already cached there. The hook presence-check stays a fallback worth having only if the edge turns out not to be sufficient.
+
+HIT 9 (2026-08-20, PR 2167 worktree) — B AND C COMPOSE; THEY ARE NOT COMPETING EXPLANATIONS.
+
+The observation that separates this hit from hit 8: a standalone `pnpm lint` PASSED in this same worktree minutes earlier, 26 of 26 tasks, with dist present. The very next turbo invocation — the pre-push `build lint test` at .husky/pre-push:146 — failed with dist/eslint/index.js missing, reporting `Cached: 22 cached, 38 total` and `@tzurot/bot-client:lint: cache miss, executing`.
+
+So the artifact was present, one invocation later it was gone, and the difference between the two invocations is that the failing one ALSO ran build tasks and restored 22 of them from cache. Nothing else touched the tree.
+
+That is the composition:
+- C (no ordering edge) is why a lint task is free to be scheduled concurrently with the restore of @tzurot/tooling#build at all. bot-client does not depend on tooling, so `dependsOn: ["^build"]` gives bot-client:lint no edge to it whatsoever.
+- B (a restore clears the output directory before extracting) is what makes that concurrency destructive rather than merely unordered. Without B a racing lint would read a stale-but-valid dist; with B it reads an emptied one.
+
+Neither alone accounts for hit 9. C alone predicts a failure only when dist is absent beforehand — it was present. B alone predicts a failure only on a restore that clears — but the standalone lint run also had cache hits and did not fail, because it scheduled no build to race against.
+
+This sharpens the fix rather than changing it: the explicit edge (`lint dependsOn ["^build", "@tzurot/tooling#build"]`) is still the right first move, because it removes the race window without depending on turbo's restore semantics being fixed. It is now predicted to be SUFFICIENT rather than merely necessary — if C is what admits the concurrency, closing the edge closes the window B exploits.
+
+STATUS: still code-read plus observational inference, NOT runtime-confirmed. The discriminating test is unchanged and now cheaper to interpret: in a worktree with dist PRESENT, run the pre-push `build lint test` invocation and check whether dist disappears mid-run. If it does, B is confirmed directly, and the edge is the fix.
+
+RECURRENCE: 9 hits. Both hits 8 and 9 came from agent worktrees on consecutive PRs (2166, 2167) — the worktree orchestration pattern makes this near-per-PR now, which is what moves it off "annoyance" and onto the drain queue.
 <!-- SECTION:DESCRIPTION:END -->
