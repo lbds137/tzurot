@@ -1,9 +1,10 @@
 ---
 id: TASK-716
 title: 'Make the forward access gate structurally shared, not documentarily shared'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 16:09'
+updated_date: '2026-08-21 17:29'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -73,4 +74,29 @@ forwardedFrom.author.id would be a WEBHOOK id when one of our own personas forwa
 is not a hole -- permissionsFor on a webhook id finds no guild member and returns null, which the
 gate already treats as fail-closed. The consequence is only that a persona-forwarded message never
 gets its origin channel named. Same behaviour as the sibling path, and in the safe direction.
+SHIPPED — PR #2172, merged 2026-08-21. One review round, no blocking or non-blocking findings.
+
+Acceptance, quoted and answered per clause:
+"one helper owns the ViewChannel-plus-thread-membership decision; both call sites use it; a test
+proves a change to the helper reaches both paths, so the two cannot drift silently again."
+- ONE HELPER OWNS IT: MET. resolveOriginChannelName, exported.
+- BOTH CALL SITES USE IT: MET.
+- A TEST PROVES A CHANGE REACHES BOTH: MET, and verified by canary rather than asserted — breaking
+  the ViewChannel check inside the shared function reddens four tests across BOTH files. Had it
+  reddened only one, the sharing would not have been structural and the PR would have been pointless.
+
+The reviewer's shape (call the function) beat the filed shape (extract a sub-helper), for a reason
+worth keeping: the extraction shared three of four steps and left the fourth written twice, so it
+would have made divergence harder rather than impossible. The import direction was verified rather
+than assumed — no cycle, and three files under handlers/references/ already import that module.
+
+Also shipped: the appendForwardedSnapshots docstring correction carried from #2170 round 7 (the
+synchronous loop body did not start protecting numbering; a for-of with an await is sequential
+anyway), and an invariant comment on the newly-exported function that it stays caller-agnostic —
+exporting a security gate makes "just add a flag for my case" the next available mistake, which
+would reintroduce divergence through the door this PR closed.
+
+Left open and tracked: TASK-717, the throws-for-non-member premise beneath satisfiesPrivateThreadMembership,
+now the single unverified claim under all three private-thread gates and the only one in this area
+that fails toward GRANTING rather than denying.
 <!-- SECTION:DESCRIPTION:END -->
