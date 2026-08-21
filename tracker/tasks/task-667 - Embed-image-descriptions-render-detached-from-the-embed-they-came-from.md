@@ -40,4 +40,22 @@ DECISION - neither of the two options as filed. Make the synthetic name determin
 Not the inline form, for a dated-out reason rather than cost: embedsXml becoming structured is exactly what doc-17 Phase 2 is building (prompt-assembly-architecture.md section 9c, the StructuredHistoryEntry IR). Restructuring it here would collide with that work. The join key is forward-compatible - Phase 2 absorbs it and can delete it once the IR makes inlining free.
 
 Sequencing note: this renames a synthetic attachment filename that appears in prompt output, so expect snapshot churn.
+CALL SITES RE-ENUMERATED 2026-08-21 (the numbers in fact 1 above predate #2168, which moved code
+in two of those files). The four naming sites are MessageFormatter.ts:49, SnapshotFormatter.ts:76,
+MessageContentBuilder.ts:292 and forwardedMessageUtils.ts:229. MessageContentBuilder pairs its one
+extractEmbedImages call with TWO EmbedParser regions (:263 and :338), so the echo half is not
+one-per-file.
+
+A FIFTH extractEmbedImages caller exists and is a deliberate NON-member: forwardedMessageUtils.ts
+:274, inside hasForwardedVoiceAttachment, which computes attachments only to test isVoiceMessage
+and discards the names, so no naming reaches the prompt from there. Say so in a comment rather than
+leaving the next enumeration to rediscover it.
+
+Also verified, so it is not mistaken for a landmine later: sticker attachments do NOT share the
+counter. stickerAttachments.ts:82 names off sticker.name, so there is no sticker-embed interleave
+to preserve.
+
+The counter itself is INTERNAL to extractEmbedImages (embedImageExtractor.ts:34 and :44 both read
+imageAttachments.length + 1), so the naming half is likely a single edit there and only the echo
+half is per-site. Confirm before scoping this as four edits.
 <!-- SECTION:DESCRIPTION:END -->
