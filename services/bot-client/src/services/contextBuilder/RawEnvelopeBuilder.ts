@@ -26,11 +26,18 @@ import {
   type RawMentionedRole,
 } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import type { z } from 'zod';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
-import { getEffectiveContentForPrompt } from '../../utils/forwardedMessageUtils.js';
+import {
+  getEffectiveContentForPrompt,
+  getFirstSnapshot,
+  isForwardedMessage,
+} from '../../utils/forwardedMessageUtils.js';
 import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
+
+const logger = createLogger('RawEnvelopeBuilder');
 
 /** The pre-resolution extended-context snapshot threaded out of the fetch. */
 export interface RawExtendedContextSnapshot {
@@ -126,6 +133,42 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
 }
 
 /**
+ * TEMPORARY DIAGNOSTIC — answers whether Discord populates `mentions` on a
+ * forward's snapshot payload.
+ *
+ * `MessageSnapshot` TYPES `mentions` as a full `MessageMentions` (it sits in
+ * the keep-list `Partialize` excludes from its nullable keys), but a
+ * declaration is not a producer, and the fix shape for resolving `<@id>` inside
+ * forwarded text differs completely depending on the answer: reading
+ * `snapshot.mentions.users` directly, versus regex-extracting ids and resolving
+ * each without a username.
+ *
+ * Logs ids and counts only — never usernames or message content.
+ *
+ * Remove once an observation lands, in a paired `debug` commit.
+ */
+function logForwardMentionSources(message: Message, wrapperMentionCount: number): void {
+  if (!isForwardedMessage(message)) {
+    return;
+  }
+  const snapshot = getFirstSnapshot(message);
+  // Hoisted rather than chained: this line exists to answer "is this field ever
+  // absent", so it should not itself be the subtlest expression in the file.
+  const snapshotMentions = snapshot?.mentions;
+  logger.info(
+    {
+      messageId: message.id,
+      wrapperMentionCount,
+      snapshotPresent: snapshot !== undefined,
+      snapshotMentionsPresent: snapshotMentions !== undefined && snapshotMentions !== null,
+      snapshotMentionCount: snapshotMentions?.users?.size,
+      snapshotContentHasMentionToken: /<@!?\d+>/.test(snapshot?.content ?? ''),
+    },
+    'TASK-43 probe: forward mention sources'
+  );
+}
+
+/**
  * Assemble the raw envelope. `rawMessageContent` is the message's EFFECTIVE
  * text (via getEffectiveContentForPrompt): message.content for normal
  * triggers, and the forward snapshot text — with our own `-#` footers
@@ -149,13 +192,17 @@ export function buildRawAssemblyInputs(
   }
 ): RawAssemblyInputs {
   // Wrapper-only mentions: message.mentions reflects the trigger message's OWN
-  // parsed mentions, which are empty for a forward — the snapshot's <@id> tokens
-  // aren't here. Resolving forward-snapshot user-mentions is a tracked follow-up
-  // (TASK-43): non-trivial because MessageSnapshot strips mention
-  // metadata, so it needs regex + a per-id fetch. The forward's text still reaches
-  // the AI via rawMessageContent; only embedded <@id> name-substitution degrades.
+  // parsed mentions — not verified empty for a forward at runtime, which is half
+  // of what the probe below measures. Resolving forward-snapshot user-mentions is
+  // a tracked follow-up (TASK-43). Its cost is currently UNKNOWN rather than
+  // known-high: the earlier claim that MessageSnapshot strips mention metadata is
+  // false at the type level, so whether a regex-plus-fetch is needed depends on
+  // whether Discord populates the field on the wire. The forward's text still
+  // reaches the AI via rawMessageContent; only embedded <@id> name-substitution
+  // degrades.
   // eslint-disable-next-line no-restricted-syntax -- wrapper-only mentions; forward-snapshot <@id> resolution is tracked as TASK-43
   const wrapperMentionedUsers = message.mentions.users;
+  logForwardMentionSources(message, wrapperMentionedUsers.size);
   return {
     // getEffectiveContentForPrompt yields message.content for normal triggers
     // and the forward snapshot text (bot footers stripped) for forwarded
