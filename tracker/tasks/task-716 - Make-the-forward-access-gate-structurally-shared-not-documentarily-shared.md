@@ -56,4 +56,21 @@ Shape after the change:
 
 Keep the extraction shape as the fallback only if exporting turns out to be objectionable on layering
 grounds. Nothing found so far suggests it will be.
+RIDE-ALONG, from PR 2170 round 7 (non-blocking, deliberately not fixed in that PR because it had
+already passed the review-round cap and the fix touches this same function): the
+appendForwardedSnapshots docstring in ReferenceFormatter.ts OVERSTATES what hoisting the marker
+protects. It says the now-synchronous loop body is what protects reference numbering, contrasting
+it with discipline -- but the numbering was never merely disciplined. A for-of with an await inside
+is sequential by construction, and FormatState is a fresh local per format() call, so no
+interleaving was possible before the hoist either. The accurate framing is that the hoist removes
+the SHAPE a future Promise.all refactor could exploit, not that it fixed a live ordering risk. The
+current-state half of the claim is true; the implied before-and-after contrast is not.
+
+Correct it in this task's PR, which restructures buildForwardMarker a few lines away.
+
+Also settled while triaging that round, so nobody re-raises it: the reviewer noted that
+forwardedFrom.author.id would be a WEBHOOK id when one of our own personas forwards a message. That
+is not a hole -- permissionsFor on a webhook id finds no guild member and returns null, which the
+gate already treats as fail-closed. The consequence is only that a persona-forwarded message never
+gets its origin channel named. Same behaviour as the sibling path, and in the safe direction.
 <!-- SECTION:DESCRIPTION:END -->
