@@ -31,4 +31,21 @@ WHAT THIS DOES AND DOES NOT ESTABLISH. It establishes that the stated blocker is
 NEXT STEP IS A PROBE, NOT AN IMPLEMENTATION. Before designing anything, capture one forward whose snapshot text contains an at-mention and log snapshot.mentions.users.size. Cheap: the owner already exercises forwards during smoke rounds, so this can ride an existing dev session or a one-commit debug instrumentation (the debug commit type exists for exactly this). If populated, the fix collapses to reading snapshot.mentions.users and usernames come along for free, which removes the id-only-resolution half entirely and likely makes this size:S. If genuinely empty at runtime, the filed regex-plus-fetch shape stands and now rests on evidence instead of an assumption.
 
 PROSE SWEEP OWED. RawEnvelopeBuilder.ts carries the same false claim in the eslint-disable justification at the wrapperMentionedUsers site (it says MessageSnapshot strips mention metadata, so it needs regex plus a per-id fetch). Whichever PR resolves this task corrects that comment in the same change; it is currently a wrong premise sitting in a suppression justification, which is where it is least likely to be questioned.
+TYPE-LEVEL PREMISE CHECK RE-VERIFIED FIRST-HAND against the shipped typings at
+node_modules/.pnpm/discord.js@14.27.0/node_modules/discord.js/typings/index.d.ts:7388-7405 (the
+MessageSnapshot declaration) and :7667-7680 (Partialize itself). Confirms the challenge above: the
+third Partialize argument is NullableKeys, and 'mentions' sits in the Exclude keep-list, so it never
+reaches the nullable branch. snapshot.mentions is a full MessageMentions. The filed blocker is wrong
+as written. This still does NOT establish that Discord populates it on the wire.
+
+PROBE IS DRAFTED AND RIDES THE beta.206 SMOKES AT NO OWNER COST. One debug-type commit at
+RawEnvelopeBuilder.ts:151-158, gated on isForwardedMessage, logging BOTH sizes in one line:
+message.mentions.users.size (the wrapper, which the comment claims is 0 for forwards, itself
+unverified) and getFirstSnapshot(message)?.mentions?.users?.size. IDs only, never usernames.
+
+SEQUENCING CONSTRAINT: the debug commit must land BEFORE the beta.206 smoke kickoff or the
+ride-along is lost and the probe needs its own owner session. The smoke instruction must also
+require an at-mention IN THE FORWARDED TEXT: a forward without one yields no result, not a
+negative result.
+
 <!-- SECTION:DESCRIPTION:END -->
