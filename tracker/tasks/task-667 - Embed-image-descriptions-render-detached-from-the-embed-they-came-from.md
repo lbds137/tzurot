@@ -1,9 +1,10 @@
 ---
 id: TASK-667
 title: Embed image descriptions render detached from the embed they came from
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 00:46'
+updated_date: '2026-08-21 21:16'
 labels:
   - 'area:ai-worker'
   - 'size:M'
