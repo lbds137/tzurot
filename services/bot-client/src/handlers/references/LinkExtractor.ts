@@ -12,11 +12,12 @@ import {
   type DMChannel,
   type NewsChannel,
   type GuildMember,
-  ChannelType,
+  type GuildTextBasedChannel,
   PermissionsBitField,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ParsedMessageLink } from '@tzurot/common-types/utils/messageLinkParser';
+import { satisfiesPrivateThreadMembership } from '../../utils/threadAccess.js';
 
 const logger = createLogger('LinkExtractor');
 
@@ -320,30 +321,9 @@ export class LinkExtractor {
 
       // Thread case — additionally verify private-thread membership.
       // Public threads inherit parent perms; private threads have an explicit
-      // member list that `ViewChannel` on parent does NOT imply.
-      if (channel.isThread()) {
-        const thread = channel as ThreadChannel;
-        // Private threads (type 12) have an explicit member list that
-        // `ViewChannel` on the parent does NOT imply — they need the extra
-        // check below. Public threads (type 11) and announcement threads
-        // (type 10) inherit parent-channel access, so the base permission
-        // check is sufficient and we skip the thread-membership lookup.
-        const isPrivateThread = thread.type === ChannelType.PrivateThread;
-        if (isPrivateThread) {
-          try {
-            // `thread.members.fetch(id)` throws if the user isn't a thread
-            // member — it never returns null/undefined — so reaching the
-            // line after the await is itself proof of membership.
-            await thread.members.fetch(invokerId);
-            return true;
-          } catch {
-            // Not a thread member. Deny.
-            return false;
-          }
-        }
-      }
-
-      return true;
+      // member list that `ViewChannel` on parent does NOT imply. See
+      // `satisfiesPrivateThreadMembership`'s docstring for why.
+      return await satisfiesPrivateThreadMembership(channel as GuildTextBasedChannel, invokerId);
     } catch (error) {
       // Catch-all: any unexpected error during permission checks fails closed.
       logger.warn(
