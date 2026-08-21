@@ -3,9 +3,10 @@ id: TASK-710
 title: >-
   Extract the private-thread membership gate shared by the two viewer-access
   checks
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 01:19'
+updated_date: '2026-08-21 14:39'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -38,4 +39,13 @@ FOLD IN WHEN CONSOLIDATING (PR 2167 round 6, non-blocking, deliberately not fixe
 What it does mean is that the failure mode is broader than the name suggests, and the consolidated helper is where that belongs - either in its docstring, or as a logged distinction if the two cases ever need telling apart operationally. LinkExtractor's copy has the identical property and the identical silence about it.
 
 Note the existing comment at the fetch is accurate as written ("reaching the next line is itself the proof of membership") - a successful fetch does prove membership. It is the CONVERSE that does not hold, and nothing currently claims it does. So this is an addition to make, not a correction.
+SHIPPED 2026-08-21 - PR 2169, merged. All three acceptance clauses met.
+
+1. "one exported helper with its own tests including a non-member canary" - MET. satisfiesPrivateThreadMembership in services/bot-client/src/utils/threadAccess.ts, 5 tests. The two skip paths assert members.fetch was NEVER called, so they pin the skip rather than only the result. Canaried: inverting the try/catch reddened 6 tests across all three files.
+2. "both call sites converted" - MET, behaviour identical at both, and neither site's existing tests were edited - they are the canary. Review independently re-ran the third-site sweep and confirmed no others exist.
+3. "a comment at the helper naming why ViewChannel alone is insufficient" - MET, plus the FOLD IN WHEN CONSOLIDATING item above (the catch cannot distinguish a non-member from a bot-side Manage Threads gap) is in the docstring.
+
+ONE THING THE TASK DID NOT ANTICIPATE, recorded because it outlives this task. The gate treats a resolved members.fetch as proof of membership, and that turned out to be TWO claims rather than one. Probed against the shipped discord.js 14.27.0 typings: the single-snowflake overload resolves Promise<ThreadMember> with no | null, so the no-null half is VERIFIED. The throws-for-a-non-member half is NOT probed - it was inherited from what the original call sites were written against - and it is the half the gate rests on, because a non-member fetch that RESOLVED would return true and open the gate. The docstring now separates the two and names that as the direction to watch. A live probe against a real private thread would settle it; nothing here does.
+
+Disposition on the two review observations, both correct-as-is with reasons rather than deferred: the throws-ambiguity denies in the safe direction (it costs a channel NAME, never grants access) and telling the cases apart would mean branching on an unprobed Discord error contract with no operational need; the cast asymmetry between the two call sites is inherent to how each narrows its own input, and forcing symmetry would mean restructuring narrowing in a security path this PR had no reason to touch. The asymmetry note is carried into the TASK-712 spec, since 712 is the third consumer.
 <!-- SECTION:DESCRIPTION:END -->
