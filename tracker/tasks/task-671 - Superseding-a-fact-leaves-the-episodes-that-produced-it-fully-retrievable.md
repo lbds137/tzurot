@@ -84,4 +84,13 @@ MEASURE IT: this is testable against the real Monster case rather than a
 synthetic one, and the outcome decides whether the structural work below is
 still needed or is merely belt-and-braces. Run step 0 first, observe, then
 decide.
+SECOND CONFIRMED INSTANCE, owner report 2026-08-21. A stale personal-relationship fact recirculating long after it stopped being true - same mechanism as the case above, different domain. Deliberately recorded WITHOUT the specifics: this repo is public, and unlike a beverage preference this class of fact should not be published to make a backlog point. The owner has the detail.
+
+What the second instance adds, beyond raising the count:
+
+- It lands in a domain where staleness is not merely wrong but socially costly, which changes the severity argument. Being reminded you quit an energy drink is a nuisance; a character confidently referencing a relationship that has ended is not.
+- It is a state change with no natural correcting UTTERANCE. The owner corrected the beverage case by saying so in conversation, which is what gave extraction a chance to produce a superseding fact. A relationship ending is frequently never stated to a character at all, so the fact layer may have nothing to supersede WITH - and the STEP 0 time-awareness fix does not help either, because the episodes need not be old enough to look stale.
+- That is a genuinely different failure mode from the one this task was filed for, and it weakens the "supersession chain plus a time-aware instruction covers it" hypothesis. Design against BOTH before assuming one fix serves them.
+
+Owner explicitly did NOT ask for work on this when reporting it - it was raised as evidence that doc-8 needs scheduling, not as an interrupt. Do not promote this task off the back of this note.
 <!-- SECTION:DESCRIPTION:END -->
