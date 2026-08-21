@@ -25,7 +25,7 @@ import { type GuildTextBasedChannel, ChannelType } from 'discord.js';
  *   apply to them.
  * - Private thread → `await channel.members.fetch(viewerId)`, treating a
  *   successful fetch as proof of membership. That rests on two separate
- *   claims, which are NOT equally well established:
+ *   claims, each verified with a different instrument:
  *
  *   1. The single-snowflake overload resolves `Promise<ThreadMember>`, never
  *      `| null` — verified against the shipped discord.js 14.27.0 typings
@@ -33,11 +33,15 @@ import { type GuildTextBasedChannel, ChannelType } from 'discord.js';
  *      FetchThreadMemberOptions): Promise<ThreadMember>`). So there is no
  *      null-shaped success to mistake for a member.
  *   2. It THROWS for a non-member rather than resolving anything at all.
- *      Not independently probed — inherited from the behaviour the two
- *      original call sites were written against. This is the claim the gate
- *      actually rests on: were a non-member fetch ever to RESOLVE, this
- *      returns `true` and the gate opens. That is the failure direction
- *      worth watching, and the one a live probe would settle.
+ *      Runtime-confirmed by a live probe on discord.js 14.27.0 against a
+ *      real private thread: the non-member fetch threw
+ *      `DiscordAPIError[10007] Unknown Member` (HTTP 404) — identically on
+ *      an immediate retry, so no cache layer converts the miss into a
+ *      resolve — while a member fetch resolved a `ThreadMember`. This is
+ *      the claim the gate actually rests on: were a non-member fetch ever
+ *      to RESOLVE, this returns `true` and the gate OPENS. The probe is an
+ *      observation of current API behaviour, not a contract Discord
+ *      publishes — but the claim is now observed, no longer inherited.
  *
  *   The converse of (2) does NOT hold, and nothing here claims it does: a
  *   throw only proves the fetch failed, not that the viewer isn't a member.
