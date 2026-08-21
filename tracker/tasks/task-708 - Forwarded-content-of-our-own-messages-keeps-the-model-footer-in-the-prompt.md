@@ -98,4 +98,16 @@ The member is not obscure. It is reached via ReferenceFormatter.appendForwardedS
 The correct enumeration key for this class is BEHAVIOUR: every direct read of a forwarded snapshot's content. Swept that way across non-test bot-client/src, the class closes at those seven members plus non-prompt hits (the accessors' own internals, comment prose, and one debug log line now tracked under doc-80).
 
 NOTE for anyone re-reading the NON-MEMBERS list above: it remains correct. LinkReferenceStrategy and the mention-detection call are genuine non-members and shipped unchanged, each with an in-place comment saying why.
+PR 1 MERGED 2026-08-21 - PR 2168, five commits, 17 files. DELIBERATELY NOT CLOSED; see the per-clause assessment below.
+
+Acceptance, per clause:
+1. "no -# footer in the extended-context path, the persisted path, and the reference-quote path" - MET AT THE UNIT LEVEL for all three, plus the current-turn envelope path the clause does not name and the SnapshotFormatter fan-out path this task's own enumeration missed. NO RUNTIME OBSERVATION EXISTS. Smoke item queued in CURRENT.md under the beta.206 batch. This is the same gap that made TASK-706 worth smoking, and this bug class is specifically "the code looked right and the path never ran", so the clause is not signed off until the owner smokes it.
+2. "a forward of a human message whose text opens with a bold Name: prefix keeps it, pinned by a test" - MET. stripDmPrefix is deliberately NOT applied; a test pins the prefix surviving.
+3. "the false docstring claim is corrected" - MET. normalizeMessageForContext now states per sub-function which one is safe if mis-applied and which is not, instead of claiming both are.
+
+Also shipped, beyond the acceptance: the colocated dead surface (extractAllForwardedContent, ForwardedContentResult, extractForwardedEmbeds - four dead fields, not the one this task named), a negative control pinning that the byte-faithful accessor does NOT strip, a seam test distinguishing the two accessors at the mention-detection call site, and two corrected consumer lists (BOT_FOOTER_PATTERNS named a module that no longer strips at all).
+
+PR 2 - STILL OPEN AS A DECISION, not as work. The agent recommendation to DECLINE ON MERIT stands and is argued in the block above; the owner has not ruled. Nothing further should be built for this task until that call is made.
+
+CLOSE THIS TASK when clause 1's smoke passes AND the PR 2 decision is recorded. Not before.
 <!-- SECTION:DESCRIPTION:END -->
