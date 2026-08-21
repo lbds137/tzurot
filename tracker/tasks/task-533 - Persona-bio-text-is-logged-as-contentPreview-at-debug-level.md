@@ -26,4 +26,5 @@ What: decide and apply. The cheap options are (a) drop the preview and keep reso
 Worth noting the counter-argument before deciding: the preview is real diagnostic value when a persona renders wrong, and it is already length-capped by a named constant, so this is not an unbounded content dump.
 
 Acceptance: a decision recorded, and either the log changed or a comment at the site saying why the preview is acceptable.
+BATCHED 2026-08-21: this is one member of the message-content-in-logs class, which is now owned as a pass by tracker doc-80 (Idea: Message-content-in-logs sweep). Do it with the batch rather than alone — the class fragmented into four separate tasks precisely because each site was found incidentally.
 <!-- SECTION:DESCRIPTION:END -->

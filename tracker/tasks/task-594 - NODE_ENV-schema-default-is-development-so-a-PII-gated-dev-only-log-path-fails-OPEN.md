@@ -31,4 +31,5 @@ Check for other consumers before flipping: grep NODE_ENV across services and pac
 Acceptance: a deployed service with NODE_ENV unset does not log persona bios or assembled system prompts, and whichever behaviour is chosen is pinned by a test.
 
 Source: 2026-08-13 claude-review round 4 on the persona-logging PR asked for a sanity check that NODE_ENV can never be development in a deployed environment; checking it surfaced the fail-open default.
+BATCHED 2026-08-21: this is one member of the message-content-in-logs class, which is now owned as a pass by tracker doc-80 (Idea: Message-content-in-logs sweep). Do it with the batch rather than alone — the class fragmented into four separate tasks precisely because each site was found incidentally.
 <!-- SECTION:DESCRIPTION:END -->

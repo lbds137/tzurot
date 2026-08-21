@@ -40,4 +40,5 @@ What: this is not one decision. The duplicate-detection snippets (crossTurnDetec
 Acceptance: every site above has a recorded decision and either the log changed or a comment at the site saying why the content is acceptable there. If TEXT_LIMITS.LOG_PERSONA_PREVIEW loses its last consumer, remove the constant too.
 
 Source: enumerated during the TASK-533/535 class sweep; filed as the batch rather than as individual rows because the triage is one pass.
+BATCHED 2026-08-21: this is one member of the message-content-in-logs class, which is now owned as a pass by tracker doc-80 (Idea: Message-content-in-logs sweep). Do it with the batch rather than alone — the class fragmented into four separate tasks precisely because each site was found incidentally.
 <!-- SECTION:DESCRIPTION:END -->

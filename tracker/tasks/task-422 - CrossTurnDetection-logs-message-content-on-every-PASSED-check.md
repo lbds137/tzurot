@@ -20,4 +20,5 @@ Why: prod sweep 2026-08-04 — the PASSED branch of crossTurnDetection.ts logChe
 Recommendation: keep comparisonReport + snippets on FAILED and NEAR_MISS only (rare, and exactly the reconstruct cases); PASSED logs the numeric fields + hashes only.
 
 Acceptance: a PASSED check logs no message text; FAILED/NEAR_MISS retain the full report; owner has signed off on the split.
+BATCHED 2026-08-21: this is one member of the message-content-in-logs class, which is now owned as a pass by tracker doc-80 (Idea: Message-content-in-logs sweep). Do it with the batch rather than alone — the class fragmented into four separate tasks precisely because each site was found incidentally.
 <!-- SECTION:DESCRIPTION:END -->
