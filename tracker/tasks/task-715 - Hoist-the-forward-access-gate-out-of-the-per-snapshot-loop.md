@@ -1,9 +1,10 @@
 ---
 id: TASK-715
 title: Hoist the forward access gate out of the per-snapshot loop
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 15:34'
+updated_date: '2026-08-21 16:09'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -27,4 +28,28 @@ Why it was NOT fixed in the review round, which is the part worth not re-derivin
 Fix shape: make buildForwardMarker public on SnapshotFormatter, compute it once before the for-of in appendForwardedSnapshots, pass it to formatSnapshot as a required parameter, revert formatSnapshot to sync, drop the now-invalid awaits, and re-point the six gate tests at buildForwardMarker directly. ReferenceFormatter.format stays async.
 
 Acceptance: the gate is evaluated exactly once per forwarded MESSAGE regardless of snapshot count, pinned by a test that counts permissionsFor invocations across a multi-snapshot forward; the existing sequential-numbering guarantee still holds and its structural test still passes.
+SHIPPED IN THE PR THAT FILED IT (#2170), 2026-08-21. Filed as a deferral at review round 1,
+then implemented at round 3 when the reviewer escalated the finding to Medium on its third raise.
+
+Reversing the deferral was the right call and the reasoning is worth keeping, because the original
+argument was not wrong so much as incomplete: it costed only the hoist-and-thread shape and never
+costed the memoize shape the reviewer had also offered. Once the work was measured rather than
+estimated it came to roughly 100 lines, entirely mechanical, with no design risk.
+
+Two things fell out that the task did not anticipate:
+
+1. The hoist REMOVED a hazard rather than merely optimising. With the marker resolved before the
+   loop, the loop body has no await left, so the shared-FormatState numbering race that the
+   sequential for-of was protecting against is now structurally impossible rather than avoided by
+   discipline. The structural sequencing test was replaced by one asserting the marker resolves
+   exactly once per forwarded message and that every snapshot receives the same value.
+
+2. formatSnapshot reverted to sync as predicted, and the require-await / await-thenable cascade
+   landed as predicted, but it was 8 unused fixtures and roughly 27 awaits rather than anything
+   subtle. The gate tests moved down to buildForwardMarker, which is better isolation than the
+   formatSnapshot-level tests they replaced.
+
+The open question the task said its value rested on -- whether a forward ever carries more than one
+snapshot -- is still unanswered, and no longer matters here: the fix is correct at N equals 1 too,
+since it makes per-message work happen once per message.
 <!-- SECTION:DESCRIPTION:END -->
