@@ -664,6 +664,29 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('from="Lila"');
     });
 
+    it('carries the recovered origin channel name onto the inner quote', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Originally written by someone else',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            forwardedFrom: {
+              authorName: 'COLD',
+              channelName: 'general',
+            },
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      const quoteTag = /<quote type="forward"[^>]*>/.exec(result)?.[0] ?? '';
+      expect(quoteTag).toContain('channel="general"');
+    });
+
     it('falls back to an unattributed quote for rows with no recovered origin', () => {
       // Every row written before forwardedFrom existed looks like this, so the
       // pre-change rendering has to stay reachable rather than become a gap.

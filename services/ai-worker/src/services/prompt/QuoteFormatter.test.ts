@@ -293,6 +293,29 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('role="user"');
       expect(result).toContain('t="2025-01-01 • now"');
     });
+
+    it('should include the channel attribute, escaped, after t', () => {
+      const result = formatQuoteElement({
+        from: 'User',
+        timeFormatted: '2025-01-01 (Wed) 09:00 • now',
+        channel: 'general & <sneaky>',
+        content: 'Hello',
+      });
+
+      expect(result).toContain('channel="general &amp; &lt;sneaky&gt;"');
+      const tPos = result.indexOf('t=');
+      const channelPos = result.indexOf('channel=');
+      expect(channelPos).toBeGreaterThan(tPos);
+    });
+
+    it('should omit the channel attribute entirely when absent', () => {
+      const result = formatQuoteElement({
+        from: 'User',
+        content: 'Hello',
+      });
+
+      expect(result).not.toContain('channel=');
+    });
   });
 
   describe('formatForwardedQuote', () => {
@@ -326,6 +349,19 @@ describe('QuoteFormatter', () => {
           '<content>Hello from the other channel</content>\n' +
           '</quote>'
       );
+    });
+
+    it('forwards the channel name onto the rendered quote', () => {
+      const content: ForwardedMessageContent = {
+        from: 'COLD',
+        timeFormatted: '2026-08-18 (Tue) 11:13',
+        channel: 'general',
+        textContent: 'Hello from the other channel',
+      };
+
+      const result = formatForwardedQuote(content);
+
+      expect(result).toContain('channel="general"');
     });
 
     it('keeps the timestamp when only the author could not be recovered', () => {

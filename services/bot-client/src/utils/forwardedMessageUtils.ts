@@ -25,6 +25,8 @@ import {
   type Collection,
   type APIEmbed,
   MessageReferenceType,
+  PermissionFlagsBits,
+  type TextBasedChannel,
 } from 'discord.js';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { extractAttachments } from './attachmentExtractor.js';
@@ -377,6 +379,61 @@ function resolveOriginAuthorName(original: Message, botTag: string | undefined):
 }
 
 /**
+ * The origin channel's name, gated on the FORWARDER's access to it.
+ *
+ * NOT the same gate as `authorPersonalityId`, despite both taking the
+ * forwarder's id. That one asks whether this viewer may load a PERSONALITY and
+ * answers `undefined` for every forward of a human message; this one asks
+ * whether they may view a CHANNEL. Reusing the personality gate here would
+ * suppress the channel name in the common case while never answering the
+ * question it was reached for.
+ *
+ * `permissionsFor(snowflake)` returns null when the member can't be resolved
+ * from cache; that fails closed here rather than spending a fetch to rescue
+ * it — a cross-guild forward is simultaneously the uncached case and the
+ * no-access case. Narrower than it sounds for the SAME-guild case: the
+ * forwarder is the author of the forward, and the `GuildMembers` intent is
+ * enabled (`index.ts`), so receiving that message is what caches them.
+ * `LinkExtractor.verifyInvokerCanAccessSource` does spend the fetch, and the
+ * divergence is deliberate — it gates whether to expand message CONTENT,
+ * where this decides whether to name a channel.
+ *
+ * A DM origin returns `undefined` before either check: it has no channel to
+ * name, and `permissionsFor` does not exist on a DM channel at all.
+ *
+ * A PRIVATE THREAD needs a second check that `permissionsFor` structurally
+ * cannot supply. Threads carry no permission overwrites of their own — the
+ * call resolves the PARENT's — while a private thread's access is an explicit
+ * member list layered on top. So `ViewChannel` on the parent does not imply
+ * membership, and a forwarder removed from the thread while keeping parent
+ * access would still see it named. Same gap, same fix, same fail-closed
+ * posture as `LinkExtractor.verifyInvokerCanAccessSource`. Public and
+ * announcement threads inherit parent access, so they skip the lookup.
+ */
+async function resolveOriginChannelName(
+  channel: TextBasedChannel,
+  forwarderId: string
+): Promise<string | undefined> {
+  if (channel.isDMBased()) {
+    return undefined;
+  }
+  const permissions = channel.permissionsFor(forwarderId);
+  if (permissions?.has(PermissionFlagsBits.ViewChannel) !== true) {
+    return undefined;
+  }
+  if (channel.isThread() && channel.type === ChannelType.PrivateThread) {
+    try {
+      // Throws when the id is not a member — never resolves to null — so
+      // reaching the next line is itself the proof of membership.
+      await channel.members.fetch(forwarderId);
+    } catch {
+      return undefined;
+    }
+  }
+  return channel.name;
+}
+
+/**
  * Maps a forward's ALREADY-FETCHED original to one of our internal personality
  * ids, or `undefined` when the original wasn't authored by a character.
  *
@@ -463,9 +520,26 @@ export async function resolveForwardedOrigin(
             // have (DM = bot-user author, guild = webhook author), so a
             // cross-surface forward classified by the landing channel
             // silently rejects both directions.
+            //
+            // Narrower than `resolveOriginChannelName`'s `isDMBased()` on
+            // purpose, and the two are not interchangeable: that one asks
+            // "is there a channel to name", where a group DM answers no, while
+            // this one asks "which author shape must the ORIGINAL have", where
+            // a group DM is neither of the two shapes the validator knows.
+            // Widening this to `isDMBased()` would assert the bot-user-author
+            // shape for a surface that has never been observed to produce it.
             channel.type === ChannelType.DM
           );
         }
+
+        // LAST of the independent steps on purpose. This one reaches further
+        // than its neighbours — `permissionsFor`, `isThread` and the private
+        // thread's `members.fetch` are more surface than a property read — and
+        // everything above shares one outer catch. Resolving it last means a
+        // throw here costs only the channel name, instead of also discarding
+        // the timestamp fallback and the personality id that were already in
+        // hand. Each field stays independently resolved, as the docstring says.
+        origin.channelName = await resolveOriginChannelName(channel, message.author.id);
       }
     } catch (error) {
       logger.debug(
