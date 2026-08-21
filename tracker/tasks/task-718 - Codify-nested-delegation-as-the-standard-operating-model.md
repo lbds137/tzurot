@@ -21,4 +21,18 @@ Why: owner decision (2026-08-21) — if the TASK-667 nested-delegation pilot suc
 What: update .claude/skills/tzurot-orchestration/SKILL.md mode-decision table with the nested posture for the Fable-driver row: dispatch shape (worktree isolation, base-SHA self-heal step 0, no-commit contract, five-gate verification, report requirements), the review gate staying with the Fable main loop, and the pilot evidence. Review-gated PR (skills are load-bearing).
 
 Acceptance: the skill documents the nested posture with its dispatch template; the pilot outcome (defect rate at the Fable review gate, Fable-side token overhead) is recorded as the evidence basis; gated on pilot success — if the pilot fails, archive this task with the failure analysis instead.
+
+DATA POINT 2, 2026-08-21 - TASK-708 PR 2 (PR 2175, merged). Nested dispatch (Opus orchestrator,
+worktree, one Sonnet worker, no-commit contract): worker applied the spec verbatim and correctly;
+orchestrator self-healed the stale base, ran all six gates, and CAUGHT AN ERROR IN THE FABLE-SIDE
+DISPATCH SPEC (a wrong escaping expectation in a specced test) by reading the implementation -
+corrected mid-flight and flagged honestly. Review round 1 found one real Medium in the shipped
+diff (formatForwardedQuote's 'Unknown' coalesce entering the new comparison) - attribution:
+Fable-side spec scoping AND the Fable diff review both missed it (neither swept the target
+function's callers); not a worker-tier defect. Rounds 2-4 clean. Infra friction to codify in the
+skill update: agent worktrees arrive without installed node_modules/dist (orchestrator burned time
+on install+build; per-package .bin only partially links), so the working shape is: worker returns
+the uncommitted diff, Fable transfers it to the main tree via git diff/apply (verify byte-identical),
+runs gates there, commits. Two clean units now on the ledger; per the owner's gating (1-2 more after
+the pilot), one more clean unit or an owner call promotes this to the skill edit this task specifies.
 <!-- SECTION:DESCRIPTION:END -->

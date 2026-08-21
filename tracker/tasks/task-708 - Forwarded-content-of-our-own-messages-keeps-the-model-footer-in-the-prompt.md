@@ -176,4 +176,18 @@ ALSO WORTH KEEPING from the pass, both arguments the agent did not have:
 
 STATUS: PR 2 is now a DEFINED UNIT rather than an open owner decision. Owner ruled 2026-08-21 that
 the task should be rewritten to the new plan rather than closed and re-filed.
+
+PR 2 SHIPPED 2026-08-21 - PR 2175, merged 87bf8a467. The match-gated strip landed in
+formatQuoteElement per the council shape, via the existing extractMessagePrefixName/stripDmPrefix
+primitives. Review rounds added: a fromFallback option so formatForwardedQuote's 'Unknown'
+placeholder renders the from= attribute WITHOUT entering the comparison (an unresolved origin can
+no longer strip a literal **Unknown:** opener - the round-1 Medium, confirmed and fixed), the
+two prefix regexes consolidated to one capturing pattern (sync dependency deleted), and the
+ACCEPTED RESIDUAL doc naming all three bounded residual sources (self-signature, placeholder rows,
+replayed-history name drift). The from=-rewrite-on-mismatch idea stays unbuilt, recorded above.
+
+The PR 2 decision clause is now RESOLVED (shipped, not declined). CLOSE THIS TASK when clause 1's
+smoke passes - that is the only remaining condition. The smoke item in CURRENT.md carries a rider:
+watch for a real user's own **Name:** self-signature being stripped inside a quote (the one
+user-visible behavior change PR 2 introduces; accepted residual, bounded by from= attribution).
 <!-- SECTION:DESCRIPTION:END -->

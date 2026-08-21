@@ -26,9 +26,9 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 
 **Done:** TASK-706 (#2166), TASK-668 (#2167), TASK-708 PR 1 (#2168), TASK-710 (#2169), TASK-712 (#2170), TASK-43 probe (#2171), TASK-716 (#2172) — all merged 2026-08-21. **TASK-710, TASK-712 and TASK-716 are CLOSED** (710 a behaviour-preserving extraction; 712 a tightening whose changed behaviour is only visible to a forwarder LACKING access, which a smoke cannot stage). 706, 668 and 708 stay OPEN pending the smoke queue below.
 
-**Next, in order:** TASK-708 PR 2 (now defined — see below) → TASK-563 (parked branch verified intact at `0f7d16d00`; rebase, then fix the two fixtures) → TASK-700.
+**Next, in order:** TASK-563 (parked branch verified intact at `0f7d16d00`; rebase, then fix the two fixtures) → TASK-700.
 
-**TASK-708 PR 2 is now a DEFINED UNIT** (owner ruled 2026-08-21; task rewritten rather than closed and re-filed). A four-model council was 4–0 to decline the strip as originally specified and 3–1 that a better shape exists, which all three proposed independently: **strip the bold prefix only when it MATCHES the quote's `from=`** — match means pure duplication, mismatch means the prefix is the only attribution and is kept. It lands in ai-worker's `QuoteFormatter.formatQuoteElement`, which already receives both values in one call, dissolving the origin-resolution blocker every earlier fix shape died on. **Verify before building**: the current turn renders as `rawMessageContent`, not a quote, so it may have no `from=` to duplicate and thus no instance of this defect — that decides whether PR 2 is complete or partial.
+**TASK-708 PR 2 SHIPPED** (PR #2175, merged `87bf8a467`) — the council's match-gated prefix strip in `QuoteFormatter.formatQuoteElement`, plus review-round additions: `fromFallback` (an unresolved forward's `'Unknown'` placeholder renders `from=` without entering the comparison), the two prefix regexes consolidated to one, and the ACCEPTED RESIDUAL doc naming all three bounded residual sources. Built via the nested-delegation pattern (data point 2 recorded on TASK-718). TASK-708 now closes on its PR 1 smoke alone.
 
 **TASK-43 re-scoped, not built.** Its filed blocker ("MessageSnapshot strips mention metadata") is FALSE at the type level — re-verified against the shipped typings. The probe shipped in #2171 answers the half a declaration cannot; the fix shape is chosen from its result, not before it.
 
@@ -59,6 +59,7 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **Two paths worth hitting, they are different code**: (a) forward + trigger in the SAME message — that is the current turn; (b) **reply to** or **link to** an existing forward — that is the fan-out path the first round of review caught, and the one that most likely produced the original report.
   - **Expect**: `<quote type="forward">` containing only the character's prose. Failure is the footer still sitting inside the quote, exactly as first reported.
   - **Not a failure**: a forwarded HUMAN message whose own text uses `-#` subtext keeps it — that is deliberate and pinned by a test.
+  - **PR 2 rider** (#2175): while smoking, also glance for a quoted message where a real user's own `**TheirName:** ` opener got stripped — the one user-visible change PR 2 adds; accepted residual (attribution survives in `from=`), but the owner should see it consciously once.
   - **Report**: `/inspect` or a debug payload; pass/fail is fine.
 
 - [ ] **Rider on ANY of the three forward smokes above** (TASK-43 / #2171) — _no separate round needed._
