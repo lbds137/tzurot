@@ -7,8 +7,17 @@ import {
 } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import { Collection, MessageReferenceType, type Message, type Sticker } from 'discord.js';
 
-const { mockGetVoiceTranscript } = vi.hoisted(() => ({
+const { mockGetVoiceTranscript, mockLoggerInfo } = vi.hoisted(() => ({
   mockGetVoiceTranscript: vi.fn((): string | undefined => undefined),
+  mockLoggerInfo: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', () => ({
+  createLogger: () => ({
+    info: mockLoggerInfo,
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
 }));
 vi.mock('../../processors/VoiceMessageProcessor.js', () => ({
   VoiceMessageProcessor: { getVoiceTranscript: mockGetVoiceTranscript },
@@ -384,5 +393,100 @@ describe('buildRawAssemblyInputs — producer↔schema conformance', () => {
         )
       )
     ).toBeNull();
+  });
+});
+
+describe('buildRawAssemblyInputs — TASK-43 forward mention probe', () => {
+  // The probe is temporary, but its whole value is that it FIRES during the
+  // owner's forward smoke round. A mis-gated guard produces silence, and
+  // silence is indistinguishable from "Discord populated nothing" — the exact
+  // reading the probe exists to settle. So the gate is pinned, not the wording.
+  it('does not fire for a non-forwarded message', () => {
+    mockLoggerInfo.mockClear();
+
+    buildRawAssemblyInputs(
+      {
+        client: {},
+        content: 'plain message',
+        mentions: { users: new Map() },
+        stickers: new Collection<string, Sticker>(),
+        poll: null,
+      } as unknown as Message,
+      undefined
+    );
+
+    expect(mockLoggerInfo).not.toHaveBeenCalled();
+  });
+
+  it('fires for a forward and reports both mention sources', () => {
+    mockLoggerInfo.mockClear();
+    const message = makeForwardedMessage('hey <@123456789012345678> look', {
+      withReferenceType: true,
+    });
+    // A snapshot that DOES carry mentions — the outcome the probe is checking
+    // for. Typed loosely because the fixture builds a partial Message.
+    (message as unknown as { messageSnapshots: { first: () => unknown } }).messageSnapshots.first =
+      () => ({
+        content: 'hey <@123456789012345678> look',
+        stickers: new Collection<string, Sticker>(),
+        mentions: { users: new Map([['123456789012345678', {}]]) },
+      });
+
+    buildRawAssemblyInputs(message, undefined);
+
+    expect(mockLoggerInfo).toHaveBeenCalledTimes(1);
+    const [fields] = mockLoggerInfo.mock.calls[0] as [Record<string, unknown>];
+    expect(fields).toMatchObject({
+      wrapperMentionCount: 0,
+      snapshotPresent: true,
+      snapshotMentionsPresent: true,
+      snapshotMentionCount: 1,
+      snapshotContentHasMentionToken: true,
+    });
+  });
+
+  it('reports an explicitly null snapshot mentions field rather than throwing', () => {
+    mockLoggerInfo.mockClear();
+    // The other half of the presence check. Reading the shipped typings,
+    // MessageSnapshot keeps `mentions` out of Partialize's nullable keys, so the
+    // DECLARATION offers no null here — which is a statement about the type, not
+    // about the payload. Distrusting that gap is the probe's entire purpose, so
+    // its own guard is pinned against the shape the compiler says it won't see.
+    const message = makeForwardedMessage('hey <@123456789012345678> look', {
+      withReferenceType: true,
+    });
+    (message as unknown as { messageSnapshots: { first: () => unknown } }).messageSnapshots.first =
+      () => ({
+        content: 'hey <@123456789012345678> look',
+        stickers: new Collection<string, Sticker>(),
+        mentions: null,
+      });
+
+    buildRawAssemblyInputs(message, undefined);
+
+    expect(mockLoggerInfo).toHaveBeenCalledTimes(1);
+    const [fields] = mockLoggerInfo.mock.calls[0] as [Record<string, unknown>];
+    expect(fields).toMatchObject({ snapshotPresent: true, snapshotMentionsPresent: false });
+    expect(fields.snapshotMentionCount).toBeUndefined();
+  });
+
+  it('reports an absent snapshot mentions field rather than throwing', () => {
+    mockLoggerInfo.mockClear();
+    // The other outcome: Discord omits mentions on the wire. The probe must
+    // still emit — an exception here would look like the non-forward case.
+    const message = makeForwardedMessage('hey <@123456789012345678> look', {
+      withReferenceType: true,
+    });
+
+    buildRawAssemblyInputs(message, undefined);
+
+    expect(mockLoggerInfo).toHaveBeenCalledTimes(1);
+    const [fields] = mockLoggerInfo.mock.calls[0] as [Record<string, unknown>];
+    expect(fields).toMatchObject({
+      snapshotPresent: true,
+      snapshotMentionsPresent: false,
+      snapshotContentHasMentionToken: true,
+    });
+    expect(fields.snapshotMentionCount).toBeUndefined();
   });
 });
