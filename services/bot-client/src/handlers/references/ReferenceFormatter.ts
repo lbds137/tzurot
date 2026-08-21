@@ -52,11 +52,11 @@ export class ReferenceFormatter {
    * @param maxReferences - Maximum number of references to include
    * @returns Formatted references and updated content
    */
-  format(
+  async format(
     originalContent: string,
     crawledMessages: Map<string, { message: Message; metadata: ReferenceMetadata }>,
     maxReferences: number
-  ): FormattedResult {
+  ): Promise<FormattedResult> {
     const rawReferences: ReferencedMessage[] = [];
     // Convert to array for sorting
     const messagesArray = Array.from(crawledMessages.values());
@@ -94,7 +94,7 @@ export class ReferenceFormatter {
       // history), so the deduped branch is exactly the regular one — it just
       // must not fan a forward out into one entry per snapshot.
       if (metadata.isDeduplicated !== true && isForwardedMessage(message)) {
-        this.appendForwardedSnapshots(message, metadata, state);
+        await this.appendForwardedSnapshots(message, metadata, state);
       } else {
         this.appendSingleReference(message, metadata, state);
       }
@@ -117,17 +117,45 @@ export class ReferenceFormatter {
     };
   }
 
-  /** Forwarded: each snapshot becomes its own reference. */
-  private appendForwardedSnapshots(
+  /**
+   * Forwarded: each snapshot becomes its own reference.
+   *
+   * The origin-channel marker is resolved ONCE here, before the loop: it
+   * depends only on the forwarding message, so computing it per snapshot would
+   * repeat a permission gate — and on a private-thread origin, a REST fetch —
+   * for an answer identical across every iteration.
+   *
+   * Hoisting it also leaves the loop body fully SYNCHRONOUS, which is what now
+   * protects the numbering rather than discipline: the body mutates shared
+   * `FormatState` (`s.nextNumber`, and `s.linkMap` via `trackLink`'s
+   * last-write-wins `Map.set`), and with no await left there is no suspension
+   * point for iterations to interleave at. Re-introducing an await inside the
+   * loop would put that ordering back at risk — the once-per-message test
+   * pins the marker call count, not the ordering it protects.
+   */
+  private async appendForwardedSnapshots(
     message: Message & { messageSnapshots: NonNullable<Message['messageSnapshots']> },
     metadata: ReferenceMetadata,
     s: FormatState
-  ): void {
+  ): Promise<void> {
+    // Nothing to attribute, so resolve nothing. `isForwardedMessage` is true on
+    // `reference.type` alone, and this module's own docstring records that
+    // Discord does not always populate `messageSnapshots` — so this arm is
+    // reachable with an empty collection. Without the guard the marker below
+    // would run its permission gate, and on a private-thread origin spend a
+    // REST fetch, for a value the loop then never consumes.
+    if (message.messageSnapshots.size === 0) {
+      return;
+    }
+
+    const forwardMarker = await this.snapshotFormatter.buildForwardMarker(message);
+
     for (const snapshot of message.messageSnapshots.values()) {
       const snapshotReference = this.snapshotFormatter.formatSnapshot(
         snapshot,
         s.nextNumber,
-        message
+        message,
+        forwardMarker
       );
       s.rawReferences.push(snapshotReference);
       // All snapshots of one forward share the crawled entry's discordUrl, and

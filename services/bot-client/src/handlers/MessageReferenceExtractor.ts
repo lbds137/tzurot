@@ -174,7 +174,7 @@ export class MessageReferenceExtractor {
     // Apply link replacement to the effective content (snapshot text for
     // forwards), not the empty top-level content — otherwise a forward's real
     // text is lost when the caller adopts updatedContent.
-    const formattedResult = this.formatter.format(
+    const formattedResult = await this.formatter.format(
       effectiveContent ?? updatedMessage.content,
       crawlResult.messages,
       this.maxReferences

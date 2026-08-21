@@ -4,7 +4,7 @@
  * Formats Discord message snapshots (from forwarded messages) into referenced messages
  */
 
-import type { Message, APIEmbed, MessageSnapshot } from 'discord.js';
+import { PermissionFlagsBits, type Message, type APIEmbed, type MessageSnapshot } from 'discord.js';
 import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
@@ -14,7 +14,11 @@ import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { extractSnapshotStickerImages } from '../../utils/stickerAttachments.js';
 import { withSnapshotStickerDescriptions } from '../../utils/stickerPollDescriptions.js';
+import { satisfiesPrivateThreadMembership } from '../../utils/threadAccess.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
+
+/** The generic marker used whenever the origin channel can't be attributed. */
+const GENERIC_FORWARD_MARKER = '(forwarded message)';
 
 /**
  * Service for formatting message snapshots into referenced messages
@@ -24,29 +28,62 @@ export class SnapshotFormatter {
    * Build the forward marker appended to the snapshot's locationContext.
    *
    * Discord exposes the ORIGIN channel of a forward on `forwardedFrom.reference`
-   * (a FORWARD-type MessageReference). When the bot can see that channel we
-   * surface its name ("forwarded from #general"), matching what Discord's own
-   * client shows. We read the client's channel CACHE only — no network `fetch()`
-   * on the message-handling path: a name is meaningful exactly when the bot is a
-   * member, which is also when the channel is cached. Cross-server forwards (bot
-   * not a member) won't resolve and fall back to the generic "(forwarded
-   * message)" marker rather than leaking a bare ID or stalling on a doomed fetch.
+   * (a FORWARD-type MessageReference). When the bot can see that channel AND the
+   * FORWARDER has access to it, we surface its name ("forwarded from #general"),
+   * matching what Discord's own client shows.
+   *
+   * RESOLVING the channel is a CACHE read only, with no `fetch()` to rescue a
+   * miss: a name is meaningful exactly when the bot is a member, which is also
+   * when the channel is cached. That claim covers resolution and the
+   * `permissionsFor` check, and stops there — the private-thread branch DOES
+   * spend a REST call, because `satisfiesPrivateThreadMembership` fetches the
+   * thread member list (see its docstring). Scoped deliberately: an unqualified
+   * "no network calls here" would be false for that branch.
+   *
+   * Cross-server forwards (bot not a member), a forwarder who lacks
+   * `ViewChannel` on the origin channel, or a private thread the forwarder isn't
+   * a member of, all fall back to the generic "(forwarded message)" marker
+   * rather than leaking a channel name the forwarder themselves couldn't see.
+   *
+   * Mirrors `resolveOriginChannelName` (forwardedMessageUtils.ts) — same
+   * fail-closed gate, same forwarder-scoped `permissionsFor` check, same private
+   * thread membership check. That function's docstring carries the rationale for
+   * those three: why `permissionsFor` returning null fails closed rather than
+   * spending a fetch, and why a private thread needs a check `permissionsFor`
+   * structurally cannot supply.
+   *
+   * The cache read is this path's alone — that function receives an
+   * already-resolved channel — which is why the bot-cached-but-forwarder-blind
+   * case is stated here rather than by pointer. A cache hit says the BOT is a
+   * member; it says nothing about the forwarder, and it is the forwarder whose
+   * view this marker claims to reflect.
+   *
+   * PUBLIC, and computed by the caller rather than per snapshot: the marker
+   * depends only on `forwardedFrom`, so a compound forward would otherwise
+   * re-run this gate — and on the private-thread branch, re-issue its REST
+   * fetch — once per snapshot for an answer that cannot change.
    */
-  private buildForwardMarker(forwardedFrom: Message): string {
+  async buildForwardMarker(forwardedFrom: Message): Promise<string> {
     const originChannelId = forwardedFrom.reference?.channelId;
     if (originChannelId === undefined) {
-      return '(forwarded message)';
+      return GENERIC_FORWARD_MARKER;
     }
     const channel = forwardedFrom.client?.channels?.cache?.get(originChannelId);
-    if (
-      channel !== undefined &&
-      'name' in channel &&
-      typeof channel.name === 'string' &&
-      channel.name.length > 0
-    ) {
-      return `(forwarded from #${channel.name})`;
+    if (channel?.isTextBased() !== true) {
+      return GENERIC_FORWARD_MARKER;
     }
-    return '(forwarded message)';
+    if (channel.isDMBased()) {
+      return GENERIC_FORWARD_MARKER;
+    }
+    const forwarderId = forwardedFrom.author.id;
+    const permissions = channel.permissionsFor(forwarderId);
+    if (permissions?.has(PermissionFlagsBits.ViewChannel) !== true) {
+      return GENERIC_FORWARD_MARKER;
+    }
+    if (!(await satisfiesPrivateThreadMembership(channel, forwarderId))) {
+      return GENERIC_FORWARD_MARKER;
+    }
+    return `(forwarded from #${channel.name})`;
   }
 
   /**
@@ -54,12 +91,17 @@ export class SnapshotFormatter {
    * @param snapshot - Message snapshot from forwarded message
    * @param referenceNumber - Reference number for this message
    * @param forwardedFrom - Original message that contained this snapshot
+   * @param forwardMarker - Origin-channel marker from {@link buildForwardMarker},
+   *   resolved once per forwarded MESSAGE by the caller. Required rather than
+   *   defaulted: a fallback here would silently re-introduce the per-snapshot
+   *   recomputation this parameter exists to remove.
    * @returns Formatted referenced message with isForwarded flag
    */
   formatSnapshot(
     snapshot: MessageSnapshot,
     referenceNumber: number,
-    forwardedFrom: Message
+    forwardedFrom: Message,
+    forwardMarker: string
   ): ReferencedMessage {
     // Extract location context from the forwarding message (since snapshot doesn't have it)
     // Use XML format consistent with MessageFormatter for unified formatting
@@ -127,7 +169,7 @@ export class SnapshotFormatter {
       timestamp: snapshot.createdTimestamp
         ? new Date(snapshot.createdTimestamp).toISOString()
         : forwardedFrom.createdAt.toISOString(),
-      locationContext: `${locationContext} ${this.buildForwardMarker(forwardedFrom)}`,
+      locationContext: `${locationContext} ${forwardMarker}`,
       attachments: allAttachments.length > 0 ? allAttachments : undefined,
       isForwarded: true,
     };
