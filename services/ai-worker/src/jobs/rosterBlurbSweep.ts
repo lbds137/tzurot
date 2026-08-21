@@ -53,6 +53,16 @@ const STAMP_BATCH_SIZE = 200;
  */
 const MAX_GENERATIONS_PER_SWEEP = 10;
 
+/**
+ * Consecutive billed failures, against one unchanged card, after which the
+ * sweep stops re-admitting the row. A card whose text deterministically
+ * produces an unparseable response would otherwise be re-selected and re-billed
+ * every tick forever, and enough such rows saturate MAX_GENERATIONS_PER_SWEEP
+ * so that nothing else ever generates. The freeze lifts the moment the card is
+ * edited — the recorded failures were about a card that no longer exists.
+ */
+const MAX_BLURB_ATTEMPTS = 5;
+
 /** The card columns, plus the row identity and the owner the usage row bills. */
 const CARD_SELECT = {
   id: true,
@@ -89,8 +99,19 @@ export interface RosterBlurbSweepStats {
   stampedEmpty: number;
   /** Blurbs generated and stored. */
   generated: number;
-  /** Model calls whose response failed to parse — nothing stored, retried next tick. */
-  failed: number;
+  /**
+   * Rows whose model call was PAID FOR and produced nothing storable — the
+   * response did not parse (a refusal, or non-JSON). Each of these also stamps
+   * attempt state, so the row backs off instead of re-billing every tick.
+   */
+  failedBilled: number;
+  /**
+   * Rows that failed without spending tokens: a throw out of the model call
+   * (rate limit, timeout, network), a blipped write, or the unreachable
+   * missing-hash guard. No usage row is written for these, and no attempt state
+   * either — they retry unchanged on the next tick.
+   */
+  failedZeroSpend: number;
 }
 
 /**
@@ -164,6 +185,10 @@ async function stampMissingHashes(prisma: PrismaClient): Promise<number> {
  * consequence is that a blurb does not itself propagate across environments —
  * accepted, because each environment's sweep generates its own, and losing an
  * owner's edit is the strictly worse failure.
+ *
+ * A store also CLEARS this row's failure state, atomically with the write that
+ * makes the row current — including the empty-card stamp, whose whole point is
+ * that this card will never need a model call again.
  */
 async function storeBlurb(
   prisma: PrismaClient,
@@ -173,7 +198,40 @@ async function storeBlurb(
 ): Promise<void> {
   await prisma.$executeRaw`
     UPDATE personalities
-    SET roster_blurb = ${blurb}, roster_blurb_source_hash = ${sourceHash}
+    SET roster_blurb = ${blurb}, roster_blurb_source_hash = ${sourceHash},
+        roster_blurb_attempts = 0,
+        roster_blurb_last_failed_at = NULL,
+        roster_blurb_failed_source_hash = NULL
+    WHERE id = ${personalityId}::uuid
+  `;
+}
+
+/**
+ * Stamp one billed failure onto the row it was billed for.
+ *
+ * RAW SQL for exactly the reason `storeBlurb` above documents: `personalities`
+ * is sync-tracked and reconciled last-write-wins on `updated_at`, so a Prisma
+ * `update()` here would let a failure stamp out-rank a genuine card edit made
+ * in the other environment.
+ *
+ * The CASE keys the count to one exact card. A failure previously recorded
+ * against a different hash — or none at all — is about a card that no longer
+ * exists, so the count restarts at 1 rather than inheriting a stranger's
+ * history and freezing the new card early.
+ */
+async function recordGenerationFailure(
+  prisma: PrismaClient,
+  personalityId: string,
+  cardHash: string
+): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE personalities
+    SET roster_blurb_attempts = CASE
+          WHEN roster_blurb_failed_source_hash = ${cardHash} THEN roster_blurb_attempts + 1
+          ELSE 1
+        END,
+        roster_blurb_failed_source_hash = ${cardHash},
+        roster_blurb_last_failed_at = NOW()
     WHERE id = ${personalityId}::uuid
   `;
 }
@@ -229,12 +287,42 @@ async function logUsage(
  * order the planner returned, and a card edited during that window would wait
  * behind all of them. Postgres sorts `false` before `true`, so the null-hash
  * rows land last.
+ *
+ * The second half of the WHERE clause is the failure-backoff admission gate,
+ * and its invariants are:
+ *
+ * - A row that has never failed carries a null `roster_blurb_failed_source_hash`
+ *   while `card_source_hash` is non-null, so `IS DISTINCT FROM` is TRUE and the
+ *   row is admitted by the first arm alone. The happy path pays nothing for
+ *   this gate.
+ * - A card EDIT after failures changes `card_source_hash`, which no longer
+ *   equals the recorded failed hash — the first arm is TRUE again and the row
+ *   is re-admitted immediately, with no wait.
+ * - Otherwise the row waits `1 hour * 2^(attempts - 1)` from its last failure:
+ *   1h, then 2h, 4h, 8h. `attempts` is at least 1 wherever this arm is
+ *   evaluated, because every row still at 0 has a null failed hash and was
+ *   already admitted above.
+ * - At `attempts = MAX_BLURB_ATTEMPTS` the arm is false for all time, so the
+ *   row is frozen until its card is edited. That is the point: repeated spend
+ *   on a card that deterministically fails buys nothing.
+ *
+ * A null `roster_blurb_last_failed_at` cannot smuggle a row through: `NOW() >=
+ * NULL + interval` is NULL, which is not TRUE, so the arm excludes it. That is
+ * the correct outcome ONLY because the first arm has already admitted every
+ * never-failed row — the two arms are read together, not independently.
  */
 async function findStale(prisma: PrismaClient): Promise<{ id: string }[]> {
   return prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM personalities
     WHERE card_source_hash IS NOT NULL
       AND roster_blurb_source_hash IS DISTINCT FROM card_source_hash
+      AND (
+        roster_blurb_failed_source_hash IS DISTINCT FROM card_source_hash
+        OR (
+          roster_blurb_attempts < ${MAX_BLURB_ATTEMPTS}
+          AND NOW() >= roster_blurb_last_failed_at + (interval '1 hour' * power(2, roster_blurb_attempts - 1))
+        )
+      )
     ORDER BY (roster_blurb_source_hash IS NULL)
     LIMIT ${MAX_GENERATIONS_PER_SWEEP}
   `;
@@ -255,7 +343,8 @@ export async function sweepRosterBlurbs(
     staleFound: 0,
     stampedEmpty: 0,
     generated: 0,
-    failed: 0,
+    failedBilled: 0,
+    failedZeroSpend: 0,
   };
   if (!stats.enabled) {
     return stats;
@@ -278,6 +367,10 @@ export async function sweepRosterBlurbs(
   const rows = (await prisma.personality.findMany({
     where: { id: { in: stale.map(r => r.id) } },
     select: CARD_SELECT_WITH_HASH,
+    // Already bounded by `stale.length`, which the stale query's own LIMIT
+    // caps — this is the belt to that suspenders, and keeps the repo's
+    // every-findMany-carries-a-take rule true by inspection.
+    take: MAX_GENERATIONS_PER_SWEEP,
   })) as StampedCardRow[];
 
   for (const row of rows) {
@@ -288,7 +381,7 @@ export async function sweepRosterBlurbs(
       // change surfaces as a visible failure instead of a tick that quietly
       // converges slower than its stats claim.
       logger.warn({ personalityId: row.id }, 'Stale row had no card hash — skipping');
-      stats.failed += 1;
+      stats.failedZeroSpend += 1;
       continue;
     }
 
@@ -316,7 +409,12 @@ export async function sweepRosterBlurbs(
       // genuinely ran twice.
       await logUsage(prisma, row.ownerId, usage, row.id);
       if (blurb === null) {
-        stats.failed += 1;
+        // Billed, and nothing storable came back. The stamp is what makes this
+        // row back off: without it a card whose text deterministically produces
+        // an unparseable response is re-selected and re-billed on every tick,
+        // forever, and crowds out every other stale row while doing it.
+        await recordGenerationFailure(prisma, row.id, hash);
+        stats.failedBilled += 1;
         continue;
       }
       await storeBlurb(prisma, row.id, blurb, hash);
@@ -326,8 +424,15 @@ export async function sweepRosterBlurbs(
       // the row stays stale, so the next tick retries it. No usage row when the
       // MODEL call throws: it carries no token counts, so there is nothing to
       // bill.
+      //
+      // Deliberately NO attempt stamp on this path. These failures spend
+      // nothing, and the cap exists to stop repeated SPEND — marching
+      // outage-hit rows toward a permanent freeze would convert one provider
+      // blip into every character's blurb being stuck until someone edited each
+      // card by hand. Every-tick retry is the correct behaviour for a failure
+      // that costs nothing.
       logger.warn({ err: error, personalityId: row.id }, 'Roster blurb row failed');
-      stats.failed += 1;
+      stats.failedZeroSpend += 1;
     }
   }
 
