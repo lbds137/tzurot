@@ -399,8 +399,14 @@ function resolveOriginAuthorName(original: Message, botTag: string | undefined):
  * cannot supply — see `satisfiesPrivateThreadMembership`'s docstring for why.
  * Same gap, same fix, same fail-closed posture as
  * `LinkExtractor.verifyInvokerCanAccessSource`.
+ *
+ * SHARED, and deliberately caller-agnostic: more than one prompt-bound path
+ * depends on this exact gate, and it is exported so those paths cannot drift
+ * apart. Two copies of this decision silently disagreeing is the bug that
+ * caused it to be extracted. Do not specialize it for one caller — a caller
+ * that needs different behaviour needs its own function, not a parameter here.
  */
-async function resolveOriginChannelName(
+export async function resolveOriginChannelName(
   channel: TextBasedChannel,
   forwarderId: string
 ): Promise<string | undefined> {

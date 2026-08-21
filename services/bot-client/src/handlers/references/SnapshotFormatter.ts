@@ -4,7 +4,7 @@
  * Formats Discord message snapshots (from forwarded messages) into referenced messages
  */
 
-import { PermissionFlagsBits, type Message, type APIEmbed, type MessageSnapshot } from 'discord.js';
+import { type Message, type APIEmbed, type MessageSnapshot } from 'discord.js';
 import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
@@ -14,7 +14,7 @@ import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { extractSnapshotStickerImages } from '../../utils/stickerAttachments.js';
 import { withSnapshotStickerDescriptions } from '../../utils/stickerPollDescriptions.js';
-import { satisfiesPrivateThreadMembership } from '../../utils/threadAccess.js';
+import { resolveOriginChannelName } from '../../utils/forwardedMessageUtils.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 
 /** The generic marker used whenever the origin channel can't be attributed. */
@@ -45,14 +45,14 @@ export class SnapshotFormatter {
    * a member of, all fall back to the generic "(forwarded message)" marker
    * rather than leaking a channel name the forwarder themselves couldn't see.
    *
-   * Mirrors `resolveOriginChannelName` (forwardedMessageUtils.ts) — same
-   * fail-closed gate, same forwarder-scoped `permissionsFor` check, same private
-   * thread membership check. That function's docstring carries the rationale for
-   * those three: why `permissionsFor` returning null fails closed rather than
-   * spending a fetch, and why a private thread needs a check `permissionsFor`
-   * structurally cannot supply.
+   * The gate itself — DM check, forwarder-scoped `permissionsFor`, private
+   * thread membership — is {@link resolveOriginChannelName}
+   * (forwardedMessageUtils.ts), shared rather than duplicated: that function's
+   * docstring carries the rationale for those three steps, why `permissionsFor`
+   * returning null fails closed rather than spending a fetch, and why a private
+   * thread needs a check `permissionsFor` structurally cannot supply.
    *
-   * The cache read is this path's alone — that function receives an
+   * The cache read is this path's alone — the shared function receives an
    * already-resolved channel — which is why the bot-cached-but-forwarder-blind
    * case is stated here rather than by pointer. A cache hit says the BOT is a
    * member; it says nothing about the forwarder, and it is the forwarder whose
@@ -72,18 +72,8 @@ export class SnapshotFormatter {
     if (channel?.isTextBased() !== true) {
       return GENERIC_FORWARD_MARKER;
     }
-    if (channel.isDMBased()) {
-      return GENERIC_FORWARD_MARKER;
-    }
-    const forwarderId = forwardedFrom.author.id;
-    const permissions = channel.permissionsFor(forwarderId);
-    if (permissions?.has(PermissionFlagsBits.ViewChannel) !== true) {
-      return GENERIC_FORWARD_MARKER;
-    }
-    if (!(await satisfiesPrivateThreadMembership(channel, forwarderId))) {
-      return GENERIC_FORWARD_MARKER;
-    }
-    return `(forwarded from #${channel.name})`;
+    const name = await resolveOriginChannelName(channel, forwardedFrom.author.id);
+    return name !== undefined ? `(forwarded from #${name})` : GENERIC_FORWARD_MARKER;
   }
 
   /**

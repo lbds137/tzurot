@@ -125,13 +125,16 @@ export class ReferenceFormatter {
    * repeat a permission gate — and on a private-thread origin, a REST fetch —
    * for an answer identical across every iteration.
    *
-   * Hoisting it also leaves the loop body fully SYNCHRONOUS, which is what now
-   * protects the numbering rather than discipline: the body mutates shared
-   * `FormatState` (`s.nextNumber`, and `s.linkMap` via `trackLink`'s
-   * last-write-wins `Map.set`), and with no await left there is no suspension
-   * point for iterations to interleave at. Re-introducing an await inside the
-   * loop would put that ordering back at risk — the once-per-message test
-   * pins the marker call count, not the ordering it protects.
+   * Hoisting it also leaves the loop body fully SYNCHRONOUS. That did not fix a
+   * live ordering risk — a `for...of` with an `await` inside is sequential by
+   * construction, and `FormatState` is a fresh local per `format()` call, so no
+   * interleaving was possible before the hoist either. What hoisting removes is
+   * the SHAPE a future `Promise.all` refactor over these snapshots could
+   * exploit: with the loop body synchronous, there is no await left inside it
+   * to parallelize by mistake against the shared `FormatState` (`s.nextNumber`,
+   * and `s.linkMap` via `trackLink`'s last-write-wins `Map.set`). The
+   * once-per-message test pins the marker call count, which is the invariant
+   * this hoist is actually responsible for.
    */
   private async appendForwardedSnapshots(
     message: Message & { messageSnapshots: NonNullable<Message['messageSnapshots']> },
