@@ -54,4 +54,22 @@ THE CONSTRAINT THAT SHAPES THE FIX, from a comment at RawEnvelopeBuilder.ts:162-
 DEAD FIELD, colocated: ForwardedContentResult.content (forwardedMessageUtils.ts:279) has no reader. Per the admission bar this is do-it-now work for whichever PR opens this file, not a separate task. It is invisible to knip, which sees the field as used because the object literal is returned.
 
 SIZE: re-label from M. Six sites, a shared util that cannot be changed in place, and a current-turn path make this at least two PRs — one for the current-turn/envelope half, one for the history/reference half. Split before building.
+
+FIX-SHAPE CORRECTION #2, 2026-08-20 — SPLIT BY NORMALIZER HALF, NOT BY CODE PATH. This supersedes the "two PRs: envelope half / history half" line above and narrows the authorship-gate requirement recorded earlier.
+
+normalizeMessageForContext is stripDmPrefix + stripBotFooters (discord.ts:544). Those two halves have VERY different safety profiles, and the reported bug is entirely the second one.
+
+stripBotFooters — SAFE TO APPLY UNCONDITIONALLY to forwarded content. Every pattern in BOT_FOOTER_PATTERNS (constants/discord.ts:455-511) requires either a distinctive emoji plus an exact phrase (🆓 Using free model, 📍 auto-response, 🌱 Fresh Mode •, 🔒 Focus Mode •, 👻 Incognito Mode •) or the shape `-# Model: ` / `-# Transcribed by ` followed by a well-formed [text](<url>) markdown link. A human does not produce these by accident. The MODEL pattern already carries an explicitly documented ACCEPTED WIDENING whose stated cost is "the author's own quoted text missing from what is fed back to the model, not any cross-user effect" — which is precisely the forwarded-content case, already judged acceptable in this codebase.
+
+stripDmPrefix — NOT safe. DM_PREFIX_PATTERN is /^\*\*[^*]+:\*\*\s*/ (discord.ts:484): any bold Name: opener, including a human's. This half is what makes the module docstring's "never mangles legitimate user content even if mis-applied" claim false, and correcting that claim stays in scope.
+
+CONSEQUENCE — the split is footer-half vs prefix-half, and the FOOTER half needs no authorship signal at all:
+
+PR 1 (the reported bug, and the whole of it): apply stripBotFooters to forwarded snapshot content at every prompt-bound member. Synchronous, no origin resolution, no REST, no async — so it lands cleanly at all six sites INCLUDING the current-turn envelope path, which cannot await an origin resolve. Correct the false docstring claim in the same PR.
+
+PR 2 (smaller, lower severity, optional): the prefix half, gated on authorship. Only reachable where the resolved origin is in hand (the fetcher and persist paths); the envelope path structurally cannot do it without an await. Scope it to those, or decline it on merit.
+
+This RETIRES the earlier note that the whole task needs the webhookId/bot-user authorship signal. That signal is needed ONLY for PR 2. PR 1 — the actual leak the owner observed — needs nothing but a synchronous strip.
+
+Not a defect, checked so nobody re-checks: the payload quoted at the top of this task renders the footer as "- via Z.AI Coding Plan", which looks like it would defeat the MODEL pattern's " • " tail. buildModelFooterText emits ` • via ${providerLabel}` (constants/discord.ts:424-426) — a bullet. The hyphen is a transcription artifact in this task's own prose, and the tail is optional in the pattern regardless.
 <!-- SECTION:DESCRIPTION:END -->
