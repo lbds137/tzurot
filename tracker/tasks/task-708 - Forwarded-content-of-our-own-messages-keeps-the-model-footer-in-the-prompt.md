@@ -142,11 +142,25 @@ current-turn path is synchronous and cannot await an origin lookup"), which did 
 QuoteFormatter check above. Weight the 3-1 accordingly; a dissent resting on a premise that
 falsified is weaker than its vote count suggests.
 
-OPEN, MUST BE VERIFIED BEFORE BUILDING -- do not treat as settled: the current turn is rendered as
-rawMessageContent, NOT as a quote element, so it plausibly has no from= to duplicate and therefore
-no instance of this defect at all, rather than being an uncovered path. Confirm that before scoping,
-because it decides whether PR 2 is complete or partial. If it turns out the current turn CAN carry a
-bold prefix with no from= beside it, that is a different defect than this one and gets its own entry.
+VERIFIED 2026-08-21, closing the question this block used to pose: the current turn carries NO from=.
+rawMessageContent becomes messageContent at ContextAssembler.ts:342 and is delivered as the turn's own
+content, never wrapped in a quote element. So the duplicate-attribution defect CANNOT occur on that
+path -- it is not an uncovered gap. PR 2 scoped to QuoteFormatter is therefore COMPLETE rather than
+partial, which removes the cross-path inconsistency objection that weighed against earlier fix shapes.
+
+SEPARATE DEFECT FOUND WHILE VERIFYING THAT, deliberately not folded in -- it is a different shape, and
+folding it in would repeat this task's own history of creeping scope. When a user forwards one of our
+DM-style persona replies AND triggers a character in the SAME message, the snapshot text becomes the
+current turn with the persona prefix intact: rawMessageContent = "**Lilith:** ..." delivered as the
+USER's turn. getEffectiveContentForPrompt applies stripBotFooters (#2168) but deliberately not
+stripDmPrefix, so the prefix survives.
+
+That is NOT duplicate attribution -- there is no second copy of the name to remove -- it is a persona
+prefix sitting inside a human's turn, which is arguably worse to read than the duplication PR 2
+targets. NOT ASSERTED AS HARMFUL: this is code-reading, no runtime observation exists, and whether the
+model actually mis-reads the speaker depends on how the turn is framed around it. Per 00-critical that
+makes it a hypothesis, not a finding. Reachability is also unmeasured -- it needs a forward of a
+NON-webhook persona reply (the DM path) plus a trigger in the same message. Assess before filing.
 
 ALSO WORTH KEEPING from the pass, both arguments the agent did not have:
 - A MISMATCH IS SIGNAL, not noise (Qwen). from="Bot" with "**Alice:**" means the bot relayed Alice.
