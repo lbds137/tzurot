@@ -29,4 +29,31 @@ Not done inside PR 2170 deliberately: it edits resolveOriginChannelName, a funct
 Watch item rather than a premise: the reviewer tied this to the CPD ratchet. Not verified that these two fragments actually trip jscpd -- they are short and call-dominant, which is exactly the shape the post-filter excludes. Check pnpm ops cpd:filtered before citing duplication counts as a reason.
 
 Acceptance: one helper owns the ViewChannel-plus-thread-membership decision; both call sites use it; a test proves a change to the helper reaches both paths, so the two cannot drift silently again.
+FIX SHAPE REVISED 2026-08-21 after PR 2170 round 6, which proposed a better one than the
+canForwarderViewChannel extraction filed above. Prefer the reviewer's: EXPORT resolveOriginChannelName
+from forwardedMessageUtils.ts and have buildForwardMarker call it, reducing that function to cache
+resolution plus marker formatting.
+
+Why it is better: the extraction shape shares three of the four gate steps, leaving the fourth (returning
+the channel name) still written twice. Calling resolveOriginChannelName shares ALL of it, so the two paths
+cannot diverge at all rather than being harder to diverge.
+
+Import direction VERIFIED, not assumed: forwardedMessageUtils.ts imports nothing from handlers/, so no
+cycle. And the direction is established precedent rather than new — handlers/references/types.ts,
+MessageFormatter.ts and strategies/LinkReferenceStrategy.ts already import forwardedMessageUtils.
+
+The narrowing also already lines up: buildForwardMarker gates on channel?.isTextBased() !== true, and
+isTextBased is a discord.js type predicate, so the surviving value is exactly the TextBasedChannel that
+resolveOriginChannelName accepts. No cast expected; if one turns out necessary, that is a stop condition
+worth reporting rather than working around.
+
+Shape after the change:
+
+  const channel = forwardedFrom.client?.channels?.cache?.get(originChannelId);
+  if (channel?.isTextBased() !== true) return GENERIC_FORWARD_MARKER;
+  const name = await resolveOriginChannelName(channel, forwardedFrom.author.id);
+  return name !== undefined ? `(forwarded from #${name})` : GENERIC_FORWARD_MARKER;
+
+Keep the extraction shape as the fallback only if exporting turns out to be objectionable on layering
+grounds. Nothing found so far suggests it will be.
 <!-- SECTION:DESCRIPTION:END -->
