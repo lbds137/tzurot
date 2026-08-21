@@ -184,7 +184,12 @@ export function extractForwardedContent(message: Message): string {
  * output is the `MODEL` pattern's documented ACCEPTED WIDENING
  * (`BOT_FOOTER_PATTERNS` in common-types), whose stated cost — the author's
  * own quoted text missing from what is fed back to the model — is precisely
- * this path, and was judged acceptable there.
+ * this path, and was judged acceptable there. That widening reaches one step
+ * further here than at the other prompt-bound sites: when Discord omits
+ * snapshots, {@link extractForwardedContent} falls back to the wrapper's
+ * content, which is the FORWARDER's own typed text rather than ours. The same
+ * accepted cost applies, and the shape it would take to trigger is the same
+ * one judged vanishingly unlikely above.
  *
  * @param message - Discord message (should be a forwarded message)
  * @returns Forwarded content with bot footers removed

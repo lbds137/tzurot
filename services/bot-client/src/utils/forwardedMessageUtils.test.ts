@@ -292,6 +292,22 @@ describe('forwardedMessageUtils', () => {
 
       expect(extractForwardedContent(message)).toBe('Main message content');
     });
+
+    it('stays BYTE-FAITHFUL: a footer survives here, and is only stripped by the prompt variant', () => {
+      // Negative control for the whole strip/no-strip split. Without it,
+      // accidentally moving the strip into THIS function — or duplicating it
+      // here — reddens nothing, while quietly changing what routing, mention
+      // detection and link parsing see.
+      const withFooter =
+        'Our reply.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan';
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [{ content: withFooter }],
+        content: '',
+      });
+
+      expect(extractForwardedContent(message)).toBe(withFooter);
+    });
   });
 
   describe('extractForwardedContentForPrompt', () => {
