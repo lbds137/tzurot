@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ChannelType, Collection } from 'discord.js';
+import { ChannelType, Collection, MessageReferenceType } from 'discord.js';
 import { DMSessionProcessor } from './DMSessionProcessor.js';
 import type { Message, DMChannel, Client } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -89,8 +89,12 @@ function createMockMessage(options?: {
   userId?: string;
   channel?: DMChannel;
   botId?: string;
+  /** When set, builds a forward whose snapshot carries this text. */
+  forwardedSnapshotContent?: string;
 }): Message {
   const channel = options?.channel ?? createMockDMChannel();
+  const isForward = options?.forwardedSnapshotContent !== undefined;
+  const snapshot = isForward ? { content: options?.forwardedSnapshotContent } : undefined;
   return {
     id: '123456789',
     content: options?.content ?? 'Hello world',
@@ -110,6 +114,16 @@ function createMockMessage(options?: {
       id: 'help-msg-123',
       delete: vi.fn().mockResolvedValue(undefined),
     }),
+    ...(isForward
+      ? {
+          reference: { type: MessageReferenceType.Forward },
+          messageSnapshots: {
+            size: 1,
+            first: () => snapshot,
+            values: () => [snapshot].values(),
+          },
+        }
+      : {}),
   } as unknown as Message;
 }
 
@@ -264,6 +278,43 @@ describe('DMSessionProcessor', () => {
       // personality is recorded in channel_settings so the next bare DM hits
       // the fast (cached) path instead of re-scanning Discord history.
       expect(vi.mocked(setDmSessionPersonality)).toHaveBeenCalledWith(message.channelId, 'lilith');
+    });
+
+    it('strips our own footer from a forwarded snapshot before handing content to the personality handler', async () => {
+      const botId = 'bot-123';
+      const botMessage = createMockBotMessage({
+        id: 'bot-msg-123',
+        content: '**Lilith:** Hello there!',
+        botId,
+      });
+
+      const messagesCollection = new Collection<string, Message>();
+      messagesCollection.set(botMessage.id, botMessage);
+
+      const channel = createMockDMChannel();
+      (channel.messages.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(messagesCollection);
+
+      const message = createMockMessage({
+        channel,
+        botId,
+        forwardedSnapshotContent:
+          'The answer is 42.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+      });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
+        personalityId: 'lilith-id',
+      });
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      await processor.process(message);
+
+      expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
+        message,
+        mockLilithPersonality,
+        'The answer is 42.',
+        { isAutoResponse: true }
+      );
     });
 
     it('should skip bot messages without personality prefix', async () => {

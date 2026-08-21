@@ -283,6 +283,15 @@ describe('buildRawAssemblyInputs', () => {
       expected: 'snapshot wins',
     },
     {
+      trigger: 'forward of one of our own replies (our -# footer stripped from the prompt)',
+      message: () =>
+        makeForwardedMessage(
+          'Here is my answer.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+          { withReferenceType: true }
+        ),
+      expected: 'Here is my answer.',
+    },
+    {
       trigger: 'voice (empty content — worker re-transcribes, turn stays empty)',
       message: () => makeMessage([], ''),
       expected: '',

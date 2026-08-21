@@ -27,6 +27,8 @@ export class LinkReferenceStrategy implements IReferenceStrategy {
     // snapshot are detected — `message.content` is empty for forwards, which
     // would otherwise drop their links from `[Reference N]` numbering.
     // extractForwardedContent falls back to message.content for non-forwards.
+    // Byte-faithful accessor, not the prompt variant: this text feeds the
+    // message-link parser, which must see the snapshot exactly as written.
     const links = MessageLinkParser.parseMessageLinks(extractForwardedContent(message));
 
     if (links.length === 0) {

@@ -14,11 +14,13 @@ import {
   getFirstSnapshot,
   getSnapshots,
   extractForwardedContent,
+  extractForwardedContentForPrompt,
   extractForwardedAttachments,
   extractAllForwardedContent,
   hasForwardedVoiceAttachment,
   hasVoiceAttachments,
   getEffectiveContent,
+  getEffectiveContentForPrompt,
   resolveForwardedOrigin,
 } from './forwardedMessageUtils.js';
 
@@ -290,6 +292,55 @@ describe('forwardedMessageUtils', () => {
       });
 
       expect(extractForwardedContent(message)).toBe('Main message content');
+    });
+  });
+
+  describe('extractForwardedContentForPrompt', () => {
+    it('strips a model-indicator footer from a forwarded snapshot of one of our own replies', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            content:
+              'Here is my answer.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+          },
+        ],
+      });
+
+      expect(extractForwardedContentForPrompt(message)).toBe('Here is my answer.');
+    });
+
+    it('strips an incognito-mode footer from a forwarded snapshot', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            content: 'Secret plans.\n-# 👻 Incognito Mode • Memories not being saved',
+          },
+        ],
+      });
+
+      expect(extractForwardedContentForPrompt(message)).toBe('Secret plans.');
+    });
+
+    it('preserves a forwarded human message opening with a bold Name: prefix', () => {
+      // Pins that stripDmPrefix is NOT applied here — only our own -# footers
+      // are ours to remove; a human's "**Someone:** ..." text is theirs.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [{ content: '**Someone:** hey, check this out' }],
+      });
+
+      expect(extractForwardedContentForPrompt(message)).toBe('**Someone:** hey, check this out');
+    });
+
+    it('returns forwarded content unchanged when it carries no footer', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [{ content: 'Just a plain forwarded message.' }],
+      });
+
+      expect(extractForwardedContentForPrompt(message)).toBe('Just a plain forwarded message.');
     });
   });
 
@@ -586,6 +637,33 @@ describe('forwardedMessageUtils', () => {
       });
 
       expect(getEffectiveContent(message)).toBe('My reply');
+    });
+  });
+
+  describe('getEffectiveContentForPrompt', () => {
+    it('strips our own footer from a forwarded snapshot', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            content:
+              'The answer is 42.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+          },
+        ],
+      });
+
+      expect(getEffectiveContentForPrompt(message)).toBe('The answer is 42.');
+    });
+
+    it('returns message.content byte-identical for a non-forwarded message, even when it contains a footer-shaped line', () => {
+      // Pins that the non-forward path is untouched by this change: a regular
+      // trigger message is never run through stripBotFooters.
+      const footerShapedContent = 'Check this out.\n-# Model: [glm-5.2](<https://x>) • via Z.AI';
+      const message = createMockMessage({
+        content: footerShapedContent,
+      });
+
+      expect(getEffectiveContentForPrompt(message)).toBe(footerShapedContent);
     });
   });
 

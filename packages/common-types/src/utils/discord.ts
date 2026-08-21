@@ -538,8 +538,14 @@ export function extractMessagePrefixName(content: string): string | null {
  * 2. Strip our `-#` subtext footers — model indicator, incognito/focus mode,
  *    auto-response, transcription attribution (`stripBotFooters`).
  *
- * Both sub-functions are pattern-specific (they match only our exact shapes),
- * so this never mangles legitimate user content even if mis-applied.
+ * The two sub-functions differ in how safe they are if mis-applied:
+ * `stripBotFooters` is pattern-specific enough (modulo the `MODEL` pattern's
+ * documented ACCEPTED WIDENING) that it rarely touches legitimate user
+ * content even when called on a message we didn't author. `stripDmPrefix` is
+ * NOT — `DM_PREFIX_PATTERN` matches any leading bold `**Name:** ` opener,
+ * including one a real user typed. That is exactly why this combined
+ * function is scoped to messages WE authored: `stripDmPrefix`'s safety
+ * depends entirely on that scoping, not on its own pattern.
  */
 export function normalizeMessageForContext(content: string): string {
   return stripBotFooters(stripDmPrefix(content));

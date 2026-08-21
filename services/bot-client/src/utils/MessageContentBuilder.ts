@@ -9,8 +9,10 @@
  * Both main message handling and extended context MUST use this utility to ensure consistency.
  *
  * Used by:
- * - DiscordChannelFetcher (extended context messages)
- * - HistoryLinkResolver (inline link resolution)
+ * - DiscordChannelFetcher (extended context messages) — content + carriers
+ * - HistoryLinkResolver (inline link resolution) — content + attachments
+ * - ConversationPersistence — `embedsXml` only, never `content`
+ * - MessageContextBuilder — `attachments` only, never `content`
  *
  * This utility handles:
  * - Regular message content
@@ -36,7 +38,7 @@ import {
   hasForwardedSnapshots,
   getSnapshots,
   extractForwardedAttachments,
-  extractForwardedContent,
+  extractForwardedContentForPrompt,
 } from './forwardedMessageUtils.js';
 
 const logger = createLogger('MessageContentBuilder');
@@ -230,7 +232,7 @@ export async function buildMessageContent(
     isForwarded = true;
 
     // Extract content from forwarded message (handles missing snapshots gracefully)
-    const forwardedTextContent = extractForwardedContent(message);
+    const forwardedTextContent = extractForwardedContentForPrompt(message);
     if (forwardedTextContent.length > 0) {
       contentParts.push(forwardedTextContent);
     }

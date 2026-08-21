@@ -49,7 +49,7 @@ vi.mock('../../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn().mockReturnValue(false),
   hasForwardedSnapshots: vi.fn().mockReturnValue(false),
   extractForwardedAttachments: vi.fn().mockReturnValue([]),
-  extractForwardedContent: vi.fn().mockReturnValue(''),
+  extractForwardedContentForPrompt: vi.fn().mockReturnValue(''),
 }));
 
 describe('MessageFormatter', () => {
@@ -371,12 +371,12 @@ describe('MessageFormatter', () => {
         isForwardedMessage,
         hasForwardedSnapshots,
         extractForwardedAttachments,
-        extractForwardedContent,
+        extractForwardedContentForPrompt,
       } = await import('../../utils/forwardedMessageUtils.js');
 
       vi.mocked(isForwardedMessage).mockReturnValue(true);
       vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
-      vi.mocked(extractForwardedContent).mockReturnValue('Forwarded text content');
+      vi.mocked(extractForwardedContentForPrompt).mockReturnValue('Forwarded text content');
       vi.mocked(extractForwardedAttachments).mockReturnValue([
         {
           url: 'https://cdn.discord.com/voice.ogg',
@@ -414,12 +414,12 @@ describe('MessageFormatter', () => {
         isForwardedMessage,
         hasForwardedSnapshots,
         extractForwardedAttachments,
-        extractForwardedContent,
+        extractForwardedContentForPrompt,
       } = await import('../../utils/forwardedMessageUtils.js');
 
       vi.mocked(isForwardedMessage).mockReturnValue(true);
       vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
-      vi.mocked(extractForwardedContent).mockReturnValue('Look at this image');
+      vi.mocked(extractForwardedContentForPrompt).mockReturnValue('Look at this image');
       vi.mocked(extractForwardedAttachments).mockReturnValue([
         {
           url: 'https://cdn.discord.com/forwarded-image.png',
@@ -457,13 +457,13 @@ describe('MessageFormatter', () => {
         isForwardedMessage,
         hasForwardedSnapshots,
         extractForwardedAttachments,
-        extractForwardedContent,
+        extractForwardedContentForPrompt,
       } = await import('../../utils/forwardedMessageUtils.js');
 
       // Forwarded but no snapshots (Discord API edge case)
       vi.mocked(isForwardedMessage).mockReturnValue(true);
       vi.mocked(hasForwardedSnapshots).mockReturnValue(false);
-      vi.mocked(extractForwardedContent).mockReturnValue('');
+      vi.mocked(extractForwardedContentForPrompt).mockReturnValue('');
       vi.mocked(extractForwardedAttachments).mockReturnValue([]);
 
       // Regular attachment extraction fallback

@@ -320,6 +320,28 @@ describe('MessageContentBuilder', () => {
       expect(result.content).not.toContain('[Forwarded message]:');
     });
 
+    it('strips our own -# footer from a forwarded snapshot of one of our own replies', async () => {
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content:
+          'The answer is 42.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+        embeds: [],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.content).toContain('The answer is 42.');
+      expect(result.content).not.toContain('-# Model:');
+    });
+
     it('should extract attachments from forwarded message snapshots', async () => {
       // Create snapshot with attachments (critical for forwarded images!)
       const snapshotAttachments = new Collection<string, Attachment>();
