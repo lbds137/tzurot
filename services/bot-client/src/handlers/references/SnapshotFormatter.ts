@@ -8,6 +8,7 @@ import type { Message, APIEmbed, MessageSnapshot } from 'discord.js';
 import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { stripBotFooters } from '@tzurot/common-types/utils/discord';
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
@@ -115,7 +116,13 @@ export class SnapshotFormatter {
       discordUserId: UNKNOWN_USER_DISCORD_ID, // Snapshots don't include author info
       authorUsername: UNKNOWN_USER_NAME,
       authorDisplayName: UNKNOWN_USER_NAME,
-      content: withSnapshotStickerDescriptions(snapshot, snapshot.content || ''),
+      // Footers stripped per-snapshot rather than via
+      // `extractForwardedContentForPrompt`: that accessor reads only the FIRST
+      // snapshot, while this runs once per snapshot in a multi-snapshot
+      // forward. Same reason as every other prompt-bound site — a forward of
+      // one of our own replies would otherwise carry our `-# Model: …` markup
+      // into a `<quote type="forward">`.
+      content: withSnapshotStickerDescriptions(snapshot, stripBotFooters(snapshot.content || '')),
       embeds: embedString,
       timestamp: snapshot.createdTimestamp
         ? new Date(snapshot.createdTimestamp).toISOString()

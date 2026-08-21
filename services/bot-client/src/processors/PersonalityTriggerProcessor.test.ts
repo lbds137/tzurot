@@ -54,6 +54,7 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
 vi.mock('../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn().mockReturnValue(false),
   getEffectiveContent: vi.fn((m: Message) => m.content),
+  getEffectiveContentForPrompt: vi.fn((m: Message) => m.content),
 }));
 
 vi.mock('../utils/discordChannelTypes.js', () => ({
@@ -208,6 +209,46 @@ describe('PersonalityTriggerProcessor', () => {
       const arg = coordinator.startFanOut.mock.calls[0][0];
       expect(arg.slots).toHaveLength(MULTI_TAG.MAX_TAGS);
       expect(arg.truncated).toBe(false);
+    });
+
+    it('forwards getEffectiveContentForPrompt output to the coordinator as the fan-out content', async () => {
+      // Seam assertion: this processor's `content` variable is fed by
+      // getEffectiveContentForPrompt (the prompt-bound accessor), not the
+      // byte-faithful getEffectiveContent used for mention detection — pin
+      // that the coordinator receives the PROMPT variant's return value.
+      const alice = buildPersonality('Alice');
+      vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
+      const { getEffectiveContentForPrompt } = await import('../utils/forwardedMessageUtils.js');
+      vi.mocked(getEffectiveContentForPrompt).mockReturnValueOnce('stripped prompt content');
+
+      await processor.process(buildMessage({ content: '@Alice hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.content).toBe('stripped prompt content');
+    });
+
+    it('feeds mention detection the BYTE-FAITHFUL accessor, not the prompt variant', async () => {
+      // The two accessors are mocked identically by default, so a swap at the
+      // mention-detection call site would redden nothing. Give them visibly
+      // different sentinels so this test can actually fail: mention detection
+      // must see what the user typed, footers and all — stripping there would
+      // change which text a mention is found in.
+      const alice = buildPersonality('Alice');
+      vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
+      const { getEffectiveContent, getEffectiveContentForPrompt } =
+        await import('../utils/forwardedMessageUtils.js');
+      // Restored below: these mocks are module-level, so a bare
+      // mockReturnValue would leak the sentinels into every later test.
+      vi.mocked(getEffectiveContent).mockReturnValue('BYTE_FAITHFUL');
+      vi.mocked(getEffectiveContentForPrompt).mockReturnValue('STRIPPED_FOR_PROMPT');
+      try {
+        await processor.process(buildMessage({ content: '@Alice hi' }));
+
+        expect(vi.mocked(findPersonalityMentions).mock.calls[0][0]).toBe('BYTE_FAITHFUL');
+      } finally {
+        vi.mocked(getEffectiveContent).mockImplementation((m: Message) => m.content);
+        vi.mocked(getEffectiveContentForPrompt).mockImplementation((m: Message) => m.content);
+      }
     });
   });
 

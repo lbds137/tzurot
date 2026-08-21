@@ -19,7 +19,7 @@ import {
   isForwardedMessage,
   hasForwardedSnapshots,
   extractForwardedAttachments,
-  extractForwardedContent,
+  extractForwardedContentForPrompt,
 } from '../../utils/forwardedMessageUtils.js';
 import { resolveWebhookAwareDisplayName } from '../../utils/webhookNaming.js';
 
@@ -40,7 +40,7 @@ export class MessageFormatter {
   ): { content: string; attachments: AttachmentList } {
     if (isForwarded && hasForwardedSnapshots(message)) {
       return {
-        content: withStickerAndPollDescriptions(message, extractForwardedContent(message)),
+        content: withStickerAndPollDescriptions(message, extractForwardedContentForPrompt(message)),
         attachments: extractForwardedAttachments(message),
       };
     }

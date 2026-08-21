@@ -35,7 +35,11 @@ import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import { resolveSlots } from '../services/SlotResolver.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
-import { getEffectiveContent, isForwardedMessage } from '../utils/forwardedMessageUtils.js';
+import {
+  getEffectiveContent,
+  getEffectiveContentForPrompt,
+  isForwardedMessage,
+} from '../utils/forwardedMessageUtils.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
 import { shouldNotifyUser } from './notificationCache.js';
 
@@ -129,7 +133,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     const truncated = uniqueCandidates.size > slots.length;
 
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript ?? getEffectiveContent(message);
+    const content = voiceTranscript ?? getEffectiveContentForPrompt(message);
 
     logger.info(
       {
@@ -282,6 +286,8 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
   ): Promise<LoadedPersonality[]> {
     try {
       const config = getConfig();
+      // Byte-faithful accessor, not the prompt variant: this text feeds
+      // mention detection, which must see exactly what the user typed.
       const matches = await findPersonalityMentions(
         getEffectiveContent(message),
         config.BOT_MENTION_CHAR,

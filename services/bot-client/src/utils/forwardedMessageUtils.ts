@@ -36,6 +36,7 @@ import { isVoiceAttachment } from './voiceAttachment.js';
 import { resolveWebhookAwareDisplayName } from './webhookNaming.js';
 import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { stripBotFooters } from '@tzurot/common-types/utils/discord';
 
 const logger = createLogger('forwardedMessageUtils');
 
@@ -179,6 +180,29 @@ export function extractForwardedContent(message: Message): string {
   // Fallback to main message content
   // This handles edge cases where Discord doesn't populate snapshots
   return message.content;
+}
+
+/**
+ * Extract a forward's text, stripped of our own `-#` footers, for content
+ * headed into the LLM prompt.
+ *
+ * The plain {@link extractForwardedContent} stays byte-faithful because it
+ * also feeds routing, mention detection, and link parsing — those consumers
+ * need what the forwarder's snapshot actually contains, footer and all. This
+ * accessor exists for the narrower prompt-bound path, where a forwarded
+ * snapshot of one of OUR OWN character replies would otherwise carry our
+ * `-# Model: …` / incognito / auto-response markup into the model's context.
+ *
+ * The strip is unconditional — no authorship or origin check — because it is
+ * scoped to OUR markup: {@link stripBotFooters}'s patterns match only our
+ * exact footer shapes, so removing them is correct regardless of who
+ * forwarded the message. It is our own text to remove, not theirs.
+ *
+ * @param message - Discord message (should be a forwarded message)
+ * @returns Forwarded content with bot footers removed
+ */
+export function extractForwardedContentForPrompt(message: Message): string {
+  return stripBotFooters(extractForwardedContent(message));
 }
 
 /**
@@ -336,6 +360,32 @@ export function getEffectiveContent(message: Message): string {
   }
 
   // Regular messages: return main content directly
+  return message.content;
+}
+
+/**
+ * Get the effective text content from any message type, for content headed
+ * into the LLM prompt.
+ *
+ * Mirrors {@link getEffectiveContent}'s structure exactly, routing a forward
+ * through {@link extractForwardedContentForPrompt} instead of the
+ * byte-faithful accessor. The plain `getEffectiveContent` stays byte-faithful
+ * because it also feeds routing, mention detection, and link parsing; this
+ * variant exists only for the prompt-bound callers that need our own footer
+ * markup stripped from a forwarded snapshot of one of our own replies.
+ *
+ * A non-forwarded message is returned byte-identical to `message.content` —
+ * the strip applies only to the forward-snapshot path, never to a regular
+ * trigger message.
+ *
+ * @param message - Discord message (any type)
+ * @returns The effective text content, with bot footers stripped for forwards
+ */
+export function getEffectiveContentForPrompt(message: Message): string {
+  if (isForwardedMessage(message)) {
+    return extractForwardedContentForPrompt(message);
+  }
+
   return message.content;
 }
 

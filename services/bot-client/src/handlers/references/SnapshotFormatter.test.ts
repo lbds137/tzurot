@@ -193,6 +193,42 @@ describe('SnapshotFormatter', () => {
       });
     });
 
+    it('strips our own -# footer from a forwarded snapshot of one of our replies', () => {
+      const snapshot = createMockSnapshot({
+        content:
+          'The answer is 42.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+        createdTimestamp: 1704110400000,
+      });
+
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage({ id: 'fwd-1' }));
+
+      expect(result.content).toBe('The answer is 42.');
+    });
+
+    it('strips footers per-snapshot, not just from the first one', () => {
+      // formatSnapshot runs once per snapshot in a multi-snapshot forward, so
+      // the strip cannot delegate to an accessor that reads only the first.
+      const second = createMockSnapshot({
+        content: 'Second reply.\n-# 👻 Incognito Mode • Memories not being saved',
+        createdTimestamp: 1704110400000,
+      });
+
+      const result = formatter.formatSnapshot(second, 2, createMockMessage({ id: 'fwd-1' }));
+
+      expect(result.content).toBe('Second reply.');
+    });
+
+    it("leaves a forwarded human's own -# subtext alone", () => {
+      const snapshot = createMockSnapshot({
+        content: 'my hot take\n-# just my opinion though',
+        createdTimestamp: 1704110400000,
+      });
+
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage({ id: 'fwd-1' }));
+
+      expect(result.content).toBe('my hot take\n-# just my opinion though');
+    });
+
     it('should handle empty content', () => {
       const snapshot = createMockSnapshot({
         content: null as any,

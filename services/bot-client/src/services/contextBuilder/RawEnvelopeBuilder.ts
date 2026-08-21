@@ -28,7 +28,7 @@ import {
 import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
-import { getEffectiveContent } from '../../utils/forwardedMessageUtils.js';
+import { getEffectiveContentForPrompt } from '../../utils/forwardedMessageUtils.js';
 import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
 
@@ -127,12 +127,13 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
 
 /**
  * Assemble the raw envelope. `rawMessageContent` is the message's EFFECTIVE
- * text (via getEffectiveContent): message.content for normal triggers, and the
- * forward snapshot text for forwarded triggers — the worker re-derives the
- * current turn solely from this field, so a forward's snapshot text MUST land
- * here or the turn is empty (the "Hello"-placeholder content-loss bug). Empty
- * for voice triggers, where the worker re-transcribes the shipped attachment
- * itself (the bot-side STT transcript rides rawRoutingTranscript, telemetry-only).
+ * text (via getEffectiveContentForPrompt): message.content for normal
+ * triggers, and the forward snapshot text — with our own `-#` footers
+ * stripped — for forwarded triggers. The worker re-derives the current turn
+ * solely from this field, so a forward's snapshot text MUST land here or the
+ * turn is empty (the "Hello"-placeholder content-loss bug). Empty for voice
+ * triggers, where the worker re-transcribes the shipped attachment itself
+ * (the bot-side STT transcript rides rawRoutingTranscript, telemetry-only).
  */
 export function buildRawAssemblyInputs(
   message: Message,
@@ -156,13 +157,18 @@ export function buildRawAssemblyInputs(
   // eslint-disable-next-line no-restricted-syntax -- wrapper-only mentions; forward-snapshot <@id> resolution is tracked as TASK-43
   const wrapperMentionedUsers = message.mentions.users;
   return {
-    // getEffectiveContent yields message.content for normal triggers and the
-    // forward snapshot text for forwarded ones; a bare message.content is empty
-    // for a forward, which drops the whole forwarded message from the prompt.
-    // Sticker/poll descriptions append here rather than inside
-    // getEffectiveContent: that util is also the routing/mention-detection
-    // text source, which must stay byte-faithful to what the user typed.
-    rawMessageContent: withStickerAndPollDescriptions(message, getEffectiveContent(message)),
+    // getEffectiveContentForPrompt yields message.content for normal triggers
+    // and the forward snapshot text (bot footers stripped) for forwarded
+    // ones; a bare message.content is empty for a forward, which drops the
+    // whole forwarded message from the prompt. Sticker/poll descriptions
+    // append here rather than inside getEffectiveContentForPrompt: this is the
+    // prompt-bound variant of getEffectiveContent, which is also the
+    // routing/mention-detection text source and must stay byte-faithful to
+    // what the user typed — appending descriptions there would corrupt that.
+    rawMessageContent: withStickerAndPollDescriptions(
+      message,
+      getEffectiveContentForPrompt(message)
+    ),
     rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),
     rawAuthorDisplayName: refs?.rawAuthorDisplayName,
     // No clone needed (unlike the participant guild map): this scalar is a

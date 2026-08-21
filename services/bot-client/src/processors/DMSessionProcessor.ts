@@ -33,7 +33,7 @@ import {
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
 } from '../utils/nsfwVerification.js';
 import { clientsForUser } from '../utils/gatewayClients.js';
-import { getEffectiveContent } from '../utils/forwardedMessageUtils.js';
+import { getEffectiveContentForPrompt } from '../utils/forwardedMessageUtils.js';
 import type { MultiTagPersistence } from '../services/MultiTagPersistence.js';
 
 const logger = createLogger('DMSessionProcessor');
@@ -153,7 +153,7 @@ export class DMSessionProcessor implements IMessageProcessor {
 
     // 5. Handle the message via existing infrastructure
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript ?? getEffectiveContent(message);
+    const content = voiceTranscript ?? getEffectiveContentForPrompt(message);
 
     logger.info(
       { userId, personalityName: personality.displayName },
