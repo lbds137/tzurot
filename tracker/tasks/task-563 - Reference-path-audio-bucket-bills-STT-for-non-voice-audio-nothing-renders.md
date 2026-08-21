@@ -1,9 +1,10 @@
 ---
 id: TASK-563
 title: Reference-path audio bucket bills STT for non-voice audio nothing renders
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:33'
+updated_date: '2026-08-21 23:15'
 labels:
   - 'area:api-gateway'
   - 'size:S'

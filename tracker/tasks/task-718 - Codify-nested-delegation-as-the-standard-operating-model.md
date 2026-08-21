@@ -7,7 +7,7 @@ created_date: '2026-08-21 20:39'
 labels:
   - 'area:skills'
   - 'size:S'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 718000
@@ -35,4 +35,20 @@ on install+build; per-package .bin only partially links), so the working shape i
 the uncommitted diff, Fable transfers it to the main tree via git diff/apply (verify byte-identical),
 runs gates there, commits. Two clean units now on the ledger; per the owner's gating (1-2 more after
 the pilot), one more clean unit or an owner call promotes this to the skill edit this task specifies.
+
+DATA POINT 3, 2026-08-21 - TASK-563 (PR 2176, merged f5ec6715c). Third consecutive clean nested
+unit: worker applied the spec verbatim with zero corrections; orchestrator self-healed the base,
+found the snapshot-regen mechanism, made one well-argued deviation (correlated ArbAttachment
+generation, matching the real producer - ratified on review; the specced free boolean would have
+generated unproducible payloads AND broken a second oracle the spec missed) and one necessary
+scope extension (the oracle self-test), plus flagged a same-class sibling fixture the Fable review
+then fixed (class swept). Review: zero blocking findings across the round.
+
+EVIDENCE THRESHOLD REACHED: the owner's gating was pilot success across ~2-3 units; three clean
+units are now on this ledger (TASK-667 / TASK-708 PR 2 / TASK-563), each with the orchestrator
+improving on or honestly flagging against the dispatch spec, and all defects that reached review
+attributable to Fable-side spec scoping, never the worker tier or the pattern. State flipped to
+ready. The build is the skill edit this task specifies (review-gated PR on /tzurot-orchestration),
+folding in the operational learnings recorded in data point 2 (worktree install/build friction,
+diff-transfer-to-main-tree shape, byte-identical verification).
 <!-- SECTION:DESCRIPTION:END -->

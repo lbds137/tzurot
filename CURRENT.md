@@ -26,7 +26,7 @@ Holistic release review: **no blocking findings** (verified notes-vs-diff, 17-pa
 
 **Done:** TASK-706 (#2166), TASK-668 (#2167), TASK-708 PR 1 (#2168), TASK-710 (#2169), TASK-712 (#2170), TASK-43 probe (#2171), TASK-716 (#2172) — all merged 2026-08-21. **TASK-710, TASK-712 and TASK-716 are CLOSED** (710 a behaviour-preserving extraction; 712 a tightening whose changed behaviour is only visible to a forwarder LACKING access, which a smoke cannot stage). 706, 668 and 708 stay OPEN pending the smoke queue below.
 
-**Next, in order:** TASK-563 (parked branch verified intact at `0f7d16d00`; rebase, then fix the two fixtures) → TASK-700.
+**Next, in order:** TASK-700 (schema-touching — owner design confirmation pending, question drafted) → TASK-718 skill edit (evidence threshold reached: 3 clean nested units; review-gated PR) → sub-theme 3 design refresh (Fable). TASK-563 SHIPPED (#2176) — sub-theme 1 complete.
 
 **TASK-708 PR 2 SHIPPED** (PR #2175, merged `87bf8a467`) — the council's match-gated prefix strip in `QuoteFormatter.formatQuoteElement`, plus review-round additions: `fromFallback` (an unresolved forward's `'Unknown'` placeholder renders `from=` without entering the comparison), the two prefix regexes consolidated to one, and the ACCEPTED RESIDUAL doc naming all three bounded residual sources. Built via the nested-delegation pattern (data point 2 recorded on TASK-718). TASK-708 now closes on its PR 1 smoke alone.
 
