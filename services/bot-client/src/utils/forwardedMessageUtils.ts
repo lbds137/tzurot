@@ -31,6 +31,7 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractSnapshotStickerImages } from './stickerAttachments.js';
+import { satisfiesPrivateThreadMembership } from './threadAccess.js';
 import { isVoiceAttachment } from './voiceAttachment.js';
 import { resolveWebhookAwareDisplayName } from './webhookNaming.js';
 import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';
@@ -395,13 +396,9 @@ function resolveOriginAuthorName(original: Message, botTag: string | undefined):
  * name, and `permissionsFor` does not exist on a DM channel at all.
  *
  * A PRIVATE THREAD needs a second check that `permissionsFor` structurally
- * cannot supply. Threads carry no permission overwrites of their own — the
- * call resolves the PARENT's — while a private thread's access is an explicit
- * member list layered on top. So `ViewChannel` on the parent does not imply
- * membership, and a forwarder removed from the thread while keeping parent
- * access would still see it named. Same gap, same fix, same fail-closed
- * posture as `LinkExtractor.verifyInvokerCanAccessSource`. Public and
- * announcement threads inherit parent access, so they skip the lookup.
+ * cannot supply — see `satisfiesPrivateThreadMembership`'s docstring for why.
+ * Same gap, same fix, same fail-closed posture as
+ * `LinkExtractor.verifyInvokerCanAccessSource`.
  */
 async function resolveOriginChannelName(
   channel: TextBasedChannel,
@@ -414,14 +411,8 @@ async function resolveOriginChannelName(
   if (permissions?.has(PermissionFlagsBits.ViewChannel) !== true) {
     return undefined;
   }
-  if (channel.isThread() && channel.type === ChannelType.PrivateThread) {
-    try {
-      // Throws when the id is not a member — never resolves to null — so
-      // reaching the next line is itself the proof of membership.
-      await channel.members.fetch(forwarderId);
-    } catch {
-      return undefined;
-    }
+  if (!(await satisfiesPrivateThreadMembership(channel, forwarderId))) {
+    return undefined;
   }
   return channel.name;
 }
