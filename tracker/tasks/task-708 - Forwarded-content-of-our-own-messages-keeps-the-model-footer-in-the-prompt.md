@@ -110,4 +110,56 @@ Also shipped, beyond the acceptance: the colocated dead surface (extractAllForwa
 PR 2 - STILL OPEN AS A DECISION, not as work. The agent recommendation to DECLINE ON MERIT stands and is argued in the block above; the owner has not ruled. Nothing further should be built for this task until that call is made.
 
 CLOSE THIS TASK when clause 1's smoke passes AND the PR 2 decision is recorded. Not before.
+PR 2 FIX-SHAPE CORRECTION #4, 2026-08-21, after a four-model council pass. THIS SUPERSEDES THE
+AGENT RECOMMENDATION TO DECLINE, and redefines what PR 2 IS rather than closing the task. PR 2 was
+always "the prefix half"; only its mechanism changes here, for the fourth time and for the same
+recurring reason -- the previously recorded signal answered a different question than the one that
+decides the case.
+
+COUNCIL RESULT (GLM 5.2, Kimi K3, Qwen 3.8 Max, DeepSeek v4 Pro; all four answered):
+- 4-0: DECLINE the strip AS SPECIFIED. The asymmetry argument recorded above holds and was
+  independently reconstructed. Do not ship an authorship-gated or unconditional prefix strip.
+- 3-1: a better third option exists, which all three proposed INDEPENDENTLY without prompting.
+
+THE NEW PR 2 -- strip the bold prefix ONLY when it MATCHES the quote element's from= value.
+  from="Lilith" + text opening "**Lilith:**"  -> match    -> strip; the prefix is pure duplication
+  from="Bot"    + text opening "**Alice:**"   -> mismatch -> KEEP; the prefix is the only attribution
+It needs no authorship test and no origin resolution, because the CONTENT itself answers the
+question the authorship signal kept failing to answer. It fails safe by construction: any
+resolution oddity yields a mismatch, which keeps the prefix, which is exactly today behaviour.
+
+WHERE IT GOES, and this is the part that dissolves the objection that killed the earlier shapes:
+services/ai-worker/src/services/prompt/QuoteFormatter.ts. formatQuoteElement receives BOTH from and
+the content in one call (verified at QuoteFormatter.ts:284-292, the attrDefs array). Every earlier
+correction assumed the strip had to happen in bot-client at extraction time, where the origin is not
+yet resolved -- that assumption, not the mechanism, was the blocker. Rendering time has both values
+already in hand.
+
+THE DISSENT, recorded because it is worth re-examining rather than dismissing: DeepSeek v4 Pro said
+no clean third option exists, and that the duplication persists where it matters most -- the
+current turn. Its reasoning rests on a premise supplied IN THE QUESTION by the agent ("the
+current-turn path is synchronous and cannot await an origin lookup"), which did not survive the
+QuoteFormatter check above. Weight the 3-1 accordingly; a dissent resting on a premise that
+falsified is weaker than its vote count suggests.
+
+OPEN, MUST BE VERIFIED BEFORE BUILDING -- do not treat as settled: the current turn is rendered as
+rawMessageContent, NOT as a quote element, so it plausibly has no from= to duplicate and therefore
+no instance of this defect at all, rather than being an uncovered path. Confirm that before scoping,
+because it decides whether PR 2 is complete or partial. If it turns out the current turn CAN carry a
+bold prefix with no from= beside it, that is a different defect than this one and gets its own entry.
+
+ALSO WORTH KEEPING from the pass, both arguments the agent did not have:
+- A MISMATCH IS SIGNAL, not noise (Qwen). from="Bot" with "**Alice:**" means the bot relayed Alice.
+  Kimi extends this: the mismatch branch could REWRITE from= to name the human, which would make the
+  relay-echo case BETTER than today rather than merely unharmed. Optional, and a separate decision.
+- The partial-coverage instinct recorded above was right for the WRONG reason (Kimi). The model does
+  not care about cross-path inconsistency; the real hazard is governance -- a strip that works on
+  some paths gets "cleaned up" into uniform application by a later refactor, which is precisely how
+  the dangerous version of this proposal arose in the first place.
+- Three of four noted the duplication may be mildly LOAD-BEARING: **Name:** is the form models parse
+  most natively for speaker identity, and it survives consumers that flatten or truncate the XML
+  envelope. That is an argument for keeping PR 2 narrow, not for abandoning it.
+
+STATUS: PR 2 is now a DEFINED UNIT rather than an open owner decision. Owner ruled 2026-08-21 that
+the task should be rewritten to the new plan rather than closed and re-filed.
 <!-- SECTION:DESCRIPTION:END -->
