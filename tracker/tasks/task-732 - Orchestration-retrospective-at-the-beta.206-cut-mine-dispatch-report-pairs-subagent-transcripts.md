@@ -23,4 +23,13 @@ What: at the beta.206 cut, run a dedicated extraction over the epoch sessions: (
 Acceptance: retrospective delivered to the owner with the per-unit table and concrete template-edit proposals; accepted edits land in the orchestration skill via review-gated PR.
 
 **Owner constraint (2026-08-22, hierarchy clarified same day)**: the Fable-driven nested-dispatch workflow is PRIMARY/preferred for routine work — this supersedes the 2026-08-12 Opus-driver-default call (the nested pattern changed the budget math). The Opus-main-loop single-hop mode (TASK-513/487 evidence) is KEPT as the documented BACKUP for when Fable usage runs low. The retrospective's template edits may refine either lane and must update the skill's mode-decision table to this hierarchy; they may not remove the backup lane.
+
+Retrospective input (recurrence, 2x): tracker/board commits made while a
+feature branch was checked out — the develop push then no-ops as
+"Everything up-to-date" silently. Instances: task-732 constraint commit
+(2026-08-22, on feat/task-726) and task-735 filing (2026-08-22, on
+feat/task-729); both recovered by cherry-pick + branch -f. Candidate
+structural fix for this retrospective: a PreToolUse hook flagging
+git-commit commands whose staged set is tracker/backlog/CURRENT files
+while the current branch is not develop.
 <!-- SECTION:DESCRIPTION:END -->
