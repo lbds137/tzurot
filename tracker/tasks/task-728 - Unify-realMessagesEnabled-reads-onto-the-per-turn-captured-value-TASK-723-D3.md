@@ -1,9 +1,10 @@
 ---
 id: TASK-728
 title: Unify realMessagesEnabled reads onto the per-turn captured value (TASK-723 D3)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:47'
+updated_date: '2026-08-22 15:25'
 labels:
   - 'area:ai-worker'
   - 'size:S'
