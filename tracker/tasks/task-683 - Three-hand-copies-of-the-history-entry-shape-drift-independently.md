@@ -1,9 +1,10 @@
 ---
 id: TASK-683
 title: Three hand-copies of the history-entry shape drift independently
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 17:02'
+updated_date: '2026-08-22 03:25'
 labels:
   - 'area:ai-worker'
   - 'size:M'
