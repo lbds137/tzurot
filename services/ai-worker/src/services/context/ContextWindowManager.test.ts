@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ContextWindowManager } from './ContextWindowManager.js';
+import { ContextWindowManager, computeEvictionCut } from './ContextWindowManager.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
+import {
+  measureHistoryEntryTokens,
+  PER_MESSAGE_WIRE_OVERHEAD_TOKENS,
+} from './historyTokenMeasure.js';
+import type { StructuredHistoryEntry } from '../../jobs/utils/conversationUtils.js';
 
 describe('ContextWindowManager', () => {
   let manager: ContextWindowManager;
@@ -72,12 +77,9 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        0,
-        crossChannelGroups
-      );
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 0, {
+        crossChannelGroups,
+      });
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesDropped).toBe(1);
@@ -127,12 +129,9 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        5000,
-        crossChannelGroups
-      );
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 5000, {
+        crossChannelGroups,
+      });
 
       expect(result.serializedHistory).toContain('Current channel msg');
       expect(result.serializedHistory).toContain('Cross-channel message');
@@ -176,12 +175,9 @@ describe('ContextWindowManager', () => {
       ];
 
       // Budget that fits current channel but leaves no room for cross-channel (500 token message)
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        50,
-        crossChannelGroups
-      );
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 50, {
+        crossChannelGroups,
+      });
 
       expect(result.messagesIncluded).toBe(1);
       expect(result.serializedHistory).not.toContain('DM message');
@@ -208,12 +204,9 @@ describe('ContextWindowManager', () => {
       ];
 
       // rawHistory is empty (first message in new channel), but cross-channel exists
-      const result = manager.selectAndSerializeHistory(
-        [],
-        { name: 'TestAI' },
-        5000,
-        crossChannelGroups
-      );
+      const result = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
+        crossChannelGroups,
+      });
 
       expect(result.serializedHistory).toContain('Previous conversation in another channel');
       expect(result.serializedHistory).toContain('<prior_conversations>');
@@ -249,7 +242,7 @@ describe('ContextWindowManager', () => {
         rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
         { name: 'TestAI' },
         budget,
-        crossChannelGroups
+        { crossChannelGroups }
       );
 
       // No current-channel messages fit, so no wrapper overhead should be counted
@@ -294,13 +287,9 @@ describe('ContextWindowManager', () => {
         channel: { id: 'ch-1', name: 'chat', type: 'text' },
       };
 
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        1000,
-        undefined,
-        environment
-      );
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        currentEnvironment: environment,
+      });
 
       expect(result.serializedHistory).toContain('<current_conversation>');
       expect(result.serializedHistory).toContain('</current_conversation>');
@@ -321,13 +310,9 @@ describe('ContextWindowManager', () => {
         channel: { id: 'dm-1', name: 'DM', type: 'dm' },
       };
 
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        1000,
-        undefined,
-        environment
-      );
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        currentEnvironment: environment,
+      });
 
       expect(result.serializedHistory).toContain('<current_conversation>');
       expect(result.serializedHistory).toContain(
@@ -369,13 +354,10 @@ describe('ContextWindowManager', () => {
         channel: { id: 'ch-current', name: 'dev', type: 'text' },
       };
 
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        5000,
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 5000, {
         crossChannelGroups,
-        environment
-      );
+        currentEnvironment: environment,
+      });
 
       // Cross-channel should come first (prior_conversations)
       expect(result.serializedHistory).toContain('<prior_conversations>');
@@ -415,19 +397,13 @@ describe('ContextWindowManager', () => {
       };
 
       // No current history — environment is provided but nothing to wrap
-      const withEnv = manager.selectAndSerializeHistory(
-        [],
-        { name: 'TestAI' },
-        5000,
+      const withEnv = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
         crossChannelGroups,
-        environment
-      );
-      const withoutEnv = manager.selectAndSerializeHistory(
-        [],
-        { name: 'TestAI' },
-        5000,
-        crossChannelGroups
-      );
+        currentEnvironment: environment,
+      });
+      const withoutEnv = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
+        crossChannelGroups,
+      });
 
       // Cross-channel should get the full budget in both cases (no wrapper overhead deducted)
       expect(withEnv.serializedHistory).toContain('Cross msg in other channel');
@@ -450,13 +426,9 @@ describe('ContextWindowManager', () => {
         channel: { id: 'dm-1', name: 'DM', type: 'dm' },
       };
 
-      const result = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        10,
-        undefined,
-        environment
-      );
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 10, {
+        currentEnvironment: environment,
+      });
 
       // No messages fit, so no wrapper should be added
       expect(result.serializedHistory).toBe('');
@@ -473,17 +445,274 @@ describe('ContextWindowManager', () => {
         channel: { id: 'ch-1', name: 'chat', type: 'text' },
       };
 
-      const withEnv = manager.selectAndSerializeHistory(
-        rawHistory,
-        { name: 'TestAI' },
-        1000,
-        undefined,
-        environment
-      );
+      const withEnv = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        currentEnvironment: environment,
+      });
       const withoutEnv = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
 
       // With environment should use more tokens due to wrapper overhead
       expect(withEnv.historyTokensUsed).toBeGreaterThan(withoutEnv.historyTokensUsed);
+    });
+  });
+
+  describe('chunked history eviction (§2.5)', () => {
+    // Real content, not a declared tokenCount — selection measures the
+    // RENDERED entry, so a fixture sized only by a `tokenCount` field would
+    // size nothing.
+    const RESPONDER = { name: 'TestAI', id: 'personality-1' };
+    const bulk = 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(6);
+
+    function buildEntries(count: number): StructuredHistoryEntry[] {
+      return Array.from({ length: count }, (_, n) => ({
+        id: `id-${n}`,
+        discordMessageId: [`snowflake-${n}`],
+        role: n % 2 === 0 ? 'user' : 'assistant',
+        content: `entry ${n} ${bulk}`,
+        personaId: n % 2 === 0 ? 'persona-1' : undefined,
+        personaName: n % 2 === 0 ? 'Vlad' : undefined,
+        personalityId: n % 2 === 1 ? RESPONDER.id : undefined,
+        personalityName: n % 2 === 1 ? RESPONDER.name : undefined,
+        createdAt: new Date(1_000_000 + n * 60_000).toISOString(),
+      }));
+    }
+
+    function measuresFor(entries: StructuredHistoryEntry[]): number[] {
+      const allNames = new Set([RESPONDER.name]);
+      return entries.map(e => measureHistoryEntryTokens(e, RESPONDER.name, allNames, RESPONDER.id));
+    }
+
+    it('OSCILLATION — when the cut is active and unclamped, shipped tokens land in (0.75*budget, budget]', () => {
+      const entries = buildEntries(60);
+      const measures = measuresFor(entries);
+      const sTotal = measures.reduce((a, b) => a + b, 0);
+      const budget = Math.round(sTotal * 0.5);
+
+      const cut = computeEvictionCut(measures, budget);
+
+      // Precondition: the cut is genuinely the quantized (unclamped) one —
+      // neither the minimal-fit clamp nor the floor clamp is binding.
+      expect(cut.k).toBeGreaterThan(0);
+      expect(cut.cFinal).not.toBe(cut.cMin);
+      expect(cut.cFinal).not.toBe(entries.length - 20);
+
+      const shippedTokens = measures.slice(cut.cFinal).reduce((a, b) => a + b, 0);
+      expect(shippedTokens).toBeGreaterThan(0.75 * budget);
+      expect(shippedTokens).toBeLessThanOrEqual(budget);
+    });
+
+    it('HYSTERESIS / HEAD STABILITY — the shipped head is stable across tail appends, then jumps by a whole chunk', () => {
+      const budget = Math.round(measuresFor(buildEntries(60)).reduce((a, b) => a + b, 0) * 0.5);
+
+      const cuts: { cFinal: number; oldestShippedId: string | undefined }[] = [];
+      for (let extra = 0; extra <= 25; extra++) {
+        const entries = buildEntries(60 + extra);
+        const measures = measuresFor(entries);
+        const cut = computeEvictionCut(measures, budget);
+        cuts.push({
+          cFinal: cut.cFinal,
+          oldestShippedId: entries[cut.cFinal]?.id,
+        });
+      }
+
+      // At least one plateau: the oldest-shipped IDENTITY does NOT change
+      // across at least two consecutive appends. Asserted on the entry id
+      // rather than the cut index because identity is what a prefix cache
+      // keys on — a head that keeps its id keeps the cached prefix warm.
+      const hasPlateau = cuts.some(
+        (c, i) => i > 0 && c.oldestShippedId === cuts[i - 1].oldestShippedId
+      );
+      expect(hasPlateau).toBe(true);
+      // Whenever the cut index does move, the head identity moves with it —
+      // the two cannot disagree, so a plateau in one is a plateau in both.
+      for (let i = 1; i < cuts.length; i++) {
+        expect(cuts[i].oldestShippedId === cuts[i - 1].oldestShippedId).toBe(
+          cuts[i].cFinal === cuts[i - 1].cFinal
+        );
+      }
+
+      // Every transition, when it happens, moves the head by MORE than one
+      // entry (a whole-chunk jump), never a one-at-a-time slide.
+      const transitions = cuts
+        .map((c, i) => (i > 0 ? c.cFinal - cuts[i - 1].cFinal : 0))
+        .filter(delta => delta !== 0);
+      expect(transitions.length).toBeGreaterThan(0);
+      for (const delta of transitions) {
+        expect(Math.abs(delta)).toBeGreaterThan(1);
+      }
+    });
+
+    it('FLOOR — quantization never leaves fewer than the floor when at least the floor fits minimally', () => {
+      const entries = buildEntries(60);
+      const measures = measuresFor(entries);
+      const sTotal = measures.reduce((a, b) => a + b, 0);
+      // Sized so the RAW quantized cut (cQ) would overshoot past the floor —
+      // this is the fraction where the `Math.min(cQ, n - FLOOR)` clamp is
+      // actually load-bearing, not merely a no-op upper bound.
+      const budget = Math.round(sTotal * 0.35);
+
+      const cut = computeEvictionCut(measures, budget);
+      const fitCount = entries.length - cut.cMin;
+      const shipped = entries.length - cut.cFinal;
+
+      expect(fitCount).toBeGreaterThanOrEqual(20);
+      expect(shipped).toBeGreaterThanOrEqual(20);
+    });
+
+    it('FLOOR — the MINIMAL cut MAY leave fewer than the floor when the budget is small (budget wins over the floor)', () => {
+      const entries = buildEntries(60);
+      const measures = measuresFor(entries);
+      const sTotal = measures.reduce((a, b) => a + b, 0);
+      const budget = Math.round(sTotal * 0.3);
+
+      const cut = computeEvictionCut(measures, budget);
+      const shipped = entries.length - cut.cFinal;
+
+      expect(cut.k).toBe(0);
+      expect(cut.cFinal).toBe(cut.cMin);
+      expect(shipped).toBeLessThan(20);
+    });
+
+    it('FLAG-ON CROSS-CHANNEL — the cross-channel HumanMessage is charged one wire overhead on top of its XML cost', () => {
+      // No current-channel history, so historyTokensUsed IS the cross-channel
+      // charge — the serialized XML is flag-independent, making the flag
+      // delta exactly the one per-message wire overhead the flag-on path
+      // pays for shipping the XML as its own HumanMessage.
+      const crossChannelGroups = [
+        {
+          channelEnvironment: {
+            type: 'guild' as const,
+            guild: { id: 'g-x', name: 'Server' },
+            channel: { id: 'ch-x', name: 'other', type: 'text' },
+          },
+          messages: [
+            {
+              role: MessageRole.User,
+              content: 'Cross-channel wire-overhead fixture message',
+              createdAt: '2026-02-26T10:00:00Z',
+              tokenCount: 5,
+            },
+          ],
+        },
+      ];
+
+      const off = manager.selectAndSerializeHistory([], RESPONDER, 5_000, {
+        crossChannelGroups,
+      });
+      const on = manager.selectAndSerializeHistory([], RESPONDER, 5_000, {
+        crossChannelGroups,
+        realMessagesEnabled: true,
+      });
+
+      expect(off.crossChannelMessagesIncluded).toBe(1);
+      expect(on.crossChannelXml).toBe(off.crossChannelXml);
+      expect(on.historyTokensUsed).toBe(off.historyTokensUsed + PER_MESSAGE_WIRE_OVERHEAD_TOKENS);
+    });
+
+    it('OVERSIZED-BOUNDARY — a single entry comparable to the chunk quantum deepens the cut below the nominal band, degraded-but-safe', () => {
+      // Skewed fixture: 30 small entries, one 200-token entry, 30 more small.
+      // Budget 520 puts the quantize threshold INSIDE the big entry's span, so
+      // the entry-boundary cut evicts the whole entry and shipped tokens land
+      // BELOW the nominal 75% band — the qualified bound in the doc-comment
+      // (shipped > budget - q - boundaryEntry) is what actually holds.
+      const measures = [
+        ...Array.from({ length: 30 }, () => 10),
+        200,
+        ...Array.from({ length: 30 }, () => 10),
+      ];
+      const budget = 520;
+
+      const cut = computeEvictionCut(measures, budget);
+      const shipped = measures.slice(cut.cFinal).reduce((a, b) => a + b, 0);
+      const boundaryEntry = measures[cut.cFinal - 1];
+
+      // Active and floor-unclamped: the cut is genuinely the quantized one.
+      expect(cut.cFinal).toBeGreaterThan(cut.cMin);
+      expect(cut.cFinal).toBeLessThan(measures.length - 20);
+      // The big entry is the one straddling the threshold.
+      expect(boundaryEntry).toBe(200);
+      // Safety holds unconditionally...
+      expect(shipped).toBeLessThanOrEqual(budget);
+      // ...the NOMINAL band does not (this is the reviewer-caught case)...
+      expect(shipped).toBeLessThan(0.75 * budget);
+      // ...and the QUALIFIED bound is the true floor.
+      expect(shipped).toBeGreaterThan(budget - cut.q - boundaryEntry);
+    });
+
+    it('NON-POSITIVE BUDGET — the exported function evicts everything instead of dividing by zero', () => {
+      // Zero-cost entries "fit" any budget, so 20+ of them reach the quantize
+      // branch where q would be 0 — the guard returns before that.
+      const measures = [10, ...Array.from({ length: 25 }, () => 0)];
+
+      const cut = computeEvictionCut(measures, 0);
+
+      expect(cut).toEqual({ cFinal: 26, cMin: 26, k: 0, q: 0, sTotal: 10 });
+    });
+
+    it('EXACT-FLOOR BOUNDARY — at fitCount === floor the quantize branch runs (k > 0) but the floor clamp collapses the cut to the minimal one', () => {
+      // Synthetic uniform measures drive the pure function directly: 40
+      // entries of 10 tokens each, budget 205 -> exactly 20 fit minimally
+      // (200 <= 205 < 210), which is the entry floor. The quantize branch is
+      // entered (fitCount is NOT below the floor), computes a nonzero k, and
+      // the `Math.min(cQ, n - floor)` clamp then lands the cut back on cMin —
+      // a shipped set identical to the pre-hysteresis minimal walk. Pinned so
+      // the k-vs-cFinal relationship at this boundary is a stated fact rather
+      // than a surprise, and because the eviction log gates on
+      // `cFinal > cMin` for exactly this case.
+      const measures = Array.from({ length: 40 }, () => 10);
+      const cut = computeEvictionCut(measures, 205);
+
+      expect(cut.cMin).toBe(20);
+      expect(cut.k).toBeGreaterThan(0);
+      expect(cut.cFinal).toBe(cut.cMin);
+    });
+
+    it('FLAG-ON ALL-SKIPPED — a selection whose every row the real-message render skips reports zero tokens used', () => {
+      // Empty-content assistant rows: the flag-on measure prices each at 0,
+      // so all are selected, and the render then skips every one — the
+      // measured cost of the shipped (empty) real-message form is 0. The rows
+      // still COUNT as included at selection time; that selection-vs-render
+      // desync is tracked separately (TASK-724) and this test pins only the
+      // token accounting.
+      const entries: StructuredHistoryEntry[] = Array.from({ length: 3 }, (_, n) => ({
+        id: `id-${n}`,
+        discordMessageId: [`snowflake-${n}`],
+        role: 'assistant',
+        content: '',
+        personalityId: RESPONDER.id,
+        personalityName: RESPONDER.name,
+        createdAt: new Date(1_000_000 + n * 60_000).toISOString(),
+      }));
+
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        realMessagesEnabled: true,
+      });
+
+      expect(result.messagesIncluded).toBe(3);
+      expect(result.historyTokensUsed).toBe(0);
+    });
+
+    it('DORMANCY PARITY — when the fetched history fits the budget, every entry ships in order, byte-identical to the pre-cut behavior', () => {
+      const entries = buildEntries(5);
+
+      // The cut itself reports the dormant shape: nothing evicted, and k
+      // pinned at exactly 0. Asserted on a history ABOVE the entry floor,
+      // which is what makes the `sTotal <= budget` fast-path observable: below
+      // the floor the hysteresis-off branch returns the same k=0/q=0 shape, so
+      // a small fixture cannot distinguish the two. Above it, skipping the
+      // fast-path would fall through to the quantize branch and report a
+      // negative k for a history that fits.
+      const dormantMeasures = measuresFor(buildEntries(25));
+      const dormantCut = computeEvictionCut(dormantMeasures, 100_000);
+      expect(dormantCut).toEqual({ cFinal: 0, cMin: 0, k: 0, q: 0, sTotal: dormantCut.sTotal });
+
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 100_000);
+
+      expect(result.messagesIncluded).toBe(5);
+      expect(result.messagesDropped).toBe(0);
+      expect(result.selectedEntries).toEqual(entries);
+      for (let n = 0; n < entries.length; n++) {
+        expect(result.serializedHistory).toContain(`entry ${n} `);
+      }
     });
   });
 });

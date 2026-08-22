@@ -4,13 +4,17 @@
 
 import { describe, it, expect } from 'vitest';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { buildCrossChannelMessage, buildRealMessages } from './RealMessagesBuilder.js';
+import {
+  buildCrossChannelMessage,
+  buildRealMessages,
+  renderHistoryEntryForMeasure,
+} from './RealMessagesBuilder.js';
 import {
   formatSingleHistoryEntryAsXml,
   renderHistoryEntryBody,
 } from '../../jobs/utils/conversationUtils.js';
 import { resolveSpeakerInfo } from '../../jobs/utils/participantUtils.js';
-import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
+import { measureHistoryEntryTokens, measureHistoryEntryRealTokens } from './historyTokenMeasure.js';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
@@ -527,6 +531,67 @@ describe('buildRealMessages', () => {
 
       expect(real).toHaveLength(20);
       expect(xmlMeasure).toBeGreaterThan(realTokens);
+    });
+
+    it('the real-message MEASURE (worst-case gap line + wire overhead included) is still smaller than the XML measure, over the same fixture', () => {
+      // D-E test 5: even after re-adding the costs a per-entry measure cannot
+      // derive for free (the worst-case gap line, the per-message wire
+      // overhead), the real-message measure stays under the XML measure —
+      // the recalibration narrows the gap, it does not invert it.
+      const entries: StructuredHistoryEntry[] = [];
+      for (let i = 0; i < 20; i++) {
+        entries.push({
+          role: i % 2 === 0 ? 'user' : 'assistant',
+          content: 'ok',
+          personaId: i % 2 === 0 ? 'p-1' : undefined,
+          personaName: i % 2 === 0 ? 'Vlad' : undefined,
+          personalityId: i % 2 === 1 ? PERSONALITY_ID : undefined,
+          personalityName: i % 2 === 1 ? PERSONALITY_NAME : undefined,
+          createdAt: new Date(Date.UTC(2026, 0, 1, i * 2)).toISOString(),
+        });
+      }
+      const names = new Set([PERSONALITY_NAME]);
+      const xmlMeasure = entries.reduce(
+        (sum, e) => sum + measureHistoryEntryTokens(e, PERSONALITY_NAME, names, PERSONALITY_ID),
+        0
+      );
+      const realMeasure = entries.reduce(
+        (sum, e) => sum + measureHistoryEntryRealTokens(e, PERSONALITY_NAME, names, PERSONALITY_ID),
+        0
+      );
+
+      expect(realMeasure).toBeLessThan(xmlMeasure);
+    });
+  });
+
+  describe('renderHistoryEntryForMeasure', () => {
+    it("returns '' for a role the render has no speaker for", () => {
+      const entry: StructuredHistoryEntry = { role: 'system', content: 'ignored' };
+      expect(renderHistoryEntryForMeasure(entry, PERSONALITY_NAME)).toBe('');
+    });
+
+    it("returns '' for an assistant row whose body renders empty (nothing to say, no metadata)", () => {
+      const entry: StructuredHistoryEntry = {
+        role: 'assistant',
+        content: '',
+        personalityName: PERSONALITY_NAME,
+      };
+      expect(renderHistoryEntryForMeasure(entry, PERSONALITY_NAME)).toBe('');
+    });
+
+    it('returns the header + body for a user row', () => {
+      const entry: StructuredHistoryEntry = {
+        role: 'user',
+        content: 'hello there',
+        personaId: 'p-1',
+        personaName: 'Vlad',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      };
+
+      const rendered = renderHistoryEntryForMeasure(entry, PERSONALITY_NAME);
+
+      expect(rendered).toContain('Vlad');
+      expect(rendered).toContain('hello there');
     });
   });
 });

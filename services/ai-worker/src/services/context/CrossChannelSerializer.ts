@@ -14,7 +14,7 @@ import {
   collectPersonalityNames,
   formatCrossChannelHistoryAsXml,
 } from '../../jobs/utils/conversationUtils.js';
-import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
+import { measureHistoryEntryTokens } from './historyTokenMeasure.js';
 
 const logger = createLogger('CrossChannelSerializer');
 

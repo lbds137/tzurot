@@ -156,7 +156,8 @@ export class ContentBudgetManager {
 
     const historyTokens = this.contextWindowManager.countHistoryTokens(
       context.rawConversationHistory,
-      responder
+      responder,
+      realMessagesEnabled
     );
     const memoryReserve = this.contextWindowManager.calculateMemoryBudget(
       contextWindowTokens,
@@ -181,8 +182,11 @@ export class ContentBudgetManager {
       context.rawConversationHistory,
       responder,
       historyBudget,
-      context.crossChannelHistory,
-      context.environment
+      {
+        crossChannelGroups: context.crossChannelHistory,
+        currentEnvironment: context.environment,
+        realMessagesEnabled,
+      }
     );
 
     const selectedTimestamps = selectedEntries
@@ -375,13 +379,12 @@ export class ContentBudgetManager {
         realMessagesEnabled,
       });
 
-    // Real-message form of the shipped history, built ONLY flag-on. Reuses
-    // `measureHistoryEntryTokens` for its OWN token accounting (D7) — this
-    // class does not re-measure here. The XML-form measure over-estimates the
-    // real-message form even with a gap line on every message (envelope
-    // attributes outweigh gap lines ~2x on minimal content) — the safe
-    // direction for a budget; pinned by the "XML measure over-estimates"
-    // test in RealMessagesBuilder.test.ts, not just asserted here.
+    // Real-message form of the shipped history, built ONLY flag-on. This
+    // class does not measure here — the budget upstream (`ContextWindowManager
+    // .selectCurrentChannelEntries`) already measured the real-message form
+    // this same selection would produce, via `measureHistoryEntryRealTokens`;
+    // rebuilding it here is the deliberate re-measure `preselectHistory`'s
+    // doc-comment describes, not a second estimate.
     const historyMessages: BaseMessage[] = realMessagesEnabled
       ? buildRealMessages(selectedEntries, processedPersonality.name, processedPersonality.id)
       : [];

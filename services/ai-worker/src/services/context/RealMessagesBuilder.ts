@@ -126,6 +126,87 @@ function buildMessageContent(
 }
 
 /**
+ * Render an entry's body and decide whether the row should be skipped
+ * entirely (an assistant row whose body renders empty — no metadata sections,
+ * nothing to say). Shared by `buildRealMessages` and
+ * `renderHistoryEntryForMeasure` so the skip decision cannot drift between
+ * what gets SHIPPED and what gets MEASURED: both ask this same question of
+ * the same body.
+ *
+ * Returns `null` for the skip case, the rendered body string otherwise
+ * (including the legitimate empty-body case for a non-assistant row, which is
+ * not a skip).
+ */
+function renderBodyOrSkip(
+  msg: StructuredHistoryEntry,
+  speakerInfo: { speakerName: string; role: ChatLogRole; normalizedRole: string },
+  opts: {
+    personalityName: string;
+    historyEntries?: Map<string, StructuredHistoryEntry>;
+    allPersonalityNames?: Set<string>;
+    responderPersonalityId?: string;
+  }
+): string | null {
+  const body = renderHistoryEntryBody(msg, speakerInfo, opts);
+  if (speakerInfo.role === 'assistant' && body.length === 0) {
+    // An assistant row with a blanked body and no metadata sections has
+    // nothing to say (user/character rows always carry a header line, so
+    // only assistant rows can reach this). The XML path ships an empty
+    // <message/> element here, a shape only an XML document can carry — and
+    // provider APIs are not verified to accept an empty-content message (some
+    // reject it). Skip the row.
+    return null;
+  }
+  return body;
+}
+
+/**
+ * The measure-form render of one history entry: the same body-rendering
+ * pipeline `buildRealMessages` uses per entry, WITHOUT the two per-window
+ * inputs that only exist once a window is being SHIPPED rather than sized —
+ * the dedup index (`historyEntries: undefined`, the same documented
+ * convention `measureHistoryEntryTokens` states: budget callers are choosing
+ * WHICH entries ship, so the shipped-id set does not exist yet) and the
+ * inter-message gap line (a budget measures entries independently, one at a
+ * time; `historyTokenMeasure.ts` charges a separate worst-case gap-line
+ * constant instead, since whether THIS entry would actually pay one depends
+ * on a neighbour the per-entry measure cannot see).
+ *
+ * Returns '' for a row `resolveSpeakerInfo` declines and for the
+ * assistant-empty-body skip — both match what the real-message render would
+ * actually ship (nothing), which is the contract `measureHistoryEntryTokens`
+ * documents for the XML form.
+ */
+export function renderHistoryEntryForMeasure(
+  msg: StructuredHistoryEntry,
+  personalityName: string,
+  allPersonalityNames?: Set<string>,
+  responderPersonalityId?: string
+): string {
+  const speakerInfo = resolveSpeakerInfo(
+    msg,
+    personalityName,
+    allPersonalityNames,
+    responderPersonalityId
+  );
+  if (speakerInfo === null) {
+    return '';
+  }
+
+  const body = renderBodyOrSkip(msg, speakerInfo, {
+    personalityName,
+    historyEntries: undefined,
+    allPersonalityNames,
+    responderPersonalityId,
+  });
+  if (body === null) {
+    return '';
+  }
+
+  return buildMessageContent(msg, speakerInfo, body, undefined);
+}
+
+/**
  * Build the real-message form of a selected history window: one
  * `HumanMessage`/`AIMessage` per entry, in chronological order (the same
  * order `selectedEntries` already arrives in — see
@@ -176,22 +257,16 @@ export function buildRealMessages(
     }
 
     const gapLine = gapLineFor(previousTimestamp, msg.createdAt);
-    const body = renderHistoryEntryBody(msg, speakerInfo, {
+    // Checked on the BODY, before the gap line joins: a >1h gap must not
+    // rescue an otherwise-empty row into a gap-marker-only AIMessage. The gap
+    // baseline below stays on the last message the model actually sees.
+    const body = renderBodyOrSkip(msg, speakerInfo, {
       personalityName,
       historyEntries,
       allPersonalityNames,
       responderPersonalityId,
     });
-    if (speakerInfo.role === 'assistant' && body.length === 0) {
-      // An assistant row with a blanked body and no metadata sections has
-      // nothing to say (user/character rows always carry a header line, so
-      // only assistant rows can reach this). Checked on the BODY, before the
-      // gap line joins: a >1h gap must not rescue an otherwise-empty row into
-      // a gap-marker-only AIMessage. The XML path ships an empty <message/>
-      // element here, a shape only an XML document can carry — and provider
-      // APIs are not verified to accept an empty-content message (some
-      // reject it). Skip the row; the gap baseline below stays on the last
-      // message the model actually sees.
+    if (body === null) {
       continue;
     }
     const content = buildMessageContent(msg, speakerInfo, body, gapLine);

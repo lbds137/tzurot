@@ -6,7 +6,7 @@
  * - participantUtils.ts: Participant extraction and role matching
  * - langchainConverter.ts: LangChain BaseMessage conversion
  * - xmlMetadataFormatters.ts: XML formatting for message metadata
- * - historyTokenMeasure.ts: Per-entry token cost (renders through here, so it
+ * - services/context/historyTokenMeasure.ts: Per-entry token cost (renders through here, so it
  *   imports from this module rather than the other way around)
  * - conversationTypes.ts: Shared type definitions
  */

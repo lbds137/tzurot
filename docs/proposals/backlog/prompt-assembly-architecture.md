@@ -82,7 +82,7 @@ The parked idea targeted `<chat_log>` XML attributes; the shape changed, the pri
 
 ### 2.5 Cache-aware history-window policy
 
-Prefix caching means **dropping the oldest message invalidates everything after it** — a rolling window that slides every turn defeats breakpoint B perpetually. Policy: **chunked eviction with hysteresis** — when the history budget is exceeded, evict down to ~75% of budget in one cut (oldest-first, as today), then let the window refill. The prefix is then stable for many turns between slides; each slide costs one miss. Invariants (council): eviction cuts on message boundaries only; a **minimum-message floor** (never evict below N messages — a small budget must not strip the persona of scene context); tool-call/tool-result pairs evict **atomically** (an orphaned `tool_calls` without its result is a provider error — forward-compat invariant for #4). Note the average-context trade honestly: the window oscillates 75–100% of budget (vs a per-turn slider's constant 100%), i.e. slightly less average context bought for prefix stability — and any message lost to a chunk cut would have left the window within a few turns under sliding anyway. Epoch resets (`/history clear`), heal-on-read corrections, and message edits are accepted single-miss events (history is ephemeral by design — the cache must tolerate rewrites, never prevent them).
+Prefix caching means **dropping the oldest message invalidates everything after it** — a rolling window that slides every turn defeats breakpoint B perpetually. Policy: **chunked eviction with hysteresis** — when the history budget is exceeded, evict down to ~75% of budget in one cut (oldest-first, as today), then let the window refill. The prefix is then stable for many turns between slides; each slide costs one miss. Invariants (council): eviction cuts on message boundaries only; a **minimum-message floor** (never evict below N messages — a small budget must not strip the persona of scene context); tool-call/tool-result pairs evict **atomically** (an orphaned `tool_calls` without its result is a provider error — forward-compat invariant for #4). Note the average-context trade honestly: the window oscillates 75–100% of budget (vs a per-turn slider's constant 100%) [shipped qualification, PR 2.4: message-boundary cuts make the true floor 75% minus the boundary entry's own cost, so one oversized entry at the cut can dip below the nominal band — degraded-but-safe, never over budget], i.e. slightly less average context bought for prefix stability — and any message lost to a chunk cut would have left the window within a few turns under sliding anyway. Epoch resets (`/history clear`), heal-on-read corrections, and message edits are accepted single-miss events (history is ephemeral by design — the cache must tolerate rewrites, never prevent them).
 
 #### 2.5.1 Trimming is DORMANT in production — measured, not assumed
 
@@ -197,10 +197,13 @@ head (expected rare — extended messages are recent by construction — but now
 message). Post-fetch dedup is deterministic, so a stable row window renders a stable
 `chat_log`.
 
-**D5 — The token-budget layer is untouched.** It remains the independent, currently
-dormant, newest-first backstop (§2.5.1 consequence 2 unchanged: when it starts firing
-in attachment-heavy threads, THAT is when its own chunked eviction gets built against
-real data). Count-quantized windows can still be token-heavy; the dormancy margin
+**D5 — The count-cap design leaves the token-budget layer alone.** It remains the
+independent, currently dormant, newest-first backstop. (This record originally
+paraphrased §2.5.1 consequence 2 as deferring the token-layer chunked eviction until
+it starts firing; consequence 2 in fact specifies building it now, dormant, and §9c
+row 2.4 governs — it shipped in PR 2.4, leaving this D5's own claim — that the
+COUNT-cap design changes nothing at the token layer — true throughout.)
+Count-quantized windows can still be token-heavy; the dormancy margin
 (≥21k headroom) is re-checked, not assumed, in the rollout week's telemetry.
 
 **D6 — Validation + attribution telemetry.** The shipped beta.203 surface
@@ -490,7 +493,7 @@ appear). Q3 as above. Q4 slicing adopted:
 | **2.1** | `StructuredHistoryEntry` typed IR + the existing XML serializer as its first consumer, **byte-parity, flag-free** (prefix-diff verifies in prod). Memory-dedup pre-pass moves onto the IR here. Absorbs TASK-683 (three hand-copies of the history-row shape). |
 | **2.2** | **SKIPPED** (2026-08-21, decided against the merged 2.1 IR): channel identity already lives at the group level (`crossChannelHistoryGroupSchema.channelEnvironment`, Zod-gated) and the cross-channel row shape is a structural subset of the IR — a per-row `channel` field would denormalize group identity with no consumer. The own-user-role-message move is inseparable from the flagged message-array reshape, so it ships as 2.3's first bullet, not a separate PR |
 | **2.3** | Real-messages consumer behind a flag: S0+S1-only system message, cross-channel user message, current-channel real messages with headers + kwargs; inline replies §2.4 |
-| **2.4** | Windowing rebuild: count-cap layer carried byte-for-byte, §2.5 chunked eviction built (dormant); seam test pinning the selectedEntries↔memory-dedup contract; recalibrate flag-on history measurement — the XML-form measure over-selects headroom (~2x on minimal content, pinned in RealMessagesBuilder.test.ts), so real-messages mode under-fills its budget until measurement reflects the real-message form |
+| **2.4** | Windowing rebuild: count-cap layer carried byte-for-byte, §2.5 chunked eviction built (dormant); seam test pinning the selectedEntries↔memory-dedup contract; recalibrate flag-on history measurement — the XML-form measure over-selects headroom (~2x on minimal content, pinned in RealMessagesBuilder.test.ts), so real-messages mode under-fills its budget until measurement reflects the real-message form. **Landed in PR 2.4**: the flag-on budget now measures the real-message form directly (`measureHistoryEntryRealTokens`), closing the under-fill. |
 | **2.5** | Flag flip: staged rollout, prefix-diff before/after (per-personality grouping, TASK-698 first), snapshot review per §6; voice-consistency harness re-arms with extraction arms. Rollout-verification caveat (PR #2180 round-6): `promptHashHistoryStable` still hashes the XML form, which flag-on is never shipped — the stable-prefix diagnostic does not correspond to real cache behavior until re-keyed to the real-message array. Flip gates: task-723 (identity binding + spoof hardening) and task-724 (shipped-id/render desync) |
 
 The working delta with full reasoning lives in the session scratchpad (machine-local,
