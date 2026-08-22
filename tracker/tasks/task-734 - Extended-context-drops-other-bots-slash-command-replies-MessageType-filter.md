@@ -4,10 +4,11 @@ title: Extended context drops other bots slash-command replies (MessageType filt
 status: To Do
 assignee: []
 created_date: '2026-08-22 21:17'
+updated_date: '2026-08-22 21:23'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 734000
