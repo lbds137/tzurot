@@ -1,9 +1,10 @@
 ---
 id: TASK-729
 title: Re-key promptHashHistoryStable to the shipped real-message array (TASK-723 D5)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:47'
+updated_date: '2026-08-22 21:53'
 labels:
   - 'area:ai-worker'
   - 'size:S'
