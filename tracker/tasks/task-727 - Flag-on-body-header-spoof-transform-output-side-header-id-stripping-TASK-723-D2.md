@@ -3,9 +3,10 @@ id: TASK-727
 title: >-
   Flag-on body header-spoof transform + output-side header/id stripping
   (TASK-723 D2)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:47'
+updated_date: '2026-08-22 21:16'
 labels:
   - 'area:ai-worker'
   - 'size:M'

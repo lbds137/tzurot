@@ -611,7 +611,11 @@ with the losing side's objections as binding constraints:
   hex>)` anywhere in a reply, so an in-fiction parenthetical that happens to
   be hex-shaped (`(id:c0de)`) is silently dropped — accepted, the width
   bounding rules out the worst and platform syntax has no legitimate
-  in-reply use.
+  in-reply use. And the output-side leading-header strip removes a reply's
+  first line when it is a bracketed em-dash stage direction
+  (`[Sighs — clearly annoyed] ...`) — accepted, a strict subset of the
+  generic artifact pass's long-standing unconditional leading-`[...]`
+  deletion; changing THAT is a separate product call, not this hardening's.
 
 ### D3 — flag-read unification: BUILD
 

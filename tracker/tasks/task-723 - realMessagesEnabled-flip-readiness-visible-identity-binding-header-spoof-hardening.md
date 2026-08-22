@@ -3,9 +3,10 @@ id: TASK-723
 title: >-
   realMessagesEnabled flip-readiness: visible identity binding + header-spoof
   hardening
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 06:14'
+updated_date: '2026-08-22 21:16'
 labels:
   - 'area:ai-worker'
   - 'size:M'
