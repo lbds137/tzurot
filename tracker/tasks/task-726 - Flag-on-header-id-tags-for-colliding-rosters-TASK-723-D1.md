@@ -1,9 +1,10 @@
 ---
 id: TASK-726
 title: Flag-on header id tags for colliding rosters (TASK-723 D1)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:47'
+updated_date: '2026-08-22 18:47'
 labels:
   - 'area:ai-worker'
   - 'size:M'
