@@ -20,7 +20,12 @@ import {
   renderHistoryEntryBody,
   type HistoryEntryBodyOptions,
 } from '../../jobs/utils/conversationUtils.js';
-import { resolveSpeakerInfo, type ChatLogRole } from '../../jobs/utils/participantUtils.js';
+import {
+  resolveSpeakerInfo,
+  INVISIBLE_FORMATTING,
+  type ChatLogRole,
+  type HeaderIdTagMap,
+} from '../../jobs/utils/participantUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
 /**
@@ -52,6 +57,25 @@ function speakerIdFor(msg: StructuredHistoryEntry, role: ChatLogRole): string | 
 }
 
 /**
+ * The row's header tag, id-keyed. Shared by the SHIP path (`buildRealMessages`)
+ * and the MEASURE path (`renderHistoryEntryForMeasure`, and transitively
+ * `measureHistoryEntryRealTokens`) so the two cannot ask different questions
+ * of the same map — a row is tagged in the measure iff it would be tagged in
+ * the shipped render, using the row's own speaker id, never its rendered
+ * name (which can legitimately diverge from the roster display name that
+ * decided collision-group membership: a user row's `(@username)`
+ * disambiguation suffix, `preferredName` on the roster side).
+ */
+function resolveIdTag(
+  msg: StructuredHistoryEntry,
+  role: ChatLogRole,
+  headerIdTags: HeaderIdTagMap
+): string | undefined {
+  const speakerId = speakerIdFor(msg, role);
+  return speakerId === undefined ? undefined : headerIdTags.get(speakerId);
+}
+
+/**
  * Neutralize header-forgery characters in a speaker name. The bracket header
  * is the ONLY structural signal separating "who said what" once history rides
  * as plain-text turns, and persona/personality names are unrestricted beyond
@@ -62,19 +86,71 @@ function speakerIdFor(msg: StructuredHistoryEntry, role: ChatLogRole): string | 
  * which keeps the name readable instead of entity-escaped.
  */
 function sanitizeHeaderName(speakerName: string): string {
-  return speakerName
-    .replace(/\[/g, '(')
-    .replace(/\]/g, ')')
-    .replace(/[\r\n]+/g, ' ');
+  return (
+    speakerName
+      // FIRST: strip the same invisible/formatting class the collision keys
+      // strip (single-sourced from participantUtils) — an interposed
+      // zero-width renders as nothing but breaks the literal `id:` token the
+      // anti-forgery regexes below match, so without this a name like
+      // `Lila (i\u200Bd:aaaa)` ships a visually genuine forged tag. Zero
+      // display cost: these codepoints have no visible form.
+      .replace(INVISIBLE_FORMATTING, '')
+      // Fold fullwidth delimiter confusables into their ASCII forms so the
+      // strips below see them — same incomplete-sanitization class, visible
+      // variant. Only the three delimiter codepoints fold (not full NFKC):
+      // the rendered name must otherwise stay recognizable against the
+      // roster's un-normalized rendering.
+      .replace(/\uFF08/g, '(')
+      .replace(/\uFF09/g, ')')
+      .replace(/\uFF1A/g, ':')
+      .replace(/\[/g, '(')
+      .replace(/\]/g, ')')
+      .replace(/[\r\n]+/g, ' ')
+      // Runs AFTER the bracket conversion above: a persona named `Lila
+      // [id:fake]` becomes `Lila (id:fake)` at the two replaces above, and MUST
+      // NOT survive as a forged id tag — the platform's own collision tag is
+      // appended after this sanitization (see buildHeaderLine), so a name-slot
+      // string that merely looks like one must be stripped first.
+      .replace(/\(id:[^)]*\)/gi, '')
+      // ...and the strip above requires a CLOSING paren, so an unclosed
+      // forgery (`Lila [id:dead` → `Lila (id:dead`) would otherwise survive
+      // and sit beside the platform's genuine tag as a well-formed-looking
+      // `(id:` fragment. Defuse any remaining opener by breaking the tag
+      // grammar (colon → hyphen) instead of deleting text — an unclosed
+      // fragment has no boundary, so deletion would have to eat the rest of
+      // the name.
+      .replace(/\(id:/gi, '(id-')
+      // The header separator: a name containing a space-dash-space sequence
+      // could otherwise fork the header shape by supplying its own timestamp
+      // delimiter. Neutralized as a dash CLASS, not just the em dash the
+      // platform renders — figure dash, en dash, em dash, horizontal bar and
+      // the minus sign all read as the separator to a model even though only
+      // U+2014 is ours. The platform owns the header syntax; names may never
+      // contribute to it.
+      .replace(/ [\u2012\u2013\u2014\u2015\u2212] /g, ' - ')
+      // The strips above can leave doubled interior spaces (`Lila (id:fake)` →
+      // `Lila ` mid-name) and stray edge whitespace; collapse and trim so the
+      // header never renders a double space beside the platform's own tag.
+      .replace(/ {2,}/g, ' ')
+      .trim()
+  );
 }
 
-/** The `[Name — timestamp]` header, or `[Name]` when the entry has no usable timestamp. */
-function buildHeaderLine(speakerName: string, createdAt: string | undefined): string {
+/** The `[Name — timestamp]` header, or `[Name]` when the entry has no usable timestamp.
+ *  `idTag` is appended to the SANITIZED name, after every name-derived forgery
+ *  vector above has already been neutralized — a name's own text can
+ *  therefore never produce or survive as a collision tag. */
+function buildHeaderLine(
+  speakerName: string,
+  createdAt: string | undefined,
+  idTag: string | undefined
+): string {
   const safeName = sanitizeHeaderName(speakerName);
+  const named = idTag === undefined ? safeName : `${safeName} (id:${idTag})`;
   if (createdAt === undefined || createdAt.length === 0) {
-    return `[${safeName}]`;
+    return `[${named}]`;
   }
-  return `[${safeName} — ${formatAbsoluteTimestamp(createdAt)}]`;
+  return `[${named} — ${formatAbsoluteTimestamp(createdAt)}]`;
 }
 
 /**
@@ -113,16 +189,23 @@ function buildMessageContent(
   msg: StructuredHistoryEntry,
   speakerInfo: { speakerName: string; role: ChatLogRole; normalizedRole: string },
   body: string,
-  gapLine: string | undefined
+  gapLine: string | undefined,
+  idTag: string | undefined
 ): string {
   const lines: string[] = [];
   if (gapLine !== undefined) {
     lines.push(gapLine);
   }
   if (speakerInfo.role !== 'assistant') {
-    lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt));
+    lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, idTag));
   }
-  lines.push(body);
+  // Strip leading blank lines from the body so the entry's own BODY can never
+  // push the header down. The header is not unconditionally line 1 of a turn
+  // — a platform time-gap line may legitimately precede it (pushed above) —
+  // the invariant here is narrower: nothing AUTHOR-controlled comes before
+  // the header, so a body-typed spoof can never occupy the platform slots.
+  const trimmedBody = body.replace(/^(?:[ \t]*\r?\n)+/, '');
+  lines.push(trimmedBody);
   return lines.join('\n');
 }
 
@@ -157,16 +240,36 @@ function renderBodyOrSkip(
 }
 
 /**
+ * Per-entry inputs for the real-message MEASURE render
+ * (`renderHistoryEntryForMeasure` / `measureHistoryEntryRealTokens`). Bundled
+ * because the positional form hit the 5-param ceiling once the collision-tag
+ * map joined it — not a style preference.
+ */
+export interface RealMeasureOptions {
+  personalityName: string;
+  allPersonalityNames: Set<string> | undefined;
+  responderPersonalityId: string | undefined;
+  realMessagesEnabled: boolean;
+  headerIdTags: HeaderIdTagMap;
+}
+
+/**
  * The measure-form render of one history entry: the same body-rendering
- * pipeline `buildRealMessages` uses per entry, WITHOUT the two per-window
- * inputs that only exist once a window is being SHIPPED rather than sized —
+ * pipeline `buildRealMessages` uses per entry, WITHOUT the ONE per-window
+ * input that only exists once a window is being SHIPPED rather than sized —
  * the dedup index (`historyEntries: undefined`, the same documented
  * convention `measureHistoryEntryTokens` states: budget callers are choosing
- * WHICH entries ship, so the shipped-id set does not exist yet) and the
- * inter-message gap line (a budget measures entries independently, one at a
- * time; `historyTokenMeasure.ts` charges a separate worst-case gap-line
- * constant instead, since whether THIS entry would actually pay one depends
- * on a neighbour the per-entry measure cannot see).
+ * WHICH entries ship, so the shipped-id set does not exist yet). The
+ * inter-message gap line is likewise absent from THIS render (a budget
+ * measures entries independently, one at a time; `historyTokenMeasure.ts`
+ * charges a separate worst-case gap-line constant instead, since whether
+ * THIS entry would actually pay one depends on a neighbour the per-entry
+ * measure cannot see) — but the header id-tag IS resolved here, through the
+ * same `resolveIdTag` helper `buildRealMessages` uses, because whether this
+ * entry gets a tag depends only on its own speaker id and the window-level
+ * `headerIdTags` map passed in `opts`, both of which are already in scope at
+ * every call site (the map is computed once per turn upstream). Measure-form
+ * and ship-form therefore cannot disagree about tagging.
  *
  * Returns '' for a row `resolveSpeakerInfo` declines and for the
  * assistant-empty-body skip — both match what the real-message render would
@@ -175,11 +278,10 @@ function renderBodyOrSkip(
  */
 export function renderHistoryEntryForMeasure(
   msg: StructuredHistoryEntry,
-  personalityName: string,
-  allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string,
-  realMessagesEnabled = false
+  opts: RealMeasureOptions
 ): string {
+  const { personalityName, allPersonalityNames, responderPersonalityId, realMessagesEnabled } =
+    opts;
   const speakerInfo = resolveSpeakerInfo(
     msg,
     personalityName,
@@ -201,7 +303,8 @@ export function renderHistoryEntryForMeasure(
     return '';
   }
 
-  return buildMessageContent(msg, speakerInfo, body, undefined);
+  const idTag = resolveIdTag(msg, speakerInfo.role, opts.headerIdTags);
+  return buildMessageContent(msg, speakerInfo, body, undefined, idTag);
 }
 
 /**
@@ -227,8 +330,9 @@ export function renderHistoryEntryForMeasure(
 export function buildRealMessages(
   selectedEntries: StructuredHistoryEntry[],
   personalityName: string,
-  responderPersonalityId?: string,
-  realMessagesEnabled = true
+  responderPersonalityId: string | undefined,
+  realMessagesEnabled: boolean,
+  headerIdTags: HeaderIdTagMap
 ): BaseMessage[] {
   if (selectedEntries.length === 0) {
     return [];
@@ -269,10 +373,21 @@ export function buildRealMessages(
     if (body === null) {
       continue;
     }
-    const content = buildMessageContent(msg, speakerInfo, body, gapLine);
+
+    // Resolve this row's header tag by ID, never by name — the same lookup
+    // `resolveIdTag` performs for the measure path (`renderHistoryEntryForMeasure`),
+    // so ship-form and measure-form cannot disagree about tagging. Inlined
+    // here (rather than calling `resolveIdTag`) only to reuse the ONE
+    // `speakerIdFor` call this loop already needs for `kwargs.speakerId` —
+    // calling `resolveIdTag(msg, speakerInfo.role, headerIdTags)` here would
+    // recompute `speakerIdFor` a second time for no benefit.
+    const speakerId = speakerIdFor(msg, speakerInfo.role);
+    const idTag = speakerId === undefined ? undefined : headerIdTags.get(speakerId);
+
+    const content = buildMessageContent(msg, speakerInfo, body, gapLine, idTag);
 
     const kwargs: HistoryMessageKwargs = {
-      speakerId: speakerIdFor(msg, speakerInfo.role),
+      speakerId,
       isAi: speakerInfo.role !== 'user',
       discordMessageId: msg.discordMessageId,
       timestamp: msg.createdAt,

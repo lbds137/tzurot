@@ -5,7 +5,7 @@
  * Extracted to reduce file size and improve maintainability.
  */
 
-import type { BaseMessage } from '@langchain/core/messages';
+import type { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import type { AIProvider } from '@tzurot/common-types/constants/ai';
 import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -18,6 +18,7 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { SummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
 import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
+import type { HeaderIdTagMap } from '../jobs/utils/participantUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { SectionDescription } from './prompt/sections.js';
 
@@ -273,6 +274,61 @@ export interface PersonaLoadResult {
  */
 export interface FactForPrompt {
   statement: string;
+}
+
+/**
+ * The history pre-pass result (STM/LTM dedup-hole fix). History is selected
+ * BEFORE memory retrieval — it needs nothing from memories once the memory
+ * budget is a reserve — so the EXACT shipped-history boundary is known when
+ * the LTM query runs, instead of assuming all fetched history ships and
+ * losing the truncated range to neither path.
+ */
+export interface PreselectedHistory {
+  currentMessage: HumanMessage;
+  contentForStorage: string;
+  systemPromptBaseTokens: number;
+  currentMessageTokens: number;
+  /** Memory budget (same formula as always) — reserved up front so the
+   * history budget is computable pre-retrieval. */
+  memoryReserve: number;
+  historyBudget: number;
+  serializedHistory: string;
+  historyTokensUsed: number;
+  messagesDropped: number;
+  crossChannelMessagesIncluded: number;
+  /** min createdAt over SELECTED current-channel entries; undefined when
+   * nothing shipped. The exact time baseline for STM/LTM dedup. */
+  oldestSelectedTs?: number;
+  /** Discord snowflakes of every shipped current-channel entry (incl. chunk
+   * ids) — the authoritative ID-dedup set. */
+  shippedMessageIds: Set<string>;
+  /** The current-channel entries that actually shipped, chronological order
+   * (PR 2.3). Populated FLAG-NEUTRALLY — `RealMessagesBuilder` consumes this
+   * only when `realMessagesEnabled` is on; flag-off, it is computed and
+   * unused, same as `serializedHistory` is computed and unused in reverse. */
+  selectedEntries: StructuredHistoryEntry[];
+  /** The `<prior_conversations>` XML `ContextWindowManager` produced (empty
+   * when cross-channel is disabled or nothing fit). Also flag-neutral —
+   * consumed only when `realMessagesEnabled` is on, as its own leading
+   * `HumanMessage` (§9c). */
+  crossChannelXml: string;
+  /** The `realMessagesEnabled` value THIS pre-pass measured under. `allocate`
+   * consumes this rather than re-reading the live setting: the base-token
+   * measurement and the shipped system message must see the SAME flag value
+   * or the budget identity breaks, and a live flip between the two calls
+   * would otherwise skew it silently. */
+  realMessagesEnabled: boolean;
+  /**
+   * This turn's collision-conditional header id-tag map, computed ONCE
+   * (`computeHeaderIdTags`) right after `realMessagesEnabled` and the
+   * responder identity are established — for exactly the reason
+   * `realMessagesEnabled` itself is captured once per turn rather than read
+   * twice: the pre-measure (`preselectHistory`'s `countHistoryTokens` /
+   * `selectAndSerializeHistory` calls) and the shipped render
+   * (`allocate` → `buildShippedHistoryMessages`) must see the SAME map or the
+   * budget identity breaks.
+   */
+  headerIdTags: HeaderIdTagMap;
 }
 
 /** Result of token budget calculation and content selection */

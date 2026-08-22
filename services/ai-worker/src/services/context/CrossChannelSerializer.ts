@@ -38,8 +38,8 @@ export function serializeCrossChannelHistory(
   groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
   tokenBudget: number,
-  responderPersonalityId?: string,
-  realMessagesEnabled = false
+  responderPersonalityId: string | undefined,
+  realMessagesEnabled: boolean
 ): { xml: string; messagesIncluded: number } {
   if (groups.length === 0 || tokenBudget <= 0) {
     return { xml: '', messagesIncluded: 0 };

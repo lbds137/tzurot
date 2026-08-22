@@ -6,7 +6,7 @@
  * file size and separate concerns.
  */
 
-import type { BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { HumanMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { contentToText } from '../utils/baseMessageContent.js';
@@ -14,10 +14,12 @@ import {
   buildHistoryMessageIdSet,
   type ResponderIdentity,
 } from '../jobs/utils/conversationUtils.js';
-import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
-import { buildCrossChannelMessage, buildRealMessages } from './context/RealMessagesBuilder.js';
+import {
+  buildShippedHistoryMessages,
+  computeHeaderIdTags,
+} from './context/shippedHistoryMessages.js';
 import { logBudgetAllocation } from './budgetAllocationLog.js';
 import {
   formatSingleFact,
@@ -30,6 +32,7 @@ import type {
   FactForPrompt,
   MemoryDocument,
   ParticipantInfo,
+  PreselectedHistory,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ContentBudgetManager');
@@ -61,50 +64,6 @@ export function activeSpeakerPronouns(
  */
 const FACT_BUDGET_MAX_TOKENS = 600;
 const FACT_BUDGET_MAX_FRACTION = 0.3;
-
-/**
- * The history pre-pass result (STM/LTM dedup-hole fix). History is selected
- * BEFORE memory retrieval — it needs nothing from memories once the memory
- * budget is a reserve — so the EXACT shipped-history boundary is known when
- * the LTM query runs, instead of assuming all fetched history ships and
- * losing the truncated range to neither path.
- */
-export interface PreselectedHistory {
-  currentMessage: HumanMessage;
-  contentForStorage: string;
-  systemPromptBaseTokens: number;
-  currentMessageTokens: number;
-  /** Memory budget (same formula as always) — reserved up front so the
-   * history budget is computable pre-retrieval. */
-  memoryReserve: number;
-  historyBudget: number;
-  serializedHistory: string;
-  historyTokensUsed: number;
-  messagesDropped: number;
-  crossChannelMessagesIncluded: number;
-  /** min createdAt over SELECTED current-channel entries; undefined when
-   * nothing shipped. The exact time baseline for STM/LTM dedup. */
-  oldestSelectedTs?: number;
-  /** Discord snowflakes of every shipped current-channel entry (incl. chunk
-   * ids) — the authoritative ID-dedup set. */
-  shippedMessageIds: Set<string>;
-  /** The current-channel entries that actually shipped, chronological order
-   * (PR 2.3). Populated FLAG-NEUTRALLY — `RealMessagesBuilder` consumes this
-   * only when `realMessagesEnabled` is on; flag-off, it is computed and
-   * unused, same as `serializedHistory` is computed and unused in reverse. */
-  selectedEntries: StructuredHistoryEntry[];
-  /** The `<prior_conversations>` XML `ContextWindowManager` produced (empty
-   * when cross-channel is disabled or nothing fit). Also flag-neutral —
-   * consumed only when `realMessagesEnabled` is on, as its own leading
-   * `HumanMessage` (§9c). */
-  crossChannelXml: string;
-  /** The `realMessagesEnabled` value THIS pre-pass measured under. `allocate`
-   * consumes this rather than re-reading the live setting: the base-token
-   * measurement and the shipped system message must see the SAME flag value
-   * or the budget identity breaks, and a live flip between the two calls
-   * would otherwise skew it silently. */
-  realMessagesEnabled: boolean;
-}
 
 export class ContentBudgetManager {
   constructor(
@@ -160,10 +119,24 @@ export class ContentBudgetManager {
     // responder identity is built once rather than twice.
     const responder: ResponderIdentity = { name: personality.name, id: personality.id };
 
+    // Computed ONCE per turn, right after realMessagesEnabled and the
+    // responder identity — for exactly the reason realMessagesEnabled itself
+    // is captured once: the pre-measure below and the shipped render in
+    // `allocate` must see the SAME map or the budget identity breaks. Empty
+    // flag-off, so every downstream consumer charges/renders nothing extra.
+    const headerIdTags = computeHeaderIdTags({
+      participants: [...opts.participantPersonas.values()],
+      rawConversationHistory: context.rawConversationHistory,
+      responderName: personality.name,
+      responderPersonalityId: personality.id,
+      realMessagesEnabled,
+    });
+
     const historyTokens = this.contextWindowManager.countHistoryTokens(
       context.rawConversationHistory,
       responder,
-      realMessagesEnabled
+      realMessagesEnabled,
+      headerIdTags
     );
     const memoryReserve = this.contextWindowManager.calculateMemoryBudget(
       contextWindowTokens,
@@ -192,6 +165,7 @@ export class ContentBudgetManager {
         crossChannelGroups: context.crossChannelHistory,
         currentEnvironment: context.environment,
         realMessagesEnabled,
+        headerIdTags,
       }
     );
 
@@ -219,6 +193,7 @@ export class ContentBudgetManager {
       selectedEntries,
       crossChannelXml,
       realMessagesEnabled,
+      headerIdTags,
     };
   }
 
@@ -329,6 +304,7 @@ export class ContentBudgetManager {
       selectedEntries,
       crossChannelXml,
       realMessagesEnabled,
+      headerIdTags,
     } = preselected;
 
     const dedupedMemories = this.filterShippedMemories(
@@ -393,18 +369,20 @@ export class ContentBudgetManager {
     // .selectCurrentChannelEntries`) already measured the real-message form
     // this same selection would produce, via `measureHistoryEntryRealTokens`;
     // rebuilding it here is the deliberate re-measure `preselectHistory`'s
-    // doc-comment describes, not a second estimate.
-    const historyMessages: BaseMessage[] = realMessagesEnabled
-      ? buildRealMessages(
-          selectedEntries,
-          processedPersonality.name,
-          processedPersonality.id,
-          realMessagesEnabled
-        )
-      : [];
-    const crossChannelMessage = realMessagesEnabled
-      ? buildCrossChannelMessage(crossChannelXml)
-      : undefined;
+    // doc-comment describes, not a second estimate. `headerIdTags` is the
+    // SAME map `preselectHistory` computed once via `computeHeaderIdTags` —
+    // never recomputed here — so the tags this render ships and the ones the
+    // pre-measure charged for cannot disagree. The real-message assembly
+    // itself lives in `buildShippedHistoryMessages` (extracted purely to keep
+    // this file under `max-lines`).
+    const { historyMessages, crossChannelMessage } = buildShippedHistoryMessages({
+      selectedEntries,
+      crossChannelXml,
+      responderName: processedPersonality.name,
+      responderPersonalityId: processedPersonality.id,
+      realMessagesEnabled,
+      headerIdTags,
+    });
 
     logBudgetAllocation({
       contextWindowTokens,

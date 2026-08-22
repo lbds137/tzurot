@@ -29,7 +29,9 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.serializedHistory).toContain('Hello');
       expect(result.serializedHistory).toContain('Hi there!');
@@ -39,7 +41,9 @@ describe('ContextWindowManager', () => {
     });
 
     it('should return empty when history is undefined', () => {
-      const result = manager.selectAndSerializeHistory(undefined, { name: 'TestAI' }, 1000);
+      const result = manager.selectAndSerializeHistory(undefined, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesIncluded).toBe(0);
@@ -50,7 +54,9 @@ describe('ContextWindowManager', () => {
         { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 0);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 0, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesDropped).toBe(1);
@@ -80,6 +86,7 @@ describe('ContextWindowManager', () => {
       ];
 
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 0, {
+        headerIdTags: new Map(),
         crossChannelGroups,
       });
 
@@ -95,7 +102,9 @@ describe('ContextWindowManager', () => {
 
       // Budget of 2 is positive (passes the historyBudget <= 0 check) but smaller than
       // the <chat_log> wrapper overhead (~3+ tokens), so budgetAfterOverhead <= 0
-      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 2);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 2, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.serializedHistory).toBe('');
       expect(result.messagesIncluded).toBe(0);
@@ -132,6 +141,7 @@ describe('ContextWindowManager', () => {
       ];
 
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 5000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
       });
 
@@ -178,6 +188,7 @@ describe('ContextWindowManager', () => {
 
       // Budget that fits current channel but leaves no room for cross-channel (500 token message)
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 50, {
+        headerIdTags: new Map(),
         crossChannelGroups,
       });
 
@@ -207,6 +218,7 @@ describe('ContextWindowManager', () => {
 
       // rawHistory is empty (first message in new channel), but cross-channel exists
       const result = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
       });
 
@@ -244,7 +256,7 @@ describe('ContextWindowManager', () => {
         rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
         { name: 'TestAI' },
         budget,
-        { crossChannelGroups }
+        { headerIdTags: new Map(), crossChannelGroups }
       );
 
       // No current-channel messages fit, so no wrapper overhead should be counted
@@ -255,7 +267,9 @@ describe('ContextWindowManager', () => {
     });
 
     it('should return empty when rawHistory is empty and no cross-channel groups', () => {
-      const result = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000);
+      const result = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.serializedHistory).toBe('');
       expect(result.historyTokensUsed).toBe(0);
@@ -266,7 +280,9 @@ describe('ContextWindowManager', () => {
         { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
       ];
 
-      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
+      const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.serializedHistory).toContain('Hello');
       expect(result.serializedHistory).not.toContain('<current_conversation>');
@@ -290,6 +306,7 @@ describe('ContextWindowManager', () => {
       };
 
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
         currentEnvironment: environment,
       });
 
@@ -313,6 +330,7 @@ describe('ContextWindowManager', () => {
       };
 
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
         currentEnvironment: environment,
       });
 
@@ -357,6 +375,7 @@ describe('ContextWindowManager', () => {
       };
 
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 5000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
         currentEnvironment: environment,
       });
@@ -400,10 +419,12 @@ describe('ContextWindowManager', () => {
 
       // No current history — environment is provided but nothing to wrap
       const withEnv = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
         currentEnvironment: environment,
       });
       const withoutEnv = manager.selectAndSerializeHistory([], { name: 'TestAI' }, 5000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
       });
 
@@ -429,6 +450,7 @@ describe('ContextWindowManager', () => {
       };
 
       const result = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 10, {
+        headerIdTags: new Map(),
         currentEnvironment: environment,
       });
 
@@ -448,9 +470,12 @@ describe('ContextWindowManager', () => {
       };
 
       const withEnv = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
         currentEnvironment: environment,
       });
-      const withoutEnv = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000);
+      const withoutEnv = manager.selectAndSerializeHistory(rawHistory, { name: 'TestAI' }, 1000, {
+        headerIdTags: new Map(),
+      });
 
       // With environment should use more tokens due to wrapper overhead
       expect(withEnv.historyTokensUsed).toBeGreaterThan(withoutEnv.historyTokensUsed);
@@ -480,7 +505,9 @@ describe('ContextWindowManager', () => {
 
     function measuresFor(entries: StructuredHistoryEntry[]): number[] {
       const allNames = new Set([RESPONDER.name]);
-      return entries.map(e => measureHistoryEntryTokens(e, RESPONDER.name, allNames, RESPONDER.id));
+      return entries.map(e =>
+        measureHistoryEntryTokens(e, RESPONDER.name, allNames, RESPONDER.id, false)
+      );
     }
 
     it('OSCILLATION — when the cut is active and unclamped, shipped tokens land in (0.75*budget, budget]', () => {
@@ -598,9 +625,11 @@ describe('ContextWindowManager', () => {
       ];
 
       const off = manager.selectAndSerializeHistory([], RESPONDER, 5_000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
       });
       const on = manager.selectAndSerializeHistory([], RESPONDER, 5_000, {
+        headerIdTags: new Map(),
         crossChannelGroups,
         realMessagesEnabled: true,
       });
@@ -684,6 +713,7 @@ describe('ContextWindowManager', () => {
       }));
 
       const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
         realMessagesEnabled: true,
       });
 
@@ -733,11 +763,18 @@ describe('ContextWindowManager', () => {
       ];
 
       const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
         realMessagesEnabled: true,
       });
       expect(result.selectedEntries.map(e => e.id)).toEqual(['id-quoter']);
 
-      const messages = buildRealMessages(result.selectedEntries, RESPONDER.name, RESPONDER.id);
+      const messages = buildRealMessages(
+        result.selectedEntries,
+        RESPONDER.name,
+        RESPONDER.id,
+        true,
+        new Map()
+      );
       expect(messages).toHaveLength(1);
       expect(String(messages[0].content)).toContain('the words the skipped row once carried');
     });
@@ -777,7 +814,9 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000);
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.selectedEntries.map(e => e.id)).toEqual(['id-quoter']);
       expect(result.serializedHistory).toContain('the words the skipped row once carried');
@@ -817,12 +856,21 @@ describe('ContextWindowManager', () => {
 
       const names = new Set([RESPONDER.name]);
       const realTotal = realRows.reduce(
-        (sum, e) => sum + measureHistoryEntryRealTokens(e, RESPONDER.name, names, RESPONDER.id),
+        (sum, e) =>
+          sum +
+          measureHistoryEntryRealTokens(e, {
+            personalityName: RESPONDER.name,
+            allPersonalityNames: names,
+            responderPersonalityId: RESPONDER.id,
+            realMessagesEnabled: true,
+            headerIdTags: new Map(),
+          }),
         0
       );
       const budget = Math.round(realTotal * 0.35);
 
       const result = manager.selectAndSerializeHistory(entries, RESPONDER, budget, {
+        headerIdTags: new Map(),
         realMessagesEnabled: true,
       });
 
@@ -855,6 +903,7 @@ describe('ContextWindowManager', () => {
       ];
 
       const result = manager.selectAndSerializeHistory(entries, RESPONDER, 0, {
+        headerIdTags: new Map(),
         realMessagesEnabled: true,
       });
 
@@ -896,9 +945,12 @@ describe('ContextWindowManager', () => {
       ];
 
       const on = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
         realMessagesEnabled: true,
       });
-      const off = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000);
+      const off = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
+      });
 
       // Flag-on: the render will skip the empty row, so selection excludes it
       // — the dedup boundary derives from what actually ships.
@@ -940,8 +992,12 @@ describe('ContextWindowManager', () => {
       };
       const withRow = [speakable[0], nullSpeakerRow, speakable[1]];
 
-      const including = manager.selectAndSerializeHistory(withRow, RESPONDER, 5_000);
-      const excluding = manager.selectAndSerializeHistory(speakable, RESPONDER, 5_000);
+      const including = manager.selectAndSerializeHistory(withRow, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
+      });
+      const excluding = manager.selectAndSerializeHistory(speakable, RESPONDER, 5_000, {
+        headerIdTags: new Map(),
+      });
 
       // The row never rendered anything, so excluding it at selection leaves
       // the shipped bytes untouched — while selectedEntries (and the dedup
@@ -965,7 +1021,9 @@ describe('ContextWindowManager', () => {
       const dormantCut = computeEvictionCut(dormantMeasures, 100_000);
       expect(dormantCut).toEqual({ cFinal: 0, cMin: 0, k: 0, q: 0, sTotal: dormantCut.sTotal });
 
-      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 100_000);
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 100_000, {
+        headerIdTags: new Map(),
+      });
 
       expect(result.messagesIncluded).toBe(5);
       expect(result.messagesDropped).toBe(0);

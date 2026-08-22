@@ -20,8 +20,15 @@ import {
   resolveSpeakerInfo,
   extractParticipants,
   extractCharacterParticipants,
+  normalizeNameKey,
+  buildHeaderIdTags,
+  participantRosterDisplayName,
+  characterRosterDisplayName,
+  isRenderableName,
+  type RosterNameSource,
 } from './participantUtils.js';
 import type { StructuredHistoryEntry } from './conversationTypes.js';
+import type { CharacterParticipant } from './participantUtils.js';
 
 describe('resolveSpeakerInfo', () => {
   const msg = (overrides: Partial<StructuredHistoryEntry>): StructuredHistoryEntry =>
@@ -452,5 +459,165 @@ describe('extractCharacterParticipants', () => {
 
   it('returns an empty list for absent history', () => {
     expect(extractCharacterParticipants(undefined, 'Lilith')).toEqual([]);
+  });
+});
+
+describe('participantRosterDisplayName / characterRosterDisplayName / isRenderableName', () => {
+  // Only indirectly covered before the move (through ParticipantFormatter's
+  // render output) — direct coverage now that these live here.
+  it('prefers a non-blank preferredName over personaName, trimmed', () => {
+    const info: RosterNameSource = {
+      personaId: 'p-1',
+      personaName: 'Vladimir',
+      preferredName: '  Vlad  ',
+    };
+    expect(participantRosterDisplayName(info)).toBe('Vlad');
+  });
+
+  it('falls back to personaName when preferredName is blank or absent', () => {
+    expect(
+      participantRosterDisplayName({ personaId: 'p-1', personaName: ' Vlad ', preferredName: '  ' })
+    ).toBe('Vlad');
+    expect(participantRosterDisplayName({ personaId: 'p-1', personaName: 'Vlad' })).toBe('Vlad');
+  });
+
+  it('trims the character name', () => {
+    const character: CharacterParticipant = { personalityId: 'pid-1', personalityName: ' Kai ' };
+    expect(characterRosterDisplayName(character)).toBe('Kai');
+  });
+
+  it('treats an all-whitespace name as unrenderable', () => {
+    expect(isRenderableName('   ')).toBe(false);
+    expect(isRenderableName('Lila')).toBe(true);
+  });
+});
+
+describe('normalizeNameKey', () => {
+  it('folds to the same key regardless of case', () => {
+    expect(normalizeNameKey('Lila')).toBe(normalizeNameKey('LILA'));
+  });
+
+  it('strips each documented invisible/formatting range', () => {
+    // U+00AD soft hyphen
+    expect(normalizeNameKey('Li\u00ADla')).toBe('lila');
+    // U+200B zero-width space (representative of the U+200B-U+200F band)
+    expect(normalizeNameKey('Li\u200Bla')).toBe('lila');
+    // U+200F right-to-left mark (other end of the same band)
+    expect(normalizeNameKey('Li\u200Fla')).toBe('lila');
+    // U+2060 word joiner (representative of the U+2060-U+2064 band)
+    expect(normalizeNameKey('Li\u2060la')).toBe('lila');
+    // U+2064 invisible plus (other end of the same band)
+    expect(normalizeNameKey('Li\u2064la')).toBe('lila');
+    // U+FEFF byte-order mark / zero-width no-break space
+    expect(normalizeNameKey('Li\uFEFFla')).toBe('lila');
+  });
+
+  it('folds an NFKC compatibility form to its canonical equivalent', () => {
+    // Fullwidth Latin 'Lila' (U+FF2C U+FF49 U+FF4C U+FF41) NFKC-folds to ASCII.
+    expect(normalizeNameKey('Ｌｉｌａ')).toBe('lila');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(normalizeNameKey('  Lila  ')).toBe('lila');
+  });
+
+  it('normalizes an all-invisible name to the empty string, not surviving whitespace', () => {
+    expect(normalizeNameKey('\u200B\u200B')).toBe('');
+  });
+});
+
+describe('buildHeaderIdTags', () => {
+  function participant(id: string, name: string): RosterNameSource {
+    return { personaId: id, personaName: name };
+  }
+  function character(id: string, name: string): CharacterParticipant {
+    return { personalityId: id, personalityName: name };
+  }
+
+  it('returns an empty map for a non-colliding roster — the zero-change state', () => {
+    const map = buildHeaderIdTags(
+      [participant('p-1', 'Vlad'), participant('p-2', 'COLD')],
+      [character('c-1', 'Kai')]
+    );
+    expect(map.size).toBe(0);
+  });
+
+  it('tags both participants sharing a name with distinct 4-char prefixes', () => {
+    const map = buildHeaderIdTags(
+      [
+        participant('a1b2c3d4-0000-0000-0000-000000000001', 'Lila'),
+        participant('ffffffff-0000-0000-0000-000000000002', 'Lila'),
+      ],
+      []
+    );
+    // Flat id -> tag map (TASK-726 rider): ids are globally unique, so the
+    // lookup is id-keyed rather than nested under a normalized name key.
+    expect(map.get('a1b2c3d4-0000-0000-0000-000000000001')).toBe('a1b2');
+    expect(map.get('ffffffff-0000-0000-0000-000000000002')).toBe('ffff');
+  });
+
+  it('tags a participant and a character sharing a name, across the two id spaces', () => {
+    const map = buildHeaderIdTags(
+      [participant('aaaaaaaa-0000-0000-0000-000000000001', 'Kai')],
+      [character('bbbbbbbb-0000-0000-0000-000000000002', 'Kai')]
+    );
+    expect(map.size).toBe(2);
+    expect(map.get('aaaaaaaa-0000-0000-0000-000000000001')).toBe('aaaa');
+    expect(map.get('bbbbbbbb-0000-0000-0000-000000000002')).toBe('bbbb');
+  });
+
+  it('extends the WHOLE group to 8 chars when two ids share a 4-char prefix', () => {
+    const ids = [
+      'a1b20000-0000-0000-0000-000000000001',
+      'a1b2ffff-0000-0000-0000-000000000002',
+      'cccccccc-0000-0000-0000-000000000003',
+    ];
+    const map = buildHeaderIdTags(
+      ids.map(id => participant(id, 'Lila')),
+      []
+    );
+    // All three extend together, not just the clashing pair.
+    expect(map.get(ids[0])).toBe('a1b20000');
+    expect(map.get(ids[1])).toBe('a1b2ffff');
+    expect(map.get(ids[2])).toBe('cccccccc');
+  });
+
+  it('falls back to the FULL hex id when even 8 chars collide', () => {
+    const ids = ['a1b2c3d4-0000-0000-0000-000000000001', 'a1b2c3d4-0000-0000-0000-000000000002'];
+    const map = buildHeaderIdTags(
+      ids.map(id => participant(id, 'Lila')),
+      []
+    );
+    expect(map.get(ids[0])).toBe(ids[0].toLowerCase().replace(/-/g, ''));
+    expect(map.get(ids[1])).toBe(ids[1].toLowerCase().replace(/-/g, ''));
+  });
+
+  it('never groups unrenderable names — nothing renders, so nothing collides', () => {
+    const map = buildHeaderIdTags([participant('p-1', '   '), participant('p-2', '   ')], []);
+    expect(map.size).toBe(0);
+  });
+
+  it('is order-independent — shuffling the input arrays produces the same map', () => {
+    const participants = [
+      participant('p-1', 'Lila'),
+      participant('p-2', 'Lila'),
+      participant('p-3', 'Vlad'),
+    ];
+    const characters = [character('c-1', 'Kai'), character('c-2', 'Lila')];
+
+    const forward = buildHeaderIdTags(participants, characters);
+    const reversed = buildHeaderIdTags([...participants].reverse(), [...characters].reverse());
+
+    expect([...forward.entries()].sort()).toEqual([...reversed.entries()].sort());
+  });
+
+  it('collides after normalization — a zero-width-interposed name still groups with its plain twin', () => {
+    const map = buildHeaderIdTags(
+      [participant('p-1', 'Li\u200Bla'), participant('p-2', 'Lila')],
+      []
+    );
+    expect(map.get('p-1')).toBeDefined();
+    expect(map.get('p-2')).toBeDefined();
+    expect(map.size).toBe(2);
   });
 });

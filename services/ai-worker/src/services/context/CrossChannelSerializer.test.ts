@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -80,7 +81,8 @@ describe('serializeCrossChannelHistory', () => {
         [renamedResponderGroup()],
         'BrandNewName',
         5000,
-        'p-self'
+        'p-self',
+        false
       );
 
       expect(result.xml).toContain('role="assistant"');
@@ -90,7 +92,13 @@ describe('serializeCrossChannelHistory', () => {
     it('falls back to the name comparison when no responder id is supplied', () => {
       // Pins the fallback rather than asserting it is desirable: this is the
       // pre-fix behaviour, and it is what an id-less row still gets.
-      const result = serializeCrossChannelHistory([renamedResponderGroup()], 'BrandNewName', 5000);
+      const result = serializeCrossChannelHistory(
+        [renamedResponderGroup()],
+        'BrandNewName',
+        5000,
+        undefined,
+        false
+      );
 
       expect(result.xml).toContain('role="character"');
     });
@@ -104,13 +112,13 @@ describe('serializeCrossChannelHistory', () => {
   });
 
   it('should return empty for empty groups', () => {
-    const result = serializeCrossChannelHistory([], 'TestAI', 1000);
+    const result = serializeCrossChannelHistory([], 'TestAI', 1000, undefined, false);
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
 
   it('should return empty when budget is 0', () => {
-    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 0);
+    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 0, undefined, false);
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
@@ -118,13 +126,13 @@ describe('serializeCrossChannelHistory', () => {
   it('should return empty when budget is positive but less than wrapper overhead', () => {
     // Budget of 1 is positive (passes tokenBudget <= 0 check) but smaller than
     // the <prior_conversations> wrapper overhead, so availableBudget <= 0
-    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 1);
+    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 1, undefined, false);
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
 
   it('should serialize a single group with location block', () => {
-    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 5000);
+    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 5000, undefined, false);
     expect(result.xml).toContain('<prior_conversations>');
     expect(result.xml).toContain('</prior_conversations>');
     expect(result.xml).toContain('<channel_history>');
@@ -144,7 +152,7 @@ describe('serializeCrossChannelHistory', () => {
       },
     });
 
-    const result = serializeCrossChannelHistory([dmGroup], 'TestAI', 5000);
+    const result = serializeCrossChannelHistory([dmGroup], 'TestAI', 5000, undefined, false);
     expect(result.xml).toContain('<location type="dm">');
     expect(result.xml).toContain('Direct Message');
   });
@@ -164,7 +172,7 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     // Budget fits ~2 messages plus overhead, not all 4
-    const result = serializeCrossChannelHistory([group], 'TestAI', 150);
+    const result = serializeCrossChannelHistory([group], 'TestAI', 150, undefined, false);
     // Recency: should keep newest (msg-4, msg-3), drop oldest (msg-1, msg-2)
     expect(result.xml).toContain('Newest message');
     expect(result.xml).toContain('Third message');
@@ -188,7 +196,7 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     // Budget can't fit msg-3 (newest), so contiguous-tail strategy skips entire group
-    const result = serializeCrossChannelHistory([group], 'TestAI', 200);
+    const result = serializeCrossChannelHistory([group], 'TestAI', 200, undefined, false);
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
@@ -199,7 +207,7 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     // Budget of 5 is too small for even the wrapper overhead + location block + one message
-    const result = serializeCrossChannelHistory([group], 'TestAI', 5);
+    const result = serializeCrossChannelHistory([group], 'TestAI', 5, undefined, false);
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
@@ -233,7 +241,13 @@ describe('serializeCrossChannelHistory', () => {
     // Budget fits cheap group but not expensive group.
     // Group 1 (expensive) is skipped, group 2 (cheap) still gets included since
     // the loop continues to lower-priority groups when budget remains.
-    const result = serializeCrossChannelHistory([expensiveGroup, cheapGroup], 'TestAI', 150);
+    const result = serializeCrossChannelHistory(
+      [expensiveGroup, cheapGroup],
+      'TestAI',
+      150,
+      undefined,
+      false
+    );
     expect(result.xml).not.toContain('expensive');
     expect(result.xml).toContain('cheap');
     expect(result.xml).toContain('Tiny');
@@ -258,10 +272,90 @@ describe('serializeCrossChannelHistory', () => {
       ],
     });
 
-    const result = serializeCrossChannelHistory([group1, group2], 'TestAI', 5000);
+    const result = serializeCrossChannelHistory([group1, group2], 'TestAI', 5000, undefined, false);
     expect(result.xml).toContain('general');
     expect(result.xml).toContain('random');
     expect(result.xml).toContain('In the random channel');
     expect(result.messagesIncluded).toBe(3);
+  });
+
+  describe('deduped reference wording (TASK-726 rider — no prior pin existed)', () => {
+    // Dedup is ID-derived, not a flag: a group whose second message quotes a
+    // Discord id ALREADY carried by an earlier message in the SAME group.
+    //
+    // `discordMessageId` and `messageMetadata` are NOT in `crossChannelMessageSchema`
+    // (verified: `packages/common-types/src/types/schemas/message.ts`'s
+    // `crossChannelMessageSchema` carries neither field) — the wire contract for
+    // a cross-channel message is narrower than `StructuredHistoryEntry`. The
+    // renderer this test exercises (`formatConversationHistoryAsXml`, called
+    // per-group by `formatCrossChannelHistoryAsXml`) reads both fields
+    // dynamically regardless of that narrower declared type, so the cast below
+    // exercises real behaviour rather than fabricating an unreachable shape —
+    // but it does mean today's TYPE SYSTEM cannot express a cross-channel quote
+    // dedup at all, only the runtime renderer can. Flagged rather than silently
+    // worked around.
+    function groupWithDedupedReference(): CrossChannelHistoryGroupEntry {
+      const quotedId = 'msg-quoted-1';
+      const messages: StructuredHistoryEntry[] = [
+        {
+          id: 'msg-1',
+          role: MessageRole.User,
+          content: 'the original message',
+          createdAt: '2026-02-26T10:00:00Z',
+          personaName: 'Bob',
+          discordMessageId: [quotedId],
+          tokenCount: 10,
+        },
+        {
+          id: 'msg-2',
+          role: MessageRole.User,
+          content: 'replying to it',
+          createdAt: '2026-02-26T10:01:00Z',
+          personaName: 'Alice',
+          tokenCount: 10,
+          messageMetadata: {
+            referencedMessages: [
+              {
+                discordMessageId: quotedId,
+                authorUsername: 'bob',
+                authorDisplayName: 'Bob',
+                content: 'the original message',
+                timestamp: '2026-02-26T10:00:00Z',
+                locationContext: '#general',
+              },
+            ],
+          },
+        },
+      ];
+      return createGroup({
+        messages: messages as unknown as CrossChannelHistoryGroupEntry['messages'],
+      });
+    }
+
+    it('flag-on: dedups to the real-messages stub wording, not the chat_log phrasing', () => {
+      const result = serializeCrossChannelHistory(
+        [groupWithDedupedReference()],
+        'TestAI',
+        5000,
+        undefined,
+        true
+      );
+
+      expect(result.xml).toContain('appears earlier in the conversation');
+      expect(result.xml).not.toContain('in the chat log');
+    });
+
+    it('flag-off: dedups to the chat_log phrasing, not the real-messages stub wording', () => {
+      const result = serializeCrossChannelHistory(
+        [groupWithDedupedReference()],
+        'TestAI',
+        5000,
+        undefined,
+        false
+      );
+
+      expect(result.xml).toContain('in the chat log');
+      expect(result.xml).not.toContain('appears earlier in the conversation');
+    });
   });
 });

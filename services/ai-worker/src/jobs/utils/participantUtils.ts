@@ -267,6 +267,209 @@ export function extractParticipants(
 }
 
 /**
+ * The roster-side shape the display-name derivation needs. `ParticipantInfo`
+ * is structurally assignable to this, so no cross-layer import is required.
+ */
+export interface RosterNameSource {
+  personaId: string;
+  personaName: string;
+  preferredName?: string;
+}
+
+/**
+ * The display name rendered for a participant — also what collides.
+ *
+ * Blank-or-absent both fall back to `personaName`. `??` alone would let an
+ * empty `preferredName` through: harmless while it only produced an empty
+ * `<name>` element, but this string is now also spliced into a natural-language
+ * sentence, where it reads as `In 's own words:`. The known producer is
+ * `displayName ?? username` (identity's UserService), so an empty value is not
+ * reachable from there — the guard is here because proving no OTHER writer can
+ * ever store `''` is a repo-wide negative, and this costs one predicate.
+ *
+ * The RETURNED value is trimmed too, not only the fallback decision. That is a
+ * deliberate semantic choice rather than cosmetics: this string feeds
+ * `rosterCollidesWithCharacter` and `rosterHasDuplicateNames`, so trimming
+ * changes whether a whitespace-padded name is detected as colliding, and
+ * therefore whether a note enters the S1 cache prefix. The answer that makes
+ * sense is the one pinned here — the model reads the RENDERED name, so two
+ * names that render identically must collide, and `" Lila"` and `"Lila"` render
+ * identically. Untrimmed, the padded one also produced `In  Lila's own words:`
+ * with a doubled space.
+ */
+export function participantRosterDisplayName(info: RosterNameSource): string {
+  const preferred = info.preferredName;
+  const chosen =
+    preferred !== undefined && preferred.trim().length > 0 ? preferred : info.personaName;
+  return chosen.trim();
+}
+
+/**
+ * Is this a name that can be rendered and reasoned about?
+ *
+ * Both `Persona.name` and `Personality.name` are `z.string().min(1).max(255)`
+ * with NO `.trim()` (schemas/api/persona.ts:218, personality.ts:425), so
+ * `" "` is a schema-valid name on either side. It has a length, so `min(1)`
+ * passes; it has no display form, so nothing downstream can frame prose with
+ * it. Callers use this to fall back to an unframed render rather than emitting
+ * a sentence with a hole where the name goes.
+ */
+export function isRenderableName(name: string): boolean {
+  return name.trim().length > 0;
+}
+
+/**
+ * The display name rendered for a sibling character — the character-side mirror
+ * of {@link participantRosterDisplayName}, and trimmed for the same reason.
+ *
+ * `Personality.name` is `z.string().min(1).max(255)` with NO `.trim()`
+ * (schemas/api/personality.ts), so a padded name is reachable rather than
+ * hypothetical. Untrimmed it renders `<name> Kai</name>`, reads as
+ * `" Kai, a separate AI character..."` in the lead-in, and — the part that
+ * actually matters — fails to collide with a roster `Kai`, suppressing the
+ * disambiguation note in exactly the case a reader cannot tell apart.
+ *
+ * The rule is the one TASK-644 pinned on the persona side: the model reads the
+ * RENDERED name, so two names that render identically must collide.
+ */
+export function characterRosterDisplayName(character: CharacterParticipant): string {
+  return character.personalityName.trim();
+}
+
+/**
+ * The comparison KEY for a rendered display name — never the rendered form
+ * itself, which stays un-normalized everywhere it is shown to the model.
+ *
+ * Strips invisible/formatting codepoints a griefer can interpose to evade a
+ * naive `.trim().toLowerCase()` collision check while still rendering
+ * visually identical to the eye:
+ *   - U+00AD soft hyphen
+ *   - U+200B–U+200F zero-width space / zero-width non-joiner / zero-width
+ *     joiner / left-to-right mark / right-to-left mark
+ *   - U+2060–U+2064 word joiner and the invisible math operators (invisible
+ *     times, invisible separator, invisible plus)
+ *   - U+FEFF byte-order mark / zero-width no-break space
+ *
+ * Order matters: `NFKC` first (folds compatibility forms — e.g. fullwidth
+ * Latin — into their canonical equivalents), THEN strip the invisible class,
+ * THEN trim. Stripping before trim means a name made only of invisible
+ * codepoints normalizes to `''` rather than surviving as whitespace.
+ * `toLowerCase()`, never `toLocaleLowerCase()` — the key must be
+ * locale-independent so the same two names collide identically regardless of
+ * which locale a given process runs under.
+ */
+// Written as \u escapes rather than literal invisible codepoints — the raw
+// characters in a regex literal are indistinguishable from accidental
+// whitespace at a glance and trip `no-irregular-whitespace`.
+// Exported: `sanitizeHeaderName` (RealMessagesBuilder) strips the SAME class
+// before its anti-forgery passes — an interposed zero-width would otherwise
+// break the literal `id:` token those regexes match while rendering as
+// nothing, forging a visually genuine tag.
+export const INVISIBLE_FORMATTING = /[\u00AD\u200B-\u200F\u2060-\u2064\uFEFF]/g;
+
+export function normalizeNameKey(name: string): string {
+  return name.normalize('NFKC').replace(INVISIBLE_FORMATTING, '').trim().toLowerCase();
+}
+
+/** One roster entry (persona or sibling character) feeding {@link buildHeaderIdTags}. */
+interface HeaderIdTagEntry {
+  id: string;
+  displayName: string;
+}
+
+/** `id` with its hyphens stripped and case folded — the raw material a tag prefix is cut from. */
+function hexOf(id: string): string {
+  return id.toLowerCase().replace(/-/g, '');
+}
+
+/**
+ * Assign collision tags to one name-collision group, extending the prefix
+ * length only as far as the group's own ids require. Every member of the
+ * group extends together — a 4-char clash between two of five ids means all
+ * five get 8-char tags, not just the clashing pair, so a single header
+ * format holds across the whole group.
+ */
+function assignGroupTags(ids: readonly string[]): ReadonlyMap<string, string> {
+  const hexes = ids.map(hexOf);
+  for (const len of [4, 8]) {
+    const prefixes = hexes.map(h => h.slice(0, len));
+    if (new Set(prefixes).size === prefixes.length) {
+      return new Map(ids.map((id, i) => [id, prefixes[i]]));
+    }
+  }
+  return new Map(ids.map((id, i) => [id, hexes[i]]));
+}
+
+/**
+ * Build the collision-conditional header id-tag map for a roster.
+ *
+ * Pure function of the id set (participants + characters) alone — no
+ * join-order or append-only state, and the return is order-independent
+ * (shuffling the input arrays produces the same map). This is deliberate:
+ * conversation history re-renders from the CURRENT roster on every turn, so
+ * every turn is self-consistent by construction and a dangling tag (one
+ * assigned on an earlier turn's wider collision set, stale on this turn's
+ * narrower one) is structurally impossible — there is no state to go stale.
+ *
+ * A name failing {@link isRenderableName} is skipped before grouping: nothing
+ * renders for it, so it cannot collide with anything a reader would notice.
+ *
+ * Grouping is by normalized ROSTER display name, but the returned map is
+ * FLATTENED to id -> tag rather than kept nested under the name key. Ids are
+ * globally unique, so a name-keyed outer map buys nothing at lookup time and
+ * is actively wrong: the header a row actually renders can legitimately
+ * differ from its roster display name (`resolveSpeakerInfo`'s `(@username)`
+ * disambiguation suffix on a user row colliding with a personality name, and
+ * `preferredName` substitution on the roster side) — a name-keyed lookup
+ * would silently miss exactly the mixed human/character collision this tag
+ * exists to disambiguate. Grouping still decides WHICH ids get tags (and
+ * what those tags look like); only the lookup key changes.
+ *
+ * @returns id -> tag. ONLY ids belonging to a colliding name-group (>=2
+ *   distinct ids sharing a normalized display name) appear — an empty map
+ *   means no collisions anywhere in the roster, and therefore zero behaviour
+ *   change from today.
+ */
+export function buildHeaderIdTags(
+  participants: RosterNameSource[],
+  characters: CharacterParticipant[]
+): HeaderIdTagMap {
+  const entries: HeaderIdTagEntry[] = [
+    ...participants.map(p => ({ id: p.personaId, displayName: participantRosterDisplayName(p) })),
+    ...characters.map(c => ({
+      id: c.personalityId,
+      displayName: characterRosterDisplayName(c),
+    })),
+  ];
+
+  const byKey = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    if (!isRenderableName(entry.displayName)) {
+      continue;
+    }
+    const key = normalizeNameKey(entry.displayName);
+    const ids = byKey.get(key) ?? new Set<string>();
+    ids.add(entry.id);
+    byKey.set(key, ids);
+  }
+
+  const result = new Map<string, string>();
+  for (const idSet of byKey.values()) {
+    if (idSet.size < 2) {
+      continue;
+    }
+    for (const [id, tag] of assignGroupTags([...idSet])) {
+      result.set(id, tag);
+    }
+  }
+  return result;
+}
+
+/** id -> tag. ONLY ids in a colliding name-group appear; an empty map means
+ *  no collisions anywhere and therefore zero behaviour change. */
+export type HeaderIdTagMap = ReadonlyMap<string, string>;
+
+/**
  * A sibling AI character present in the conversation window.
  *
  * Separate from {@link Participant} because the two are different kinds of

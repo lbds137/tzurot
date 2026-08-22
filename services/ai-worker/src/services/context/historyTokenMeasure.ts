@@ -20,7 +20,7 @@
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { formatSingleHistoryEntryAsXml } from '../../jobs/utils/conversationUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
-import { renderHistoryEntryForMeasure } from './RealMessagesBuilder.js';
+import { renderHistoryEntryForMeasure, type RealMeasureOptions } from './RealMessagesBuilder.js';
 
 /**
  * Per-message wire framing cost: the role/content envelope a real message
@@ -83,9 +83,9 @@ const WORST_CASE_GAP_LINE_TOKENS = countTextTokens(WORST_CASE_GAP_LINE);
 export function measureHistoryEntryTokens(
   entry: StructuredHistoryEntry,
   personalityName: string,
-  allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string,
-  realMessagesEnabled = false
+  allPersonalityNames: Set<string> | undefined,
+  responderPersonalityId: string | undefined,
+  realMessagesEnabled: boolean
 ): number {
   const xml = formatSingleHistoryEntryAsXml(entry, personalityName, {
     historyEntries: undefined,
@@ -100,11 +100,22 @@ export function measureHistoryEntryTokens(
  * Tokens this entry will cost when it ships as a REAL message (the
  * `realMessagesEnabled` flag-on form), rather than as an XML `<message>`
  * element. Renders through `renderHistoryEntryForMeasure` — the same
- * body-rendering pipeline `buildRealMessages` uses per entry, minus the two
- * per-window inputs that only exist once a window is being shipped (see that
- * function's doc-comment) — then adds the two costs a per-entry render cannot
- * see on its own: the worst-case inter-message gap line, and the per-message
- * wire-framing overhead a real message pays that an XML element does not.
+ * body-rendering pipeline `buildRealMessages` uses per entry, minus the ONE
+ * per-window input that only exists once a window is being shipped (the
+ * inter-message gap line; see that function's doc-comment) — then adds the
+ * two costs a per-entry render cannot see on its own: the worst-case
+ * inter-message gap line, and the per-message wire-framing overhead a real
+ * message pays that an XML element does not.
+ *
+ * The header id-tag map, by contrast, IS threaded through (via `opts`) rather
+ * than over-charged as a worst case: unlike the gap line (which depends on a
+ * NEIGHBOUR entry the per-entry measure cannot see), whether THIS entry gets a
+ * tag depends only on its own speaker id and the window-level collision map —
+ * both of which are already in scope wherever this function is called
+ * (`ContextWindowManager`/`MemoryBudgetManager` compute the map once per turn
+ * and thread it down). Measure-form and ship-form therefore resolve the tag
+ * through the exact same helper (`resolveIdTag`), so the two can never
+ * disagree about whether or how an entry is tagged.
  *
  * Returns 0 for a row the real-message render skips entirely (matching what
  * the prompt will actually contain), same contract as
@@ -112,18 +123,9 @@ export function measureHistoryEntryTokens(
  */
 export function measureHistoryEntryRealTokens(
   entry: StructuredHistoryEntry,
-  personalityName: string,
-  allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string,
-  realMessagesEnabled = true
+  opts: RealMeasureOptions
 ): number {
-  const content = renderHistoryEntryForMeasure(
-    entry,
-    personalityName,
-    allPersonalityNames,
-    responderPersonalityId,
-    realMessagesEnabled
-  );
+  const content = renderHistoryEntryForMeasure(entry, opts);
   if (content.length === 0) {
     return 0;
   }
