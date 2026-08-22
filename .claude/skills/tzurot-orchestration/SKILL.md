@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-16'
+lastUpdated: '2026-08-21'
 ---
 
 # Orchestrator Mode
@@ -30,11 +30,11 @@ gate (`00-critical.md` § Merge Approval), which is model-independent. Schema an
 migration work, and any owner-taste call, still escalate to the owner regardless
 of driver.
 
-| Driver                                                 | Posture                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop** _(design / semantic / taste work)_ | Delegate implementation to `opus-implementer` by DEFAULT. "It's small" is not an inline justification. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit.                 |
-| **Opus main loop** _(DEFAULT — drain sessions)_        | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).               |
-| **Bulk reading/exploration**                           | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table). |
+| Driver                                                 | Posture                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop** _(design / semantic / taste work)_ | **Nested dispatch is the STANDARD** (owner verdict, TASK-718) — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit. |
+| **Opus main loop** _(DEFAULT — drain sessions)_        | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).                                                      |
+| **Bulk reading/exploration**                           | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                        |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
 the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
@@ -65,6 +65,80 @@ status does not bar appends, and appends are file edits only — the CLI's
 AND drop mechanical-class delegation back to Opus for subsequent units.
 Resume Sonnet only when the recorded analysis attributes the defect to
 spec/scope rather than the worker tier, or the owner calls it.
+
+## Nested dispatch — the Fable-driver standard
+
+One Agent call (`subagent_type: "general-purpose"`, `model: "opus"`,
+`isolation: "worktree"`) whose prompt IS a full orchestration spec — every
+section of the spec template below, plus the nested-specific contract points
+here. The Opus orchestrator grounds itself in the worktree, spawns ONE Sonnet
+worker (`model: "sonnet"`, NO isolation flag — it must edit the
+orchestrator's own worktree; absolute paths, `pwd` confirmed) for the
+mechanical edits, runs every verification gate, and reports with verbatim gate
+tails.
+
+How this composes with § Worker model tier: that section's single-hop
+`model: sonnet` dispatch is the OPUS-DRIVER rule and is unchanged. Under
+nested dispatch the Opus layer is NOT skipped for mechanical-class units — the
+layer is the quality mechanism (independent grounding, gates, and an honest
+report), not a tier choice — and the inner worker stays Sonnet regardless of
+unit class: semantic judgment inside the diff belongs to the ORCHESTRATOR
+layer, which resolves it itself rather than promoting the worker (the observed
+shape across the evidence ledger — orchestrators made the judgment calls and
+delegated only the mechanical application). Evidence ledger: TASK-718 (four units, zero worker-tier defects; the
+orchestrators repeatedly caught errors in the DISPATCH spec, which is the
+fresh-context value the pattern buys).
+
+The dispatch prompt's non-negotiable contract points:
+
+- **Step 0 is base-SHA verification with the self-heal authorized** (§ "The
+  base IS stale by default"). Name the SHA with its subject line. A LOCAL-only
+  commit is a valid base — the worktree shares the object store, so committing
+  a precursor (e.g. a schema/migration half) on the feature branch in the main
+  tree and dispatching against that SHA works without any push.
+- **Work the harness cannot do in a worktree stays with the main loop**:
+  anything needing `.env` or the local dev DB (migrations, `db:*` commands)
+  is done in the MAIN tree and committed as the base the worker self-heals
+  onto.
+- **NO commits, branches, or pushes** — the deliverable is a dirty worktree
+  plus the report. This supersedes spec-template item 7 for nested dispatch:
+  the harness's own `worktree-agent-*` branch already satisfies branch setup,
+  and step 0's base verification takes item 7's place as the separate first
+  step.
+- **Expect a bare worktree**: no node_modules, no built dist. The prompt says
+  to run `pnpm install` + `pnpm --filter "./packages/**" build` up front, and
+  that "Failed to resolve entry for package @tzurot/…" means unbuilt dist,
+  not a bad diff. Per-package `.bin` links arrive incomplete — the root-hoisted
+  `node_modules/.bin/vitest` from the package dir is the fallback when
+  `pnpm --filter <pkg> test` cannot resolve.
+- **Verification gates enumerated as exact commands** with the instruction to
+  capture verbatim tails, run sequentially, and never run repo-wide heavy
+  commands. Canaries (Core Principle 9) named in the spec get run and reported.
+
+When the orchestrator reports, Fable's side is unchanged in substance from
+§ When the worker reports, plus the transfer shape that keeps gates out of the
+half-linked worktree: read the FULL diff in the worktree; then
+`git -C <worktree> add -A && git -C <worktree> diff --cached > patch` — the
+`add -A` first, because a plain `git diff` NEVER includes untracked files, so
+a unit that created a file (a new module's colocated test is the routine case)
+would transfer incomplete while every later check passed → confirm the main
+tree's feature branch is still at the SHA the dispatch named as base (work
+done in the main tree during the dispatch window moves the application
+target silently) → `git apply` there → **verify the applied diff is byte-identical
+to the patch AND that `git -C <worktree> status --porcelain` lists nothing
+outside it** → verify the worktree has no unpushed commits, then
+`git worktree remove --force` (sanctioned ONLY here, and resting on BOTH
+preceding checks: the byte-identical diff covers everything uncommitted, and
+the no-unpushed-commits check covers anything a worker committed against its
+contract — either alone leaves a loss window) → run the touched packages' test suites and `pnpm quality` in the main tree (sequentially) → commit → PR →
+monitor. The
+review gate is not delegated and not skipped for a clean-looking report — the
+evidence ledger records TWO defects that reached review, both caught only by
+claude-review: a shipped test gap missed by the nested orchestrator AND the
+Fable diff read, and a shipped code bug in an untouched caller of the changed
+function — outside the worker's diff entirely, so only Fable's spec scoping
+and diff read were positioned to catch it, and both missed. Together they are
+the argument for keeping every layer, not for trusting any one of them.
 
 ## The spec template
 
@@ -97,12 +171,16 @@ a gap the worker will fill by guessing.
 ## Worktree spawns
 
 **Any worker that MUTATES files runs with `isolation: "worktree"` on the Agent
-call — no exceptions.** A same-tree file-mutating worker and an orchestrator
+call — no exceptions but one: the INNER worker of a nested-dispatch pair runs
+with no isolation flag, because its job is to edit the outer orchestrator's
+already-isolated worktree, not a third tree (§ Nested dispatch).** A same-tree file-mutating worker and an orchestrator
 that keeps using `git checkout` are fighting over one working tree: the
 orchestrator's branch hop silently carries the worker's uncommitted edits onto
 another branch (observed live — the first Sonnet-pilot unit had its branch
-yanked mid-edit). Same-tree spawns are for read-only analysis only. Should the
-rule nonetheless be violated and a file-mutating worker found sharing the tree,
+yanked mid-edit). Same-tree spawns are for read-only analysis only — plus the sanctioned
+nested-dispatch inner worker above, which is not a violation. Should the rule
+nonetheless be violated and an UNsanctioned file-mutating worker found sharing
+the tree,
 the damage-control posture is: the orchestrator FREEZES its own git operations
 (checkout, pull, rebase, merge) until the worker reports.
 
@@ -112,6 +190,10 @@ after dispatch**, before the orchestrator does anything else with git:
 ```bash
 git worktree list        # a NEW tree must be listed for the worker
 ```
+
+(This checkpoint is for workers dispatched WITH the isolation flag — the
+sanctioned nested-dispatch inner worker is expected to appear in no list of
+its own, and its absence is not a freeze trigger.)
 
 Only the main tree listed means the worker is in the SHARED tree despite
 `isolation: "worktree"` (observed: a spawn silently got no worktree, the worker
