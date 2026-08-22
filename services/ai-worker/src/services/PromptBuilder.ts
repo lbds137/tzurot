@@ -27,8 +27,8 @@ import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { extractContentDescriptions } from './RAGUtils.js';
 import {
   PLATFORM_CONSTRAINTS,
-  OUTPUT_CONSTRAINTS,
   buildIdentityConstraints,
+  buildOutputConstraints,
 } from './prompt/HardcodedConstraints.js';
 import {
   buildDisambiguatedDisplayName,
@@ -58,6 +58,16 @@ interface BuildSystemMessageOptions {
    */
   participantPersonas: Map<string, ParticipantInfo>;
   serializedHistory?: string;
+  /**
+   * PR 2.3 rollout flag (`realMessagesEnabled`). Default false so every
+   * existing caller (`voiceArms.ts`'s frozen arm B, `ContentBudgetManager`'s
+   * pre-flag call sites once threaded) keeps today's bytes without an edit.
+   * Threads to `buildOutputConstraints` (S0) and `formatParticipantsContext`
+   * (S1) — the two flag-gated prompt-text additions (D6 of the PR 2.3 build
+   * spec). Does NOT itself decide whether `chat_log` renders — that is
+   * `serializedHistory` being `''` vs. populated, decided by the caller.
+   */
+  realMessagesEnabled?: boolean;
 }
 
 /** Options for building the V-tier prefix of the current user message. */
@@ -247,7 +257,13 @@ export class PromptBuilder {
     message: SystemMessage;
     sections: SectionDescription[];
   } {
-    const { personality, context, participantPersonas, serializedHistory } = options;
+    const {
+      personality,
+      context,
+      participantPersonas,
+      serializedHistory,
+      realMessagesEnabled = false,
+    } = options;
 
     const { persona, protocol } = formatPersonalityFields(
       personality,
@@ -278,7 +294,10 @@ ${escapeXmlContent(persona)}
     // Identity constraints — static per persona. The name-collision note rides
     // inside the participants block below, which is where the roster it
     // disambiguates lives.
-    const identityConstraintsSection = buildIdentityConstraints(personality.name);
+    const identityConstraintsSection = buildIdentityConstraints(
+      personality.name,
+      realMessagesEnabled
+    );
 
     // Where the conversation is happening. Rendered here rather than in the
     // volatile prefix: the location is stable for the whole channel, so it
@@ -320,10 +339,15 @@ ${escapeXmlContent(persona)}
       participantPersonas,
       personality.name,
       characters,
-      context.characterBlurbs
+      context.characterBlurbs,
+      realMessagesEnabled
     );
 
-    // Conversation history as XML (legend lives in buildChatLogSection)
+    // Conversation history as XML (legend lives in buildChatLogSection).
+    // Flag-on ships `serializedHistory: ''` from the caller (real messages
+    // carry the history instead), so this section already renders empty —
+    // no separate omission branch needed (buildChatLogSection and
+    // layoutSections both already treat an empty string as "omit").
     const chatLogSection = buildChatLogSection(serializedHistory, personality.name);
 
     // Protocol. Outer escape kept: it also covers the LEGACY raw-systemPrompt
@@ -334,7 +358,11 @@ ${escapeXmlContent(persona)}
 
     const sections: PromptSection[] = [
       { id: 'platform_constraints', tier: 'S0', render: () => PLATFORM_CONSTRAINTS },
-      { id: 'output_constraints', tier: 'S0', render: () => OUTPUT_CONSTRAINTS },
+      {
+        id: 'output_constraints',
+        tier: 'S0',
+        render: () => buildOutputConstraints(realMessagesEnabled),
+      },
       { id: 'system_identity', tier: 'S1', render: () => identitySection },
       { id: 'identity_constraints', tier: 'S1', render: () => identityConstraintsSection },
       { id: 'protocol', tier: 'S1', render: () => protocolSection },

@@ -59,6 +59,7 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   stickerVisionEnabled: '🏷️',
   nightlySyncEnabled: '🌙',
   nightlySyncHourUtc: '🕒',
+  realMessagesEnabled: '💬',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */

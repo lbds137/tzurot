@@ -103,67 +103,57 @@ function formatFromIdAttribute(msg: StructuredHistoryEntry, role: ChatLogRole): 
 }
 
 /**
- * Format a single history entry as XML
- *
- * This is the single source of truth for history message formatting.
- * Used by both formatConversationHistoryAsXml (for prompt generation) and
- * MemoryBudgetManager (for token counting).
- *
- * Format: <message from="Name" role="user|assistant|character" time="2m ago">content</message>
- *
- * Role is relative to the responding personality — a sibling persona's
- * message renders as role="character" (see resolveSpeakerInfo).
- *
- * When a user's persona name matches ANY AI personality name in the conversation
- * (e.g., user "Lila" in a channel with "Lila AI"), the user's name is disambiguated
- * as "Lila (@discordUsername)" to prevent confusion.
- *
- * @param msg - Raw history entry to format
- * @param personalityName - Name of the AI personality (for marking its own messages)
- * @param historyEntries - Optional Discord-message-ID → history entry index. The
- *   key decides quote deduplication; the entry answers what the chat log already
- *   renders for a deduped quote, so the stub can subtract what would be a repeat.
- * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
- * @param responderPersonalityId - The responding personality's id. Decides
- *   self-vs-sibling exactly for rows carrying their own `personalityId`;
- *   omitted, the name comparison decides (see `resolveAssistantRowRole`).
- * @returns Formatted XML string, or empty string if message should be skipped
+ * Options threaded into {@link renderHistoryEntryBody} — the auxiliary
+ * dedup/collision inputs, shared verbatim with `formatSingleHistoryEntryAsXml`
+ * and `RealMessagesBuilder` so both containers scope quote-dedup and name
+ * collision identically over the SAME selected window.
  */
-export function formatSingleHistoryEntryAsXml(
+export interface HistoryEntryBodyOptions {
+  personalityName: string;
+  historyEntries?: Map<string, StructuredHistoryEntry>;
+  allPersonalityNames?: Set<string>;
+  responderPersonalityId?: string;
+}
+
+/**
+ * Render one history entry's BODY — everything a `<message>` element and a
+ * real-message's content share: quoted/forwarded content, image/embed/voice
+ * sections, and reactions. Deliberately excludes the XML-only envelope
+ * (`from=`/`from_id=`/`role=`/`t=` attributes and the `<message>` wrapper),
+ * which has no home on a real LangChain message — those stay in
+ * `formatSingleHistoryEntryAsXml`, the ONLY caller that needs them.
+ *
+ * Single source of truth for the metadata-rich part of an entry's render:
+ * extracted so the flag-gated real-message path (`RealMessagesBuilder`)
+ * reuses this by calling it, never by re-deriving it — a second
+ * implementation is exactly how a field (the quoted role, the forwarded flag)
+ * went missing from one path before (see `RenderableReference.ts`'s history).
+ *
+ * Deliberate consequence: `escapeXmlContent`'s protected-tag escaping applies
+ * in BOTH containers, so a literal `<chat_log>` typed by a user renders as
+ * `&lt;chat_log&gt;` even in a real message with no enclosing XML document.
+ * Accepted trade: the body embeds XML sub-fragments (quotes, attachments)
+ * either way, and identical bytes across flag states is what the body-parity
+ * test pins — un-escaping one container would fork the renderer this
+ * extraction exists to unify.
+ *
+ * @param msg - Raw history entry to render
+ * @param speakerInfo - This entry's resolved speaker (`resolveSpeakerInfo`'s
+ *   result) — the caller resolves it once and passes it here AND uses it for
+ *   its own envelope, so the two never disagree about who is speaking.
+ * @param opts - The dedup/collision inputs (see {@link HistoryEntryBodyOptions}).
+ * @returns The bare body string (no leading/trailing separator).
+ */
+export function renderHistoryEntryBody(
   msg: StructuredHistoryEntry,
-  personalityName: string,
-  historyEntries?: Map<string, StructuredHistoryEntry>,
-  allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string
+  speakerInfo: { speakerName: string; role: ChatLogRole; normalizedRole: string },
+  opts: HistoryEntryBodyOptions
 ): string {
-  const speakerInfo = resolveSpeakerInfo(
-    msg,
-    personalityName,
-    allPersonalityNames,
-    responderPersonalityId
-  );
-  if (speakerInfo === null) {
-    return '';
-  }
-
-  const { speakerName, role, normalizedRole } = speakerInfo;
-
-  // Absolute-only timestamp: "YYYY-MM-DD (Day) HH:MM". Chat-log entries are
-  // frozen content — a relative suffix (or the old 7-day format switch) would
-  // re-render differently as time passes and silently break the provider
-  // prompt-cache prefix at the oldest drifted message. Elapsed-time cues live
-  // in the <time_gap> markers, which are inter-message deltas and stable.
-  const timeAttr =
-    msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` t="${escapeXml(formatAbsoluteTimestamp(msg.createdAt))}"`
-      : '';
+  const { personalityName, historyEntries, allPersonalityNames, responderPersonalityId } = opts;
+  const { normalizedRole } = speakerInfo;
 
   // Escape content to prevent XML injection
   const safeContent = escapeXmlContent(msg.content);
-  // Escape speaker name for use in attribute (quotes could break the XML)
-  const safeSpeaker = escapeXml(speakerName);
-
-  const fromIdAttr = formatFromIdAttribute(msg, role);
 
   // Format metadata sections using helpers
   const quotedSection = formatQuotedSection({
@@ -228,7 +218,78 @@ export function formatSingleHistoryEntryAsXml(
   }
 
   // Reactions stay at message level (forwarder can react to their own forward)
-  return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${formattedContent}${quotedSection}${messageLevelAttachments}${reactionsSection}</message>`;
+  return `${formattedContent}${quotedSection}${messageLevelAttachments}${reactionsSection}`;
+}
+
+/**
+ * Format a single history entry as XML
+ *
+ * This is the single source of truth for history message formatting.
+ * Used by both formatConversationHistoryAsXml (for prompt generation) and
+ * MemoryBudgetManager (for token counting).
+ *
+ * Format: <message from="Name" role="user|assistant|character" time="2m ago">content</message>
+ *
+ * Role is relative to the responding personality — a sibling persona's
+ * message renders as role="character" (see resolveSpeakerInfo).
+ *
+ * When a user's persona name matches ANY AI personality name in the conversation
+ * (e.g., user "Lila" in a channel with "Lila AI"), the user's name is disambiguated
+ * as "Lila (@discordUsername)" to prevent confusion.
+ *
+ * @param msg - Raw history entry to format
+ * @param personalityName - Name of the AI personality (for marking its own messages)
+ * @param historyEntries - Optional Discord-message-ID → history entry index. The
+ *   key decides quote deduplication; the entry answers what the chat log already
+ *   renders for a deduped quote, so the stub can subtract what would be a repeat.
+ * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
+ * @param responderPersonalityId - The responding personality's id. Decides
+ *   self-vs-sibling exactly for rows carrying their own `personalityId`;
+ *   omitted, the name comparison decides (see `resolveAssistantRowRole`).
+ * @returns Formatted XML string, or empty string if message should be skipped
+ */
+export function formatSingleHistoryEntryAsXml(
+  msg: StructuredHistoryEntry,
+  personalityName: string,
+  historyEntries?: Map<string, StructuredHistoryEntry>,
+  allPersonalityNames?: Set<string>,
+  responderPersonalityId?: string
+): string {
+  const speakerInfo = resolveSpeakerInfo(
+    msg,
+    personalityName,
+    allPersonalityNames,
+    responderPersonalityId
+  );
+  if (speakerInfo === null) {
+    return '';
+  }
+
+  const { speakerName, role } = speakerInfo;
+
+  // Absolute-only timestamp: "YYYY-MM-DD (Day) HH:MM". Chat-log entries are
+  // frozen content — a relative suffix (or the old 7-day format switch) would
+  // re-render differently as time passes and silently break the provider
+  // prompt-cache prefix at the oldest drifted message. Elapsed-time cues live
+  // in the <time_gap> markers, which are inter-message deltas and stable.
+  const timeAttr =
+    msg.createdAt !== undefined && msg.createdAt.length > 0
+      ? ` t="${escapeXml(formatAbsoluteTimestamp(msg.createdAt))}"`
+      : '';
+
+  // Escape speaker name for use in attribute (quotes could break the XML)
+  const safeSpeaker = escapeXml(speakerName);
+
+  const fromIdAttr = formatFromIdAttribute(msg, role);
+
+  const body = renderHistoryEntryBody(msg, speakerInfo, {
+    personalityName,
+    historyEntries,
+    allPersonalityNames,
+    responderPersonalityId,
+  });
+
+  return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${body}</message>`;
 }
 
 /**

@@ -18,6 +18,7 @@ import type {
   MemoryDocument,
   DiscordEnvironment,
   ConversationContext,
+  ParticipantInfo,
 } from './ConversationalRAGTypes.js';
 
 // Factory function for ProcessedAttachment
@@ -1383,6 +1384,74 @@ describe('PromptBuilder', () => {
 
         expect(system).not.toContain('<participant id="fake">');
         expect(system).toContain('&lt;/name&gt;&lt;/participant&gt;');
+      });
+    });
+
+    describe('realMessagesEnabled (PR 2.3)', () => {
+      it('renders <chat_log> from whatever serializedHistory says, flag on or off — the flag does NOT independently suppress it here', () => {
+        // Suppression is the CALLER's responsibility: ContentBudgetManager
+        // passes serializedHistory: '' when the flag is on (see its
+        // ContentBudgetManager.test.ts coverage). buildSystemMessage itself
+        // renders exactly what serializedHistory says, regardless of
+        // realMessagesEnabled — there is no separate omission branch here.
+        const system = promptBuilder.buildSystemMessage({
+          personality: minimalPersonality,
+          context: minimalContext,
+          participantPersonas: new Map(),
+          serializedHistory: '<message from="X" role="user">hi</message>',
+          realMessagesEnabled: true,
+        }).message.content as string;
+
+        expect(system).toContain('<chat_log>');
+      });
+
+      it('omits <chat_log> when serializedHistory is empty, flag on or off alike', () => {
+        const on = promptBuilder.buildSystemMessage({
+          personality: minimalPersonality,
+          context: minimalContext,
+          participantPersonas: new Map(),
+          serializedHistory: '',
+          realMessagesEnabled: true,
+        }).message.content as string;
+
+        expect(on).not.toContain('<chat_log>');
+      });
+
+      it('adds the header-leakage output constraint only when the flag is on', () => {
+        const off = promptBuilder.buildSystemMessage({
+          personality: minimalPersonality,
+          context: minimalContext,
+          participantPersonas: new Map(),
+        }).message.content as string;
+        const on = promptBuilder.buildSystemMessage({
+          personality: minimalPersonality,
+          context: minimalContext,
+          participantPersonas: new Map(),
+          realMessagesEnabled: true,
+        }).message.content as string;
+
+        expect(off).not.toContain('bracket-header form');
+        expect(on).toContain('bracket-header form');
+      });
+
+      it('adds the fictional-interlocutor roster note only when the flag is on', () => {
+        const roster = new Map<string, ParticipantInfo>([
+          ['p-1', { personaName: 'Alice', content: 'hi', isActive: true, personaId: 'p-1' }],
+        ]);
+        const off = promptBuilder.buildSystemMessage({
+          personality: minimalPersonality,
+          context: minimalContext,
+          participantPersonas: roster,
+        }).message.content as string;
+        const on = promptBuilder.buildSystemMessage({
+          personality: minimalPersonality,
+          context: minimalContext,
+          participantPersonas: roster,
+          realMessagesEnabled: true,
+        }).message.content as string;
+
+        expect(off).not.toContain('fictional interlocutor');
+        expect(on).toContain('fictional interlocutor');
       });
     });
   });

@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SystemMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
 import { promptHash } from './cacheObservability.js';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
@@ -28,6 +28,17 @@ import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types/constants/me
 // without exercising the real key-resolution path.
 const { mockResolveVisionConfig } = vi.hoisted(() => ({
   mockResolveVisionConfig: vi.fn(),
+}));
+
+// The realMessagesEnabled rollout flag (PR 2.3). Hoisted so the mock factory
+// (which runs at import time) can close over a mutable flag — a plain `let`
+// initializes AFTER the factory would already need it. Defaults false so
+// every existing test in this file sees today's byte-identical shape; the
+// "real messages (PR 2.3)" describe block below flips it per test.
+const { settingsState } = vi.hoisted(() => ({ settingsState: { realMessagesEnabled: false } }));
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: (key: string) =>
+    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false,
 }));
 
 // One shared logger spy for every createLogger() consumer in this module graph,
@@ -478,6 +489,151 @@ describe('ConversationalRAGService', () => {
       const result = await service.generateResponse(personality, 'Test', context);
 
       expect(result.modelUsed).toBe('test-model');
+    });
+  });
+
+  describe('real messages (PR 2.3) — the invokeModelAndClean seam', () => {
+    afterEach(() => {
+      settingsState.realMessagesEnabled = false;
+    });
+
+    it('flag-off: ships [system, human] — byte-identical to today', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test message', context);
+
+      const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
+        messages: BaseMessage[];
+      };
+      expect(invokeArgs.messages).toHaveLength(2);
+      expect(invokeArgs.messages[0]).toBeInstanceOf(SystemMessage);
+      expect(invokeArgs.messages[1]).toBeInstanceOf(HumanMessage);
+    });
+
+    it('flag-on: ships [system, crossChannelHuman, ...history, currentHuman] in exact order and roles', async () => {
+      settingsState.realMessagesEnabled = true;
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      getContextWindowManagerMock().selectAndSerializeHistory.mockReturnValue({
+        serializedHistory: '<chat_log/>',
+        historyTokensUsed: 50,
+        messagesIncluded: 2,
+        messagesDropped: 0,
+        crossChannelMessagesIncluded: 1,
+        selectedEntries: [
+          {
+            role: 'user',
+            content: 'hi',
+            personaId: 'persona-1',
+            personaName: 'Vlad',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'hello',
+            personalityId: personality.id,
+            personalityName: personality.name,
+            createdAt: '2026-01-01T00:05:00.000Z',
+          },
+        ],
+        crossChannelXml:
+          '<prior_conversations>\n<channel_history>old chat</channel_history>\n</prior_conversations>',
+      });
+
+      await service.generateResponse(personality, 'Test message', context);
+
+      const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
+        messages: BaseMessage[];
+      };
+      const lastHumanBuild = getPromptBuilderMock().buildHumanMessage.mock.results.at(-1)
+        ?.value as { message: BaseMessage };
+
+      expect(invokeArgs.messages).toHaveLength(5);
+      expect(invokeArgs.messages[0]).toBeInstanceOf(SystemMessage);
+      expect(invokeArgs.messages[1]).toBeInstanceOf(HumanMessage);
+      expect(String(invokeArgs.messages[1].content)).toContain('<prior_conversations>');
+      expect(invokeArgs.messages[2]).toBeInstanceOf(HumanMessage);
+      expect(String(invokeArgs.messages[2].content)).toContain('hi');
+      expect(invokeArgs.messages[3]).toBeInstanceOf(AIMessage);
+      expect(String(invokeArgs.messages[3].content)).toContain('hello');
+      // The final human turn is STILL the budget allocation's own build —
+      // never rebuilt, same invariant as the flag-off seam test above.
+      expect(invokeArgs.messages[4]).toBe(lastHumanBuild.message);
+    });
+
+    it('flag-on with history but NO cross-channel: ships [system, ...history, currentHuman] with nothing spliced between system and history', async () => {
+      settingsState.realMessagesEnabled = true;
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      getContextWindowManagerMock().selectAndSerializeHistory.mockReturnValue({
+        serializedHistory: '<chat_log/>',
+        historyTokensUsed: 30,
+        messagesIncluded: 2,
+        messagesDropped: 0,
+        crossChannelMessagesIncluded: 0,
+        selectedEntries: [
+          {
+            role: 'user',
+            content: 'hi',
+            personaId: 'persona-1',
+            personaName: 'Vlad',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'hello',
+            personalityId: personality.id,
+            personalityName: personality.name,
+            createdAt: '2026-01-01T00:05:00.000Z',
+          },
+        ],
+        crossChannelXml: '',
+      });
+
+      await service.generateResponse(personality, 'Test message', context);
+
+      const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
+        messages: BaseMessage[];
+      };
+
+      // Four messages, no cross-channel element: history starts directly at
+      // index 1. The empty-XML case must not splice an empty HumanMessage in.
+      expect(invokeArgs.messages).toHaveLength(4);
+      expect(invokeArgs.messages[0]).toBeInstanceOf(SystemMessage);
+      expect(invokeArgs.messages[1]).toBeInstanceOf(HumanMessage);
+      expect(String(invokeArgs.messages[1].content)).toContain('hi');
+      expect(String(invokeArgs.messages[1].content)).not.toContain('<prior_conversations>');
+      expect(invokeArgs.messages[2]).toBeInstanceOf(AIMessage);
+      expect(String(invokeArgs.messages[2].content)).toContain('hello');
+      expect(invokeArgs.messages[3]).toBeInstanceOf(HumanMessage);
+    });
+
+    it('flag-on with no cross-channel XML and no history: falls back to [system, human]', async () => {
+      settingsState.realMessagesEnabled = true;
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      getContextWindowManagerMock().selectAndSerializeHistory.mockReturnValue({
+        serializedHistory: '',
+        historyTokensUsed: 0,
+        messagesIncluded: 0,
+        messagesDropped: 0,
+        crossChannelMessagesIncluded: 0,
+        selectedEntries: [],
+        crossChannelXml: '',
+      });
+
+      await service.generateResponse(personality, 'Test message', context);
+
+      const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
+        messages: BaseMessage[];
+      };
+      expect(invokeArgs.messages).toHaveLength(2);
+      expect(invokeArgs.messages[0]).toBeInstanceOf(SystemMessage);
+      expect(invokeArgs.messages[1]).toBeInstanceOf(HumanMessage);
     });
   });
 

@@ -6,15 +6,19 @@
  * file size and separate concerns.
  */
 
-import type { HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { contentToText } from '../utils/baseMessageContent.js';
 import {
   buildHistoryMessageIdSet,
   type ResponderIdentity,
 } from '../jobs/utils/conversationUtils.js';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
+import { buildCrossChannelMessage, buildRealMessages } from './context/RealMessagesBuilder.js';
+import { logBudgetAllocation } from './budgetAllocationLog.js';
 import {
   formatSingleFact,
   getFactsWrapperOverheadText,
@@ -84,6 +88,22 @@ export interface PreselectedHistory {
   /** Discord snowflakes of every shipped current-channel entry (incl. chunk
    * ids) — the authoritative ID-dedup set. */
   shippedMessageIds: Set<string>;
+  /** The current-channel entries that actually shipped, chronological order
+   * (PR 2.3). Populated FLAG-NEUTRALLY — `RealMessagesBuilder` consumes this
+   * only when `realMessagesEnabled` is on; flag-off, it is computed and
+   * unused, same as `serializedHistory` is computed and unused in reverse. */
+  selectedEntries: StructuredHistoryEntry[];
+  /** The `<prior_conversations>` XML `ContextWindowManager` produced (empty
+   * when cross-channel is disabled or nothing fit). Also flag-neutral —
+   * consumed only when `realMessagesEnabled` is on, as its own leading
+   * `HumanMessage` (§9c). */
+  crossChannelXml: string;
+  /** The `realMessagesEnabled` value THIS pre-pass measured under. `allocate`
+   * consumes this rather than re-reading the live setting: the base-token
+   * measurement and the shipped system message must see the SAME flag value
+   * or the budget identity breaks, and a live flip between the two calls
+   * would otherwise skew it silently. */
+  realMessagesEnabled: boolean;
 }
 
 export class ContentBudgetManager {
@@ -108,13 +128,22 @@ export class ContentBudgetManager {
     const { personality, context } = opts;
     const contextWindowTokens = opts.effectiveContextWindowTokens;
 
+    // Read ONCE per turn, here, and carried to `allocate` on the returned
+    // PreselectedHistory: the base-token measurement below and the final
+    // system message built in `allocate` must see the SAME flag value, or the
+    // budget identity this class maintains (systemPromptBaseTokens must equal
+    // what the shipped system message actually costs) breaks exactly like it
+    // would if the two calls saw different `participantPersonas`.
+    const realMessagesEnabled = this.isRealMessagesEnabled();
+
     // Cast is safe: buildBaseComponents reads only prompt/message inputs,
     // never the omitted retrieval fields (retrievedMemories/facts) — they
     // don't exist yet at pre-pass time, which is the whole point. If
     // buildBaseComponents ever grows a retrieval-field read, narrow its
     // parameter type instead of widening this call.
     const { currentMessage, contentForStorage, systemPromptBaseTokens } = this.buildBaseComponents(
-      opts as BudgetAllocationOptions
+      opts as BudgetAllocationOptions,
+      realMessagesEnabled
     );
     const currentMessageTokens = this.promptBuilder.countTokens(
       contentToText(currentMessage.content)
@@ -147,6 +176,7 @@ export class ContentBudgetManager {
       messagesDropped,
       crossChannelMessagesIncluded,
       selectedEntries,
+      crossChannelXml,
     } = this.contextWindowManager.selectAndSerializeHistory(
       context.rawConversationHistory,
       responder,
@@ -176,7 +206,20 @@ export class ContentBudgetManager {
       crossChannelMessagesIncluded,
       oldestSelectedTs,
       shippedMessageIds: buildHistoryMessageIdSet(selectedEntries),
+      selectedEntries,
+      crossChannelXml,
+      realMessagesEnabled,
     };
+  }
+
+  /**
+   * Reads the `realMessagesEnabled` runtime flag (PR 2.3 of the
+   * prompt-assembly epic). Read ONCE per turn, in `preselectHistory`, and
+   * carried to `allocate` on `PreselectedHistory.realMessagesEnabled` — see
+   * that field's doc for why the two must agree.
+   */
+  private isRealMessagesEnabled(): boolean {
+    return getSystemSetting('realMessagesEnabled') === true;
   }
 
   /**
@@ -270,6 +313,9 @@ export class ContentBudgetManager {
       historyBudget,
       messagesDropped,
       crossChannelMessagesIncluded,
+      selectedEntries,
+      crossChannelXml,
+      realMessagesEnabled,
     } = preselected;
 
     const dedupedMemories = this.filterShippedMemories(
@@ -314,20 +360,41 @@ export class ContentBudgetManager {
         personalityName: processedPersonality.name,
       }
     );
+    // Flag-on: the system message's `chat_log` section must render EMPTY
+    // (real messages carry history instead) — but `serializedHistory` itself
+    // (returned below, unchanged) keeps carrying the full XML in BOTH modes,
+    // because diagnostics/prefix-cache observability read it regardless of
+    // which container ships it. Only this ONE build call gets the empty
+    // string; nothing else in this method may re-derive from it.
     const { message: systemPrompt, sections: systemPromptSections } =
       this.promptBuilder.buildSystemMessage({
         personality: processedPersonality,
         context,
         participantPersonas,
-        serializedHistory,
+        serializedHistory: realMessagesEnabled ? '' : serializedHistory,
+        realMessagesEnabled,
       });
 
-    this.logAllocation({
+    // Real-message form of the shipped history, built ONLY flag-on. Reuses
+    // `measureHistoryEntryTokens` for its OWN token accounting (D7) — this
+    // class does not re-measure here. The XML-form measure over-estimates the
+    // real-message form even with a gap line on every message (envelope
+    // attributes outweigh gap lines ~2x on minimal content) — the safe
+    // direction for a budget; pinned by the "XML measure over-estimates"
+    // test in RealMessagesBuilder.test.ts, not just asserted here.
+    const historyMessages: BaseMessage[] = realMessagesEnabled
+      ? buildRealMessages(selectedEntries, processedPersonality.name, processedPersonality.id)
+      : [];
+    const crossChannelMessage = realMessagesEnabled
+      ? buildCrossChannelMessage(crossChannelXml)
+      : undefined;
+
+    logBudgetAllocation({
       contextWindowTokens,
       systemPromptBaseTokens,
       currentMessageTokens,
       memoryTokensUsed,
-      retrievedMemories: opts.retrievedMemories,
+      memoryTokensTotal: this.countMemoryTokensSafe(opts.retrievedMemories),
       historyBudget,
       historyTokensUsed,
       messagesDropped,
@@ -353,6 +420,13 @@ export class ContentBudgetManager {
       // 0 msgs" is the silent-skip that hides bugs in the time-filter / fetch
       // path. Disabled turns omit the field entirely (groups === undefined).
       ...(opts.context.crossChannelHistory !== undefined ? { crossChannelMessagesIncluded } : {}),
+      // Flag-OFF: both fields absent entirely — byte-parity means nothing new
+      // for `invokeModelAndClean` to splice into the message array, not an
+      // empty array it still has to check. Flag-ON: `historyMessages` is
+      // always present (possibly `[]` if nothing survived selection);
+      // `crossChannelMessage` only when the XML was non-empty.
+      ...(realMessagesEnabled ? { historyMessages } : {}),
+      ...(realMessagesEnabled && crossChannelMessage !== undefined ? { crossChannelMessage } : {}),
     };
   }
 
@@ -365,7 +439,10 @@ export class ContentBudgetManager {
    * and land in the FINAL human message built in `allocate`.
    * `systemPromptBaseTokens` is the stable S0+S1 prefix only (no history yet).
    */
-  private buildBaseComponents(opts: BudgetAllocationOptions): {
+  private buildBaseComponents(
+    opts: BudgetAllocationOptions,
+    realMessagesEnabled: boolean
+  ): {
     currentMessage: HumanMessage;
     contentForStorage: string;
     systemPromptBaseTokens: number;
@@ -402,11 +479,15 @@ export class ContentBudgetManager {
     // `allocate`. The budget identity (contextWindow − systemPromptBase −
     // currentMessage − memoryReserve) holds only if both calls see the same
     // input; measuring a base without the roster under-counts it and inflates
-    // the history budget by exactly the roster's size.
+    // the history budget by exactly the roster's size. Same requirement now
+    // applies to `realMessagesEnabled`: flag-on adds the S0 constraint (D6a)
+    // and the S1 roster note (D6b), so measuring the base with the WRONG flag
+    // value under- or over-counts it by exactly those bytes.
     const systemPromptBaseOnly = this.promptBuilder.buildSystemMessage({
       personality: processedPersonality,
       context,
       participantPersonas,
+      realMessagesEnabled,
     });
 
     const systemPromptBaseTokens = this.promptBuilder.countTokens(
@@ -513,49 +594,6 @@ export class ContentBudgetManager {
     return selected.length > 0
       ? { selectedFacts: selected, factTokensUsed: used }
       : { selectedFacts: [], factTokensUsed: 0 };
-  }
-
-  private logAllocation(opts: {
-    contextWindowTokens: number;
-    systemPromptBaseTokens: number;
-    currentMessageTokens: number;
-    memoryTokensUsed: number;
-    retrievedMemories: MemoryDocument[];
-    historyBudget: number;
-    historyTokensUsed: number;
-    messagesDropped: number;
-    /** Undefined when cross-channel was disabled this turn; 0 when enabled but
-     *  no eligible messages (still logged so a "why are my logs showing 0?"
-     *  debugging session sees the silent-skip case explicitly). */
-    crossChannelMessagesIncluded: number | undefined;
-  }): void {
-    const {
-      contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens,
-      memoryTokensUsed,
-      retrievedMemories,
-      historyBudget,
-      historyTokensUsed,
-      messagesDropped,
-      crossChannelMessagesIncluded,
-    } = opts;
-    logger.info(
-      {
-        contextWindowTokens,
-        systemPromptBaseTokens,
-        currentMessageTokens,
-        memoryTokensUsed,
-        memoryTokensTotal: this.countMemoryTokensSafe(retrievedMemories),
-        historyBudget,
-        historyTokensUsed,
-        crossChannelMessagesIncluded,
-      },
-      'Token allocation'
-    );
-    if (messagesDropped > 0) {
-      logger.debug({ messagesDropped }, 'Dropped history messages due to token budget');
-    }
   }
 
   /**

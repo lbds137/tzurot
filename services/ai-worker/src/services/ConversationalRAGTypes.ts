@@ -303,6 +303,22 @@ export interface BudgetAllocationResult {
    *  whether their crossChannel + maxAge configuration produced any context.
    *  Undefined when cross-channel was disabled for this turn. */
   crossChannelMessagesIncluded?: number;
+  /**
+   * Real-message form of the shipped current-channel history (PR 2.3 of the
+   * prompt-assembly epic, behind `realMessagesEnabled`). Present ONLY when
+   * the flag is on (possibly `[]` if nothing survived selection) — absent
+   * flag-off, so a flag-off caller sees byte-identical shape to before this
+   * field existed. In chronological order, ready to splice into the provider
+   * message array between the cross-channel message (if any) and the current
+   * turn.
+   */
+  historyMessages?: BaseMessage[];
+  /**
+   * The `<prior_conversations>` XML as its own leading `HumanMessage` (§9c),
+   * present only when the flag is on AND cross-channel produced non-empty
+   * XML. Absent otherwise (flag-off, or cross-channel disabled/empty).
+   */
+  crossChannelMessage?: BaseMessage;
 }
 
 /** Result of model invocation */
@@ -364,6 +380,13 @@ export interface ModelInvocationOptions {
   /** The final human message from the budget allocation (see
    *  BudgetAllocationResult.currentMessage). */
   currentMessage: BaseMessage;
+  /** Real-message history, spliced between the cross-channel message (if
+   *  any) and `currentMessage` (see BudgetAllocationResult.historyMessages).
+   *  Absent/empty is byte-identical to today's `[systemPrompt, currentMessage]`. */
+  historyMessages?: BaseMessage[];
+  /** The `<prior_conversations>` leading message, when present (see
+   *  BudgetAllocationResult.crossChannelMessage). */
+  crossChannelMessage?: BaseMessage;
   /** The user's raw text — post-processing reads it (echo-stripping). */
   userMessage: string;
   context: ConversationContext;

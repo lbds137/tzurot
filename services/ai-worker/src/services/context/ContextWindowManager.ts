@@ -78,6 +78,13 @@ export class ContextWindowManager {
      * keeps a contiguous newest suffix) — the STM/LTM pre-pass derives the
      * EXACT dedup cutoff + shipped-message-id set from these. */
     selectedEntries: StructuredHistoryEntry[];
+    /** The `<prior_conversations>` XML `serializeCrossChannelHistory` produced
+     * (empty when cross-channel is disabled or nothing fit). Populated
+     * regardless of the `realMessagesEnabled` flag — PR 2.3's real-message
+     * path renders this verbatim as its own leading `HumanMessage`; the XML
+     * path already folds it into `serializedHistory` via
+     * `combineHistorySections` and does not need this field separately. */
+    crossChannelXml: string;
   } {
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
@@ -90,6 +97,7 @@ export class ContextWindowManager {
         messagesDropped: rawHistory?.length ?? 0,
         crossChannelMessagesIncluded: 0,
         selectedEntries: [],
+        crossChannelXml: '',
       };
     }
 
@@ -134,6 +142,7 @@ export class ContextWindowManager {
       messagesDropped: (rawHistory?.length ?? 0) - selectedEntries.length,
       crossChannelMessagesIncluded,
       selectedEntries,
+      crossChannelXml,
     };
   }
 

@@ -44,6 +44,16 @@ const {
 });
 
 // Mock the MultimodalProcessor module
+// The realMessagesEnabled gate the contextual_references instruction reads
+// (PR 2.3). Same hoisted-state pattern as RenderableReference.test.ts:
+// defaults false so every pre-existing test sees today's wording; the
+// flag-on test below flips it and restores it.
+const { settingsState } = vi.hoisted(() => ({ settingsState: { realMessagesEnabled: false } }));
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: (key: string) =>
+    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false,
+}));
+
 vi.mock('./MultimodalProcessor.js', () => ({
   describeImage: mockDescribeImage,
   transcribeAudio: mockTranscribeAudio,
@@ -137,6 +147,27 @@ describe('ReferencedMessageFormatter', () => {
 
       expect(result).toContain('<contextual_references>');
       expect(result).toContain('</contextual_references>');
+    });
+
+    it('flag-off instruction names <chat_log>; flag-on names "earlier in the conversation" (PR 2.3, D5b)', async () => {
+      const { formatted: offResult } = await formatter.formatReferencedMessages(
+        [],
+        mockPersonality
+      );
+      expect(offResult).toContain('appears in <chat_log>');
+      expect(offResult).not.toContain('appears earlier in the conversation');
+
+      settingsState.realMessagesEnabled = true;
+      try {
+        const { formatted: onResult } = await formatter.formatReferencedMessages(
+          [],
+          mockPersonality
+        );
+        expect(onResult).toContain('appears earlier in the conversation');
+        expect(onResult).not.toContain('appears in <chat_log>');
+      } finally {
+        settingsState.realMessagesEnabled = false;
+      }
     });
 
     it('should have properly closed XML tags', async () => {
