@@ -9,6 +9,7 @@ import {
   historyStablePrefix,
   logGeneratedResponse,
   promptHash,
+  shippedStablePrefix,
   systemPromptCore,
 } from './cacheObservability.js';
 import { layoutSections, type PromptSection } from './prompt/sections.js';
@@ -136,6 +137,25 @@ describe('historyStablePrefix', () => {
   });
 });
 
+describe('shippedStablePrefix', () => {
+  it('joins all but the last entry with newlines when history shipped', () => {
+    expect(shippedStablePrefix(['<prior/>', 'h1', 'h2'], 2)).toBe('<prior/>\nh1');
+  });
+
+  it('returns undefined when shippedHistoryCount is 0 (cross-channel-only turn)', () => {
+    expect(shippedStablePrefix(['<prior/>'], 0)).toBeUndefined();
+  });
+
+  it('returns undefined for an empty or undefined array', () => {
+    expect(shippedStablePrefix([], 1)).toBeUndefined();
+    expect(shippedStablePrefix(undefined, 1)).toBeUndefined();
+  });
+
+  it('returns the empty string, not undefined, for a lone history message', () => {
+    expect(shippedStablePrefix(['h1'], 1)).toBe('');
+  });
+});
+
 describe('cacheHitRatio', () => {
   it('rounds to two decimals', () => {
     expect(cacheHitRatio(1234, 5678)).toBe(0.22);
@@ -184,6 +204,7 @@ describe('buildCacheObservability', () => {
       systemPromptSections: layoutSections(sections).descriptions,
       serializedHistory: `${ENTRY_A}\n${ENTRY_B}`,
       currentMessageText: '<from name="Vee">hello</from>',
+      shippedHistoryCount: 0,
       history: [
         { createdAt: '2026-08-01T10:00:00.000Z' },
         { createdAt: '2026-08-01T10:03:00.000Z' },
@@ -334,6 +355,85 @@ describe('buildCacheObservability', () => {
     expect(
       buildCacheObservability(inputs({ serializedHistory: undefined })).promptHashHistoryStable
     ).toBeUndefined();
+  });
+
+  it('derives promptHashHistoryStable from the shipped array when flag-on', () => {
+    const fields = buildCacheObservability(
+      inputs({
+        serializedHistory: '',
+        interveningMessagesText: ['<prior/>', 'h1', 'h2'],
+        shippedHistoryCount: 2,
+      })
+    );
+    expect(fields.promptHashHistoryStable).toBe(expectedHash('<prior/>\nh1'));
+  });
+
+  it('keeps the flag-on stable hash unchanged when only the newest history entry differs', () => {
+    const a = buildCacheObservability(
+      inputs({
+        serializedHistory: '',
+        interveningMessagesText: ['<prior/>', 'h1', 'h2'],
+        shippedHistoryCount: 2,
+      })
+    );
+    const b = buildCacheObservability(
+      inputs({
+        serializedHistory: '',
+        interveningMessagesText: ['<prior/>', 'h1', 'DIFFERENT newest'],
+        shippedHistoryCount: 2,
+      })
+    );
+
+    // This assertion reddens if the newest entry is left in the stable hash.
+    expect(a.promptHashHistoryStable).toBe(b.promptHashHistoryStable);
+    expect(a.promptHashFull).not.toBe(b.promptHashFull);
+  });
+
+  it('omits promptHashHistoryStable on a flag-on cross-channel-only turn', () => {
+    const fields = buildCacheObservability(
+      inputs({
+        serializedHistory: '',
+        interveningMessagesText: ['<prior/>'],
+        shippedHistoryCount: 0,
+      })
+    );
+    // Dropping the last element here would have dropped the cross-channel
+    // message rather than a history entry — the count is what prevents that.
+    expect(fields.promptHashHistoryStable).toBeUndefined();
+  });
+
+  it('omits promptHashHistoryStable when flag-on and nothing shipped at all', () => {
+    const fields = buildCacheObservability(
+      inputs({
+        serializedHistory: '',
+        interveningMessagesText: undefined,
+        shippedHistoryCount: 0,
+      })
+    );
+    expect(fields.promptHashHistoryStable).toBeUndefined();
+  });
+
+  it('is defined (not undefined) for a lone shipped history message, mirroring flag-off', () => {
+    const fields = buildCacheObservability(
+      inputs({
+        serializedHistory: '',
+        interveningMessagesText: ['h1'],
+        shippedHistoryCount: 1,
+      })
+    );
+    expect(fields.promptHashHistoryStable).toBe(expectedHash(''));
+    expect(fields.promptHashHistoryStable).toBeDefined();
+  });
+
+  it('prefers the flag-off serialized-history branch when both are available', () => {
+    const args = inputs({
+      interveningMessagesText: ['<prior/>', 'h1', 'h2'],
+      shippedHistoryCount: 2,
+    });
+    const fields = buildCacheObservability(args);
+    expect(fields.promptHashHistoryStable).toBe(
+      expectedHash(historyStablePrefix(args.serializedHistory))
+    );
   });
 
   it('includes the hit ratio only when both token counts are reported', () => {

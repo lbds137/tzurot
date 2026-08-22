@@ -80,6 +80,35 @@ export function historyStablePrefix(serializedHistory: string): string {
 }
 
 /**
+ * The flag-on counterpart to {@link historyStablePrefix}: the stable prefix of
+ * the SHIPPED message array — the cross-channel message (when present) plus
+ * every history message except the newest — joined the way
+ * `promptHashFull` joins its containers.
+ *
+ * Under `realMessagesEnabled` the chat log is not serialized into the system
+ * prompt at all, so there is no string to cut; the ship-order array is the
+ * only surviving expression of "the chat log minus its newest entry".
+ * `shippedHistoryCount` is required because the newest history entry is the
+ * array's last element only when history actually shipped — on a
+ * cross-channel-only turn, dropping the last element would drop the
+ * cross-channel message instead. Returns undefined when no history shipped
+ * (nothing to call stable). Covered by `cacheObservability.test.ts`.
+ */
+export function shippedStablePrefix(
+  interveningMessagesText: readonly string[] | undefined,
+  shippedHistoryCount: number
+): string | undefined {
+  if (
+    interveningMessagesText === undefined ||
+    interveningMessagesText.length === 0 ||
+    shippedHistoryCount <= 0
+  ) {
+    return undefined;
+  }
+  return interveningMessagesText.slice(0, -1).join('\n');
+}
+
+/**
  * Provider-reported prefix-cache hit fraction, rounded to 2 decimals.
  * Undefined unless both counts are present and the input count is positive —
  * absent then reads as "not reported", never as "zero hit".
@@ -142,6 +171,15 @@ export interface CacheObservabilityInputs {
    * byte-identical to its pre-flag formula.
    */
   interveningMessagesText?: string[];
+  /**
+   * How many of `interveningMessagesText`'s entries are history messages (the
+   * rest being the optional leading cross-channel message). Required, not
+   * optional: it is the only thing that distinguishes "the last intervening
+   * entry is the newest history turn" from "the only intervening entry is the
+   * cross-channel message", and defaulting it would silently mis-derive the
+   * stable prefix on cross-channel-only turns.
+   */
+  shippedHistoryCount: number;
   /** The loaded conversation history; only `createdAt` and the message ids
    *  (for the current-turn exclusion) are read. */
   history?: readonly { createdAt?: string; discordMessageId?: readonly string[] }[];
@@ -175,7 +213,12 @@ export interface CacheObservabilityFields {
   secondsSinceLastChannelGeneration?: number;
   /** Hash of the system prompt minus the chat log (the stable core). */
   promptHashSystemCore: string;
-  /** Hash of the chat log minus its newest entry. */
+  /**
+   * Hash of the chat log minus its newest entry: flag-off, cut out of the
+   * serialized chat log; flag-on, joined from the shipped message array
+   * (cross-channel message plus history minus its newest entry), since no
+   * chat log is serialized then. Absent when no history shipped at all.
+   */
   promptHashHistoryStable?: string;
   /** Hash of the whole assembled prompt — the cache key's upper bound. */
   promptHashFull: string;
@@ -204,6 +247,7 @@ export function buildCacheObservability(
     serializedHistory,
     currentMessageText,
     interveningMessagesText,
+    shippedHistoryCount,
     history,
     triggerMessageId,
     cacheReadTokens,
@@ -214,14 +258,19 @@ export function buildCacheObservability(
   const newestMs = newestHistoryTimestampMs(history, triggerMessageId);
   const ratio = cacheHitRatio(cacheReadTokens, inputTokens);
 
+  // Flag-off the serialized chat log is the source; flag-on it ships empty
+  // and the shipped array carries the same "minus the newest entry" cut.
+  const stablePrefix =
+    serializedHistory !== undefined && serializedHistory.length > 0
+      ? historyStablePrefix(serializedHistory)
+      : shippedStablePrefix(interveningMessagesText, shippedHistoryCount);
+
   return {
     ...(newestMs !== undefined
       ? { secondsSinceLastChannelGeneration: Math.round((now - newestMs) / 1000) }
       : {}),
     promptHashSystemCore: promptHash(systemPromptCore(systemPromptText, systemPromptSections)),
-    ...(serializedHistory !== undefined && serializedHistory.length > 0
-      ? { promptHashHistoryStable: promptHash(historyStablePrefix(serializedHistory)) }
-      : {}),
+    ...(stablePrefix !== undefined ? { promptHashHistoryStable: promptHash(stablePrefix) } : {}),
     promptHashFull: promptHash(
       [systemPromptText, ...(interveningMessagesText ?? []), currentMessageText].join('\n')
     ),

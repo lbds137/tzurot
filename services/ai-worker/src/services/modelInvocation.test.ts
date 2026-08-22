@@ -8,6 +8,7 @@
  * `ConversationalRAGService.test.ts` and is not duplicated here.
  */
 
+import { createHash } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -18,13 +19,20 @@ import type { ConversationInputProcessor } from './ConversationInputProcessor.js
 import type { ConversationContext, ModelInvocationOptions } from './ConversationalRAGTypes.js';
 import { invokeModelAndClean, type ModelInvocationDeps } from './modelInvocation.js';
 
+/** Independent reference digest — not the implementation's own helper. */
+function expectedHash(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 12);
+}
+
+const { mockLoggerInfo } = vi.hoisted(() => ({ mockLoggerInfo: vi.fn() }));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => ({ info: mockLoggerInfo, debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   };
 });
 
@@ -55,6 +63,12 @@ const context: ConversationContext = {
   serverId: 'server-1',
   requestId: 'req-1',
 };
+
+function generatedResponseFields(): Record<string, unknown> {
+  const call = mockLoggerInfo.mock.calls.find(([, message]) => message === 'Generated response');
+  expect(call).toBeDefined();
+  return call?.[0] as Record<string, unknown>;
+}
 
 describe('invokeModelAndClean', () => {
   let mockGetModel: ReturnType<typeof vi.fn>;
@@ -154,5 +168,44 @@ describe('invokeModelAndClean', () => {
       ...(baseOpts.historyMessages ?? []),
       baseOpts.currentMessage,
     ]);
+  });
+
+  it('forwards the shipped history count into the stable-prefix derivation', async () => {
+    const crossChannelMessage = new HumanMessage('<prior_conversations>');
+    await invokeModelAndClean(deps, {
+      ...baseOpts,
+      crossChannelMessage,
+      historyMessages: [new HumanMessage('older turn')],
+      // Flag-on ships an EMPTY serialized history (ContentBudgetManager), not
+      // an absent one — this is the real flag-on shape.
+      serializedHistory: '',
+    });
+
+    // Intervening array is ['<prior_conversations>', 'older turn'] with count
+    // 1, so the stable prefix is just the cross-channel message — this can
+    // only pass if shippedHistoryCount was forwarded to buildCacheObservability.
+    expect(generatedResponseFields().promptHashHistoryStable).toBe(
+      expectedHash('<prior_conversations>')
+    );
+  });
+
+  it('emits no stable hash on a cross-channel-only turn', async () => {
+    const crossChannelMessage = new HumanMessage('<prior_conversations>');
+    await invokeModelAndClean(deps, {
+      ...baseOpts,
+      crossChannelMessage,
+      historyMessages: [],
+      // Flag-on ships an EMPTY serialized history (ContentBudgetManager), not
+      // an absent one — this is the real flag-on shape.
+      serializedHistory: '',
+    });
+
+    expect(generatedResponseFields()).not.toHaveProperty('promptHashHistoryStable');
+  });
+
+  it('does not leak the raw shippedHistoryCount onto the log object', async () => {
+    await invokeModelAndClean(deps, baseOpts);
+
+    expect(generatedResponseFields()).not.toHaveProperty('shippedHistoryCount');
   });
 });

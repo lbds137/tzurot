@@ -215,6 +215,7 @@ export async function invokeModelAndClean(
     serializedHistory,
     currentMessageText: contentToText(currentMessage.content),
     ...interveningShippedText(messages),
+    shippedHistoryCount: historyMessages?.length ?? 0,
     history: context.rawConversationHistory,
     triggerMessageId: context.triggerMessageId,
     cacheReadTokens: usageMetadata?.input_token_details?.cache_read,
