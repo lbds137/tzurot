@@ -4,8 +4,10 @@ import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
 import {
   measureHistoryEntryTokens,
+  measureHistoryEntryRealTokens,
   PER_MESSAGE_WIRE_OVERHEAD_TOKENS,
 } from './historyTokenMeasure.js';
+import { buildRealMessages } from './RealMessagesBuilder.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationUtils.js';
 
 describe('ContextWindowManager', () => {
@@ -666,13 +668,11 @@ describe('ContextWindowManager', () => {
       expect(cut.cFinal).toBe(cut.cMin);
     });
 
-    it('FLAG-ON ALL-SKIPPED — a selection whose every row the real-message render skips reports zero tokens used', () => {
+    it('FLAG-ON ALL-SKIPPED — rows the real-message render skips are excluded at SELECTION, not merely priced at zero', () => {
       // Empty-content assistant rows: the flag-on measure prices each at 0,
-      // so all are selected, and the render then skips every one — the
-      // measured cost of the shipped (empty) real-message form is 0. The rows
-      // still COUNT as included at selection time; that selection-vs-render
-      // desync is tracked separately (TASK-724) and this test pins only the
-      // token accounting.
+      // which is the render's own skip signal — so selection excludes them,
+      // keeping selectedEntries equal to the set the model actually receives.
+      // They are neither included nor "dropped" (no budget touched them).
       const entries: StructuredHistoryEntry[] = Array.from({ length: 3 }, (_, n) => ({
         id: `id-${n}`,
         discordMessageId: [`snowflake-${n}`],
@@ -687,8 +687,268 @@ describe('ContextWindowManager', () => {
         realMessagesEnabled: true,
       });
 
-      expect(result.messagesIncluded).toBe(3);
+      expect(result.messagesIncluded).toBe(0);
+      expect(result.selectedEntries).toEqual([]);
+      expect(result.messagesDropped).toBe(0);
       expect(result.historyTokensUsed).toBe(0);
+    });
+
+    it('QUOTE OF A RENDER-SKIPPED ROW — renders in full, not as a dedup stub, because the row is absent from the shipped window', () => {
+      // The quote-dedup index is built from selectedEntries downstream
+      // (buildHistoryEntryIndex over the shipped window). A row the render
+      // skips is not visible to the model, so a quote of it must carry the
+      // full reference snapshot — a stub pointing at content the model never
+      // received would dangle.
+      const entries: StructuredHistoryEntry[] = [
+        {
+          id: 'id-skip',
+          discordMessageId: ['skip-quoted'],
+          role: 'assistant',
+          content: '',
+          personalityId: RESPONDER.id,
+          personalityName: RESPONDER.name,
+          createdAt: new Date(1_000_000).toISOString(),
+        },
+        {
+          id: 'id-quoter',
+          discordMessageId: ['snowflake-quoter'],
+          role: 'user',
+          content: 'replying to the empty one',
+          personaId: 'p-1',
+          personaName: 'Vlad',
+          createdAt: new Date(1_060_000).toISOString(),
+          messageMetadata: {
+            referencedMessages: [
+              {
+                discordMessageId: 'skip-quoted',
+                authorUsername: 'x',
+                authorDisplayName: 'X',
+                content: 'the words the skipped row once carried',
+                timestamp: new Date(1_000_000).toISOString(),
+                locationContext: '',
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        realMessagesEnabled: true,
+      });
+      expect(result.selectedEntries.map(e => e.id)).toEqual(['id-quoter']);
+
+      const messages = buildRealMessages(result.selectedEntries, RESPONDER.name, RESPONDER.id);
+      expect(messages).toHaveLength(1);
+      expect(String(messages[0].content)).toContain('the words the skipped row once carried');
+    });
+
+    it('QUOTE OF A RENDER-SKIPPED ROW, FLAG-OFF — the XML path renders the quote in full too (shared dedup index, same mechanism)', () => {
+      // Flag-off sibling of the test above: a null-speaker row is the XML
+      // path's render-skipped shape, and the quote-dedup index is the same
+      // buildHistoryEntryIndex(selectedEntries) both paths share.
+      const entries: StructuredHistoryEntry[] = [
+        {
+          id: 'id-sys',
+          discordMessageId: ['skip-quoted-xml'],
+          role: 'system',
+          content: 'renderer has no speaker for this',
+          createdAt: new Date(1_000_000).toISOString(),
+        },
+        {
+          id: 'id-quoter',
+          discordMessageId: ['snowflake-quoter'],
+          role: 'user',
+          content: 'replying to the skipped one',
+          personaId: 'p-1',
+          personaName: 'Vlad',
+          createdAt: new Date(1_060_000).toISOString(),
+          messageMetadata: {
+            referencedMessages: [
+              {
+                discordMessageId: 'skip-quoted-xml',
+                authorUsername: 'x',
+                authorDisplayName: 'X',
+                content: 'the words the skipped row once carried',
+                timestamp: new Date(1_000_000).toISOString(),
+                locationContext: '',
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000);
+
+      expect(result.selectedEntries.map(e => e.id)).toEqual(['id-quoter']);
+      expect(result.serializedHistory).toContain('the words the skipped row once carried');
+    });
+
+    it('FLOOR COUNTS ELIGIBLE ROWS — the 20-entry guarantee applies to renderable entries, never satisfied by render-skipped ones', () => {
+      // 30 real rows + 10 render-skipped (empty assistant) rows, flag-on,
+      // with a budget sized so the quantization overshoot clamps at the
+      // floor: all 20 surviving entries must be renderable — a floor "met"
+      // by rows the model never sees would protect nothing.
+      const realRows: StructuredHistoryEntry[] = Array.from({ length: 60 }, (_, n) => ({
+        id: `real-${n}`,
+        discordMessageId: [`snowflake-real-${n}`],
+        role: n % 2 === 0 ? 'user' : 'assistant',
+        content: `entry ${n} ${bulk}`,
+        personaId: n % 2 === 0 ? 'persona-1' : undefined,
+        personaName: n % 2 === 0 ? 'Vlad' : undefined,
+        personalityId: n % 2 === 1 ? RESPONDER.id : undefined,
+        personalityName: n % 2 === 1 ? RESPONDER.name : undefined,
+        createdAt: new Date(1_000_000 + n * 120_000).toISOString(),
+      }));
+      // Skip rows sit in the NEWEST region (interleaved with the last 10 real
+      // rows), where any cut keeps them — placed in the head they would be
+      // evicted with it and the all-real assertion below could never fail.
+      const skipRows: StructuredHistoryEntry[] = Array.from({ length: 10 }, (_, n) => ({
+        id: `skip-${n}`,
+        discordMessageId: [`snowflake-skip-${n}`],
+        role: 'assistant',
+        content: '',
+        personalityId: RESPONDER.id,
+        personalityName: RESPONDER.name,
+        createdAt: new Date(1_000_000 + (50 + n) * 120_000 + 60_000).toISOString(),
+      }));
+      const entries = realRows
+        .flatMap((r, n) => (n >= 50 ? [r, skipRows[n - 50]] : [r]))
+        .sort((a, b) => ((a.createdAt as string) < (b.createdAt as string) ? -1 : 1));
+
+      const names = new Set([RESPONDER.name]);
+      const realTotal = realRows.reduce(
+        (sum, e) => sum + measureHistoryEntryRealTokens(e, RESPONDER.name, names, RESPONDER.id),
+        0
+      );
+      const budget = Math.round(realTotal * 0.35);
+
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, budget, {
+        realMessagesEnabled: true,
+      });
+
+      expect(result.selectedEntries.length).toBeGreaterThanOrEqual(20);
+      for (const e of result.selectedEntries) {
+        expect(e.id).toMatch(/^real-/);
+      }
+    });
+
+    it('BUDGET-EXHAUSTED + RENDER-SKIP — the drop count excludes render-skipped rows even when the whole budget is gone', () => {
+      const entries: StructuredHistoryEntry[] = [
+        {
+          id: 'id-real',
+          discordMessageId: ['snowflake-real'],
+          role: 'user',
+          content: 'a message the budget genuinely dropped',
+          personaId: 'p-1',
+          personaName: 'Vlad',
+          createdAt: new Date(1_000_000).toISOString(),
+        },
+        {
+          id: 'id-empty',
+          discordMessageId: ['snowflake-empty'],
+          role: 'assistant',
+          content: '',
+          personalityId: RESPONDER.id,
+          personalityName: RESPONDER.name,
+          createdAt: new Date(1_060_000).toISOString(),
+        },
+      ];
+
+      const result = manager.selectAndSerializeHistory(entries, RESPONDER, 0, {
+        realMessagesEnabled: true,
+      });
+
+      // Only the renderable row counts as budget-dropped; the render-skipped
+      // row was never the budget's to drop, in this branch like every other.
+      expect(result.selectedEntries).toEqual([]);
+      expect(result.messagesDropped).toBe(1);
+    });
+
+    it('FLAG-ON MIXED — an empty-body assistant row among normal rows leaves selectedEntries, flag-off keeps it (it ships as an empty element there)', () => {
+      const entries: StructuredHistoryEntry[] = [
+        {
+          id: 'id-user',
+          discordMessageId: ['snowflake-user'],
+          role: 'user',
+          content: 'hello there',
+          personaId: 'p-1',
+          personaName: 'Vlad',
+          createdAt: new Date(1_000_000).toISOString(),
+        },
+        {
+          id: 'id-empty',
+          discordMessageId: ['snowflake-empty'],
+          role: 'assistant',
+          content: '',
+          personalityId: RESPONDER.id,
+          personalityName: RESPONDER.name,
+          createdAt: new Date(1_060_000).toISOString(),
+        },
+        {
+          id: 'id-reply',
+          discordMessageId: ['snowflake-reply'],
+          role: 'assistant',
+          content: 'a real reply',
+          personalityId: RESPONDER.id,
+          personalityName: RESPONDER.name,
+          createdAt: new Date(1_120_000).toISOString(),
+        },
+      ];
+
+      const on = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000, {
+        realMessagesEnabled: true,
+      });
+      const off = manager.selectAndSerializeHistory(entries, RESPONDER, 5_000);
+
+      // Flag-on: the render will skip the empty row, so selection excludes it
+      // — the dedup boundary derives from what actually ships.
+      expect(on.selectedEntries.map(e => e.id)).toEqual(['id-user', 'id-reply']);
+      expect(on.messagesDropped).toBe(0);
+      // Flag-off: the XML path ships the row as an empty element, so it IS
+      // shipped content and stays selected.
+      expect(off.selectedEntries.map(e => e.id)).toEqual(['id-user', 'id-empty', 'id-reply']);
+      expect(off.messagesDropped).toBe(0);
+    });
+
+    it('FLAG-OFF NULL-SPEAKER — a row the XML renderer declines is excluded from selectedEntries with byte-identical serialized output', () => {
+      const speakable: StructuredHistoryEntry[] = [
+        {
+          id: 'id-a',
+          discordMessageId: ['snowflake-a'],
+          role: 'user',
+          content: 'first message',
+          personaId: 'p-1',
+          personaName: 'Vlad',
+          createdAt: new Date(1_000_000).toISOString(),
+        },
+        {
+          id: 'id-b',
+          discordMessageId: ['snowflake-b'],
+          role: 'user',
+          content: 'second message',
+          personaId: 'p-1',
+          personaName: 'Vlad',
+          createdAt: new Date(1_060_000).toISOString(),
+        },
+      ];
+      const nullSpeakerRow: StructuredHistoryEntry = {
+        id: 'id-sys',
+        discordMessageId: ['snowflake-sys'],
+        role: 'system',
+        content: 'renderer has no speaker for this',
+        createdAt: new Date(1_030_000).toISOString(),
+      };
+      const withRow = [speakable[0], nullSpeakerRow, speakable[1]];
+
+      const including = manager.selectAndSerializeHistory(withRow, RESPONDER, 5_000);
+      const excluding = manager.selectAndSerializeHistory(speakable, RESPONDER, 5_000);
+
+      // The row never rendered anything, so excluding it at selection leaves
+      // the shipped bytes untouched — while selectedEntries (and the dedup
+      // set derived from it) stops claiming a row the model never saw.
+      expect(including.serializedHistory).toBe(excluding.serializedHistory);
+      expect(including.selectedEntries.map(e => e.id)).toEqual(['id-a', 'id-b']);
+      expect(including.messagesDropped).toBe(0);
     });
 
     it('DORMANCY PARITY — when the fetched history fits the budget, every entry ships in order, byte-identical to the pre-cut behavior', () => {
