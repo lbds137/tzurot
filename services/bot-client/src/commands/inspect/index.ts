@@ -52,6 +52,7 @@ import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import {
   buildPipelineHealthView,
   buildInputView,
+  buildMessagesView,
   buildGenerationParamsView,
   buildPostProcessingView,
   buildCacheView,
@@ -105,6 +106,7 @@ const VIEW_BUILDERS = {
   [DebugViewType.SystemPrompt]: buildSystemPromptView,
   [DebugViewType.Reasoning]: buildReasoningView,
   [DebugViewType.Input]: buildInputView,
+  [DebugViewType.Messages]: buildMessagesView,
   [DebugViewType.GenerationParams]: buildGenerationParamsView,
   [DebugViewType.PostProcessing]: buildPostProcessingView,
   [DebugViewType.MemoryInspector]: buildMemoryInspectorView,

@@ -65,10 +65,20 @@ describe('buildInspectComponents', () => {
   it('exposes the expected number of select-menu options', () => {
     const rows = buildInspectComponents('test-req');
     const selectMenu = rows[1].components[0].toJSON();
-    // Compact JSON, System Prompt, Input, Generation Params,
+    // Compact JSON, System Prompt, Messages, Input, Generation Params,
     // Post-Processing, Memory Inspector, Token Budget, Voice Attribution,
     // Pipeline Health, Cache (Quick Copy removed — never used)
-    expect('options' in selectMenu && selectMenu.options).toHaveLength(10);
+    expect('options' in selectMenu && selectMenu.options).toHaveLength(11);
+  });
+
+  it('exposes a Messages option routing to the messages view', () => {
+    const rows = buildInspectComponents('test-req');
+    const selectMenu = rows[1].components[0].toJSON();
+    const options = 'options' in selectMenu ? selectMenu.options : [];
+    const messagesOption = options.find(option => option.value === 'messages');
+    expect(messagesOption?.label).toBe('Messages');
+    // Discord caps option descriptions at 100 chars.
+    expect((messagesOption?.description ?? '').length).toBeLessThanOrEqual(100);
   });
 
   it('exposes a Cache option routing to the cache view', () => {
