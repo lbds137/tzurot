@@ -11,7 +11,7 @@ import {
   measureHistoryEntryRealTokens,
   PER_MESSAGE_WIRE_OVERHEAD_TOKENS,
 } from './historyTokenMeasure.js';
-import { renderHistoryEntryForMeasure } from './RealMessagesBuilder.js';
+import { renderHistoryEntryForMeasure, buildRealMessages } from './RealMessagesBuilder.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
 const PERSONALITY = 'Lilith';
@@ -67,7 +67,9 @@ describe('measureHistoryEntryTokens', () => {
       realMessagesEnabled: false,
     });
 
-    expect(measureHistoryEntryTokens(entry, PERSONALITY)).toBe(countTextTokens(rendered));
+    expect(measureHistoryEntryTokens(entry, PERSONALITY, undefined, undefined, false)).toBe(
+      countTextTokens(rendered)
+    );
   });
 
   it('returns 0 for an entry the renderer declines to emit', () => {
@@ -76,7 +78,9 @@ describe('measureHistoryEntryTokens', () => {
     expect(
       formatSingleHistoryEntryAsXml(unresolvable, PERSONALITY, { realMessagesEnabled: false })
     ).toBe('');
-    expect(measureHistoryEntryTokens(unresolvable, PERSONALITY)).toBe(0);
+    expect(measureHistoryEntryTokens(unresolvable, PERSONALITY, undefined, undefined, false)).toBe(
+      0
+    );
   });
 
   describe('what the cached DB tokenCount misses', () => {
@@ -86,7 +90,9 @@ describe('measureHistoryEntryTokens', () => {
 
       // The envelope (from/from_id/role/t attributes) is comparable in size to
       // a short Discord message, so the gap is large even with no metadata.
-      expect(measureHistoryEntryTokens(entry, PERSONALITY)).toBeGreaterThan(cached * 2);
+      expect(
+        measureHistoryEntryTokens(entry, PERSONALITY, undefined, undefined, false)
+      ).toBeGreaterThan(cached * 2);
     });
 
     it('counts a quoted reference and its persisted image description', () => {
@@ -95,12 +101,19 @@ describe('measureHistoryEntryTokens', () => {
         messageMetadata: { referencedMessages: [referenceWithImage()] },
       });
 
-      const measured = measureHistoryEntryTokens(withQuote, PERSONALITY);
+      const measured = measureHistoryEntryTokens(
+        withQuote,
+        PERSONALITY,
+        undefined,
+        undefined,
+        false
+      );
 
       // The description is the largest single term a quote contributes, and the
       // one an entry's cached tokenCount can never carry.
       expect(measured).toBeGreaterThan(
-        measureHistoryEntryTokens(bare, PERSONALITY) + countTextTokens(QUOTE_DESCRIPTION)
+        measureHistoryEntryTokens(bare, PERSONALITY, undefined, undefined, false) +
+          countTextTokens(QUOTE_DESCRIPTION)
       );
     });
 
@@ -132,9 +145,9 @@ describe('measureHistoryEntryTokens', () => {
       const bare = userEntry();
       const withMetadata = userEntry({ messageMetadata: metadata });
 
-      expect(measureHistoryEntryTokens(withMetadata, PERSONALITY)).toBeGreaterThan(
-        measureHistoryEntryTokens(bare, PERSONALITY)
-      );
+      expect(
+        measureHistoryEntryTokens(withMetadata, PERSONALITY, undefined, undefined, false)
+      ).toBeGreaterThan(measureHistoryEntryTokens(bare, PERSONALITY, undefined, undefined, false));
     });
   });
 
@@ -150,12 +163,14 @@ describe('measureHistoryEntryTokens', () => {
     // selection time. The sign of the difference is deliberately not asserted:
     // a deduped stub drops its content but keeps its media, so it can land on
     // either side of the full form.
-    expect(measureHistoryEntryTokens(entry, PERSONALITY)).toBe(
+    expect(measureHistoryEntryTokens(entry, PERSONALITY, undefined, undefined, false)).toBe(
       countTextTokens(
         formatSingleHistoryEntryAsXml(entry, PERSONALITY, { realMessagesEnabled: false })
       )
     );
-    expect(countTextTokens(dedupedRender)).not.toBe(measureHistoryEntryTokens(entry, PERSONALITY));
+    expect(countTextTokens(dedupedRender)).not.toBe(
+      measureHistoryEntryTokens(entry, PERSONALITY, undefined, undefined, false)
+    );
   });
 
   describe('sibling-personality disambiguation', () => {
@@ -183,8 +198,10 @@ describe('measureHistoryEntryTokens', () => {
       const names = collectPersonalityNames(history, PERSONALITY);
       const collidingEntry = history[1];
 
-      expect(measureHistoryEntryTokens(collidingEntry, PERSONALITY, names)).toBeGreaterThan(
-        measureHistoryEntryTokens(collidingEntry, PERSONALITY)
+      expect(
+        measureHistoryEntryTokens(collidingEntry, PERSONALITY, names, undefined, false)
+      ).toBeGreaterThan(
+        measureHistoryEntryTokens(collidingEntry, PERSONALITY, undefined, undefined, false)
       );
     });
 
@@ -193,7 +210,8 @@ describe('measureHistoryEntryTokens', () => {
       // history must not undershoot the real render of that same history.
       const names = collectPersonalityNames(history, PERSONALITY);
       const measured = history.reduce(
-        (sum, entry) => sum + measureHistoryEntryTokens(entry, PERSONALITY, names),
+        (sum, entry) =>
+          sum + measureHistoryEntryTokens(entry, PERSONALITY, names, undefined, false),
         0
       );
       const shipped = countTextTokens(formatConversationHistoryAsXml(history, PERSONALITY));
@@ -204,10 +222,23 @@ describe('measureHistoryEntryTokens', () => {
 });
 
 describe('measureHistoryEntryRealTokens', () => {
+  const NO_TAGS = new Map<string, string>();
+
+  function opts(overrides: Partial<Parameters<typeof measureHistoryEntryRealTokens>[1]> = {}) {
+    return {
+      personalityName: PERSONALITY,
+      allPersonalityNames: undefined,
+      responderPersonalityId: undefined,
+      realMessagesEnabled: true,
+      headerIdTags: NO_TAGS,
+      ...overrides,
+    };
+  }
+
   it('returns 0 for a row the real-message render has no speaker for', () => {
     const entry = { role: 'system', content: 'ignored' } as StructuredHistoryEntry;
 
-    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBe(0);
+    expect(measureHistoryEntryRealTokens(entry, opts())).toBe(0);
   });
 
   it('returns 0 for an assistant row whose body renders empty', () => {
@@ -220,7 +251,7 @@ describe('measureHistoryEntryRealTokens', () => {
       personalityName: PERSONALITY,
     } as StructuredHistoryEntry;
 
-    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBe(0);
+    expect(measureHistoryEntryRealTokens(entry, opts())).toBe(0);
   });
 
   it('charges the rendered content plus the worst-case gap line and the wire overhead', () => {
@@ -230,12 +261,14 @@ describe('measureHistoryEntryRealTokens', () => {
     // fail if the constant is wrong. The gap-line string is the one the
     // measure charges to EVERY entry — a per-entry measure cannot know whether
     // this entry's neighbour puts it past the gap threshold, so it always
-    // charges the widest form.
+    // charges the widest form. No header id-tag term here: with an EMPTY map
+    // (no collisions), the measure charges nothing extra for tagging — see the
+    // "colliding-measure" test below for the case where it does.
     const entry = userEntry();
-    const rendered = renderHistoryEntryForMeasure(entry, PERSONALITY);
+    const rendered = renderHistoryEntryForMeasure(entry, opts({ realMessagesEnabled: false }));
     const worstCaseGapTokens = countTextTokens('[time gap: 52 weeks 6 days]\n');
 
-    const measured = measureHistoryEntryRealTokens(entry, PERSONALITY);
+    const measured = measureHistoryEntryRealTokens(entry, opts());
 
     expect(rendered.length).toBeGreaterThan(0);
     expect(measured).toBe(countTextTokens(rendered) + worstCaseGapTokens + 4);
@@ -247,19 +280,74 @@ describe('measureHistoryEntryRealTokens', () => {
   it('is deterministic for the same entry', () => {
     const entry = userEntry();
 
-    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBe(
-      measureHistoryEntryRealTokens(entry, PERSONALITY)
+    expect(measureHistoryEntryRealTokens(entry, opts())).toBe(
+      measureHistoryEntryRealTokens(entry, opts())
     );
   });
 
   it('stays under the XML measure for the same entry', () => {
     // The recalibration's whole point: the XML envelope costs more than a
     // header line, so the flag-on budget stops reserving headroom the real
-    // form never spends.
+    // form never spends. A non-colliding fixture (empty map), so no header
+    // id-tag bytes enter either side of this comparison.
     const entry = userEntry();
 
-    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBeLessThan(
-      measureHistoryEntryTokens(entry, PERSONALITY)
+    expect(measureHistoryEntryRealTokens(entry, opts())).toBeLessThan(
+      measureHistoryEntryTokens(entry, PERSONALITY, undefined, undefined, false)
     );
+  });
+
+  describe('header id-tag charging (TASK-726 revision: threaded, not worst-cased)', () => {
+    // The map is window-level and depends only on this entry's own speaker
+    // id, so — unlike the gap line — the measure can know EXACTLY whether
+    // this entry pays a tag, and charges precisely that cost rather than a
+    // worst case.
+    const COLLIDING_ID = 'a1b2c3d4-0000-0000-0000-000000000001';
+
+    function collidingEntry(): StructuredHistoryEntry {
+      return userEntry({ personaId: COLLIDING_ID, personaName: 'Vlad' });
+    }
+
+    it('charges exactly the tag-cost delta between a colliding map and an empty one', () => {
+      const entry = collidingEntry();
+      const taggedMap = new Map([[COLLIDING_ID, 'a1b2']]);
+
+      const withTag = measureHistoryEntryRealTokens(entry, opts({ headerIdTags: taggedMap }));
+      const withoutTag = measureHistoryEntryRealTokens(entry, opts({ headerIdTags: NO_TAGS }));
+
+      // Derived from the two RENDERED forms, never a hand-written token
+      // count: the delta is whatever the renderer actually produces for the
+      // tag, so this cannot silently drift from the real cost.
+      const taggedRender = renderHistoryEntryForMeasure(
+        entry,
+        opts({ headerIdTags: taggedMap, realMessagesEnabled: false })
+      );
+      const untaggedRender = renderHistoryEntryForMeasure(
+        entry,
+        opts({ headerIdTags: NO_TAGS, realMessagesEnabled: false })
+      );
+      const expectedDelta = countTextTokens(taggedRender) - countTextTokens(untaggedRender);
+
+      expect(expectedDelta).toBeGreaterThan(0);
+      expect(withTag - withoutTag).toBe(expectedDelta);
+    });
+
+    it('no-drift seam: renderHistoryEntryForMeasure produces the SAME header line buildRealMessages would, for the same entry and map', () => {
+      const entry = collidingEntry();
+      const taggedMap = new Map([[COLLIDING_ID, 'a1b2']]);
+
+      const measureRender = renderHistoryEntryForMeasure(
+        entry,
+        opts({ headerIdTags: taggedMap, realMessagesEnabled: true })
+      );
+      const [shipped] = buildRealMessages([entry], PERSONALITY, undefined, true, taggedMap);
+      const shippedContent = String(shipped.content);
+
+      const measureHeaderLine = measureRender.split('\n')[0];
+      const shippedHeaderLine = shippedContent.split('\n')[0];
+
+      expect(measureHeaderLine).toContain('(id:a1b2)');
+      expect(measureHeaderLine).toBe(shippedHeaderLine);
+    });
   });
 });

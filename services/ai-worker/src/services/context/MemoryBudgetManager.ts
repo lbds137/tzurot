@@ -20,6 +20,7 @@ import {
   type StructuredHistoryEntry,
   collectPersonalityNames,
 } from '../../jobs/utils/conversationUtils.js';
+import type { HeaderIdTagMap } from '../../jobs/utils/participantUtils.js';
 import { measureHistoryEntryTokens, measureHistoryEntryRealTokens } from './historyTokenMeasure.js';
 
 const logger = createLogger('MemoryBudgetManager');
@@ -222,32 +223,46 @@ export class MemoryBudgetManager {
    *   real-message form (flag-on) or the XML form (flag-off, default). Must
    *   be the SAME value the shipped selection sees this turn — see
    *   `PreselectedHistory.realMessagesEnabled`'s doc-comment for why.
+   * @param headerIdTags - This turn's collision-conditional header id-tag map
+   *   (empty when flag-off, or when the roster has no collisions). Threaded
+   *   through to `measureHistoryEntryRealTokens` so the flag-on measure
+   *   charges the SAME tag bytes the shipped render would actually pay —
+   *   the map is window-level and already in scope wherever this turn's
+   *   `realMessagesEnabled` value is, so there is no over-measure reason to
+   *   assume a worst case here (contrast the gap line, which genuinely cannot
+   *   be derived per-entry).
    * @returns Total tokens for all history messages (using tiktoken)
    */
   countHistoryTokens(
     rawHistory: StructuredHistoryEntry[] | undefined,
     personalityName: string,
-    responderPersonalityId?: string,
-    realMessagesEnabled = false
+    responderPersonalityId: string | undefined,
+    realMessagesEnabled: boolean,
+    headerIdTags: HeaderIdTagMap
   ): number {
     if (!rawHistory || rawHistory.length === 0) {
       return 0;
     }
 
     const allPersonalityNames = collectPersonalityNames(rawHistory, personalityName);
-    const measureEntry = realMessagesEnabled
-      ? measureHistoryEntryRealTokens
-      : measureHistoryEntryTokens;
 
     let totalTokens = 0;
     for (const entry of rawHistory) {
-      totalTokens += measureEntry(
-        entry,
-        personalityName,
-        allPersonalityNames,
-        responderPersonalityId,
-        realMessagesEnabled
-      );
+      totalTokens += realMessagesEnabled
+        ? measureHistoryEntryRealTokens(entry, {
+            personalityName,
+            allPersonalityNames,
+            responderPersonalityId,
+            realMessagesEnabled,
+            headerIdTags,
+          })
+        : measureHistoryEntryTokens(
+            entry,
+            personalityName,
+            allPersonalityNames,
+            responderPersonalityId,
+            realMessagesEnabled
+          );
     }
 
     return totalTokens;

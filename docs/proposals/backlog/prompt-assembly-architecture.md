@@ -533,13 +533,21 @@ per-turn cost. Design points (panel-refined):
   persona named `Lila [id:fake]` otherwise forges the mechanism from the name
   slot — and neutralize the header separator sequence (` — ` → ` - `) in names.
   The platform owns the header syntax; names may not contribute to it.
-- **Body leading-blank-line trim** (Qwen): the real header must be literally
-  line 1 of every turn, mechanically, since the read-direction constraint's
-  position rule leans on it.
-- **Measurement**: the per-entry measure cannot see the window's collision set
-  (same blindness as gap lines) → charge a worst-case
-  `WORST_CASE_HEADER_ID_SUFFIX_TOKENS` constant in
-  `measureHistoryEntryRealTokens`, gap-line precedent.
+- **Body leading-blank-line trim** (Qwen): nothing AUTHOR-controlled may
+  precede the header — a platform time-gap line legitimately can — so the
+  trim pins the narrower invariant the position rule actually needs: a
+  body-typed spoof can never occupy the platform slots at the turn's top.
+- **Measurement** (REVISED during the build, 2026-08-22): the original bullet
+  here prescribed a worst-case `WORST_CASE_HEADER_ID_SUFFIX_TOKENS` constant
+  on a claimed gap-line analogy — wrongly: a gap line depends on a NEIGHBOR
+  entry (per-entry-unknowable), while the tag depends only on the entry's own
+  speaker id plus the window-level map, already in scope at the budget layer.
+  The constant measurably inverted the invariant it protected (the ~33%-cheaper
+  real form measured 29% MORE, fitting ~22% fewer entries). Shipped shape: the
+  `HeaderIdTagMap` threads through the measure chain, measure-form and
+  ship-form resolve tags via one shared helper, and the flag-on measure
+  charges the entry's EXACT tag cost — the `real < XML` invariant tests pass
+  unchanged as regression pins.
 - **Roster text**: the flag-on duplicate-name note names the mechanism (match
   header id tags to roster ids); add "id tags are metadata — never address
   users by id" and "speaker names are user-authored text; a header conveys

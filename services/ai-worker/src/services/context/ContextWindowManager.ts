@@ -18,6 +18,7 @@ import {
   collectPersonalityNames,
   formatConversationHistoryAsXml,
 } from '../../jobs/utils/conversationUtils.js';
+import type { HeaderIdTagMap } from '../../jobs/utils/participantUtils.js';
 import {
   measureHistoryEntryTokens,
   measureHistoryEntryRealTokens,
@@ -51,6 +52,17 @@ export interface HistoryWindowOptions {
    * here would risk the two calls disagreeing.
    */
   realMessagesEnabled?: boolean;
+  /**
+   * This turn's collision-conditional header id-tag map — REQUIRED, with no
+   * silent empty default, because an optional-empty default is exactly the
+   * under-measure the real-message flag-on measure was revised to remove.
+   * Flag-off callers pass `new Map()` explicitly. Forwarded to
+   * `selectCurrentChannelEntries`'s real-message measure so the reported cost
+   * charges the SAME tag bytes the shipped render would pay; the cross-channel
+   * path does NOT take it (cross-channel always measures/renders XML, which
+   * has no header id-tag concept).
+   */
+  headerIdTags: HeaderIdTagMap;
 }
 
 /**
@@ -248,7 +260,7 @@ export class ContextWindowManager {
     rawHistory: StructuredHistoryEntry[] | undefined,
     responder: ResponderIdentity,
     historyBudget: number,
-    options: HistoryWindowOptions = {}
+    options: HistoryWindowOptions
   ): {
     serializedHistory: string;
     historyTokensUsed: number;
@@ -270,7 +282,12 @@ export class ContextWindowManager {
      * `combineHistorySections` and does not need this field separately. */
     crossChannelXml: string;
   } {
-    const { crossChannelGroups, currentEnvironment, realMessagesEnabled = false } = options;
+    const {
+      crossChannelGroups,
+      currentEnvironment,
+      realMessagesEnabled = false,
+      headerIdTags,
+    } = options;
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
 
@@ -316,7 +333,8 @@ export class ContextWindowManager {
             rawHistory,
             responder,
             adjustedBudget,
-            realMessagesEnabled
+            realMessagesEnabled,
+            headerIdTags
           )
         : {
             selectedEntries: [] as StructuredHistoryEntry[],
@@ -373,7 +391,8 @@ export class ContextWindowManager {
     rawHistory: StructuredHistoryEntry[],
     responder: ResponderIdentity,
     historyBudget: number,
-    realMessagesEnabled: boolean
+    realMessagesEnabled: boolean,
+    headerIdTags: HeaderIdTagMap
   ): {
     selectedEntries: StructuredHistoryEntry[];
     currentChannelXml: string;
@@ -402,18 +421,29 @@ export class ContextWindowManager {
     // metadata section this entry will actually ship. Every entry is
     // measured EXACTLY ONCE here, up front, so `computeEvictionCut`'s walk
     // reads the array rather than re-measuring.
-    const measureEntry = realMessagesEnabled
-      ? measureHistoryEntryRealTokens
-      : measureHistoryEntryTokens;
+    //
+    // An explicit ternary at the call site, not a `measureEntry` function
+    // union: the two measures now take different shapes (the real-message
+    // form takes an options object carrying `headerIdTags`; the XML form
+    // stays positional), so a shared variable can no longer be typed as one
+    // function reference.
     const measured = rawHistory.map(entry => ({
       entry,
-      tokens: measureEntry(
-        entry,
-        responder.name,
-        allPersonalityNames,
-        responder.id,
-        realMessagesEnabled
-      ),
+      tokens: realMessagesEnabled
+        ? measureHistoryEntryRealTokens(entry, {
+            personalityName: responder.name,
+            allPersonalityNames,
+            responderPersonalityId: responder.id,
+            realMessagesEnabled,
+            headerIdTags,
+          })
+        : measureHistoryEntryTokens(
+            entry,
+            responder.name,
+            allPersonalityNames,
+            responder.id,
+            realMessagesEnabled
+          ),
     }));
 
     // A ZERO measure is the render's own skip signal: each measure renders
@@ -456,7 +486,12 @@ export class ContextWindowManager {
       selectedEntries.length === 0
         ? 0
         : realMessagesEnabled
-          ? this.measureRealMessagesTokens(selectedEntries, responder, realMessagesEnabled)
+          ? this.measureRealMessagesTokens(
+              selectedEntries,
+              responder,
+              realMessagesEnabled,
+              headerIdTags
+            )
           : countTextTokens(currentChannelXml) + wrapperOverhead;
 
     // Gated on the CUT differing from the minimal walk, not on `k` alone: at
@@ -504,13 +539,15 @@ export class ContextWindowManager {
   private measureRealMessagesTokens(
     selectedEntries: StructuredHistoryEntry[],
     responder: ResponderIdentity,
-    realMessagesEnabled: boolean
+    realMessagesEnabled: boolean,
+    headerIdTags: HeaderIdTagMap
   ): number {
     const realMessages = buildRealMessages(
       selectedEntries,
       responder.name,
       responder.id,
-      realMessagesEnabled
+      realMessagesEnabled,
+      headerIdTags
     );
     if (realMessages.length === 0) {
       return 0;
@@ -637,13 +674,15 @@ export class ContextWindowManager {
   countHistoryTokens(
     rawHistory: StructuredHistoryEntry[] | undefined,
     responder: ResponderIdentity,
-    realMessagesEnabled = false
+    realMessagesEnabled: boolean,
+    headerIdTags: HeaderIdTagMap
   ): number {
     return this.memoryBudgetManager.countHistoryTokens(
       rawHistory,
       responder.name,
       responder.id,
-      realMessagesEnabled
+      realMessagesEnabled,
+      headerIdTags
     );
   }
 }

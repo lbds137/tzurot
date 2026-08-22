@@ -240,7 +240,8 @@ describe.skipIf(!ready)('voice-consistency replay (REAL model spend)', () => {
       // does; without it the harness would exercise the name-only fallback
       // that production only reaches for id-less rows.
       { name: personality.name, id: personality.id },
-      HISTORY_BUDGET_TOKENS
+      HISTORY_BUDGET_TOKENS,
+      { headerIdTags: new Map() }
     );
 
     return {

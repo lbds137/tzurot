@@ -4,11 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIMessage, SystemMessage, HumanMessage } from '@langchain/core/messages';
-import {
-  ContentBudgetManager,
-  activeSpeakerPronouns,
-  type PreselectedHistory,
-} from './ContentBudgetManager.js';
+import { ContentBudgetManager, activeSpeakerPronouns } from './ContentBudgetManager.js';
 import { ContextWindowManager as RealContextWindowManager } from './context/ContextWindowManager.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
@@ -16,6 +12,7 @@ import type {
   BudgetAllocationOptions,
   MemoryDocument,
   ParticipantInfo,
+  PreselectedHistory,
 } from './ConversationalRAGTypes.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
@@ -514,6 +511,58 @@ describe('ContentBudgetManager', () => {
         settingsState.realMessagesEnabled = false;
       });
 
+      it('flag-ON colliding roster: the tag survives preselectHistory -> allocate into the shipped header (wiring seam)', () => {
+        // The one layer with no per-feature pin: the map is computed in
+        // preselectHistory and travels to allocate ONLY as a destructured
+        // field on PreselectedHistory — a dropped field would silently ship
+        // untagged headers while every unit-level test stayed green. Real
+        // computeHeaderIdTags + real buildShippedHistoryMessages; only the
+        // class collaborators are mocked.
+        settingsState.realMessagesEnabled = true;
+        const options = createBaseOptions();
+        options.participantPersonas = new Map([
+          [
+            'aaaa1111-0000-0000-0000-000000000001',
+            {
+              personaId: 'aaaa1111-0000-0000-0000-000000000001',
+              personaName: 'Lila',
+              content: '',
+            },
+          ],
+          [
+            'bbbb2222-0000-0000-0000-000000000002',
+            {
+              personaId: 'bbbb2222-0000-0000-0000-000000000002',
+              personaName: 'Lila',
+              content: '',
+            },
+          ],
+        ]) as never;
+        vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mockReturnValue({
+          serializedHistory: '',
+          historyTokensUsed: 10,
+          messagesIncluded: 1,
+          messagesDropped: 0,
+          crossChannelMessagesIncluded: 0,
+          selectedEntries: [
+            {
+              role: 'user',
+              content: 'hi',
+              personaId: 'aaaa1111-0000-0000-0000-000000000001',
+              personaName: 'Lila',
+              createdAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+          crossChannelXml: '',
+        });
+
+        const preselected = budgetManager.preselectHistory(options);
+        const result = budgetManager.allocate(options, preselected);
+
+        const header = String(result.historyMessages?.[0]?.content).split('\n')[0];
+        expect(header).toContain('(id:aaaa)');
+      });
+
       it('flag-OFF: no historyMessages/crossChannelMessage; the shipped system-message build is unaffected', () => {
         const options = createBaseOptions();
         vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mockReturnValue({
@@ -741,6 +790,7 @@ describe('ContentBudgetManager', () => {
       selectedEntries: [],
       crossChannelXml: '',
       realMessagesEnabled: false,
+      headerIdTags: new Map(),
       ...overrides,
     });
 
