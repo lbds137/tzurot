@@ -120,6 +120,11 @@ export function measureHistoryEntryTokens(
  * Returns 0 for a row the real-message render skips entirely (matching what
  * the prompt will actually contain), same contract as
  * {@link measureHistoryEntryTokens}.
+ *
+ * The `headerSpoofNeutralizeEnabled` kill switch rides the same `opts` object
+ * as `headerIdTags` above (both live on `RealMeasureOptions`), so this
+ * measure prices the transformed body the ship path emits — the same
+ * capture-once-per-turn value, never re-read.
  */
 export function measureHistoryEntryRealTokens(
   entry: StructuredHistoryEntry,

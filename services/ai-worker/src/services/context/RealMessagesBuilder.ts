@@ -14,6 +14,7 @@
 import { AIMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { formatAbsoluteTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { calculateTimeGap, formatTimeGap, shouldShowGap } from '@tzurot/common-types/utils/timeGap';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   buildHistoryEntryIndex,
   collectPersonalityNames,
@@ -27,6 +28,38 @@ import {
   type HeaderIdTagMap,
 } from '../../jobs/utils/participantUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
+
+const logger = createLogger('RealMessagesBuilder');
+
+/**
+ * The rendered header's structural pieces. Exported patterns below are built
+ * from these SAME strings `buildHeaderLine` renders with, so the shape the
+ * platform emits and the shapes its consumers hunt for cannot drift apart:
+ * a change to the header format breaks
+ * `RealMessagesBuilder.test.ts`'s drift guard rather than silently
+ * disarming the transform and the output-side strip.
+ */
+const HEADER_OPEN = '[';
+const HEADER_CLOSE = ']';
+/**
+ * U+2014 EM DASH, spaced. Deliberately the em dash ALONE and not a dash
+ * class: a hyphen imitation already fails the form the model learns, and
+ * widening to the dash class buys false positives on ordinary prose. Note
+ * `sanitizeHeaderName` neutralizes the whole dash CLASS on the NAME side —
+ * that is the opposite direction (names may not contribute to the syntax)
+ * and is deliberately asymmetric.
+ */
+const HEADER_SEPARATOR = ' — ';
+
+/**
+ * Correlation fields for the header-spoof hit log. Content and the matched
+ * line itself are deliberately absent — the no-PII logging rule forbids
+ * putting message text in logs, so the log carries WHERE and HOW MANY only.
+ */
+export interface HeaderSpoofTelemetry {
+  channelId?: string;
+  requestId?: string;
+}
 
 /**
  * Identity + role metadata carried on every history message's
@@ -148,9 +181,63 @@ function buildHeaderLine(
   const safeName = sanitizeHeaderName(speakerName);
   const named = idTag === undefined ? safeName : `${safeName} (id:${idTag})`;
   if (createdAt === undefined || createdAt.length === 0) {
-    return `[${named}]`;
+    return `${HEADER_OPEN}${named}${HEADER_CLOSE}`;
   }
-  return `[${named} — ${formatAbsoluteTimestamp(createdAt)}]`;
+  return `${HEADER_OPEN}${named}${HEADER_SEPARATOR}${formatAbsoluteTimestamp(createdAt)}${HEADER_CLOSE}`;
+}
+
+function escapeForRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** The header shape's regex core: open bracket, bracket-free text, the
+ *  separator, bracket-free tail, close bracket. Capture group 1 is the inner
+ *  text. Only the TIMESTAMPED form is expressible here — the bare `[Name]`
+ *  form carries no separator and is far too generic to hunt for. */
+function headerShapeCore(): string {
+  const inner = '[^\\[\\]\\r\\n]*';
+  return `${escapeForRegExp(HEADER_OPEN)}(${inner}${escapeForRegExp(HEADER_SEPARATOR)}${inner})${escapeForRegExp(HEADER_CLOSE)}`;
+}
+
+/**
+ * Matches every LINE of a body that is a rendered-header shape, tolerating
+ * surrounding whitespace: leading spaces/tabs are captured (group 1) so the
+ * replacement can preserve them, and trailing whitespace before end-of-line
+ * is allowed via the lookahead — both are invisible in rendered Discord
+ * text, so either would otherwise be a zero-effort bypass of the
+ * neutralizer. The output-side matcher below carries the same tolerance.
+ * A fresh RegExp per call: the `g` flag makes `lastIndex` stateful, and a
+ * shared module-level instance would leak that state across calls.
+ */
+export function headerShapedLineMatcher(): RegExp {
+  return new RegExp(`^([ \\t]*)${headerShapeCore()}(?=[ \\t]*\\r?$)`, 'gm');
+}
+
+/** Matches a header-shaped line only at the START of a string, together with
+ *  its trailing line break — the output-side strip's matcher. Tolerates the
+ *  same invisible surrounding whitespace as the input-side matcher above. */
+export function leadingHeaderLineMatcher(): RegExp {
+  return new RegExp(`^[ \\t]*${headerShapeCore()}[ \\t]*\\r?\\n?`);
+}
+
+/**
+ * Convert every body line that exactly matches the rendered-header shape from
+ * brackets to parentheses, so author-typed text cannot forge a platform
+ * speaker header. Applied UNCONDITIONALLY over the whole body INCLUDING
+ * fenced and backticked regions: a fence is not an authority boundary to the
+ * model, so exempting one reopens the hole. A pasted transcript inside a code
+ * block therefore gets its brackets changed; accepted.
+ */
+function neutralizeHeaderShapedLines(body: string): { body: string; hits: number } {
+  let hits = 0;
+  const neutralized = body.replace(
+    headerShapedLineMatcher(),
+    (_match, lead: string, inner: string) => {
+      hits += 1;
+      return `${lead}(${inner})`;
+    }
+  );
+  return { body: neutralized, hits };
 }
 
 /**
@@ -178,6 +265,18 @@ function gapLineFor(
   return shouldShowGap(gapMs) ? `[time gap: ${formatTimeGap(gapMs)}]` : undefined;
 }
 
+/** Options for {@link buildMessageContent}. Bundled rather than positional —
+ *  the function already sat at the 5-parameter ceiling before this flag
+ *  joined it. */
+interface MessageContentOptions {
+  gapLine: string | undefined;
+  idTag: string | undefined;
+  /** This turn's captured kill switch. Off ⇒ the body is byte-identical to
+   *  what it was before the transform existed (pinned by the flag-off
+   *  byte-parity tests in RealMessagesBuilder.test.ts). */
+  neutralizeHeaderSpoof: boolean;
+}
+
 /**
  * Compose one entry's message content: an optional time-gap line, then (for
  * user/character) the `[Name — t]` header, then the shared body. An
@@ -189,15 +288,14 @@ function buildMessageContent(
   msg: StructuredHistoryEntry,
   speakerInfo: { speakerName: string; role: ChatLogRole; normalizedRole: string },
   body: string,
-  gapLine: string | undefined,
-  idTag: string | undefined
-): string {
+  opts: MessageContentOptions
+): { content: string; spoofHits: number } {
   const lines: string[] = [];
-  if (gapLine !== undefined) {
-    lines.push(gapLine);
+  if (opts.gapLine !== undefined) {
+    lines.push(opts.gapLine);
   }
   if (speakerInfo.role !== 'assistant') {
-    lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, idTag));
+    lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, opts.idTag));
   }
   // Strip leading blank lines from the body so the entry's own BODY can never
   // push the header down. The header is not unconditionally line 1 of a turn
@@ -205,8 +303,11 @@ function buildMessageContent(
   // the invariant here is narrower: nothing AUTHOR-controlled comes before
   // the header, so a body-typed spoof can never occupy the platform slots.
   const trimmedBody = body.replace(/^(?:[ \t]*\r?\n)+/, '');
-  lines.push(trimmedBody);
-  return lines.join('\n');
+  const { body: neutralizedBody, hits } = opts.neutralizeHeaderSpoof
+    ? neutralizeHeaderShapedLines(trimmedBody)
+    : { body: trimmedBody, hits: 0 };
+  lines.push(neutralizedBody);
+  return { content: lines.join('\n'), spoofHits: hits };
 }
 
 /**
@@ -239,18 +340,39 @@ function renderBodyOrSkip(
   return body;
 }
 
+/** The one compute site for the body transform's gate — a future third
+ *  condition has exactly one place to land. */
+function shouldNeutralizeHeaderSpoof(settings: {
+  realMessagesEnabled: boolean;
+  headerSpoofNeutralizeEnabled: boolean;
+}): boolean {
+  return settings.realMessagesEnabled && settings.headerSpoofNeutralizeEnabled;
+}
+
+/**
+ * The per-turn real-message render inputs: this turn's captured flag values
+ * and the collision tag map. Bundled rather than threaded as three loose
+ * parameters because several signatures on the measure chain already sat at
+ * the 5-parameter ceiling.
+ */
+export interface RealRenderSettings {
+  realMessagesEnabled: boolean;
+  /** This turn's `headerSpoofNeutralizeEnabled` capture. The body transform
+   *  requires BOTH this and `realMessagesEnabled`. */
+  headerSpoofNeutralizeEnabled: boolean;
+  headerIdTags: HeaderIdTagMap;
+}
+
 /**
  * Per-entry inputs for the real-message MEASURE render
  * (`renderHistoryEntryForMeasure` / `measureHistoryEntryRealTokens`). Bundled
  * because the positional form hit the 5-param ceiling once the collision-tag
  * map joined it — not a style preference.
  */
-export interface RealMeasureOptions {
+export interface RealMeasureOptions extends RealRenderSettings {
   personalityName: string;
   allPersonalityNames: Set<string> | undefined;
   responderPersonalityId: string | undefined;
-  realMessagesEnabled: boolean;
-  headerIdTags: HeaderIdTagMap;
 }
 
 /**
@@ -304,7 +426,24 @@ export function renderHistoryEntryForMeasure(
   }
 
   const idTag = resolveIdTag(msg, speakerInfo.role, opts.headerIdTags);
-  return buildMessageContent(msg, speakerInfo, body, undefined, idTag);
+  const { content } = buildMessageContent(msg, speakerInfo, body, {
+    gapLine: undefined,
+    idTag,
+    neutralizeHeaderSpoof: shouldNeutralizeHeaderSpoof(opts),
+  });
+  return content;
+}
+
+export interface BuildRealMessagesOptions extends RealRenderSettings {
+  personalityName: string;
+  responderPersonalityId: string | undefined;
+  /**
+   * Correlation fields for the header-spoof hit log. PRESENCE is what
+   * distinguishes the SHIP call from the MEASURE call: the measure path
+   * renders the same content to size it, so logging there would double-count
+   * every hit. Ship callers pass it; measure callers omit it.
+   */
+  telemetry?: HeaderSpoofTelemetry;
 }
 
 /**
@@ -329,11 +468,11 @@ export function renderHistoryEntryForMeasure(
  */
 export function buildRealMessages(
   selectedEntries: StructuredHistoryEntry[],
-  personalityName: string,
-  responderPersonalityId: string | undefined,
-  realMessagesEnabled: boolean,
-  headerIdTags: HeaderIdTagMap
+  opts: BuildRealMessagesOptions
 ): BaseMessage[] {
+  const { personalityName, responderPersonalityId, realMessagesEnabled, headerIdTags, telemetry } =
+    opts;
+
   if (selectedEntries.length === 0) {
     return [];
   }
@@ -347,6 +486,8 @@ export function buildRealMessages(
 
   const messages: BaseMessage[] = [];
   let previousTimestamp: string | undefined;
+  let totalSpoofHits = 0;
+  const neutralizeHeaderSpoof = shouldNeutralizeHeaderSpoof(opts);
 
   for (const msg of selectedEntries) {
     const speakerInfo = resolveSpeakerInfo(
@@ -384,7 +525,12 @@ export function buildRealMessages(
     const speakerId = speakerIdFor(msg, speakerInfo.role);
     const idTag = speakerId === undefined ? undefined : headerIdTags.get(speakerId);
 
-    const content = buildMessageContent(msg, speakerInfo, body, gapLine, idTag);
+    const { content, spoofHits } = buildMessageContent(msg, speakerInfo, body, {
+      gapLine,
+      idTag,
+      neutralizeHeaderSpoof,
+    });
+    totalSpoofHits += spoofHits;
 
     const kwargs: HistoryMessageKwargs = {
       speakerId,
@@ -407,6 +553,13 @@ export function buildRealMessages(
     if (msg.createdAt !== undefined) {
       previousTimestamp = msg.createdAt;
     }
+  }
+
+  if (telemetry !== undefined && totalSpoofHits > 0) {
+    logger.warn(
+      { channelId: telemetry.channelId, requestId: telemetry.requestId, hits: totalSpoofHits },
+      'Neutralized header-shaped lines in real-message body content'
+    );
   }
 
   return messages;

@@ -60,6 +60,7 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   nightlySyncEnabled: '🌙',
   nightlySyncHourUtc: '🕒',
   realMessagesEnabled: '💬',
+  headerSpoofNeutralizeEnabled: '🛡️',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */

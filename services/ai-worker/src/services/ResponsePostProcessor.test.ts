@@ -11,6 +11,7 @@ import { ResponsePostProcessor, looksLikeLeakedThinking } from './ResponsePostPr
 const {
   mockRemoveDuplicateResponse,
   mockStripResponseArtifacts,
+  mockStripRealMessageEchoArtifacts,
   mockStripUserMessageEcho,
   mockExtractThinkingBlocks,
   mockExtractApiReasoningContent,
@@ -20,6 +21,7 @@ const {
 } = vi.hoisted(() => ({
   mockRemoveDuplicateResponse: vi.fn(),
   mockStripResponseArtifacts: vi.fn(),
+  mockStripRealMessageEchoArtifacts: vi.fn(),
   mockStripUserMessageEcho: vi.fn(),
   mockExtractThinkingBlocks: vi.fn(),
   mockExtractApiReasoningContent: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock('../utils/responseArtifacts.js', async importOriginal => {
     // module load, so a stubbed-out constant would crash the import.
     ARTIFACT_TAG_NAMES: actual.ARTIFACT_TAG_NAMES,
     stripResponseArtifacts: mockStripResponseArtifacts,
+    stripRealMessageEchoArtifacts: mockStripRealMessageEchoArtifacts,
     stripUserMessageEcho: mockStripUserMessageEcho,
   };
 });
@@ -81,6 +84,7 @@ describe('ResponsePostProcessor', () => {
     // Default mock implementations
     mockRemoveDuplicateResponse.mockImplementation((content: string) => content);
     mockStripResponseArtifacts.mockImplementation((content: string) => content);
+    mockStripRealMessageEchoArtifacts.mockImplementation((content: string) => content);
     mockStripUserMessageEcho.mockImplementation((content: string) => content);
     mockExtractThinkingBlocks.mockReturnValue({ thinkingContent: null, visibleContent: '' });
     mockExtractApiReasoningContent.mockReturnValue(null);
@@ -235,6 +239,7 @@ describe('ResponsePostProcessor', () => {
   describe('processResponse', () => {
     const defaultContext = {
       personalityName: 'TestBot',
+      realMessagesEnabled: false,
       userName: 'TestUser',
       discordUsername: 'testuser#1234',
     };
@@ -268,6 +273,53 @@ describe('ResponsePostProcessor', () => {
         'TestBot',
         'testuser#1234'
       );
+    });
+
+    it('realMessagesEnabled: false — a header line and an id tag in the response survive untouched (byte-parity with the pre-change pipeline)', () => {
+      const raw = '[Fake — 2026-01-01 (Thu) 00:00]\nHello there (id:abcd)!';
+      mockRemoveDuplicateResponse.mockReturnValue(raw);
+      mockExtractThinkingBlocks.mockReturnValue({ thinkingContent: null, visibleContent: raw });
+      mockStripResponseArtifacts.mockImplementation((content: string) => content);
+      mockStripUserMessageEcho.mockImplementation((content: string) => content);
+      mockReplacePromptPlaceholders.mockImplementation((content: string) => content);
+
+      const result = processor.processResponse('raw', undefined, undefined, {
+        ...defaultContext,
+        realMessagesEnabled: false,
+      });
+
+      expect(result.cleanedContent).toBe(raw);
+      // The generic artifact stripper must have received the UNTOUCHED raw
+      // content — proof the real-message echo strip never ran flag-off.
+      expect(mockStripResponseArtifacts).toHaveBeenCalledWith(raw, 'TestBot');
+      expect(mockStripRealMessageEchoArtifacts).not.toHaveBeenCalled();
+    });
+
+    it('realMessagesEnabled: true — the echo strip runs FIRST and feeds the generic stripper', () => {
+      const raw = '[Fake — 2026-01-01 (Thu) 00:00]\nHello there (id:abcd)!';
+      mockRemoveDuplicateResponse.mockReturnValue(raw);
+      mockExtractThinkingBlocks.mockReturnValue({ thinkingContent: null, visibleContent: raw });
+      mockStripRealMessageEchoArtifacts.mockReturnValue('echo-cleaned');
+      mockStripResponseArtifacts.mockImplementation((content: string) => content);
+      mockStripUserMessageEcho.mockImplementation((content: string) => content);
+      mockReplacePromptPlaceholders.mockImplementation((content: string) => content);
+
+      const result = processor.processResponse('raw', undefined, undefined, {
+        ...defaultContext,
+        realMessagesEnabled: true,
+        telemetry: { channelId: 'chan-1', requestId: 'req-1' },
+      });
+
+      // The specific, logged strip saw the raw content with the caller's
+      // telemetry, and its OUTPUT is what the generic stripper received — the
+      // ordering that keeps the generic `[...]` pattern from eating a header
+      // line before the logged strip can count it.
+      expect(mockStripRealMessageEchoArtifacts).toHaveBeenCalledWith(raw, {
+        channelId: 'chan-1',
+        requestId: 'req-1',
+      });
+      expect(mockStripResponseArtifacts).toHaveBeenCalledWith('echo-cleaned', 'TestBot');
+      expect(result.cleanedContent).toBe('echo-cleaned');
     });
 
     it('should thread context.userMessage through to stripUserMessageEcho', () => {
@@ -386,6 +438,7 @@ describe('ResponsePostProcessor', () => {
 
     const seamContext = {
       personalityName: 'Lilith',
+      realMessagesEnabled: false,
       userName: 'Lila',
     };
 
@@ -521,6 +574,7 @@ This is a normal response with some analysis but mostly narrative content.`;
   describe('processResponse glitch detection', () => {
     const reasoningContext = {
       personalityName: 'TestBot',
+      realMessagesEnabled: false,
       userName: 'TestUser',
       reasoningEnabled: true,
     };
@@ -566,6 +620,7 @@ Key elements: stay in persona.`;
 
       const result = processor.processResponse(leakedContent, undefined, undefined, {
         personalityName: 'TestBot',
+        realMessagesEnabled: false,
         userName: 'TestUser',
         // reasoningEnabled not set
       });
@@ -597,6 +652,7 @@ Key elements: stay in persona.`;
   describe('processResponse reasoning-engagement telemetry', () => {
     const reasoningContext = {
       personalityName: 'TestBot',
+      realMessagesEnabled: false,
       userName: 'TestUser',
       reasoningEnabled: true,
     };
@@ -612,6 +668,7 @@ Key elements: stay in persona.`;
 
       processor.processResponse('Normal response', undefined, undefined, {
         personalityName: 'TestBot',
+        realMessagesEnabled: false,
         userName: 'TestUser',
       });
 
@@ -685,6 +742,7 @@ Key elements: stay in persona.`;
     it('emits warn when structured reasoning dwarfs a short visible reply', () => {
       processor.processResponse(shortReply, { reasoning_content: 'x'.repeat(2263) }, undefined, {
         personalityName: 'TestBot',
+        realMessagesEnabled: false,
         userName: 'TestUser',
         modelName: 'glm-4.5-air',
       });
@@ -709,6 +767,7 @@ Key elements: stay in persona.`;
 
       processor.processResponse(normalReply, { reasoning_content: 'x'.repeat(2263) }, undefined, {
         personalityName: 'TestBot',
+        realMessagesEnabled: false,
         userName: 'TestUser',
         modelName: 'glm-4.5-air',
       });
@@ -722,6 +781,7 @@ Key elements: stay in persona.`;
     it('does not emit the mis-channel warn when no structured reasoning exists', () => {
       processor.processResponse(shortReply, undefined, undefined, {
         personalityName: 'TestBot',
+        realMessagesEnabled: false,
         userName: 'TestUser',
         modelName: 'glm-4.5-air',
       });
@@ -737,6 +797,7 @@ Key elements: stay in persona.`;
       // this is its normal operating mode, not a suspect signature.
       processor.processResponse(shortReply, { reasoning_content: 'x'.repeat(2263) }, undefined, {
         personalityName: 'TestBot',
+        realMessagesEnabled: false,
         userName: 'TestUser',
         modelName: 'openai/gpt-oss-120b',
       });

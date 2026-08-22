@@ -11,7 +11,12 @@
 
 import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { stripResponseArtifacts, stripUserMessageEcho } from '../utils/responseArtifacts.js';
+import {
+  stripResponseArtifacts,
+  stripUserMessageEcho,
+  stripRealMessageEchoArtifacts,
+} from '../utils/responseArtifacts.js';
+import type { HeaderSpoofTelemetry } from './context/RealMessagesBuilder.js';
 import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
 import {
   extractThinkingBlocks,
@@ -66,6 +71,16 @@ interface ResponseProcessingContext {
    * existing callers (and tests) that don't plumb this through still work.
    */
   userMessage?: MessageContent;
+  /**
+   * This turn's captured `realMessagesEnabled` value, threaded from the RAG
+   * service rather than re-read (a second read would break the once-per-turn
+   * capture invariant). Gates the real-message echo strips in Step 5: flag-off
+   * the model never saw a header line or an id tag, so stripping either would
+   * be pure false-positive risk, and flag-off output stays byte-identical.
+   */
+  realMessagesEnabled: boolean;
+  /** Correlation fields for the Step 5 strip logs. */
+  telemetry?: HeaderSpoofTelemetry;
 }
 
 /**
@@ -207,7 +222,8 @@ export class ResponsePostProcessor {
    * 2. Extract API-level reasoning
    * 3. Extract inline thinking blocks
    * 4. Unwrap invented content-shaped wrapper tags
-   * 5. Strip response artifacts (system prompt leakage)
+   * 5. Strip real-message echo artifacts (header lines, id tags), then
+   *    response artifacts (system prompt leakage)
    * 6. Replace prompt placeholders with actual names
    */
   processResponse(
@@ -238,8 +254,14 @@ export class ResponsePostProcessor {
     // unwrapped while it is still intact.
     const { content: unwrappedContent } = unwrapUnknownWrapperTags(visibleContent);
 
-    // Step 5: Strip artifacts
-    let cleanedContent = stripResponseArtifacts(unwrappedContent, context.personalityName);
+    // Step 5: Strip artifacts. The real-message echo strips run FIRST: the
+    // generic pass below carries an unconditional leading-`[...]` pattern that
+    // would otherwise consume a header line before the specific, logged strip
+    // ever sees it.
+    const echoStripped = context.realMessagesEnabled
+      ? stripRealMessageEchoArtifacts(unwrappedContent, context.telemetry ?? {})
+      : unwrappedContent;
+    let cleanedContent = stripResponseArtifacts(echoStripped, context.personalityName);
 
     // Step 5b: Strip leading verbatim echo of the user's incoming message.
     // Some LLMs learned to echo the incoming message as a prefix; existing

@@ -790,6 +790,7 @@ describe('ContentBudgetManager', () => {
       selectedEntries: [],
       crossChannelXml: '',
       realMessagesEnabled: false,
+      headerSpoofNeutralizeEnabled: false,
       headerIdTags: new Map(),
       ...overrides,
     });

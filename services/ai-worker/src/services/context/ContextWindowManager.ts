@@ -25,7 +25,7 @@ import {
   PER_MESSAGE_WIRE_OVERHEAD_TOKENS,
 } from './historyTokenMeasure.js';
 import { contentToText } from '../../utils/baseMessageContent.js';
-import { buildRealMessages } from './RealMessagesBuilder.js';
+import { buildRealMessages, type RealRenderSettings } from './RealMessagesBuilder.js';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MemoryBudgetManager, type MemorySelectionResult } from './MemoryBudgetManager.js';
 
@@ -52,6 +52,13 @@ export interface HistoryWindowOptions {
    * here would risk the two calls disagreeing.
    */
   realMessagesEnabled?: boolean;
+  /**
+   * This turn's `headerSpoofNeutralizeEnabled` capture. Optional with a false
+   * default for the same reason its `realMessagesEnabled` sibling above is:
+   * direct/test callers that construct this object need not supply it, and
+   * false is the no-op direction.
+   */
+  headerSpoofNeutralizeEnabled?: boolean;
   /**
    * This turn's collision-conditional header id-tag map — REQUIRED, with no
    * silent empty default, because an optional-empty default is exactly the
@@ -286,8 +293,14 @@ export class ContextWindowManager {
       crossChannelGroups,
       currentEnvironment,
       realMessagesEnabled = false,
+      headerSpoofNeutralizeEnabled = false,
       headerIdTags,
     } = options;
+    const render: RealRenderSettings = {
+      realMessagesEnabled,
+      headerSpoofNeutralizeEnabled,
+      headerIdTags,
+    };
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
 
@@ -329,13 +342,7 @@ export class ContextWindowManager {
     const adjustedBudget = historyBudget - currentConversationOverhead;
     const { selectedEntries, currentChannelXml, tokensUsed, budgetEligibleCount } =
       hasCurrentChannel
-        ? this.selectCurrentChannelEntries(
-            rawHistory,
-            responder,
-            adjustedBudget,
-            realMessagesEnabled,
-            headerIdTags
-          )
+        ? this.selectCurrentChannelEntries(rawHistory, responder, adjustedBudget, render)
         : {
             selectedEntries: [] as StructuredHistoryEntry[],
             currentChannelXml: '',
@@ -391,8 +398,7 @@ export class ContextWindowManager {
     rawHistory: StructuredHistoryEntry[],
     responder: ResponderIdentity,
     historyBudget: number,
-    realMessagesEnabled: boolean,
-    headerIdTags: HeaderIdTagMap
+    render: RealRenderSettings
   ): {
     selectedEntries: StructuredHistoryEntry[];
     currentChannelXml: string;
@@ -403,6 +409,7 @@ export class ContextWindowManager {
      * trimming-has-begun telemetry on rows no budget ever touched. */
     budgetEligibleCount: number;
   } {
+    const { realMessagesEnabled } = render;
     // Flag-on, history ships as real messages rather than inside a
     // `<chat_log>` wrapper, so charging this wrapper's overhead flag-on would
     // be a phantom cost re-creating the exact under-fill the recalibration
@@ -434,8 +441,7 @@ export class ContextWindowManager {
             personalityName: responder.name,
             allPersonalityNames,
             responderPersonalityId: responder.id,
-            realMessagesEnabled,
-            headerIdTags,
+            ...render,
           })
         : measureHistoryEntryTokens(
             entry,
@@ -486,12 +492,7 @@ export class ContextWindowManager {
       selectedEntries.length === 0
         ? 0
         : realMessagesEnabled
-          ? this.measureRealMessagesTokens(
-              selectedEntries,
-              responder,
-              realMessagesEnabled,
-              headerIdTags
-            )
+          ? this.measureRealMessagesTokens(selectedEntries, responder, render)
           : countTextTokens(currentChannelXml) + wrapperOverhead;
 
     // Gated on the CUT differing from the minimal walk, not on `k` alone: at
@@ -539,16 +540,13 @@ export class ContextWindowManager {
   private measureRealMessagesTokens(
     selectedEntries: StructuredHistoryEntry[],
     responder: ResponderIdentity,
-    realMessagesEnabled: boolean,
-    headerIdTags: HeaderIdTagMap
+    render: RealRenderSettings
   ): number {
-    const realMessages = buildRealMessages(
-      selectedEntries,
-      responder.name,
-      responder.id,
-      realMessagesEnabled,
-      headerIdTags
-    );
+    const realMessages = buildRealMessages(selectedEntries, {
+      personalityName: responder.name,
+      responderPersonalityId: responder.id,
+      ...render,
+    });
     if (realMessages.length === 0) {
       return 0;
     }
@@ -674,15 +672,13 @@ export class ContextWindowManager {
   countHistoryTokens(
     rawHistory: StructuredHistoryEntry[] | undefined,
     responder: ResponderIdentity,
-    realMessagesEnabled: boolean,
-    headerIdTags: HeaderIdTagMap
+    render: RealRenderSettings
   ): number {
     return this.memoryBudgetManager.countHistoryTokens(
       rawHistory,
       responder.name,
       responder.id,
-      realMessagesEnabled,
-      headerIdTags
+      render
     );
   }
 }

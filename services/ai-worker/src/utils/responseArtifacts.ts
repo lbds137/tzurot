@@ -29,6 +29,10 @@ import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { replaceOutsideCodeMarkup } from '@tzurot/common-types/utils/codeSpanDetection';
 import { findLeadingMentionsEnd, stripLeadingMentions } from '@tzurot/common-types/utils/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import {
+  leadingHeaderLineMatcher,
+  type HeaderSpoofTelemetry,
+} from '../services/context/RealMessagesBuilder.js';
 
 const logger = createLogger('ResponseArtifacts');
 
@@ -306,6 +310,82 @@ export function stripResponseArtifacts(content: string, personalityName: string)
       { personalityName, strippedCount, charsRemoved },
       `Stripped ${strippedCount} artifact(s) (${charsRemoved} chars) from response. ` +
         `LLM learned pattern from conversation history.`
+    );
+  }
+
+  return cleaned;
+}
+
+/**
+ * The id-tag shapes the platform actually emits. `assignGroupTags` in
+ * `participantUtils.ts` cuts a tag from `hexOf(id)` — the id lowercased with
+ * hyphens REMOVED — at 4 chars, then 8, then the whole 32-char hex string. So
+ * the full form is hyphen-free hex, not a hyphenated UUID. Bounded to exactly
+ * those three widths: an unbounded `(id:...)` would delete a character's
+ * legitimate parenthetical. Case-insensitive because this hunts a MODEL's echo
+ * of the format, and an echo is not bound to the platform's casing.
+ *
+ * Leading whitespace is absorbed with the tag: the platform renders a tag as
+ * ` (id:xxxx)` after a name, so deleting the tag alone would leave a double
+ * space in reader-visible output (`Vlad  said`) — and an echo is not bound to
+ * the platform's single space, so a short run is absorbed. Bounded ({0,3})
+ * rather than unbounded because an open-ended quantifier before a literal is
+ * quadratic on long whitespace runs (regexp/no-super-linear-move).
+ */
+const ID_TAG_PATTERN = /[ \t]{0,3}\(id:(?:[0-9a-f]{4}|[0-9a-f]{8}|[0-9a-f]{32})\)/gi;
+
+/**
+ * Strip the real-message form's own vocabulary out of model output: LEADING
+ * header-shaped lines (iteratively — stacked echoes count per line), and
+ * platform id tags anywhere. Both are echo-dynamics
+ * hygiene — every write-direction slip that survives teaches the channel the
+ * header format it is meant to learn only to READ.
+ *
+ * Flag-gated by the caller (`ResponsePostProcessor`), never here: flag-off the
+ * model never saw a header or a tag, so these strips would be pure
+ * false-positive risk.
+ */
+export function stripRealMessageEchoArtifacts(
+  content: string,
+  telemetry: HeaderSpoofTelemetry
+): string {
+  // Iterative, not single-shot: a model regurgitating several recent turns
+  // verbatim stacks multiple header-shaped lines at the start, and a
+  // single-pass strip would count 1 while the generic artifact pass quietly
+  // ate the rest under a different log label — undercounting exactly what
+  // this telemetry exists to count. Each pass removes at least one
+  // character, so the loop terminates.
+  let withoutHeader = content;
+  let headerLinesStripped = 0;
+  for (;;) {
+    const next = withoutHeader.replace(leadingHeaderLineMatcher(), '');
+    if (next === withoutHeader) {
+      break;
+    }
+    withoutHeader = next;
+    headerLinesStripped += 1;
+  }
+
+  // Deliberately NOT run through `replaceOutsideCodeMarkup`: the tag is
+  // platform syntax with no legitimate use inside a character's reply,
+  // quoted or not, and a fenced tag is exactly the echo that teaches the
+  // format (same reasoning as the input-side fence decision in
+  // `RealMessagesBuilder.neutralizeHeaderShapedLines`).
+  let idTagsStripped = 0;
+  const cleaned = withoutHeader.replace(ID_TAG_PATTERN, () => {
+    idTagsStripped += 1;
+    return '';
+  });
+
+  if (headerLinesStripped > 0 || idTagsStripped > 0) {
+    logger.warn(
+      {
+        channelId: telemetry.channelId,
+        requestId: telemetry.requestId,
+        headerLinesStripped,
+        idTagsStripped,
+      },
+      'Stripped real-message platform vocabulary from model output'
     );
   }
 

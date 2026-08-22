@@ -5,6 +5,7 @@
  * These functions have no dependencies on class instances and can be used standalone.
  */
 
+import { type BaseMessage } from '@langchain/core/messages';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -405,6 +406,32 @@ export async function enrichConversationHistory(
   }
 
   await hydrateStoredReferences(rawHistory, prisma, visionCache);
+}
+
+/**
+ * Assemble the provider message array for one invocation turn. Every element
+ * but the system prompt comes from the budget allocation — the human message
+ * carries the selected memory/fact blocks in its volatile prefix, so it must
+ * never be rebuilt here (a rebuild would ship a memory-less turn while the
+ * budget assumed otherwise). Flag-off, `historyMessages`/`crossChannelMessage`
+ * are both absent and this array is byte-identical to
+ * `[systemPrompt, currentMessage]` (PR 2.3 byte-parity requirement). Flag-on,
+ * the array is `[system, crossChannelHuman?, ...history, currentHuman]` (§9c).
+ * Extracted from ConversationalRAGService.invokeModelAndClean purely for size
+ * — that file counts at the `max-lines` ceiling.
+ */
+export function buildInvocationMessages(
+  systemPrompt: BaseMessage,
+  crossChannelMessage: BaseMessage | undefined,
+  historyMessages: BaseMessage[] | undefined,
+  currentMessage: BaseMessage
+): BaseMessage[] {
+  return [
+    systemPrompt,
+    ...(crossChannelMessage !== undefined ? [crossChannelMessage] : []),
+    ...(historyMessages ?? []),
+    currentMessage,
+  ];
 }
 
 /**

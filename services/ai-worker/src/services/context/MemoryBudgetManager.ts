@@ -20,8 +20,8 @@ import {
   type StructuredHistoryEntry,
   collectPersonalityNames,
 } from '../../jobs/utils/conversationUtils.js';
-import type { HeaderIdTagMap } from '../../jobs/utils/participantUtils.js';
 import { measureHistoryEntryTokens, measureHistoryEntryRealTokens } from './historyTokenMeasure.js';
+import type { RealRenderSettings } from './RealMessagesBuilder.js';
 
 const logger = createLogger('MemoryBudgetManager');
 
@@ -219,32 +219,33 @@ export class MemoryBudgetManager {
    * @param personalityName - Personality name for formatting (determines speaker name)
    * @param responderPersonalityId - The responding personality's id, so the
    *   measured shape matches the rendered one for rows carrying their own id
-   * @param realMessagesEnabled - Selects the per-entry measure: the
-   *   real-message form (flag-on) or the XML form (flag-off, default). Must
-   *   be the SAME value the shipped selection sees this turn — see
+   * @param render - This turn's captured real-message render settings
+   *   (`realMessagesEnabled`, `headerSpoofNeutralizeEnabled`, `headerIdTags`),
+   *   bundled together. `realMessagesEnabled` selects the per-entry measure:
+   *   the real-message form (flag-on) or the XML form (flag-off, default);
+   *   must be the SAME value the shipped selection sees this turn — see
    *   `PreselectedHistory.realMessagesEnabled`'s doc-comment for why.
-   * @param headerIdTags - This turn's collision-conditional header id-tag map
-   *   (empty when flag-off, or when the roster has no collisions). Threaded
-   *   through to `measureHistoryEntryRealTokens` so the flag-on measure
-   *   charges the SAME tag bytes the shipped render would actually pay —
-   *   the map is window-level and already in scope wherever this turn's
-   *   `realMessagesEnabled` value is, so there is no over-measure reason to
-   *   assume a worst case here (contrast the gap line, which genuinely cannot
-   *   be derived per-entry).
+   *   `headerIdTags` (empty when flag-off, or when the roster has no
+   *   collisions) is threaded through to `measureHistoryEntryRealTokens` so
+   *   the flag-on measure charges the SAME tag bytes the shipped render would
+   *   actually pay — the map is window-level and already in scope wherever
+   *   this turn's `realMessagesEnabled` value is, so there is no over-measure
+   *   reason to assume a worst case here (contrast the gap line, which
+   *   genuinely cannot be derived per-entry).
    * @returns Total tokens for all history messages (using tiktoken)
    */
   countHistoryTokens(
     rawHistory: StructuredHistoryEntry[] | undefined,
     personalityName: string,
     responderPersonalityId: string | undefined,
-    realMessagesEnabled: boolean,
-    headerIdTags: HeaderIdTagMap
+    render: RealRenderSettings
   ): number {
     if (!rawHistory || rawHistory.length === 0) {
       return 0;
     }
 
     const allPersonalityNames = collectPersonalityNames(rawHistory, personalityName);
+    const { realMessagesEnabled } = render;
 
     let totalTokens = 0;
     for (const entry of rawHistory) {
@@ -253,8 +254,7 @@ export class MemoryBudgetManager {
             personalityName,
             allPersonalityNames,
             responderPersonalityId,
-            realMessagesEnabled,
-            headerIdTags,
+            ...render,
           })
         : measureHistoryEntryTokens(
             entry,

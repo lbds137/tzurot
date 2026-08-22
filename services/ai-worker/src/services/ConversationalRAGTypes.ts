@@ -318,6 +318,11 @@ export interface PreselectedHistory {
    * or the budget identity breaks, and a live flip between the two calls
    * would otherwise skew it silently. */
   realMessagesEnabled: boolean;
+  /** This turn's `headerSpoofNeutralizeEnabled` capture. `allocate` must
+   *  render under the SAME value this pre-pass measured under — the same
+   *  reason `realMessagesEnabled` above is captured once and threaded rather
+   *  than re-read. */
+  headerSpoofNeutralizeEnabled: boolean;
   /**
    * This turn's collision-conditional header id-tag map, computed ONCE
    * (`computeHeaderIdTags`) right after `realMessagesEnabled` and the
@@ -419,6 +424,13 @@ export interface BudgetAllocationOptions {
    * is absent (see that method's doc-comment).
    */
   realMessagesEnabled?: boolean;
+  /**
+   * This turn's `headerSpoofNeutralizeEnabled` value, captured once upstream
+   * on the same read as `realMessagesEnabled`. Optional for the same reason
+   * its sibling above is — direct/test callers fall back to
+   * `ContentBudgetManager`'s own read.
+   */
+  headerSpoofNeutralizeEnabled?: boolean;
 }
 
 /**
@@ -453,6 +465,13 @@ export interface ModelInvocationOptions {
   crossChannelMessage?: BaseMessage;
   /** The user's raw text — post-processing reads it (echo-stripping). */
   userMessage: string;
+  /**
+   * This turn's captured `realMessagesEnabled` value, threaded so the
+   * response post-processor can gate its output-side real-message echo
+   * strips on it — never re-read, which would break the once-per-turn
+   * capture invariant.
+   */
+  realMessagesEnabled: boolean;
   context: ConversationContext;
   userApiKey?: string;
   /** True when this route bills the SYSTEM key (guests + quota retargets) —

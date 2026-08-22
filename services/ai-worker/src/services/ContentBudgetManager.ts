@@ -21,11 +21,7 @@ import {
   computeHeaderIdTags,
 } from './context/shippedHistoryMessages.js';
 import { logBudgetAllocation } from './budgetAllocationLog.js';
-import {
-  formatSingleFact,
-  getFactsWrapperOverheadText,
-  type FactRenderNames,
-} from './prompt/MemoryFormatter.js';
+import { selectFacts } from './factBudget.js';
 import type {
   BudgetAllocationOptions,
   BudgetAllocationResult,
@@ -34,6 +30,7 @@ import type {
   ParticipantInfo,
   PreselectedHistory,
 } from './ConversationalRAGTypes.js';
+import type { RealRenderSettings } from './context/RealMessagesBuilder.js';
 
 const logger = createLogger('ContentBudgetManager');
 
@@ -54,16 +51,6 @@ export function activeSpeakerPronouns(
   }
   return participantPersonas.get(activePersonaId)?.pronouns;
 }
-
-/**
- * Reserved fact sub-budget (Phase 2 slice 4a). Facts are short/dense and would
- * otherwise crowd verbose episodes out of the shared memory budget (council).
- * They get a capped slice — at most `FACT_BUDGET_MAX_TOKENS`, and never more
- * than `FACT_BUDGET_MAX_FRACTION` of the memory budget — so episodes always
- * keep the majority; the rest of the memory budget goes to episodes.
- */
-const FACT_BUDGET_MAX_TOKENS = 600;
-const FACT_BUDGET_MAX_FRACTION = 0.3;
 
 export class ContentBudgetManager {
   constructor(
@@ -100,6 +87,10 @@ export class ContentBudgetManager {
     // flag instead of two. The fallback read exists for direct/test callers
     // that construct `PreselectedHistory` without threading a captured value.
     const realMessagesEnabled = opts.realMessagesEnabled ?? this.isRealMessagesEnabled();
+    // Same capture-once contract as `realMessagesEnabled` above — see that
+    // line's comment for why a direct/test caller's fallback read exists.
+    const headerSpoofNeutralizeEnabled =
+      opts.headerSpoofNeutralizeEnabled ?? this.isHeaderSpoofNeutralizeEnabled();
 
     // Cast is safe: buildBaseComponents reads only prompt/message inputs,
     // never the omitted retrieval fields (retrievedMemories/facts) — they
@@ -132,11 +123,16 @@ export class ContentBudgetManager {
       realMessagesEnabled,
     });
 
+    const render: RealRenderSettings = {
+      realMessagesEnabled,
+      headerSpoofNeutralizeEnabled,
+      headerIdTags,
+    };
+
     const historyTokens = this.contextWindowManager.countHistoryTokens(
       context.rawConversationHistory,
       responder,
-      realMessagesEnabled,
-      headerIdTags
+      render
     );
     const memoryReserve = this.contextWindowManager.calculateMemoryBudget(
       contextWindowTokens,
@@ -164,8 +160,7 @@ export class ContentBudgetManager {
       {
         crossChannelGroups: context.crossChannelHistory,
         currentEnvironment: context.environment,
-        realMessagesEnabled,
-        headerIdTags,
+        ...render,
       }
     );
 
@@ -193,6 +188,7 @@ export class ContentBudgetManager {
       selectedEntries,
       crossChannelXml,
       realMessagesEnabled,
+      headerSpoofNeutralizeEnabled,
       headerIdTags,
     };
   }
@@ -208,6 +204,17 @@ export class ContentBudgetManager {
    */
   isRealMessagesEnabled(): boolean {
     return getSystemSetting('realMessagesEnabled') === true;
+  }
+
+  /**
+   * The single sanctioned read of the `headerSpoofNeutralizeEnabled` kill
+   * switch. Same contract as {@link isRealMessagesEnabled}: callers capture it
+   * ONCE per turn, upstream, and thread the captured value — a mid-turn flip
+   * must not mix modes within one assembled prompt. Pinned by
+   * `ConversationalRAGService.test.ts`'s once-per-turn read counts.
+   */
+  isHeaderSpoofNeutralizeEnabled(): boolean {
+    return getSystemSetting('headerSpoofNeutralizeEnabled') === true;
   }
 
   /**
@@ -304,6 +311,7 @@ export class ContentBudgetManager {
       selectedEntries,
       crossChannelXml,
       realMessagesEnabled,
+      headerSpoofNeutralizeEnabled,
       headerIdTags,
     } = preselected;
 
@@ -381,7 +389,9 @@ export class ContentBudgetManager {
       responderName: processedPersonality.name,
       responderPersonalityId: processedPersonality.id,
       realMessagesEnabled,
+      headerSpoofNeutralizeEnabled,
       headerIdTags,
+      telemetry: { channelId: context.channelId, requestId: context.requestId },
     });
 
     logBudgetAllocation({
@@ -507,11 +517,16 @@ export class ContentBudgetManager {
 
     // Facts take their reserved slice FIRST; episodes get the remainder — so a
     // dense cluster of short facts can't starve verbose episodes, and vice versa.
-    const { selectedFacts, factTokensUsed } = this.selectFacts(opts.facts ?? [], memoryBudget, {
-      subjectName: context.activePersonaName,
-      personalityName: personality.name,
-      discordUsername: context.discordUsername,
-    });
+    const { selectedFacts, factTokensUsed } = selectFacts(
+      opts.facts ?? [],
+      memoryBudget,
+      text => this.promptBuilder.countTokens(text),
+      {
+        subjectName: context.activePersonaName,
+        personalityName: personality.name,
+        discordUsername: context.discordUsername,
+      }
+    );
     const episodeBudget = Math.max(0, memoryBudget - factTokensUsed);
 
     const {
@@ -550,45 +565,6 @@ export class ContentBudgetManager {
       selectedFacts,
       factTokensUsed,
     };
-  }
-
-  /**
-   * Select facts within the reserved fact sub-budget (capped fraction of the
-   * memory budget). Greedy by retrieval order (already sorted by
-   * distance→recency→salience), counting the `<facts>` wrapper overhead so the
-   * block never overflows its slice. Zero facts selected → zero tokens (the
-   * empty block renders nothing).
-   */
-  private selectFacts(
-    facts: FactForPrompt[],
-    memoryBudget: number,
-    names?: FactRenderNames
-  ): { selectedFacts: FactForPrompt[]; factTokensUsed: number } {
-    if (facts.length === 0) {
-      return { selectedFacts: [], factTokensUsed: 0 };
-    }
-    const factBudget = Math.min(
-      FACT_BUDGET_MAX_TOKENS,
-      Math.floor(memoryBudget * FACT_BUDGET_MAX_FRACTION)
-    );
-    // Same names the render path uses — the overhead count and the per-fact
-    // counts must be of the same text the render emits (placeholder-resolved).
-    const wrapperOverhead = this.promptBuilder.countTokens(
-      getFactsWrapperOverheadText(names?.subjectName)
-    );
-    const selected: FactForPrompt[] = [];
-    let used = wrapperOverhead;
-    for (const fact of facts) {
-      const factTokens = this.promptBuilder.countTokens(formatSingleFact(fact, names));
-      if (used + factTokens > factBudget) {
-        break;
-      }
-      selected.push(fact);
-      used += factTokens;
-    }
-    return selected.length > 0
-      ? { selectedFacts: selected, factTokensUsed: used }
-      : { selectedFacts: [], factTokensUsed: 0 };
   }
 
   /**

@@ -126,6 +126,8 @@ describe('roster note <-> shipped header agreement', () => {
       responderPersonalityId: RESPONDER_ID,
       realMessagesEnabled: true,
       headerIdTags: map,
+      headerSpoofNeutralizeEnabled: false,
+      telemetry: {},
     });
     const header = String(historyMessages[0]?.content).split('\n')[0];
     expect(header).toContain('(id:aaaa)');
@@ -146,6 +148,8 @@ describe('buildShippedHistoryMessages', () => {
       responderPersonalityId: RESPONDER_ID,
       realMessagesEnabled: false,
       headerIdTags: new Map(),
+      headerSpoofNeutralizeEnabled: false,
+      telemetry: {},
     });
 
     expect(result.historyMessages).toEqual([]);
@@ -179,7 +183,9 @@ describe('buildShippedHistoryMessages', () => {
       responderName: RESPONDER_NAME,
       responderPersonalityId: RESPONDER_ID,
       realMessagesEnabled: true,
+      headerSpoofNeutralizeEnabled: false,
       headerIdTags,
+      telemetry: {},
     });
 
     expect(result.historyMessages).toHaveLength(1);
@@ -204,6 +210,8 @@ describe('buildShippedHistoryMessages', () => {
       responderPersonalityId: RESPONDER_ID,
       realMessagesEnabled: true,
       headerIdTags: new Map(),
+      headerSpoofNeutralizeEnabled: false,
+      telemetry: {},
     });
 
     expect(result.historyMessages).toHaveLength(1);
@@ -219,6 +227,8 @@ describe('buildShippedHistoryMessages', () => {
       responderPersonalityId: RESPONDER_ID,
       realMessagesEnabled: true,
       headerIdTags: new Map(),
+      headerSpoofNeutralizeEnabled: false,
+      telemetry: {},
     });
     expect(present.crossChannelMessage).toBeInstanceOf(HumanMessage);
     expect(present.crossChannelMessage?.content).toBe(
@@ -232,6 +242,8 @@ describe('buildShippedHistoryMessages', () => {
       responderPersonalityId: RESPONDER_ID,
       realMessagesEnabled: true,
       headerIdTags: new Map(),
+      headerSpoofNeutralizeEnabled: false,
+      telemetry: {},
     });
     expect(absent.crossChannelMessage).toBeUndefined();
   });

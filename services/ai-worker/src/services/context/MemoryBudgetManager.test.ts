@@ -311,13 +311,21 @@ describe('MemoryBudgetManager', () => {
 
   describe('countHistoryTokens', () => {
     it('should return 0 for undefined history', () => {
-      const result = manager.countHistoryTokens(undefined, 'TestBot', undefined, false, new Map());
+      const result = manager.countHistoryTokens(undefined, 'TestBot', undefined, {
+        realMessagesEnabled: false,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
 
       expect(result).toBe(0);
     });
 
     it('should return 0 for empty history', () => {
-      const result = manager.countHistoryTokens([], 'TestBot', undefined, false, new Map());
+      const result = manager.countHistoryTokens([], 'TestBot', undefined, {
+        realMessagesEnabled: false,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
 
       expect(result).toBe(0);
     });
@@ -330,7 +338,11 @@ describe('MemoryBudgetManager', () => {
         { role: 'assistant', content: 'Hi there', tokenCount: 7 }, // Cached value ignored
       ];
 
-      const result = manager.countHistoryTokens(history, 'TestBot', undefined, false, new Map());
+      const result = manager.countHistoryTokens(history, 'TestBot', undefined, {
+        realMessagesEnabled: false,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
 
       // Mock formats as: <message from="User" role="user">Hello</message> = 46 chars
       // countTextTokens mock returns chars / 4, so ~12 tokens per short message
@@ -345,7 +357,11 @@ describe('MemoryBudgetManager', () => {
         { role: 'assistant', content: 'Hi there' },
       ];
 
-      const result = manager.countHistoryTokens(history, 'TestBot', undefined, false, new Map());
+      const result = manager.countHistoryTokens(history, 'TestBot', undefined, {
+        realMessagesEnabled: false,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
 
       // Mock formats each message as XML and uses countTextTokens (chars/4)
       // Both messages should contribute some tokens
@@ -360,7 +376,11 @@ describe('MemoryBudgetManager', () => {
         { role: 'assistant', content: 'Response 2' },
       ];
 
-      const result = manager.countHistoryTokens(history, 'TestBot', undefined, false, new Map());
+      const result = manager.countHistoryTokens(history, 'TestBot', undefined, {
+        realMessagesEnabled: false,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
 
       // 4 messages, each formatted as XML and counted with tiktoken
       // More messages = more tokens
@@ -371,25 +391,48 @@ describe('MemoryBudgetManager', () => {
         history.slice(0, 2),
         'TestBot',
         undefined,
-        false,
-        new Map()
+        {
+          realMessagesEnabled: false,
+          headerSpoofNeutralizeEnabled: false,
+          headerIdTags: new Map(),
+        }
       );
       expect(result).toBeGreaterThan(twoMessageResult);
     });
 
     describe('realMessagesEnabled (flag-on measure)', () => {
       it('returns 0 for undefined history in both flag states', () => {
-        expect(manager.countHistoryTokens(undefined, 'TestBot', undefined, true, new Map())).toBe(
-          0
-        );
-        expect(manager.countHistoryTokens(undefined, 'TestBot', undefined, false, new Map())).toBe(
-          0
-        );
+        expect(
+          manager.countHistoryTokens(undefined, 'TestBot', undefined, {
+            realMessagesEnabled: true,
+            headerSpoofNeutralizeEnabled: false,
+            headerIdTags: new Map(),
+          })
+        ).toBe(0);
+        expect(
+          manager.countHistoryTokens(undefined, 'TestBot', undefined, {
+            realMessagesEnabled: false,
+            headerSpoofNeutralizeEnabled: false,
+            headerIdTags: new Map(),
+          })
+        ).toBe(0);
       });
 
       it('returns 0 for empty history in both flag states', () => {
-        expect(manager.countHistoryTokens([], 'TestBot', undefined, true, new Map())).toBe(0);
-        expect(manager.countHistoryTokens([], 'TestBot', undefined, false, new Map())).toBe(0);
+        expect(
+          manager.countHistoryTokens([], 'TestBot', undefined, {
+            realMessagesEnabled: true,
+            headerSpoofNeutralizeEnabled: false,
+            headerIdTags: new Map(),
+          })
+        ).toBe(0);
+        expect(
+          manager.countHistoryTokens([], 'TestBot', undefined, {
+            realMessagesEnabled: false,
+            headerSpoofNeutralizeEnabled: false,
+            headerIdTags: new Map(),
+          })
+        ).toBe(0);
       });
 
       it('flag-on measures the real-message form, strictly smaller than the flag-off XML measure', async () => {
@@ -431,14 +474,16 @@ describe('MemoryBudgetManager', () => {
             },
           ];
 
-          const flagOff = manager.countHistoryTokens(
-            history,
-            'TestBot',
-            undefined,
-            false,
-            new Map()
-          );
-          const flagOn = manager.countHistoryTokens(history, 'TestBot', undefined, true, new Map());
+          const flagOff = manager.countHistoryTokens(history, 'TestBot', undefined, {
+            realMessagesEnabled: false,
+            headerSpoofNeutralizeEnabled: false,
+            headerIdTags: new Map(),
+          });
+          const flagOn = manager.countHistoryTokens(history, 'TestBot', undefined, {
+            realMessagesEnabled: true,
+            headerSpoofNeutralizeEnabled: false,
+            headerIdTags: new Map(),
+          });
 
           expect(flagOn).toBeGreaterThan(0);
           expect(flagOn).toBeLessThan(flagOff);

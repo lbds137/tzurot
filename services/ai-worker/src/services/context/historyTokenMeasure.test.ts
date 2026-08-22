@@ -230,6 +230,7 @@ describe('measureHistoryEntryRealTokens', () => {
       allPersonalityNames: undefined,
       responderPersonalityId: undefined,
       realMessagesEnabled: true,
+      headerSpoofNeutralizeEnabled: false,
       headerIdTags: NO_TAGS,
       ...overrides,
     };
@@ -340,7 +341,13 @@ describe('measureHistoryEntryRealTokens', () => {
         entry,
         opts({ headerIdTags: taggedMap, realMessagesEnabled: true })
       );
-      const [shipped] = buildRealMessages([entry], PERSONALITY, undefined, true, taggedMap);
+      const [shipped] = buildRealMessages([entry], {
+        personalityName: PERSONALITY,
+        responderPersonalityId: undefined,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: taggedMap,
+      });
       const shippedContent = String(shipped.content);
 
       const measureHeaderLine = measureRender.split('\n')[0];

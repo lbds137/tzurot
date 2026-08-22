@@ -599,7 +599,19 @@ with the losing side's objections as binding constraints:
   both providers; a wire-shape contract test is buildable, internal merge is
   not) — rollout watch item. /inspect id-tag redaction for non-owner viewers
   is a separate owner-taste item (filed), explicitly NOT a substitute for the
-  transform (obscurity must not be load-bearing).
+  transform (obscurity must not be load-bearing). Two build-time residuals,
+  both accepted at review: the transform matches only the TIMESTAMPED header
+  form — a body line typed as bare `[Name]` is untouched, because that shape
+  is far too generic to hunt (ordinary bracketed prose would be mangled) and
+  the bare form renders only for rows lacking a timestamp; and the matcher is
+  deliberately over-inclusive on multi-separator lines (`[A — b — c]` is
+  parenthesized though the platform never renders it) — hardening over
+  precision, the cost of a false hit being cosmetic bracket→paren. Same
+  posture on the output side: the id-tag strip removes any `(id:<4/8/32
+  hex>)` anywhere in a reply, so an in-fiction parenthetical that happens to
+  be hex-shaped (`(id:c0de)`) is silently dropped — accepted, the width
+  bounding rules out the worst and platform syntax has no legitimate
+  in-reply use.
 
 ### D3 — flag-read unification: BUILD
 
