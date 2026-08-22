@@ -22,5 +22,7 @@ Why: PR #2180 round-3 review found two High findings that are inert behind the d
 
 Fix shape (design pass before build): decide the flag-on identity mechanism — e.g. a short visible id suffix in headers for ambiguous rosters only, or accepting name+context with the S0 framing — and decide whether content-side header-shaped lines need structural neutralization (zero-width break, bracket substitution) or the instruction-level defense suffices. Both decisions feed §9c and gate PR 2.5 (the flip).
 
+Two round-4 riders folded into the same design pass: (3) whether the flag's two live read sites (RenderableReference.choosePrefix, ReferencedMessageFormatter contextual-references instruction) should be unified onto the per-turn captured value — dismissed twice in-PR as wording-only, but the reviewer is right that staged-rollout flips make mid-turn consistency worth a deliberate decision rather than a call-graph accident; and (4) whether escapeXmlContent's visible entity-escaping in real-message bodies (accepted trade for the unforked shared renderer) should be revisited once real turns are user-visible in /inspect and snapshots.
+
 Acceptance: a recorded design disposition for BOTH gaps (prompt-assembly-architecture.md §9c or successor), implemented or explicitly accepted-with-rationale, BEFORE realMessagesEnabled flips anywhere.
 <!-- SECTION:DESCRIPTION:END -->
