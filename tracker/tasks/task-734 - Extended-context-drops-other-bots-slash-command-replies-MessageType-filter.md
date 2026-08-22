@@ -1,10 +1,10 @@
 ---
 id: TASK-734
 title: Extended context drops other bots slash-command replies (MessageType filter)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 21:17'
-updated_date: '2026-08-22 21:23'
+updated_date: '2026-08-22 23:02'
 labels:
   - 'area:bot-client'
   - 'size:S'
