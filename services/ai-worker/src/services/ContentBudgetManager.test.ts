@@ -469,16 +469,19 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      // Verify cross-channel groups were passed as 4th arg
+      // Verify cross-channel groups were passed in the trailing options object
       const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
       expect(call).toBeDefined();
-      expect(call[3]).toBeDefined(); // 4th arg = crossChannelGroups
-      expect(call[3]).toHaveLength(1);
-      expect(call[3]![0].channelEnvironment.type).toBe('guild');
-      expect(call[3]![0].messages[0].content).toBe('Cross-channel msg');
+      // The options parameter is optional on the signature, so the mock tuple
+      // types it as possibly-undefined — but the caller always passes it.
+      const passedOptions = call[3]!;
+      expect(passedOptions.crossChannelGroups).toBeDefined();
+      expect(passedOptions.crossChannelGroups).toHaveLength(1);
+      expect(passedOptions.crossChannelGroups![0].channelEnvironment.type).toBe('guild');
+      expect(passedOptions.crossChannelGroups![0].messages[0].content).toBe('Cross-channel msg');
     });
 
-    it('should pass environment to selectAndSerializeHistory as 5th arg', () => {
+    it('should pass environment to selectAndSerializeHistory in the options object', () => {
       const options = createBaseOptions();
       const environment = {
         type: 'guild' as const,
@@ -491,8 +494,8 @@ describe('ContentBudgetManager', () => {
 
       const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
       expect(call).toBeDefined();
-      expect(call[4]).toBeDefined(); // 5th arg = currentEnvironment
-      expect(call[4]).toEqual(environment);
+      expect(call[3]!.currentEnvironment).toBeDefined();
+      expect(call[3]!.currentEnvironment).toEqual(environment);
     });
 
     it('should pass undefined environment when not available in context', () => {
@@ -503,7 +506,7 @@ describe('ContentBudgetManager', () => {
 
       const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
       expect(call).toBeDefined();
-      expect(call[4]).toBeUndefined(); // 5th arg = undefined when no environment
+      expect(call[3]!.currentEnvironment).toBeUndefined();
     });
 
     describe('realMessagesEnabled (PR 2.3)', () => {
@@ -922,6 +925,209 @@ describe('ContentBudgetManager', () => {
         relevantMemories: MemoryDocument[];
       };
       expect(finalPromptArgs.relevantMemories.map(m => m.metadata?.id)).toEqual(['mem-e1']);
+    });
+
+    describe('the CHUNKED cut (§2.5) — selectedEntries<->memory-dedup still holds', () => {
+      const bulk = 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(10);
+      const entry = (n: number): Record<string, unknown> => ({
+        id: `uuid-${n}`,
+        discordMessageId: [`snowflake-${n}`],
+        role: n % 2 === 0 ? 'assistant' : 'user',
+        content: `message ${n} ${bulk}`,
+        createdAt: new Date(1_000_000 + n * 60_000).toISOString(),
+        // Persona/personality attribution widens the XML-form envelope
+        // (`from=`/`t=` attributes) relative to a real-message header,
+        // which is what makes the flag-on measure fit MORE entries under
+        // the same budget — an id-less/name-less fixture (as the sibling
+        // test above uses) renders near-identically in both forms and
+        // hides the effect.
+        personaName: n % 2 === 1 ? 'Vlad' : undefined,
+        personalityName: n % 2 === 0 ? mockPersonality.name : undefined,
+      });
+      const ENTRY_COUNT = 40;
+
+      afterEach(() => {
+        settingsState.realMessagesEnabled = false;
+      });
+
+      function buildOptions(effectiveContextWindowTokens: number): BudgetAllocationOptions {
+        return {
+          personality: mockPersonality,
+          processedPersonality: mockPersonality,
+          participantPersonas: new Map(),
+          context: {
+            userId: 'user-123',
+            channelId: 'channel-123',
+            rawConversationHistory: Array.from({ length: ENTRY_COUNT }, (_, i) => entry(i + 1)),
+          },
+          userMessage: 'hello',
+          processedAttachments: [],
+          referencedMessagesDescriptions: undefined,
+          effectiveContextWindowTokens,
+        } as unknown as BudgetAllocationOptions;
+      }
+
+      it('drives the CHUNKED cut (not merely the minimal cut) — at least the entry floor ships, and some drop', () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        const options = buildOptions(3500);
+
+        const preselected = manager.preselectHistory(options);
+
+        // Precondition for the seam cases below: this budget puts the window
+        // into the trimming regime at all (some entries dropped) while still
+        // shipping at least the entry floor. Note this pair of assertions does
+        // NOT by itself distinguish a chunked cut from a minimal cut that
+        // happens to leave >= floor — that distinction is pinned directly, on
+        // `computeEvictionCut`, by the OSCILLATION and HYSTERESIS property
+        // tests in ContextWindowManager.test.ts. What matters here is only
+        // that the dedup seam is exercised against a POST-CUT shipped set.
+        expect(preselected.messagesDropped).toBeGreaterThan(0);
+        expect(preselected.messagesDropped).toBeLessThan(ENTRY_COUNT);
+        expect(preselected.selectedEntries.length).toBeGreaterThanOrEqual(20);
+      });
+
+      it('(a) oldestSelectedTs/shippedMessageIds derive from the POST-CUT shipped set, not the fetched set', () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        const options = buildOptions(3500);
+
+        const preselected = manager.preselectHistory(options);
+        const droppedCount = preselected.messagesDropped;
+
+        // The chunk-evicted entries (the oldest `droppedCount` of them) are
+        // absent from the shipped-id set.
+        for (let i = 1; i <= droppedCount; i++) {
+          expect(preselected.shippedMessageIds.has(`snowflake-${i}`)).toBe(false);
+        }
+        // The oldest SHIPPED entry's timestamp is the boundary.
+        const oldestShippedIndex = droppedCount + 1;
+        expect(preselected.oldestSelectedTs).toBe(1_000_000 + oldestShippedIndex * 60_000);
+      });
+
+      it('(b) filterShippedMemories KEEPS a memory predating the oldest shipped entry', () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        const options = buildOptions(3500);
+        const preselected = manager.preselectHistory(options);
+
+        const predatingMemory: MemoryDocument = {
+          pageContent: 'predates the boundary',
+          metadata: {
+            id: 'mem-predate',
+            createdAt: (preselected.oldestSelectedTs as number) - 5_000,
+            score: 0.9,
+            channelId: 'channel-123',
+          },
+        };
+        manager.allocate(
+          { ...options, retrievedMemories: [predatingMemory], facts: [] },
+          preselected
+        );
+        const calls = vi.mocked(mockPromptBuilder.buildVolatilePrefix).mock.calls;
+        const finalPromptArgs = calls[calls.length - 1][0] as {
+          relevantMemories: MemoryDocument[];
+        };
+        expect(finalPromptArgs.relevantMemories.map(m => m.metadata?.id)).toEqual(['mem-predate']);
+      });
+
+      it('(c) RESCUES a current-channel memory whose source messages were ALL evicted by the chunk cut', () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        const options = buildOptions(3500);
+        const preselected = manager.preselectHistory(options);
+
+        // snowflake-1 is chunk-evicted (the first entries drop) — a memory of
+        // it, stamped AFTER the boundary (persistence lag), must be rescued.
+        const rescuedMemory: MemoryDocument = {
+          pageContent: 'memory of an evicted entry',
+          metadata: {
+            id: 'mem-rescued',
+            createdAt: (preselected.oldestSelectedTs as number) + 1_000,
+            score: 0.9,
+            messageIds: ['snowflake-1'],
+            channelId: 'channel-123',
+          },
+        };
+        manager.allocate(
+          { ...options, retrievedMemories: [rescuedMemory], facts: [] },
+          preselected
+        );
+        const calls = vi.mocked(mockPromptBuilder.buildVolatilePrefix).mock.calls;
+        const finalPromptArgs = calls[calls.length - 1][0] as {
+          relevantMemories: MemoryDocument[];
+        };
+        expect(finalPromptArgs.relevantMemories.map(m => m.metadata?.id)).toEqual(['mem-rescued']);
+      });
+
+      it('(d) DROPS a memory of a SHIPPED message', () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        const options = buildOptions(3500);
+        const preselected = manager.preselectHistory(options);
+
+        const shippedId = `snowflake-${ENTRY_COUNT}`;
+        expect(preselected.shippedMessageIds.has(shippedId)).toBe(true);
+        const shippedMemory: MemoryDocument = {
+          pageContent: 'memory of a shipped entry',
+          metadata: {
+            id: 'mem-shipped',
+            createdAt: (preselected.oldestSelectedTs as number) + 1_000,
+            score: 0.9,
+            messageIds: [shippedId],
+            channelId: 'channel-123',
+          },
+        };
+        manager.allocate(
+          { ...options, retrievedMemories: [shippedMemory], facts: [] },
+          preselected
+        );
+        const calls = vi.mocked(mockPromptBuilder.buildVolatilePrefix).mock.calls;
+        const finalPromptArgs = calls[calls.length - 1][0] as {
+          relevantMemories: MemoryDocument[];
+        };
+        expect(finalPromptArgs.relevantMemories).toEqual([]);
+      });
+
+      it("follows EACH flag polarity's OWN shipped set — the real-measure mode fits a different (larger) set under the same budget", () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        const options = buildOptions(3500);
+
+        settingsState.realMessagesEnabled = false;
+        const preselectedOff = manager.preselectHistory(options);
+        settingsState.realMessagesEnabled = true;
+        const preselectedOn = manager.preselectHistory(options);
+
+        // The real measure prices the same window lower, so flag-on fits a
+        // strictly larger set under the same budget.
+        expect(preselectedOn.messagesDropped).toBeLessThan(preselectedOff.messagesDropped);
+
+        // Each polarity's dedup boundary follows its OWN shipped set — the
+        // point of the case, and the reason the two are asserted separately
+        // rather than against each other.
+        for (const preselected of [preselectedOff, preselectedOn]) {
+          const dropped = preselected.messagesDropped;
+          expect(preselected.shippedMessageIds.size).toBe(ENTRY_COUNT - dropped);
+          // Every evicted entry is absent from the shipped-id set…
+          for (let i = 1; i <= dropped; i++) {
+            expect(preselected.shippedMessageIds.has(`snowflake-${i}`)).toBe(false);
+          }
+          // …every surviving one is present…
+          for (let i = dropped + 1; i <= ENTRY_COUNT; i++) {
+            expect(preselected.shippedMessageIds.has(`snowflake-${i}`)).toBe(true);
+          }
+          // …and the time baseline is the oldest SHIPPED entry, not the
+          // oldest fetched one.
+          expect(preselected.oldestSelectedTs).toBe(1_000_000 + (dropped + 1) * 60_000);
+        }
+      });
     });
   });
 });

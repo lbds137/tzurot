@@ -203,10 +203,11 @@ export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
     // + the turn) — the container that now carries all V-tier spend.
     currentMessageTokens: opts.countTokens(contentToText(budgetResult.currentMessage.content)),
     memoryTokensUsed: budgetResult.memoryTokensUsed,
-    // Under realMessagesEnabled this is the XML-form measure, which
-    // over-reports the smaller real-message form actually shipped — the same
-    // accepted over-estimate the budget allocation itself runs on (pinned in
-    // RealMessagesBuilder.test.ts), surfacing here in /inspect unchanged.
+    // Under realMessagesEnabled this is the re-measured real-message form
+    // (rendered content plus per-message wire overhead) plus the
+    // cross-channel message's own wire overhead when present — the exact form
+    // actually shipped, not the XML-form estimate — so /inspect reports what
+    // the model received.
     historyTokensUsed: budgetResult.historyTokensUsed,
     memoriesDropped: budgetResult.memoriesDroppedCount,
     factTokensUsed: budgetResult.factTokensUsed,

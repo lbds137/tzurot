@@ -5,9 +5,14 @@ import {
   collectPersonalityNames,
   formatConversationHistoryAsXml,
   formatSingleHistoryEntryAsXml,
-} from './conversationUtils.js';
-import { measureHistoryEntryTokens } from './historyTokenMeasure.js';
-import type { StructuredHistoryEntry } from './conversationTypes.js';
+} from '../../jobs/utils/conversationUtils.js';
+import {
+  measureHistoryEntryTokens,
+  measureHistoryEntryRealTokens,
+  PER_MESSAGE_WIRE_OVERHEAD_TOKENS,
+} from './historyTokenMeasure.js';
+import { renderHistoryEntryForMeasure } from './RealMessagesBuilder.js';
+import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
 const PERSONALITY = 'Lilith';
 
@@ -190,5 +195,66 @@ describe('measureHistoryEntryTokens', () => {
 
       expect(measured).toBeGreaterThanOrEqual(shipped);
     });
+  });
+});
+
+describe('measureHistoryEntryRealTokens', () => {
+  it('returns 0 for a row the real-message render has no speaker for', () => {
+    const entry = { role: 'system', content: 'ignored' } as StructuredHistoryEntry;
+
+    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBe(0);
+  });
+
+  it('returns 0 for an assistant row whose body renders empty', () => {
+    // The real path skips this row rather than shipping an empty-content
+    // message, so the measure must agree — a nonzero cost here would price
+    // a message the prompt never carries.
+    const entry = {
+      role: 'assistant',
+      content: '',
+      personalityName: PERSONALITY,
+    } as StructuredHistoryEntry;
+
+    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBe(0);
+  });
+
+  it('charges the rendered content plus the worst-case gap line and the wire overhead', () => {
+    // Pinned against independently-written literals rather than the module's
+    // own constants: an assertion phrased in terms of
+    // PER_MESSAGE_WIRE_OVERHEAD_TOKENS moves WITH that constant, so it cannot
+    // fail if the constant is wrong. The gap-line string is the one the
+    // measure charges to EVERY entry — a per-entry measure cannot know whether
+    // this entry's neighbour puts it past the gap threshold, so it always
+    // charges the widest form.
+    const entry = userEntry();
+    const rendered = renderHistoryEntryForMeasure(entry, PERSONALITY);
+    const worstCaseGapTokens = countTextTokens('[time gap: 52 weeks 6 days]\n');
+
+    const measured = measureHistoryEntryRealTokens(entry, PERSONALITY);
+
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(measured).toBe(countTextTokens(rendered) + worstCaseGapTokens + 4);
+    // The constant is what the measure actually spends; pinned separately so a
+    // change to it is a deliberate edit here, not silent drift.
+    expect(PER_MESSAGE_WIRE_OVERHEAD_TOKENS).toBe(4);
+  });
+
+  it('is deterministic for the same entry', () => {
+    const entry = userEntry();
+
+    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBe(
+      measureHistoryEntryRealTokens(entry, PERSONALITY)
+    );
+  });
+
+  it('stays under the XML measure for the same entry', () => {
+    // The recalibration's whole point: the XML envelope costs more than a
+    // header line, so the flag-on budget stops reserving headroom the real
+    // form never spends.
+    const entry = userEntry();
+
+    expect(measureHistoryEntryRealTokens(entry, PERSONALITY)).toBeLessThan(
+      measureHistoryEntryTokens(entry, PERSONALITY)
+    );
   });
 });

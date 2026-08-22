@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryBudgetManager } from './MemoryBudgetManager.js';
+import { formatSingleHistoryEntryAsXml } from '../../jobs/utils/conversationUtils.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 // Mock common-types
@@ -61,23 +62,36 @@ vi.mock('../prompt/MemoryFormatter.js', () => ({
 
 // Mock conversationUtils
 // formatSingleHistoryEntryAsXml returns XML like: <message from="User" role="user">content</message>
-// We mock it to return a 100-char string so countTextTokens (mocked as chars/4) returns ~25 tokens
-vi.mock('../../jobs/utils/conversationUtils.js', () => ({
-  formatSingleHistoryEntryAsXml: vi.fn(
-    (entry: { role: string; content: string }) =>
-      `<message from="User" role="${entry.role}">${entry.content}</message>`
-  ),
-  // Real behaviour, not a stub: countHistoryTokens must derive the sibling-name
-  // set the renderer will use, and a stub returning an empty set would hide a
-  // caller that stopped passing it.
-  collectPersonalityNames: (history: { role: string; personalityName?: string }[], name: string) =>
-    new Set([
-      name,
-      ...history
-        .filter(m => m.role === 'assistant' && m.personalityName !== undefined)
-        .map(m => m.personalityName as string),
-    ]),
-}));
+// We mock it to return a 100-char string so countTextTokens (mocked as chars/4) returns ~25 tokens.
+// Only the XML-form entry point is faked; the real-message pipeline
+// (`renderHistoryEntryBody`, `buildHistoryEntryIndex`) passes through to the
+// actual implementation so `measureHistoryEntryRealTokens` (which reaches
+// this module via `RealMessagesBuilder.ts`) exercises real behaviour.
+vi.mock('../../jobs/utils/conversationUtils.js', async () => {
+  const actual = await vi.importActual<typeof import('../../jobs/utils/conversationUtils.js')>(
+    '../../jobs/utils/conversationUtils.js'
+  );
+  return {
+    ...actual,
+    formatSingleHistoryEntryAsXml: vi.fn(
+      (entry: { role: string; content: string }) =>
+        `<message from="User" role="${entry.role}">${entry.content}</message>`
+    ),
+    // Real behaviour, not a stub: countHistoryTokens must derive the sibling-name
+    // set the renderer will use, and a stub returning an empty set would hide a
+    // caller that stopped passing it.
+    collectPersonalityNames: (
+      history: { role: string; personalityName?: string }[],
+      name: string
+    ) =>
+      new Set([
+        name,
+        ...history
+          .filter(m => m.role === 'assistant' && m.personalityName !== undefined)
+          .map(m => m.personalityName as string),
+      ]),
+  };
+});
 
 describe('MemoryBudgetManager', () => {
   let manager: MemoryBudgetManager;
@@ -355,6 +369,67 @@ describe('MemoryBudgetManager', () => {
       // Count with 2 messages should be less than 4 messages
       const twoMessageResult = manager.countHistoryTokens(history.slice(0, 2), 'TestBot');
       expect(result).toBeGreaterThan(twoMessageResult);
+    });
+
+    describe('realMessagesEnabled (flag-on measure)', () => {
+      it('returns 0 for undefined history in both flag states', () => {
+        expect(manager.countHistoryTokens(undefined, 'TestBot', undefined, true)).toBe(0);
+        expect(manager.countHistoryTokens(undefined, 'TestBot', undefined, false)).toBe(0);
+      });
+
+      it('returns 0 for empty history in both flag states', () => {
+        expect(manager.countHistoryTokens([], 'TestBot', undefined, true)).toBe(0);
+        expect(manager.countHistoryTokens([], 'TestBot', undefined, false)).toBe(0);
+      });
+
+      it('flag-on measures the real-message form, strictly smaller than the flag-off XML measure', async () => {
+        // This file's `formatSingleHistoryEntryAsXml` mock is trivialized to a
+        // short synthetic tag (see the file-level comment above the mock) —
+        // far lighter than the real XML renderer's full attribute set
+        // (`from=`/`from_id=`/`role=`/`t=`), which is what makes the
+        // real-message form smaller in production (pinned against the REAL
+        // renderer in RealMessagesBuilder.test.ts). Swapping in the real
+        // formatter for just this test keeps the comparison meaningful while
+        // still proving the WIRING: `countHistoryTokens`'s flag routes to a
+        // genuinely different — and smaller-yielding — measure function.
+        const actual = await vi.importActual<
+          typeof import('../../jobs/utils/conversationUtils.js')
+        >('../../jobs/utils/conversationUtils.js');
+        const mockedFormatter = vi.mocked(formatSingleHistoryEntryAsXml);
+        const priorImpl = mockedFormatter.getMockImplementation();
+        mockedFormatter.mockImplementation(actual.formatSingleHistoryEntryAsXml);
+        try {
+          // A realistic entry carries `personaId`/`personalityId` (from_id=)
+          // and `createdAt` (t=), which is what makes the real XML envelope
+          // heavier than a header line — a fixture with neither, as a
+          // minimal-shape test would default to, renders near-identically to
+          // this file's trivialized mock and hides the effect entirely.
+          const history = [
+            {
+              role: 'user',
+              content: 'Hello there friend',
+              personaId: 'persona-vlad',
+              personaName: 'Vlad',
+              createdAt: '2026-01-01T00:00:00.000Z',
+            },
+            {
+              role: 'assistant',
+              content: 'Hi there, how can I help?',
+              personalityId: 'personality-testbot',
+              personalityName: 'TestBot',
+              createdAt: '2026-01-01T00:05:00.000Z',
+            },
+          ];
+
+          const flagOff = manager.countHistoryTokens(history, 'TestBot', undefined, false);
+          const flagOn = manager.countHistoryTokens(history, 'TestBot', undefined, true);
+
+          expect(flagOn).toBeGreaterThan(0);
+          expect(flagOn).toBeLessThan(flagOff);
+        } finally {
+          mockedFormatter.mockImplementation(priorImpl!);
+        }
+      });
     });
   });
 });

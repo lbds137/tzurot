@@ -20,7 +20,7 @@ import {
   type StructuredHistoryEntry,
   collectPersonalityNames,
 } from '../../jobs/utils/conversationUtils.js';
-import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
+import { measureHistoryEntryTokens, measureHistoryEntryRealTokens } from './historyTokenMeasure.js';
 
 const logger = createLogger('MemoryBudgetManager');
 
@@ -218,22 +218,30 @@ export class MemoryBudgetManager {
    * @param personalityName - Personality name for formatting (determines speaker name)
    * @param responderPersonalityId - The responding personality's id, so the
    *   measured shape matches the rendered one for rows carrying their own id
+   * @param realMessagesEnabled - Selects the per-entry measure: the
+   *   real-message form (flag-on) or the XML form (flag-off, default). Must
+   *   be the SAME value the shipped selection sees this turn — see
+   *   `PreselectedHistory.realMessagesEnabled`'s doc-comment for why.
    * @returns Total tokens for all history messages (using tiktoken)
    */
   countHistoryTokens(
     rawHistory: StructuredHistoryEntry[] | undefined,
     personalityName: string,
-    responderPersonalityId?: string
+    responderPersonalityId?: string,
+    realMessagesEnabled = false
   ): number {
     if (!rawHistory || rawHistory.length === 0) {
       return 0;
     }
 
     const allPersonalityNames = collectPersonalityNames(rawHistory, personalityName);
+    const measureEntry = realMessagesEnabled
+      ? measureHistoryEntryRealTokens
+      : measureHistoryEntryTokens;
 
     let totalTokens = 0;
     for (const entry of rawHistory) {
-      totalTokens += measureHistoryEntryTokens(
+      totalTokens += measureEntry(
         entry,
         personalityName,
         allPersonalityNames,
