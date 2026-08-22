@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hydrateStoredReferences } from './storedReferenceHydrator.js';
 import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
-import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -52,7 +52,7 @@ function makeRef(overrides: Partial<StoredReferencedMessage> = {}): StoredRefere
   };
 }
 
-function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
+function makeEntry(overrides: Partial<StructuredHistoryEntry> = {}): StructuredHistoryEntry {
   return {
     role: 'user',
     content: 'Hello',
@@ -60,7 +60,7 @@ function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
       referencedMessages: [makeRef()],
     },
     ...overrides,
-  } as RawHistoryEntry;
+  } as StructuredHistoryEntry;
 }
 
 describe('hydrateStoredReferences', () => {
@@ -90,7 +90,7 @@ describe('hydrateStoredReferences', () => {
   it('returns early when no referencedMessages in history', async () => {
     const prisma = createMockPrisma();
     const cache = createMockVisionCache();
-    const history: RawHistoryEntry[] = [{ role: 'user', content: 'Hello' }];
+    const history: StructuredHistoryEntry[] = [{ role: 'user', content: 'Hello' }];
 
     await hydrateStoredReferences(history, prisma, cache as never);
 
@@ -119,7 +119,7 @@ describe('hydrateStoredReferences', () => {
       ])
     );
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(ref.resolvedPersonaName).toBe('Lila');
     expect(ref.resolvedPersonaId).toBe('persona-uuid-789');
@@ -132,7 +132,7 @@ describe('hydrateStoredReferences', () => {
     const ref = makeRef(); // No authorDiscordId
     const history = [makeEntry({ messageMetadata: { referencedMessages: [ref] } })];
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     // Should not have called batch resolve (no discord IDs to resolve)
     expect(mockBatchResolveByDiscordIds).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('hydrateStoredReferences', () => {
 
     mockBatchResolveByDiscordIds.mockResolvedValue(new Map());
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(ref.resolvedPersonaName).toBeUndefined();
     expect(ref.resolvedPersonaId).toBeUndefined();
@@ -172,7 +172,7 @@ describe('hydrateStoredReferences', () => {
 
     cache.get.mockResolvedValue('A beautiful sunset over the ocean');
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(cache.get).toHaveBeenCalledWith({
       attachmentId: 'att-1',
@@ -203,7 +203,7 @@ describe('hydrateStoredReferences', () => {
     });
     const history = [makeEntry({ messageMetadata: { referencedMessages: [ref] } })];
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(cache.get).not.toHaveBeenCalled();
     expect(ref.attachmentEnrichment).toBeUndefined();
@@ -227,7 +227,7 @@ describe('hydrateStoredReferences', () => {
 
     cache.get.mockResolvedValue(null); // Cache miss
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(ref.attachmentEnrichment).toBeUndefined();
   });
@@ -255,7 +255,7 @@ describe('hydrateStoredReferences', () => {
       ])
     );
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     // Should only call batch resolve once with deduplicated IDs
     expect(mockBatchResolveByDiscordIds).toHaveBeenCalledWith(prisma, ['discord-456']);
@@ -277,7 +277,7 @@ describe('hydrateStoredReferences', () => {
 
     cache.get.mockResolvedValue('A cat sitting on a mat');
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     // The predecessor invented `'image'` here, and another producer invented
     // `'attachment'`, so the two disagreed and the same picture rendered twice.
@@ -324,7 +324,7 @@ describe('hydrateStoredReferences', () => {
     );
     cache.get.mockResolvedValue('A sunset photo');
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(ref.resolvedPersonaName).toBe('Lila');
     expect(ref.resolvedPersonaId).toBe('p1');
@@ -356,7 +356,7 @@ describe('hydrateStoredReferences', () => {
 
     cache.get.mockResolvedValue('FROM THE CACHE');
 
-    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+    await hydrateStoredReferences(history as StructuredHistoryEntry[], prisma, cache as never);
 
     expect(cache.get).not.toHaveBeenCalled();
     expect(ref.attachmentEnrichment).toEqual([

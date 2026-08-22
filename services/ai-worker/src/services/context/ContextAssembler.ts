@@ -509,7 +509,7 @@ export class ContextAssembler {
     const messages = rawMessages.map(m => fromApiMessage(m, location.channelId, location.guildId));
 
     // Extended-context assistant messages arrive attributed by webhook display
-    // name (which two personalities can share). Remap to the unique name via the
+    // name (which two personalities can share). Remap to the personality's `name` via the
     // bot-resolved personalityId so the chat log keeps them distinct.
     await this.remapExtendedContextPersonalityNames(messages);
 
@@ -566,9 +566,10 @@ export class ContextAssembler {
 
   /**
    * Overwrite extended-context assistant messages' `personalityName` with the
-   * unique personality name resolved from `personalityId`. The bot-side fetcher
+   * personality `name` resolved from `personalityId`. The bot-side fetcher
    * can only derive the webhook display name, which two personalities may share;
-   * the unique name is what disambiguates them in the chat log. Messages without
+   * `name` is what disambiguates them in the chat log (more distinguishing than
+   * displayName, though itself not unique). Messages without
    * a resolved personalityId (registry miss) keep the display-name attribution.
    */
   private async remapExtendedContextPersonalityNames(
@@ -590,9 +591,9 @@ export class ContextAssembler {
       if (message.role !== MessageRole.Assistant || message.personalityId === undefined) {
         continue;
       }
-      const uniqueName = nameById.get(message.personalityId);
-      if (uniqueName !== undefined && uniqueName.length > 0) {
-        message.personalityName = uniqueName;
+      const resolvedName = nameById.get(message.personalityId);
+      if (resolvedName !== undefined && resolvedName.length > 0) {
+        message.personalityName = resolvedName;
       }
     }
   }

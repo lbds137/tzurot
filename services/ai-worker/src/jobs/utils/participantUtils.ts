@@ -7,7 +7,7 @@
 
 import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { RawHistoryEntry } from './conversationTypes.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 
 const logger = createLogger('participantUtils');
 
@@ -44,7 +44,7 @@ export type ChatLogRole = 'user' | 'assistant' | 'character';
  * identically must resolve to the same role, in both pad directions.
  */
 function resolveAssistantRowRole(
-  msg: RawHistoryEntry,
+  msg: StructuredHistoryEntry,
   speakerName: string,
   personalityName: string,
   responderPersonalityId?: string
@@ -95,7 +95,7 @@ function resolveAssistantRowRole(
  * @returns Speaker name and role, or null if message should be skipped
  */
 export function resolveSpeakerInfo(
-  msg: RawHistoryEntry,
+  msg: StructuredHistoryEntry,
   personalityName: string,
   allPersonalityNames?: Set<string>,
   responderPersonalityId?: string
@@ -204,12 +204,7 @@ interface Participant {
  * Returns list of all personas involved in the conversation
  */
 export function extractParticipants(
-  history: {
-    role: MessageRole;
-    content: string;
-    personaId?: string;
-    personaName?: string;
-  }[],
+  history: Pick<StructuredHistoryEntry, 'role' | 'content' | 'personaId' | 'personaName'>[],
   activePersonaId?: string,
   activePersonaName?: string
 ): Participant[] {
@@ -283,7 +278,7 @@ export function extractParticipants(
 export interface CharacterParticipant {
   /** The personality UUID a chat-log `from_id` on a role="character" line carries. */
   personalityId: string;
-  /** The personality's unique name (not display name) — see ConversationMessageMapper. */
+  /** The personality's `name` (not display name; NOT unique — see ConversationMessageMapper). */
   personalityName: string;
 }
 
@@ -318,7 +313,7 @@ export interface CharacterParticipant {
  * row already gets, and it is preferred over an unbounded per-turn cost.
  */
 export function extractCharacterParticipants(
-  history: RawHistoryEntry[] | undefined,
+  history: StructuredHistoryEntry[] | undefined,
   personalityName: string,
   responderPersonalityId?: string
 ): CharacterParticipant[] {

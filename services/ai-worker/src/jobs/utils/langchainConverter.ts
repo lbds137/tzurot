@@ -9,6 +9,7 @@ import { type BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messa
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { formatRelativeTime } from '@tzurot/common-types/utils/dateFormatting';
 import { isRoleMatch } from './participantUtils.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 
 /** Format user message with persona name and timestamp */
 function formatUserMessageContent(
@@ -44,13 +45,10 @@ function formatAssistantMessageContent(
  * Includes persona names to help the AI understand who is speaking
  */
 export function convertConversationHistory(
-  history: {
-    role: MessageRole;
-    content: string;
-    createdAt?: string;
-    personaId?: string;
-    personaName?: string;
-  }[],
+  history: Pick<
+    StructuredHistoryEntry,
+    'role' | 'content' | 'createdAt' | 'personaId' | 'personaName'
+  >[],
   personalityName: string
 ): BaseMessage[] {
   return history.map(msg => {

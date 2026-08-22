@@ -7,11 +7,11 @@ import {
   formatSingleHistoryEntryAsXml,
 } from './conversationUtils.js';
 import { measureHistoryEntryTokens } from './historyTokenMeasure.js';
-import type { RawHistoryEntry } from './conversationTypes.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 
 const PERSONALITY = 'Lilith';
 
-function userEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
+function userEntry(overrides: Partial<StructuredHistoryEntry> = {}): StructuredHistoryEntry {
   return {
     id: 'row-1',
     discordMessageId: ['1400000000000000001'],
@@ -21,7 +21,7 @@ function userEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
     personaId: 'persona-abc',
     personaName: 'Vlad',
     ...overrides,
-  } satisfies RawHistoryEntry;
+  } satisfies StructuredHistoryEntry;
 }
 
 const QUOTE_DESCRIPTION =
@@ -98,7 +98,7 @@ describe('measureHistoryEntryTokens', () => {
     // Typed rather than `as const`: the metadata has to stay mutable to assign
     // to messageMetadata, and typing it here means the compiler breaks this
     // table if the metadata shape moves.
-    const metadataCases: [string, NonNullable<RawHistoryEntry['messageMetadata']>][] = [
+    const metadataCases: [string, NonNullable<StructuredHistoryEntry['messageMetadata']>][] = [
       [
         'image descriptions',
         {
@@ -153,7 +153,7 @@ describe('measureHistoryEntryTokens', () => {
     // same history gets a ` (@username)` suffix in the shipped XML. That suffix
     // is only reachable through allPersonalityNames, so a measurement without
     // the set under-counts exactly the entry the renderer widens.
-    const history: RawHistoryEntry[] = [
+    const history: StructuredHistoryEntry[] = [
       {
         id: 'row-a',
         discordMessageId: ['1400000000000000010'],

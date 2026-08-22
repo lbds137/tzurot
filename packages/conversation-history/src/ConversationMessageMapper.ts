@@ -86,8 +86,8 @@ export const conversationHistorySelect = {
     },
   },
   // Include personality relation for assistant message attribution in multi-AI channels.
-  // Only `name` is needed — attribution uses the unique name, never displayName
-  // (see mapToConversationMessage for why).
+  // Only `name` is needed — attribution uses `name`, never displayName
+  // (see mapToConversationMessage for why; `name` is more distinguishing but NOT unique).
   personality: {
     select: {
       name: true,

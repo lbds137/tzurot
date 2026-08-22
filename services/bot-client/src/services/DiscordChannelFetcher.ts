@@ -497,7 +497,7 @@ export class DiscordChannelFetcher {
         role === MessageRole.Assistant
           ? (prefixName ?? extractPersonalityName(authorName, options.botSuffix ?? ''))
           : undefined,
-      // The UUID lets ai-worker remap personalityName to the unique name, since
+      // The UUID lets ai-worker remap personalityName to the personality's `name`, since
       // the webhook-derived name above is the (possibly-shared) display name.
       // Null when the registry missed — attribution falls back to the name above.
       personalityId:

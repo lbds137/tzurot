@@ -21,11 +21,11 @@ import {
   extractParticipants,
   extractCharacterParticipants,
 } from './participantUtils.js';
-import type { RawHistoryEntry } from './conversationTypes.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 
 describe('resolveSpeakerInfo', () => {
-  const msg = (overrides: Partial<RawHistoryEntry>): RawHistoryEntry =>
-    ({ role: 'user', content: 'hi', ...overrides }) as RawHistoryEntry;
+  const msg = (overrides: Partial<StructuredHistoryEntry>): StructuredHistoryEntry =>
+    ({ role: 'user', content: 'hi', ...overrides }) as StructuredHistoryEntry;
 
   describe('assistant messages', () => {
     it("keeps role='assistant' for the responding persona's own message", () => {
@@ -274,8 +274,8 @@ describe('extractParticipants', () => {
 });
 
 describe('extractCharacterParticipants', () => {
-  const entry = (overrides: Partial<RawHistoryEntry>): RawHistoryEntry =>
-    ({ role: 'assistant', content: 'hi', ...overrides }) as RawHistoryEntry;
+  const entry = (overrides: Partial<StructuredHistoryEntry>): StructuredHistoryEntry =>
+    ({ role: 'assistant', content: 'hi', ...overrides }) as StructuredHistoryEntry;
 
   it('excludes the responder from its own roster when the name path decides and the name is padded', () => {
     // The row HAS a personalityId; the name path runs because no

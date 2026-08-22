@@ -15,8 +15,8 @@ import {
   countMediaAttachments,
   enrichConversationHistory,
   extractRecentHistoryWindow,
-  type RawHistoryEntry,
 } from './RAGUtils.js';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
 vi.mock('./storedReferenceHydrator.js', () => ({
@@ -333,7 +333,9 @@ describe('RAGUtils', () => {
 
   describe('injectImageDescriptions', () => {
     it('should inject descriptions matching by entry.id (primary)', () => {
-      const history: RawHistoryEntry[] = [{ id: 'discord-msg-1', role: 'user', content: '' }];
+      const history: StructuredHistoryEntry[] = [
+        { id: 'discord-msg-1', role: 'user', content: '' },
+      ];
       const imageMap = new Map([
         ['discord-msg-1', [{ filename: 'img.png', description: 'A sunset' }]],
       ]);
@@ -347,7 +349,7 @@ describe('RAGUtils', () => {
 
     it('should inject descriptions matching by discordMessageId fallback', () => {
       // DB messages have UUID ids but Discord snowflake in discordMessageId
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         { id: 'uuid-internal-123', discordMessageId: ['discord-msg-1'], role: 'user', content: '' },
       ];
       const imageMap = new Map([
@@ -362,7 +364,7 @@ describe('RAGUtils', () => {
     });
 
     it('should prefer entry.id match over discordMessageId', () => {
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         { id: 'discord-msg-1', discordMessageId: ['discord-msg-2'], role: 'user', content: '' },
       ];
       const imageMap = new Map([
@@ -378,7 +380,9 @@ describe('RAGUtils', () => {
     });
 
     it('should skip entries with no matching IDs', () => {
-      const history: RawHistoryEntry[] = [{ id: 'unmatched-id', role: 'user', content: 'test' }];
+      const history: StructuredHistoryEntry[] = [
+        { id: 'unmatched-id', role: 'user', content: 'test' },
+      ];
       const imageMap = new Map([
         ['discord-msg-1', [{ filename: 'img.png', description: 'A photo' }]],
       ]);
@@ -400,7 +404,9 @@ describe('RAGUtils', () => {
     });
 
     it('should handle empty imageMap', () => {
-      const history: RawHistoryEntry[] = [{ id: 'discord-msg-1', role: 'user', content: '' }];
+      const history: StructuredHistoryEntry[] = [
+        { id: 'discord-msg-1', role: 'user', content: '' },
+      ];
       const imageMap = new Map<string, { filename: string; description: string }[]>();
 
       injectImageDescriptions(history, imageMap);
@@ -486,7 +492,7 @@ describe('RAGUtils', () => {
           { id: 'img-1', url: 'https://cdn.example.com/img1.jpg', contentType: 'image/jpeg' },
         ],
       };
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         {
           role: 'user',
           content: 'test',
@@ -510,7 +516,7 @@ describe('RAGUtils', () => {
 
     it('should not call processImagesFn when no linked images exist', async () => {
       const processImagesFn = vi.fn().mockResolvedValue(undefined);
-      const history: RawHistoryEntry[] = [{ role: 'user', content: 'test' }];
+      const history: StructuredHistoryEntry[] = [{ role: 'user', content: 'test' }];
 
       await enrichConversationHistory(
         history,
@@ -538,7 +544,7 @@ describe('RAGUtils', () => {
           { id: 'txt-1', url: 'url3', contentType: 'text/plain' },
         ],
       };
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         {
           role: 'user',
           content: 'test',
@@ -580,7 +586,7 @@ describe('RAGUtils', () => {
         locationContext: '',
         attachments: [sameImage],
       };
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         {
           role: 'user',
           content: 'test1',
@@ -618,7 +624,7 @@ describe('RAGUtils', () => {
           { url: 'https://cdn.example.com/img.jpg', contentType: 'image/png' },
         ],
       };
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         {
           role: 'user',
           content: 'test',
@@ -650,7 +656,7 @@ describe('RAGUtils', () => {
         locationContext: '',
         attachments: [{ id: 'img-1', url: 'url1', contentType: 'image/jpeg' }],
       };
-      const history: RawHistoryEntry[] = [
+      const history: StructuredHistoryEntry[] = [
         {
           role: 'user',
           content: 'test',
@@ -665,7 +671,7 @@ describe('RAGUtils', () => {
     });
 
     it('should work without processImagesFn (backward compatibility)', async () => {
-      const history: RawHistoryEntry[] = [{ role: 'user', content: 'test' }];
+      const history: StructuredHistoryEntry[] = [{ role: 'user', content: 'test' }];
 
       // Should not throw when processImagesFn is omitted
       await expect(

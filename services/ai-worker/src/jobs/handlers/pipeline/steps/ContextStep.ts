@@ -5,11 +5,11 @@
  * and oldest timestamp calculation for LTM deduplication.
  */
 
-import { type MessageRole } from '@tzurot/common-types/constants/message';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import type { StructuredHistoryEntry } from '../../../utils/conversationTypes.js';
 import {
   extractParticipants,
   convertConversationHistory,
@@ -89,26 +89,15 @@ function applyAssembledContext(job: GenerationContext['job'], assembled: Assembl
 }
 
 /**
- * The shared history shape both the legacy payload (`ApiConversationMessage`)
- * and the worker-assembled history (`ConversationMessage`, after createdAt
- * normalization) satisfy, and which `convertConversationHistory` /
- * `extractParticipants` / `rawConversationHistory` all accept.
+ * The prompt-side history IR (`StructuredHistoryEntry`) under the name this
+ * step's signatures use. Both the legacy payload (`ApiConversationMessage`) and
+ * the worker-assembled history (`ConversationMessage`, after createdAt
+ * normalization) satisfy it, and `convertConversationHistory` /
+ * `extractParticipants` / `rawConversationHistory` all accept it. Aliased to the
+ * canonical type rather than re-declared: no narrowing is wanted here, and a
+ * hand-written copy drifts behind its producer.
  */
-type PromptHistorySource = {
-  role: MessageRole;
-  content: string;
-  createdAt?: string;
-  personaId?: string;
-  personaName?: string;
-  /**
-   * Declared because the assembler's rows carry it and this path reads it:
-   * `extractCharacterParticipants` keys the sibling roster on `personalityId`,
-   * and a shape that omitted it would have made every row look sibling-less to
-   * the compiler while carrying a real id at runtime.
-   */
-  personalityId?: string;
-  personalityName?: string;
-}[];
+type PromptHistorySource = StructuredHistoryEntry[];
 
 /**
  * Extract timestamp from various formats (ISO string, Date object, or undefined)

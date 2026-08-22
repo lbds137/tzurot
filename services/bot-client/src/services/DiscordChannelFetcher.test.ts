@@ -443,7 +443,7 @@ describe('DiscordChannelFetcher', () => {
       expect(assistantMsg!.personalityName).toBe('TestBot');
       expect(assistantMsg!.personaName).toBeUndefined();
       // The registry-resolved UUID is threaded through so ai-worker can remap
-      // attribution to the unique name (display names can collide).
+      // attribution to the personality name (display names can collide).
       expect(assistantMsg!.personalityId).toBe('personality-uuid');
     });
 

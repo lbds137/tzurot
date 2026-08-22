@@ -16,12 +16,12 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
-import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 
 const logger = createLogger('StoredReferenceHydrator');
 
 /** Collect all StoredReferencedMessage objects from conversation history */
-function collectRefs(rawHistory: RawHistoryEntry[]): StoredReferencedMessage[] {
+function collectRefs(rawHistory: StructuredHistoryEntry[]): StoredReferencedMessage[] {
   const allRefs: StoredReferencedMessage[] = [];
   for (const entry of rawHistory) {
     if (entry.messageMetadata?.referencedMessages !== undefined) {
@@ -112,7 +112,7 @@ async function resolveVisionDescriptions(
  * Mutates refs in-place (same pattern as injectImageDescriptions).
  */
 export async function hydrateStoredReferences(
-  rawHistory: RawHistoryEntry[] | undefined,
+  rawHistory: StructuredHistoryEntry[] | undefined,
   prisma: PrismaClient,
   visionCache: VisionDescriptionCache
 ): Promise<void> {

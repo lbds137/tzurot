@@ -24,7 +24,7 @@ import {
   buildHistoryEntryIndex,
   collectPersonalityNames,
 } from '../jobs/utils/conversationUtils.js';
-import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import { chatLogEnrichmentFor } from '../jobs/utils/xmlMetadataFormatters.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -60,7 +60,7 @@ const logger = createLogger('ConversationInputProcessor');
  */
 function buildCarriedChatLogEnrichment(
   references: ReferencedMessage[],
-  history: RawHistoryEntry[],
+  history: StructuredHistoryEntry[],
   personalityName: string
 ): Map<string, ReadonlySet<string>> {
   const carried = new Map<string, ReadonlySet<string>>();
