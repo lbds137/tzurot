@@ -50,6 +50,8 @@ import {
   recordPreInvocationDiagnostics,
   recordLlmResponseDiagnostic,
   recordBudgetDiagnostics,
+  recordInputProcessingDiagnostics,
+  recordPostProcessingDiagnostics,
 } from './diagnostics/DiagnosticRecorders.js';
 import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import type {
@@ -245,12 +247,11 @@ export class ConversationalRAGService {
 
     // Record post-processing for diagnostics
     if (diagnosticCollector) {
-      diagnosticCollector.recordPostProcessing({
+      recordPostProcessingDiagnostics({
+        collector: diagnosticCollector,
         rawContent,
-        deduplicatedContent: rawContent, // Already processed in responsePostProcessor
         thinkingContent,
-        strippedContent: cleanedContent,
-        finalContent: cleanedContent,
+        cleanedContent,
       });
     }
 
@@ -363,12 +364,20 @@ export class ConversationalRAGService {
         sttDispatch,
       });
 
+      // Read ONCE for the whole turn, before Step 1 — the reference-formatting
+      // wording pickers (inside processInputs) need this turn's value before
+      // Step 2.5 (`preselectHistory`) would otherwise produce it. Threaded
+      // everywhere below rather than re-read, so a live flip mid-turn cannot
+      // mix modes within one assembled prompt.
+      const realMessagesEnabled = this.contentBudgetManager.isRealMessagesEnabled();
+
       // Step 1: Process inputs (attachments, messages, search query)
       const inputs = await this.inputProcessor.processInputs(personality, message, context, {
         isGuestMode,
         userApiKey,
         sttDispatch,
         visionAuth,
+        realMessagesEnabled,
       });
 
       // Step 1.4: Write the references down. Vision and transcription were paid
@@ -383,14 +392,11 @@ export class ConversationalRAGService {
 
       // Record input processing for diagnostics
       if (diagnosticCollector) {
-        diagnosticCollector.recordInputProcessing({
-          rawUserMessage: typeof message === 'string' ? message : message.content,
-          processedAttachments: inputs.processedAttachments,
-          referencedMessages: context.referencedMessages?.map(ref => ({
-            discordMessageId: ref.discordMessageId,
-            content: ref.content,
-          })),
-          searchQuery: inputs.searchQuery,
+        recordInputProcessingDiagnostics({
+          collector: diagnosticCollector,
+          message,
+          inputs,
+          context,
         });
       }
 
@@ -419,6 +425,7 @@ export class ConversationalRAGService {
         processedAttachments: inputs.processedAttachments,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         effectiveContextWindowTokens,
+        realMessagesEnabled,
       };
       const preselected = this.contentBudgetManager.preselectHistory(budgetOptionsBase);
       context.stmLtmCutoffInputs = { oldestSelectedTs: preselected.oldestSelectedTs };

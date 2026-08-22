@@ -144,6 +144,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toBe('');
     });
@@ -157,6 +158,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toBe('');
     });
@@ -184,6 +186,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('from="User One"');
@@ -216,6 +219,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('from="Lila"');
       expect(result).toContain('from_id="persona-uuid-123"');
@@ -260,6 +264,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain(
         '<image filename="photo.png" type="image/png">A sunset over the ocean</image>'
@@ -317,6 +322,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
 
       // The described one carries its description...
@@ -371,6 +377,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       // Both modalities render, under the one wrapper.
       expect(result).toContain('<image filename="photo.png" type="image/png">A cat</image>');
@@ -409,6 +416,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       // Without a hydrated description the image is still named, with the reason
       // it has no text — rather than being omitted or rendered as a bare marker.
@@ -463,6 +471,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
 
       // Shared audio file: NOT a failed transcription.
@@ -509,6 +518,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('<image>SENTINEL_ORPHAN_DESCRIPTION</image>');
     });
@@ -537,6 +547,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: historyIds,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('[Referenced message — full text in the chat log]');
@@ -591,6 +602,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: historyIndex('already-in-history'),
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
 
       expect(mockDedupeReference).toHaveBeenCalledWith(
@@ -604,7 +616,8 @@ describe('xmlMetadataFormatters', () => {
             },
           ],
         }),
-        // The second seam argument, and the one the stub cannot derive alone:
+        false,
+        // The third seam argument, and the one the stub cannot derive alone:
         // what the chat-log entry itself renders. Empty here — that entry has no
         // enrichment of its own — so nothing is subtracted and the description
         // rides along, which is what the output assertion below then confirms.
@@ -643,6 +656,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: historyIds,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('role="bot"');
     });
@@ -672,6 +686,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: historyIds,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       // Should contain truncated content with '...'
       expect(result).toContain('X'.repeat(100) + '...');
@@ -710,6 +725,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: historyIds,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('<quoted_messages>');
       // Full ref for User Two
@@ -743,6 +759,7 @@ describe('xmlMetadataFormatters', () => {
         historyEntries: undefined,
         allPersonalityNames: undefined,
         responderPersonalityId: undefined,
+        realMessagesEnabled: false,
       });
       expect(result).toContain('role="assistant"');
     });

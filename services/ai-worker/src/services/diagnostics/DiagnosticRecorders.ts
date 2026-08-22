@@ -10,10 +10,16 @@ import type { DiagnosticPromptSection } from '@tzurot/common-types/types/diagnos
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import { resolveFinishReason } from '@tzurot/common-types/constants/finishReasons';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { hasThinkingBlocks } from '../../utils/thinkingExtraction.js';
 import { contentToText } from '../../utils/baseMessageContent.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';
-import type { BudgetAllocationResult, MemoryDocument } from '../ConversationalRAGTypes.js';
+import type {
+  BudgetAllocationResult,
+  ConversationContext,
+  MemoryDocument,
+  ProcessedInputs,
+} from '../ConversationalRAGTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
 export interface ParsedResponseMetadata {
@@ -79,6 +85,53 @@ export function parseResponseMetadata(response: unknown): ParsedResponseMetadata
     responseMetadata: data.response_metadata,
     additionalKwargs: data.additional_kwargs,
   };
+}
+
+/** Options for recording the input-processing stage */
+interface InputProcessingDiagnosticOptions {
+  collector: DiagnosticCollector;
+  message: MessageContent;
+  /** The whole `processInputs` result — only `processedAttachments` and
+   * `searchQuery` are read, but taking the caller's already-in-scope object
+   * keeps this call site a fixed-size fact regardless of what else the
+   * pipeline later adds to it. */
+  inputs: ProcessedInputs;
+  /** Only `referencedMessages` is read, same rationale as `inputs`. */
+  context: ConversationContext;
+}
+
+/** Record raw message, processed attachments, references, and search query. */
+export function recordInputProcessingDiagnostics(opts: InputProcessingDiagnosticOptions): void {
+  const { collector, message, inputs, context } = opts;
+  collector.recordInputProcessing({
+    rawUserMessage: typeof message === 'string' ? message : message.content,
+    processedAttachments: inputs.processedAttachments,
+    referencedMessages: context.referencedMessages?.map(ref => ({
+      discordMessageId: ref.discordMessageId,
+      content: ref.content,
+    })),
+    searchQuery: inputs.searchQuery,
+  });
+}
+
+/** Options for recording the post-processing stage */
+interface PostProcessingDiagnosticOptions {
+  collector: DiagnosticCollector;
+  rawContent: string;
+  thinkingContent: string | null;
+  cleanedContent: string;
+}
+
+/** Record the response-cleanup pass (raw vs. cleaned content, extracted thinking). */
+export function recordPostProcessingDiagnostics(opts: PostProcessingDiagnosticOptions): void {
+  const { collector, rawContent, thinkingContent, cleanedContent } = opts;
+  collector.recordPostProcessing({
+    rawContent,
+    deduplicatedContent: rawContent, // Already processed in responsePostProcessor
+    thinkingContent,
+    strippedContent: cleanedContent,
+    finalContent: cleanedContent,
+  });
 }
 
 /** Options for recording LLM config diagnostics */

@@ -113,6 +113,14 @@ export interface HistoryEntryBodyOptions {
   historyEntries?: Map<string, StructuredHistoryEntry>;
   allPersonalityNames?: Set<string>;
   responderPersonalityId?: string;
+  /**
+   * This turn's `realMessagesEnabled` value, captured once upstream
+   * (`ContentBudgetManager.isRealMessagesEnabled`) and threaded down through
+   * both containers this options type feeds (the XML path and
+   * `RealMessagesBuilder`). Required rather than optional so a new call site
+   * cannot silently fall back to reading the setting itself.
+   */
+  realMessagesEnabled: boolean;
 }
 
 /**
@@ -149,7 +157,13 @@ export function renderHistoryEntryBody(
   speakerInfo: { speakerName: string; role: ChatLogRole; normalizedRole: string },
   opts: HistoryEntryBodyOptions
 ): string {
-  const { personalityName, historyEntries, allPersonalityNames, responderPersonalityId } = opts;
+  const {
+    personalityName,
+    historyEntries,
+    allPersonalityNames,
+    responderPersonalityId,
+    realMessagesEnabled,
+  } = opts;
   const { normalizedRole } = speakerInfo;
 
   // Escape content to prevent XML injection
@@ -163,6 +177,7 @@ export function renderHistoryEntryBody(
     historyEntries,
     allPersonalityNames,
     responderPersonalityId,
+    realMessagesEnabled,
   });
   const imageSection = formatImageSection(msg);
   const embedsSection = formatEmbedsSection(msg);
@@ -222,6 +237,26 @@ export function renderHistoryEntryBody(
 }
 
 /**
+ * Trailing options for {@link formatSingleHistoryEntryAsXml} — bundled into
+ * one object rather than four positional parameters, because the function was
+ * already at the five-parameter ceiling (`msg`, `personalityName`, plus these
+ * four) and a plain new parameter would breach it. `personalityName` stays
+ * positional (it is the caller's primary key, threaded everywhere), so it is
+ * deliberately NOT duplicated into this type.
+ */
+export interface SingleHistoryEntryOptions {
+  historyEntries?: Map<string, StructuredHistoryEntry>;
+  allPersonalityNames?: Set<string>;
+  responderPersonalityId?: string;
+  /**
+   * This turn's `realMessagesEnabled` value — see
+   * {@link HistoryEntryBodyOptions.realMessagesEnabled}. Required for the
+   * same reason: no call site may silently fall back to reading the setting.
+   */
+  realMessagesEnabled: boolean;
+}
+
+/**
  * Format a single history entry as XML
  *
  * This is the single source of truth for history message formatting.
@@ -239,22 +274,16 @@ export function renderHistoryEntryBody(
  *
  * @param msg - Raw history entry to format
  * @param personalityName - Name of the AI personality (for marking its own messages)
- * @param historyEntries - Optional Discord-message-ID → history entry index. The
- *   key decides quote deduplication; the entry answers what the chat log already
- *   renders for a deduped quote, so the stub can subtract what would be a repeat.
- * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
- * @param responderPersonalityId - The responding personality's id. Decides
- *   self-vs-sibling exactly for rows carrying their own `personalityId`;
- *   omitted, the name comparison decides (see `resolveAssistantRowRole`).
+ * @param opts - Dedup/collision inputs plus this turn's `realMessagesEnabled`
+ *   value (see {@link SingleHistoryEntryOptions}).
  * @returns Formatted XML string, or empty string if message should be skipped
  */
 export function formatSingleHistoryEntryAsXml(
   msg: StructuredHistoryEntry,
   personalityName: string,
-  historyEntries?: Map<string, StructuredHistoryEntry>,
-  allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string
+  opts: SingleHistoryEntryOptions
 ): string {
+  const { historyEntries, allPersonalityNames, responderPersonalityId, realMessagesEnabled } = opts;
   const speakerInfo = resolveSpeakerInfo(
     msg,
     personalityName,
@@ -287,6 +316,7 @@ export function formatSingleHistoryEntryAsXml(
     historyEntries,
     allPersonalityNames,
     responderPersonalityId,
+    realMessagesEnabled,
   });
 
   return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${body}</message>`;
@@ -306,6 +336,13 @@ interface FormatConversationHistoryOptions {
    * hand still renders — those rows fall back to the name comparison.
    */
   responderPersonalityId?: string;
+  /**
+   * This turn's `realMessagesEnabled` value. Optional (default `false`) so
+   * legacy/test callers with no captured value keep rendering the flag-off
+   * wording — production callers always thread the captured value (see
+   * `HistoryEntryBodyOptions.realMessagesEnabled`).
+   */
+  realMessagesEnabled?: boolean;
 }
 
 /**
@@ -422,6 +459,7 @@ export function formatConversationHistoryAsXml(
 
   const historyEntries = buildHistoryEntryIndex(history);
   const allPersonalityNames = collectPersonalityNames(history, personalityName);
+  const realMessagesEnabled = options?.realMessagesEnabled ?? false;
 
   const messages: string[] = [];
   let previousTimestamp: string | undefined;
@@ -432,13 +470,12 @@ export function formatConversationHistoryAsXml(
       maybeAddTimeGapMarker(messages, previousTimestamp, msg.createdAt, options.timeGapConfig);
     }
 
-    const formatted = formatSingleHistoryEntryAsXml(
-      msg,
-      personalityName,
+    const formatted = formatSingleHistoryEntryAsXml(msg, personalityName, {
       historyEntries,
       allPersonalityNames,
-      options?.responderPersonalityId
-    );
+      responderPersonalityId: options?.responderPersonalityId,
+      realMessagesEnabled,
+    });
     if (formatted.length > 0) {
       messages.push(formatted);
       // Update previous timestamp for next iteration
@@ -459,11 +496,16 @@ export function formatConversationHistoryAsXml(
  *
  * @param groups - Cross-channel history groups (ordered by most recent channel first)
  * @param personalityName - Name of the AI personality (for message formatting)
+ * @param realMessagesEnabled - This turn's captured flag value. Cross-channel
+ *   history ALWAYS renders as XML, in both flag states — the flag only
+ *   selects the dedup-stub WORDING inside it, so this is required (not
+ *   defaulted) to keep that decision from silently reading stale/wrong state.
  * @returns Formatted XML string, or empty string if no groups
  */
 export function formatCrossChannelHistoryAsXml(
   groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
+  realMessagesEnabled: boolean,
   responderPersonalityId?: string
 ): string {
   if (groups.length === 0) {
@@ -482,6 +524,7 @@ export function formatCrossChannelHistoryAsXml(
     parts.push(formatLocationAsXml(group.channelEnvironment));
     const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName, {
       responderPersonalityId,
+      realMessagesEnabled,
     });
     if (messagesXml.length > 0) {
       parts.push(messagesXml);

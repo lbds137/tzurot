@@ -134,7 +134,13 @@ export class ContentBudgetManager {
     // budget identity this class maintains (systemPromptBaseTokens must equal
     // what the shipped system message actually costs) breaks exactly like it
     // would if the two calls saw different `participantPersonas`.
-    const realMessagesEnabled = this.isRealMessagesEnabled();
+    //
+    // `opts.realMessagesEnabled` is the value the caller captured even earlier
+    // this turn (before the reference-formatting chain, which runs upstream of
+    // this method) — using it here keeps the WHOLE turn on one read of the
+    // flag instead of two. The fallback read exists for direct/test callers
+    // that construct `PreselectedHistory` without threading a captured value.
+    const realMessagesEnabled = opts.realMessagesEnabled ?? this.isRealMessagesEnabled();
 
     // Cast is safe: buildBaseComponents reads only prompt/message inputs,
     // never the omitted retrieval fields (retrievedMemories/facts) — they
@@ -217,12 +223,15 @@ export class ContentBudgetManager {
   }
 
   /**
-   * Reads the `realMessagesEnabled` runtime flag (PR 2.3 of the
-   * prompt-assembly epic). Read ONCE per turn, in `preselectHistory`, and
-   * carried to `allocate` on `PreselectedHistory.realMessagesEnabled` — see
-   * that field's doc for why the two must agree.
+   * The single sanctioned read of the `realMessagesEnabled` runtime flag (PR
+   * 2.3 of the prompt-assembly epic) — every other consumer in the ai-worker
+   * takes this turn's value as a threaded parameter instead of reading the
+   * setting itself. Callers capture it ONCE per turn, upstream of every
+   * flag-dependent decision (reference formatting, `preselectHistory`,
+   * `allocate`), and thread the SAME captured value everywhere — a live flip
+   * mid-turn must not mix modes within one assembled prompt.
    */
-  private isRealMessagesEnabled(): boolean {
+  isRealMessagesEnabled(): boolean {
     return getSystemSetting('realMessagesEnabled') === true;
   }
 
@@ -386,7 +395,12 @@ export class ContentBudgetManager {
     // rebuilding it here is the deliberate re-measure `preselectHistory`'s
     // doc-comment describes, not a second estimate.
     const historyMessages: BaseMessage[] = realMessagesEnabled
-      ? buildRealMessages(selectedEntries, processedPersonality.name, processedPersonality.id)
+      ? buildRealMessages(
+          selectedEntries,
+          processedPersonality.name,
+          processedPersonality.id,
+          realMessagesEnabled
+        )
       : [];
     const crossChannelMessage = realMessagesEnabled
       ? buildCrossChannelMessage(crossChannelXml)

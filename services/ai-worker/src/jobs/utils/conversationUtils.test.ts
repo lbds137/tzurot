@@ -2294,7 +2294,7 @@ describe('Conversation Utilities', () => {
 
 describe('formatCrossChannelHistoryAsXml', () => {
   it('should return empty string for empty groups', () => {
-    expect(formatCrossChannelHistoryAsXml([], 'TestAI')).toBe('');
+    expect(formatCrossChannelHistoryAsXml([], 'TestAI', false)).toBe('');
   });
 
   it('should return empty string when all groups have empty messages', () => {
@@ -2316,7 +2316,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
       },
     ];
 
-    expect(formatCrossChannelHistoryAsXml(groups, 'TestAI')).toBe('');
+    expect(formatCrossChannelHistoryAsXml(groups, 'TestAI', false)).toBe('');
   });
 
   it('should skip groups with empty messages array', () => {
@@ -2341,7 +2341,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
       },
     ];
 
-    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
     expect(result).toContain('random');
     expect(result).toContain('Has content');
     // Empty group's channel should not appear
@@ -2370,7 +2370,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
       },
     ];
 
-    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
     expect(result).toContain('<prior_conversations>');
     expect(result).toContain('</prior_conversations>');
     expect(result).toContain('<channel_history>');
@@ -2399,7 +2399,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
       },
     ];
 
-    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
     expect(result).toContain('<location type="dm">');
     expect(result).toContain('Private conversation');
   });
@@ -2428,7 +2428,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
       },
     ];
 
-    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
     const firstIdx = result.indexOf('First channel');
     const secondIdx = result.indexOf('Second channel');
     expect(firstIdx).toBeGreaterThan(-1);

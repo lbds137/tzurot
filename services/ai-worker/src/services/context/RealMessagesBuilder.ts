@@ -18,6 +18,7 @@ import {
   buildHistoryEntryIndex,
   collectPersonalityNames,
   renderHistoryEntryBody,
+  type HistoryEntryBodyOptions,
 } from '../../jobs/utils/conversationUtils.js';
 import { resolveSpeakerInfo, type ChatLogRole } from '../../jobs/utils/participantUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
@@ -140,12 +141,7 @@ function buildMessageContent(
 function renderBodyOrSkip(
   msg: StructuredHistoryEntry,
   speakerInfo: { speakerName: string; role: ChatLogRole; normalizedRole: string },
-  opts: {
-    personalityName: string;
-    historyEntries?: Map<string, StructuredHistoryEntry>;
-    allPersonalityNames?: Set<string>;
-    responderPersonalityId?: string;
-  }
+  opts: HistoryEntryBodyOptions
 ): string | null {
   const body = renderHistoryEntryBody(msg, speakerInfo, opts);
   if (speakerInfo.role === 'assistant' && body.length === 0) {
@@ -181,7 +177,8 @@ export function renderHistoryEntryForMeasure(
   msg: StructuredHistoryEntry,
   personalityName: string,
   allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string
+  responderPersonalityId?: string,
+  realMessagesEnabled = false
 ): string {
   const speakerInfo = resolveSpeakerInfo(
     msg,
@@ -198,6 +195,7 @@ export function renderHistoryEntryForMeasure(
     historyEntries: undefined,
     allPersonalityNames,
     responderPersonalityId,
+    realMessagesEnabled,
   });
   if (body === null) {
     return '';
@@ -229,7 +227,8 @@ export function renderHistoryEntryForMeasure(
 export function buildRealMessages(
   selectedEntries: StructuredHistoryEntry[],
   personalityName: string,
-  responderPersonalityId?: string
+  responderPersonalityId?: string,
+  realMessagesEnabled = true
 ): BaseMessage[] {
   if (selectedEntries.length === 0) {
     return [];
@@ -265,6 +264,7 @@ export function buildRealMessages(
       historyEntries,
       allPersonalityNames,
       responderPersonalityId,
+      realMessagesEnabled,
     });
     if (body === null) {
       continue;

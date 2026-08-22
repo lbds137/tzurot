@@ -35,10 +35,17 @@ const { mockResolveVisionConfig } = vi.hoisted(() => ({
 // initializes AFTER the factory would already need it. Defaults false so
 // every existing test in this file sees today's byte-identical shape; the
 // "real messages (PR 2.3)" describe block below flips it per test.
-const { settingsState } = vi.hoisted(() => ({ settingsState: { realMessagesEnabled: false } }));
+const { settingsState, getSystemSettingSpy } = vi.hoisted(() => {
+  const settingsState = { realMessagesEnabled: false };
+  // vi.fn wrapper (not a plain function) so the single-capture invariant test
+  // below can count reads of the realMessagesEnabled key per turn.
+  const getSystemSettingSpy = vi.fn((key: string) =>
+    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false
+  );
+  return { settingsState, getSystemSettingSpy };
+});
 vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
-  getSystemSetting: (key: string) =>
-    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false,
+  getSystemSetting: getSystemSettingSpy,
 }));
 
 // One shared logger spy for every createLogger() consumer in this module graph,
@@ -495,6 +502,58 @@ describe('ConversationalRAGService', () => {
   describe('real messages (PR 2.3) — the invokeModelAndClean seam', () => {
     afterEach(() => {
       settingsState.realMessagesEnabled = false;
+    });
+
+    it('reads the realMessagesEnabled setting exactly once per turn (single-capture invariant)', async () => {
+      // TASK-728's whole point: one read before Step 1, threaded everywhere.
+      // A future second read site anywhere in the turn's call graph fails this
+      // count, which a one-time grep audit cannot keep enforcing.
+      settingsState.realMessagesEnabled = true;
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      // Flag-on so the count covers the mode with the most threaded consumers
+      // (real-messages build + cross-channel), with the same window mock the
+      // flag-on ordering test uses.
+      getContextWindowManagerMock().selectAndSerializeHistory.mockReturnValue({
+        serializedHistory: '<chat_log/>',
+        historyTokensUsed: 50,
+        messagesIncluded: 2,
+        messagesDropped: 0,
+        crossChannelMessagesIncluded: 1,
+        selectedEntries: [
+          {
+            role: 'user',
+            content: 'hi',
+            personaId: 'persona-1',
+            personaName: 'Vlad',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        crossChannelXml: '',
+      });
+      getSystemSettingSpy.mockClear();
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      const flagReads = getSystemSettingSpy.mock.calls.filter(
+        ([key]) => key === 'realMessagesEnabled'
+      );
+      expect(flagReads).toHaveLength(1);
+    });
+
+    it('flag-off: still exactly one read per turn', async () => {
+      // Companion polarity: a future flag-off-only code path that re-reads the
+      // setting would be invisible to the flag-on count above.
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      getSystemSettingSpy.mockClear();
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      const flagReads = getSystemSettingSpy.mock.calls.filter(
+        ([key]) => key === 'realMessagesEnabled'
+      );
+      expect(flagReads).toHaveLength(1);
     });
 
     it('flag-off: ships [system, human] — byte-identical to today', async () => {
@@ -1100,7 +1159,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Reply to this', context);
 
-      // Includes preprocessedAttachments (undefined) and apiKeys for BYOK support
+      // Includes preprocessedAttachments (undefined) and renderContext for BYOK support
       expect(getReferencedMessageFormatterMock().formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
         personality,

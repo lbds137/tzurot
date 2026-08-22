@@ -2,7 +2,7 @@
  * Tests for the canonical reference shape, its renderer, and the dedup projection.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { enrichmentKey } from './QuoteFormatter.js';
 import {
@@ -13,17 +13,6 @@ import {
   renderReference,
   type RenderableReference,
 } from './RenderableReference.js';
-
-// The realMessagesEnabled gate `choosePrefix` reads (PR 2.3). Hoisted so the
-// mock factory (which runs at import time) can close over a mutable flag —
-// a plain `let` initializes AFTER the factory would already need it. Defaults
-// false so every existing test in this file above sees today's bytes
-// unchanged; the flag-on describe block below flips it per test.
-const { settingsState } = vi.hoisted(() => ({ settingsState: { realMessagesEnabled: false } }));
-vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
-  getSystemSetting: (key: string) =>
-    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false,
-}));
 
 function reference(over: Partial<RenderableReference> = {}): RenderableReference {
   return {
@@ -124,7 +113,7 @@ describe('dedupeReference', () => {
     // forgets to copy it, because this walks the object's own keys rather than
     // a list someone has to remember to update.
     const full = reference({ isForwarded: true });
-    const stub = dedupeReference(full);
+    const stub = dedupeReference(full, false);
     const subtracted = new Set(['content', 'locationContext', 'embedsXml']);
 
     for (const key of Object.keys(full) as (keyof RenderableReference)[]) {
@@ -140,14 +129,14 @@ describe('dedupeReference', () => {
   });
 
   it('drops location and embeds from the rendered stub', () => {
-    const xml = renderReference(dedupeReference(reference()));
+    const xml = renderReference(dedupeReference(reference(), false));
 
     expect(xml).not.toContain('<server name="Guild"/>');
     expect(xml).not.toContain('<embeds>');
   });
 
   it('keeps attachments — their enrichment exists nowhere else', () => {
-    const xml = renderReference(dedupeReference(reference()));
+    const xml = renderReference(dedupeReference(reference(), false));
 
     expect(xml).toContain('<image filename="photo.png" type="image/png">a cat</image>');
   });
@@ -157,7 +146,8 @@ describe('dedupeReference', () => {
       dedupeReference(
         reference({
           attachments: [{ kind: 'image', filename: 'broken.png', contentType: 'image/png' }],
-        })
+        }),
+        false
       )
     );
 
@@ -166,7 +156,8 @@ describe('dedupeReference', () => {
 
   it('prepends the plain marker when no attachment carries enrichment', () => {
     const stub = dedupeReference(
-      reference({ attachments: [{ kind: 'file', filename: 'report.pdf' }] })
+      reference({ attachments: [{ kind: 'file', filename: 'report.pdf' }] }),
+      false
     );
 
     expect(stub.content).toContain('[Referenced message — full text in the chat log]');
@@ -174,9 +165,10 @@ describe('dedupeReference', () => {
   });
 
   it('earns the media clause only from actual enrichment', () => {
-    const described = dedupeReference(reference());
+    const described = dedupeReference(reference(), false);
     const undescribed = dedupeReference(
-      reference({ attachments: [{ kind: 'image', filename: 'x.png', status: 'undescribed' }] })
+      reference({ attachments: [{ kind: 'image', filename: 'x.png', status: 'undescribed' }] }),
+      false
     );
 
     expect(described.content).toContain('its media is described here');
@@ -185,7 +177,7 @@ describe('dedupeReference', () => {
 
   describe('subtracting enrichment the chat log already renders', () => {
     it('drops an attachment whose description the chat log carries', () => {
-      const stub = dedupeReference(reference(), new Set([enrichmentKey('image', 'a cat')]));
+      const stub = dedupeReference(reference(), false, new Set([enrichmentKey('image', 'a cat')]));
 
       expect(stub.attachments).toEqual([]);
       // And the prefix follows the subtraction rather than the input: promising
@@ -197,6 +189,7 @@ describe('dedupeReference', () => {
     it('keeps an attachment the chat log does NOT carry', () => {
       const stub = dedupeReference(
         reference(),
+        false,
         new Set([enrichmentKey('image', 'some other description')])
       );
 
@@ -212,6 +205,7 @@ describe('dedupeReference', () => {
             { kind: 'image', filename: 'orphan.png', description: 'nowhere else' },
           ],
         }),
+        false,
         new Set([enrichmentKey('image', 'in the chat log')])
       );
 
@@ -227,6 +221,7 @@ describe('dedupeReference', () => {
         reference({
           attachments: [{ kind: 'image', filename: 'broken.png', status: 'undescribed' }],
         }),
+        false,
         new Set([enrichmentKey('image', 'a cat')])
       );
 
@@ -244,6 +239,7 @@ describe('dedupeReference', () => {
         reference({
           attachments: [{ kind: 'image', filename: 'sign.png', description: 'meet me at seven' }],
         }),
+        false,
         new Set([enrichmentKey('voice', 'meet me at seven')])
       );
 
@@ -253,8 +249,10 @@ describe('dedupeReference', () => {
     it('subtracts nothing when the caller supplies no set', () => {
       // The safe default, and it has a direction: a duplicated description costs
       // tokens, a dropped one costs the answer.
-      expect(dedupeReference(reference()).attachments).toEqual(reference().attachments);
-      expect(dedupeReference(reference(), new Set()).attachments).toEqual(reference().attachments);
+      expect(dedupeReference(reference(), false).attachments).toEqual(reference().attachments);
+      expect(dedupeReference(reference(), false, new Set()).attachments).toEqual(
+        reference().attachments
+      );
     });
   });
 
@@ -265,7 +263,8 @@ describe('dedupeReference', () => {
       // instruction), so the assistant role gets the same preview every other
       // role gets rather than a marker with no referent.
       const stub = dedupeReference(
-        reference({ role: 'assistant', content: 'my earlier line', attachments: [] })
+        reference({ role: 'assistant', content: 'my earlier line', attachments: [] }),
+        false
       );
 
       expect(stub.content).toContain('my earlier line');
@@ -277,7 +276,8 @@ describe('dedupeReference', () => {
     it('caps an assistant preview at the same limit as every other role', () => {
       const long = 'y'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 50);
       const stub = dedupeReference(
-        reference({ role: 'assistant', content: long, attachments: [] })
+        reference({ role: 'assistant', content: long, attachments: [] }),
+        false
       );
 
       expect(stub.content).toContain('y'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
@@ -285,33 +285,39 @@ describe('dedupeReference', () => {
     });
 
     it('is KEPT for a third-party bot — not our text, so the trap does not apply', () => {
-      const stub = dedupeReference(reference({ role: 'bot', content: 'a webhook posted this' }));
+      const stub = dedupeReference(
+        reference({ role: 'bot', content: 'a webhook posted this' }),
+        false
+      );
 
       expect(stub.content).toContain('a webhook posted this');
     });
 
     it('is kept for a person', () => {
-      expect(dedupeReference(reference({ role: 'user' })).content).toContain(
+      expect(dedupeReference(reference({ role: 'user' }), false).content).toContain(
         'the original message text'
       );
     });
 
     it('is kept for a sibling persona', () => {
-      const stub = dedupeReference(reference({ role: 'character', content: 'sibling said this' }));
+      const stub = dedupeReference(
+        reference({ role: 'character', content: 'sibling said this' }),
+        false
+      );
 
       expect(stub.content).toContain('sibling said this');
     });
 
     it('is capped, and the cap applies to the text alone', () => {
       const long = 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 50);
-      const stub = dedupeReference(reference({ content: long }));
+      const stub = dedupeReference(reference({ content: long }), false);
 
       expect(stub.content).toContain('x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
       expect(stub.content).not.toContain('x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 1));
     });
 
     it('leaves a marker-only stub with no trailing blank line', () => {
-      const stub = dedupeReference(reference({ content: '' }));
+      const stub = dedupeReference(reference({ content: '' }), false);
 
       expect(stub.content.endsWith('\n')).toBe(false);
     });
@@ -332,7 +338,11 @@ describe('dedupeReference', () => {
     it('anchors an image-only stub whose description the chat log carries', () => {
       // Nothing text-derived exists and the subtraction takes the only
       // enrichment, so without this the stub is a bare marker naming nothing.
-      const stub = dedupeReference(imageOnly(), new Set([enrichmentKey('image', DESCRIPTION)]));
+      const stub = dedupeReference(
+        imageOnly(),
+        false,
+        new Set([enrichmentKey('image', DESCRIPTION)])
+      );
 
       expect(stub.attachments).toEqual([]);
       expect(stub.content).toContain(DESCRIPTION);
@@ -344,6 +354,7 @@ describe('dedupeReference', () => {
     it('leaves the surviving-enrichment stub alone — the attachment already describes it', () => {
       const stub = dedupeReference(
         imageOnly(),
+        false,
         new Set([enrichmentKey('image', 'a completely different photo')])
       );
 
@@ -369,6 +380,7 @@ describe('dedupeReference', () => {
             },
           ],
         }),
+        false,
         new Set([enrichmentKey('image', DESCRIPTION)])
       );
 
@@ -391,6 +403,7 @@ describe('dedupeReference', () => {
             },
           ],
         }),
+        false,
         new Set([enrichmentKey('image', DESCRIPTION)])
       );
 
@@ -400,7 +413,7 @@ describe('dedupeReference', () => {
 
     it('caps the media fallback at the same limit as the text preview', () => {
       const long = 'z'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 50);
-      const stub = dedupeReference(imageOnly(long), new Set([enrichmentKey('image', long)]));
+      const stub = dedupeReference(imageOnly(long), false, new Set([enrichmentKey('image', long)]));
 
       expect(stub.content).toContain('z'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
       expect(stub.content).not.toContain('z'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 1));
@@ -408,7 +421,8 @@ describe('dedupeReference', () => {
 
     it('leaves a bare marker when there is no enrichment anywhere to fall back to', () => {
       const stub = dedupeReference(
-        reference({ content: '', attachments: [{ kind: 'file', filename: 'report.pdf' }] })
+        reference({ content: '', attachments: [{ kind: 'file', filename: 'report.pdf' }] }),
+        false
       );
 
       expect(stub.content).toBe('[Referenced message — full text in the chat log]');
@@ -416,17 +430,10 @@ describe('dedupeReference', () => {
   });
 
   describe('realMessagesEnabled wording (PR 2.3, D5b)', () => {
-    beforeEach(() => {
-      settingsState.realMessagesEnabled = true;
-    });
-
-    afterEach(() => {
-      settingsState.realMessagesEnabled = false;
-    });
-
     it('drops the false "chat log" claim from the plain marker', () => {
       const stub = dedupeReference(
-        reference({ attachments: [{ kind: 'file', filename: 'report.pdf' }] })
+        reference({ attachments: [{ kind: 'file', filename: 'report.pdf' }] }),
+        true
       );
 
       expect(stub.content).toContain(
@@ -436,7 +443,7 @@ describe('dedupeReference', () => {
     });
 
     it('drops the false "chat log" claim from the with-media marker', () => {
-      const stub = dedupeReference(reference({ content: '' }));
+      const stub = dedupeReference(reference({ content: '' }), true);
 
       expect(stub.content).toBe(
         '[Referenced message — full text appears earlier in the conversation; its media is described here]'
@@ -453,6 +460,7 @@ describe('dedupeReference', () => {
             { kind: 'image', filename: 'cat.png', contentType: 'image/png', description },
           ],
         }),
+        true,
         new Set([enrichmentKey('image', description)])
       );
 

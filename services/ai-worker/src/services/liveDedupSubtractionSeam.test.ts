@@ -166,6 +166,7 @@ describe('live deduped stubs subtract what history enrichment just wrote', () =>
     });
     return processor.processInputs(TEST_PERSONALITY, 'what breed is that', context, {
       isGuestMode: true,
+      realMessagesEnabled: false,
     });
   }
 
@@ -250,7 +251,7 @@ describe('live deduped stubs subtract what history enrichment just wrote', () =>
       TEST_PERSONALITY,
       'what breed is that',
       context,
-      { isGuestMode: true }
+      { isGuestMode: true, realMessagesEnabled: false }
     );
     await enrichRagHistory({
       prisma,

@@ -131,9 +131,16 @@ export class ConversationInputProcessor {
        * callers/tests → fall back to `userApiKey` (no cross-provider resolution).
        */
       visionAuth?: ResolvedVisionAuth;
+      /**
+       * This turn's `realMessagesEnabled` value, captured once upstream
+       * (`ContentBudgetManager.isRealMessagesEnabled`) before this method runs.
+       * Forwarded into the reference formatter's wording picker so a live flip
+       * mid-turn cannot mix modes within one assembled prompt.
+       */
+      realMessagesEnabled: boolean;
     }
   ): Promise<ProcessedInputs> {
-    const { isGuestMode, userApiKey, sttDispatch, visionAuth } = authOptions;
+    const { isGuestMode, userApiKey, sttDispatch, visionAuth, realMessagesEnabled } = authOptions;
     // Vision-provider key/provider/model (resolved upstream); fall back to the
     // main key when no visionAuth was threaded (legacy/test callers).
     const visionApiKey = visionAuth?.userApiKey ?? userApiKey;
@@ -225,6 +232,7 @@ export class ConversationInputProcessor {
               // Correlation only: the formatter's enrichment-drop warnings name
               // the request that paid for the lost vision/transcription work.
               requestId: context.requestId,
+              realMessagesEnabled,
             }
           )
         : undefined;

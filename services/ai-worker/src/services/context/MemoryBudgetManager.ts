@@ -245,7 +245,8 @@ export class MemoryBudgetManager {
         entry,
         personalityName,
         allPersonalityNames,
-        responderPersonalityId
+        responderPersonalityId,
+        realMessagesEnabled
       );
     }
 

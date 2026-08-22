@@ -63,7 +63,9 @@ function referenceWithImage(): StoredReferencedMessage {
 describe('measureHistoryEntryTokens', () => {
   it('returns the token count of exactly what the prompt renderer emits', () => {
     const entry = userEntry();
-    const rendered = formatSingleHistoryEntryAsXml(entry, PERSONALITY);
+    const rendered = formatSingleHistoryEntryAsXml(entry, PERSONALITY, {
+      realMessagesEnabled: false,
+    });
 
     expect(measureHistoryEntryTokens(entry, PERSONALITY)).toBe(countTextTokens(rendered));
   });
@@ -71,7 +73,9 @@ describe('measureHistoryEntryTokens', () => {
   it('returns 0 for an entry the renderer declines to emit', () => {
     // Only 'user' and 'assistant' resolve to a speaker; anything else renders ''.
     const unresolvable = userEntry({ role: 'system' });
-    expect(formatSingleHistoryEntryAsXml(unresolvable, PERSONALITY)).toBe('');
+    expect(
+      formatSingleHistoryEntryAsXml(unresolvable, PERSONALITY, { realMessagesEnabled: false })
+    ).toBe('');
     expect(measureHistoryEntryTokens(unresolvable, PERSONALITY)).toBe(0);
   });
 
@@ -136,11 +140,10 @@ describe('measureHistoryEntryTokens', () => {
 
   it('measures the full form, not the deduped one — selection has no shipped-id set yet', () => {
     const entry = userEntry({ messageMetadata: { referencedMessages: [referenceWithImage()] } });
-    const dedupedRender = formatSingleHistoryEntryAsXml(
-      entry,
-      PERSONALITY,
-      new Map([['1399000000000000001', { role: 'user', content: '' }]])
-    );
+    const dedupedRender = formatSingleHistoryEntryAsXml(entry, PERSONALITY, {
+      historyEntries: new Map([['1399000000000000001', { role: 'user', content: '' }]]),
+      realMessagesEnabled: false,
+    });
 
     // Pinning WHICH form gets measured. The two differ, so this would catch a
     // caller threading a dedup set in — which it cannot honestly have at
@@ -148,7 +151,9 @@ describe('measureHistoryEntryTokens', () => {
     // a deduped stub drops its content but keeps its media, so it can land on
     // either side of the full form.
     expect(measureHistoryEntryTokens(entry, PERSONALITY)).toBe(
-      countTextTokens(formatSingleHistoryEntryAsXml(entry, PERSONALITY))
+      countTextTokens(
+        formatSingleHistoryEntryAsXml(entry, PERSONALITY, { realMessagesEnabled: false })
+      )
     );
     expect(countTextTokens(dedupedRender)).not.toBe(measureHistoryEntryTokens(entry, PERSONALITY));
   });

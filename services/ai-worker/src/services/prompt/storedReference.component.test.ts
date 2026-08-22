@@ -189,6 +189,7 @@ describe('built references survive the round trip (component, PGLite)', () => {
             ]),
       allPersonalityNames: undefined,
       responderPersonalityId: undefined,
+      realMessagesEnabled: false,
     });
   }
 

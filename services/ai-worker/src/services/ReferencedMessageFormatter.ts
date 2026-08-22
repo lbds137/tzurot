@@ -39,7 +39,6 @@ import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { redactOwnVoiceTranscript } from './voice/ownVoiceGuard.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
-import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 
 const logger = createLogger('ReferencedMessageFormatter');
 
@@ -74,7 +73,7 @@ const CONTEXTUAL_REFERENCES_INSTRUCTION_REAL_MESSAGES = `<instruction>Messages t
  * rendered, it only lets this module's warnings name the request whose paid
  * enrichment went missing. All fields optional — legacy callers degrade.
  */
-interface ReferenceVisionAuth {
+interface ReferenceRenderContext {
   userApiKey?: string;
   sttDispatch?: SttDispatch;
   visionProvider?: AIProvider;
@@ -94,6 +93,15 @@ interface ReferenceVisionAuth {
    * a dropped one costs the answer.
    */
   carriedByChatLog?: Map<string, ReadonlySet<string>>;
+  /**
+   * This turn's `realMessagesEnabled` value, captured once upstream
+   * (`ContentBudgetManager.isRealMessagesEnabled`) and threaded down through
+   * `ConversationInputProcessor`. Selects the dedup-stub and instruction
+   * wording (real-messages phrasing names "earlier in the conversation"
+   * instead of a `<chat_log>` container that does not exist in that mode).
+   * Absent in legacy callers/tests → treated as flag-off.
+   */
+  realMessagesEnabled?: boolean;
 }
 
 /**
@@ -109,7 +117,7 @@ interface LiveReferenceContext {
   isGuestMode: boolean;
   /** Discord user id → resolved persona, for the whole batch. Misses are normal. */
   personaMap: Map<string, ResolvedPersona>;
-  apiKeys?: ReferenceVisionAuth;
+  renderContext?: ReferenceRenderContext;
 }
 
 /**
@@ -286,7 +294,7 @@ export class ReferencedMessageFormatter {
    * @param personality - Personality configuration for vision/transcription models
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
-   * @param apiKeys - Vision/STT auth plus the batch-invariant render inputs: the
+   * @param renderContext - Vision/STT auth plus the batch-invariant render inputs: the
    *   personality-name set for role derivation and the per-reference set of
    *   enrichment `<chat_log>` already carries (see `carriedByChatLog`)
    * @returns The prompt XML plus the plain-text search rendering
@@ -296,7 +304,7 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
-    apiKeys?: ReferenceVisionAuth
+    renderContext?: ReferenceRenderContext
   ): Promise<FormattedReferences> {
     const referenceElements: string[] = [];
     const searchParts: string[] = [];
@@ -311,7 +319,7 @@ export class ReferencedMessageFormatter {
         references.map(ref => ref.discordUserId).filter(id => id !== undefined && id.length > 0)
       ),
     ]);
-    const context: LiveReferenceContext = { personality, isGuestMode, personaMap, apiKeys };
+    const context: LiveReferenceContext = { personality, isGuestMode, personaMap, renderContext };
 
     for (const ref of references) {
       const { renderable, built } = await this.fromLiveReference(
@@ -330,7 +338,11 @@ export class ReferencedMessageFormatter {
       referenceElements.push(
         renderReference(
           ref.isDeduplicated === true
-            ? dedupeReference(renderable, apiKeys?.carriedByChatLog?.get(ref.discordMessageId))
+            ? dedupeReference(
+                renderable,
+                renderContext?.realMessagesEnabled === true,
+                renderContext?.carriedByChatLog?.get(ref.discordMessageId)
+              )
             : renderable
         )
       );
@@ -339,7 +351,7 @@ export class ReferencedMessageFormatter {
       // built rather than as rendered: the stub subtracts content for THIS
       // turn's prompt, but replay decides dedup for itself and needs the whole
       // reference to decide from.
-      durable.push(toStoredReference(ref, built, apiKeys?.requestId));
+      durable.push(toStoredReference(ref, built, renderContext?.requestId));
 
       // Search text comes from the PRE-projection reference: the stub's prose
       // marker and its truncation are prompt-shaping, not semantic content.
@@ -370,11 +382,13 @@ export class ReferencedMessageFormatter {
 
     // Wrap in outer XML tag.
     return {
-      // Same one-shared-seam justification as `choosePrefix` in
-      // RenderableReference.ts: the flag decides WORDING only, so a live
-      // mid-turn flip costs at most one turn's phrasing, never the budget.
+      // `renderContext.realMessagesEnabled` is this turn's captured value, threaded
+      // from the single sanctioned read in `ContentBudgetManager` — never a
+      // second read of the setting. A mid-turn flip must not mix modes within
+      // one assembled prompt, which is why every wording picker in this module
+      // takes the value as a parameter instead of reading it directly.
       formatted: `<contextual_references>\n${
-        getSystemSetting('realMessagesEnabled') === true
+        renderContext?.realMessagesEnabled === true
           ? CONTEXTUAL_REFERENCES_INSTRUCTION_REAL_MESSAGES
           : CONTEXTUAL_REFERENCES_INSTRUCTION
       }\n${formattedText}\n</contextual_references>`,
@@ -407,14 +421,14 @@ export class ReferencedMessageFormatter {
     preprocessedForRef: ProcessedAttachment[] | undefined,
     context: LiveReferenceContext
   ): Promise<{ renderable: RenderableReference; built: BuiltAttachment[] }> {
-    const { personality, isGuestMode, personaMap, apiKeys } = context;
+    const { personality, isGuestMode, personaMap, renderContext } = context;
 
     const built = await this.buildAttachments(
       ref,
       personality,
       isGuestMode,
       preprocessedForRef,
-      apiKeys
+      renderContext
     );
 
     const discordName = ref.authorDisplayName || ref.authorUsername;
@@ -429,7 +443,7 @@ export class ReferencedMessageFormatter {
       authorRole: ref.authorRole,
       authorName: discordName,
       personalityName: personality.displayName,
-      allPersonalityNames: apiKeys?.allPersonalityNames,
+      allPersonalityNames: renderContext?.allPersonalityNames,
       authorPersonalityId: ref.authorPersonalityId,
       responderPersonalityId: personality.id,
     });
@@ -465,7 +479,7 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef: ProcessedAttachment[] | undefined,
-    apiKeys?: ReferenceVisionAuth
+    renderContext?: ReferenceRenderContext
   ): Promise<BuiltAttachment[]> {
     if (ref.isDeduplicated === true) {
       const attachments = buildDedupedAttachments(ref, preprocessedForRef);
@@ -473,7 +487,7 @@ export class ReferencedMessageFormatter {
         ref.referenceNumber,
         countAvailableEnrichment(preprocessedForRef),
         countRenderedEnrichment(attachments),
-        apiKeys?.requestId
+        renderContext?.requestId
       );
       return attachments;
     }
@@ -482,7 +496,7 @@ export class ReferencedMessageFormatter {
       return [];
     }
 
-    const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
+    const { userApiKey, sttDispatch, visionProvider, visionModel } = renderContext ?? {};
     return processAttachmentsParallel({
       attachments: ref.attachments,
       referenceNumber: ref.referenceNumber,
@@ -494,7 +508,7 @@ export class ReferencedMessageFormatter {
       authorRole: ref.authorRole,
       visionProvider,
       model: visionModel,
-      requestId: apiKeys?.requestId,
+      requestId: renderContext?.requestId,
     });
   }
 
