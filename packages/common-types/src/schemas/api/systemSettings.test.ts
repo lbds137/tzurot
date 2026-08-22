@@ -111,6 +111,14 @@ describe('fallbacks (the floor beneath the floor)', () => {
     expect(SYSTEM_SETTINGS_FALLBACKS.nightlySyncHourUtc).toBe(7);
   });
 
+  it('header-spoof neutralization falls back ENABLED (a hardening default, not a staged rollout)', () => {
+    // Deliberate exception to the flags-fall-back-OFF rule above: unlike the
+    // realMessagesEnabled rollout switch it rides, this is a hardening
+    // measure with no staged-rollout semantics — a lost DB row must not
+    // silently reopen the spoof path on a flag-on deployment.
+    expect(SYSTEM_SETTINGS_FALLBACKS.headerSpoofNeutralizeEnabled).toBe(true);
+  });
+
   it('the multi-character cap falls back to the in-code MULTI_TAG constant', () => {
     // bot-client resolves the cap through this same constant when the gateway
     // read fails, so registry fallback and in-code floor must be one value.
@@ -138,6 +146,7 @@ describe('buildSystemSettingsSeed', () => {
     expect(seed.factsInPromptEnabled).toBe(false);
     expect(seed.zaiFreeTierEnabled).toBe(false);
     expect(seed.realMessagesEnabled).toBe(false);
+    expect(seed.headerSpoofNeutralizeEnabled).toBe(true);
     expect(seed.fallbackTextModel).toBe(AUTO_ROUTER_MODEL);
     expect(seed.fallbackVisionModel).toBe(AUTO_ROUTER_MODEL);
     expect(seed.fallbackTextModelFree).toBe(FREE_ROUTER_MODEL);
@@ -279,5 +288,15 @@ describe('realMessagesEnabled (prompt-assembly Phase 2 rollout switch)', () => {
     expect(meta.group).toBe('operations');
     expect(meta.liveness).toBe('live');
     expect(meta.fallback).toBe(false);
+  });
+});
+
+describe('headerSpoofNeutralizeEnabled (prompt-assembly kill switch)', () => {
+  it('is a live-toggling boolean in the operations group, falling back ON', () => {
+    const meta = SYSTEM_SETTINGS_REGISTRY.headerSpoofNeutralizeEnabled;
+    expect(meta.control).toBe('boolean');
+    expect(meta.group).toBe('operations');
+    expect(meta.liveness).toBe('live');
+    expect(meta.fallback).toBe(true);
   });
 });

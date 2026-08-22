@@ -36,12 +36,19 @@ const { mockResolveVisionConfig } = vi.hoisted(() => ({
 // every existing test in this file sees today's byte-identical shape; the
 // "real messages (PR 2.3)" describe block below flips it per test.
 const { settingsState, getSystemSettingSpy } = vi.hoisted(() => {
-  const settingsState = { realMessagesEnabled: false };
+  const settingsState = { realMessagesEnabled: false, headerSpoofNeutralizeEnabled: false };
   // vi.fn wrapper (not a plain function) so the single-capture invariant test
-  // below can count reads of the realMessagesEnabled key per turn.
-  const getSystemSettingSpy = vi.fn((key: string) =>
-    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false
-  );
+  // below can count reads of the realMessagesEnabled/headerSpoofNeutralizeEnabled
+  // keys per turn.
+  const getSystemSettingSpy = vi.fn((key: string) => {
+    if (key === 'realMessagesEnabled') {
+      return settingsState.realMessagesEnabled;
+    }
+    if (key === 'headerSpoofNeutralizeEnabled') {
+      return settingsState.headerSpoofNeutralizeEnabled;
+    }
+    return false;
+  });
   return { settingsState, getSystemSettingSpy };
 });
 vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
@@ -502,6 +509,7 @@ describe('ConversationalRAGService', () => {
   describe('real messages (PR 2.3) — the invokeModelAndClean seam', () => {
     afterEach(() => {
       settingsState.realMessagesEnabled = false;
+      settingsState.headerSpoofNeutralizeEnabled = false;
     });
 
     it('reads the realMessagesEnabled setting exactly once per turn (single-capture invariant)', async () => {
@@ -552,6 +560,34 @@ describe('ConversationalRAGService', () => {
 
       const flagReads = getSystemSettingSpy.mock.calls.filter(
         ([key]) => key === 'realMessagesEnabled'
+      );
+      expect(flagReads).toHaveLength(1);
+    });
+
+    it('reads the headerSpoofNeutralizeEnabled setting exactly once per turn (single-capture invariant)', async () => {
+      settingsState.headerSpoofNeutralizeEnabled = true;
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      getSystemSettingSpy.mockClear();
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      const flagReads = getSystemSettingSpy.mock.calls.filter(
+        ([key]) => key === 'headerSpoofNeutralizeEnabled'
+      );
+      expect(flagReads).toHaveLength(1);
+    });
+
+    it('headerSpoofNeutralizeEnabled flag-off: still exactly one read per turn', async () => {
+      settingsState.headerSpoofNeutralizeEnabled = false;
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      getSystemSettingSpy.mockClear();
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      const flagReads = getSystemSettingSpy.mock.calls.filter(
+        ([key]) => key === 'headerSpoofNeutralizeEnabled'
       );
       expect(flagReads).toHaveLength(1);
     });

@@ -7,8 +7,10 @@ import { AttachmentType } from '@tzurot/common-types/constants/media';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import {
   buildAttachmentDescriptions,
+  buildInvocationMessages,
   buildModelSamplingConfig,
   extractContentDescriptions,
   injectImageDescriptions,
@@ -748,6 +750,35 @@ describe('RAGUtils', () => {
       );
       expect(result).toBe('hello\nhi there');
     });
+  });
+});
+
+describe('buildInvocationMessages', () => {
+  const systemPrompt = new SystemMessage('system');
+  const currentMessage = new HumanMessage('current');
+
+  it('flag-off: byte-identical to [systemPrompt, currentMessage]', () => {
+    const result = buildInvocationMessages(systemPrompt, undefined, undefined, currentMessage);
+    expect(result).toEqual([systemPrompt, currentMessage]);
+  });
+
+  it('flag-on with history and a cross-channel message: [system, crossChannelHuman, ...history, currentHuman]', () => {
+    const crossChannelMessage = new HumanMessage('cross-channel');
+    const history = [new HumanMessage('h1'), new HumanMessage('h2')];
+
+    const result = buildInvocationMessages(
+      systemPrompt,
+      crossChannelMessage,
+      history,
+      currentMessage
+    );
+
+    expect(result).toEqual([systemPrompt, crossChannelMessage, ...history, currentMessage]);
+  });
+
+  it('flag-on with an empty history array and no cross-channel message: unchanged shape', () => {
+    const result = buildInvocationMessages(systemPrompt, undefined, [], currentMessage);
+    expect(result).toEqual([systemPrompt, currentMessage]);
   });
 });
 

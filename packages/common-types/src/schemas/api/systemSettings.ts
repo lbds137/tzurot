@@ -39,6 +39,8 @@ export const SystemSettingsSchema = z.object({
   rosterBlurbEnabled: z.boolean(),
   /** Render conversation history as real user/assistant provider messages instead of `<chat_log>` XML in the system prompt (prompt-assembly Phase 2 rollout switch). */
   realMessagesEnabled: z.boolean(),
+  /** Convert header-shaped lines in real-message body content to parentheses, so a user cannot forge a platform speaker header (prompt-assembly kill switch). */
+  headerSpoofNeutralizeEnabled: z.boolean(),
   /** Share GLM-4.7 with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
   /** Vision-describe rasterizable stickers (instance-funded, cached per snowflake). */
@@ -492,6 +494,23 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     // change (§9c of the prompt-assembly design) — flip explicitly, never by
     // a lost DB row silently changing what every persona's prompt looks like.
     fallback: false,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
+  },
+  headerSpoofNeutralizeEnabled: {
+    key: 'headerSpoofNeutralizeEnabled',
+    label: 'Header Spoof Neutralization',
+    description:
+      'Convert header-shaped lines in real-message body content to parentheses, so a user cannot forge a platform speaker header. Only takes effect when Real Messages is on; governs the input-side transform only — output-side echo stripping rides Real Messages alone.',
+    group: GROUP_OPERATIONS,
+    control: 'boolean',
+    liveness: 'live',
+    // Defaults ON, unlike the rollout switch it rides: this is a hardening
+    // measure with no staged-rollout semantics, and a lost DB row must not
+    // silently reopen the spoof path on a flag-on deployment. The empirical
+    // exit is an owner flip when false-positive volume outweighs the
+    // invariant, not a dark default.
+    fallback: true,
     // No predecessor: this setting is new, not migrated from an env var.
     seedSource: SEED_SOURCE_NEW,
   },

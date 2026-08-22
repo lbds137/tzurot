@@ -768,13 +768,13 @@ describe('ContextWindowManager', () => {
       });
       expect(result.selectedEntries.map(e => e.id)).toEqual(['id-quoter']);
 
-      const messages = buildRealMessages(
-        result.selectedEntries,
-        RESPONDER.name,
-        RESPONDER.id,
-        true,
-        new Map()
-      );
+      const messages = buildRealMessages(result.selectedEntries, {
+        personalityName: RESPONDER.name,
+        responderPersonalityId: RESPONDER.id,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
       expect(messages).toHaveLength(1);
       expect(String(messages[0].content)).toContain('the words the skipped row once carried');
     });
@@ -863,6 +863,7 @@ describe('ContextWindowManager', () => {
             allPersonalityNames: names,
             responderPersonalityId: RESPONDER.id,
             realMessagesEnabled: true,
+            headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
           }),
         0

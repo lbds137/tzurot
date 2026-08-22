@@ -16,7 +16,11 @@ import {
   type RosterNameSource,
 } from '../../jobs/utils/participantUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
-import { buildCrossChannelMessage, buildRealMessages } from './RealMessagesBuilder.js';
+import {
+  buildCrossChannelMessage,
+  buildRealMessages,
+  type HeaderSpoofTelemetry,
+} from './RealMessagesBuilder.js';
 
 export interface ComputeHeaderIdTagsOptions {
   participants: RosterNameSource[];
@@ -57,7 +61,9 @@ export interface BuildShippedHistoryMessagesOptions {
   responderName: string;
   responderPersonalityId: string;
   realMessagesEnabled: boolean;
+  headerSpoofNeutralizeEnabled: boolean;
   headerIdTags: HeaderIdTagMap;
+  telemetry: HeaderSpoofTelemetry;
 }
 
 export interface ShippedHistoryMessages {
@@ -84,13 +90,14 @@ export function buildShippedHistoryMessages(
     return { historyMessages: [], crossChannelMessage: undefined };
   }
 
-  const historyMessages = buildRealMessages(
-    opts.selectedEntries,
-    opts.responderName,
-    opts.responderPersonalityId,
-    true,
-    opts.headerIdTags
-  );
+  const historyMessages = buildRealMessages(opts.selectedEntries, {
+    personalityName: opts.responderName,
+    responderPersonalityId: opts.responderPersonalityId,
+    realMessagesEnabled: true,
+    headerSpoofNeutralizeEnabled: opts.headerSpoofNeutralizeEnabled,
+    headerIdTags: opts.headerIdTags,
+    telemetry: opts.telemetry,
+  });
   const crossChannelMessage = buildCrossChannelMessage(opts.crossChannelXml);
 
   return { historyMessages, crossChannelMessage };

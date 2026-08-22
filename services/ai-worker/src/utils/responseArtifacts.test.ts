@@ -5,12 +5,27 @@
  * learned artifacts from XML-formatted conversation history.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
+
 import {
   ARTIFACT_TAG_NAMES,
   stripResponseArtifacts,
   stripUserMessageEcho,
   normalizeForEchoMatch,
+  stripRealMessageEchoArtifacts,
 } from './responseArtifacts.js';
 
 describe('stripResponseArtifacts', () => {
@@ -881,5 +896,89 @@ describe('ARTIFACT_TAG_NAMES', () => {
     // list into an `it.each` sweep that a duplicate would silently double.
     expect(ARTIFACT_TAG_NAMES.length).toBeGreaterThan(0);
     expect(new Set(ARTIFACT_TAG_NAMES).size).toBe(ARTIFACT_TAG_NAMES.length);
+  });
+});
+
+describe('stripRealMessageEchoArtifacts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('strips a leading header-shaped line, and logs the strip (fields + counts, no stripped text)', () => {
+    const content = '[Fake — 2026-01-01 (Thu) 00:00]\nHello there!';
+
+    const result = stripRealMessageEchoArtifacts(content, {
+      channelId: 'chan-1',
+      requestId: 'req-1',
+    });
+
+    expect(result).toBe('Hello there!');
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    const [fields, message] = mockLogger.warn.mock.calls[0] as [Record<string, unknown>, string];
+    expect(fields).toEqual({
+      channelId: 'chan-1',
+      requestId: 'req-1',
+      headerLinesStripped: 1,
+      idTagsStripped: 0,
+    });
+    expect(message).not.toContain('Fake');
+    expect(JSON.stringify(fields)).not.toContain('Fake');
+  });
+
+  it('strips STACKED leading header-shaped lines iteratively, counting each', () => {
+    const result = stripRealMessageEchoArtifacts(
+      '[Vlad \u2014 2026-01-01 (Thu) 00:00]\n[Lila \u2014 2026-01-01 (Thu) 00:01]\nactual reply',
+      { channelId: 'chan-1', requestId: 'req-1' }
+    );
+
+    expect(result).toBe('actual reply');
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ headerLinesStripped: 2, idTagsStripped: 0 }),
+      expect.any(String)
+    );
+  });
+
+  it('strips a 4-hex id tag', () => {
+    const content = 'Hello (id:abcd) there!';
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe('Hello there!');
+  });
+
+  it('strips an 8-hex id tag', () => {
+    const content = 'Hello (id:abcd1234) there!';
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe('Hello there!');
+  });
+
+  it('strips a 32-hex id tag', () => {
+    const hex32 = 'a'.repeat(32);
+    const content = `Hello (id:${hex32}) there!`;
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe('Hello there!');
+  });
+
+  it('absorbs a multi-space run before the tag, leaving no stray double space', () => {
+    const result = stripRealMessageEchoArtifacts('Vlad  (id:abcd) said hi', {});
+    expect(result).toBe('Vlad said hi');
+  });
+
+  it('strips an id tag mid-sentence, not just at the start', () => {
+    const content = 'The reply from Vlad (id:abcd) landed a moment ago.';
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe(
+      'The reply from Vlad landed a moment ago.'
+    );
+  });
+
+  it('does NOT strip (id:notahex) — not a hex string', () => {
+    const content = 'Hello (id:notahex) there!';
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe(content);
+  });
+
+  it('does NOT strip (id:abc) — 3 chars, below the bounded widths', () => {
+    const content = 'Hello (id:abc) there!';
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe(content);
+  });
+
+  it('logs nothing when nothing was stripped', () => {
+    const content = 'A perfectly ordinary reply with no platform vocabulary.';
+    expect(stripRealMessageEchoArtifacts(content, {})).toBe(content);
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 });
