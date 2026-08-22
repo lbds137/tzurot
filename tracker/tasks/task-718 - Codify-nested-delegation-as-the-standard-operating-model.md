@@ -1,9 +1,10 @@
 ---
 id: TASK-718
 title: Codify nested delegation as the standard operating model
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 20:39'
+updated_date: '2026-08-22 01:18'
 labels:
   - 'area:skills'
   - 'size:S'
