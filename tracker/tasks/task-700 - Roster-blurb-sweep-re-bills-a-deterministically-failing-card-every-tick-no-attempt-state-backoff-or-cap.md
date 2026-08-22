@@ -3,9 +3,10 @@ id: TASK-700
 title: >-
   Roster-blurb sweep re-bills a deterministically-failing card every tick - no
   attempt state, backoff, or cap
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 16:17'
+updated_date: '2026-08-22 00:27'
 labels:
   - 'area:ai-worker'
   - 'size:M'

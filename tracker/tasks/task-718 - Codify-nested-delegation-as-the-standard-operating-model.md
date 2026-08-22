@@ -51,4 +51,16 @@ attributable to Fable-side spec scoping, never the worker tier or the pattern. S
 ready. The build is the skill edit this task specifies (review-gated PR on /tzurot-orchestration),
 folding in the operational learnings recorded in data point 2 (worktree install/build friction,
 diff-transfer-to-main-tree shape, byte-identical verification).
+
+DATA POINT 4, 2026-08-21 - TASK-700 (PR 2177, merged; schema + sweep-logic two-commit shape). New
+pattern variant proven: the Fable main loop did the SCHEMA half itself (migration needs the local
+dev DB and .env, which agent worktrees lack) and committed it as the branch base; the nested Opus
+orchestrator built the logic half against that local-only base SHA via the shared object store.
+Orchestrator quality was the best yet: two unprompted canaries (backoff arm AND cap), a live PGLite
+probe of the SQL null-semantics doc claim, a positive-controlled temporal-marker scan, and a
+prettier fix with full gate re-runs. Review rounds: r1 found a REAL Medium test gap (the increment
+branch of the failure-stamp CASE was untested - every test entered via ELSE; missed by the
+orchestrator AND the Fable diff review; caught by the branch-walking reviewer), fixed with a
+canaried test; r2-r4 clean, plus one reviewer false premise (a claimed duplicated fixture that
+exists in only one file) refuted by grep. Four units on the ledger; codification remains the build.
 <!-- SECTION:DESCRIPTION:END -->
