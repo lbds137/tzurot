@@ -477,7 +477,10 @@ shipped layer carries.
 no-merge stands (Anthropic auto-combines; only Gemini-NATIVE rejects consecutive
 same-role, not in our path — add a provider-merge hook-point comment; RE-PROBE
 consecutive-user acceptance on z.ai/OpenRouter with a one-shot call during the
-build, council memory is not a probe). Q2 assistant self-timestamps go
+build, council memory is not a probe — **PROBED 2026-08-21, both accept**:
+z.ai-direct `glm-4.7` returned 200 and answered the second user message from the
+first's content; OpenRouter `z-ai/glm-4.7` (upstream Venice that call) returned
+200 with reasoning explicitly citing both consecutive user messages). Q2 assistant self-timestamps go
 kwargs-only (imitation risk; temporal signal comes from surrounding attributed
 messages; single-line A/B escape hatch if "I just told you" temporal errors
 appear). Q3 as above. Q4 slicing adopted:
