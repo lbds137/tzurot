@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import type {
   DiagnosticPayload,
   DiagnosticPromptSection,
@@ -7,6 +8,7 @@ import type {
 import {
   buildPipelineHealthView,
   buildInputView,
+  buildMessagesView,
   buildGenerationParamsView,
   buildPostProcessingView,
   buildCacheView,
@@ -14,6 +16,7 @@ import {
 import type { ViewContext } from './viewContext.js';
 
 const OWNER_CTX: ViewContext = { canViewCharacter: true };
+const NON_OWNER_CTX: ViewContext = { canViewCharacter: false };
 
 function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPayload {
   return {
@@ -566,5 +569,123 @@ describe('buildCacheView', () => {
     expect(text.length).toBeLessThanOrEqual(3900);
     expect(text).toContain('sections trimmed to fit');
     expect(text.endsWith('_')).toBe(true);
+  });
+});
+
+describe('buildMessagesView', () => {
+  /** [system, user, assistant] — the shape the assembler ships. */
+  function conversationPayload(): DiagnosticPayload {
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [
+      { role: 'system', content: '<persona>You are helpful.</persona>' },
+      { role: 'user', content: 'Hello, how are you?' },
+      { role: 'assistant', content: 'I am well, thank you!' },
+    ];
+    return payload;
+  }
+
+  /** The inline text the dispatcher hands to sendChunkedReply. */
+  function renderedText(payload: DiagnosticPayload, ctx = OWNER_CTX): string {
+    const result = buildMessagesView(payload, 'req-123', ctx);
+    expect(result.chunkedText).toBeDefined();
+    return result.chunkedText!.text;
+  }
+
+  it('should exclude the system message and keep the remaining messages in ship order', () => {
+    const content = renderedText(conversationPayload());
+    expect(content).not.toContain('<persona>You are helpful.</persona>');
+
+    const userIndex = content.indexOf('Hello, how are you?');
+    const assistantIndex = content.indexOf('I am well, thank you!');
+    expect(userIndex).toBeGreaterThan(-1);
+    expect(assistantIndex).toBeGreaterThan(userIndex);
+  });
+
+  it('should number banners against the FULL message array so they match Full JSON', () => {
+    // The array is [system, user, assistant] — the user message is #2 of 3 and the
+    // assistant message #3 of 3, even though the system message is not rendered.
+    const content = renderedText(conversationPayload());
+    expect(content).toContain('═══ [2/3] user ═══');
+    expect(content).toContain('═══ [3/3] assistant ═══');
+    expect(content).toContain('Total messages: 3 (system included)');
+    expect(content).toContain('Non-system messages: 2');
+  });
+
+  it('should render message content verbatim, including banner-shaped lines', () => {
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [
+      { role: 'system', content: 'system card' },
+      { role: 'user', content: '[Alice — 2026-08-22] hi\n**not markdown-escaped**' },
+    ];
+    expect(renderedText(payload)).toContain('[Alice — 2026-08-22] hi\n**not markdown-escaped**');
+  });
+
+  it('should neutralize triple-backtick runs so a fence cannot span message boundaries', () => {
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [
+      { role: 'user', content: 'look: ```js\nunclosed fence' },
+      { role: 'assistant', content: 'plain reply' },
+    ];
+    const content = renderedText(payload);
+    // Zero-width spaces break up the run (escapeFenceBreaks); the raw
+    // three-backtick sequence must not survive into the chunked text.
+    expect(content).not.toContain('```');
+    expect(content).toContain('`\u200b`\u200b`js');
+    expect(content).toContain('unclosed fence');
+  });
+
+  it('should handle a non-leading system message and multi-turn history', () => {
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [
+      { role: 'user', content: 'turn one' },
+      { role: 'assistant', content: 'reply one' },
+      { role: 'system', content: 'mid-array system card' },
+      { role: 'user', content: 'turn two' },
+      { role: 'assistant', content: 'reply two' },
+    ];
+    const content = renderedText(payload);
+    expect(content).not.toContain('mid-array system card');
+    // Positions stay pinned to the FULL array even when the system message
+    // sits mid-array: the entries around it keep their original numbers.
+    expect(content).toContain('═══ [1/5] user ═══');
+    expect(content).toContain('═══ [2/5] assistant ═══');
+    expect(content).toContain('═══ [4/5] user ═══');
+    expect(content).toContain('═══ [5/5] assistant ═══');
+    expect(content).toContain('Non-system messages: 4');
+  });
+
+  it('should render inline chunked text with a request-named overflow file, ephemeral', () => {
+    const result = buildMessagesView(conversationPayload(), 'req-123', OWNER_CTX);
+    // Inline-first is the owner decision on readable text (DebugViewResult.chunkedText):
+    // no unconditional file attachment; the file exists only as the overflow tail.
+    expect(result.files).toBeUndefined();
+    expect(result.chunkedText!.overflowFilename).toBe('messages-req-123.txt');
+    expect(result.chunkedText!.maxChunks).toBe(10);
+    expect(result.flags).toBe(MessageFlags.Ephemeral);
+  });
+
+  it('should still render when only a system message is present', () => {
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [{ role: 'system', content: 'system card' }];
+    const content = renderedText(payload);
+    expect(content).toContain('Non-system messages: 0');
+    expect(content).toContain('(no non-system messages)');
+    expect(content).not.toContain('system card');
+  });
+
+  it('should handle a fully empty messages array', () => {
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [];
+    const content = renderedText(payload);
+    expect(content).toContain('Total messages: 0');
+    expect(content).toContain('(no non-system messages)');
+  });
+
+  it('should render the same output for a non-owner — the view is deliberately ungated', () => {
+    // Only the system message carries character internals, and it is excluded
+    // for both — so there is nothing left to gate on ownership.
+    expect(renderedText(conversationPayload(), NON_OWNER_CTX)).toBe(
+      renderedText(conversationPayload(), OWNER_CTX)
+    );
   });
 });

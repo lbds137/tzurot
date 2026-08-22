@@ -77,6 +77,12 @@ export function buildInspectComponents(
         emoji: '📃',
       },
       {
+        label: 'Messages',
+        description: 'Assembled prompt messages (non-system) in ship order',
+        value: DebugViewType.Messages,
+        emoji: '💬',
+      },
+      {
         label: 'Input',
         description: 'Raw message, attachments, transcript, replies',
         value: DebugViewType.Input,

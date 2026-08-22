@@ -449,3 +449,77 @@ export function buildCacheView(
 
   return { embeds: [embed], flags: MessageFlags.Ephemeral };
 }
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Every NON-system message of the assembled prompt, in ship order, rendered
+ * inline as chunked ephemeral text (owner decision on readable content:
+ * no file-download dance — see `DebugViewResult.chunkedText`), with the
+ * complete text arriving as a file only past the pathological-size tail.
+ *
+ * Exists so the assembled conversation can be read directly instead of being
+ * reconstructed from the Full JSON dump. Under `realMessagesEnabled`, history
+ * ships as real user/assistant provider messages; flag-off it rides inside the
+ * current user message as XML. Either way the array order IS the order the
+ * model saw.
+ *
+ * Positions in the banners are 1-based against the FULL message array
+ * (system included) so they line up with the Full JSON view. Content is
+ * rendered without truncation; the one transform is `escapeFenceBreaks`
+ * (zero-width spaces inside ``` runs — visually intact), because the view
+ * concatenates many independent messages and an unbalanced fence in one
+ * would otherwise mis-pair across banners in splitMessage. Byte-exact
+ * content lives in the Full JSON view.
+ *
+ * No `canViewCharacter` gate, deliberately: `redactPayloadForNonOwner` in
+ * `views.ts` redacts ONLY the system message's content, so user/assistant
+ * messages are already exposed intact to non-owners through the Full JSON
+ * view. Excluding the system role here means this view leaks nothing Full
+ * JSON does not. The `_ctx` parameter is kept for the uniform VIEW_BUILDERS
+ * signature.
+ */
+export function buildMessagesView(
+  payload: DiagnosticPayload,
+  requestId: string,
+  // intentionally unused — uniform VIEW_BUILDERS signature
+  _ctx: ViewContext
+): DebugViewResult {
+  const allMessages = payload.assembledPrompt.messages;
+  const nonSystem = allMessages
+    .map((message, index) => ({ message, position: index + 1 }))
+    .filter(({ message }) => message.role !== 'system');
+
+  const header = [
+    'Assembled prompt — non-system messages, in ship order',
+    `Total messages: ${allMessages.length} (system included)`,
+    `Non-system messages: ${nonSystem.length}`,
+    'The system message is omitted here — see the "System Prompt (XML)" view.',
+    '',
+  ].join('\n');
+
+  const body =
+    nonSystem.length === 0
+      ? '(no non-system messages)'
+      : nonSystem
+          .map(
+            ({ message, position }) =>
+              `═══ [${position}/${allMessages.length}] ${message.role} ═══\n${escapeFenceBreaks(message.content)}`
+          )
+          .join('\n\n');
+
+  return {
+    chunkedText: {
+      text: `${header}\n${body}`,
+      continuedHeader: '_(messages continued)_\n',
+      // Outlier guard, not the normal reading path (same rationale as the
+      // Reasoning view): a short exchange reads inline; a long flag-on
+      // history trips the tail, which carries the COMPLETE text as a file.
+      maxChunks: 10,
+      overflowFilename: `messages-${requestId}.txt`,
+    },
+    flags: MessageFlags.Ephemeral,
+  };
+}

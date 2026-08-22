@@ -46,6 +46,7 @@ export enum DebugViewType {
   SystemPrompt = 'system-prompt',
   Reasoning = 'reasoning',
   Input = 'input',
+  Messages = 'messages',
   GenerationParams = 'generation-params',
   PostProcessing = 'post-processing',
   MemoryInspector = 'memory-inspector',
