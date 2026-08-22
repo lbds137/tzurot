@@ -485,7 +485,7 @@ appear). Q3 as above. Q4 slicing adopted:
 | PR | Contents |
 | --- | --- |
 | **2.1** | `StructuredHistoryEntry` typed IR + the existing XML serializer as its first consumer, **byte-parity, flag-free** (prefix-diff verifies in prod). Memory-dedup pre-pass moves onto the IR here. Absorbs TASK-683 (three hand-copies of the history-row shape). |
-| **2.2** | (optional) cross-channel restructure if non-trivial — the IR's `channel` field enables it |
+| **2.2** | **SKIPPED** (2026-08-21, decided against the merged 2.1 IR): channel identity already lives at the group level (`crossChannelHistoryGroupSchema.channelEnvironment`, Zod-gated) and the cross-channel row shape is a structural subset of the IR — a per-row `channel` field would denormalize group identity with no consumer. The own-user-role-message move is inseparable from the flagged message-array reshape, so it ships as 2.3's first bullet, not a separate PR |
 | **2.3** | Real-messages consumer behind a flag: S0+S1-only system message, cross-channel user message, current-channel real messages with headers + kwargs; inline replies §2.4 |
 | **2.4** | Windowing rebuild: count-cap layer carried byte-for-byte, §2.5 chunked eviction built (dormant); seam test pinning the selectedEntries↔memory-dedup contract |
 | **2.5** | Flag flip: staged rollout, prefix-diff before/after (per-personality grouping, TASK-698 first), snapshot review per §6; voice-consistency harness re-arms with extraction arms |
