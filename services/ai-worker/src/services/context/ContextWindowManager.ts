@@ -67,7 +67,9 @@ export interface HistoryWindowOptions {
 const HISTORY_EVICTION_CHUNK_RATIO = 0.25;
 
 /**
- * The token-layer eviction never quantizes below this many entries. This is
+ * The token-layer eviction never quantizes below this many entries. The floor
+ * counts ELIGIBLE (renderable) entries — the scene context it protects is
+ * rendered content, which a render-skipped row cannot provide. This is
  * this layer's OWN floor, deliberately NOT imported from
  * `HISTORY_WINDOW.MIN_MESSAGE_FLOOR` in `@tzurot/conversation-history` — see
  * {@link HISTORY_EVICTION_CHUNK_RATIO}'s doc-comment for why the two layers
@@ -251,6 +253,9 @@ export class ContextWindowManager {
     serializedHistory: string;
     historyTokensUsed: number;
     messagesIncluded: number;
+    /** Rows excluded by BUDGET, off the eligibility-filtered denominator —
+     * render-skipped rows (which the shipped renderer emits nothing for) are
+     * neither included nor dropped; they were never the budget's to drop. */
     messagesDropped: number;
     crossChannelMessagesIncluded: number;
     /** The current-channel entries that actually shipped (newest-first walk
@@ -269,7 +274,13 @@ export class ContextWindowManager {
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
 
-    if ((!hasCurrentChannel && !hasCrossChannel) || historyBudget <= 0) {
+    // Deliberately NOT guarding `historyBudget <= 0` here: with content
+    // present, the degenerate budget flows into selectCurrentChannelEntries,
+    // whose own guard reports the drop count off the ELIGIBILITY-filtered
+    // denominator (render-skipped rows are not budget drops even when the
+    // whole budget is gone). Cross-channel's own `>= historyBudget` guard
+    // already no-ops on a non-positive budget.
+    if (!hasCurrentChannel && !hasCrossChannel) {
       return {
         serializedHistory: '',
         historyTokensUsed: 0,
@@ -299,9 +310,20 @@ export class ContextWindowManager {
     // Deducting overhead upfront avoids a bounded overrun where selected messages +
     // wrapper could silently exceed historyBudget.
     const adjustedBudget = historyBudget - currentConversationOverhead;
-    const { selectedEntries, currentChannelXml, tokensUsed } = hasCurrentChannel
-      ? this.selectCurrentChannelEntries(rawHistory, responder, adjustedBudget, realMessagesEnabled)
-      : { selectedEntries: [] as StructuredHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
+    const { selectedEntries, currentChannelXml, tokensUsed, budgetEligibleCount } =
+      hasCurrentChannel
+        ? this.selectCurrentChannelEntries(
+            rawHistory,
+            responder,
+            adjustedBudget,
+            realMessagesEnabled
+          )
+        : {
+            selectedEntries: [] as StructuredHistoryEntry[],
+            currentChannelXml: '',
+            tokensUsed: 0,
+            budgetEligibleCount: 0,
+          };
 
     // Include wrapper overhead in tokens used (only when content exists to wrap)
     const adjustedTokensUsed =
@@ -332,7 +354,7 @@ export class ContextWindowManager {
       serializedHistory,
       historyTokensUsed: actualTokens,
       messagesIncluded: selectedEntries.length,
-      messagesDropped: (rawHistory?.length ?? 0) - selectedEntries.length,
+      messagesDropped: budgetEligibleCount - selectedEntries.length,
       crossChannelMessagesIncluded,
       selectedEntries,
       crossChannelXml,
@@ -352,17 +374,22 @@ export class ContextWindowManager {
     responder: ResponderIdentity,
     historyBudget: number,
     realMessagesEnabled: boolean
-  ): { selectedEntries: StructuredHistoryEntry[]; currentChannelXml: string; tokensUsed: number } {
+  ): {
+    selectedEntries: StructuredHistoryEntry[];
+    currentChannelXml: string;
+    tokensUsed: number;
+    /** Rows that could have shipped (render emits something for them) — the
+     * denominator for budget-drop accounting. Render-skipped rows are neither
+     * shipped nor "dropped"; counting them as drops would fire the
+     * trimming-has-begun telemetry on rows no budget ever touched. */
+    budgetEligibleCount: number;
+  } {
     // Flag-on, history ships as real messages rather than inside a
     // `<chat_log>` wrapper, so charging this wrapper's overhead flag-on would
     // be a phantom cost re-creating the exact under-fill the recalibration
     // removes.
     const wrapperOverhead = realMessagesEnabled ? 0 : countTextTokens('<chat_log>\n</chat_log>');
     const budgetAfterOverhead = historyBudget - wrapperOverhead;
-
-    if (budgetAfterOverhead <= 0) {
-      return { selectedEntries: [], currentChannelXml: '', tokensUsed: 0 };
-    }
 
     // Scoped to the FETCHED history, while the final render scopes to the
     // SELECTED subset. A name that appears only in a dropped entry therefore
@@ -378,12 +405,42 @@ export class ContextWindowManager {
     const measureEntry = realMessagesEnabled
       ? measureHistoryEntryRealTokens
       : measureHistoryEntryTokens;
-    const measures = rawHistory.map(entry =>
-      measureEntry(entry, responder.name, allPersonalityNames, responder.id)
-    );
+    const measured = rawHistory.map(entry => ({
+      entry,
+      tokens: measureEntry(entry, responder.name, allPersonalityNames, responder.id),
+    }));
+
+    // A ZERO measure is the render's own skip signal: each measure renders
+    // through its mode's shipped renderer and returns 0 exactly when that
+    // renderer would emit nothing for the row (a role with no speaker in
+    // either mode; an empty-body assistant row flag-on). Excluding those rows
+    // BEFORE the cut keeps `selectedEntries` — and everything derived from it
+    // (`shippedMessageIds`, `oldestSelectedTs`, the memory-dedup boundary) —
+    // equal to the set the model actually receives. Without this, a
+    // render-skipped row is dedup-excluded from LTM retrieval yet never
+    // shipped: invisible to the model AND un-backfilled by memory. The
+    // shipped bytes are unchanged in both modes: the renderers already
+    // emitted nothing for these rows; only the bookkeeping moves. Flag-off,
+    // an empty-body assistant row measures > 0 (the XML envelope ships as an
+    // empty element) and correctly stays selected.
+    const eligible = measured.filter(m => m.tokens > 0);
+    const measures = eligible.map(m => m.tokens);
+
+    // AFTER the eligibility filter, deliberately: even with the whole budget
+    // gone, the drop count must mean "rows a budget decision excluded", so
+    // its denominator is the eligible set — measuring on a path that ships
+    // nothing is the price of the invariant holding in every branch.
+    if (budgetAfterOverhead <= 0) {
+      return {
+        selectedEntries: [],
+        currentChannelXml: '',
+        tokensUsed: 0,
+        budgetEligibleCount: eligible.length,
+      };
+    }
 
     const { cFinal, cMin, k, q, sTotal } = computeEvictionCut(measures, budgetAfterOverhead);
-    const selectedEntries = rawHistory.slice(cFinal);
+    const selectedEntries = eligible.slice(cFinal).map(m => m.entry);
 
     const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, responder.name, {
       responderPersonalityId: responder.id,
@@ -427,7 +484,7 @@ export class ContextWindowManager {
       'Selected history messages'
     );
 
-    return { selectedEntries, currentChannelXml, tokensUsed };
+    return { selectedEntries, currentChannelXml, tokensUsed, budgetEligibleCount: eligible.length };
   }
 
   /**

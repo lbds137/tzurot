@@ -1094,6 +1094,62 @@ describe('ContentBudgetManager', () => {
         expect(finalPromptArgs.relevantMemories).toEqual([]);
       });
 
+      it('RESCUES a memory of a render-skipped row flag-on — the row is not in the shipped set, so the dedup filter cannot claim it', () => {
+        const realManager = new RealContextWindowManager();
+        const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
+        vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
+        settingsState.realMessagesEnabled = true;
+        // Generous budget: nothing is budget-dropped; the empty-body assistant
+        // row leaves the shipped set purely via the render-skip exclusion.
+        const options = {
+          ...buildOptions(100_000),
+          context: {
+            userId: 'user-123',
+            channelId: 'channel-123',
+            rawConversationHistory: [
+              entry(1),
+              {
+                id: 'uuid-empty',
+                discordMessageId: ['snowflake-render-skipped'],
+                role: 'assistant',
+                content: '',
+                createdAt: new Date(1_000_000 + 90_000).toISOString(),
+                personalityName: mockPersonality.name,
+              },
+              entry(3),
+            ],
+          },
+        } as unknown as BudgetAllocationOptions;
+
+        const preselected = manager.preselectHistory(options);
+        expect(preselected.messagesDropped).toBe(0);
+        expect(preselected.shippedMessageIds.has('snowflake-render-skipped')).toBe(false);
+
+        const skippedRowMemory: MemoryDocument = {
+          pageContent: 'memory of the render-skipped row',
+          metadata: {
+            id: 'mem-skipped-row',
+            createdAt: (preselected.oldestSelectedTs as number) + 1_000,
+            score: 0.9,
+            messageIds: ['snowflake-render-skipped'],
+            channelId: 'channel-123',
+          },
+        };
+        manager.allocate(
+          { ...options, retrievedMemories: [skippedRowMemory], facts: [] },
+          preselected
+        );
+        const calls = vi.mocked(mockPromptBuilder.buildVolatilePrefix).mock.calls;
+        const finalPromptArgs = calls[calls.length - 1][0] as {
+          relevantMemories: MemoryDocument[];
+        };
+        // The row is invisible to the model, so its memory must be allowed to
+        // backfill — kept, not dedup-dropped as "shipped".
+        expect(finalPromptArgs.relevantMemories.map(m => m.metadata?.id)).toEqual([
+          'mem-skipped-row',
+        ]);
+      });
+
       it("follows EACH flag polarity's OWN shipped set — the real-measure mode fits a different (larger) set under the same budget", () => {
         const realManager = new RealContextWindowManager();
         const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
