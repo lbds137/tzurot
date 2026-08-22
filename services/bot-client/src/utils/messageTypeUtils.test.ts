@@ -2,7 +2,8 @@
  * Tests for messageTypeUtils
  *
  * Verifies that isUserContentMessage correctly filters Discord message types
- * to only allow user-generated content (Default, Reply, Forward).
+ * to only allow real channel content (Default, Reply, Forward, and the
+ * ChatInputCommand/ContextMenuCommand shapes app-bots use to answer commands).
  *
  * NOTE: forwarded messages are detected by MessageReferenceType.Forward
  * WITHOUT requiring messageSnapshots. This handles Discord API edge cases where
@@ -43,6 +44,16 @@ describe('messageTypeUtils', () => {
 
       it('should allow Reply messages', () => {
         const message = createMockMessage(MessageType.Reply);
+        expect(isUserContentMessage(message)).toBe(true);
+      });
+
+      it('should allow ChatInputCommand messages (bot reply to a slash command)', () => {
+        const message = createMockMessage(MessageType.ChatInputCommand);
+        expect(isUserContentMessage(message)).toBe(true);
+      });
+
+      it('should allow ContextMenuCommand messages (bot reply to a context-menu command)', () => {
+        const message = createMockMessage(MessageType.ContextMenuCommand);
         expect(isUserContentMessage(message)).toBe(true);
       });
 

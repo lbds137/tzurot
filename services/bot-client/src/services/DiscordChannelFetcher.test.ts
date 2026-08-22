@@ -123,6 +123,7 @@ function createMockMessage(
     reactions: Map<string, MockReaction>;
     stickers: Map<string, { name: string; description: string | null }>;
     poll: unknown;
+    embeds: { toJSON: () => Record<string, unknown> }[];
   }>
 ): Message {
   const defaults = {
@@ -145,6 +146,7 @@ function createMockMessage(
     reactions: new Map<string, MockReaction>(),
     stickers: new Map<string, { name: string; description: string | null }>(),
     poll: null,
+    embeds: [] as { toJSON: () => Record<string, unknown> }[],
   };
 
   const config = { ...defaults, ...overrides };
@@ -191,6 +193,7 @@ function createMockMessage(
     reactions: { cache: new Collection(config.reactions) },
     stickers: new Collection(config.stickers),
     poll: config.poll,
+    embeds: config.embeds,
   } as unknown as Message;
 }
 
@@ -2129,6 +2132,94 @@ describe('DiscordChannelFetcher', () => {
 
       expect(result.keptCount).toBe(1);
       expect(result.messages[0].content).toContain('user reply');
+    });
+  });
+
+  describe('bot slash-command reply admission', () => {
+    it('should admit a non-our-bot ChatInputCommand reply with text content', async () => {
+      const messages = [
+        createMockMessage({
+          id: 'other-bot-command-reply-1',
+          content: 'Here is your command result',
+          authorId: 'otherbot1',
+          authorUsername: 'OtherBot',
+          isBot: true,
+          type: MessageType.ChatInputCommand,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.keptCount).toBe(1);
+      expect(result.messages.some(m => m.content.includes('Here is your command result'))).toBe(
+        true
+      );
+    });
+
+    it('should admit a non-our-bot ChatInputCommand reply with embed-only content', async () => {
+      const messages = [
+        createMockMessage({
+          id: 'other-bot-command-reply-2',
+          content: '',
+          authorId: 'otherbot1',
+          authorUsername: 'OtherBot',
+          isBot: true,
+          type: MessageType.ChatInputCommand,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          embeds: [
+            {
+              toJSON: () => ({
+                title: 'Command Result',
+                description: 'The embed-only payload',
+              }),
+            },
+          ],
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.keptCount).toBe(1);
+      expect(
+        result.messages[0].messageMetadata?.embedsXml?.some(x =>
+          x.includes('The embed-only payload')
+        )
+      ).toBe(true);
+    });
+  });
+
+  describe('own-bot command-reply exclusion', () => {
+    it('should EXCLUDE our own bot ChatInputCommand reply (utility surface, not conversation)', async () => {
+      const messages = [
+        createMockMessage({
+          id: 'our-bot-command-reply-1',
+          content: 'Here is your dashboard',
+          authorId: 'bot123',
+          authorUsername: 'Tzurot',
+          isBot: true,
+          type: MessageType.ChatInputCommand,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // Same shape as the admitted other-bot case above, differing ONLY in
+      // authorId === botUserId — pinning that the exclusion keys on ownership.
+      expect(result.keptCount).toBe(0);
     });
   });
 

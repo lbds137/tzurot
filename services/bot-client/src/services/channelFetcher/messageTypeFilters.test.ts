@@ -8,10 +8,12 @@ import { describe, it, expect } from 'vitest';
 import {
   isThinkingBlockMessage,
   isBotTranscriptReply,
+  isOwnCommandReply,
   isContextExcludedBotMessage,
 } from './messageTypeFilters.js';
 import { OPT_OUT_FOOTER } from '../releaseDm/releaseDmContext.js';
-import type { Message } from 'discord.js';
+import { RETENTION_NOTICE_FOOTER } from '../retentionNotice/noticeContent.js';
+import { type Message, MessageType } from 'discord.js';
 
 /**
  * Create a minimal mock message for testing
@@ -20,10 +22,12 @@ function createMockMessage(overrides: {
   content?: string;
   authorId?: string;
   referenceMessageId?: string | null;
+  type?: MessageType;
 }): Message {
   return {
     content: overrides.content ?? '',
     author: { id: overrides.authorId ?? 'user-123' },
+    type: overrides.type ?? MessageType.Default,
     reference:
       overrides.referenceMessageId !== null
         ? { messageId: overrides.referenceMessageId }
@@ -140,7 +144,44 @@ describe('messageTypeFilters', () => {
   describe('isContextExcludedBotMessage', () => {
     const botUserId = 'bot-123';
 
-    it('excludes each of the three bot-message shapes', () => {
+    describe('isOwnCommandReply', () => {
+      const ownBotId = 'bot-1';
+
+      it('returns true for OUR bot ChatInputCommand reply', () => {
+        const msg = createMockMessage({ authorId: ownBotId, type: MessageType.ChatInputCommand });
+        expect(isOwnCommandReply(msg, ownBotId)).toBe(true);
+      });
+
+      it('returns true for OUR bot ContextMenuCommand reply', () => {
+        const msg = createMockMessage({
+          authorId: ownBotId,
+          type: MessageType.ContextMenuCommand,
+        });
+        expect(isOwnCommandReply(msg, ownBotId)).toBe(true);
+      });
+
+      it('returns false for ANOTHER bot command reply of either type', () => {
+        expect(
+          isOwnCommandReply(
+            createMockMessage({ authorId: 'other-bot', type: MessageType.ChatInputCommand }),
+            ownBotId
+          )
+        ).toBe(false);
+        expect(
+          isOwnCommandReply(
+            createMockMessage({ authorId: 'other-bot', type: MessageType.ContextMenuCommand }),
+            ownBotId
+          )
+        ).toBe(false);
+      });
+
+      it('returns false for our bot ordinary Default message', () => {
+        const msg = createMockMessage({ authorId: ownBotId, type: MessageType.Default });
+        expect(isOwnCommandReply(msg, ownBotId)).toBe(false);
+      });
+    });
+
+    it('excludes each of the FIVE bot-message shapes', () => {
       const transcript = createMockMessage({
         authorId: botUserId,
         content: 'transcript text',
@@ -153,9 +194,33 @@ describe('messageTypeFilters', () => {
       });
       (releaseDm as unknown as Record<string, unknown>).reference = undefined;
 
+      const retentionDm = createMockMessage({
+        authorId: botUserId,
+        content: `data retention notice${RETENTION_NOTICE_FOOTER}`,
+      });
+      (retentionDm as unknown as Record<string, unknown>).reference = undefined;
+      const ownCommandReply = createMockMessage({
+        authorId: botUserId,
+        content: 'dashboard payload',
+        type: MessageType.ChatInputCommand,
+      });
+      (ownCommandReply as unknown as Record<string, unknown>).reference = undefined;
+
       expect(isContextExcludedBotMessage(transcript, botUserId)).toBe(true);
       expect(isContextExcludedBotMessage(thinking, botUserId)).toBe(true);
       expect(isContextExcludedBotMessage(releaseDm, botUserId)).toBe(true);
+      expect(isContextExcludedBotMessage(retentionDm, botUserId)).toBe(true);
+      expect(isContextExcludedBotMessage(ownCommandReply, botUserId)).toBe(true);
+    });
+
+    it('does NOT exclude another bot ContextMenuCommand reply (the admitted feature path)', () => {
+      const otherBotReply = createMockMessage({
+        authorId: 'other-bot',
+        content: 'menu result',
+        type: MessageType.ContextMenuCommand,
+      });
+      (otherBotReply as unknown as Record<string, unknown>).reference = undefined;
+      expect(isContextExcludedBotMessage(otherBotReply, botUserId)).toBe(false);
     });
 
     it('keeps ordinary bot replies and user messages', () => {
