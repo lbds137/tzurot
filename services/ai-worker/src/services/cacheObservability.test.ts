@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { Logger } from 'pino';
 import { describe, expect, it, vi } from 'vitest';
+import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import {
   buildCacheObservability,
+  interveningShippedText,
   cacheHitRatio,
   historyStablePrefix,
   logGeneratedResponse,
@@ -151,6 +153,26 @@ describe('cacheHitRatio', () => {
   });
 });
 
+describe('interveningShippedText', () => {
+  it('returns an empty object for the flag-off two-message array', () => {
+    const messages = [new SystemMessage('sys'), new HumanMessage('current')];
+    expect(interveningShippedText(messages)).toEqual({});
+  });
+
+  it('extracts every message between system and current, in ship order', () => {
+    const messages = [
+      new SystemMessage('sys'),
+      new HumanMessage('<prior_conversations/>'),
+      new HumanMessage('[Vlad] hi'),
+      new AIMessage('hello'),
+      new HumanMessage('current'),
+    ];
+    expect(interveningShippedText(messages)).toEqual({
+      interveningMessagesText: ['<prior_conversations/>', '[Vlad] hi', 'hello'],
+    });
+  });
+});
+
 describe('buildCacheObservability', () => {
   const NOW = Date.parse('2026-08-01T10:05:00.000Z');
   const chatLog = `<chat_log>\n${ENTRY_A}\n${ENTRY_B}\n</chat_log>`;
@@ -248,6 +270,33 @@ describe('buildCacheObservability', () => {
     expect(fields.promptHashHistoryStable).toBe(
       expectedHash(historyStablePrefix(args.serializedHistory))
     );
+    expect(fields.promptHashFull).toBe(
+      expectedHash(`${args.systemPromptText}\n${args.currentMessageText}`)
+    );
+  });
+
+  it('folds intervening messages (real-messages mode) into promptHashFull, in ship order', () => {
+    const args = inputs({
+      interveningMessagesText: ['<prior_conversations/>', '[Vlad] hi', 'hello'],
+    });
+    const fields = buildCacheObservability(args);
+
+    expect(fields.promptHashFull).toBe(
+      expectedHash(
+        `${args.systemPromptText}\n<prior_conversations/>\n[Vlad] hi\nhello\n${args.currentMessageText}`
+      )
+    );
+    // Two turns whose entire history differs must not hash identically —
+    // the blind spot this input exists to close.
+    const otherHistory = buildCacheObservability(
+      inputs({ interveningMessagesText: ['[Someone Else] different history'] })
+    );
+    expect(otherHistory.promptHashFull).not.toBe(fields.promptHashFull);
+  });
+
+  it('keeps the pre-flag promptHashFull formula byte-identical when interveningMessagesText is absent', () => {
+    const args = inputs();
+    const fields = buildCacheObservability(args);
     expect(fields.promptHashFull).toBe(
       expectedHash(`${args.systemPromptText}\n${args.currentMessageText}`)
     );

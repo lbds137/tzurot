@@ -24,6 +24,7 @@
 
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import {
   attachmentEnrichment,
   enrichmentKey,
@@ -215,6 +216,21 @@ const DEDUP_PREFIX_MEDIA_IN_CHAT_LOG =
   '[Referenced message — no text; its media is described in full in the chat log]';
 
 /**
+ * Flag-on siblings of the three markers above (PR 2.3, D5b of the build
+ * spec): under `realMessagesEnabled` there IS no `<chat_log>` — history rides
+ * as real messages — so "in the chat log" is FALSE flag-on. Each sibling
+ * keeps its variant's documented meaning (full-text-elsewhere /
+ * media-here-plus-elsewhere / media-only-elsewhere), naming "the
+ * conversation" instead of a container that no longer exists.
+ */
+const DEDUP_PREFIX_REAL_MESSAGES =
+  '[Referenced message — full text appears earlier in the conversation]';
+const DEDUP_PREFIX_WITH_MEDIA_REAL_MESSAGES =
+  '[Referenced message — full text appears earlier in the conversation; its media is described here]';
+const DEDUP_PREFIX_MEDIA_IN_CHAT_LOG_REAL_MESSAGES =
+  '[Referenced message — no text; its media is described in full earlier in the conversation]';
+
+/**
  * Cap a dedup stub's text preview. The SINGLE truncation point: `renderReference`
  * renders whatever it is given as-is.
  *
@@ -236,12 +252,26 @@ function capDedupText(text: string): string {
  * `hasMedia` wins over the fallback because the two are mutually exclusive by
  * construction — the fallback is only reached when nothing enriched survives —
  * and stating the precedence beats relying on the caller's ordering.
+ *
+ * Reads `realMessagesEnabled` directly here rather than taking it as a
+ * parameter: `dedupeReference` (this function's only caller) is reached from
+ * TWO independent call chains — `ReferencedMessageFormatter.ts` (live
+ * `contextual_references`) and `xmlMetadataFormatters.ts` (in-history
+ * `quoted_messages`) — and threading a boolean through both would touch files
+ * outside this module. Reading the flag at this one shared seam both chains
+ * already funnel through avoids that spread.
  */
 function choosePrefix(hasMedia: boolean, hasMediaFallbackPreview: boolean): string {
+  const realMessagesEnabled = getSystemSetting('realMessagesEnabled') === true;
   if (hasMedia) {
-    return DEDUP_PREFIX_WITH_MEDIA;
+    return realMessagesEnabled ? DEDUP_PREFIX_WITH_MEDIA_REAL_MESSAGES : DEDUP_PREFIX_WITH_MEDIA;
   }
-  return hasMediaFallbackPreview ? DEDUP_PREFIX_MEDIA_IN_CHAT_LOG : DEDUP_PREFIX;
+  if (hasMediaFallbackPreview) {
+    return realMessagesEnabled
+      ? DEDUP_PREFIX_MEDIA_IN_CHAT_LOG_REAL_MESSAGES
+      : DEDUP_PREFIX_MEDIA_IN_CHAT_LOG;
+  }
+  return realMessagesEnabled ? DEDUP_PREFIX_REAL_MESSAGES : DEDUP_PREFIX;
 }
 
 /**

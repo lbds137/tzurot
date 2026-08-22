@@ -37,6 +37,8 @@ export const SystemSettingsSchema = z.object({
   factsInPromptEnabled: z.boolean(),
   /** Runtime switch for character roster blurbs: the summarizer sweep AND rendering them in the prompt. */
   rosterBlurbEnabled: z.boolean(),
+  /** Render conversation history as real user/assistant provider messages instead of `<chat_log>` XML in the system prompt (prompt-assembly Phase 2 rollout switch). */
+  realMessagesEnabled: z.boolean(),
   /** Share GLM-4.7 with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
   /** Vision-describe rasterizable stickers (instance-funded, cached per snowflake). */
@@ -477,6 +479,21 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     seedSource: SEED_SOURCE_NEW,
     min: 0,
     max: 23,
+  },
+  realMessagesEnabled: {
+    key: 'realMessagesEnabled',
+    label: 'Real Messages',
+    description:
+      'Render conversation history as real user/assistant provider messages instead of <chat_log> XML in the system prompt (prompt-assembly Phase 2 rollout switch).',
+    group: GROUP_OPERATIONS,
+    control: 'boolean',
+    liveness: 'live',
+    // Defaults OFF: this is a staged rollout switch for a structural prompt
+    // change (§9c of the prompt-assembly design) — flip explicitly, never by
+    // a lost DB row silently changing what every persona's prompt looks like.
+    fallback: false,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
   },
 };
 

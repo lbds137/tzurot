@@ -99,6 +99,9 @@ describe('fallbacks (the floor beneath the floor)', () => {
     expect(SYSTEM_SETTINGS_FALLBACKS.extractionEnabled).toBe(false);
     expect(SYSTEM_SETTINGS_FALLBACKS.factsInPromptEnabled).toBe(false);
     expect(SYSTEM_SETTINGS_FALLBACKS.zaiFreeTierEnabled).toBe(false);
+    // A lost DB must never silently reshape every persona's system prompt —
+    // this is a staged structural rollout switch, not an independent feature.
+    expect(SYSTEM_SETTINGS_FALLBACKS.realMessagesEnabled).toBe(false);
   });
 
   it('the nightly sync falls back ENABLED at 07:00 UTC (a lost DB keeps dev↔prod converging)', () => {
@@ -134,6 +137,7 @@ describe('buildSystemSettingsSeed', () => {
     expect(seed.extractionEnabled).toBe(false);
     expect(seed.factsInPromptEnabled).toBe(false);
     expect(seed.zaiFreeTierEnabled).toBe(false);
+    expect(seed.realMessagesEnabled).toBe(false);
     expect(seed.fallbackTextModel).toBe(AUTO_ROUTER_MODEL);
     expect(seed.fallbackVisionModel).toBe(AUTO_ROUTER_MODEL);
     expect(seed.fallbackTextModelFree).toBe(FREE_ROUTER_MODEL);
@@ -265,5 +269,15 @@ describe('admin-visible copy tracks the constants it describes', () => {
     // z.ai rerouting that id, and the description kept naming the retired one.
     const { description } = SYSTEM_SETTINGS_REGISTRY.zaiFreeTierEnabled;
     expect(description.toLowerCase()).toContain(ZAI_FREE_TIER_MODEL);
+  });
+});
+
+describe('realMessagesEnabled (prompt-assembly Phase 2 rollout switch)', () => {
+  it('is a live-toggling boolean in the operations group, falling back OFF', () => {
+    const meta = SYSTEM_SETTINGS_REGISTRY.realMessagesEnabled;
+    expect(meta.control).toBe('boolean');
+    expect(meta.group).toBe('operations');
+    expect(meta.liveness).toBe('live');
+    expect(meta.fallback).toBe(false);
   });
 });

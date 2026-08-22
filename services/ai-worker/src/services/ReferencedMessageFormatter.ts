@@ -39,6 +39,7 @@ import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { redactOwnVoiceTranscript } from './voice/ownVoiceGuard.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 
 const logger = createLogger('ReferencedMessageFormatter');
 
@@ -50,6 +51,16 @@ const logger = createLogger('ReferencedMessageFormatter');
  * is visible alongside the other prompt-text constants instead of buried inline.
  */
 const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>; any media description not shown in the quote itself is in <chat_log>.</instruction>`;
+
+/**
+ * Flag-on sibling of the constant above (PR 2.3, same class as the
+ * `DEDUP_PREFIX_*_REAL_MESSAGES` wording in `RenderableReference.ts`): under
+ * `realMessagesEnabled` there is no `<chat_log>` — history rides as real
+ * messages — so the closing sentence names "earlier in the conversation"
+ * instead of a container that no longer exists. The role legend stays: quotes
+ * inside <contextual_references> keep their role attributes in both modes.
+ */
+const CONTEXTUAL_REFERENCES_INSTRUCTION_REAL_MESSAGES = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears earlier in the conversation; any media description not shown in the quote itself also appears earlier in the conversation.</instruction>`;
 
 /**
  * Context for reference formatting. `userApiKey` is the key for
@@ -359,7 +370,14 @@ export class ReferencedMessageFormatter {
 
     // Wrap in outer XML tag.
     return {
-      formatted: `<contextual_references>\n${CONTEXTUAL_REFERENCES_INSTRUCTION}\n${formattedText}\n</contextual_references>`,
+      // Same one-shared-seam justification as `choosePrefix` in
+      // RenderableReference.ts: the flag decides WORDING only, so a live
+      // mid-turn flip costs at most one turn's phrasing, never the budget.
+      formatted: `<contextual_references>\n${
+        getSystemSetting('realMessagesEnabled') === true
+          ? CONTEXTUAL_REFERENCES_INSTRUCTION_REAL_MESSAGES
+          : CONTEXTUAL_REFERENCES_INSTRUCTION
+      }\n${formattedText}\n</contextual_references>`,
       searchText: searchParts
         .map(part => part.trim())
         .filter(part => part.length > 0)

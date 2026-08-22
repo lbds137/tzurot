@@ -41,7 +41,7 @@ import { resolveEffectiveContextWindow } from './contextWindowResolver.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
-import { logGeneratedResponse } from './cacheObservability.js';
+import { interveningShippedText, logGeneratedResponse } from './cacheObservability.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
 import { resolveRagVisionAuth, enrichRagHistory } from './multimodal/ragVisionAuth.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
@@ -122,6 +122,8 @@ export class ConversationalRAGService {
       systemPromptSections,
       serializedHistory,
       currentMessage,
+      historyMessages,
+      crossChannelMessage,
       userMessage,
       context,
       userApiKey,
@@ -133,11 +135,20 @@ export class ConversationalRAGService {
     // Cast from opaque DiagnosticCollectorRef to concrete type (safe — callers always pass DiagnosticCollector)
     const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
 
-    // Both messages come from the budget allocation — the human message
-    // carries the selected memory/fact blocks in its volatile prefix, so it
-    // must never be rebuilt here (a rebuild would ship a memory-less turn
-    // while the budget assumed otherwise).
-    const messages: BaseMessage[] = [systemPrompt, currentMessage];
+    // Every element but the system prompt comes from the budget allocation —
+    // the human message carries the selected memory/fact blocks in its
+    // volatile prefix, so it must never be rebuilt here (a rebuild would ship
+    // a memory-less turn while the budget assumed otherwise). Flag-off,
+    // `historyMessages`/`crossChannelMessage` are both absent and this array
+    // is byte-identical to `[systemPrompt, currentMessage]` (PR 2.3
+    // byte-parity requirement). Flag-on, the array is
+    // `[system, crossChannelHuman?, ...history, currentHuman]` (§9c).
+    const messages: BaseMessage[] = [
+      systemPrompt,
+      ...(crossChannelMessage !== undefined ? [crossChannelMessage] : []),
+      ...(historyMessages ?? []),
+      currentMessage,
+    ];
 
     // Check reasoning capability (async, cached with 5-min TTL).
     // Gated on the level being SET (not on it being enabled): ModelFactory's
@@ -265,6 +276,7 @@ export class ConversationalRAGService {
       systemPromptSections,
       serializedHistory,
       currentMessageText: contentToText(currentMessage.content),
+      ...interveningShippedText(messages),
       history: context.rawConversationHistory,
       triggerMessageId: context.triggerMessageId,
       cacheReadTokens: usageMetadata?.input_token_details?.cache_read,
@@ -454,6 +466,8 @@ export class ConversationalRAGService {
         systemPromptSections: budgetResult.systemPromptSections,
         serializedHistory: budgetResult.serializedHistory,
         currentMessage: budgetResult.currentMessage,
+        historyMessages: budgetResult.historyMessages,
+        crossChannelMessage: budgetResult.crossChannelMessage,
         userMessage: inputs.userMessage,
         context,
         userApiKey,

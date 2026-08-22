@@ -2,8 +2,8 @@
  * Tests for ContentBudgetManager
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SystemMessage, HumanMessage } from '@langchain/core/messages';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { AIMessage, SystemMessage, HumanMessage } from '@langchain/core/messages';
 import {
   ContentBudgetManager,
   activeSpeakerPronouns,
@@ -18,6 +18,17 @@ import type {
   ParticipantInfo,
 } from './ConversationalRAGTypes.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+
+// The realMessagesEnabled rollout flag (PR 2.3). Hoisted so the mock factory
+// (which runs at import time) can close over a mutable flag — a plain `let`
+// initializes AFTER the factory would already need it. Defaults false so
+// every existing test in this file sees today's byte-identical shape; the
+// "realMessagesEnabled (PR 2.3)" describe block below flips it per test.
+const { settingsState } = vi.hoisted(() => ({ settingsState: { realMessagesEnabled: false } }));
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: (key: string) =>
+    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false,
+}));
 
 describe('ContentBudgetManager', () => {
   let mockPromptBuilder: PromptBuilder;
@@ -71,6 +82,7 @@ describe('ContentBudgetManager', () => {
         messagesDropped: 0,
         crossChannelMessagesIncluded: 0,
         selectedEntries: [],
+        crossChannelXml: '',
       }),
     } as unknown as ContextWindowManager;
 
@@ -211,6 +223,7 @@ describe('ContentBudgetManager', () => {
         messagesDropped: 0,
         crossChannelMessagesIncluded: 0,
         selectedEntries: [],
+        crossChannelXml: '',
       });
 
       const result = budgetManager.allocate(options, budgetManager.preselectHistory(options));
@@ -424,6 +437,7 @@ describe('ContentBudgetManager', () => {
         messagesDropped: 2,
         crossChannelMessagesIncluded: 0,
         selectedEntries: [],
+        crossChannelXml: '',
       });
 
       const result = budgetManager.allocate(options, budgetManager.preselectHistory(options));
@@ -490,6 +504,135 @@ describe('ContentBudgetManager', () => {
       const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
       expect(call).toBeDefined();
       expect(call[4]).toBeUndefined(); // 5th arg = undefined when no environment
+    });
+
+    describe('realMessagesEnabled (PR 2.3)', () => {
+      afterEach(() => {
+        settingsState.realMessagesEnabled = false;
+      });
+
+      it('flag-OFF: no historyMessages/crossChannelMessage; the shipped system-message build is unaffected', () => {
+        const options = createBaseOptions();
+        vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mockReturnValue({
+          serializedHistory: '<chat_log>hi</chat_log>',
+          historyTokensUsed: 50,
+          messagesIncluded: 1,
+          messagesDropped: 0,
+          crossChannelMessagesIncluded: 0,
+          selectedEntries: [{ role: 'user', content: 'hi', personaId: 'p-1', personaName: 'Vlad' }],
+          crossChannelXml: '<prior_conversations>old</prior_conversations>',
+        });
+
+        const preselected = budgetManager.preselectHistory(options);
+        const result = budgetManager.allocate(options, preselected);
+
+        expect(result.historyMessages).toBeUndefined();
+        expect(result.crossChannelMessage).toBeUndefined();
+        // serializedHistory keeps carrying the full XML — this exact assertion
+        // is the byte-parity anchor: the pre-change shape had no other field.
+        expect(result.serializedHistory).toBe('<chat_log>hi</chat_log>');
+
+        const shippedCall = vi
+          .mocked(mockPromptBuilder.buildSystemMessage)
+          .mock.calls.find(
+            ([arg]) => (arg as { serializedHistory?: string }).serializedHistory !== undefined
+          );
+        expect(shippedCall?.[0]).toEqual(
+          expect.objectContaining({
+            serializedHistory: '<chat_log>hi</chat_log>',
+            realMessagesEnabled: false,
+          })
+        );
+      });
+
+      it('flag-ON: historyMessages in chronological order, cross-channel message present, chat_log suppressed via an empty serializedHistory at the shipped build — result.serializedHistory keeps the full XML regardless', () => {
+        settingsState.realMessagesEnabled = true;
+        const options = createBaseOptions();
+        const entries = [
+          {
+            role: 'user',
+            content: 'first',
+            personaId: 'p-1',
+            personaName: 'Vlad',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'second',
+            personalityId: mockPersonality.id,
+            personalityName: mockPersonality.name,
+            createdAt: '2026-01-01T00:05:00.000Z',
+          },
+        ];
+        vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mockReturnValue({
+          serializedHistory: '<chat_log>first second</chat_log>',
+          historyTokensUsed: 50,
+          messagesIncluded: 2,
+          messagesDropped: 0,
+          crossChannelMessagesIncluded: 1,
+          selectedEntries: entries,
+          crossChannelXml: '<prior_conversations>old chat</prior_conversations>',
+        });
+
+        const preselected = budgetManager.preselectHistory(options);
+        const result = budgetManager.allocate(options, preselected);
+
+        expect(result.historyMessages).toHaveLength(2);
+        expect(result.historyMessages?.[0]).not.toBeInstanceOf(AIMessage);
+        expect(String(result.historyMessages?.[0].content)).toContain('first');
+        expect(result.historyMessages?.[1]).toBeInstanceOf(AIMessage);
+        expect(String(result.historyMessages?.[1].content)).toContain('second');
+
+        expect(result.crossChannelMessage).toBeDefined();
+        expect(String(result.crossChannelMessage?.content)).toBe(
+          '<prior_conversations>old chat</prior_conversations>'
+        );
+
+        // The mechanism behind "no <chat_log>": the shipped build receives ''
+        // regardless of the actual serializedHistory content.
+        const shippedCall = vi.mocked(mockPromptBuilder.buildSystemMessage).mock.calls.at(-1);
+        expect(shippedCall?.[0]).toEqual(
+          expect.objectContaining({ serializedHistory: '', realMessagesEnabled: true })
+        );
+
+        // serializedHistory on the RESULT still carries the full XML in BOTH
+        // modes — diagnostics/prefix-cache observability read it regardless
+        // of which container ships it.
+        expect(result.serializedHistory).toBe('<chat_log>first second</chat_log>');
+      });
+
+      it('flag-ON with empty cross-channel XML and no history: historyMessages is [], crossChannelMessage is absent', () => {
+        settingsState.realMessagesEnabled = true;
+        const options = createBaseOptions();
+        vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mockReturnValue({
+          serializedHistory: '',
+          historyTokensUsed: 0,
+          messagesIncluded: 0,
+          messagesDropped: 0,
+          crossChannelMessagesIncluded: 0,
+          selectedEntries: [],
+          crossChannelXml: '',
+        });
+
+        const preselected = budgetManager.preselectHistory(options);
+        const result = budgetManager.allocate(options, preselected);
+
+        expect(result.historyMessages).toEqual([]);
+        expect(result.crossChannelMessage).toBeUndefined();
+      });
+
+      it('threads the SAME flag value to the base-measurement build and the shipped build', () => {
+        settingsState.realMessagesEnabled = true;
+        const options = createBaseOptions();
+
+        budgetManager.allocate(options, budgetManager.preselectHistory(options));
+
+        const calls = vi.mocked(mockPromptBuilder.buildSystemMessage).mock.calls;
+        expect(calls.length).toBeGreaterThan(0);
+        for (const [arg] of calls) {
+          expect((arg as { realMessagesEnabled?: boolean }).realMessagesEnabled).toBe(true);
+        }
+      });
     });
   });
 
@@ -592,6 +735,9 @@ describe('ContentBudgetManager', () => {
       messagesDropped: 0,
       crossChannelMessagesIncluded: 0,
       shippedMessageIds: new Set<string>(),
+      selectedEntries: [],
+      crossChannelXml: '',
+      realMessagesEnabled: false,
       ...overrides,
     });
 

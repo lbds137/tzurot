@@ -138,6 +138,13 @@ describe('ContextWindowManager', () => {
       expect(result.serializedHistory).toContain('Cross-channel message');
       expect(result.serializedHistory).toContain('<prior_conversations>');
       expect(result.historyTokensUsed).toBeGreaterThan(0);
+      // The separated field (PR 2.3): the SAME cross-channel XML that
+      // combineHistorySections folded into serializedHistory, standalone —
+      // and never the current-channel content, which ships separately.
+      expect(result.crossChannelXml).toContain('<prior_conversations>');
+      expect(result.crossChannelXml).toContain('Cross-channel message');
+      expect(result.crossChannelXml).not.toContain('Current channel msg');
+      expect(result.serializedHistory).toContain(result.crossChannelXml);
     });
 
     it('should not include cross-channel history when budget is exhausted', () => {

@@ -2,7 +2,7 @@
  * Tests for the canonical reference shape, its renderer, and the dedup projection.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { enrichmentKey } from './QuoteFormatter.js';
 import {
@@ -13,6 +13,17 @@ import {
   renderReference,
   type RenderableReference,
 } from './RenderableReference.js';
+
+// The realMessagesEnabled gate `choosePrefix` reads (PR 2.3). Hoisted so the
+// mock factory (which runs at import time) can close over a mutable flag —
+// a plain `let` initializes AFTER the factory would already need it. Defaults
+// false so every existing test in this file above sees today's bytes
+// unchanged; the flag-on describe block below flips it per test.
+const { settingsState } = vi.hoisted(() => ({ settingsState: { realMessagesEnabled: false } }));
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: (key: string) =>
+    key === 'realMessagesEnabled' ? settingsState.realMessagesEnabled : false,
+}));
 
 function reference(over: Partial<RenderableReference> = {}): RenderableReference {
   return {
@@ -401,6 +412,53 @@ describe('dedupeReference', () => {
       );
 
       expect(stub.content).toBe('[Referenced message — full text in the chat log]');
+    });
+  });
+
+  describe('realMessagesEnabled wording (PR 2.3, D5b)', () => {
+    beforeEach(() => {
+      settingsState.realMessagesEnabled = true;
+    });
+
+    afterEach(() => {
+      settingsState.realMessagesEnabled = false;
+    });
+
+    it('drops the false "chat log" claim from the plain marker', () => {
+      const stub = dedupeReference(
+        reference({ attachments: [{ kind: 'file', filename: 'report.pdf' }] })
+      );
+
+      expect(stub.content).toContain(
+        '[Referenced message — full text appears earlier in the conversation]'
+      );
+      expect(stub.content).not.toContain('chat log');
+    });
+
+    it('drops the false "chat log" claim from the with-media marker', () => {
+      const stub = dedupeReference(reference({ content: '' }));
+
+      expect(stub.content).toBe(
+        '[Referenced message — full text appears earlier in the conversation; its media is described here]'
+      );
+      expect(stub.content).not.toContain('chat log');
+    });
+
+    it('drops the false "chat log" claim from the media-only-fallback marker', () => {
+      const description = 'a cat asleep on a sunlit windowsill';
+      const stub = dedupeReference(
+        reference({
+          content: '',
+          attachments: [
+            { kind: 'image', filename: 'cat.png', contentType: 'image/png', description },
+          ],
+        }),
+        new Set([enrichmentKey('image', description)])
+      );
+
+      expect(stub.content).toContain(description);
+      expect(stub.content).toContain('described in full earlier in the conversation');
+      expect(stub.content).not.toContain('chat log');
     });
   });
 });

@@ -14,7 +14,9 @@
  */
 
 import { createHash } from 'node:crypto';
+import type { BaseMessage } from '@langchain/core/messages';
 import type { Logger } from 'pino';
+import { contentToText } from '../utils/baseMessageContent.js';
 import { HISTORY_ENTRY_OPEN } from '../jobs/utils/conversationUtils.js';
 import { SECTION_SEPARATOR, type SectionDescription } from './prompt/sections.js';
 
@@ -132,6 +134,14 @@ export interface CacheObservabilityInputs {
   serializedHistory?: string;
   /** Text of the final human message (V-tier prefix + the user's turn). */
   currentMessageText: string;
+  /**
+   * Text of every message BETWEEN the system prompt and the current human
+   * message, in ship order — the cross-channel message and the real-message
+   * history when `realMessagesEnabled` is on. Absent flag-off (the array is
+   * exactly [system, current]), which keeps `promptHashFull`'s input string
+   * byte-identical to its pre-flag formula.
+   */
+  interveningMessagesText?: string[];
   /** The loaded conversation history; only `createdAt` and the message ids
    *  (for the current-turn exclusion) are read. */
   history?: readonly { createdAt?: string; discordMessageId?: readonly string[] }[];
@@ -176,11 +186,14 @@ export interface CacheObservabilityFields {
 /**
  * Derive every cache-observability field for one generation.
  *
- * `promptHashFull` covers the system message and the current human message
- * joined by a newline — the two containers shipped to the model, TEXT parts
- * only: `contentToText` drops non-text content blocks, so two turns differing
- * only in attached image bytes hash identically. Fine for a text-prefix-cache
- * diagnostic; not a byte-exact wire-payload hash.
+ * `promptHashFull` covers EVERY container shipped to the model, in ship
+ * order, joined by newlines — flag-off that is the system message and the
+ * current human message; under `realMessagesEnabled` the caller passes the
+ * intervening cross-channel/history messages too, so the hash still bounds
+ * the whole prompt. TEXT parts only: `contentToText` drops non-text content
+ * blocks, so two turns differing only in attached image bytes hash
+ * identically. Fine for a text-prefix-cache diagnostic; not a byte-exact
+ * wire-payload hash.
  */
 export function buildCacheObservability(
   inputs: CacheObservabilityInputs
@@ -190,6 +203,7 @@ export function buildCacheObservability(
     systemPromptSections,
     serializedHistory,
     currentMessageText,
+    interveningMessagesText,
     history,
     triggerMessageId,
     cacheReadTokens,
@@ -208,9 +222,27 @@ export function buildCacheObservability(
     ...(serializedHistory !== undefined && serializedHistory.length > 0
       ? { promptHashHistoryStable: promptHash(historyStablePrefix(serializedHistory)) }
       : {}),
-    promptHashFull: promptHash(`${systemPromptText}\n${currentMessageText}`),
+    promptHashFull: promptHash(
+      [systemPromptText, ...(interveningMessagesText ?? []), currentMessageText].join('\n')
+    ),
     ...(ratio !== undefined ? { cacheHitRatio: ratio } : {}),
   };
+}
+
+/**
+ * The `interveningMessagesText` input, derived from the ACTUAL shipped
+ * provider array: everything between messages[0] (the system prompt) and the
+ * final human message. Returns an empty object flag-off (the array is exactly
+ * [system, current]), so `promptHashFull`'s input string stays byte-identical
+ * to its pre-flag formula there.
+ */
+export function interveningShippedText(messages: BaseMessage[]): {
+  interveningMessagesText?: string[];
+} {
+  if (messages.length <= 2) {
+    return {};
+  }
+  return { interveningMessagesText: messages.slice(1, -1).map(m => contentToText(m.content)) };
 }
 
 /** The per-generation identity fields the log line carries alongside the hashes. */
