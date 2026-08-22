@@ -3,9 +3,10 @@ id: TASK-724
 title: >-
   Flag-on empty-assistant-row skip desyncs shippedMessageIds from what actually
   ships
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 06:47'
+updated_date: '2026-08-22 12:55'
 labels:
   - 'area:ai-worker'
   - 'size:S'
