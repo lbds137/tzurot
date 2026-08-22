@@ -83,7 +83,7 @@ export class MessageHandler {
   async handleMessage(message: Message): Promise<void> {
     try {
       // Skip system messages (thread creation, pinned messages, user joins, etc.)
-      // Only process user-generated content (Default, Reply, Forward)
+      // Only process real channel content (Default, Reply, Forward, command responses)
       if (!isUserContentMessage(message)) {
         logger.debug(
           {

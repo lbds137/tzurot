@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageType } from 'discord.js';
 import { MessageHandler } from './MessageHandler.js';
+import { BotMessageFilter } from '../processors/BotMessageFilter.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
@@ -330,6 +331,76 @@ describe('MessageHandler', () => {
       await messageHandler.handleMessage(message);
 
       expect(mockProcessor1.process).toHaveBeenCalledWith(message);
+    });
+  });
+
+  describe('handleMessage - trigger-path admission does not create new bot-reply triggers', () => {
+    function createMockMessage(overrides = {}): Message {
+      return {
+        id: 'msg-123',
+        type: MessageType.Default,
+        author: {
+          tag: 'TestUser#1234',
+          bot: false,
+        },
+        reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
+        ...overrides,
+      } as unknown as Message;
+    }
+
+    it('admits a ChatInputCommand message past the type filter but stops it at BotMessageFilter (real, not mocked)', async () => {
+      const spyProcessor: IMessageProcessor = {
+        process: vi.fn().mockResolvedValue(false),
+      };
+      const realChainHandler = new MessageHandler({
+        processors: [new BotMessageFilter(), spyProcessor],
+        responseSender: mockResponseSender as unknown as DiscordResponseSender,
+        persistence: mockPersistence as unknown as ConversationPersistence,
+        jobTracker: mockJobTracker as unknown as JobTracker,
+        slotDelivery: mockSlotDelivery as unknown as SlotDeliveryService,
+        coordinator: mockCoordinator as unknown as MultiTagCoordinator,
+        personalityService: mockPersonalityService as unknown as IPersonalityLoader,
+        client: mockClient as unknown as import('discord.js').Client,
+        maintenanceFlag: mockMaintenanceFlag as unknown as MaintenanceFlag,
+      });
+
+      const message = createMockMessage({
+        type: MessageType.ChatInputCommand,
+        author: { tag: 'OtherBot#0000', bot: true },
+      });
+
+      await realChainHandler.handleMessage(message);
+
+      // Widening isUserContentMessage admits this type past the initial
+      // system-message filter, but BotMessageFilter still stops it — no new
+      // trigger surface for bot-authored command replies.
+      expect(spyProcessor.process).not.toHaveBeenCalled();
+    });
+
+    it('companion: a non-bot Default message DOES reach the processor after BotMessageFilter', async () => {
+      const spyProcessor: IMessageProcessor = {
+        process: vi.fn().mockResolvedValue(false),
+      };
+      const realChainHandler = new MessageHandler({
+        processors: [new BotMessageFilter(), spyProcessor],
+        responseSender: mockResponseSender as unknown as DiscordResponseSender,
+        persistence: mockPersistence as unknown as ConversationPersistence,
+        jobTracker: mockJobTracker as unknown as JobTracker,
+        slotDelivery: mockSlotDelivery as unknown as SlotDeliveryService,
+        coordinator: mockCoordinator as unknown as MultiTagCoordinator,
+        personalityService: mockPersonalityService as unknown as IPersonalityLoader,
+        client: mockClient as unknown as import('discord.js').Client,
+        maintenanceFlag: mockMaintenanceFlag as unknown as MaintenanceFlag,
+      });
+
+      const message = createMockMessage({
+        type: MessageType.Default,
+        author: { tag: 'TestUser#1234', bot: false },
+      });
+
+      await realChainHandler.handleMessage(message);
+
+      expect(spyProcessor.process).toHaveBeenCalledWith(message);
     });
   });
 

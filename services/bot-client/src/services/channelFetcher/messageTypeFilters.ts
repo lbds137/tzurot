@@ -5,7 +5,7 @@
  * Extracted from DiscordChannelFetcher.ts for better modularity.
  */
 
-import type { Message } from 'discord.js';
+import { type Message, MessageType } from 'discord.js';
 import { isReleaseNotesDm } from '../releaseDm/releaseDmContext.js';
 import { isRetentionNoticeDm } from '../retentionNotice/noticeContent.js';
 
@@ -58,17 +58,38 @@ export function isBotTranscriptReply(msg: Message, botUserId: string): boolean {
 }
 
 /**
+ * Check if a message is OUR OWN bot's reply to a slash/context-menu command.
+ *
+ * `isUserContentMessage` admits command-reply message types so OTHER app-bots'
+ * command output reaches extended context — but our own command replies are
+ * utility surfaces (dashboards, lookups), not conversation, and would classify
+ * as relay-echoes reading as user speech. No production command sets
+ * `deferralMode: 'public'` (grep the commands tree to re-verify), so today
+ * this fires only in tests; it exists so a future public-deferral command
+ * cannot silently leak its replies into context. Pinned by the own-bot
+ * command-reply case in DiscordChannelFetcher.test.ts.
+ */
+export function isOwnCommandReply(msg: Message, botUserId: string): boolean {
+  return (
+    msg.author.id === botUserId &&
+    (msg.type === MessageType.ChatInputCommand || msg.type === MessageType.ContextMenuCommand)
+  );
+}
+
+/**
  * Combined exclusion for bot-authored messages that are surfaced to users but
  * must never enter model context: transcript replies (content duplicated via
- * TranscriptRetriever), thinking blocks (display-only reasoning), and
- * release-notes DMs (notifications that would otherwise classify as
- * relay-echoes and read as user speech).
+ * TranscriptRetriever), thinking blocks (display-only reasoning),
+ * release-notes and retention-notice DMs (notifications that would otherwise
+ * classify as relay-echoes and read as user speech), and our own command
+ * replies (same relay-echo hazard; other bots' command replies stay admitted).
  */
 export function isContextExcludedBotMessage(msg: Message, botUserId: string): boolean {
   return (
     isBotTranscriptReply(msg, botUserId) ||
     isThinkingBlockMessage(msg) ||
     isReleaseNotesDm(msg, botUserId) ||
-    isRetentionNoticeDm(msg, botUserId)
+    isRetentionNoticeDm(msg, botUserId) ||
+    isOwnCommandReply(msg, botUserId)
   );
 }
