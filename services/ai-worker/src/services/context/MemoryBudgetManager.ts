@@ -17,7 +17,7 @@ import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
-  type RawHistoryEntry,
+  type StructuredHistoryEntry,
   collectPersonalityNames,
 } from '../../jobs/utils/conversationUtils.js';
 import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
@@ -221,7 +221,7 @@ export class MemoryBudgetManager {
    * @returns Total tokens for all history messages (using tiktoken)
    */
   countHistoryTokens(
-    rawHistory: RawHistoryEntry[] | undefined,
+    rawHistory: StructuredHistoryEntry[] | undefined,
     personalityName: string,
     responderPersonalityId?: string
   ): number {

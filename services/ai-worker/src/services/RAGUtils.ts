@@ -19,6 +19,7 @@ import type { DuplicateRetryConfig } from './ConversationalRAGTypes.js';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import { hydrateStoredReferences } from './storedReferenceHydrator.js';
 
 const logger = createLogger('RAGUtils');
@@ -174,27 +175,13 @@ function buildImageDescriptionMap(
   return map;
 }
 
-/** Raw conversation history entry shape for injection */
-export interface RawHistoryEntry {
-  id?: string;
-  discordMessageId?: string[];
-  role: string;
-  content: string;
-  tokenCount?: number;
-  messageMetadata?: {
-    referencedMessages?: StoredReferencedMessage[];
-    imageDescriptions?: InlineImageDescription[];
-    [key: string]: unknown;
-  };
-}
-
 /**
  * Find image descriptions for a history entry by matching against the image map.
  * Primary: match by entry.id (Discord snowflake for extended context messages)
  * Fallback: match by discordMessageId (for DB messages with UUID ids)
  */
 function findDescriptionsForEntry(
-  entry: RawHistoryEntry,
+  entry: StructuredHistoryEntry,
   imageMap: Map<string, InlineImageDescription[]>
 ): InlineImageDescription[] | undefined {
   // Primary: match by entry.id (Discord snowflake for extended context messages)
@@ -223,7 +210,7 @@ function findDescriptionsForEntry(
  * @param imageMap Map of Discord message ID to image descriptions
  */
 export function injectImageDescriptions(
-  history: RawHistoryEntry[] | undefined,
+  history: StructuredHistoryEntry[] | undefined,
   imageMap: Map<string, InlineImageDescription[]>
 ): void {
   if (!history || history.length === 0 || imageMap.size === 0) {
@@ -273,7 +260,7 @@ export function injectImageDescriptions(
  * @returns Formatted string of recent history, or undefined if no history
  */
 export function extractRecentHistoryWindow(
-  rawHistory?: { role: string; content: string; tokenCount?: number }[],
+  rawHistory?: Pick<StructuredHistoryEntry, 'role' | 'content' | 'tokenCount'>[],
   turnsToInclude: number = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS
 ): string | undefined {
   if (!rawHistory || rawHistory.length === 0) {
@@ -337,7 +324,7 @@ export function countMediaAttachments(attachments?: AttachmentMetadata[]): {
  * Used to warm the vision cache before hydration runs.
  */
 function collectLinkedImageAttachments(
-  rawHistory: RawHistoryEntry[] | undefined
+  rawHistory: StructuredHistoryEntry[] | undefined
 ): AttachmentMetadata[] {
   if (rawHistory === undefined) {
     return [];
@@ -389,7 +376,7 @@ function collectImageAttachmentsFromRef(
  * @param processImagesFn Optional callback to process images through the vision pipeline
  */
 export async function enrichConversationHistory(
-  rawHistory: RawHistoryEntry[] | undefined,
+  rawHistory: StructuredHistoryEntry[] | undefined,
   extendedContextAttachments: ProcessedAttachment[] | undefined,
   prisma: PrismaClient,
   visionCache: VisionDescriptionCache,

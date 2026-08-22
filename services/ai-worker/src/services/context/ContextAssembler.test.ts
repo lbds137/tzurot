@@ -848,7 +848,7 @@ describe('ContextAssembler — extended-context personality-name remap', () => {
     } as Partial<JobContext>);
   }
 
-  it('remaps assistant attribution to the unique name via personalityId', async () => {
+  it('remaps assistant attribution to the personality name via personalityId', async () => {
     const deps = makeDeps({
       dataSource: {
         getPersonalityNamesByIds: vi
@@ -933,7 +933,7 @@ describe('ContextAssembler — extended-context personality-name remap', () => {
     const known = core.history.find(m => (m.discordMessageId ?? []).includes('d-known'));
     const gone = core.history.find(m => (m.discordMessageId ?? []).includes('d-gone'));
     const user = core.history.find(m => (m.discordMessageId ?? []).includes('d-user'));
-    expect(known?.personalityName).toBe('Fallen Emily'); // resolved → unique name
+    expect(known?.personalityName).toBe('Fallen Emily'); // resolved → personality name
     expect(gone?.personalityName).toBe('Emily'); // unresolved → keeps display name
     expect(user?.personaName).toBe('Lila'); // user untouched
     // Both assistant ids are queried; the user message contributes none.

@@ -13,7 +13,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
-  type RawHistoryEntry,
+  type StructuredHistoryEntry,
   type ResponderIdentity,
   collectPersonalityNames,
   formatConversationHistoryAsXml,
@@ -63,7 +63,7 @@ export class ContextWindowManager {
    * Cross-channel history is included when available and budget permits.
    */
   selectAndSerializeHistory(
-    rawHistory: RawHistoryEntry[] | undefined,
+    rawHistory: StructuredHistoryEntry[] | undefined,
     responder: ResponderIdentity,
     historyBudget: number,
     crossChannelGroups?: CrossChannelHistoryGroupEntry[],
@@ -77,7 +77,7 @@ export class ContextWindowManager {
     /** The current-channel entries that actually shipped (newest-first walk
      * keeps a contiguous newest suffix) — the STM/LTM pre-pass derives the
      * EXACT dedup cutoff + shipped-message-id set from these. */
-    selectedEntries: RawHistoryEntry[];
+    selectedEntries: StructuredHistoryEntry[];
   } {
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
@@ -106,7 +106,7 @@ export class ContextWindowManager {
     const adjustedBudget = historyBudget - currentConversationOverhead;
     const { selectedEntries, currentChannelXml, tokensUsed } = hasCurrentChannel
       ? this.selectCurrentChannelEntries(rawHistory, responder, adjustedBudget)
-      : { selectedEntries: [] as RawHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
+      : { selectedEntries: [] as StructuredHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
 
     // Include wrapper overhead in tokens used (only when content exists to wrap)
     const adjustedTokensUsed =
@@ -139,10 +139,10 @@ export class ContextWindowManager {
 
   /** Select current-channel entries within budget using recency-based strategy. */
   private selectCurrentChannelEntries(
-    rawHistory: RawHistoryEntry[],
+    rawHistory: StructuredHistoryEntry[],
     responder: ResponderIdentity,
     historyBudget: number
-  ): { selectedEntries: RawHistoryEntry[]; currentChannelXml: string; tokensUsed: number } {
+  ): { selectedEntries: StructuredHistoryEntry[]; currentChannelXml: string; tokensUsed: number } {
     const wrapperOverhead = countTextTokens('<chat_log>\n</chat_log>');
     const budgetAfterOverhead = historyBudget - wrapperOverhead;
 
@@ -150,7 +150,7 @@ export class ContextWindowManager {
       return { selectedEntries: [], currentChannelXml: '', tokensUsed: 0 };
     }
 
-    const selectedEntries: RawHistoryEntry[] = [];
+    const selectedEntries: StructuredHistoryEntry[] = [];
     let estimatedTokens = 0;
 
     // Scoped to the FETCHED history, while the final render scopes to the
@@ -308,7 +308,7 @@ export class ContextWindowManager {
    * See MemoryBudgetManager.countHistoryTokens for details.
    */
   countHistoryTokens(
-    rawHistory: RawHistoryEntry[] | undefined,
+    rawHistory: StructuredHistoryEntry[] | undefined,
     responder: ResponderIdentity
   ): number {
     return this.memoryBudgetManager.countHistoryTokens(rawHistory, responder.name, responder.id);

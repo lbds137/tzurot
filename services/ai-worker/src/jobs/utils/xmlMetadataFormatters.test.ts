@@ -14,7 +14,7 @@ import {
   formatReactionsSection,
   chatLogEnrichmentFor,
 } from './xmlMetadataFormatters.js';
-import type { RawHistoryEntry } from './conversationTypes.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 import { enrichmentKey } from '../../services/prompt/QuoteFormatter.js';
 
 // Mock common-types
@@ -91,12 +91,12 @@ vi.mock('../../services/prompt/RenderableReference.js', async () => {
   };
 });
 
-function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
+function makeEntry(overrides: Partial<StructuredHistoryEntry> = {}): StructuredHistoryEntry {
   return {
     role: 'user',
     content: 'Test message',
     ...overrides,
-  } as RawHistoryEntry;
+  } as StructuredHistoryEntry;
 }
 
 /**
@@ -109,8 +109,8 @@ function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
  */
 function historyIndex(
   id: string,
-  metadata?: RawHistoryEntry['messageMetadata']
-): Map<string, RawHistoryEntry> {
+  metadata?: StructuredHistoryEntry['messageMetadata']
+): Map<string, StructuredHistoryEntry> {
   return new Map([
     [id, makeEntry({ discordMessageId: [id], content: '', messageMetadata: metadata })],
   ]);

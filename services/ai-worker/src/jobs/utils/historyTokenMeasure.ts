@@ -19,7 +19,7 @@
 
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { formatSingleHistoryEntryAsXml } from './conversationUtils.js';
-import type { RawHistoryEntry } from './conversationTypes.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 
 /**
  * Tokens this entry will cost when it ships in the prompt.
@@ -43,7 +43,7 @@ import type { RawHistoryEntry } from './conversationTypes.js';
  * speaker for), matching what the prompt will contain.
  */
 export function measureHistoryEntryTokens(
-  entry: RawHistoryEntry,
+  entry: StructuredHistoryEntry,
   personalityName: string,
   allPersonalityNames?: Set<string>,
   responderPersonalityId?: string

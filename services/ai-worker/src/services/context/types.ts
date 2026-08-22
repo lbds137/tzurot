@@ -94,9 +94,10 @@ export interface ContextDataSource {
   ): Promise<Date | undefined>;
 
   /**
-   * Unique personality names keyed by id, for the ids present. Used to remap
+   * Personality `name`s keyed by id, for the ids present. Used to remap
    * extended-context assistant attribution from the webhook display name (which
-   * two personalities can share) to the unique name. Missing/unknown ids are
+   * two personalities can share) to the more distinguishing — though not
+   * unique — `name`. Missing/unknown ids are
    * simply absent from the map.
    */
   getPersonalityNamesByIds(ids: string[]): Promise<Map<string, string>>;

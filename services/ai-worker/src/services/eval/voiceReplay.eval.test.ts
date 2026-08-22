@@ -40,7 +40,7 @@ import { PromptBuilder } from '../PromptBuilder.js';
 import { ContextWindowManager } from '../context/ContextWindowManager.js';
 import { createChatModel } from '../ModelFactory.js';
 import { validateAIProvider } from '../../utils/providerValidation.js';
-import type { RawHistoryEntry } from '../../jobs/utils/conversationTypes.js';
+import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import type { ConversationContext, ParticipantInfo } from '../ConversationalRAGTypes.js';
 import { buildArmMessages, type ArmId, type ProbeInputs } from './voiceArms.js';
 import { buildPersonaCard } from './voiceJudgePrompt.js';
@@ -181,7 +181,7 @@ describe.skipIf(!ready)('voice-consistency replay (REAL model spend)', () => {
     if (personality === undefined) {
       throw new Error(`Personality missing for probe ${probe.probeId}`);
     }
-    const rawHistory: RawHistoryEntry[] = probe.priorHistory.map(entry => ({
+    const rawHistory: StructuredHistoryEntry[] = probe.priorHistory.map(entry => ({
       id: entry.id,
       discordMessageId: entry.discordMessageId,
       role: entry.role,
@@ -190,7 +190,8 @@ describe.skipIf(!ready)('voice-consistency replay (REAL model spend)', () => {
       personaId: entry.personaId,
       personaName: entry.personaName,
       tokenCount: entry.tokenCount ?? undefined,
-      messageMetadata: (entry.messageMetadata ?? undefined) as RawHistoryEntry['messageMetadata'],
+      messageMetadata: (entry.messageMetadata ??
+        undefined) as StructuredHistoryEntry['messageMetadata'],
       personalityId: entry.personalityId,
       personalityName: entry.personalityName,
     }));

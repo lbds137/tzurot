@@ -16,7 +16,7 @@ import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 import { enrichmentKey } from '../../services/prompt/QuoteFormatter.js';
 import { dedupeReference, renderReference } from '../../services/prompt/RenderableReference.js';
 import { fromStoredReference } from '../../services/prompt/storedReference.js';
-import type { InlineImageDescription, RawHistoryEntry } from './conversationTypes.js';
+import type { InlineImageDescription, StructuredHistoryEntry } from './conversationTypes.js';
 import { resolveSpeakerInfo } from './participantUtils.js';
 
 /**
@@ -29,12 +29,12 @@ import { resolveSpeakerInfo } from './participantUtils.js';
  * the second stops the stub asserting things about a renderer it cannot see.
  */
 export interface QuotedSectionInput {
-  msg: RawHistoryEntry;
+  msg: StructuredHistoryEntry;
   normalizedRole: string;
   /** The responding personality's name, for the role name-match fallback. */
   personalityName: string;
   /** Discord-message-id → history entry, for dedup and its subtraction set. */
-  historyEntries: Map<string, RawHistoryEntry> | undefined;
+  historyEntries: Map<string, StructuredHistoryEntry> | undefined;
   allPersonalityNames: Set<string> | undefined;
   /**
    * The responding personality's id. With a quote's own `authorPersonalityId`
@@ -128,7 +128,7 @@ export function formatQuotedSection(input: QuotedSectionInput): string {
  * nothing is in the chat log to subtract against.
  */
 export function chatLogEnrichmentFor(
-  msg: RawHistoryEntry,
+  msg: StructuredHistoryEntry,
   personalityName: string,
   allPersonalityNames: Set<string> | undefined
 ): Set<string> {
@@ -167,7 +167,7 @@ export function chatLogEnrichmentFor(
  * the second ask the first "did you emit?" and then re-read the source keeps a
  * single condition, and skips building an XML string only to measure it.
  */
-function renderedImageDescriptions(msg: RawHistoryEntry): InlineImageDescription[] {
+function renderedImageDescriptions(msg: StructuredHistoryEntry): InlineImageDescription[] {
   return msg.messageMetadata?.imageDescriptions ?? [];
 }
 
@@ -193,7 +193,7 @@ function renderedImageDescriptions(msg: RawHistoryEntry): InlineImageDescription
  * real content rather than a duplicate. The divergence is the correct behaviour;
  * only its unreachability needs stating.
  */
-function renderedVoiceTranscripts(msg: RawHistoryEntry, normalizedRole: string): string[] {
+function renderedVoiceTranscripts(msg: StructuredHistoryEntry, normalizedRole: string): string[] {
   if (isOwnPersonaVoice(normalizedRole)) {
     return [];
   }
@@ -201,7 +201,7 @@ function renderedVoiceTranscripts(msg: RawHistoryEntry, normalizedRole: string):
 }
 
 /** Format image descriptions section for XML output */
-export function formatImageSection(msg: RawHistoryEntry): string {
+export function formatImageSection(msg: StructuredHistoryEntry): string {
   const images = renderedImageDescriptions(msg);
   if (images.length === 0) {
     return '';
@@ -217,7 +217,7 @@ export function formatImageSection(msg: RawHistoryEntry): string {
 }
 
 /** Format embeds section for XML output */
-export function formatEmbedsSection(msg: RawHistoryEntry): string {
+export function formatEmbedsSection(msg: StructuredHistoryEntry): string {
   if (msg.messageMetadata?.embedsXml === undefined) {
     return '';
   }
@@ -235,7 +235,7 @@ export function formatEmbedsSection(msg: RawHistoryEntry): string {
  * report. As a check at this function's call site it was one copy away from the
  * two disagreeing, which is the class this whole change removes.
  */
-export function formatVoiceSection(msg: RawHistoryEntry, normalizedRole: string): string {
+export function formatVoiceSection(msg: StructuredHistoryEntry, normalizedRole: string): string {
   const voiceTranscripts = renderedVoiceTranscripts(msg, normalizedRole);
   if (voiceTranscripts.length === 0) {
     return '';
@@ -257,7 +257,7 @@ export function formatVoiceSection(msg: RawHistoryEntry, normalizedRole: string)
  *
  * Format: <reaction from="PersonaName" from_id="uuid">emoji</reaction>
  */
-export function formatReactionsSection(msg: RawHistoryEntry): string {
+export function formatReactionsSection(msg: StructuredHistoryEntry): string {
   if (msg.messageMetadata?.reactions === undefined) {
     return '';
   }

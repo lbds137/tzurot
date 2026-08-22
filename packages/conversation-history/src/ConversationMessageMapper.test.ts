@@ -49,7 +49,7 @@ describe('ConversationMessageMapper', () => {
       expect(conversationHistorySelect.personality.select.name).toBe(true);
     });
 
-    it('does not select displayName (attribution uses the unique name)', () => {
+    it('does not select displayName (attribution uses the personality name)', () => {
       // Locks the fix for same-display-name persona collisions: displayName must
       // not be fetched, so it can't be reintroduced into attribution.
       expect('displayName' in conversationHistorySelect.personality.select).toBe(false);
@@ -234,7 +234,7 @@ describe('ConversationMessageMapper', () => {
       expect(result.personalityName).toBe('Fallen Emily');
     });
 
-    it('keeps same-display-name personalities distinct via their unique names', () => {
+    it('keeps same-display-name personalities distinct via their name fields', () => {
       // The bug: two personalities both display "Emily" but have distinct names.
       // Attribution must reflect the names, or the chat log collapses them.
       const fallen = mapToConversationMessage(

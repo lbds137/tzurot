@@ -32,10 +32,14 @@ import { promptTime } from '../../services/prompt/RenderableReference.js';
 export { extractParticipants } from './participantUtils.js';
 import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
 export { convertConversationHistory } from './langchainConverter.js';
-export { RawHistoryEntry, InlineImageDescription, ResponderIdentity } from './conversationTypes.js';
+export {
+  StructuredHistoryEntry,
+  InlineImageDescription,
+  ResponderIdentity,
+} from './conversationTypes.js';
 
 // Import what we need internally
-import type { RawHistoryEntry } from './conversationTypes.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 import {
   formatQuotedSection,
   formatImageSection,
@@ -54,7 +58,7 @@ import {
  * both are simply omitted rather than filled with a placeholder.
  */
 function toRenderableAttachments(
-  metadata: RawHistoryEntry['messageMetadata']
+  metadata: StructuredHistoryEntry['messageMetadata']
 ): RenderableAttachment[] {
   return [
     ...(metadata?.imageDescriptions ?? []).map((img): RenderableAttachment => ({
@@ -92,7 +96,7 @@ export const HISTORY_ENTRY_OPEN = '<message from="';
  * cannot disagree: `resolveSpeakerInfo` is the single decider of who counts as
  * a sibling, and `extractCharacterParticipants` asks it the same question.
  */
-function formatFromIdAttribute(msg: RawHistoryEntry, role: ChatLogRole): string {
+function formatFromIdAttribute(msg: StructuredHistoryEntry, role: ChatLogRole): string {
   const fromId =
     role === 'user' ? msg.personaId : role === 'character' ? msg.personalityId : undefined;
   return fromId !== undefined && fromId.length > 0 ? ` from_id="${escapeXml(fromId)}"` : '';
@@ -126,9 +130,9 @@ function formatFromIdAttribute(msg: RawHistoryEntry, role: ChatLogRole): string 
  * @returns Formatted XML string, or empty string if message should be skipped
  */
 export function formatSingleHistoryEntryAsXml(
-  msg: RawHistoryEntry,
+  msg: StructuredHistoryEntry,
   personalityName: string,
-  historyEntries?: Map<string, RawHistoryEntry>,
+  historyEntries?: Map<string, StructuredHistoryEntry>,
   allPersonalityNames?: Set<string>,
   responderPersonalityId?: string
 ): string {
@@ -256,8 +260,10 @@ interface FormatConversationHistoryOptions {
  * needs the entry, and answering it by assumption is what let a stub print the
  * same vision description twice.
  */
-export function buildHistoryEntryIndex(history: RawHistoryEntry[]): Map<string, RawHistoryEntry> {
-  const byDiscordId = new Map<string, RawHistoryEntry>();
+export function buildHistoryEntryIndex(
+  history: StructuredHistoryEntry[]
+): Map<string, StructuredHistoryEntry> {
+  const byDiscordId = new Map<string, StructuredHistoryEntry>();
   for (const msg of history) {
     // Each message may have multiple Discord IDs (for chunked messages)
     if (msg.discordMessageId !== undefined) {
@@ -279,7 +285,7 @@ export function buildHistoryEntryIndex(history: RawHistoryEntry[]): Map<string, 
  * already-in-prompt memories). Delegating keeps one definition of which IDs a
  * history entry contributes.
  */
-export function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
+export function buildHistoryMessageIdSet(history: StructuredHistoryEntry[]): Set<string> {
   return new Set(buildHistoryEntryIndex(history).keys());
 }
 
@@ -289,7 +295,7 @@ export function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string
  * and sibling-persona quote demotion (see referenceRole.ts).
  */
 export function collectPersonalityNames(
-  history: RawHistoryEntry[],
+  history: StructuredHistoryEntry[],
   currentPersonalityName: string
 ): Set<string> {
   const allPersonalityNames = new Set<string>();
@@ -345,7 +351,7 @@ function maybeAddTimeGapMarker(
  * @returns Formatted XML string for the chat_log section
  */
 export function formatConversationHistoryAsXml(
-  history: RawHistoryEntry[],
+  history: StructuredHistoryEntry[],
   personalityName: string,
   options?: FormatConversationHistoryOptions
 ): string {

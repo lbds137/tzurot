@@ -31,7 +31,7 @@ import {
   writeTriggerReferences,
 } from '@tzurot/conversation-history';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
-import { type RawHistoryEntry } from '../../jobs/utils/conversationTypes.js';
+import { type StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { formatQuotedSection } from '../../jobs/utils/xmlMetadataFormatters.js';
 import { type BuiltAttachment } from './QuoteFormatter.js';
 import { toStoredReference } from './storedReference.js';
@@ -158,13 +158,13 @@ describe('built references survive the round trip (component, PGLite)', () => {
    */
   async function replayQuotes(
     dedupId?: string,
-    chatLogCarries?: RawHistoryEntry['messageMetadata']
+    chatLogCarries?: StructuredHistoryEntry['messageMetadata']
   ): Promise<string> {
     const rows = (await getChannelHistoryWindow(prisma, { channelId: CHANNEL, cap: 10 })).messages;
     const trigger = rows.find(row => row.role === MessageRole.User);
     expect(trigger).toBeDefined();
     return formatQuotedSection({
-      // ConversationMessage → RawHistoryEntry is a structural widening; the
+      // ConversationMessage → StructuredHistoryEntry is a structural widening; the
       // metadata object is the same one `parseMessageMetadata` produced.
       msg: {
         role: 'user',

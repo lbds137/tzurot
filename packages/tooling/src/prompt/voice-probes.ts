@@ -172,7 +172,7 @@ export function assignDepthStrata<T>(
 }
 
 /**
- * One history row in a probe — a superset of ai-worker's RawHistoryEntry so
+ * One history row in a probe — a superset of ai-worker's StructuredHistoryEntry so
  * the replay runner can hand rows straight to the chat-log serializer with
  * full speaker attribution (names are joined at mine time; the raw table
  * carries only IDs).

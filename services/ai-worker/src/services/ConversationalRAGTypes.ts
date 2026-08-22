@@ -17,6 +17,7 @@ import type {
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { SummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
+import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { SectionDescription } from './prompt/sections.js';
 
@@ -138,76 +139,7 @@ export interface ConversationContext {
    */
   characterBlurbs?: Record<string, string>;
   conversationHistory?: BaseMessage[];
-  rawConversationHistory?: {
-    /** Message ID - for extended context messages this IS the Discord message ID */
-    id?: string;
-    /**
-     * Discord snowflakes for this row (several when a long message was chunked).
-     * Declared because the assembled entries have always carried it — the
-     * producer is `ConversationMessage` — and the reference paths key on it:
-     * the enricher's dedup decision and the deduped stub's subtraction index
-     * both ask "which history entry is this quote?" by Discord id, never by
-     * `id` (a database UUID on DB-sourced rows).
-     */
-    discordMessageId?: string[];
-    role: string;
-    content: string;
-    /**
-     * ISO timestamp of the message, supplied by the pipeline producer
-     * (`ContextStep` → `PreparedContext.rawConversationHistory`, typed there as
-     * `ConversationHistoryEntry.createdAt`). Optional because legacy/DB-sourced
-     * rows can lack one — the budget pre-pass already filters unparseable
-     * stamps out for the same reason.
-     */
-    createdAt?: string;
-    tokenCount?: number;
-    /** Structured metadata (referenced messages, image descriptions, reactions) */
-    messageMetadata?: {
-      // The schema type, not a hand-written copy of it: a re-declaration here
-      // makes any new stored-reference field invisible to this path until
-      // someone remembers to update it in three places.
-      referencedMessages?: StoredReferencedMessage[];
-      imageDescriptions?: { filename: string; description: string }[];
-      /** Embed XML strings for extended context messages */
-      embedsXml?: string[];
-      /** Voice transcripts for extended context messages */
-      voiceTranscripts?: string[];
-      /** Reactions on this message (from extended context) */
-      reactions?: {
-        emoji: string;
-        isCustom?: boolean;
-        reactors: { personaId: string; displayName: string }[];
-      }[];
-    };
-    /**
-     * The AI personality that authored an assistant row. Both fields are
-     * written by `mapToConversationMessage` on every DB-sourced row
-     * (`personalityId: record.personalityId`, `personalityName:
-     * record.personality.name`); the extended-context fetch's registry-miss
-     * fallback supplies a display name with no id, which is why the id is
-     * optional and consumers skip rows lacking it.
-     *
-     * Declared here because this inline shape is the one the prompt builder
-     * reads through — `RawHistoryEntry` has carried both fields all along, and
-     * their absence here made a populated field invisible to this path.
-     */
-    personalityId?: string;
-    personalityName?: string;
-    /**
-     * The rest of what `mapToConversationMessage` writes and `RawHistoryEntry`
-     * declares. Added with the personality pair rather than after it: the gap
-     * those two closed was never specific to them — this whole inline shape had
-     * drifted behind its producer, and leaving the remaining fields undeclared
-     * would have left the identical latent hazard one field over. Each is
-     * assigned at the same call site (`ConversationMessageMapper.ts`), so a
-     * consumer reading any of them off this path gets a real value while the
-     * type used to deny it existed.
-     */
-    personaId?: string;
-    personaName?: string;
-    discordUsername?: string;
-    isForwarded?: boolean;
-  }[];
+  rawConversationHistory?: StructuredHistoryEntry[];
   oldestHistoryTimestamp?: number;
   /** Oldest timestamp over refs + cross-channel only (see PreparedContext). */
   nonHistoryOldestTimestamp?: number;
