@@ -28,13 +28,18 @@ const logger = createLogger('CrossChannelSerializer');
  * @param responderPersonalityId - The responding personality's id; decides
  *   self-vs-sibling for rows carrying their own id, so a renamed personality's
  *   cross-channel rows still read as its own
+ * @param realMessagesEnabled - This turn's captured flag value. Cross-channel
+ *   content ALWAYS renders as XML regardless of this flag — it only selects
+ *   the dedup-stub wording, both for the measure below and for the final
+ *   render in `formatCrossChannelHistoryAsXml`.
  * @returns Serialized XML string, or empty string if nothing fits
  */
 export function serializeCrossChannelHistory(
   groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
   tokenBudget: number,
-  responderPersonalityId?: string
+  responderPersonalityId?: string,
+  realMessagesEnabled = false
 ): { xml: string; messagesIncluded: number } {
   if (groups.length === 0 || tokenBudget <= 0) {
     return { xml: '', messagesIncluded: 0 };
@@ -73,7 +78,8 @@ export function serializeCrossChannelHistory(
         msg,
         personalityName,
         allPersonalityNames,
-        responderPersonalityId
+        responderPersonalityId,
+        realMessagesEnabled
       );
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
         // Contiguous tail: once we hit a message that doesn't fit, stop selecting from
@@ -118,6 +124,7 @@ export function serializeCrossChannelHistory(
   const xml = formatCrossChannelHistoryAsXml(
     selectedGroups,
     personalityName,
+    realMessagesEnabled,
     responderPersonalityId
   );
   logger.debug(

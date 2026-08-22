@@ -407,7 +407,13 @@ export class ContextWindowManager {
       : measureHistoryEntryTokens;
     const measured = rawHistory.map(entry => ({
       entry,
-      tokens: measureEntry(entry, responder.name, allPersonalityNames, responder.id),
+      tokens: measureEntry(
+        entry,
+        responder.name,
+        allPersonalityNames,
+        responder.id,
+        realMessagesEnabled
+      ),
     }));
 
     // A ZERO measure is the render's own skip signal: each measure renders
@@ -444,12 +450,13 @@ export class ContextWindowManager {
 
     const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, responder.name, {
       responderPersonalityId: responder.id,
+      realMessagesEnabled,
     });
     const tokensUsed =
       selectedEntries.length === 0
         ? 0
         : realMessagesEnabled
-          ? this.measureRealMessagesTokens(selectedEntries, responder)
+          ? this.measureRealMessagesTokens(selectedEntries, responder, realMessagesEnabled)
           : countTextTokens(currentChannelXml) + wrapperOverhead;
 
     // Gated on the CUT differing from the minimal walk, not on `k` alone: at
@@ -496,9 +503,15 @@ export class ContextWindowManager {
    */
   private measureRealMessagesTokens(
     selectedEntries: StructuredHistoryEntry[],
-    responder: ResponderIdentity
+    responder: ResponderIdentity,
+    realMessagesEnabled: boolean
   ): number {
-    const realMessages = buildRealMessages(selectedEntries, responder.name, responder.id);
+    const realMessages = buildRealMessages(
+      selectedEntries,
+      responder.name,
+      responder.id,
+      realMessagesEnabled
+    );
     if (realMessages.length === 0) {
       return 0;
     }
@@ -525,7 +538,8 @@ export class ContextWindowManager {
       groups,
       responder.name,
       historyBudget - currentChannelTokensUsed,
-      responder.id
+      responder.id,
+      realMessagesEnabled
     );
 
     if (crossResult.xml.length === 0) {

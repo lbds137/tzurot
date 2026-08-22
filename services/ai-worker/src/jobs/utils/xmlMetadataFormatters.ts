@@ -43,6 +43,14 @@ export interface QuotedSectionInput {
    * chat-log rows).
    */
   responderPersonalityId: string | undefined;
+  /**
+   * This turn's `realMessagesEnabled` value, captured once upstream
+   * (`ContentBudgetManager.isRealMessagesEnabled`) and threaded down through
+   * every caller of this function. Required rather than optional so a new
+   * call site cannot silently fall back to reading the setting itself — the
+   * value must be the SAME one every other decision this turn makes.
+   */
+  realMessagesEnabled: boolean;
 }
 
 export function formatQuotedSection(input: QuotedSectionInput): string {
@@ -53,6 +61,7 @@ export function formatQuotedSection(input: QuotedSectionInput): string {
     historyEntries,
     allPersonalityNames,
     responderPersonalityId,
+    realMessagesEnabled,
   } = input;
   if (normalizedRole !== 'user') {
     return '';
@@ -99,6 +108,7 @@ export function formatQuotedSection(input: QuotedSectionInput): string {
     return renderReference(
       dedupeReference(
         fromStoredReference(ref, personalityName, allPersonalityNames, responderPersonalityId),
+        realMessagesEnabled,
         entry === undefined
           ? undefined
           : chatLogEnrichmentFor(entry, personalityName, allPersonalityNames)

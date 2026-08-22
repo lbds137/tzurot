@@ -74,20 +74,25 @@ const WORST_CASE_GAP_LINE_TOKENS = countTextTokens(WORST_CASE_GAP_LINE);
  *
  * Returns 0 for an entry the renderer declines to emit (a role it has no
  * speaker for), matching what the prompt will contain.
+ *
+ * `realMessagesEnabled` is this turn's captured flag value — it selects only
+ * the dedup-stub WORDING inside the rendered XML (this measure always renders
+ * the XML form regardless of the flag; see `ContextWindowManager`'s
+ * cross-channel path, which renders XML in both flag states).
  */
 export function measureHistoryEntryTokens(
   entry: StructuredHistoryEntry,
   personalityName: string,
   allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string
+  responderPersonalityId?: string,
+  realMessagesEnabled = false
 ): number {
-  const xml = formatSingleHistoryEntryAsXml(
-    entry,
-    personalityName,
-    undefined,
+  const xml = formatSingleHistoryEntryAsXml(entry, personalityName, {
+    historyEntries: undefined,
     allPersonalityNames,
-    responderPersonalityId
-  );
+    responderPersonalityId,
+    realMessagesEnabled,
+  });
   return xml.length > 0 ? countTextTokens(xml) : 0;
 }
 
@@ -109,13 +114,15 @@ export function measureHistoryEntryRealTokens(
   entry: StructuredHistoryEntry,
   personalityName: string,
   allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string
+  responderPersonalityId?: string,
+  realMessagesEnabled = true
 ): number {
   const content = renderHistoryEntryForMeasure(
     entry,
     personalityName,
     allPersonalityNames,
-    responderPersonalityId
+    responderPersonalityId,
+    realMessagesEnabled
   );
   if (content.length === 0) {
     return 0;

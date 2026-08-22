@@ -24,7 +24,6 @@
 
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
-import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import {
   attachmentEnrichment,
   enrichmentKey,
@@ -253,16 +252,17 @@ function capDedupText(text: string): string {
  * construction — the fallback is only reached when nothing enriched survives —
  * and stating the precedence beats relying on the caller's ordering.
  *
- * Reads `realMessagesEnabled` directly here rather than taking it as a
- * parameter: `dedupeReference` (this function's only caller) is reached from
- * TWO independent call chains — `ReferencedMessageFormatter.ts` (live
- * `contextual_references`) and `xmlMetadataFormatters.ts` (in-history
- * `quoted_messages`) — and threading a boolean through both would touch files
- * outside this module. Reading the flag at this one shared seam both chains
- * already funnel through avoids that spread.
+ * `realMessagesEnabled` is this turn's captured value, threaded in by
+ * `dedupeReference` rather than read here — the value must be the SAME one
+ * read once upstream (`ContentBudgetManager.isRealMessagesEnabled`) for every
+ * decision this turn makes, so a live mid-turn flip cannot mix modes within
+ * one assembled prompt.
  */
-function choosePrefix(hasMedia: boolean, hasMediaFallbackPreview: boolean): string {
-  const realMessagesEnabled = getSystemSetting('realMessagesEnabled') === true;
+function choosePrefix(
+  hasMedia: boolean,
+  hasMediaFallbackPreview: boolean,
+  realMessagesEnabled: boolean
+): string {
   if (hasMedia) {
     return realMessagesEnabled ? DEDUP_PREFIX_WITH_MEDIA_REAL_MESSAGES : DEDUP_PREFIX_WITH_MEDIA;
   }
@@ -322,6 +322,10 @@ function firstEnrichment(attachments: RenderableAttachment[]): string | undefine
  * With no set supplied, nothing is subtracted. That is the safe default: a
  * duplicated description costs tokens, a dropped one costs the answer.
  *
+ * `realMessagesEnabled` is this turn's captured flag value (see
+ * `choosePrefix`'s doc-comment) — it selects the marker's WORDING only,
+ * never the subtraction logic above.
+ *
  * The marker is then chosen from what SURVIVED, in three variants, because the
  * stub's content and its promise about where the rest lives have to agree:
  *
@@ -336,6 +340,7 @@ function firstEnrichment(attachments: RenderableAttachment[]): string | undefine
  */
 export function dedupeReference(
   ref: RenderableReference,
+  realMessagesEnabled: boolean,
   carriedByChatLog?: ReadonlySet<string>
 ): RenderableReference {
   const attachments =
@@ -377,7 +382,7 @@ export function dedupeReference(
     ref.content.trim().length === 0 && !hasMedia ? firstEnrichment(ref.attachments) : undefined;
 
   const preview = mediaPreview === undefined ? textPreview : capDedupText(mediaPreview);
-  const prefix = choosePrefix(hasMedia, mediaPreview !== undefined);
+  const prefix = choosePrefix(hasMedia, mediaPreview !== undefined, realMessagesEnabled);
 
   return {
     ...ref,

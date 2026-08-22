@@ -355,6 +355,14 @@ export interface BudgetAllocationOptions {
    * larger than the model supports.
    */
   effectiveContextWindowTokens: number;
+  /**
+   * This turn's `realMessagesEnabled` value, captured once upstream
+   * (`ContentBudgetManager.isRealMessagesEnabled`) before the reference-formatting
+   * chain runs. Optional so a direct/test caller with no captured value still
+   * works — `preselectHistory` falls back to reading the flag itself when this
+   * is absent (see that method's doc-comment).
+   */
+  realMessagesEnabled?: boolean;
 }
 
 /**

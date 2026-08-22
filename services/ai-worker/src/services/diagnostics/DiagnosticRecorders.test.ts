@@ -29,11 +29,19 @@ import {
   recordLlmResponseDiagnostic,
   recordPreInvocationDiagnostics,
   recordBudgetDiagnostics,
+  recordInputProcessingDiagnostics,
+  recordPostProcessingDiagnostics,
   type ParsedResponseMetadata,
 } from './DiagnosticRecorders.js';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
-import type { BudgetAllocationResult, MemoryDocument } from '../ConversationalRAGTypes.js';
+import type {
+  BudgetAllocationResult,
+  ConversationContext,
+  MemoryDocument,
+  ProcessedInputs,
+} from '../ConversationalRAGTypes.js';
+import type { MessageContent } from '@tzurot/common-types/types/ai';
 
 describe('DiagnosticRecorders', () => {
   describe('parseResponseMetadata', () => {
@@ -489,6 +497,93 @@ describe('DiagnosticRecorders', () => {
       const debug = call.reasoningDebug as Record<string, unknown>;
       expect(debug.hasReasoningInKwargs).toBe(true);
       expect(debug.reasoningKwargsLength).toBe(7);
+    });
+  });
+  describe('recordInputProcessingDiagnostics', () => {
+    it('records the raw message, attachments, projected references, and search query', () => {
+      const mockCollector = { recordInputProcessing: vi.fn() } as unknown as DiagnosticCollector;
+      const inputs = {
+        processedAttachments: [{ type: 'image', url: 'https://cdn.example/a.png' }],
+        searchQuery: 'the query',
+      } as unknown as ProcessedInputs;
+      // The extra field pins the PROJECTION: only id + content may cross the
+      // collector seam, whatever else a reference row carries.
+      const context = {
+        referencedMessages: [
+          { discordMessageId: '123', content: 'quoted text', authorUsername: 'must-not-cross' },
+        ],
+      } as unknown as ConversationContext;
+
+      recordInputProcessingDiagnostics({
+        collector: mockCollector,
+        message: 'hello there',
+        inputs,
+        context,
+      });
+
+      expect(mockCollector.recordInputProcessing).toHaveBeenCalledWith({
+        rawUserMessage: 'hello there',
+        processedAttachments: inputs.processedAttachments,
+        referencedMessages: [{ discordMessageId: '123', content: 'quoted text' }],
+        searchQuery: 'the query',
+      });
+    });
+
+    it('unwraps a structured message and passes absent references through as undefined', () => {
+      const mockCollector = { recordInputProcessing: vi.fn() } as unknown as DiagnosticCollector;
+
+      recordInputProcessingDiagnostics({
+        collector: mockCollector,
+        message: { content: 'structured body' } as unknown as MessageContent,
+        inputs: { processedAttachments: [], searchQuery: '' } as unknown as ProcessedInputs,
+        context: {} as ConversationContext,
+      });
+
+      expect(mockCollector.recordInputProcessing).toHaveBeenCalledWith({
+        rawUserMessage: 'structured body',
+        processedAttachments: [],
+        referencedMessages: undefined,
+        searchQuery: '',
+      });
+    });
+  });
+
+  describe('recordPostProcessingDiagnostics', () => {
+    it('maps raw and cleaned content onto the collector field pairs', () => {
+      const mockCollector = { recordPostProcessing: vi.fn() } as unknown as DiagnosticCollector;
+
+      recordPostProcessingDiagnostics({
+        collector: mockCollector,
+        rawContent: 'raw with artifacts',
+        thinkingContent: 'extracted thinking',
+        cleanedContent: 'clean',
+      });
+
+      // Pins the extraction's field mapping: dedup happened upstream in the
+      // response post-processor, so deduplicatedContent mirrors rawContent,
+      // and stripped/final both carry the cleaned text.
+      expect(mockCollector.recordPostProcessing).toHaveBeenCalledWith({
+        rawContent: 'raw with artifacts',
+        deduplicatedContent: 'raw with artifacts',
+        thinkingContent: 'extracted thinking',
+        strippedContent: 'clean',
+        finalContent: 'clean',
+      });
+    });
+
+    it('passes a null thinkingContent through unchanged', () => {
+      const mockCollector = { recordPostProcessing: vi.fn() } as unknown as DiagnosticCollector;
+
+      recordPostProcessingDiagnostics({
+        collector: mockCollector,
+        rawContent: 'raw',
+        thinkingContent: null,
+        cleanedContent: 'raw',
+      });
+
+      const call = (mockCollector.recordPostProcessing as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as Record<string, unknown>;
+      expect(call.thinkingContent).toBeNull();
     });
   });
 });

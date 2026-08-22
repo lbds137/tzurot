@@ -398,13 +398,16 @@ describe('buildRealMessages', () => {
         },
       };
 
-      const xml = formatSingleHistoryEntryAsXml(entry, PERSONALITY_NAME);
+      const xml = formatSingleHistoryEntryAsXml(entry, PERSONALITY_NAME, {
+        realMessagesEnabled: false,
+      });
       const speakerInfo = resolveSpeakerInfo(entry, PERSONALITY_NAME);
       if (speakerInfo === null) {
         throw new Error('fixture must resolve to a speaker or this test proves nothing');
       }
       const expectedBody = renderHistoryEntryBody(entry, speakerInfo, {
         personalityName: PERSONALITY_NAME,
+        realMessagesEnabled: false,
       });
 
       // Sanity: the fixture actually exercises all four aspects — otherwise a

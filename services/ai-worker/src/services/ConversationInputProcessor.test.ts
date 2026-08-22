@@ -153,6 +153,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ preprocessedAttachments });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -175,6 +176,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ attachments });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
         userApiKey: 'user-api-key',
       });
@@ -197,6 +199,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ attachments });
 
       await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
         userApiKey: 'main-model-key', // main key — must NOT be used for vision
         visionAuth: {
@@ -235,6 +238,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ referencedMessages });
 
       await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
         userApiKey: 'main-model-key',
         visionAuth: {
@@ -260,7 +264,10 @@ describe('ConversationInputProcessor', () => {
     it('should format user message via PromptBuilder', async () => {
       const context = createMockContext();
 
-      await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        realMessagesEnabled: false,
+      });
 
       expect(mockPromptBuilder.formatUserMessage).toHaveBeenCalledWith(mockMessage, context);
     });
@@ -285,7 +292,10 @@ describe('ConversationInputProcessor', () => {
         rawConversationHistory: rawHistory,
       });
 
-      await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        realMessagesEnabled: false,
+      });
 
       // The fixture collides the reference's `discordMessageId` with a history
       // entry's `id` — the one shape the removed second filter keyed on. It is
@@ -322,6 +332,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ referencedMessages });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: true,
       });
 
@@ -339,6 +350,7 @@ describe('ConversationInputProcessor', () => {
           // Nothing to subtract: the reference is not deduplicated, so the
           // chat log has no copy of it to defer to.
           carriedByChatLog: new Map(),
+          realMessagesEnabled: false,
         }
       );
       expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
@@ -365,6 +377,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ referencedMessages, requestId: 'req-input-5' });
 
       await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -399,6 +412,7 @@ describe('ConversationInputProcessor', () => {
       });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -411,6 +425,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ referencedMessages: [] });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -436,6 +451,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ referencedMessages });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -468,6 +484,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ referencedMessages });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -485,7 +502,10 @@ describe('ConversationInputProcessor', () => {
       const rawHistory = [{ id: 'msg1', content: 'previous' }];
       const context = createMockContext({ rawConversationHistory: rawHistory });
 
-      await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        realMessagesEnabled: false,
+      });
 
       expect(mockExtractRecentHistoryWindow).toHaveBeenCalledWith(rawHistory);
     });
@@ -519,6 +539,7 @@ describe('ConversationInputProcessor', () => {
       });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -559,6 +580,7 @@ describe('ConversationInputProcessor', () => {
       });
 
       await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
         userApiKey: 'api-key',
       });
@@ -575,6 +597,7 @@ describe('ConversationInputProcessor', () => {
           visionModel: undefined,
           allPersonalityNames: new Set(['Test Bot']),
           carriedByChatLog: new Map(),
+          realMessagesEnabled: false,
         }
       );
     });
@@ -628,6 +651,7 @@ describe('ConversationInputProcessor', () => {
         });
 
         await processor.processInputs(mockPersonality, mockMessage, context, {
+          realMessagesEnabled: false,
           isGuestMode: true,
         });
 
@@ -653,6 +677,7 @@ describe('ConversationInputProcessor', () => {
         });
 
         await processor.processInputs(mockPersonality, mockMessage, context, {
+          realMessagesEnabled: false,
           isGuestMode: true,
         });
 
@@ -675,6 +700,7 @@ describe('ConversationInputProcessor', () => {
         });
 
         await processor.processInputs(mockPersonality, mockMessage, context, {
+          realMessagesEnabled: false,
           isGuestMode: true,
         });
 
@@ -686,6 +712,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext();
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -709,6 +736,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ rawConversationHistory: [{ id: 'history1' }] });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
@@ -740,6 +768,7 @@ describe('ConversationInputProcessor', () => {
       const context = createMockContext({ rawConversationHistory: [{ id: 'history1' }] });
 
       const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
         isGuestMode: false,
       });
 
