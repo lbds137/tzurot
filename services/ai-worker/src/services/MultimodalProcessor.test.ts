@@ -12,6 +12,21 @@ import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/me
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 
+/**
+ * Adapt an `invoke`-shaped mock to the `generate` seam `invokeModelGuarded`
+ * actually calls. `generate` forwards `(messages[0], options)` — exactly the
+ * arguments `invoke` received before — and wraps the resolved message in the
+ * `LLMResult` shape core's `invoke` unwraps, so rejections still reject and
+ * every existing assertion against the inner mock keeps its meaning.
+ */
+function generateFromInvokeMock(
+  invokeMock: (...args: unknown[]) => unknown
+): ReturnType<typeof vi.fn> {
+  return vi.fn(async (messages: unknown[], options?: unknown) => ({
+    generations: [[{ text: '', message: await invokeMock(messages[0], options) }]],
+  }));
+}
+
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
   mockModelInvoke,
@@ -133,7 +148,7 @@ describe('MultimodalProcessor', () => {
     });
 
     mockCreateChatModel.mockReturnValue({
-      model: { invoke: mockModelInvoke },
+      model: { generate: generateFromInvokeMock(mockModelInvoke) },
       modelName: 'test-model',
     });
 

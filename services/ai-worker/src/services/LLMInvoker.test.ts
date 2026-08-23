@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker, defaultRateLimitResetMs } from './LLMInvoker.js';
 import { RetryError } from '../utils/retry.js';
+import { parseApiError } from '../utils/apiErrorParser.js';
 import { classifyQuotaFailure } from './quotaFallback.js';
 import { type BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { type BaseChatModel } from '@langchain/core/language_models/chat_models';
@@ -14,6 +15,18 @@ import {
   ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+
+/** Build a mock chat model whose PRODUCTION seam is `generate` (what
+ *  `invokeModelGuarded` calls) while the test keeps driving and asserting the
+ *  `invoke`-shaped mock it was given. */
+function mockChatModel(invokeMock: (...args: unknown[]) => unknown): BaseChatModel {
+  return {
+    invoke: invokeMock,
+    generate: vi.fn(async (messages: unknown[], options?: unknown) => ({
+      generations: [[{ text: '', message: await invokeMock(messages[0], options) }]],
+    })),
+  } as unknown as BaseChatModel;
+}
 
 // Capture the module logger so tests can assert log payloads (the finish-reason
 // and response-diagnostics paths are log-only — the logger IS their output seam).
@@ -37,12 +50,18 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({
-  createChatModel: vi.fn(({ modelName }) => ({
-    model: {
-      invoke: vi.fn().mockResolvedValue({ content: 'Test response' }),
-    } as any,
-    modelName: modelName || 'openrouter/anthropic/claude-sonnet-4.5',
-  })),
+  createChatModel: vi.fn(({ modelName }) => {
+    const invoke = vi.fn().mockResolvedValue({ content: 'Test response' });
+    return {
+      model: {
+        invoke,
+        generate: vi.fn(async (messages: unknown[], options?: unknown) => ({
+          generations: [[{ text: '', message: await invoke(messages[0], options) }]],
+        })),
+      } as any,
+      modelName: modelName || 'openrouter/anthropic/claude-sonnet-4.5',
+    };
+  }),
   getModelCacheKey: vi.fn(({ modelName, apiKey, temperature }) => {
     return `${modelName || 'default'}_${apiKey || 'default'}_${temperature ?? 'none'}`;
   }),
@@ -171,9 +190,7 @@ describe('LLMInvoker', () => {
 
   describe('invokeWithRetry', () => {
     it('should invoke model successfully on first attempt', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({ content: 'Success!' }),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'Success!' }));
 
       const messages: BaseMessage[] = [
         new SystemMessage('You are a helpful assistant'),
@@ -198,9 +215,7 @@ describe('LLMInvoker', () => {
       // or removes this call, upstream provider capture and reasoning
       // surfacing in /inspect would silently break.
       const responseMessage = { content: 'Reasoning was extracted', additional_kwargs: {} };
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue(responseMessage),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockResolvedValue(responseMessage));
 
       await invoker.invokeWithRetry({
         model: mockModel,
@@ -220,12 +235,12 @@ describe('LLMInvoker', () => {
       // consumers read them.
       const callOrder: string[] = [];
       const responseMessage = { content: 'Hi', additional_kwargs: {} };
-      const mockModel = {
-        invoke: vi.fn().mockImplementation(async () => {
+      const mockModel = mockChatModel(
+        vi.fn().mockImplementation(async () => {
           callOrder.push('model.invoke');
           return responseMessage;
-        }),
-      } as any as BaseChatModel;
+        })
+      );
       mockExtractReasoning.mockImplementation(<T>(msg: T) => {
         callOrder.push('extractor');
         return msg;
@@ -241,9 +256,7 @@ describe('LLMInvoker', () => {
     });
 
     it('should pass getErrorLogContext as getErrorContext to withRetry', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({ content: 'Success!' }),
-      } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'Success!' }));
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -270,13 +283,13 @@ describe('LLMInvoker', () => {
 
       const rateLimited = new Error('429 Too Many Requests: rate limit exceeded');
       const aborted = Object.assign(new Error('Request was aborted.'), { name: 'AbortError' });
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce(rateLimited)
           .mockRejectedValueOnce(aborted)
-          .mockRejectedValueOnce(aborted),
-      } as any as BaseChatModel;
+          .mockRejectedValueOnce(aborted)
+      );
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -294,15 +307,39 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
+    it('classifies a zero-choices 200 as EMPTY_RESPONSE through the guarded seam (retries, then RetryError)', async () => {
+      vi.useFakeTimers();
+
+      // Bypass the invoke-adapter: drive the generate seam directly with the
+      // zero-choices success shape the guard exists to catch.
+      const mockModel = {
+        generate: vi.fn().mockResolvedValue({ generations: [[]] }),
+      } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages: [new HumanMessage('Hello')],
+        modelName: 'test-model',
+      });
+      const assertion = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      const thrown = (await promise.catch((e: unknown) => e)) as RetryError;
+      expect(parseApiError(thrown.lastError).category).toBe(ApiErrorCategory.EMPTY_RESPONSE);
+
+      vi.useRealTimers();
+    });
+
     it('should retry on transient ECONNRESET error', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce({ code: 'ECONNRESET', message: 'Connection reset' })
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -326,12 +363,12 @@ describe('LLMInvoker', () => {
     it('should retry on transient ETIMEDOUT error', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce({ code: 'ETIMEDOUT', message: 'Timeout' })
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -354,12 +391,12 @@ describe('LLMInvoker', () => {
     it('should retry on transient ENOTFOUND error', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce({ code: 'ENOTFOUND', message: 'Not found' })
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -382,12 +419,12 @@ describe('LLMInvoker', () => {
     it('should handle transient error in error message string', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce(new Error('Network error: ECONNRESET occurred'))
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -414,12 +451,12 @@ describe('LLMInvoker', () => {
       const abortError = new Error('This operation was aborted');
       abortError.name = 'AbortError';
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce(abortError)
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -441,9 +478,7 @@ describe('LLMInvoker', () => {
 
     it('should fast-fail on permanent errors (no retry)', async () => {
       // Permanent errors like authentication errors should NOT be retried
-      const mockModel = {
-        invoke: vi.fn().mockRejectedValue(new Error('API key invalid')),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockRejectedValue(new Error('API key invalid')));
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -457,9 +492,9 @@ describe('LLMInvoker', () => {
     });
 
     it('should fast-fail on 402 quota exceeded error', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockRejectedValue({ status: 402, message: 'Quota exceeded' }),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(
+        vi.fn().mockRejectedValue({ status: 402, message: 'Quota exceeded' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -472,9 +507,9 @@ describe('LLMInvoker', () => {
     });
 
     it('should fast-fail on daily limit error message', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockRejectedValue(new Error('50 requests per day limit reached')),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(
+        vi.fn().mockRejectedValue(new Error('50 requests per day limit reached'))
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -489,9 +524,9 @@ describe('LLMInvoker', () => {
     it('should throw after max retries exhausted', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi.fn().mockRejectedValue({ code: 'ECONNRESET', message: 'Connection reset' }),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(
+        vi.fn().mockRejectedValue({ code: 'ECONNRESET', message: 'Connection reset' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -519,13 +554,13 @@ describe('LLMInvoker', () => {
     it('should use exponential backoff for retries', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockRejectedValueOnce({ code: 'ECONNRESET' })
           .mockRejectedValueOnce({ code: 'ECONNRESET' })
-          .mockResolvedValueOnce({ content: 'Success' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -563,15 +598,15 @@ describe('LLMInvoker', () => {
         // - Attempt 1 at 0ms: invoke (70s), fails, retry delay 1s -> elapsed 71s
         // - Attempt 2 at 71s: invoke (70s), fails, retry delay 2s -> elapsed 143s
         // - Attempt 3 at 143s: timeout check (143s >= 105s) -> THROWS global timeout
-        const mockModel = {
-          invoke: vi.fn().mockImplementation(
+        const mockModel = mockChatModel(
+          vi.fn().mockImplementation(
             () =>
               new Promise((_, reject) => {
                 // eslint-disable-next-line no-restricted-syntax -- Mocked 70s model latency under vi.useFakeTimers(); flushed by runAllTimersAsync below, not a real delay
                 setTimeout(() => reject({ code: 'ETIMEDOUT', message: 'Timeout' }), 70000);
               })
-          ),
-        } as any as BaseChatModel;
+          )
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -597,9 +632,7 @@ describe('LLMInvoker', () => {
     });
 
     it('should pass timeout parameter to model invoke', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({ content: 'Success' }),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'Success' }));
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -614,12 +647,12 @@ describe('LLMInvoker', () => {
     it('should retry on empty string response', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockResolvedValueOnce({ content: '' }) // Empty string
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -642,12 +675,12 @@ describe('LLMInvoker', () => {
     it('should retry on whitespace-only string response', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockResolvedValueOnce({ content: '   \n\t  ' }) // Whitespace only
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -670,12 +703,12 @@ describe('LLMInvoker', () => {
     it('should retry on empty multimodal array response', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockResolvedValueOnce({ content: [] }) // Empty array
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -698,14 +731,14 @@ describe('LLMInvoker', () => {
     it('should retry on multimodal array with only empty text blocks', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockResolvedValueOnce({
             content: [{ text: '' }, { text: '  ' }, { text: '\n' }], // All empty/whitespace
           })
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -726,11 +759,11 @@ describe('LLMInvoker', () => {
     });
 
     it('should accept multimodal array with valid text content', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({
+      const mockModel = mockChatModel(
+        vi.fn().mockResolvedValue({
           content: [{ text: 'Part 1' }, { text: ' Part 2' }],
-        }),
-      } as any as BaseChatModel;
+        })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -745,14 +778,14 @@ describe('LLMInvoker', () => {
     });
 
     it('should handle multimodal array with mixed content types', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({
+      const mockModel = mockChatModel(
+        vi.fn().mockResolvedValue({
           content: [
             { text: 'Text part' },
             { type: 'image', data: 'base64...' }, // Non-text content (no 'text' property)
           ],
-        }),
-      } as any as BaseChatModel;
+        })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -769,9 +802,7 @@ describe('LLMInvoker', () => {
     it('should throw after max retries on persistent empty responses', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({ content: '' }), // Always empty
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: '' })); // Always empty
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -797,12 +828,12 @@ describe('LLMInvoker', () => {
     it('should retry on censored response ("ext" from Gemini safety filters)', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi
+      const mockModel = mockChatModel(
+        vi
           .fn()
           .mockResolvedValueOnce({ content: 'ext' }) // Censored response
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
+          .mockResolvedValueOnce({ content: 'Success after retry' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -825,9 +856,7 @@ describe('LLMInvoker', () => {
     it('should throw after max retries on persistent censored responses', async () => {
       vi.useFakeTimers();
 
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({ content: 'ext' }), // Always censored
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'ext' })); // Always censored
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -852,9 +881,9 @@ describe('LLMInvoker', () => {
     });
 
     it('should not retry on "ext" as part of valid response content', async () => {
-      const mockModel = {
-        invoke: vi.fn().mockResolvedValue({ content: 'The file has a .ext extension' }),
-      } as any as BaseChatModel;
+      const mockModel = mockChatModel(
+        vi.fn().mockResolvedValue({ content: 'The file has a .ext extension' })
+      );
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -875,8 +904,8 @@ describe('LLMInvoker', () => {
       // the switch to LangChain's normalized usage_metadata, including the
       // cache-read field the caching epic measures.
       it('logs promptTokens/cachedPromptTokens from usage_metadata on the length-finish warn', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Truncated response',
             response_metadata: { finish_reason: 'length' },
             usage_metadata: {
@@ -885,8 +914,8 @@ describe('LLMInvoker', () => {
               total_tokens: 105,
               input_token_details: { cache_read: 80 },
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         await invoker.invokeWithRetry({
           model: mockModel,
@@ -906,13 +935,13 @@ describe('LLMInvoker', () => {
       });
 
       it('ignores response_metadata.usage (the system_fingerprint-gated dead path)', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Truncated response',
             response_metadata: { finish_reason: 'length', usage: { prompt_tokens: 999 } },
             usage_metadata: { input_tokens: 100, output_tokens: 5 },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         await invoker.invokeWithRetry({
           model: mockModel,
@@ -928,13 +957,13 @@ describe('LLMInvoker', () => {
       });
 
       it('extractResponseDiagnostics reports usage_metadata tokens on the empty-response warn', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: '',
             response_metadata: { finish_reason: 'stop' },
             usage_metadata: { input_tokens: 250, output_tokens: 0 },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         await expect(
           invoker.invokeWithRetry({
@@ -954,9 +983,9 @@ describe('LLMInvoker', () => {
 
     describe('reasoning model support', () => {
       it('should pass messages through unchanged for the deprecated o-series (transform deleted)', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({ content: 'Reasoning response' }),
-        } as any as BaseChatModel;
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({ content: 'Reasoning response' })
+        );
 
         // 'openai/o1-preview' is the exact name that used to trigger the
         // system→user rewrite. The o-series is deprecated and the transform is
@@ -982,9 +1011,9 @@ describe('LLMInvoker', () => {
       });
 
       it('should detect and log reasoning model type for Claude thinking models', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({ content: 'Claude thinking response' }),
-        } as any as BaseChatModel;
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({ content: 'Claude thinking response' })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -999,12 +1028,12 @@ describe('LLMInvoker', () => {
       });
 
       it('should NOT strip thinking tags (delegated to ResponsePostProcessor)', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: '<thinking>Let me think about this...</thinking>Here is my answer.',
             additional_kwargs: {},
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1022,12 +1051,12 @@ describe('LLMInvoker', () => {
       });
 
       it('should preserve response if no thinking tags present', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Just a normal response',
             additional_kwargs: { key: 'value' },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1043,12 +1072,12 @@ describe('LLMInvoker', () => {
       });
 
       it('should preserve multimodal array content for reasoning model response', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: [{ text: '<thinking>Analyzing...</thinking>' }, { text: 'The answer is 42.' }],
             additional_kwargs: {},
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('What is 6*7?')];
 
@@ -1066,12 +1095,12 @@ describe('LLMInvoker', () => {
       });
 
       it('should handle array content blocks with non-text elements', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: [{ type: 'image', data: 'base64...' }, { text: 'Image description' }],
             additional_kwargs: {},
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Describe this')];
 
@@ -1090,11 +1119,11 @@ describe('LLMInvoker', () => {
       });
 
       it('should not strip thinking tags for standard (non-reasoning) models', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: '<thinking>This is valid content</thinking>',
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1109,12 +1138,12 @@ describe('LLMInvoker', () => {
       });
 
       it('should preserve Gemini thinking model content for downstream extraction', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: '<thinking>Working on it</thinking>The result is here.',
             additional_kwargs: {},
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1136,12 +1165,12 @@ describe('LLMInvoker', () => {
        */
 
       it('should log debug when no response_metadata available', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Response without metadata',
             // No response_metadata
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1156,15 +1185,15 @@ describe('LLMInvoker', () => {
       });
 
       it('should log info with WARNING prefix when finish_reason is length', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Truncated response...',
             response_metadata: {
               finish_reason: 'length',
               usage: { prompt_tokens: 100, completion_tokens: 4096, total_tokens: 4196 },
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1179,14 +1208,14 @@ describe('LLMInvoker', () => {
       });
 
       it('should log debug when finish_reason is stop (natural completion)', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Complete response',
             response_metadata: {
               finish_reason: 'stop',
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1200,14 +1229,14 @@ describe('LLMInvoker', () => {
       });
 
       it('should log debug when finish_reason is end_turn (Anthropic)', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Complete response from Claude',
             response_metadata: {
               finish_reason: 'end_turn',
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1221,14 +1250,14 @@ describe('LLMInvoker', () => {
       });
 
       it('should log debug when finish_reason is STOP (uppercase from some providers)', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Complete response',
             response_metadata: {
               finish_reason: 'STOP',
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1242,14 +1271,14 @@ describe('LLMInvoker', () => {
       });
 
       it('should handle Anthropic stop_reason field name', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Complete response',
             response_metadata: {
               stop_reason: 'end_turn', // Anthropic uses stop_reason instead of finish_reason
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1263,14 +1292,14 @@ describe('LLMInvoker', () => {
       });
 
       it('should handle Google finishReason camelCase field name', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Complete response',
             response_metadata: {
               finishReason: 'STOP', // Google uses camelCase
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1290,8 +1319,8 @@ describe('LLMInvoker', () => {
         // without the error-finish guard it would be delivered and stored.
         vi.useFakeTimers();
 
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: '.',
             response_metadata: {
               finish_reason: 'error',
@@ -1303,8 +1332,8 @@ describe('LLMInvoker', () => {
                 providerError: { message: 'Upstream provider dropped the stream', code: 502 },
               },
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1335,8 +1364,8 @@ describe('LLMInvoker', () => {
       it('recovers when a retry after an error finish succeeds', async () => {
         vi.useFakeTimers();
 
-        const mockModel = {
-          invoke: vi
+        const mockModel = mockChatModel(
+          vi
             .fn()
             .mockResolvedValueOnce({
               content: '.',
@@ -1345,8 +1374,8 @@ describe('LLMInvoker', () => {
             .mockResolvedValueOnce({
               content: 'Full response from a healthier provider',
               response_metadata: { finish_reason: 'stop' },
-            }),
-        } as any as BaseChatModel;
+            })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1367,12 +1396,12 @@ describe('LLMInvoker', () => {
       it('does NOT throw on finish_reason "content_filter" (guard scoped to error only)', async () => {
         // content_filter is a policy outcome, not a provider failure — a
         // retry would not help, and its handling is a separate decision.
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Partial but deliverable response',
             response_metadata: { finish_reason: 'content_filter' },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1387,14 +1416,14 @@ describe('LLMInvoker', () => {
       });
 
       it('should log info for unknown finish_reason values', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Response with unusual finish',
             response_metadata: {
               finish_reason: 'content_filter', // Unknown/unusual reason
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1408,8 +1437,8 @@ describe('LLMInvoker', () => {
       });
 
       it('should include token usage in log context when available', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
             content: 'Response with usage stats',
             response_metadata: {
               finish_reason: 'stop',
@@ -1419,8 +1448,8 @@ describe('LLMInvoker', () => {
                 total_tokens: 350,
               },
             },
-          }),
-        } as any as BaseChatModel;
+          })
+        );
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
@@ -1447,7 +1476,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn();
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       // Stronger assertion than `.toThrow()`: the synthetic short-circuit error
       // MUST carry the same shape downstream consumers see for real 429s. If
@@ -1493,7 +1522,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       await invoker.invokeWithRetry({
         model: mockModel,
@@ -1523,7 +1552,7 @@ describe('LLMInvoker', () => {
         },
       });
       const mockInvoke = vi.fn().mockRejectedValue(error);
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -1566,7 +1595,7 @@ describe('LLMInvoker', () => {
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const error = Object.assign(new Error('Rate limit exceeded'), { status: 429 });
       const mockInvoke = vi.fn().mockRejectedValue(error);
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -1601,7 +1630,7 @@ describe('LLMInvoker', () => {
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const error = Object.assign(new Error('Server error'), { status: 500 });
       const mockInvoke = vi.fn().mockRejectedValue(error);
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -1630,7 +1659,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn();
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       // Strong shape assertion: synthetic short-circuit MUST carry the
       // CREDIT_EXHAUSTION category and the stable sentinel referenceId.
@@ -1672,7 +1701,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       await invoker.invokeWithRetry({
         model: mockModel,
@@ -1696,7 +1725,7 @@ describe('LLMInvoker', () => {
         { status: 402 }
       );
       const mockInvoke = vi.fn().mockRejectedValue(error);
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -1729,7 +1758,7 @@ describe('LLMInvoker', () => {
         { status: 402 }
       );
       const mockInvoke = vi.fn().mockRejectedValue(error);
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -1752,7 +1781,7 @@ describe('LLMInvoker', () => {
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const error = Object.assign(new Error('Server error'), { status: 500 });
       const mockInvoke = vi.fn().mockRejectedValue(error);
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       const promise = invoker.invokeWithRetry({
         model: mockModel,
@@ -1786,7 +1815,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn();
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       await expect(
         invoker.invokeWithRetry({
@@ -1822,7 +1851,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       await expect(
         invoker.invokeWithRetry({
@@ -1852,7 +1881,7 @@ describe('LLMInvoker', () => {
       // else branch wasn't taken).
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
-      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+      const mockModel = mockChatModel(mockInvoke);
 
       await invoker.invokeWithRetry({
         model: mockModel,

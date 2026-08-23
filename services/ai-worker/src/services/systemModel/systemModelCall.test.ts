@@ -14,13 +14,25 @@ vi.mock('@tzurot/common-types/config/config', async importOriginal => {
   return { ...actual, getConfig: (): unknown => getConfigMock() };
 });
 
+const mockModelGenerate = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    generations: [
+      [
+        {
+          text: '{"facts": []}',
+          message: {
+            content: '{"facts": []}',
+            usage_metadata: { input_tokens: 10, output_tokens: 5 },
+          },
+        },
+      ],
+    ],
+  })
+);
 const createChatModelMock = vi.hoisted(() =>
   vi.fn().mockReturnValue({
     model: {
-      invoke: vi.fn().mockResolvedValue({
-        content: '{"facts": []}',
-        usage_metadata: { input_tokens: 10, output_tokens: 5 },
-      }),
+      generate: mockModelGenerate,
     },
     modelName: 'x',
   })
@@ -111,5 +123,31 @@ describe('invokeSystemModel provider seam', () => {
     expect(args.provider).toBe('openrouter');
     expect(args).not.toHaveProperty('apiKey');
     expect(args.appTitleSuffix).toBe('Test');
+  });
+
+  it('forwards the prompt and timeout across the model seam (generate, via invokeModelGuarded)', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+
+    await invokeSystemModel('the actual prompt text', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 4242,
+    });
+
+    expect(mockModelGenerate).toHaveBeenCalledWith(
+      [[expect.objectContaining({ content: 'the actual prompt text' })]],
+      { timeout: 4242 },
+      undefined
+    );
+  });
+
+  it('a zero-choices 200 rejects as a classified EMPTY_RESPONSE instead of a TypeError', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+    mockModelGenerate.mockResolvedValueOnce({ generations: [[]] });
+
+    await expect(
+      invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 })
+    ).rejects.toThrow('LLM returned empty response');
   });
 });

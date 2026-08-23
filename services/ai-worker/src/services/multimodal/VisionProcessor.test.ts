@@ -32,6 +32,21 @@ import {
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 
 /**
+ * Adapt an `invoke`-shaped mock to the `generate` seam `invokeModelGuarded`
+ * actually calls. `generate` forwards `(messages[0], options)` — exactly the
+ * arguments `invoke` received before — and wraps the resolved message in the
+ * `LLMResult` shape core's `invoke` unwraps, so rejections still reject and
+ * every existing assertion against the inner mock keeps its meaning.
+ */
+function generateFromInvokeMock(
+  invokeMock: (...args: unknown[]) => unknown
+): ReturnType<typeof vi.fn> {
+  return vi.fn(async (messages: unknown[], options?: unknown) => ({
+    generations: [[{ text: '', message: await invokeMock(messages[0], options) }]],
+  }));
+}
+
+/**
  * Factory function to create a mock LoadedPersonality with sensible defaults.
  */
 function createMockPersonality(overrides: Partial<LoadedPersonality> = {}): LoadedPersonality {
@@ -60,7 +75,7 @@ const mockModelInvoke = vi.fn().mockResolvedValue({
 });
 
 const mockCreateChatModel = vi.fn().mockReturnValue({
-  model: { invoke: mockModelInvoke },
+  model: { generate: generateFromInvokeMock(mockModelInvoke) },
   modelName: 'test-model',
 });
 
@@ -118,7 +133,7 @@ describe('VisionProcessor', () => {
       content: 'Mocked image description',
     });
     mockCreateChatModel.mockReturnValue({
-      model: { invoke: mockModelInvoke },
+      model: { generate: generateFromInvokeMock(mockModelInvoke) },
       modelName: 'test-model',
     });
     // Default parseApiError: transient/retryable
@@ -1638,10 +1653,12 @@ describe('VisionProcessor', () => {
     // other tiers) and `LONG_TTL_FAILURE_CATEGORIES` (the categories the negative
     // cache treats as image-bound for TTL purposes) encode two RELATED-but-distinct
     // decisions. The relationship is a deliberate strict subset: every "give up, the image
-    // is the problem" category is also "bound to this attachment," but MODEL_NOT_FOUND is
-    // attachment-bound for cache-TTL purposes yet is exactly what the loop routes around
-    // (a different tier is a different model). These tests pin that relationship so a future
-    // edit to either set surfaces the divergence at PR time.
+    // is the problem" category is also "bound to this attachment," but two categories are
+    // attachment-bound for cache-TTL purposes yet are exactly what the loop routes around:
+    // MODEL_NOT_FOUND (a different tier is a different model) and PROVIDER_CONTENT_REFUSED
+    // (a different tier is a different provider's filter, so the chain must advance rather
+    // than terminate). These tests pin that relationship so a future edit to either set
+    // surfaces the divergence at PR time.
 
     it('VISION_TERMINATE_CATEGORIES is a strict subset of LONG_TTL_FAILURE_CATEGORIES', () => {
       for (const category of VISION_TERMINATE_CATEGORIES) {
@@ -1652,14 +1669,24 @@ describe('VisionProcessor', () => {
       expect(LONG_TTL_FAILURE_CATEGORIES.size).toBeGreaterThan(VISION_TERMINATE_CATEGORIES.size);
     });
 
-    it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND }', () => {
-      // MODEL_NOT_FOUND is the sole attachment-bound category the fallback loop treats as
-      // RETRYABLE: a missing model won't reappear for THIS attachment on the SAME model, but
-      // a different tier is a different model, so the loop advances rather than terminating.
+    it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND, PROVIDER_CONTENT_REFUSED }', () => {
+      // MODEL_NOT_FOUND: a missing model won't reappear for THIS attachment on the SAME
+      // model, but a different tier is a different model, so the loop advances.
+      // PROVIDER_CONTENT_REFUSED: a provider's input filter won't reappear for THIS
+      // attachment on the SAME provider, but a different tier is a different provider's
+      // filter, so the loop must also advance rather than terminate.
       const difference = [...LONG_TTL_FAILURE_CATEGORIES].filter(
         category => !VISION_TERMINATE_CATEGORIES.has(category)
       );
-      expect(difference).toEqual([ApiErrorCategory.MODEL_NOT_FOUND]);
+      expect(new Set(difference)).toEqual(
+        new Set([ApiErrorCategory.MODEL_NOT_FOUND, ApiErrorCategory.PROVIDER_CONTENT_REFUSED])
+      );
+    });
+
+    it('VISION_TERMINATE_CATEGORIES does NOT contain PROVIDER_CONTENT_REFUSED — the chain must advance, not terminate', () => {
+      expect(VISION_TERMINATE_CATEGORIES.has(ApiErrorCategory.PROVIDER_CONTENT_REFUSED)).toBe(
+        false
+      );
     });
 
     it('VISION_TERMINATE_CATEGORIES contains exactly CONTENT_POLICY, CENSORED, MEDIA_NOT_FOUND', () => {

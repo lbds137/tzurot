@@ -159,6 +159,16 @@ export enum ApiErrorCategory {
   FREE_TIER_QUOTA = 'free_tier_quota',
   /** 403 - Content policy violation or forbidden */
   CONTENT_POLICY = 'content_policy',
+  /**
+   * A specific provider's INPUT filter refused this image before the model ran
+   * (e.g. an Alibaba `data_inspection_failed` on a Qwen vision route, surfaced
+   * by OpenRouter as a 400). Provider-and-attachment bound, never
+   * image-intrinsic: other providers routinely describe the same image, so the
+   * vision fallback chain must ADVANCE to the next tier rather than terminate.
+   * Distinct from CONTENT_POLICY (the request itself was forbidden) and from
+   * CENSORED (the model emitted a refusal in its OUTPUT).
+   */
+  PROVIDER_CONTENT_REFUSED = 'provider_content_refused',
   /** 400 - Bad request (context window exceeded, invalid params) */
   BAD_REQUEST = 'bad_request',
   /** 404 - Model not found */
@@ -244,6 +254,8 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
     "You've used your share of the shared free tier for now. To keep chatting, add your own OpenRouter API key with `/settings apikey set` — grab a free one at https://openrouter.ai/keys.",
   [ApiErrorCategory.CONTENT_POLICY]:
     'The AI declined to respond due to content guidelines. Please try rephrasing your message.',
+  [ApiErrorCategory.PROVIDER_CONTENT_REFUSED]:
+    'The provider handling that request declined the attached image. Try again — a different provider may accept it.',
   [ApiErrorCategory.BAD_REQUEST]:
     'The conversation has become too long. Please start a new conversation or try a shorter message.',
   [ApiErrorCategory.MODEL_NOT_FOUND]:
@@ -299,6 +311,9 @@ export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.MODEL_NOT_FOUND,
   ApiErrorCategory.MEDIA_NOT_FOUND,
+  // Retrying the SAME provider re-hits the same input filter — the vision
+  // chain's tier advance (a DIFFERENT provider) is what actually recovers.
+  ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
 ]);
 
 /**
@@ -364,6 +379,9 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   [ApiErrorCategory.MODEL_NOT_FOUND]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
   [ApiErrorCategory.CENSORED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
   [ApiErrorCategory.BAD_REQUEST]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+  // The negative-cache key includes the model, so this LONG cooldown binds to
+  // (this provider, this attachment) and does not block other vision tiers.
+  [ApiErrorCategory.PROVIDER_CONTENT_REFUSED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
 
   // Retryable-transient categories — generic cooldown
   [ApiErrorCategory.RATE_LIMIT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
