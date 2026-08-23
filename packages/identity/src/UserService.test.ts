@@ -312,6 +312,37 @@ describe('UserService', () => {
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
 
+    it('re-reads a changed defaultPersonaId after invalidateUser (set-default round-trip)', async () => {
+      // The set-default-persona route's gate: api-gateway stamps
+      // `defaultPersonaId` onto the request from this cache, and the route
+      // skips its write when the target already equals the stamp. Without
+      // eviction the second set-default of the same persona would be gated by
+      // the pre-change value. This pins the eviction -> fresh-read half.
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'stable-user-id',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-a',
+        })
+        .mockResolvedValueOnce({
+          id: 'stable-user-id',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-b',
+        });
+
+      const before = await userService.getOrCreateUser('900000000000123456', 'testuser');
+      expect(before?.defaultPersonaId).toBe('persona-a');
+
+      // Simulates the route's synchronous eviction after writing persona-b.
+      userService.invalidateUser('900000000000123456');
+
+      const after = await userService.getOrCreateUser('900000000000123456', 'testuser');
+      expect(after?.defaultPersonaId).toBe('persona-b');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+    });
+
     it('does not repopulate the cache when an invalidation races an in-flight read', async () => {
       // Simulates the TOCTOU: this read started before the account-delete
       // committed (sees the still-live row), but the delete's invalidateUser
