@@ -3,9 +3,10 @@ id: TASK-745
 title: >-
   Flag-on real messages: current-channel signal loses to nine wrong-channel
   location blocks and present-tense memory location claims
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 13:30'
+updated_date: '2026-08-23 16:34'
 labels:
   - 'area:ai-worker'
   - 'size:M'
