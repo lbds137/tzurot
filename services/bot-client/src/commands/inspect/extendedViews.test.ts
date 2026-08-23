@@ -605,8 +605,8 @@ describe('buildMessagesView', () => {
     // The array is [system, user, assistant] — the user message is #2 of 3 and the
     // assistant message #3 of 3, even though the system message is not rendered.
     const content = renderedText(conversationPayload());
-    expect(content).toContain('═══ [2/3] user ═══');
-    expect(content).toContain('═══ [3/3] assistant ═══');
+    expect(content).toContain('-# ━━━━━ [2/3] USER ━━━━━');
+    expect(content).toContain('-# ━━━━━ [3/3] ASSISTANT ━━━━━');
     expect(content).toContain('Total messages: 3 (system included)');
     expect(content).toContain('Non-system messages: 2');
   });
@@ -647,10 +647,10 @@ describe('buildMessagesView', () => {
     expect(content).not.toContain('mid-array system card');
     // Positions stay pinned to the FULL array even when the system message
     // sits mid-array: the entries around it keep their original numbers.
-    expect(content).toContain('═══ [1/5] user ═══');
-    expect(content).toContain('═══ [2/5] assistant ═══');
-    expect(content).toContain('═══ [4/5] user ═══');
-    expect(content).toContain('═══ [5/5] assistant ═══');
+    expect(content).toContain('-# ━━━━━ [1/5] USER ━━━━━');
+    expect(content).toContain('-# ━━━━━ [2/5] ASSISTANT ━━━━━');
+    expect(content).toContain('-# ━━━━━ [4/5] USER ━━━━━');
+    expect(content).toContain('-# ━━━━━ [5/5] ASSISTANT ━━━━━');
     expect(content).toContain('Non-system messages: 4');
   });
 
@@ -687,5 +687,36 @@ describe('buildMessagesView', () => {
     expect(renderedText(conversationPayload(), NON_OWNER_CTX)).toBe(
       renderedText(conversationPayload(), OWNER_CTX)
     );
+  });
+
+  it('should render each banner as a subtext line and keep message content byte-identical', () => {
+    const userContent = '  leading-ish spaces and *markdown-ish* text\ntrailing-ish  ';
+    const assistantContent = 'a short reply';
+    const payload = createMockPayload();
+    payload.assembledPrompt.messages = [
+      { role: 'system', content: 'system card' },
+      { role: 'user', content: userContent },
+      { role: 'assistant', content: assistantContent },
+    ];
+
+    const content = renderedText(payload);
+
+    // Every banner line starts with '-# ' (Discord subtext markup) and there
+    // is exactly one per non-system message.
+    const bannerLines = content.split('\n').filter(line => line.startsWith('-# '));
+    expect(bannerLines).toHaveLength(2);
+    for (const line of bannerLines) {
+      expect(line).toMatch(/^-# ━+ \[\d+\/\d+\] (USER|ASSISTANT) ━+$/);
+    }
+
+    // Content fixtures contain no triple-backtick runs, so escapeFenceBreaks
+    // is an identity transform here — assert the exact banner+content+join
+    // shape so the message content is pinned byte-identical, not merely
+    // "contained" (a mutated content interpolation would fail this).
+    const expectedBody = [
+      `-# ━━━━━ [2/3] USER ━━━━━\n${userContent}`,
+      `-# ━━━━━ [3/3] ASSISTANT ━━━━━\n${assistantContent}`,
+    ].join('\n\n');
+    expect(content).toContain(expectedBody);
   });
 });

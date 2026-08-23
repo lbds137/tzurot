@@ -474,6 +474,10 @@ export function buildCacheView(
  * would otherwise mis-pair across banners in splitMessage. Byte-exact
  * content lives in the Full JSON view.
  *
+ * Each banner is a Discord subtext (`-# `) line, so it reads as visually
+ * distinct framing rather than body text. Being a plain line rather than a
+ * fence, it introduces no fence pairing of its own across chunk boundaries.
+ *
  * No `canViewCharacter` gate, deliberately: `redactPayloadForNonOwner` in
  * `views.ts` redacts ONLY the system message's content, so user/assistant
  * messages are already exposed intact to non-owners through the Full JSON
@@ -506,7 +510,7 @@ export function buildMessagesView(
       : nonSystem
           .map(
             ({ message, position }) =>
-              `═══ [${position}/${allMessages.length}] ${message.role} ═══\n${escapeFenceBreaks(message.content)}`
+              `-# ━━━━━ [${position}/${allMessages.length}] ${message.role.toUpperCase()} ━━━━━\n${escapeFenceBreaks(message.content)}`
           )
           .join('\n\n');
 
