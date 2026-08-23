@@ -10,6 +10,16 @@
 import type { DiscordEnvironment } from '../types/schemas/index.js';
 import { escapeXml } from './xmlBuilder.js';
 
+/** Rendering options for {@link formatLocationAsXml}. */
+export interface FormatLocationOptions {
+  /**
+   * `'prior'` marks the element as a PAST conversation in a DIFFERENT channel,
+   * emitting `scope="prior"`. Omitted entirely by default, so the no-options
+   * output stays byte-identical for the cacheable system-prefix call sites.
+   */
+  scope?: 'prior';
+}
+
 /**
  * Format Discord environment context as XML location element.
  *
@@ -29,15 +39,23 @@ import { escapeXml } from './xmlBuilder.js';
  * ```
  *
  * @param environment - Discord environment context (DM or guild)
+ * @param opts - Optional rendering options; omitted entirely keeps the output
+ *   byte-identical to the no-options form (cacheable system-prefix call sites
+ *   depend on this — pinned by test)
  * @returns XML location element string
  */
-export function formatLocationAsXml(environment: DiscordEnvironment): string {
+export function formatLocationAsXml(
+  environment: DiscordEnvironment,
+  opts?: FormatLocationOptions
+): string {
+  const scopeAttr = opts?.scope === 'prior' ? ' scope="prior"' : '';
+
   if (environment.type === 'dm') {
-    return '<location type="dm">Direct Message (private one-on-one chat)</location>';
+    return `<location type="dm"${scopeAttr}>Direct Message (private one-on-one chat)</location>`;
   }
 
   const parts: string[] = [];
-  parts.push('<location type="guild">');
+  parts.push(`<location type="guild"${scopeAttr}>`);
 
   // Guild name - escape to prevent prompt injection via malicious server names
   if (environment.guild !== undefined && environment.guild !== null) {

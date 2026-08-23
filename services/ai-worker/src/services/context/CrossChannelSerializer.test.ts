@@ -6,7 +6,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
+import { getPriorConversationsWrapperOverheadText } from '../../jobs/utils/conversationUtils.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -137,7 +139,7 @@ describe('serializeCrossChannelHistory', () => {
     expect(result.xml).toContain('</prior_conversations>');
     expect(result.xml).toContain('<channel_history>');
     expect(result.xml).toContain('</channel_history>');
-    expect(result.xml).toContain('<location type="guild">');
+    expect(result.xml).toContain('<location type="guild" scope="prior">');
     expect(result.xml).toContain('<server name="Test Server"/>');
     expect(result.xml).toContain('<channel name="general" type="text"/>');
     expect(result.xml).toContain('Hello from another channel');
@@ -153,8 +155,60 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     const result = serializeCrossChannelHistory([dmGroup], 'TestAI', 5000, undefined, false);
-    expect(result.xml).toContain('<location type="dm">');
+    expect(result.xml).toContain('<location type="dm" scope="prior">');
     expect(result.xml).toContain('Direct Message');
+  });
+
+  it('every rendered <location> carries scope="prior" (estimate/render agreement)', () => {
+    const guildGroup = createGroup();
+    const dmGroup = createGroup({
+      channelEnvironment: {
+        type: 'dm',
+        channel: { id: 'dm-1', name: 'Direct Message', type: 'dm' },
+      },
+    });
+
+    const result = serializeCrossChannelHistory(
+      [guildGroup, dmGroup],
+      'TestAI',
+      5000,
+      undefined,
+      false
+    );
+
+    // Exclude the static `<location>` mention inside the <instruction> text
+    // itself — only the per-channel location BLOCKS carry scope="prior".
+    const channelHistoryBlocks =
+      result.xml.match(/<channel_history>[\s\S]*?<\/channel_history>/g) ?? [];
+    const locationOpenTags = channelHistoryBlocks.flatMap(
+      block => block.match(/<location[^>]*>/g) ?? []
+    );
+    expect(locationOpenTags.length).toBe(2);
+    for (const tag of locationOpenTags) {
+      expect(tag).toContain('scope="prior"');
+    }
+  });
+
+  it('accounts for the instruction text in the wrapper-overhead budget check', () => {
+    const bareTagsOverhead = countTextTokens('<prior_conversations>\n</prior_conversations>');
+    const instructionBearingOverhead = countTextTokens(getPriorConversationsWrapperOverheadText());
+
+    // A budget between the two: too small for the real (instruction-bearing)
+    // wrapper, but would have looked sufficient against the old bare-tags
+    // measurement. If the budget check under-counts, this slips through and
+    // renders content; it must not.
+    const budget = bareTagsOverhead + 1;
+    expect(budget).toBeLessThan(instructionBearingOverhead);
+
+    const result = serializeCrossChannelHistory(
+      [createGroup()],
+      'TestAI',
+      budget,
+      undefined,
+      false
+    );
+
+    expect(result).toEqual({ xml: '', messagesIncluded: 0 });
   });
 
   it('should use recency strategy: keep newest messages when budget is tight', () => {
@@ -171,8 +225,13 @@ describe('serializeCrossChannelHistory', () => {
       ],
     });
 
-    // Budget fits ~2 messages plus overhead, not all 4
-    const result = serializeCrossChannelHistory([group], 'TestAI', 150, undefined, false);
+    // Budget fits ~2 messages plus overhead, not all 4. The overhead it must
+    // clear includes the <prior_conversations> instruction text; the guard
+    // below fails loudly if the instruction ever outgrows this fixture, so
+    // the constant can't silently stop meaning "fits two".
+    const budget = 220;
+    expect(budget).toBeGreaterThan(countTextTokens(getPriorConversationsWrapperOverheadText()));
+    const result = serializeCrossChannelHistory([group], 'TestAI', budget, undefined, false);
     // Recency: should keep newest (msg-4, msg-3), drop oldest (msg-1, msg-2)
     expect(result.xml).toContain('Newest message');
     expect(result.xml).toContain('Third message');

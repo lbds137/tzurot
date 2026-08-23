@@ -141,4 +141,52 @@ describe('formatLocationAsXml', () => {
       expect(result).not.toContain('<server');
     });
   });
+
+  describe('scope option', () => {
+    const dmEnvironment: DiscordEnvironment = {
+      type: 'dm',
+      channel: { id: 'dm-123', name: 'Direct Message', type: 'dm' },
+    };
+
+    const guildEnvironment: DiscordEnvironment = {
+      type: 'guild',
+      guild: { id: 'guild-123', name: 'Test Server' },
+      channel: { id: 'channel-456', name: 'general', type: 'text' },
+    };
+
+    it('no-options output is byte-stable (system-prefix cache stability) — dm', () => {
+      const result = formatLocationAsXml(dmEnvironment);
+      expect(result).toBe(
+        '<location type="dm">Direct Message (private one-on-one chat)</location>'
+      );
+    });
+
+    it('no-options output is byte-stable (system-prefix cache stability) — guild', () => {
+      const result = formatLocationAsXml(guildEnvironment);
+      expect(result).toBe(
+        '<location type="guild">\n<server name="Test Server"/>\n<channel name="general" type="text"/>\n</location>'
+      );
+    });
+
+    it('scope: "prior" on a guild env sets the opening tag and leaves the rest unchanged', () => {
+      const result = formatLocationAsXml(guildEnvironment, { scope: 'prior' });
+      expect(result).toBe(
+        '<location type="guild" scope="prior">\n<server name="Test Server"/>\n<channel name="general" type="text"/>\n</location>'
+      );
+    });
+
+    it('scope: "prior" on a dm env', () => {
+      const result = formatLocationAsXml(dmEnvironment, { scope: 'prior' });
+      expect(result).toBe(
+        '<location type="dm" scope="prior">Direct Message (private one-on-one chat)</location>'
+      );
+    });
+
+    it('an empty options object produces output identical to no options', () => {
+      const dmResult = formatLocationAsXml(dmEnvironment, {});
+      const guildResult = formatLocationAsXml(guildEnvironment, {});
+      expect(dmResult).toBe(formatLocationAsXml(dmEnvironment));
+      expect(guildResult).toBe(formatLocationAsXml(guildEnvironment));
+    });
+  });
 });

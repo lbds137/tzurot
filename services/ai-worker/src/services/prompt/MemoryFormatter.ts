@@ -81,6 +81,36 @@ export function getMemoryWrapperOverheadText(): string {
 }
 
 /**
+ * Remove the present-tense location preamble a retired formatter baked into
+ * stored memory rows.
+ *
+ * Those rows carry a literal `<location>This conversation is taking place …`
+ * span inside their content. Because `location` is not a protected tag, it
+ * survives escaping as readable markup and reads to the model as another
+ * candidate for "where am I" — competing with the real current channel. The
+ * rows are already written, so render-time removal is the only path that
+ * reaches them (the reference path has a sibling filter,
+ * `usableLocationContext` in storedReference.ts).
+ *
+ * Two passes: the wrapped form, then a tense fallback for unwrapped variants
+ * that the retired formatter also emitted.
+ *
+ * @param content - Raw stored memory content
+ * @returns Content with legacy location preambles removed or made past-tense
+ */
+export function stripLegacyLocationSpans(content: string): string {
+  return (
+    content
+      .replace(/<location>\s*This conversation is taking place[\s\S]*?<\/location>\s*/g, '')
+      // Accepted tradeoff: this pass is unscoped, so a verbatim user quote
+      // containing the exact phrase also gets tense-flipped. The phrase is
+      // narrow and the damage is cosmetic; scoping the fallback would forfeit
+      // coverage of unwrapped legacy variants, which is what it exists for.
+      .replace(/This conversation is taking place/g, 'This conversation took place')
+  );
+}
+
+/**
  * Format a single memory document as XML
  *
  * This is the single source of truth for memory formatting.
@@ -103,8 +133,12 @@ export function getMemoryWrapperOverheadText(): string {
  * @returns Formatted memory XML string
  */
 export function formatSingleMemory(doc: MemoryDocument, timezone?: string): string {
+  // Strip the legacy location preamble BEFORE escaping: stored rows predating
+  // the XML location format carry a present-tense "this conversation is taking
+  // place in …" span that the model reads as the current channel. Pinned by the
+  // stripLegacyLocationSpans tests.
   // Escape user-generated content to prevent prompt injection via XML tag breaking
-  const safeContent = escapeXmlContent(doc.pageContent);
+  const safeContent = escapeXmlContent(stripLegacyLocationSpans(doc.pageContent));
 
   if (doc.metadata?.createdAt === undefined || doc.metadata.createdAt === null) {
     return `<historical_note>${safeContent}</historical_note>`;

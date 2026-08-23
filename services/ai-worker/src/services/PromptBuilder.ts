@@ -23,7 +23,10 @@ import { extractCharacterParticipants } from '../jobs/utils/participantUtils.js'
 import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
 import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
-import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
+import {
+  formatEnvironmentContext,
+  formatCurrentLocationLine,
+} from './prompt/EnvironmentFormatter.js';
 import { extractContentDescriptions } from './RAGUtils.js';
 import {
   PLATFORM_CONSTRAINTS,
@@ -393,9 +396,10 @@ ${escapeXmlContent(persona)}
 
   /**
    * Build the V-tier volatile prefix of the current user message: the datetime,
-   * retrieved facts and memories, and the contextual references. The location
-   * and the participant roster render in the system message instead — both are
-   * stable for the channel, so re-rendering them per turn bought nothing.
+   * a compact current-location echo, retrieved facts and memories, and the
+   * contextual references. The FULL location block and the participant roster
+   * render in the system message instead — both are stable for the channel, so
+   * re-rendering them whole per turn buys nothing.
    * Everything left here changes per request — placing it in the user
    * message keeps the system message byte-stable so the provider's prefix
    * cache actually hits (§2.2 of the accepted architecture; this placement is
@@ -406,13 +410,18 @@ ${escapeXmlContent(persona)}
   buildVolatilePrefix(options: BuildVolatilePrefixOptions): string {
     const { personality, context } = options;
 
-    // Current date/time wrapped in <context>. The location moved to the system
-    // message — it is stable for the channel, so keeping it here re-rendered a
-    // constant into the volatile container every turn.
+    // Current date/time plus a one-line echo of the current channel, wrapped in
+    // <context>. The full location block stays in the cacheable system prefix;
+    // only this compact echo repeats here, because position matters: the
+    // <location> blocks inside <prior_conversations> and the legacy location
+    // spans inside memory content otherwise outnumber and out-position the
+    // single system-message location, and the model anchors to the wrong
+    // channel. Pinned by the volatile-prefix current_location tests below.
     const datetime = formatFullDateTime(new Date(), context.userTimezone);
 
     const contextSection = `<context>
 <datetime>${datetime}</datetime>
+${formatCurrentLocationLine(context.environment)}
 </context>`;
 
     // Distilled active facts, rendered ahead of the historical archive.

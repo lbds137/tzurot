@@ -121,6 +121,7 @@ You are a helpful assistant. Always be kind and helpful.
 exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots > should match snapshot for minimal prompt > volatile-prefix 1`] = `
 "<context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<current_location>Direct Message (private one-on-one chat)</current_location>
 </context>"
 `;
 
@@ -177,6 +178,7 @@ You are a helpful assistant. Always be kind and helpful.
 exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots > should match snapshot with memories and guild environment > volatile-prefix 1`] = `
 "<context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<current_location>server "Dev Community" › category "Development" › channel #bot-testing</current_location>
 </context>
 
 <memory_archive usage="context_only_do_not_repeat">
@@ -264,6 +266,7 @@ You are a helpful assistant. Always be kind and helpful.
 exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots > should match snapshot with multiple participants (stop sequence scenario) > volatile-prefix 1`] = `
 "<context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<current_location>Direct Message (private one-on-one chat)</current_location>
 </context>"
 `;
 
@@ -308,6 +311,7 @@ You are a helpful assistant. Always be kind and helpful.
 exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots > should match snapshot with referenced messages > volatile-prefix 1`] = `
 "<context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<current_location>Direct Message (private one-on-one chat)</current_location>
 </context>
 
 <contextual_references>
