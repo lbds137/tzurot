@@ -1,6 +1,7 @@
 # Slash Command UX Standards
 
 > **Purpose**: Define consistent, user-friendly patterns for Discord slash commands in Tzurot v3.
+> For technical implementation standards, see [SLASH_COMMAND_IMPLEMENTATION.md](./SLASH_COMMAND_IMPLEMENTATION.md).
 
 ## Core Principles
 
