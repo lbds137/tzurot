@@ -1,9 +1,10 @@
 ---
 id: TASK-651
 title: 'S1 participants churn is now the dominant prompt-cache miss, ahead of chat_log'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 01:57'
+updated_date: '2026-08-23 08:39'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -280,4 +281,18 @@ output) is unaffected by any of the above and remains the acceptance.
 
    This does not change the owner's persist decision or the (persona_id,
    guild_id) table — only which service performs the write.
+
+## PROD RE-MEASURE 2026-08-23 (TASK-685) — S1 is no longer a cut point
+
+`pnpm ops cache:prefix-diff --env prod --channel 1481138179917615144 --limit 10
+--show-divergence`, per-stream pairing (#2189), single stream e5df40c2, rows
+2026-08-22T22:27 → 08-23T00:55 UTC — organic post-beta.205 traffic (the release
+carrying 59ea1ec19), window well clear of the deploy.
+
+Result: **0/10 pairs cut at S1** (baseline: 2/5 and 2/8, mixed-read). Every
+divergence is H chat_log — 7/10 pairs at 96-97% common prefix (pure
+conversation append, the benign case), 3/10 at ~30% (context-window re-cut
+moving the chat_log start, also history-side). Nothing in the S1 block moved
+across any pair. Acceptance met on prod data; the unit-level byte-equality
+render is now runtime-corroborated.
 <!-- SECTION:DESCRIPTION:END -->
