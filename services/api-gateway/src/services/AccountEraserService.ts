@@ -20,8 +20,8 @@ import type { Redis } from 'ioredis';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
-  UserCacheInvalidationService,
   type CacheInvalidationService,
+  type UserCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
 import { deleteAllAvatarVersions } from '../utils/avatarPaths.js';
 import { getOrCreateUserService } from './AuthMiddleware.js';
@@ -42,6 +42,8 @@ export interface AccountEraserDeps {
   readonly prisma: PrismaClient;
   readonly redis?: Redis;
   readonly cacheInvalidationService?: CacheInvalidationService;
+  /** User provisioning-cache pub/sub — the injected singleton the gateway builds once at boot. */
+  readonly userCacheInvalidation?: UserCacheInvalidationService;
 }
 
 export interface AccountEraseOptions {
@@ -110,9 +112,9 @@ export class AccountEraserService {
     getOrCreateUserService(this.deps.prisma).invalidateUser(discordUserId);
     //   (2) Broadcast so every OTHER process (ai-worker's context pipeline has
     //       its own long-lived UserService) drops the mapping too.
-    if (this.deps.redis !== undefined) {
+    if (this.deps.userCacheInvalidation !== undefined) {
       try {
-        await new UserCacheInvalidationService(this.deps.redis).invalidateUser(discordUserId);
+        await this.deps.userCacheInvalidation.invalidateUser(discordUserId);
       } catch (error) {
         // Swallowed: THIS process was evicted synchronously above and the
         // account is already gone, so the erase must still succeed. Blast

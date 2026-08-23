@@ -2,11 +2,13 @@
  * PersonaCacheInvalidationService
  *
  * Redis pub/sub service for broadcasting persona cache invalidation events across microservices.
- * When users edit their personas via bot-client, this service ensures all ai-worker instances
+ * When a persona-input write commits, this service ensures all ai-worker instances
  * invalidate their local PersonaResolver caches.
  *
  * Architecture:
- * - Publisher: bot-client (when users edit personas via /persona commands)
+ * - Publishers: api-gateway persona-input write routes — CRUD, per-personality
+ *   overrides, and set-default (per-user events) — plus the admin db-sync
+ *   route (invalidate-all on bulk writes)
  * - Subscribers: ai-worker instances (to invalidate PersonaResolver cache)
  *
  * Events:

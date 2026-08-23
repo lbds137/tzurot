@@ -21,7 +21,12 @@ import {
   UserCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
 import { SystemSettingsService } from '@tzurot/common-types/services/SystemSettingsService';
-import { PersonalityService, PersonaResolver, getOrCreateUserService } from '@tzurot/identity';
+import {
+  PersonalityService,
+  getOrCreatePersonaResolver,
+  getOrCreateUserService,
+  type PersonaResolver,
+} from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
   LlmConfigResolver,
@@ -108,8 +113,11 @@ export async function setupCacheInvalidation(
   cleanupFns.push(() => sttCacheInvalidation.unsubscribe());
   logger.info('SttResolver initialized with cache invalidation');
 
-  // PersonaResolver with cache invalidation
-  const personaResolver = new PersonaResolver(prisma);
+  // PersonaResolver with cache invalidation. Shared per-PrismaClient instance
+  // (mirrors `getOrCreateUserService` above): the resolution cache lives on
+  // the instance, so this process's request pipeline must reach the SAME
+  // resolver this subscription evicts, not a private one.
+  const personaResolver = getOrCreatePersonaResolver(prisma);
   const personaCacheInvalidation = new PersonaCacheInvalidationService(cacheRedis);
   await personaCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {

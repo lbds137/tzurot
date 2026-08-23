@@ -42,11 +42,6 @@ vi.mock('./MemoryModeSessionManager.js', () => ({
     return { disableAll: mockDisableAll };
   },
 }));
-vi.mock('@tzurot/cache-invalidation', () => ({
-  UserCacheInvalidationService: function MockUserCacheInvalidation() {
-    return { invalidateUser: mockUserCacheInvalidate };
-  },
-}));
 vi.mock('../utils/avatarPaths.js', () => ({ deleteAllAvatarVersions: mockDeleteAvatars }));
 
 function makeSummary(overrides: Partial<AccountDeletionSummary> = {}): AccountDeletionSummary {
@@ -68,12 +63,18 @@ function makeSummary(overrides: Partial<AccountDeletionSummary> = {}): AccountDe
   };
 }
 
-function makeDeps({ withRedis = true }: { withRedis?: boolean } = {}) {
+function makeDeps({
+  withRedis = true,
+  withUserCacheInvalidation = true,
+}: { withRedis?: boolean; withUserCacheInvalidation?: boolean } = {}) {
   const invalidatePersonality = vi.fn().mockResolvedValue(undefined);
   const deps = {
     prisma: {} as PrismaClient,
     redis: withRedis ? ({} as Redis) : undefined,
     cacheInvalidationService: { invalidatePersonality } as never,
+    userCacheInvalidation: withUserCacheInvalidation
+      ? ({ invalidateUser: mockUserCacheInvalidate } as never)
+      : undefined,
   };
   return { deps, invalidatePersonality };
 }
@@ -139,7 +140,7 @@ describe('AccountEraserService.erase', () => {
     expect(mockProvisioningInvalidate).toHaveBeenCalledWith('d1');
   });
 
-  it('skips the redis-backed steps when no redis is configured', async () => {
+  it('skips the redis-backed memory-mode sweep when no redis is configured', async () => {
     mockDeleteAccount.mockResolvedValue(makeSummary());
     const { deps, invalidatePersonality } = makeDeps({ withRedis: false });
 
@@ -149,12 +150,32 @@ describe('AccountEraserService.erase', () => {
       mode: 'self-serve',
     });
 
-    // No redis → no broadcast, no memory-mode sweep …
-    expect(mockUserCacheInvalidate).not.toHaveBeenCalled();
+    // No redis → no memory-mode sweep (the ONLY step gated on `redis` now that
+    // the user-cache broadcast is gated on the injected `userCacheInvalidation`
+    // singleton instead).
     expect(mockDisableAll).not.toHaveBeenCalled();
-    // … but the non-redis cleanup (provisioning evict, per-char cache, avatars) still runs.
+    // … but the non-redis cleanup (provisioning evict, broadcast, per-char
+    // cache, avatars) still runs.
     expect(mockProvisioningInvalidate).toHaveBeenCalledWith('d1');
+    expect(mockUserCacheInvalidate).toHaveBeenCalledWith('d1');
     expect(invalidatePersonality).toHaveBeenCalledWith('x1');
     expect(mockDeleteAvatars).toHaveBeenCalledWith('xbot', expect.any(String));
+  });
+
+  it('skips the broadcast when no userCacheInvalidation is injected', async () => {
+    mockDeleteAccount.mockResolvedValue(makeSummary());
+    const { deps } = makeDeps({ withUserCacheInvalidation: false });
+
+    await expect(
+      new AccountEraserService(deps).erase({
+        userId: 'u1',
+        discordUserId: 'd1',
+        mode: 'self-serve',
+      })
+    ).resolves.toBeDefined();
+
+    expect(mockUserCacheInvalidate).not.toHaveBeenCalled();
+    // Synchronous in-process eviction is unaffected by the broadcast dep.
+    expect(mockProvisioningInvalidate).toHaveBeenCalledWith('d1');
   });
 });

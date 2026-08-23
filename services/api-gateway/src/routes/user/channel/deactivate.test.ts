@@ -39,12 +39,26 @@ import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-t
 describe('DELETE /api/user/channel/deactivate', () => {
   const mockPrisma = createMockPrisma();
 
+  /**
+   * Stand-in for the broadcast half of the invalidation. `RouteDeps` types this
+   * as the real `ChannelActivationCacheInvalidationService`, so the cast keeps
+   * the seam asserted without constructing a Redis-backed service.
+   */
+  function createChannelActivationInvalidation(): { invalidateChannel: ReturnType<typeof vi.fn> } {
+    return { invalidateChannel: vi.fn().mockResolvedValue(undefined) };
+  }
+
   /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
-  const getDeactivateHandler = (): ReturnType<typeof asRouteHandler> =>
+  const getDeactivateHandler = (
+    channelActivationInvalidation?: ReturnType<typeof createChannelActivationInvalidation>
+  ): ReturnType<typeof asRouteHandler> =>
     asRouteHandler(
       handleDeactivateChannel({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
+        channelActivationInvalidation: channelActivationInvalidation as unknown as Parameters<
+          typeof handleDeactivateChannel
+        >[0]['channelActivationInvalidation'],
       })
     );
 
@@ -124,5 +138,45 @@ describe('DELETE /api/user/channel/deactivate', () => {
         error: 'VALIDATION_ERROR',
       })
     );
+  });
+
+  describe('channel-activation cache invalidation', () => {
+    it('broadcasts the deactivated channelId', async () => {
+      const existingSettings = createMockActivation();
+      mockPrisma.channelSettings.findUnique.mockResolvedValue(existingSettings);
+      const channelActivationInvalidation = createChannelActivationInvalidation();
+
+      const handler = getDeactivateHandler(channelActivationInvalidation);
+      const { req, res } = createMockReqRes({ channelId: MOCK_DISCORD_USER_ID });
+      await handler(req, res);
+
+      expect(channelActivationInvalidation.invalidateChannel).toHaveBeenCalledWith(
+        MOCK_DISCORD_USER_ID
+      );
+    });
+
+    it('does NOT broadcast on the no-op path (nothing was activated)', async () => {
+      mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
+      const channelActivationInvalidation = createChannelActivationInvalidation();
+
+      const handler = getDeactivateHandler(channelActivationInvalidation);
+      const { req, res } = createMockReqRes({ channelId: MOCK_DISCORD_USER_ID });
+      await handler(req, res);
+
+      expect(channelActivationInvalidation.invalidateChannel).not.toHaveBeenCalled();
+    });
+
+    it('still succeeds when the broadcast rejects', async () => {
+      const existingSettings = createMockActivation();
+      mockPrisma.channelSettings.findUnique.mockResolvedValue(existingSettings);
+      const channelActivationInvalidation = createChannelActivationInvalidation();
+      channelActivationInvalidation.invalidateChannel.mockRejectedValue(new Error('redis down'));
+
+      const handler = getDeactivateHandler(channelActivationInvalidation);
+      const { req, res } = createMockReqRes({ channelId: MOCK_DISCORD_USER_ID });
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ deactivated: true }));
+    });
   });
 });

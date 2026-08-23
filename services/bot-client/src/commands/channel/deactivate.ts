@@ -16,7 +16,6 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/gatewayServiceCalls.js';
-import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
 const logger = createLogger('channel-deactivate');
 
@@ -58,18 +57,9 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
 
     const { deactivated, personalityName } = result.data;
 
-    // Invalidate local cache
+    // Invalidate the local settings cache — the gateway route now owns the
+    // cross-process pub/sub broadcast.
     invalidateChannelSettingsCache(channelId);
-
-    // Publish invalidation event to all bot-client instances via Redis pub/sub
-    // This ensures horizontal scaling works correctly
-    try {
-      const invalidationService = getChannelActivationCacheInvalidationService();
-      await invalidationService.invalidateChannel(channelId);
-    } catch (pubsubError) {
-      // Log but don't fail the command - local invalidation already happened
-      logger.warn({ err: pubsubError, channelId }, 'Failed to publish invalidation event');
-    }
 
     if (!deactivated) {
       await context.editReply(

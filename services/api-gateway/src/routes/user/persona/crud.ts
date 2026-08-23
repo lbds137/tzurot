@@ -32,6 +32,22 @@ import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-persona-crud');
 
+/**
+ * Broadcast a persona-cache eviction for this user. Swallowed on failure: the
+ * write already committed, so the request must still succeed. Blast radius of a
+ * failed broadcast is one resolver TTL of staleness in other processes.
+ */
+async function broadcastPersonaInvalidation(deps: RouteDeps, discordId: string): Promise<void> {
+  if (deps.personaCacheInvalidation === undefined) {
+    return;
+  }
+  try {
+    await deps.personaCacheInvalidation.invalidateUserPersona(discordId);
+  } catch (error) {
+    logger.warn({ err: error }, 'Persona cache broadcast failed');
+  }
+}
+
 interface PersonaFromDb {
   id: string;
   name: string;
@@ -183,6 +199,8 @@ export const handleCreatePersona = (deps: RouteDeps): RequestHandler => {
 
     logger.info({ userId: user.id, personaId: persona.id }, 'Created new persona');
 
+    await broadcastPersonaInvalidation(deps, req.userId);
+
     sendCustomSuccess(
       res,
       {
@@ -239,6 +257,8 @@ export const handleUpdatePersona = (deps: RouteDeps): RequestHandler => {
 
     logger.info({ userId: user.id, personaId: ownedPersona.id }, 'Updated persona');
 
+    await broadcastPersonaInvalidation(deps, req.userId);
+
     sendCustomSuccess(res, {
       success: true,
       persona: toPersonaDetails(persona, persona.id === user.defaultPersonaId),
@@ -268,6 +288,8 @@ export const handleDeletePersona = (deps: RouteDeps): RequestHandler => {
 
     await prisma.persona.delete({ where: { id: persona.id } });
     logger.info({ userId: user.id, personaId: persona.id }, 'Deleted persona');
+
+    await broadcastPersonaInvalidation(deps, req.userId);
 
     sendCustomSuccess(res, { message: 'Persona deleted' });
   });
