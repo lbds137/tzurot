@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-08-12'
+lastUpdated: '2026-08-23'
 ---
 
 # Review-Response Iteration
@@ -95,6 +95,17 @@ The authoring-time version of this control failed on its own terms: it existed h
 - (c) Does moving code between files change what a coverage or mutation gate measures? (Extraction can drop a module below a per-file gate that the old file's average was hiding.)
 
 Rule 3's test gate catches breakage; these catch absence.
+
+**Removing a safety mechanism to satisfy a review finding gets the FULL
+argument, written against the final diff.** When a fix removes a transaction,
+lock, guard, or retry as "unnecessary", check the justifying argument against
+the code that will actually run, line by line — not the code the argument
+pictures — and write the justification AFTER reading the final diff, never
+before. Pin the property the argument rests on with a test where one is
+assertable. This is the rider shape in a costume: an optimization made as a
+review concession gets less scrutiny than the primary change, and one such
+removal shipped a silent under-fetch race that only a final unrequested review
+round caught.
 
 Fixup commits autosquash naturally on the next `git rebase -i --autosquash`. This is the correct escape valve for a rebase-only workflow — `git revert` is not available on rewritten-history branches, but fixup-drop during interactive rebase is cheap and native.
 

@@ -34,6 +34,16 @@ NC='\033[0m'
 
 printf "${RED}✖ Uncommitted tracker/ files — a filed task is invisible to every backlog query until committed:${NC}\n" >&2
 printf '%s\n' "$DIRTY" >&2
-printf "${YELLOW}  Commit them first (tracker/ files may be committed directly to develop),${NC}\n" >&2
+# Branch-aware remediation: "commit them first", read on a feature branch, is
+# precisely the instruction that produces a board-commit-on-feature-branch
+# mis-commit (recovered 3x; board-commit-branch-gate.sh is the hard stop).
+BRANCH=$(git -C "$ROOT" branch --show-current 2>/dev/null || echo "")
+case "$BRANCH" in develop | main | '' | release/* | chore/release-*) BOARD_SAFE=1 ;; *) BOARD_SAFE=0 ;; esac
+if [ "$BOARD_SAFE" = 1 ]; then
+    printf "${YELLOW}  Commit them first (tracker/ files may be committed directly to develop),${NC}\n" >&2
+else
+    printf "${YELLOW}  You are on '%s' — switch to develop and commit them THERE (a tracker${NC}\n" "$BRANCH" >&2
+    printf "${YELLOW}  commit on a feature branch strands the task on a branch no query reads),${NC}\n" >&2
+fi
 printf "${YELLOW}  or bypass once with: TZUROT_ALLOW_UNCOMMITTED_TRACKER=1 git push ...${NC}\n" >&2
 exit 1
