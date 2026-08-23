@@ -71,7 +71,7 @@ export const SamplingParamsSchema = z.object({
  * Ordered weakest-to-strongest after `off`. Budget shares are approximate and
  * are what `AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS` encodes.
  */
-export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'max'] as const;
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 /** The thinking-level union, for consumers that need the type without the tuple. */
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
@@ -92,6 +92,7 @@ export const ThinkingParamsSchema = z.object({
    * - low: ~20% of max_tokens
    * - medium: ~50% of max_tokens
    * - high: ~80% of max_tokens
+   * - xhigh: ~90% of max_tokens (interpolated between high and max; providers document only the level name)
    * - max: maximum thinking the provider offers
    *
    * Omit the key entirely to take the provider default.
@@ -110,7 +111,10 @@ const LEGACY_EFFORT_TO_LEVEL: Readonly<Record<string, ThinkingLevel>> = {
   low: 'low',
   medium: 'medium',
   high: 'high',
-  xhigh: 'max',
+  // Exact now that the canonical enum carries xhigh. The applied
+  // collapse_reasoning_to_thinking migration predates the level and mapped
+  // stored xhigh rows to max — a recorded divergence, not a drift to fix.
+  xhigh: 'xhigh',
 };
 
 /** The retired 4-knob object, as it may still appear in an on-disk export file. */

@@ -386,7 +386,7 @@ describe('Preset Import', () => {
       const payload = stub.createUserLlmConfig.mock.calls[0][0] as {
         advancedParameters: Record<string, unknown>;
       };
-      expect(payload.advancedParameters).toEqual({ temperature: 0.8, thinking: 'max' });
+      expect(payload.advancedParameters).toEqual({ temperature: 0.8, thinking: 'xhigh' });
     });
 
     it('should handle API create failure', async () => {

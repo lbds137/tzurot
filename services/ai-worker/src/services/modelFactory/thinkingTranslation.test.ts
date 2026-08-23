@@ -27,6 +27,7 @@ describe('buildThinkingKwargs', () => {
       ['low', 'low'],
       ['medium', 'medium'],
       ['high', 'high'],
+      ['xhigh', 'xhigh'],
       ['max', 'max'],
     ] as const)('translates thinking=%s to reasoning.effort=%s', (thinking, effort) => {
       expect(buildThinkingKwargs(thinking, AIProvider.OpenRouter)).toEqual({
@@ -54,7 +55,7 @@ describe('buildThinkingKwargs', () => {
       });
     });
 
-    it.each(['minimal', 'low', 'medium', 'high', 'max'] as const)(
+    it.each(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
       'translates thinking=%s to enabled + reasoning_effort',
       thinking => {
         expect(buildThinkingKwargs(thinking, AIProvider.ZaiCoding)).toEqual({

@@ -24,6 +24,7 @@ export const AI_DEFAULTS = {
    *
    * Keyed by `ThinkingLevel` (`schemas/llmAdvancedParams.ts`):
    * - max: Maximum reasoning depth, allocate generous token budget
+   * - xhigh: Very deep reasoning, near-maximum token budget
    * - high: Deep reasoning, substantial token budget
    * - medium: Balanced reasoning, moderate token budget
    * - low: Light reasoning, still needs more than standard
@@ -42,6 +43,7 @@ export const AI_DEFAULTS = {
     // - Extended thinking can use 10k-30k tokens before response
     // - Higher level = more thinking = more output capacity needed
     max: 65536, // 16x - Maximum reasoning depth
+    xhigh: 49152, // 12x - Very deep reasoning
     high: 32768, // 8x - Deep reasoning
     medium: 16384, // 4x - Balanced (MCP council recommended)
     low: 8192, // 2x - Light reasoning
