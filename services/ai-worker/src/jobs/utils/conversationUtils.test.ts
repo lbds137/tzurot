@@ -13,6 +13,8 @@ import {
   convertConversationHistory,
   formatConversationHistoryAsXml,
   formatCrossChannelHistoryAsXml,
+  getPriorConversationsWrapperOverheadText,
+  PRIOR_CONVERSATIONS_INSTRUCTION,
   type StructuredHistoryEntry,
 } from './conversationUtils.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
@@ -2375,7 +2377,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
     expect(result).toContain('</prior_conversations>');
     expect(result).toContain('<channel_history>');
     expect(result).toContain('</channel_history>');
-    expect(result).toContain('<location type="guild">');
+    expect(result).toContain('<location type="guild" scope="prior">');
     expect(result).toContain('<server name="My Server"/>');
     expect(result).toContain('<channel name="general" type="text"/>');
     expect(result).toContain('Hello from another channel');
@@ -2400,7 +2402,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
     ];
 
     const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
-    expect(result).toContain('<location type="dm">');
+    expect(result).toContain('<location type="dm" scope="prior">');
     expect(result).toContain('Private conversation');
   });
 
@@ -2436,5 +2438,91 @@ describe('formatCrossChannelHistoryAsXml', () => {
     // Both channel names present
     expect(result).toContain('general');
     expect(result).toContain('random');
+  });
+
+  it('renders the instruction as the first child, before the first <channel_history>', () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [{ role: MessageRole.User, content: 'Hello', createdAt: '2026-02-26T10:00:00Z' }],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
+
+    const instructionIdx = result.indexOf(`<instruction>${PRIOR_CONVERSATIONS_INSTRUCTION}`);
+    const channelHistoryIdx = result.indexOf('<channel_history>');
+
+    expect(instructionIdx).toBeGreaterThan(-1);
+    expect(channelHistoryIdx).toBeGreaterThan(-1);
+    expect(instructionIdx).toBeLessThan(channelHistoryIdx);
+  });
+
+  it('marks every <location> inside with scope="prior"', () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [{ role: MessageRole.User, content: 'First', createdAt: '2026-02-26T09:00:00Z' }],
+      },
+      {
+        channelEnvironment: {
+          type: 'dm',
+          channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+        },
+        messages: [
+          { role: MessageRole.User, content: 'Second', createdAt: '2026-02-26T10:00:00Z' },
+        ],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
+
+    // Exclude the static `<location>` mention inside the <instruction> text
+    // itself — only the per-channel location BLOCKS carry scope="prior".
+    const channelHistoryBlocks =
+      result.match(/<channel_history>[\s\S]*?<\/channel_history>/g) ?? [];
+    const locationOpenTags = channelHistoryBlocks.flatMap(
+      block => block.match(/<location[^>]*>/g) ?? []
+    );
+    expect(locationOpenTags.length).toBe(2);
+    for (const tag of locationOpenTags) {
+      expect(tag).toContain('scope="prior"');
+    }
+  });
+
+  it('leaks no instruction when there is no content (empty groups)', () => {
+    expect(formatCrossChannelHistoryAsXml([], 'TestAI', false)).toBe('');
+    expect(formatCrossChannelHistoryAsXml([], 'TestAI', false)).not.toContain('<instruction>');
+  });
+
+  it('leaks no instruction when all groups have empty messages', () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI', false);
+    expect(result).toBe('');
+    expect(result).not.toContain('<instruction>');
+  });
+
+  it('computes the wrapper overhead text with the instruction, matching the render prefix', () => {
+    expect(getPriorConversationsWrapperOverheadText()).toBe(
+      `<prior_conversations>\n<instruction>${PRIOR_CONVERSATIONS_INSTRUCTION}</instruction>\n</prior_conversations>`
+    );
   });
 });

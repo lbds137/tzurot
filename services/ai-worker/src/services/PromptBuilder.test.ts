@@ -892,6 +892,50 @@ describe('PromptBuilder', () => {
         expect(prefix).not.toContain('<participants>');
       });
 
+      it('renders <current_location> inside <context>, after <datetime>', () => {
+        const guildEnvironment: DiscordEnvironment = {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'Test Server' },
+          channel: { id: 'channel-1', name: 'general', type: 'text' },
+        };
+
+        const { prefix } = buildContainers({
+          context: { ...minimalContext, environment: guildEnvironment },
+        });
+
+        const datetimePos = prefix.indexOf('<datetime>');
+        const currentLocationPos = prefix.indexOf('<current_location>');
+
+        expect(datetimePos).toBeGreaterThan(-1);
+        expect(currentLocationPos).toBeGreaterThan(-1);
+        expect(datetimePos).toBeLessThan(currentLocationPos);
+        expect(currentLocationPos).toBeLessThan(prefix.indexOf('</context>'));
+      });
+
+      it('names the channel in <current_location> for a guild environment', () => {
+        const guildEnvironment: DiscordEnvironment = {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'Test Server' },
+          channel: { id: 'channel-1', name: 'general', type: 'text' },
+        };
+
+        const { prefix } = buildContainers({
+          context: { ...minimalContext, environment: guildEnvironment },
+        });
+
+        expect(prefix).toContain(
+          '<current_location>server "Test Server" › channel #general</current_location>'
+        );
+      });
+
+      it('renders the DM form of <current_location> when context has no environment', () => {
+        const { prefix } = buildContainers();
+
+        expect(prefix).toContain(
+          '<current_location>Direct Message (private one-on-one chat)</current_location>'
+        );
+      });
+
       it('keeps every V-tier tag OUT of the system message (the cacheability invariant)', () => {
         // The whole restructure exists to make this hold: any volatile tag in
         // the system message re-poisons the cacheable prefix.

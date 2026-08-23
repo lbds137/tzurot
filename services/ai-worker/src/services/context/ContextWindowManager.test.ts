@@ -8,6 +8,8 @@ import {
   PER_MESSAGE_WIRE_OVERHEAD_TOKENS,
 } from './historyTokenMeasure.js';
 import { buildRealMessages } from './RealMessagesBuilder.js';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
+import { getPriorConversationsWrapperOverheadText } from '../../jobs/utils/conversationUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationUtils.js';
 
 describe('ContextWindowManager', () => {
@@ -248,10 +250,15 @@ describe('ContextWindowManager', () => {
         },
       ];
 
-      // Budget is too small for the rawHistory entry but enough for cross-channel
+      // Budget is too small for the rawHistory entry but enough for cross-channel:
+      // it must clear the <prior_conversations> wrapper overhead, which includes
+      // the instruction text, while staying far below the 2000-token entry.
       const rawHistory = [{ role: 'user', content: 'A'.repeat(4000), tokenCount: 2000 }];
 
-      const budget = 100;
+      const budget = 250;
+      // Fails loudly if the <prior_conversations> instruction ever outgrows
+      // this fixture, so the constant can't silently stop meaning "cross-channel fits".
+      expect(budget).toBeGreaterThan(countTextTokens(getPriorConversationsWrapperOverheadText()));
       const result = manager.selectAndSerializeHistory(
         rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
         { name: 'TestAI' },

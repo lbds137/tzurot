@@ -489,6 +489,32 @@ export function formatConversationHistoryAsXml(
 }
 
 /**
+ * Frames the `<prior_conversations>` block as background from OTHER channels.
+ *
+ * Every `<channel_history>` inside carries its own `<location>`, structurally
+ * identical to the current channel's system-message location — so without this
+ * framing the model has several equally-plausible "where am I" candidates and
+ * picks by recency and position rather than by truth. Static text only: never
+ * interpolate user content here (`instruction` is a protected tag precisely
+ * because interpolation into it is a breakout surface).
+ */
+export const PRIOR_CONVERSATIONS_INSTRUCTION =
+  'These are records of earlier conversations from OTHER channels, shown as background ' +
+  'context. Each <location> inside this block describes where that past conversation ' +
+  'took place — none of them is the channel you are responding in now. The current ' +
+  "channel is named in <current_location> in the current message's context block.";
+
+/**
+ * The `<prior_conversations>` wrapper text without any channel content — for
+ * token accounting, mirroring `getMemoryWrapperOverheadText`. Must stay in
+ * lockstep with the render in {@link formatCrossChannelHistoryAsXml}, or the
+ * budget under-counts by the instruction's tokens.
+ */
+export function getPriorConversationsWrapperOverheadText(): string {
+  return `<prior_conversations>\n<instruction>${PRIOR_CONVERSATIONS_INSTRUCTION}</instruction>\n</prior_conversations>`;
+}
+
+/**
  * Format cross-channel conversation history as XML for inclusion in chat_log.
  *
  * Wraps all groups in `<prior_conversations>`, with each channel group in
@@ -513,7 +539,10 @@ export function formatCrossChannelHistoryAsXml(
   }
 
   let hasContent = false;
-  const parts: string[] = ['<prior_conversations>'];
+  const parts: string[] = [
+    '<prior_conversations>',
+    `<instruction>${PRIOR_CONVERSATIONS_INSTRUCTION}</instruction>`,
+  ];
 
   for (const group of groups) {
     if (group.messages.length === 0) {
@@ -521,7 +550,7 @@ export function formatCrossChannelHistoryAsXml(
     }
     hasContent = true;
     parts.push('<channel_history>');
-    parts.push(formatLocationAsXml(group.channelEnvironment));
+    parts.push(formatLocationAsXml(group.channelEnvironment, { scope: 'prior' }));
     const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName, {
       responderPersonalityId,
       realMessagesEnabled,
