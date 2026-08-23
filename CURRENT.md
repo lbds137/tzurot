@@ -38,14 +38,14 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
 
 ## 🔬 beta.206 smoke queue (batch at release kickoff — do NOT drip-feed)
 
-- [ ] **Forward attribution in extended context** (TASK-706 / #2166) — _needs-smoke: the fix is pinned at the seam by unit tests, but no runtime observation exists yet; the whole bug class was "code looked right, path never ran."_
+- [x] **Forward attribution in extended context** (TASK-706 / #2166) — **PASS** (owner, 2026-08-22 22:06 dev): fresh ambient forward rendered `from="Lila Qeshet Ahava · רכב השושנה"` + `t=` via extended context (requestId 93a2e92b). Original instruction kept below for the record. — _needs-smoke: the fix is pinned at the seam by unit tests, but no runtime observation exists yet; the whole bug class was "code looked right, path never ran."_
   - **Repro**: in dev, post a forward into a channel where the bot is **NOT** activated. Then, on a **later** message in that same channel, trigger a character (any character, any trigger style).
   - **Invariant**: the forward must reach the model attributed, on a turn AFTER the one that created it. The trigger-message path already worked — this is specifically the ambient/non-trigger case.
   - **Masking state**: if the same forward was already processed as a trigger, its attribution comes from the DB and proves nothing. Use a fresh forward the bot never responded to.
   - **Expect**: the quote renders with the original author's name and a `t=` timestamp. Failure looks like `from="Unknown"` with no `t=` — today's behavior.
   - **Report**: `/inspect` output or a debug payload is ideal; a pass/fail is fine.
 
-- [ ] **Origin channel on a forwarded quote** (TASK-668 / #2167) — _needs-smoke: the visibility gate is pinned by unit tests from every angle, but no runtime observation exists that the name actually reaches the model. Same class as the item above — the code looked right there too._
+- [x] **Origin channel on a forwarded quote** (TASK-668 / #2167) — **PASS** (same payload): `channel="Rotzot private thread"` — the optional private-thread case, no less. One open sub-question: the second 22:06 forward rendered `from="Unknown"`, `t=` present, no `channel=` — expected fail-closed IF it was forwarded from a DM (owner to confirm origin). — _needs-smoke: the visibility gate is pinned by unit tests from every angle, but no runtime observation exists that the name actually reaches the model. Same class as the item above — the code looked right there too._
   - **Repro**: in dev, forward a message **from a different channel** into one where a character will respond, then trigger a character on it. Any character, any trigger style.
   - **Invariant**: the quote carries the ORIGIN channel's name — where the forward came FROM, not where it landed.
   - **Masking state**: forward from a channel **you can see**. The gate is deliberately fail-closed on the forwarder's access, so a forward out of a channel you lack `ViewChannel` on will correctly render no channel at all — a real pass looks identical to a failure there.
@@ -56,7 +56,8 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
 - [ ] **Our own `-#` footer inside a forwarded quote** (TASK-708 PR 1 / #2168) — _needs-smoke: pinned by unit tests at seven sites and canaried, but no runtime observation. Same class as the two above — this bug was reported FROM runtime precisely because the code read fine._
   - **Repro**: in dev, get a character to reply so its message carries a visible `-# Model: …` footer. Then **forward that message** into a channel and trigger a character on it.
   - **Invariant**: the quoted text reaches the model with our subtext gone — no `-# Model:`, no `👻 Incognito Mode`, no `📍 auto-response`.
-  - **Two paths worth hitting, they are different code**: (a) forward + trigger in the SAME message — that is the current turn; (b) **reply to** or **link to** an existing forward — that is the fan-out path the first round of review caught, and the one that most likely produced the original report.
+  - **Two paths worth hitting, they are different code** (corrected 2026-08-22 — a forward cannot carry a comment; Discord renders any comment as a separate message): (a) forward it into a channel where the character is **activated**, so the forward itself is the trigger/current turn; (b) **reply to** or **link to** an existing forward — the fan-out path the first round of review caught, and the one that most likely produced the original report.
+  - **Rider fold-in (TASK-43)**: the probe only fires when the TRIGGER message is a forward (RawEnvelopeBuilder guard), so ambient forwards never log it. Make one activated-channel forward whose text contains an `@mention` — path (a) then covers the probe too.
   - **Expect**: `<quote type="forward">` containing only the character's prose. Failure is the footer still sitting inside the quote, exactly as first reported.
   - **Not a failure**: a forwarded HUMAN message whose own text uses `-#` subtext keeps it — that is deliberate and pinned by a test.
   - **PR 2 rider** (#2175): while smoking, also glance for a quoted message where a real user's own `**TheirName:** ` opener got stripped — the one user-visible change PR 2 adds; accepted residual (attribution survives in `from=`), but the owner should see it consciously once.
@@ -77,8 +78,7 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **Rollback**: flip the toggle OFF — live, instant, no deploy.
   - **Report**: pass/fail + the `/inspect` Messages output if anything looks off. I'll run the log-side checks (per-stream prefix-diff before/after, stable-prefix diagnostic) from here once you say it's flipped.
 
-- [ ] **Rider on ANY of the three forward smokes above** (TASK-43 / #2171) — _no separate round needed._
-  - **One extra requirement**: the forwarded message must contain an **at-mention in its own text** (`@someone`). Any of the three repros above works otherwise.
+- [ ] **Rider on the item-3 activated-channel forward** (TASK-43 / #2171) — _no separate round needed, but narrowed 2026-08-22: the probe fires only on a TRIGGERING forward (envelope-build guard), so it must ride item 3's path (a), with an **at-mention in the forwarded text**. The 22:06 ambient forwards correctly did not fire it._
   - **Why it matters**: a forward with no at-mention logs a zero count, which reads as "Discord sends no mentions" when it is actually "nothing to send." That would settle the question the wrong way.
   - **Nothing to report by hand** — the probe writes it to the bot-client logs; the log line is `TASK-43 probe: forward mention sources`.
 
