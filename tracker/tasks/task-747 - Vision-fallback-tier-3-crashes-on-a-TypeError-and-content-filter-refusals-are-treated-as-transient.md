@@ -3,9 +3,10 @@ id: TASK-747
 title: >-
   Vision fallback tier 3 crashes on a TypeError and content-filter refusals are
   treated as transient
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 14:17'
+updated_date: '2026-08-23 17:04'
 labels:
   - 'area:ai-worker'
   - 'size:M'
