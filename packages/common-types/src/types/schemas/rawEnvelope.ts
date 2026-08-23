@@ -86,10 +86,14 @@ export const rawAssemblyInputsSchema = z.object({
    */
   rawAuthorDisplayName: z.string().optional(),
   /**
-   * message.mentions.users — targets for worker-side persona resolution +
-   * content rewriting. Absent when the message mentions no users (mentions
-   * are always observed on a Discord message, so unlike the extended-context
-   * arrays below there is no ABSENT/EMPTY distinction here).
+   * User-mention targets for worker-side persona resolution + content
+   * rewriting. Sourced from the trigger message's own `mentions.users`
+   * MERGED with the forward snapshot's `mentions.users` when the trigger is
+   * a native forward — Discord parses a forward's mentions onto the
+   * snapshot, leaving the wrapper's collection empty. Absent when neither
+   * source carries a mention (mentions are always observed on a Discord
+   * message, so unlike the extended-context arrays below there is no
+   * ABSENT/EMPTY distinction here).
    */
   rawMentionedUsers: z.array(rawDiscordUserSchema).optional(),
   /** `<#id>` channel references found in the raw content, names from guild cache. */
