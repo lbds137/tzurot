@@ -26,7 +26,11 @@ import { AIProvider, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
-import { composeVisionTiers, describeImageWithFallback } from './describeImageWithFallback.js';
+import {
+  composeVisionTiers,
+  describeImageWithFallback,
+  sinkFreeRouteFallbacks,
+} from './describeImageWithFallback.js';
 import {
   describeImage,
   selectVisionModel,
@@ -143,6 +147,8 @@ const attachment: AttachmentMetadata = {
   size: 100,
 } as AttachmentMetadata;
 
+const mockTryResolveUserKey = vi.fn();
+
 function makeAuthOptions(
   overrides: Partial<ResolveVisionConfigOptions> = {}
 ): ResolveVisionConfigOptions {
@@ -152,13 +158,17 @@ function makeAuthOptions(
     mainApiKey: undefined,
     isGuestMode: false,
     userId: 'user-1',
-    apiKeyResolver: {} as unknown as ResolveVisionConfigOptions['apiKeyResolver'],
+    apiKeyResolver: {
+      tryResolveUserKey: mockTryResolveUserKey,
+    } as unknown as ResolveVisionConfigOptions['apiKeyResolver'],
     ...overrides,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: user has NO OpenRouter key — the pre-BYOK-ordering baseline.
+  mockTryResolveUserKey.mockResolvedValue(null);
   // Default quota tracker — always allows.
   mockCreateVisionQuotaTracker.mockReturnValue({ tryConsume: vi.fn().mockResolvedValue(true) });
   // Default: resolve auth to the tier's own model (exercises dedup-by-resolved-model realistically).
@@ -211,10 +221,37 @@ describe('composeVisionTiers', () => {
     expect(tiers).toEqual(['primary/model', 'tier-a', 'tier-b']);
   });
 
+  it('never reorders on its own — the stamped free-first order is preserved as-composed', () => {
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
+    });
+    const tiers = composeVisionTiers('qwen/qwen3.7-plus', personality, false);
+    expect(tiers).toEqual(['qwen/qwen3.7-plus', FREE_ROUTER_MODEL, 'openrouter/auto']);
+  });
+
   it('drops empty-string models', () => {
     const personality = makePersonality({ visionFallbackModels: ['', 'tier-a', ''] });
     const tiers = composeVisionTiers('primary/model', personality, false);
     expect(tiers).toEqual(['primary/model', 'tier-a', FALLBACK_PAID_MODEL]);
+  });
+});
+
+describe('sinkFreeRouteFallbacks', () => {
+  it('sinks free-route fallbacks below paid ones', () => {
+    expect(
+      sinkFreeRouteFallbacks(['qwen/qwen3.7-plus', FREE_ROUTER_MODEL, 'openrouter/auto'])
+    ).toEqual(['qwen/qwen3.7-plus', 'openrouter/auto', FREE_ROUTER_MODEL]);
+  });
+
+  it('sinks :free-suffix models too, preserving relative order within each partition', () => {
+    expect(
+      sinkFreeRouteFallbacks(['primary/model', 'x-ai/grok-4.1:free', 'openrouter/auto'])
+    ).toEqual(['primary/model', 'openrouter/auto', 'x-ai/grok-4.1:free']);
+  });
+
+  it('never moves a free-route PRIMARY — explicit config wins over the key signal', () => {
+    const tiers = sinkFreeRouteFallbacks([FREE_ROUTER_MODEL, 'openrouter/auto']);
+    expect(tiers).toEqual([FREE_ROUTER_MODEL, 'openrouter/auto']);
   });
 });
 
@@ -234,6 +271,155 @@ describe('describeImageWithFallback', () => {
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     // No selectVisionModel — describeOptions.model was supplied.
     expect(mockSelectVisionModel).not.toHaveBeenCalled();
+  });
+
+  it('walks the chain in BYOK order when the user has an OpenRouter key (7da570d8 shape)', async () => {
+    // Incident chain: [qwen, free, auto]. With a paid key the walk must reach
+    // openrouter/auto at tier 2, with the free route demoted to last resort.
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
+    });
+    mockTryResolveUserKey.mockResolvedValue('sk-or-user-key');
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('auto description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'qwen/qwen3.7-plus' }
+    );
+
+    expect(result).toBe('auto description');
+    // Seam: the probe asks the resolver for the USER's OpenRouter wallet entry.
+    expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
+    // Tier order crossing the auth seam: qwen first, then auto — free never reached.
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
+      'qwen/qwen3.7-plus',
+      'openrouter/auto',
+    ]);
+  });
+
+  it('keeps the stamped order and never probes the wallet for a guest', async () => {
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
+    });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('free description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality, isGuestMode: true }),
+      { model: 'qwen/qwen3.7-plus' }
+    );
+
+    expect(result).toBe('free description');
+    expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
+      'qwen/qwen3.7-plus',
+      FREE_ROUTER_MODEL,
+    ]);
+  });
+
+  it('never probes the wallet when the primary tier succeeds — even with a mixed tail', async () => {
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
+    });
+    mockTryResolveUserKey.mockResolvedValue('sk-or-user-key');
+    mockDescribeImage.mockResolvedValueOnce('primary description');
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'qwen/qwen3.7-plus',
+    });
+
+    expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+  });
+
+  it('skips the wallet probe when the fallback tail has no free route (reorder is a no-op)', async () => {
+    // Primary FAILS so the walk reaches the reorder point — the skip must come from the
+    // tail-content gate, not from never advancing past tier 0.
+    const personality = makePersonality({ visionFallbackModels: ['openrouter/auto'] });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('auto description');
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'qwen/qwen3.7-plus',
+    });
+
+    expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+  });
+
+  it('skips the wallet probe when the fallback tail is all free routes (reorder is a no-op)', async () => {
+    // Deliberately NOT guest — the guest short-circuit lives in the probe itself, so an
+    // authenticated user is what proves the tail-content gate skips the resolver call.
+    // TWO free fallbacks, so the cap slices the (paid) floor off and the tail is all-free.
+    // Primary FAILS so the walk reaches the reorder point.
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'x-ai/grok-4.1:free'],
+    });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('free description');
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'qwen/qwen3.7-plus',
+    });
+
+    expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+  });
+
+  it('promotes a non-OpenRouter paid tier on OpenRouter-key evidence (accepted slop, pinned)', async () => {
+    // The sink is provider-agnostic while the key evidence is OpenRouter-only: a mixed
+    // free + z.ai-paid tail reorders on an unrelated OpenRouter key. Pinned so a future
+    // isFreeModel/provider-detection refactor cannot change this silently. The free
+    // route is stamped FIRST so the assertion below fails unless the promotion ran.
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'z-ai/glm-4.8'],
+    });
+    mockTryResolveUserKey.mockResolvedValue('sk-or-user-key');
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('zai description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'qwen/qwen3.7-plus' }
+    );
+
+    expect(result).toBe('zai description');
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
+      'qwen/qwen3.7-plus',
+      'z-ai/glm-4.8',
+    ]);
+  });
+
+  it('keeps the default order when the wallet probe throws (degrade, not fail)', async () => {
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
+    });
+    mockTryResolveUserKey.mockRejectedValue(new Error('redis down'));
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('free description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'qwen/qwen3.7-plus' }
+    );
+
+    expect(result).toBe('free description');
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
+      'qwen/qwen3.7-plus',
+      FREE_ROUTER_MODEL,
+    ]);
   });
 
   it('advances to the next tier when the primary fails on a RETRYABLE category', async () => {
