@@ -63,7 +63,7 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **PR 2 rider** (#2175): while smoking, also glance for a quoted message where a real user's own `**TheirName:** ` opener got stripped — the one user-visible change PR 2 adds; accepted residual (attribution survives in `from=`), but the owner should see it consciously once.
   - **Report**: `/inspect` or a debug payload; pass/fail is fine.
 
-- [ ] **App-bot command replies visible in context** (TASK-734 / #2187) — _needs-smoke: prod-measured absence, code-read fix; the render path is pinned by tests but no runtime observation exists yet._
+- [x] **App-bot command replies visible in context** (TASK-734 / #2187) — **PASS** (owner, 2026-08-22 22:59 dev, requestId cece425b): the Translator bot's embed-only `/about` reply rendered in extended context (`from="Translator | מתרגם"` + full `<embeds>` body) — both the ChatInputCommand admission and the embedsXml path in one observation. Original instruction below for the record. — _needs-smoke: prod-measured absence, code-read fix; the render path is pinned by tests but no runtime observation exists yet._
   - **Repro**: in dev, have another bot answer a slash command in a channel (any app-bot; embeds ideal), then trigger a character on a LATER message.
   - **Invariant**: the bot's command reply — embed content included — appears in the character's extended context.
   - **Masking state**: use a FRESH command reply the character never responded near; old replies predating the deploy prove nothing.
