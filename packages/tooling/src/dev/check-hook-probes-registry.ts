@@ -53,6 +53,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/blocking-question-channel-check.probe.sh',
   },
   {
+    hook: '.claude/hooks/board-commit-branch-gate.sh',
+    probe: '.claude/hooks/board-commit-branch-gate.probe.sh',
+  },
+  {
     hook: '.claude/hooks/claim-shape-guard.sh',
     probe: '.claude/hooks/claim-shape-guard.probe.sh',
   },

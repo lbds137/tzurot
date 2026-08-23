@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-08-12'
+lastUpdated: '2026-08-23'
 ---
 
 # Testing Procedures
@@ -148,6 +148,20 @@ it('should call service', () => {
   expect(getMyServiceMock().someMethod).toHaveBeenCalled();
 });
 ```
+
+## Probe fixtures come from the real corpus
+
+At the moment of writing a probe or test fixture — a filename, a payload, a
+URL, a config value — do not invent a minimal one: **copy a real specimen out
+of the corpus and mutate only what the test needs.** An input built to isolate
+one property is exactly the input that cannot reveal an interaction with a
+second property, and its green is indistinguishable from a green that covered
+the real case (a space-free probe filename passed end-to-end while every real
+`tracker/` path — all space-bearing — would have been quote-mangled). If a
+synthetic input is unavoidable, enumerate the properties real specimens carry
+(spaces, non-ASCII, length, punctuation, nesting) and give it ALL of them.
+The refutation direction inverts this: the probe that settles a disputed
+finding varies a single property at a time.
 
 ## Mock-reachability check (before writing assertions)
 

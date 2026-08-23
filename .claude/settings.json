@@ -40,6 +40,10 @@
           },
           {
             "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/board-commit-branch-gate.sh"
+          },
+          {
+            "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/cwd-drift-guard.sh"
           }
         ]

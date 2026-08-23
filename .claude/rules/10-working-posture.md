@@ -187,3 +187,34 @@ own misses next to the wins, because the user calibrates trust on the misses.
 Escalate only decisions that are genuinely the user's (product taste, spend,
 irreversibles); decisions the evidence already made, make — and show the
 evidence.
+
+**At unit completion, the user-facing report PRECEDES the durable-surface
+writes** (board pushes, CURRENT.md, tracker edits). The owner compacts at
+pause points, and a `/compact` routinely lands between the board push and the
+report that was queued to follow it — six consecutive boundaries in one mined
+day each killed an undelivered close-out this way, reading to the owner as a
+stall. The recovery rule (deliver first post-compaction) already exists; this
+is the ordering that stops the report needing recovery at all.
+
+## A comment naming an artifact is a pointer — resolve it before acting
+
+Trigger: a comment, docstring, or task note names a concrete artifact — "the
+prefix-diff tool", "the snapshot test pins this", a gate/phase/status. Resolve
+the pointer (one `grep -rn`, one `ops --help` scan) before acting on the
+surrounding code; a comment is never the authority on its own liveness, and a
+named STATUS lives on a board — open the board. Corollary, before writing the
+first line of a task's `Fix shape:`: grep for what the FIX would be called,
+not just the symptom — deriving a good design is weak evidence it is unbuilt,
+since the same reasoning produced it once already (a registered, unit-tested
+tool was nearly rebuilt from first principles with its name sitting in a
+doc comment already read that session).
+
+## Work selection finishes first
+
+When choosing work, theme-closers outrank theme-starters, one epic runs at a
+time, and shrinking the backlog is a goal in itself — finishing is a stated
+owner value, not a tactic. When the owner proposes a new direction while a
+theme sits half-done, surface the finish-first tension explicitly before
+complying — name what is half-done and what the detour costs. The owner always
+gets the final call, but they overrule the board consciously; silently filing
+the old theme and pivoting is the failure mode.

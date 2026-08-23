@@ -223,6 +223,37 @@ Run this before submitting PRs to catch issues early.
 
 Future work: Once violations are reduced, consider lowering CPD threshold to 2-3%.
 
+## ESLint: lint-staged vs CI — same rules, three divergence axes
+
+ESLint runs two ways, resolving the SAME root `eslint.config.js` (flat config
+walks up), so rules are identical. The runs diverge on three deliberate axes:
+
+| Axis     | lint-staged (husky pre-commit) | CI (`pnpm lint` → turbo per package) |
+| -------- | ------------------------------ | ------------------------------------ |
+| cwd      | repo root                      | each package dir                     |
+| file set | staged files only              | all of `src/`                        |
+| mutation | `--fix` (mutates + re-stages)  | check-only                           |
+
+Consequences worth knowing before debugging a "passes here, fails there":
+
+- **Native `eslint-suppressions.json` cannot be used** — its default location
+  is the cwd, so a per-package file is read by CI but not by lint-staged.
+  Fix the rule at the source (e.g. `assertFunctionNames` for custom assert
+  helpers) instead of baselining.
+- **`--fix` in lint-staged silently mutates code.** A destructive autofix gets
+  committed sight-unseen — `vitest/valid-expect`'s autofix once wrote dozens
+  of fake-timer deadlocks, and that rule is now deliberately disabled in the
+  test-file block (see the comment in `eslint.config.js`).
+- **`prettier --write` runs BEFORE eslint in lint-staged**, so the hook lints
+  prettier-expanded code while a manual `pnpm quality` lints the compact
+  as-written source. A function near a size limit can pass `quality` yet fail
+  the hook once prettier wraps it. Benign — CI lints the committed form.
+- Do not claim a "cwd config divergence" without proof:
+  `eslint --print-config <file>` from each cwd is the 2-second check.
+- Decision on record: CI stays per-package (`eslint src`, turbo-cached) rather
+  than a single root `eslint .` — the caching is worth more than cwd
+  uniformity. Never rely on cwd-relative eslint artifacts.
+
 ## Troubleshooting
 
 ### jscpd reports are too large
