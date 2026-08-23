@@ -3,9 +3,10 @@ id: TASK-739
 title: >-
   Set-default-persona compares against the 1h-stale provisioning cache and skips
   the write
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 03:23'
+updated_date: '2026-08-23 04:10'
 labels:
   - 'area:api-gateway'
   - 'size:S'
