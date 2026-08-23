@@ -77,6 +77,10 @@ interface MockPrismaClient {
     deleteMany: ReturnType<typeof vi.fn>;
   };
   $transaction: ReturnType<typeof vi.fn>;
+  // The real UserService (reached through `getOrCreateUserService`) provisions
+  // and stamps `lastActiveAt` through raw SQL, so any suite that drives the
+  // provisioning path needs this present on the mock.
+  $executeRaw: ReturnType<typeof vi.fn>;
 }
 
 /** Create mock Prisma client for testing - includes UserService dependencies */
@@ -116,6 +120,7 @@ export function createMockPrisma(): MockPrismaClient {
     // so individual model calls (persona.create, userPersonalityConfig.upsert)
     // remain configurable per-test via the normal mockResolvedValue path.
     $transaction: vi.fn(),
+    $executeRaw: vi.fn().mockResolvedValue(1),
   };
   mock.$transaction.mockImplementation((cb: (tx: MockPrismaClient) => unknown) => cb(mock));
   return mock;

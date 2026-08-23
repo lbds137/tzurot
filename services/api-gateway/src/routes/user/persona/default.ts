@@ -11,6 +11,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../../types.js';
+import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
@@ -47,6 +48,31 @@ export const handleSetPersonaDefault = (deps: RouteDeps): RequestHandler => {
         where: { id: user.id },
         data: { defaultPersonaId: id },
       });
+
+      // The `alreadyDefault` comparison above reads `defaultPersonaId` off the
+      // request, which `requireProvisionedUser` stamps from the UserService
+      // provisioning cache. That cache is not written by this update, so
+      // without eviction the next set-default request re-reads the pre-update
+      // value and short-circuits the write — the stale read GATES the write
+      // rather than merely being stale. Pinned by the eviction-seam tests in
+      // this route's suite.
+      //   (1) Evict THIS process synchronously. `req.userId` is the Discord
+      //       snowflake, which is the provisioning cache's key — `user.id` is
+      //       the internal UUID and would silently evict nothing.
+      getOrCreateUserService(prisma).invalidateUser(req.userId);
+      //   (2) Broadcast so every OTHER process (ai-worker holds its own
+      //       long-lived UserService) drops the mapping too.
+      if (deps.userCacheInvalidation !== undefined) {
+        try {
+          await deps.userCacheInvalidation.invalidateUser(req.userId);
+        } catch (error) {
+          // Swallowed: THIS process was evicted synchronously above and the
+          // write already committed, so the request must still succeed. Blast
+          // radius of a failed broadcast: other processes' UserService caches
+          // stay stale until the ~1h TTL. Bounded, self-healing.
+          logger.warn({ err: error }, 'Default-persona user-cache broadcast failed');
+        }
+      }
     }
 
     logger.info({ userId: user.id, personaId: id, alreadyDefault }, 'Set default persona');

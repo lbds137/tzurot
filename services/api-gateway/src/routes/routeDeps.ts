@@ -38,6 +38,7 @@ import type {
   SttResolverCacheInvalidationService,
   SystemSettingsCacheInvalidationService,
   TtsConfigCacheInvalidationService,
+  UserCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
 import type {
   ConfigCascadeResolver,
@@ -85,6 +86,8 @@ export interface RouteDeps {
   readonly apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService;
   /** System-settings cache pub/sub — the admin system-settings write route. */
   readonly systemSettingsInvalidation?: SystemSettingsCacheInvalidationService;
+  /** User provisioning-cache pub/sub — the set-default-persona route. */
+  readonly userCacheInvalidation?: UserCacheInvalidationService;
 
   // ---- Cross-cutting services -------------------------------------------
 

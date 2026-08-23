@@ -87,13 +87,24 @@ export class UserService {
    * provisioning doesn't guarantee a non-null `defaultPersonaId`.
    *
    * This cache is long-lived: `getOrCreateUserService` shares one `UserService`
-   * per `PrismaClient` across each process (both api-gateway and ai-worker). Two
-   * things bound the staleness that creates — only `getOrCreateUser` writes, and
-   * only a fully-provisioned `ProvisionedUser`, so a hit never returns incomplete
-   * shell data; and account deletion evicts via {@link invalidateUser} (plus the
-   * cross-process broadcast). The residual is that a cache hit short-circuits
-   * `runMaintenanceTasks` (placeholder-username/persona upgrade, superuser
-   * promotion) until the entry's TTL expires — bounded and cosmetic.
+   * per `PrismaClient` across each process (both api-gateway and ai-worker).
+   * One thing bounds the staleness structurally — only `getOrCreateUser` writes,
+   * and only a fully-provisioned `ProvisionedUser`, so a hit never returns
+   * incomplete shell data. Everything else is the writers' obligation:
+   * **every path that changes a field this shape carries must evict via
+   * {@link invalidateUser} (plus the cross-process broadcast)**. Today that is
+   * account deletion (`AccountEraserService`) and the set-default-persona route.
+   *
+   * Do not treat a stale hit here as merely cosmetic. api-gateway's
+   * `requireProvisionedUser` stamps `defaultPersonaId` onto the request from
+   * this cache, and the set-default-persona route compares its target against
+   * that stamp — so an un-evicted entry does not just serve an old value, it
+   * short-circuits the write that would have changed it (runtime-confirmed:
+   * setting default A, then B, then A again silently skipped the last write).
+   *
+   * The residual staleness that eviction does not address: a cache hit
+   * short-circuits `runMaintenanceTasks` (placeholder-username/persona upgrade,
+   * superuser promotion) until the entry's TTL expires.
    */
   private userCache: TTLCache<ProvisionedUser>;
 
@@ -244,17 +255,27 @@ export class UserService {
   }
 
   /**
-   * Evict a user's provisioning-cache entry. Account deletion removes the
-   * `users` row, but the cache still maps this discordId to the now-dead
-   * userId — so the next {@link getOrCreateUser} would return the stale id
-   * and any write against it (e.g. an export_jobs insert) FK-violates.
+   * Evict a user's provisioning-cache entry. Two callers today, both in
+   * api-gateway, for the two ways a cached field stops matching the row:
    *
-   * This evicts ONE process's cache. Coverage today: the api-gateway delete
-   * route calls this synchronously (its own process), then broadcasts via
-   * `UserCacheInvalidationService`; ai-worker subscribes and calls this on the
-   * event. api-gateway itself does NOT subscribe — the synchronous call covers
-   * its single replica. If api-gateway ever runs multiple replicas, it must
-   * subscribe too, or the other replicas' caches stay stale until the TTL.
+   * - **Account deletion** removes the `users` row, but the cache still maps
+   *   this discordId to the now-dead userId — so the next
+   *   {@link getOrCreateUser} would return the stale id and any write against
+   *   it (e.g. an export_jobs insert) FK-violates.
+   * - **Setting a new default persona** changes `defaultPersonaId` on a row the
+   *   cache already holds; without eviction the stale value is re-stamped onto
+   *   the next request and gates the route's own write (see the cache doc above).
+   *
+   * This evicts ONE process's cache. Each caller calls this synchronously (its
+   * own process), then broadcasts via `UserCacheInvalidationService`; ai-worker
+   * subscribes and calls this on the event. api-gateway itself does NOT
+   * subscribe — the synchronous call covers its single replica. If api-gateway
+   * ever runs multiple replicas, it must subscribe too, or the other replicas'
+   * caches stay stale until the TTL.
+   *
+   * Eviction makes the next {@link getOrCreateUser} re-read the DB — pinned by
+   * the `invalidateUser evicts the cache` and `re-reads a changed
+   * defaultPersonaId` tests in this module's suite.
    */
   invalidateUser(discordId: string): void {
     this.userCache.delete(discordId);
