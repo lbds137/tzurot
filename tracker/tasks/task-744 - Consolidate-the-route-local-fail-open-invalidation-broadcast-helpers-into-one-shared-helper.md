@@ -23,4 +23,12 @@ Why: PR #2192 review (round 1, finding 3, not blocking). The fail-open broadcast
 Fix shape: add the generic helper in a shared api-gateway util with a colocated test (fail-open pinned both ways), convert all ~8 sites, grep-enumerate with a positive control before claiming the sweep complete.
 
 Acceptance: one helper, all enumerated sites converted, no per-file broadcast helper copies remain in api-gateway routes; each converted route keeps its existing seam tests green.
+
+Member additions from the #2192 review rounds: dbSync.ts carries two inline
+copies of the shape (users + personas broadcasts) and default.ts carries two
+more (user-channel + persona-channel blocks) — so the enumeration at build
+time is ~10 sites across persona/{crud,override,default}.ts,
+channel/{activate,deactivate}.ts, admin/dbSync.ts, and the older inline
+stt/tts/model-override + AccountEraserService copies. Re-derive the count by
+grep before claiming it.
 <!-- SECTION:DESCRIPTION:END -->
