@@ -1,9 +1,10 @@
 ---
 id: TASK-742
 title: Admin db-sync bulk-writes users.default_persona_id with no cache invalidation
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 04:02'
+updated_date: '2026-08-23 13:36'
 labels:
   - 'area:api-gateway'
   - 'size:S'

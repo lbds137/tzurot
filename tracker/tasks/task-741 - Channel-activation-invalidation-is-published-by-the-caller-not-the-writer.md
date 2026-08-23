@@ -1,9 +1,10 @@
 ---
 id: TASK-741
 title: Channel-activation invalidation is published by the caller not the writer
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 03:44'
+updated_date: '2026-08-23 13:36'
 labels:
   - 'area:api-gateway'
   - 'size:S'
