@@ -1,9 +1,10 @@
 ---
 id: TASK-738
 title: 'Inspect Messages view: clearer message boundaries'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 03:15'
+updated_date: '2026-08-23 21:50'
 labels:
   - 'area:bot-client'
   - 'size:S'
