@@ -26,7 +26,6 @@ import {
   type RawMentionedRole,
 } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import type { z } from 'zod';
-import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
 import {
@@ -36,8 +35,6 @@ import {
 } from '../../utils/forwardedMessageUtils.js';
 import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
-
-const logger = createLogger('RawEnvelopeBuilder');
 
 /** The pre-resolution extended-context snapshot threaded out of the fetch. */
 export interface RawExtendedContextSnapshot {
@@ -133,39 +130,49 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
 }
 
 /**
- * TEMPORARY DIAGNOSTIC — answers whether Discord populates `mentions` on a
- * forward's snapshot payload.
+ * The envelope's user-mention targets, from BOTH mention sources.
  *
- * `MessageSnapshot` TYPES `mentions` as a full `MessageMentions` (it sits in
- * the keep-list `Partialize` excludes from its nullable keys), but a
- * declaration is not a producer, and the fix shape for resolving `<@id>` inside
- * forwarded text differs completely depending on the answer: reading
- * `snapshot.mentions.users` directly, versus regex-extracting ids and resolving
- * each without a username.
+ * A native forward's wrapper message carries an empty mention collection —
+ * Discord parses the mentions onto the SNAPSHOT instead (observed on a live
+ * forward: one mentioned user on the snapshot, none on the wrapper). Reading
+ * only the wrapper therefore ships no targets for a forward, and the worker
+ * leaves every `<@id>` in the forwarded text unrewritten.
  *
- * Logs ids and counts only — never usernames or message content.
+ * The two sources MERGE rather than one replacing the other — a robustness
+ * choice for Discord's field-population asymmetry, not a claim that wrapper
+ * mention targets are always reachable: a forward's wrapper COMMENT text never
+ * reaches rawMessageContent (the snapshot's content wins), so a wrapper-only
+ * target is rewritten only where its id also appears in the shipped text;
+ * extra entries are inert in the worker's id-keyed lookup. First-seen wins,
+ * so the wrapper takes a tie — the two entries describe the same user id
+ * anyway.
  *
- * Remove once an observation lands, in a paired `debug` commit.
+ * `mentions` is optional-chained despite being typed non-nullable: that
+ * declaration is discord.js's keep-list, not a statement about what the
+ * gateway actually populates on the wire.
  */
-function logForwardMentionSources(message: Message, wrapperMentionCount: number): void {
-  if (!isForwardedMessage(message)) {
-    return;
+function collectRawMentionedUsers(message: Message): RawDiscordUser[] | undefined {
+  // eslint-disable-next-line no-restricted-syntax -- deliberate wrapper-side read, merged below with the forward snapshot's own mentions rather than standing in for them
+  const wrapperUsers = message.mentions.users;
+  const snapshotUsers = isForwardedMessage(message)
+    ? getFirstSnapshot(message)?.mentions?.users
+    : undefined;
+
+  const byId = new Map<string, RawDiscordUser>();
+  for (const source of [wrapperUsers, snapshotUsers]) {
+    for (const user of source?.values() ?? []) {
+      if (!byId.has(user.id)) {
+        byId.set(user.id, {
+          discordId: user.id,
+          username: user.username,
+          displayName: user.globalName ?? user.username,
+          ...(user.bot && { isBot: true }),
+        });
+      }
+    }
   }
-  const snapshot = getFirstSnapshot(message);
-  // Hoisted rather than chained: this line exists to answer "is this field ever
-  // absent", so it should not itself be the subtlest expression in the file.
-  const snapshotMentions = snapshot?.mentions;
-  logger.info(
-    {
-      messageId: message.id,
-      wrapperMentionCount,
-      snapshotPresent: snapshot !== undefined,
-      snapshotMentionsPresent: snapshotMentions !== undefined && snapshotMentions !== null,
-      snapshotMentionCount: snapshotMentions?.users?.size,
-      snapshotContentHasMentionToken: /<@!?\d+>/.test(snapshot?.content ?? ''),
-    },
-    'TASK-43 probe: forward mention sources'
-  );
+
+  return byId.size > 0 ? [...byId.values()] : undefined;
 }
 
 /**
@@ -191,18 +198,6 @@ export function buildRawAssemblyInputs(
     rawActiveGuildMemberInfo?: GuildMemberInfo;
   }
 ): RawAssemblyInputs {
-  // Wrapper-only mentions: message.mentions reflects the trigger message's OWN
-  // parsed mentions — not verified empty for a forward at runtime, which is half
-  // of what the probe below measures. Resolving forward-snapshot user-mentions is
-  // a tracked follow-up (TASK-43). Its cost is currently UNKNOWN rather than
-  // known-high: the earlier claim that MessageSnapshot strips mention metadata is
-  // false at the type level, so whether a regex-plus-fetch is needed depends on
-  // whether Discord populates the field on the wire. The forward's text still
-  // reaches the AI via rawMessageContent; only embedded <@id> name-substitution
-  // degrades.
-  // eslint-disable-next-line no-restricted-syntax -- wrapper-only mentions; forward-snapshot <@id> resolution is tracked as TASK-43
-  const wrapperMentionedUsers = message.mentions.users;
-  logForwardMentionSources(message, wrapperMentionedUsers.size);
   return {
     // getEffectiveContentForPrompt yields message.content for normal triggers
     // and the forward snapshot text (bot footers stripped) for forwarded
@@ -225,15 +220,7 @@ export function buildRawAssemblyInputs(
     rawReferencedMessages: refs?.rawReferencedMessages,
     rawMentionedChannels: refs?.rawMentionedChannels,
     rawMentionedRoles: refs?.rawMentionedRoles,
-    rawMentionedUsers:
-      wrapperMentionedUsers.size > 0
-        ? [...wrapperMentionedUsers.values()].map(u => ({
-            discordId: u.id,
-            username: u.username,
-            displayName: u.globalName ?? u.username,
-            ...(u.bot && { isBot: true }),
-          }))
-        : undefined,
+    rawMentionedUsers: collectRawMentionedUsers(message),
     rawExtendedContextMessages: raw?.messages.map(toApiConversationMessage),
     rawExtendedContextUsers: raw?.extendedContextUsers.map(toRawDiscordUser),
     rawReactorUsers: raw?.reactorUsers.map(toRawDiscordUser),

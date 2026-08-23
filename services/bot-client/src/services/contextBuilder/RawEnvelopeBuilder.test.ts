@@ -4,20 +4,12 @@ import { type ConversationMessage } from '@tzurot/common-types/types/conversatio
 import {
   rawAssemblyInputsSchema,
   type RawAssemblyInputs,
+  type RawDiscordUser,
 } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import { Collection, MessageReferenceType, type Message, type Sticker } from 'discord.js';
 
-const { mockGetVoiceTranscript, mockLoggerInfo } = vi.hoisted(() => ({
+const { mockGetVoiceTranscript } = vi.hoisted(() => ({
   mockGetVoiceTranscript: vi.fn((): string | undefined => undefined),
-  mockLoggerInfo: vi.fn(),
-}));
-vi.mock('@tzurot/common-types/utils/logger', () => ({
-  createLogger: () => ({
-    info: mockLoggerInfo,
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
 }));
 vi.mock('../../processors/VoiceMessageProcessor.js', () => ({
   VoiceMessageProcessor: { getVoiceTranscript: mockGetVoiceTranscript },
@@ -58,17 +50,27 @@ const makeMessage = (
 // snapshot-size fallback must work on its own).
 const makeForwardedMessage = (
   snapshotContent: string,
-  opts: { withReferenceType?: boolean; topLevelContent?: string } = {}
+  opts: {
+    withReferenceType?: boolean;
+    topLevelContent?: string;
+    snapshotMentions?: { id: string; username: string; globalName?: string; bot?: boolean }[];
+    wrapperMentions?: { id: string; username: string; globalName?: string; bot?: boolean }[];
+  } = {}
 ) => {
   // A real snapshot carries stickers (MessageSnapshot keeps that field) — the
   // fixture mirrors the full Collection surface, not just the members the
   // forward-content path happens to read, so a consumer added later doesn't
   // trip over a half-built mock.
-  const snapshot = { content: snapshotContent, stickers: new Collection<string, Sticker>() };
+  const snapshot = {
+    content: snapshotContent,
+    stickers: new Collection<string, Sticker>(),
+    // Discord parses a forward's mentions onto the SNAPSHOT, not the wrapper.
+    mentions: { users: new Map((opts.snapshotMentions ?? []).map(m => [m.id, m])) },
+  };
   return {
     client: {},
     content: opts.topLevelContent ?? '',
-    mentions: { users: new Map() },
+    mentions: { users: new Map((opts.wrapperMentions ?? []).map(m => [m.id, m])) },
     stickers: new Collection<string, Sticker>(),
     poll: null,
     ...(opts.withReferenceType === true
@@ -396,97 +398,126 @@ describe('buildRawAssemblyInputs — producer↔schema conformance', () => {
   });
 });
 
-describe('buildRawAssemblyInputs — TASK-43 forward mention probe', () => {
-  // The probe is temporary, but its whole value is that it FIRES during the
-  // owner's forward smoke round. A mis-gated guard produces silence, and
-  // silence is indistinguishable from "Discord populated nothing" — the exact
-  // reading the probe exists to settle. So the gate is pinned, not the wording.
-  it('does not fire for a non-forwarded message', () => {
-    mockLoggerInfo.mockClear();
-
-    buildRawAssemblyInputs(
-      {
-        client: {},
-        content: 'plain message',
-        mentions: { users: new Map() },
-        stickers: new Collection<string, Sticker>(),
-        poll: null,
-      } as unknown as Message,
+describe('buildRawAssemblyInputs — forward mention sourcing', () => {
+  it("sources a forward's mention targets from the snapshot when the wrapper carries none", () => {
+    const raw = buildRawAssemblyInputs(
+      makeForwardedMessage('hey <@811811811811811811> look', {
+        withReferenceType: true,
+        snapshotMentions: [
+          { id: '811811811811811811', username: 'snap-target', globalName: 'Snap Target' },
+        ],
+      }),
       undefined
     );
 
-    expect(mockLoggerInfo).not.toHaveBeenCalled();
+    expect(raw?.rawMentionedUsers).toEqual([
+      { discordId: '811811811811811811', username: 'snap-target', displayName: 'Snap Target' },
+    ] satisfies RawDiscordUser[]);
   });
 
-  it('fires for a forward and reports both mention sources', () => {
-    mockLoggerInfo.mockClear();
-    const message = makeForwardedMessage('hey <@123456789012345678> look', {
-      withReferenceType: true,
-    });
-    // A snapshot that DOES carry mentions — the outcome the probe is checking
-    // for. Typed loosely because the fixture builds a partial Message.
-    (message as unknown as { messageSnapshots: { first: () => unknown } }).messageSnapshots.first =
-      () => ({
-        content: 'hey <@123456789012345678> look',
-        stickers: new Collection<string, Sticker>(),
-        mentions: { users: new Map([['123456789012345678', {}]]) },
-      });
+  it('still ships a wrapper-only mention on a forward', () => {
+    const raw = buildRawAssemblyInputs(
+      makeForwardedMessage('hey <@700700700700700701> look', {
+        withReferenceType: true,
+        wrapperMentions: [
+          { id: '700700700700700701', username: 'wrapper-target', globalName: 'Wrapper Target' },
+        ],
+      }),
+      undefined
+    );
 
-    buildRawAssemblyInputs(message, undefined);
-
-    expect(mockLoggerInfo).toHaveBeenCalledTimes(1);
-    const [fields] = mockLoggerInfo.mock.calls[0] as [Record<string, unknown>];
-    expect(fields).toMatchObject({
-      wrapperMentionCount: 0,
-      snapshotPresent: true,
-      snapshotMentionsPresent: true,
-      snapshotMentionCount: 1,
-      snapshotContentHasMentionToken: true,
-    });
+    expect(raw?.rawMentionedUsers).toEqual([
+      {
+        discordId: '700700700700700701',
+        username: 'wrapper-target',
+        displayName: 'Wrapper Target',
+      },
+    ] satisfies RawDiscordUser[]);
   });
 
-  it('reports an explicitly null snapshot mentions field rather than throwing', () => {
-    mockLoggerInfo.mockClear();
-    // The other half of the presence check. Reading the shipped typings,
-    // MessageSnapshot keeps `mentions` out of Partialize's nullable keys, so the
-    // DECLARATION offers no null here — which is a statement about the type, not
-    // about the payload. Distrusting that gap is the probe's entire purpose, so
-    // its own guard is pinned against the shape the compiler says it won't see.
-    const message = makeForwardedMessage('hey <@123456789012345678> look', {
+  it('merges both sources and dedups by id', () => {
+    const raw = buildRawAssemblyInputs(
+      makeForwardedMessage('shared mention plus one each', {
+        withReferenceType: true,
+        // The tied id carries DIFFERENT names per source, so the assertion
+        // below can distinguish which source won the tie.
+        wrapperMentions: [
+          { id: '922922922922922922', username: 'wrapper-name', globalName: 'Wrapper Name' },
+          { id: '700700700700700701', username: 'wrapper-only', globalName: 'Wrapper Only' },
+        ],
+        snapshotMentions: [
+          { id: '922922922922922922', username: 'snapshot-name', globalName: 'Snapshot Name' },
+          { id: '811811811811811811', username: 'snapshot-only', globalName: 'Snapshot Only' },
+        ],
+      }),
+      undefined
+    );
+
+    const ids = raw?.rawMentionedUsers?.map(u => u.discordId).sort();
+    expect(raw?.rawMentionedUsers).toHaveLength(3);
+    expect(ids).toEqual(['700700700700700701', '811811811811811811', '922922922922922922'].sort());
+    // The documented tie-break: wrapper wins, so the tied id keeps the
+    // wrapper's name, not the snapshot's.
+    const tied = raw?.rawMentionedUsers?.find(u => u.discordId === '922922922922922922');
+    expect(tied?.username).toBe('wrapper-name');
+    expect(tied?.displayName).toBe('Wrapper Name');
+  });
+
+  it('falls back to wrapper-only mentions when snapshot.mentions is null at runtime', () => {
+    // The declaration says mentions is non-nullable; the optional chain in
+    // collectRawMentionedUsers deliberately distrusts that (a declaration is
+    // not a producer). This pins the defensive path the docstring claims.
+    const message = makeForwardedMessage('hey <@700700700700700701> look', {
       withReferenceType: true,
+      wrapperMentions: [
+        { id: '700700700700700701', username: 'wrapper-target', globalName: 'Wrapper Target' },
+      ],
     });
     (message as unknown as { messageSnapshots: { first: () => unknown } }).messageSnapshots.first =
       () => ({
-        content: 'hey <@123456789012345678> look',
+        content: 'hey <@700700700700700701> look',
         stickers: new Collection<string, Sticker>(),
         mentions: null,
       });
 
-    buildRawAssemblyInputs(message, undefined);
+    const raw = buildRawAssemblyInputs(message, undefined);
 
-    expect(mockLoggerInfo).toHaveBeenCalledTimes(1);
-    const [fields] = mockLoggerInfo.mock.calls[0] as [Record<string, unknown>];
-    expect(fields).toMatchObject({ snapshotPresent: true, snapshotMentionsPresent: false });
-    expect(fields.snapshotMentionCount).toBeUndefined();
+    expect(raw?.rawMentionedUsers).toEqual([
+      {
+        discordId: '700700700700700701',
+        username: 'wrapper-target',
+        displayName: 'Wrapper Target',
+      },
+    ] satisfies RawDiscordUser[]);
   });
 
-  it('reports an absent snapshot mentions field rather than throwing', () => {
-    mockLoggerInfo.mockClear();
-    // The other outcome: Discord omits mentions on the wire. The probe must
-    // still emit — an exception here would look like the non-forward case.
-    const message = makeForwardedMessage('hey <@123456789012345678> look', {
-      withReferenceType: true,
-    });
+  it('propagates isBot for a bot mentioned only on the snapshot', () => {
+    const raw = buildRawAssemblyInputs(
+      makeForwardedMessage('ping <@611611611611611611>', {
+        withReferenceType: true,
+        snapshotMentions: [
+          { id: '611611611611611611', username: 'bot-target', globalName: 'Bot Target', bot: true },
+        ],
+      }),
+      undefined
+    );
 
-    buildRawAssemblyInputs(message, undefined);
+    expect(raw?.rawMentionedUsers).toEqual([
+      {
+        discordId: '611611611611611611',
+        username: 'bot-target',
+        displayName: 'Bot Target',
+        isBot: true,
+      },
+    ] satisfies RawDiscordUser[]);
+  });
 
-    expect(mockLoggerInfo).toHaveBeenCalledTimes(1);
-    const [fields] = mockLoggerInfo.mock.calls[0] as [Record<string, unknown>];
-    expect(fields).toMatchObject({
-      snapshotPresent: true,
-      snapshotMentionsPresent: false,
-      snapshotContentHasMentionToken: true,
-    });
-    expect(fields.snapshotMentionCount).toBeUndefined();
+  it('omits rawMentionedUsers when a forward carries no mentions on either source', () => {
+    const raw = buildRawAssemblyInputs(
+      makeForwardedMessage('no mentions here', { withReferenceType: true }),
+      undefined
+    );
+
+    expect(raw?.rawMentionedUsers).toBeUndefined();
   });
 });
