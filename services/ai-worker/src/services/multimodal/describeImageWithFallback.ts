@@ -13,6 +13,7 @@
  * the prompt-facing `[Image … couldn't be processed …]` placeholder.
  */
 
+import { AIProvider, isFreeModel } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -117,6 +118,9 @@ async function runVisionTier(
  * acceptable because the stamped FREE vision default already fills the free-tier last-resort
  * role when present; the hardcoded floor only needs to survive when there's ≤1 stamped
  * fallback (then it stays within the top 3). See the `caps the tier list at 3` test.
+ *
+ * BYOK reordering is NOT this function's job — `walkFallbackChain` applies
+ * `sinkFreeRouteFallbacks` lazily, only once the primary tier has already failed.
  */
 export function composeVisionTiers(
   primaryModel: string,
@@ -139,6 +143,54 @@ export function composeVisionTiers(
     }
   }
   return deduped.slice(0, MAX_VISION_FALLBACK_TIERS);
+}
+
+/**
+ * BYOK ordering: with a user OpenRouter key on file, paid fallbacks outrank free
+ * routes — a free-route tier 429ing before the user's own paid route is ever tried is
+ * the 7da570d8 incident shape. Stable partition of the FALLBACKS only (membership and
+ * the cap are settled by `composeVisionTiers` first); the primary always stays first,
+ * because an explicitly configured primary wins even when it is a free route.
+ *
+ * The sink is provider-agnostic while the key evidence is OpenRouter-only — a mixed
+ * z.ai-paid + openrouter/free tail gets its z.ai tier promoted on the strength of an
+ * unrelated OpenRouter key. Accepted slop: per-tier auth resolution still fail-fasts
+ * a provider the user has no key for, and the broad free fallback catches the rest.
+ * Exported for the ordering unit tests; production reaches it via `maybeReorderFallbacks`.
+ */
+export function sinkFreeRouteFallbacks(tiers: string[]): string[] {
+  const [primary, ...rest] = tiers;
+  return [primary, ...rest.filter(model => !isFreeModel(model)), ...rest.filter(isFreeModel)];
+}
+
+/**
+ * Lazily apply the BYOK reorder once the walk is past the primary tier: probe the
+ * wallet only when the fallback tail contains BOTH a free route and a paid one
+ * (otherwise the reorder is a no-op), and only for authenticated users — the resolver
+ * deliberately does not cache negative key lookups, so a probe that cannot change the
+ * order would cost keyless users a guaranteed DB read.
+ *
+ * Accepted double-read: when tier 0 was OpenRouter-routed off the fast path, its own
+ * `resolveVisionAuth` already asked the resolver for this same (userId, OpenRouter)
+ * key, and for a keyless user that negative wasn't cached — so this probe re-reads the
+ * DB once in that shape. Threading tier 0's auth result here would couple the walk to
+ * resolver internals to save one SELECT on an already-failing multi-call path; pinned
+ * by the wiring test's call-count assertion (`visionFallbackChain.test.ts`, scenario 5).
+ */
+async function maybeReorderFallbacks(
+  tiers: string[],
+  authOptions: ResolveVisionConfigOptions
+): Promise<string[]> {
+  const fallbackTail = tiers.slice(1);
+  const reorderCouldMatter =
+    fallbackTail.some(isFreeModel) && fallbackTail.some(model => !isFreeModel(model));
+  if (!reorderCouldMatter) {
+    return tiers;
+  }
+  if (!(await userHasOpenRouterKey(authOptions))) {
+    return tiers;
+  }
+  return sinkFreeRouteFallbacks(tiers);
 }
 
 /**
@@ -168,6 +220,35 @@ export async function describeImageWithFallback(
   }
 }
 
+/**
+ * Whether the user has their OWN OpenRouter key on file (not necessarily funded or
+ * valid — a bad key still fails gracefully per tier and advances down the chain).
+ * OpenRouter is the right wallet to probe because the free routes are all OpenRouter
+ * routes and the stamped paid fallbacks are OpenRouter routes in practice; were one
+ * not, the reorder is only a preference — per-tier auth resolution still failFasts
+ * and advances. Any resolver error degrades to false (today's ordering). Called at
+ * most once per chain walk; the resolver caches positive results but deliberately
+ * not negatives, which is why the caller gates the probe on the reorder mattering.
+ */
+async function userHasOpenRouterKey(authOptions: ResolveVisionConfigOptions): Promise<boolean> {
+  if (authOptions.isGuestMode || authOptions.userId === undefined) {
+    return false;
+  }
+  try {
+    const key = await authOptions.apiKeyResolver.tryResolveUserKey(
+      authOptions.userId,
+      AIProvider.OpenRouter
+    );
+    return key !== null;
+  } catch (error) {
+    logger.debug(
+      { err: error, userId: authOptions.userId },
+      'OpenRouter key probe failed — keeping the default vision tier order'
+    );
+    return false;
+  }
+}
+
 async function walkFallbackChain(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
@@ -180,7 +261,7 @@ async function walkFallbackChain(
       ? describeOptions.model
       : await selectVisionModel(personality, isGuestMode);
 
-  const tiers = composeVisionTiers(primaryModel, personality, isGuestMode);
+  let tiers = composeVisionTiers(primaryModel, personality, isGuestMode);
   const quota = createVisionQuotaTracker(authOptions.userId);
   // Dedup by the RESOLVED model: the broad-free-fallback can collapse several distinct
   // tiers onto the same free model, and re-invoking the same (model, attachment) is what
@@ -191,7 +272,14 @@ async function walkFallbackChain(
   // never contributes here; that keeps a downstream failFast from clobbering a real failure.
   let lastAttempt: { category: ApiErrorCategory; source: 'user' | 'system' } | undefined;
 
-  for (const [tierIndex, tierModel] of tiers.entries()) {
+  for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
+    if (tierIndex === 1) {
+      // The reorder never touches tiers[0], so its cost (a possible wallet probe — see
+      // maybeReorderFallbacks) is deferred until the primary tier has actually failed:
+      // the common primary-succeeds walk pays nothing.
+      tiers = await maybeReorderFallbacks(tiers, authOptions);
+    }
+    const tierModel = tiers[tierIndex];
     // Only the FIRST tier may take the same-provider fast path (reuse the upstream
     // main key) — a fallback tier re-handing back the identical key would retry the
     // exact credential that just failed and defeat the loop's resilience purpose.
