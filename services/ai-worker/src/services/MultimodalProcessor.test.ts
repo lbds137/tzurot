@@ -97,6 +97,15 @@ vi.mock('./multimodal/AudioProcessor.js', () => ({
   transcribeAudio: (...args: unknown[]) => mockTranscribeAudio(...args),
 }));
 
+// Mock the image-materialization step so these tests exercise vision-call
+// behavior without depending on a real network fetch. A generic rejection
+// mirrors the non-Discord-CDN-dead fallback path (falls back to the
+// original attachment URL, provider call still runs) — the behavior these
+// tests are actually about.
+vi.mock('../utils/imageToDataUrl.js', () => ({
+  downloadImageToDataUrl: vi.fn().mockRejectedValue(new Error('network unavailable in test')),
+}));
+
 // Mock redis module (VisionProcessor uses checkModelVisionSupport and visionDescriptionCache)
 vi.mock('../redis.js', () => ({
   checkModelVisionSupport: mockCheckModelVisionSupport,

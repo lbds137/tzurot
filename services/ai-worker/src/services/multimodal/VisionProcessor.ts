@@ -28,7 +28,7 @@ import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
 import { enterSingleFlight, exitSingleFlight } from './visionSingleFlight.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
-import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
+import { resolveVisionImageUrl } from './visionImageResolver.js';
 import { getDescriptionPrompt } from '../DescriptionPromptService.js';
 import {
   VISION_PLACEHOLDER_PREFIX,
@@ -209,6 +209,9 @@ interface InvokeVisionModelOptions {
    * or (on download-fallback) the original remote URL. Kept SEPARATE from
    * `attachment` so cache keys + the negative cache stay on the original URL
    * while the provider receives the bytes. Defaults to `attachment.url`.
+   * A Discord-CDN URL proven dead (expired signature, or a 403/404 from our
+   * own fetch) never reaches this field at all — `describeImage` short-circuits
+   * before invoking the provider in that case; see `resolveVisionImageUrl`.
    */
   imageUrl?: string;
   loggingContext: VisionLoggingContext;
@@ -589,52 +592,44 @@ export async function selectVisionModel(
 }
 
 /**
- * Resolve the image URL the vision provider should receive: a `data:` URL of
- * worker-fetched bytes for remote images, so the provider never has to fetch a
- * URL it might be unable to reach. OpenRouter can't fetch Discord's external-
- * image proxy (`images-ext-1.discordapp.net`, 403s on its datacenter egress),
- * and signed Discord-CDN URLs expire — but our own SSRF-guarded fetcher pulls
- * both. Already-inlined images (a `data:` URL, e.g. from DownloadAttachmentsStep)
- * are returned untouched.
- *
- * On download failure, falls back to the ORIGINAL remote URL so the provider can
- * try hosts our egress can't reach — logged so the fallback rate is observable.
- * Returns only the URL; the caller keeps the original `attachment` for cache keys.
+ * Handle a `kind: 'dead'` vision-image resolution: log the skip, write the
+ * negative cache entry (so a permanently-dead URL doesn't re-storm across
+ * providers on every later turn it sits in context — mirrors what the
+ * provider-failure catch in `invokeVisionModel` writes on a real failure),
+ * then return the same failure contract as the negative-cache-hit branch
+ * above it in `describeImage`.
  */
-async function resolveVisionImageUrl(
+async function handleDeadVisionImage(
   attachment: AttachmentMetadata,
-  loggingContext: VisionLoggingContext
+  usedModel: string,
+  reason: string,
+  loggingContext: VisionLoggingContext,
+  throwOnFailure: boolean
 ): Promise<string> {
-  if (isDataUrl(attachment.url)) {
-    return attachment.url;
-  }
-  try {
-    const { dataUrl } = await downloadImageToDataUrl(attachment.url, {
-      contentType: attachment.contentType,
-      name: attachment.name,
+  logger.warn(
+    {
       jobId: loggingContext.jobId,
-    });
-    return dataUrl;
-  } catch (error) {
-    // Broad by design: ANY download failure — including AttachmentTooLargeError —
-    // degrades to handing the provider the original URL. Unlike
-    // DownloadAttachmentsStep, where an over-size image is a hard fail, the vision
-    // provider may accept larger images than our own fetch cap, so we let it try
-    // rather than rethrow. Do NOT add an `instanceof AttachmentTooLargeError`
-    // rethrow here thinking it closes a gap; the fallback rate is observable via
-    // the imageFetchFallback log field below.
-    logger.warn(
-      {
-        jobId: loggingContext.jobId,
-        attachmentId: attachment.id,
-        name: attachment.name,
-        err: error,
-        imageFetchFallback: true,
-      },
-      'Vision image download failed; falling back to provider URL fetch'
-    );
-    return attachment.url;
+      attachmentId: attachment.id,
+      model: usedModel,
+      reason,
+      deadImageSkip: true,
+    },
+    'Skipping vision call: image URL is unreachable'
+  );
+  await visionDescriptionCache.storeFailure({
+    attachmentId: attachment.id,
+    url: attachment.url,
+    model: usedModel,
+    category: ApiErrorCategory.MEDIA_NOT_FOUND,
+  });
+  if (throwOnFailure) {
+    throw new VisionModelError(ApiErrorCategory.MEDIA_NOT_FOUND, reason);
   }
+  return buildFailureFallback(
+    ApiErrorCategory.MEDIA_NOT_FOUND,
+    loggingContext.apiKeySource,
+    attachment.name
+  );
 }
 
 /**
@@ -746,7 +741,16 @@ export async function describeImage(
     // a URL it may be unable to reach (Discord's external-image proxy 403s
     // OpenRouter; signed Discord-CDN URLs expire). We pass the ORIGINAL attachment
     // (for cache keys) plus the resolved imageUrl separately.
-    const imageUrl = await resolveVisionImageUrl(attachment, loggingContext);
+    const resolution = await resolveVisionImageUrl(attachment, loggingContext);
+    if (resolution.kind === 'dead') {
+      return await handleDeadVisionImage(
+        attachment,
+        usedModel,
+        resolution.reason,
+        loggingContext,
+        options.throwOnFailure === true
+      );
+    }
     const description = await invokeVisionModelForDescribe(
       attachment,
       usedModel,
@@ -754,7 +758,7 @@ export async function describeImage(
         systemPrompt,
         userApiKey,
         provider,
-        imageUrl,
+        imageUrl: resolution.imageUrl,
         loggingContext,
         personalityName: personality.name,
         // Per-TIER params: the fallback chain re-enters describeImage with each

@@ -20,7 +20,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('attachmentFetch');
 
-const ALLOWED_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
+export const ALLOWED_HOSTS: readonly string[] = ['cdn.discordapp.com', 'media.discordapp.net'];
 
 /**
  * Hard cap on attachment download size, pre-resize.
