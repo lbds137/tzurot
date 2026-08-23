@@ -3,9 +3,10 @@ id: TASK-731
 title: >-
   Inspect: formatted conversation-messages view (real-messages sibling of the
   system-prompt view)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 14:12'
+updated_date: '2026-08-23 00:26'
 labels:
   - 'area:bot-client'
   - 'size:S'
