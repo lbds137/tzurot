@@ -22,24 +22,9 @@ import {
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/gatewayServiceCalls.js';
-import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 import { escapeMarkdown } from 'discord.js';
 
 const logger = createLogger('channel-activate');
-
-/**
- * Invalidate channel settings cache locally and across all instances
- */
-async function invalidateSettingsCache(channelId: string): Promise<void> {
-  invalidateChannelSettingsCache(channelId);
-
-  try {
-    const invalidationService = getChannelActivationCacheInvalidationService();
-    await invalidationService.invalidateChannel(channelId);
-  } catch (pubsubError) {
-    logger.warn({ err: pubsubError, channelId }, 'Failed to publish invalidation event');
-  }
-}
 
 /**
  * Handle /channel activate command
@@ -124,8 +109,9 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
     const { activation, replaced } = result.data;
     const replacedNote = replaced ? ' (replaced previous activation)' : '';
 
-    // Invalidate cache locally and across all bot-client instances
-    await invalidateSettingsCache(channelId);
+    // Invalidate the local settings cache — the gateway route now owns the
+    // cross-process pub/sub broadcast.
+    invalidateChannelSettingsCache(channelId);
 
     await context.editReply(
       `✅ Activated **${activation.personalityName}** in this channel${replacedNote}.\n\n` +

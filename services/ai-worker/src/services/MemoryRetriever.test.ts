@@ -43,12 +43,18 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return { ...actual, createLogger: vi.fn(() => mockLogger) };
 });
 
-// Mock PersonaResolver constructor (now imported directly from @tzurot/identity)
+// Mock PersonaResolver constructor AND the shared-instance accessor (both
+// imported directly from @tzurot/identity). `getOrCreatePersonaResolver` is
+// mocked separately from `PersonaResolver` so a test can assert the fallback
+// path goes through the accessor specifically, not just any construction path
+// that happens to yield the same mock object.
+const mockGetOrCreatePersonaResolver = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/identity', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/identity')>();
   return {
     ...actual,
     PersonaResolver: vi.fn().mockImplementation(() => mockPersonaResolver),
+    getOrCreatePersonaResolver: mockGetOrCreatePersonaResolver,
   };
 });
 
@@ -81,6 +87,7 @@ describe('MemoryRetriever', () => {
   };
 
   beforeEach(() => {
+    mockGetOrCreatePersonaResolver.mockReturnValue(mockPersonaResolver);
     mockMemoryManager = {
       queryMemories: vi.fn().mockResolvedValue([]),
       queryMemoriesWithChannelScoping: vi.fn().mockResolvedValue([]),
@@ -94,6 +101,18 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver as unknown as PersonaResolver
     );
     vi.clearAllMocks();
+  });
+
+  describe('fallback resolver construction', () => {
+    it('uses the process-shared instance from getOrCreatePersonaResolver when none is injected', () => {
+      // Constructing without the third (personaResolver) constructor arg
+      // exercises the `personaResolver ?? getOrCreatePersonaResolver(prisma)`
+      // fallback — a locally-constructed private resolver would never hear
+      // persona-cache invalidation events.
+      new MemoryRetriever(mockPrismaClient, mockMemoryManager);
+
+      expect(mockGetOrCreatePersonaResolver).toHaveBeenCalledWith(mockPrismaClient);
+    });
   });
 
   describe('resolvePersonaForMemory', () => {

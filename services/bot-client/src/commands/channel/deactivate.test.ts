@@ -11,15 +11,10 @@ import type { PermissionsBitField, GuildMember } from 'discord.js';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleDeactivate } from './deactivate.js';
+import { invalidateChannelSettingsCache } from '../../utils/gatewayServiceCalls.js';
 
 vi.mock('../../utils/gatewayServiceCalls.js', () => ({
   invalidateChannelSettingsCache: vi.fn(),
-}));
-
-vi.mock('../../services/serviceRegistry.js', () => ({
-  getChannelActivationCacheInvalidationService: vi.fn().mockReturnValue({
-    invalidateChannel: vi.fn(),
-  }),
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -129,6 +124,9 @@ describe('/channel deactivate', () => {
     expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('Deactivated **Test Personality**')
     );
+    // The gateway route now owns the cross-process pub/sub broadcast; this
+    // command is responsible only for evicting its own local cache.
+    expect(invalidateChannelSettingsCache).toHaveBeenCalledWith('123456789012345678');
   });
 
   it('should handle when no activation exists', async () => {

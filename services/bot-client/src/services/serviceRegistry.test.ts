@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ChannelActivationCacheInvalidationService } from '@tzurot/cache-invalidation';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -46,13 +45,6 @@ describe('serviceRegistry', () => {
       );
     });
 
-    it('should throw when getting ChannelActivationCacheInvalidationService before registration', async () => {
-      const { getChannelActivationCacheInvalidationService } = await import('./serviceRegistry.js');
-      expect(() => getChannelActivationCacheInvalidationService()).toThrow(
-        'ChannelActivationCacheInvalidationService not registered. Call registerServices() first.'
-      );
-    });
-
     it('should throw when getting MessageContextBuilder before registration', async () => {
       const { getMessageContextBuilder } = await import('./serviceRegistry.js');
       expect(() => getMessageContextBuilder()).toThrow(
@@ -84,9 +76,6 @@ describe('serviceRegistry', () => {
     const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
     const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
     const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as IPersonalityLoader;
-    const mockChannelActivationCacheInvalidationService = {
-      invalidateChannel: vi.fn(),
-    } as unknown as ChannelActivationCacheInvalidationService;
     const mockMessageContextBuilder = {
       buildContext: vi.fn(),
     } as unknown as MessageContextBuilder;
@@ -101,7 +90,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
@@ -117,7 +105,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
@@ -133,7 +120,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
@@ -149,32 +135,12 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
       });
 
       expect(getPersonalityLoader()).toBe(mockPersonalityService);
-    });
-
-    it('should return registered ChannelActivationCacheInvalidationService', async () => {
-      const { registerServices, getChannelActivationCacheInvalidationService } =
-        await import('./serviceRegistry.js');
-
-      registerServices({
-        jobTracker: mockJobTracker,
-        webhookManager: mockWebhookManager,
-        personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
-        messageContextBuilder: mockMessageContextBuilder,
-        conversationPersistence: mockConversationPersistence,
-        denylistCache: mockDenylistCache,
-      });
-
-      expect(getChannelActivationCacheInvalidationService()).toBe(
-        mockChannelActivationCacheInvalidationService
-      );
     });
 
     it('should return registered MessageContextBuilder', async () => {
@@ -184,7 +150,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
@@ -200,7 +165,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
@@ -216,7 +180,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
         denylistCache: mockDenylistCache,
@@ -236,7 +199,6 @@ describe('serviceRegistry', () => {
         jobTracker: { track: vi.fn() } as unknown as JobTracker,
         webhookManager: undefined,
         personalityService: undefined,
-        channelActivationCacheInvalidationService: undefined,
         messageContextBuilder: undefined,
         conversationPersistence: undefined,
         denylistCache: undefined,
@@ -244,7 +206,6 @@ describe('serviceRegistry', () => {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
         personalityService: IPersonalityLoader;
-        channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
         messageContextBuilder: MessageContextBuilder;
         conversationPersistence: ConversationPersistence;
         denylistCache: DenylistCache;
@@ -264,9 +225,6 @@ describe('serviceRegistry', () => {
       const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
       const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
       const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as IPersonalityLoader;
-      const mockChannelActivationCacheInvalidationService = {
-        invalidateChannel: vi.fn(),
-      } as unknown as ChannelActivationCacheInvalidationService;
       const localMockMessageContextBuilder = {
         buildContext: vi.fn(),
       } as unknown as MessageContextBuilder;
@@ -282,7 +240,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: localMockMessageContextBuilder,
         conversationPersistence: localMockConversationPersistence,
         denylistCache: localMockDenylistCache,

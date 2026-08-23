@@ -15,8 +15,10 @@
 import type { Redis } from 'ioredis';
 import {
   ApiKeyCacheInvalidationService,
+  ChannelActivationCacheInvalidationService,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  PersonaCacheInvalidationService,
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
   UserCacheInvalidationService,
@@ -33,6 +35,8 @@ export interface ChannelInvalidationServices {
   sttResolverCacheInvalidation: SttResolverCacheInvalidationService;
   denylistInvalidation: DenylistCacheInvalidationService;
   userCacheInvalidation: UserCacheInvalidationService;
+  personaCacheInvalidation: PersonaCacheInvalidationService;
+  channelActivationInvalidation: ChannelActivationCacheInvalidationService;
 }
 
 /** Build every publish-side invalidation service over one Redis client. */
@@ -44,6 +48,8 @@ export function createChannelInvalidationServices(cacheRedis: Redis): ChannelInv
     sttResolverCacheInvalidation: new SttResolverCacheInvalidationService(cacheRedis),
     denylistInvalidation: new DenylistCacheInvalidationService(cacheRedis),
     userCacheInvalidation: new UserCacheInvalidationService(cacheRedis),
+    personaCacheInvalidation: new PersonaCacheInvalidationService(cacheRedis),
+    channelActivationInvalidation: new ChannelActivationCacheInvalidationService(cacheRedis),
   };
   logger.info({ channels: Object.keys(services) }, 'Cache invalidation publishers initialized');
   return services;

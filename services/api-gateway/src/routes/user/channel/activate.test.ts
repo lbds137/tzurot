@@ -62,12 +62,26 @@ import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-t
 describe('POST /api/user/channel/activate', () => {
   const mockPrisma = createMockPrisma();
 
+  /**
+   * Stand-in for the broadcast half of the invalidation. `RouteDeps` types this
+   * as the real `ChannelActivationCacheInvalidationService`, so the cast keeps
+   * the seam asserted without constructing a Redis-backed service.
+   */
+  function createChannelActivationInvalidation(): { invalidateChannel: ReturnType<typeof vi.fn> } {
+    return { invalidateChannel: vi.fn().mockResolvedValue(undefined) };
+  }
+
   /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
-  const getActivateHandler = (): ReturnType<typeof asRouteHandler> =>
+  const getActivateHandler = (
+    channelActivationInvalidation?: ReturnType<typeof createChannelActivationInvalidation>
+  ): ReturnType<typeof asRouteHandler> =>
     asRouteHandler(
       handleActivateChannel({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
+        channelActivationInvalidation: channelActivationInvalidation as unknown as Parameters<
+          typeof handleActivateChannel
+        >[0]['channelActivationInvalidation'],
       })
     );
 
@@ -247,5 +261,44 @@ describe('POST /api/user/channel/activate', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  describe('channel-activation cache invalidation', () => {
+    it('broadcasts the activated channelId', async () => {
+      const personality = createMockPersonality({ isPublic: true });
+      mockPrisma.personality.findUnique.mockResolvedValue(personality);
+      mockPrisma.channelSettings.upsert.mockResolvedValue(createMockActivation());
+      const channelActivationInvalidation = createChannelActivationInvalidation();
+
+      const handler = getActivateHandler(channelActivationInvalidation);
+      const { req, res } = createMockReqRes({
+        channelId: MOCK_DISCORD_USER_ID,
+        personalitySlug: 'test-character',
+        guildId: '987654321098765432',
+      });
+      await handler(req, res);
+
+      expect(channelActivationInvalidation.invalidateChannel).toHaveBeenCalledWith(
+        MOCK_DISCORD_USER_ID
+      );
+    });
+
+    it('still succeeds when the broadcast rejects', async () => {
+      const personality = createMockPersonality({ isPublic: true });
+      mockPrisma.personality.findUnique.mockResolvedValue(personality);
+      mockPrisma.channelSettings.upsert.mockResolvedValue(createMockActivation());
+      const channelActivationInvalidation = createChannelActivationInvalidation();
+      channelActivationInvalidation.invalidateChannel.mockRejectedValue(new Error('redis down'));
+
+      const handler = getActivateHandler(channelActivationInvalidation);
+      const { req, res } = createMockReqRes({
+        channelId: MOCK_DISCORD_USER_ID,
+        personalitySlug: 'test-character',
+        guildId: '987654321098765432',
+      });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
   });
 });

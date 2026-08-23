@@ -9,7 +9,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PersonaResolver } from './PersonaResolver.js';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { PersonaResolver, getOrCreatePersonaResolver } from './PersonaResolver.js';
 
 // Mock Prisma client
 const mockPrismaClient = {
@@ -656,5 +657,25 @@ describe('PersonaResolver', () => {
       await resolverWithTtl.resolve('user-1', 'personality-1');
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('getOrCreatePersonaResolver registry', () => {
+  // Same load-bearing invariants as `getOrCreateUserService`: the resolution
+  // cache lives on the instance, so every caller sharing a PrismaClient MUST
+  // get the SAME resolver (or a cache-invalidation event on one instance
+  // leaves another instance's cache stale), and distinct PrismaClients MUST
+  // get distinct resolvers (so short-lived test fixtures don't pollute each
+  // other's caches).
+
+  it('returns the same PersonaResolver instance for the same PrismaClient', () => {
+    const prisma = {} as unknown as PrismaClient;
+    expect(getOrCreatePersonaResolver(prisma)).toBe(getOrCreatePersonaResolver(prisma));
+  });
+
+  it('returns distinct PersonaResolver instances for distinct PrismaClients', () => {
+    const prisma1 = {} as unknown as PrismaClient;
+    const prisma2 = {} as unknown as PrismaClient;
+    expect(getOrCreatePersonaResolver(prisma1)).not.toBe(getOrCreatePersonaResolver(prisma2));
   });
 });

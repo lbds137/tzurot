@@ -24,7 +24,11 @@ import type {
   ParticipantInfo,
   ParticipantPersona,
 } from './ConversationalRAGTypes.js';
-import { PersonaResolver, type PersonaPromptData } from '@tzurot/identity';
+import {
+  getOrCreatePersonaResolver,
+  type PersonaPromptData,
+  type PersonaResolver,
+} from '@tzurot/identity';
 
 const logger = createLogger('MemoryRetriever');
 
@@ -124,8 +128,10 @@ export class MemoryRetriever {
     freshChecker?: FreshModeChecker
   ) {
     this.memoryManager = memoryManager;
-    // Create default PersonaResolver if not provided (for backwards compatibility)
-    this.personaResolver = personaResolver ?? new PersonaResolver(prisma);
+    // When not provided, fall back to the process-shared, invalidation-subscribed
+    // instance rather than a private one — a locally-constructed resolver would
+    // never hear the persona-cache pub/sub events and could serve stale data.
+    this.personaResolver = personaResolver ?? getOrCreatePersonaResolver(prisma);
     this.freshChecker = freshChecker;
   }
 

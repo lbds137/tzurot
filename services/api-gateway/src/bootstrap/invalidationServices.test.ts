@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import {
   ApiKeyCacheInvalidationService,
+  ChannelActivationCacheInvalidationService,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  PersonaCacheInvalidationService,
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
   UserCacheInvalidationService,
@@ -42,6 +44,10 @@ describe('createChannelInvalidationServices', () => {
     // The provisioning-cache publisher the set-default-persona route needs; a
     // missing entry here leaves that route's broadcast silently undefined.
     expect(services.userCacheInvalidation).toBeInstanceOf(UserCacheInvalidationService);
+    expect(services.personaCacheInvalidation).toBeInstanceOf(PersonaCacheInvalidationService);
+    expect(services.channelActivationInvalidation).toBeInstanceOf(
+      ChannelActivationCacheInvalidationService
+    );
   });
 
   it('returns independent instances per call', () => {
@@ -49,5 +55,7 @@ describe('createChannelInvalidationServices', () => {
     const second = createChannelInvalidationServices(createFakeRedis());
 
     expect(first.userCacheInvalidation).not.toBe(second.userCacheInvalidation);
+    expect(first.personaCacheInvalidation).not.toBe(second.personaCacheInvalidation);
+    expect(first.channelActivationInvalidation).not.toBe(second.channelActivationInvalidation);
   });
 });

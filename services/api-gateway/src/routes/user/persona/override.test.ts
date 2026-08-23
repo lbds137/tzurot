@@ -58,6 +58,30 @@ import {
 describe('persona override routes', () => {
   const mockPrisma = createMockPrisma();
 
+  /** The id `createMockReqRes` (via `createProvisionedMockReqRes`) stamps as `req.userId`. */
+  const DISCORD_ID = 'discord-user-123';
+
+  /**
+   * Stand-in for the broadcast half of the invalidation. `RouteDeps` types this
+   * as the real `PersonaCacheInvalidationService`, so the cast keeps the seam
+   * asserted without constructing a Redis-backed service.
+   */
+  function createPersonaCacheInvalidation(): { invalidateUserPersona: ReturnType<typeof vi.fn> } {
+    return { invalidateUserPersona: vi.fn().mockResolvedValue(undefined) };
+  }
+
+  function buildDeps(
+    personaCacheInvalidation?: ReturnType<typeof createPersonaCacheInvalidation>
+  ): Parameters<typeof handleSetPersonaOverride>[0] {
+    return {
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+      personaCacheInvalidation: personaCacheInvalidation as unknown as Parameters<
+        typeof handleSetPersonaOverride
+      >[0]['personaCacheInvalidation'],
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue(mockUser);
@@ -260,7 +284,7 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
         id: 'config-1',
-        personaId: null,
+        personaId: MOCK_PERSONA_ID_2,
         llmConfigId: null,
         visionConfigId: null,
         ttsConfigId: null,
@@ -555,6 +579,160 @@ describe('persona override routes', () => {
       const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
       await expect(handler(req, res, vi.fn())).rejects.toThrow('write conflict');
       expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('persona-cache invalidation', () => {
+    it('broadcasts on set', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Work Persona',
+        preferredName: 'Worker',
+      });
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleSetPersonaOverride(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes(
+        { personaId: MOCK_PERSONA_ID_2 },
+        { personalitySlug: 'lilith' }
+      );
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('broadcasts when a real override is cleared', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        personaId: MOCK_PERSONA_ID_2,
+        llmConfigId: null,
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: null,
+      });
+      mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
+      mockPrisma.userPersonalityConfig.deleteMany.mockResolvedValue({ count: 1 });
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleClearPersonaOverride(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('does NOT broadcast when the row exists but the persona slice is already null', async () => {
+      // A row can carry only LLM/TTS/vision overrides — nulling an
+      // already-null persona slice changes nothing the resolver reads.
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith',
+      });
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        personaId: null,
+        llmConfigId: 'llm-1',
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: null,
+      });
+      mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
+      mockPrisma.userPersonalityConfig.deleteMany.mockResolvedValue({ count: 0 });
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleClearPersonaOverride(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast on the no-op clear path (no override existed)', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith',
+      });
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleClearPersonaOverride(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts on create-and-set-as-override', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+      mockPrisma.persona.create.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Override Persona',
+        preferredName: 'Pref',
+        description: 'A test description',
+        content: 'Persona content for testing.',
+        pronouns: 'they/them',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleCreatePersonaOverride(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes(
+        {
+          name: 'Override Persona',
+          content: 'Persona content for testing.',
+          preferredName: 'Pref',
+          description: 'A test description',
+          pronouns: 'they/them',
+        },
+        { personalityId: MOCK_PERSONALITY_ID }
+      );
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('still succeeds when the broadcast rejects', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Work Persona',
+        preferredName: 'Worker',
+      });
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+      personaCacheInvalidation.invalidateUserPersona.mockRejectedValue(new Error('redis down'));
+
+      const handler = handleSetPersonaOverride(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes(
+        { personaId: MOCK_PERSONA_ID_2 },
+        { personalitySlug: 'lilith' }
+      );
+      await handler(req, res, vi.fn());
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
   });
 });

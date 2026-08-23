@@ -14,7 +14,11 @@
 
 export { getOrCreateUserService, UserService } from './UserService.js';
 export { resolveRoutingContext } from './RoutingContextResolver.js';
-export { type PersonaPromptData, PersonaResolver } from './resolvers/index.js';
+export {
+  type PersonaPromptData,
+  PersonaResolver,
+  getOrCreatePersonaResolver,
+} from './resolvers/index.js';
 export { PersonalityService } from './personality/index.js';
 // Canonical public avatar-URL derivation (PUBLIC_GATEWAY_URL + cache-busting
 // timestamp). Exported so gateway responses and webhook payloads share ONE

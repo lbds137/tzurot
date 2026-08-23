@@ -37,6 +37,22 @@ import { pruneEmptyPersonalityConfig } from '../pruneEmptyPersonalityConfig.js';
 const logger = createLogger('user-persona-override');
 
 /**
+ * Broadcast a persona-cache eviction for this user. Swallowed on failure: the
+ * write already committed, so the request must still succeed. Blast radius of a
+ * failed broadcast is one resolver TTL of staleness in other processes.
+ */
+async function broadcastPersonaInvalidation(deps: RouteDeps, discordId: string): Promise<void> {
+  if (deps.personaCacheInvalidation === undefined) {
+    return;
+  }
+  try {
+    await deps.personaCacheInvalidation.invalidateUserPersona(discordId);
+  } catch (error) {
+    logger.warn({ err: error }, 'Persona cache broadcast failed');
+  }
+}
+
+/**
  * Validate slug and look up personality. Sends error response and returns null on failure.
  */
 async function resolvePersonalityBySlug(
@@ -167,6 +183,8 @@ export const handleSetPersonaOverride = (deps: RouteDeps): RequestHandler => {
       'Set persona override'
     );
 
+    await broadcastPersonaInvalidation(deps, req.userId);
+
     sendCustomSuccess(res, {
       success: true,
       personality: {
@@ -195,7 +213,7 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
 
     const existing = await prisma.userPersonalityConfig.findUnique({
       where: { userId_personalityId: { userId: user.id, personalityId: personality.id } },
-      select: { id: true },
+      select: { id: true, personaId: true },
     });
 
     const personalityResponse = {
@@ -224,6 +242,14 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
     await pruneEmptyPersonalityConfig(prisma, existing.id);
 
     logger.info({ userId: user.id, personalityId: personality.id }, 'Cleared persona override');
+
+    // A row can exist for OTHER override slices (LLM/TTS/vision) with the
+    // persona slice already null — nulling null changes nothing the resolver
+    // reads, so only a real persona-slice clear broadcasts.
+    if (existing.personaId !== null) {
+      await broadcastPersonaInvalidation(deps, req.userId);
+    }
+
     sendCustomSuccess(res, { success: true, personality: personalityResponse, hadOverride: true });
   });
 };
@@ -313,6 +339,8 @@ export const handleCreatePersonaOverride = (deps: RouteDeps): RequestHandler => 
       { userId: user.id, personalityId: personality.id, personaId: created.id },
       'Created persona and set as override'
     );
+
+    await broadcastPersonaInvalidation(deps, req.userId);
 
     sendCustomSuccess(
       res,

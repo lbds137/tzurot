@@ -155,10 +155,7 @@ const mockInvalidateUser = vi.fn();
 const mockClearUserCache = vi.fn();
 vi.mock('@tzurot/identity', () => ({
   PersonalityService: class {},
-  PersonaResolver: class {
-    clearCache = mockPersonaResolver.clearCache;
-    invalidateUserCache = mockPersonaResolver.invalidateUserCache;
-  },
+  getOrCreatePersonaResolver: () => mockPersonaResolver,
   getOrCreateUserService: () => ({
     invalidateUser: mockInvalidateUser,
     clearCache: mockClearUserCache,

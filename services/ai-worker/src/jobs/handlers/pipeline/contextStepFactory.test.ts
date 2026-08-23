@@ -42,7 +42,7 @@ vi.mock('./steps/ContextStep.js', () => ({
 
 vi.mock('@tzurot/identity', () => ({
   getOrCreateUserService: vi.fn(() => ({ tag: 'user-service' })),
-  PersonaResolver: class {},
+  getOrCreatePersonaResolver: vi.fn(() => ({ tag: 'persona-resolver' })),
 }));
 
 describe('buildContextStep', () => {
@@ -92,5 +92,17 @@ describe('buildContextStep', () => {
 
     const [deps] = assemblerCtor.mock.calls[0] as [{ userService: unknown }];
     expect(deps.userService).toEqual({ tag: 'user-service' });
+  });
+
+  it('resolves the persona resolver through the shared cache, not a fresh instance', () => {
+    // Same drift class as the user-service case above: the resolution cache
+    // lives on the PersonaResolver instance, so this pipeline must reach the
+    // one the invalidation subscriber evicts.
+    assemblerCtor.mockClear();
+
+    buildContextStep({ tag: 'prisma' } as never);
+
+    const [deps] = assemblerCtor.mock.calls[0] as [{ personaResolver: unknown }];
+    expect(deps.personaResolver).toEqual({ tag: 'persona-resolver' });
   });
 });

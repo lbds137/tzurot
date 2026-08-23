@@ -73,6 +73,20 @@ export const handleSetPersonaDefault = (deps: RouteDeps): RequestHandler => {
           logger.warn({ err: error }, 'Default-persona user-cache broadcast failed');
         }
       }
+      //   (3) The PERSONA resolver cache is a separate cache on a separate
+      //       channel: PersonaResolver reads `user.defaultPersona` through its
+      //       own per-(user, personality) TTLCache, so evicting the
+      //       provisioning cache above does nothing for it. A default change
+      //       is a persona-input write — broadcast on that channel too.
+      if (deps.personaCacheInvalidation !== undefined) {
+        try {
+          await deps.personaCacheInvalidation.invalidateUserPersona(req.userId);
+        } catch (error) {
+          // Swallowed for the same reason as (2); blast radius is one
+          // resolver TTL of staleness in subscribed processes.
+          logger.warn({ err: error }, 'Default-persona persona-cache broadcast failed');
+        }
+      }
     }
 
     logger.info({ userId: user.id, personaId: id, alreadyDefault }, 'Set default persona');

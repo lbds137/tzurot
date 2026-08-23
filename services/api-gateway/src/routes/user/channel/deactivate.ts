@@ -22,6 +22,25 @@ import type { RouteDeps } from '../../routeDeps.js';
 const logger = createLogger('channel-deactivate');
 
 /**
+ * Broadcast a channel-activation cache eviction. Swallowed on failure: the
+ * write already committed, so the request must still succeed. Blast radius of
+ * a failed broadcast is one resolver TTL of staleness in other processes.
+ */
+async function broadcastChannelActivationInvalidation(
+  deps: RouteDeps,
+  channelId: string
+): Promise<void> {
+  if (deps.channelActivationInvalidation === undefined) {
+    return;
+  }
+  try {
+    await deps.channelActivationInvalidation.invalidateChannel(channelId);
+  } catch (error) {
+    logger.warn({ err: error }, 'Channel-activation cache broadcast failed');
+  }
+}
+
+/**
  * DELETE /api/user/channel/deactivate — clear activated personality on a channel.
  */
 export const handleDeactivateChannel = (deps: RouteDeps): RequestHandler => {
@@ -77,6 +96,8 @@ export const handleDeactivateChannel = (deps: RouteDeps): RequestHandler => {
       },
       'Deactivated personality from channel'
     );
+
+    await broadcastChannelActivationInvalidation(deps, channelId);
 
     // Build response matching schema
     const response = {
