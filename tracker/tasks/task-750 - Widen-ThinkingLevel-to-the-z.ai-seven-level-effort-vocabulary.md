@@ -1,10 +1,10 @@
 ---
 id: TASK-750
 title: Add xhigh to ThinkingLevel - the one z.ai effort level we do not expose
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 18:49'
-updated_date: '2026-08-23 18:50'
+updated_date: '2026-08-23 20:27'
 labels:
   - 'area:ai-worker'
   - 'size:S'
