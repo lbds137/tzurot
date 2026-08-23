@@ -24,5 +24,7 @@ Severity is LOW today because every PersonaResolver is constructed bare -> BaseC
 
 Fix shape (recommended): publish PersonaCacheInvalidationService from the persona write routes (mirror the stt/tts/llm sibling pattern via a RouteDeps field) AND consolidate ai-worker onto the one subscribed resolver instance; alternatively delete the dead subscription + its misleading log line. Either way the current half-wired state is the worst option.
 
+Member (from the PR #2190 review, observation 1): AccountEraserService.ts:115 constructs a fresh UserCacheInvalidationService per call while the set-default route uses the injected singleton from createChannelInvalidationServices - unify AccountEraserService onto the injected pattern in the same wiring pass.
+
 Acceptance: either every persona-input write publishes and one shared subscribed resolver serves the pipeline, or the subscription is gone; no log line claims invalidation that cannot fire.
 <!-- SECTION:DESCRIPTION:END -->
