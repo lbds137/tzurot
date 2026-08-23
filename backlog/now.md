@@ -32,14 +32,15 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 _Drafted at the beta.206 cut (2026-08-23). beta.206 shipped all three of its planned sub-themes plus the TASK-739 rider — 25 PRs / 23 runtime / 218 files, cut via the documented FF path._
 
-- **Sub-theme 1 — doc-12 observability (the headline)**: the "incidents reach the owner before the tooling" layer, first in line per the beta.206 plan's own sketch. Starts with a scoping pass over doc-12; the realMessages prod flip's cache-cost read (TASK-685, gated on the flip happening) feeds it.
+- **Sub-theme 1 — doc-12 observability (the headline)**: first slice = **P0.1 `command_events` table + P0.2 error-channel reporter** per the 2026-08-12 brief in doc-12 (scoping survey 2026-08-23 found the brief pre-scopes this; no separate scoping pass needed), with the **privacy-policy update riding the same release** (the brief's fail-closed rule). Four owner decisions answered at P0.1 build time: retention window, `guild_id` handling, alert-channel location, export raw-vs-summarized. **TASK-685** (prod per-stream `cache:prefix-diff` re-measure — unblocked by the realMessages flip; no PR) feeds the cost picture.
 - **Sub-theme 2 — cache-invalidation hygiene batch** (from the TASK-739 class sweep + the #2190 review): TASK-740 (persona channel has no publisher + fragmented resolver instances; includes the AccountEraser unification member) · TASK-741 (activation invalidation publishes from the caller, not the writer) · TASK-742 (db-sync bulk user writes skip invalidation). One themed PR or two, same wiring pattern throughout.
+- **Survey additions (owner-approved 2026-08-23, all four)**: **TASK-713** (reply-quote `-#` footer leak — last open member of the footer class now TASK-708 is closed; case-3 standalone-footer decision inside) · **TASK-639** (prod model catalog on pattern-fallback — observability-theme fix that unblocks GLM hardening (b)) · **TASK-685** (above) · **TASK-616** (premigrate `apply-after-deploy` marker — tooling; lands best before this train's own migration).
 - **Riders/small**: TASK-43 fix (resolve forwarded mentions via `snapshot.mentions.users`; paired debug commit removes the probe) · TASK-736 (reasoning-view fence neutralizer) · TASK-737 (vision media_not_found on expired CDN URLs) · TASK-738 (Messages view cosmetics, low) · TASK-732 (orchestration retrospective / skill-table update).
 - **In already**: nothing yet.
-- **Waiting on**: doc-12 scoping pass (nothing else blocks — the batch and riders are `state:ready`). The two prod flips are owner-timed post-deploy events, not release gates.
-- **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue) · TASK-730 (`/inspect` redaction — owner call pending) · the standing watches (floor-promotion, GLM (b)) — those clear on log signals.
-- **Deploy notes**: nothing premigrate-worthy filed yet.
-- **Cut when**: doc-12's first shippable slice + the hygiene batch land — or the backstops fire (~10 runtime PRs / ~250 files, `pnpm ops release:range` for live values).
+- **Waiting on**: nothing — every item is `state:ready` (the doc-12 owner questions are build-time decisions, not gates). The two prod flips are done and verified.
+- **Explicitly NOT in**: memory overhaul (doc-8, parked) · doc-64/65/66/67 idea docs (council queue) · TASK-730 (`/inspect` redaction — owner call pending) · the standing watches (floor-promotion, GLM (b) until 639 lands) — those clear on log signals.
+- **Deploy notes**: P0.1 brings one **additive migration** (`command_events`) → `release:premigrate` before the merge, standard order.
+- **Cut when**: the doc-12 P0 slice + the hygiene batch land — or the backstops fire (~10 runtime PRs / ~250 files, `pnpm ops release:range` for live values). Scale check at approval: draft + additions ≈ 8–9 runtime PRs — at the backstop; nothing else joins this train.
 - **vNext+1 sketch**: whichever of the council-queue idea docs the owner picks next, or doc-17 Phase 2's flip-consequent follow-ups (TASK-725 flag-on 3× render) if the prod flip surfaces cost pressure.
 
 ### 🎯 Current Focus (max 3)
@@ -56,7 +57,5 @@ _Small tasks that can be done between major features. Good for momentum._
 
 _New items land here for same-session capture. Route each to its home — a tracker task (`pnpm tracker task create`, terse one-liner), a tracker idea doc (`pnpm tracker doc create`, speculative feature), a theme doc + `cold/queue.md` bullet (multi-phase epic), or Current Focus / Quick Wins — when you get to it. An empty Untriaged is the goal._
 
-_(2026-07-17: the prod facts-quality feedback item routed to tracker `doc-8` § design inputs — it's 1b acceptance criteria for the parked memory epic.)_
-
-- ✨ `[FEAT]` **Slash chat turns should mirror raw tagging in activated channels** — owner directive 2026-07-21 (Wave-3 smoke): `/chat`/`/random`/`/chime-in` should "behave as similarly as possible to regular tagging," i.e. the channel's activated character replies to a slash turn too (today the bot-authored echo is dropped by `BotMessageFilter`, so activation never fires — one reply instead of the raw-message two). Needs scoping in the shared turn engine (`services/character/characterTurn.ts`): dedup when the invoked character IS the activated one, reply ordering, second model call per turn. Behavior change only — no command-shape change, does NOT need the breaking batch.
+_(2026-07-17: the prod facts-quality feedback item routed to tracker `doc-8` § design inputs — it's 1b acceptance criteria for the parked memory epic. 2026-08-23: the slash-chat-mirrors-tagging directive routed to idea doc `doc-82` — Untriaged is empty.)_
 
