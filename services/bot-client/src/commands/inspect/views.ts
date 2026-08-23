@@ -244,6 +244,10 @@ export function buildReasoningView(
  * @param emptyMessage Copy for the no-trace case; callers differ because
  *   "this request" (a diagnostic log) and "this message" (a history row) are
  *   not the same thing to a reader.
+ *
+ * The one transform applied is `escapeFenceBreaks` (zero-width spaces inside
+ * ``` runs — visually intact), so an unbalanced fence in the trace can't leak
+ * into the surrounding chunked-message formatting.
  */
 export function buildReasoningTextView(
   thinking: string | null | undefined,
@@ -258,7 +262,7 @@ export function buildReasoningTextView(
 
   return {
     chunkedText: {
-      text: `## Reasoning\n\n${thinking}`,
+      text: `## Reasoning\n\n${escapeFenceBreaks(thinking)}`,
       continuedHeader: '_(reasoning continued)_\n',
       // Outlier guard, not the normal reading path: realistic reasoning fits
       // inline well under this, and only a pathological dump trips the tail
