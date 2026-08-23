@@ -424,4 +424,45 @@ describe('vision fallback chain (wiring / seam test)', () => {
     expect(invokedModels[1]).toBe('fallback/model');
     expect(invokedModels.length).toBeGreaterThanOrEqual(3);
   });
+
+  // SCENARIO 5 — pins the ACCEPTED double-read in the BYOK reorder probe.
+  // Keyless user + mixed free/paid fallback tail + failing primary: tier 0's REAL
+  // resolveVisionAuth already asked tryResolveUserKey for (user, OpenRouter) and the
+  // negative wasn't cached, then maybeReorderFallbacks probes the SAME pair once more.
+  // The exact call count is the pin: 3 per-tier resolutions + 1 reorder probe = 4. If a
+  // future refactor threads tier 0's auth result into the probe, this drops to 3 — update
+  // the acceptance comment in describeImageWithFallback.ts alongside this assertion.
+  it('keyless user, mixed tail: the reorder probe re-reads the wallet once beyond per-tier resolution', async () => {
+    const mixedTailPersonality: LoadedPersonality = {
+      ...personality,
+      // A free route in the stamped fallbacks makes the tail mixed (the composed floor —
+      // the fallbackVisionModel setting — is paid), so the reorder gate probes the wallet.
+      visionFallbackModels: ['openrouter/free'],
+    };
+    // Keyless: every wallet lookup misses; per-tier resolution degrades to the broad free
+    // fallback (system key on the free floor), and the reorder probe finds no key either.
+    mockApiKeyResolver.tryResolveUserKey.mockResolvedValue(null);
+    // Every tier fails retryable so the walk advances past tier 0 into the reorder point
+    // and on to exhaustion — the outcome is irrelevant here, only the resolver traffic.
+    mockCreateChatModel.mockImplementation(({ modelName }: { modelName: string }) => ({
+      model: { generate: (): Promise<never> => Promise.reject(new Error('429 rate limited')) },
+      modelName,
+    }));
+
+    const results = await processAttachments([imageAttachment], mixedTailPersonality, {
+      isGuestMode: false,
+      visionAuth: buildVisionAuth(),
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].description.startsWith('[Image')).toBe(true);
+
+    // Every lookup targeted the same (user, OpenRouter) pair: all three composed tiers
+    // are OpenRouter-routed, and the probe asks for OpenRouter by construction.
+    for (const call of mockApiKeyResolver.tryResolveUserKey.mock.calls) {
+      expect(call).toEqual(['user-1', AIProvider.OpenRouter]);
+    }
+    // THE PIN: 3 per-tier resolveVisionAuth lookups + exactly 1 reorder-probe lookup.
+    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(4);
+  });
 });
