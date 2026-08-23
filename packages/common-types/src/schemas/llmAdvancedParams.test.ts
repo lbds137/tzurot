@@ -109,13 +109,13 @@ describe('LLM Advanced Params Schema', () => {
 
   describe('ThinkingParamsSchema', () => {
     it('should accept every canonical level', () => {
-      for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'max'] as const) {
+      for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
         expect(ThinkingParamsSchema.parse({ thinking: level })).toEqual({ thinking: level });
       }
     });
 
     it('should reject the retired effort names', () => {
-      expect(() => ThinkingParamsSchema.parse({ thinking: 'xhigh' })).toThrow();
+      // xhigh is NOT here: it graduated from retired-legacy to canonical level.
       expect(() => ThinkingParamsSchema.parse({ thinking: 'none' })).toThrow();
       expect(() => ThinkingParamsSchema.parse({ thinking: '' })).toThrow();
     });
@@ -235,7 +235,7 @@ describe('LLM Advanced Params Schema', () => {
     // like it had vanished from the dashboard and /inspect.
     it('should upgrade a stored legacy reasoning object instead of stripping it', () => {
       expect(safeValidateAdvancedParams({ reasoning: { effort: 'xhigh' } })).toEqual({
-        thinking: 'max',
+        thinking: 'xhigh',
       });
       expect(safeValidateAdvancedParams({ reasoning: { enabled: false } })).toEqual({
         thinking: 'off',
@@ -253,12 +253,18 @@ describe('LLM Advanced Params Schema', () => {
   describe('upgradeLegacyReasoningShape', () => {
     // Every row here is also an arm of the SQL CASE in
     // prisma/migrations/20260814120000_collapse_reasoning_to_thinking/migration.sql.
-    // The two mappings must agree; change them together.
+    // The two mappings must agree — with one recorded divergence: the applied
+    // migration predates the canonical xhigh level and mapped stored xhigh rows
+    // to max; the TS half maps exactly now that the level exists.
     const MAPPING: [string, Record<string, unknown>, string | undefined][] = [
       ['enabled:false wins over any effort', { enabled: false, effort: 'high' }, 'off'],
       ['enabled:false alone', { enabled: false }, 'off'],
       ['effort none', { effort: 'none' }, 'off'],
-      ['effort xhigh collapses to max', { effort: 'xhigh' }, 'max'],
+      [
+        'effort xhigh maps exactly (SQL half mapped stored rows to max)',
+        { effort: 'xhigh' },
+        'xhigh',
+      ],
       ['effort high', { effort: 'high' }, 'high'],
       ['effort medium', { effort: 'medium' }, 'medium'],
       ['effort low', { effort: 'low' }, 'low'],
@@ -334,7 +340,7 @@ describe('LLM Advanced Params Schema', () => {
         temperature: 0.7,
         reasoning: { effort: 'xhigh', max_tokens: 16000 },
       });
-      expect(parsed).toEqual({ temperature: 0.7, thinking: 'max' });
+      expect(parsed).toEqual({ temperature: 0.7, thinking: 'xhigh' });
     });
 
     it('leaves a canonical payload alone', () => {

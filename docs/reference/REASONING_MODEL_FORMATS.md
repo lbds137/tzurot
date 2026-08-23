@@ -1,7 +1,7 @@
 # Reasoning Model Formats Reference
 
-> **Last Updated**: 2026-07-28
-> **Version**: v3.0.0-beta.182
+> **Last Updated**: 2026-08-23
+> **Version**: v3.0.0-beta.206
 
 This document explains how different AI models expose their reasoning/thinking process and how Tzurot extracts and displays this content.
 
@@ -130,7 +130,7 @@ To receive reasoning content from a model, set the canonical thinking level on y
 }
 ```
 
-**Levels:** `off`, `minimal`, `low`, `medium`, `high`, `max`
+**Levels:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`
 
 **Absent is not `off`.** Omitting `thinking` sends nothing and takes the provider's own default; `"off"` explicitly asks the provider to disable reasoning.
 

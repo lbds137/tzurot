@@ -53,6 +53,7 @@ vi.mock('@tzurot/common-types/constants/ai', async () => {
       MAX_TOKENS: 4096,
       REASONING_MODEL_MAX_TOKENS: {
         max: 65536,
+        xhigh: 49152,
         high: 32768,
         medium: 16384,
         low: 8192,
@@ -443,6 +444,7 @@ describe('ModelFactory', () => {
       ['low', 'low'],
       ['medium', 'medium'],
       ['high', 'high'],
+      ['xhigh', 'xhigh'],
       ['max', 'max'],
     ] as const)('translates thinking=%s to reasoning.effort=%s', (thinking, effort) => {
       createChatModel({ modelName: 'test-model', thinking });
@@ -776,6 +778,20 @@ describe('ModelFactory', () => {
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
       expect(callArgs?.maxTokens).toBe(32768); // Scaled for high effort
+    });
+
+    it('should scale maxTokens for reasoning models with xhigh effort', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'kimi/kimi-k2-thinking',
+        thinking: 'xhigh',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(49152); // Between high (32768) and max (65536)
     });
 
     it('should scale maxTokens for reasoning models with low effort', () => {
@@ -1118,7 +1134,7 @@ describe('ModelFactory', () => {
       return callArgs?.modelKwargs;
     };
 
-    it.each(['minimal', 'low', 'medium', 'high', 'max'] as const)(
+    it.each(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
       'sends z.ai enabled thinking + reasoning_effort=%s',
       thinking => {
         createChatModel(zaiConfig({ thinking }));

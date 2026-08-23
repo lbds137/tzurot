@@ -183,7 +183,7 @@ describe('collectThinkingWarnings', () => {
     });
 
     it('returns nothing for any level on a reasoning-capable model', () => {
-      for (const thinking of ['minimal', 'low', 'medium', 'high', 'max'] as const) {
+      for (const thinking of ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
         expect(
           collectThinkingWarnings({
             thinking,

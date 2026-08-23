@@ -237,8 +237,10 @@ export const reasoningSection: SectionDefinition<FlattenedPresetData> = {
   fields: [
     {
       id: 'thinking',
-      label: 'Thinking (off/minimal/low/medium/high/max)',
-      placeholder: 'medium',
+      // The full enumeration no longer fits Discord's 45-char label cap, so it
+      // lives in the placeholder (100-char cap) instead.
+      label: 'Thinking level',
+      placeholder: 'off / minimal / low / medium / high / xhigh / max',
       required: false,
       style: 'short',
       maxLength: 10,

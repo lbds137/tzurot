@@ -258,6 +258,13 @@ describe('unflattenPresetData', () => {
     expect(advParams.thinking).toBe('medium');
   });
 
+  it('should unflatten the xhigh level (newest enum member, pinned explicitly)', () => {
+    const flat: Partial<FlattenedPresetData> = { thinking: 'xhigh' };
+
+    const advParams = unflattenPresetData(flat).advancedParameters as Record<string, unknown>;
+    expect(advParams.thinking).toBe('xhigh');
+  });
+
   it('should unflatten an explicit off level (off is not absent)', () => {
     const flat: Partial<FlattenedPresetData> = { thinking: 'off' };
 

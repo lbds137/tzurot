@@ -369,7 +369,7 @@ describe('LLM Config API Contract Tests', () => {
         advancedParameters: { temperature: 0.7, reasoning: { effort: 'xhigh' } },
       });
       expect(result.success).toBe(true);
-      expect(result.data?.advancedParameters).toEqual({ temperature: 0.7, thinking: 'max' });
+      expect(result.data?.advancedParameters).toEqual({ temperature: 0.7, thinking: 'xhigh' });
     });
 
     it('should upgrade a legacy reasoning object on update rather than dropping it', () => {
