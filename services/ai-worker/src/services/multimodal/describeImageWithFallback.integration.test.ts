@@ -50,26 +50,33 @@ import { visionDescriptionCache, redisService } from '../../redis.js';
 
 const mockCreateChatModel = vi.mocked(createChatModel);
 
-/** Script the stubbed model client: each call shifts the next behavior. */
+/**
+ * Script the stubbed model client: each call shifts the next behavior.
+ * Stubs `generate` — the seam `invokeModelGuarded` (production code) calls —
+ * wrapping each scripted message in the `LLMResult` shape so the scripted
+ * behaviors keep their per-call meaning.
+ */
 function scriptModelInvocations(
   behaviors: Array<{ reject?: Error; content?: string }>
 ): ReturnType<typeof vi.fn> {
-  const invoke = vi.fn();
+  const generate = vi.fn();
   for (const b of behaviors) {
     if (b.reject !== undefined) {
-      invoke.mockRejectedValueOnce(b.reject);
+      generate.mockRejectedValueOnce(b.reject);
     } else {
-      invoke.mockResolvedValueOnce({ content: b.content ?? 'stub description' });
+      generate.mockResolvedValueOnce({
+        generations: [[{ text: '', message: { content: b.content ?? 'stub description' } }]],
+      });
     }
   }
   mockCreateChatModel.mockImplementation(
     (modelConfig?: { modelName?: string }) =>
       ({
-        model: { invoke },
+        model: { generate },
         modelName: modelConfig?.modelName ?? 'stub-model',
       }) as unknown as ReturnType<typeof createChatModel>
   );
-  return invoke;
+  return generate;
 }
 
 function makePersonality(): LoadedPersonality {
@@ -124,7 +131,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
   it('retryable tier-1 failure advances to tier 2, negative-caches tier 1, positive-caches the winner', async () => {
     const attachment = makeAttachment();
     const personality = makePersonality();
-    const invoke = scriptModelInvocations([
+    const generate = scriptModelInvocations([
       { reject: new Error('429 Too Many Requests: rate limit exceeded') },
       { content: 'a scenic mountain at dusk' },
     ]);
@@ -136,7 +143,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     );
 
     expect(description).toBe('a scenic mountain at dusk');
-    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(generate).toHaveBeenCalledTimes(2);
 
     // The negative-cache entry is keyed by (model, attachment) in REAL Redis —
     // tier 1's failure must be recorded under tier 1's model...
@@ -190,9 +197,9 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     expect(stored).toBe('first-pass description');
 
     // Second pass, same attachment: tier 1 short-circuits on its honored
-    // negative entry (no invoke), tier 2 serves from the positive cache
-    // (no invoke) — the whole request costs zero LLM calls.
-    const invoke = scriptModelInvocations([{ content: 'should never be called' }]);
+    // negative entry (no LLM call), tier 2 serves from the positive cache
+    // (no LLM call) — the whole request costs zero LLM calls.
+    const generate = scriptModelInvocations([{ content: 'should never be called' }]);
     const description = await describeImageWithFallback(
       attachment,
       personality,
@@ -200,13 +207,13 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     );
 
     expect(description).toBe('first-pass description');
-    expect(invoke).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it('a terminate-category failure short-circuits: one LLM call, placeholder, no tier burn', async () => {
     const attachment = makeAttachment();
     const personality = makePersonality();
-    const invoke = scriptModelInvocations([
+    const generate = scriptModelInvocations([
       { reject: new Error('Image rejected: content policy violation — flagged content') },
     ]);
 
@@ -218,7 +225,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
 
     // The image itself is the problem — no other tier would do better, so the
     // loop must NOT spend tier-2/floor calls.
-    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(1);
     expect(description.startsWith('[Image')).toBe(true);
   });
 });

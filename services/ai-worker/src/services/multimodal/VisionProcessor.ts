@@ -24,6 +24,7 @@ import { getFreeVisionFloor } from '../freeFloors.js';
 import { createChatModel } from '../ModelFactory.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
+import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
 import { enterSingleFlight, exitSingleFlight } from './visionSingleFlight.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
@@ -61,11 +62,16 @@ export class VisionModelError extends Error {
  * it and refused, or it's unreadable) — retrying with a different model won't help, so
  * the fallback loop terminates immediately rather than burning tiers/latency/quota.
  *
- * Deliberately a STRICT SUBSET of `LONG_TTL_FAILURE_CATEGORIES`: it excludes
- * `MODEL_NOT_FOUND`, which is attachment-bound for negative-cache-TTL purposes (a missing
- * model won't reappear for THIS attachment on a retry of the SAME model) but is exactly
- * what the fallback loop routes around — a different tier is a different model. The subset
- * invariant (and that `MODEL_NOT_FOUND` is the sole difference) is pinned by a test.
+ * Deliberately a STRICT SUBSET of `LONG_TTL_FAILURE_CATEGORIES`, excluding two members
+ * that are attachment-bound for negative-cache-TTL purposes but are exactly what the
+ * fallback loop routes AROUND rather than terminates on:
+ * - `MODEL_NOT_FOUND` — a missing model won't reappear for THIS attachment on a retry
+ *   of the SAME model, but a different tier is a different model.
+ * - `PROVIDER_CONTENT_REFUSED` — a provider's input filter won't reappear for THIS
+ *   attachment on a retry of the SAME provider, but a different tier is a different
+ *   provider's filter, and lower tiers are observed describing images an upstream
+ *   tier's filter refused.
+ * The subset invariant (and that these two are the sole difference) is pinned by a test.
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant (mirrors LONG_TTL_FAILURE_CATEGORIES). Exported for the fallback loop + the terminate-set/attachment-bound-set invariant test in VisionProcessor.test.ts.
 export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
@@ -299,7 +305,7 @@ async function invokeVisionModel(
   );
 
   try {
-    const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
+    const response = await invokeModelGuarded(model, messages, { timeout: TIMEOUTS.VISION_MODEL });
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
 
@@ -418,6 +424,11 @@ export const LONG_TTL_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Se
   // depicted, not on transient state. Mirrors the LONG cooldown classification in
   // VISION_FAILURE_CACHE_POLICY.
   ApiErrorCategory.CENSORED,
+  // Attachment-bound for THIS provider's input filter (the cache key includes
+  // the model), yet retryable ACROSS tiers — a different tier is a different
+  // provider's filter. Same shape as MODEL_NOT_FOUND above, which is why the
+  // terminate set (below) excludes both.
+  ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
 ]);
 
 /**
@@ -455,6 +466,9 @@ export function buildFailureFallback(
       return `${subject} was shared but couldn't be processed — the vision API key was rejected; it can be fixed with /settings apikey set]`;
     }
     return `${subject} was shared but couldn't be processed right now — the vision service had a temporary problem; it may work again shortly]`;
+  }
+  if (category === ApiErrorCategory.PROVIDER_CONTENT_REFUSED) {
+    return `${subject} was shared, but the vision provider's content filter declined to describe it — you can acknowledge it, but can't see its contents]`;
   }
   if (LONG_TTL_FAILURE_CATEGORIES.has(category)) {
     return `${subject} was shared but couldn't be processed — you can acknowledge it if relevant, but can't see its contents]`;
