@@ -3,9 +3,10 @@ id: TASK-740
 title: >-
   Persona cache-invalidation channel has no publisher and fragmented resolver
   instances
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 03:44'
+updated_date: '2026-08-23 13:35'
 labels:
   - 'area:api-gateway'
   - 'size:M'
