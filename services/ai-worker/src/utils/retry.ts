@@ -230,7 +230,7 @@ async function waitBeforeRetry(ctx: DelayContext): Promise<void> {
  *
  * @example
  * const result = await withRetry(
- *   () => model.invoke(messages),
+ *   () => invokeModelGuarded(model, messages),
  *   {
  *     maxAttempts: 3,
  *     initialDelayMs: 1000,

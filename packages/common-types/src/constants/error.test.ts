@@ -21,7 +21,9 @@ import {
   PERMANENT_ERROR_CATEGORIES,
   TRANSIENT_ERROR_CATEGORIES,
   USER_ERROR_MESSAGES,
+  VISION_FAILURE_CACHE_POLICY,
 } from './error.js';
+import { INTERVALS } from './timing.js';
 
 describe('generateErrorReferenceId', () => {
   it('should generate a non-empty string', () => {
@@ -506,6 +508,24 @@ describe('CREDIT_EXHAUSTION user message', () => {
     );
     expect(result).toContain('<https://openrouter.ai/settings/credits>');
     expect(result).toContain('credit exhaustion'); // category label with underscore replaced
+  });
+});
+
+describe('PROVIDER_CONTENT_REFUSED', () => {
+  it('is a permanent category — same provider retry re-hits the same input filter', () => {
+    expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.PROVIDER_CONTENT_REFUSED)).toBe(true);
+  });
+
+  it('gets a LONG vision negative-cache TTL, matching other attachment-bound categories', () => {
+    expect(
+      VISION_FAILURE_CACHE_POLICY[ApiErrorCategory.PROVIDER_CONTENT_REFUSED].l1TtlSeconds
+    ).toBe(INTERVALS.VISION_FAILURE_TTL_LONG);
+  });
+
+  it('has a non-empty user-facing message', () => {
+    const message = USER_ERROR_MESSAGES[ApiErrorCategory.PROVIDER_CONTENT_REFUSED];
+    expect(typeof message).toBe('string');
+    expect(message.length).toBeGreaterThan(0);
   });
 });
 

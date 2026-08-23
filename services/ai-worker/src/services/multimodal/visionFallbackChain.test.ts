@@ -41,7 +41,7 @@ import { processAttachments } from '../MultimodalProcessor.js';
 import type { ResolveVisionConfigOptions } from './visionAuthResolver.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types/constants/error';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -161,19 +161,23 @@ describe('vision fallback chain (wiring / seam test)', () => {
   }
 
   /**
-   * Build a createChatModel mock whose `invoke` behaves differently per model name.
+   * Build a createChatModel mock whose `generate` behaves differently per model name.
    * `perModel` maps a model name → the invoke implementation for that tier. Any model not
    * in the map rejects with a generic error (so an unexpected tier is loud, not silent).
+   * `generate` is the seam `invokeModelGuarded` (production code) actually calls; wrapping
+   * the per-tier result in the `LLMResult` shape keeps the tier-selection logic identical to
+   * what an `invoke`-shaped implementation would have driven.
    */
   function driveModels(perModel: Record<string, () => Promise<{ content: string }>>): void {
     mockCreateChatModel.mockImplementation(({ modelName }: { modelName: string }) => ({
       model: {
-        invoke: () => {
+        generate: async () => {
           const impl = perModel[modelName];
-          if (impl === undefined) {
-            return Promise.reject(new Error(`unexpected model invoked: ${modelName}`));
-          }
-          return impl();
+          const message =
+            impl === undefined
+              ? await Promise.reject(new Error(`unexpected model invoked: ${modelName}`))
+              : await impl();
+          return { generations: [[{ text: '', message }]] };
         },
       },
       modelName,
@@ -269,10 +273,9 @@ describe('vision fallback chain (wiring / seam test)', () => {
     // as a 3rd tier after the primary + stamped fallback. Fail EVERY tier — the loop walks all of
     // them and only then renders the exhaustion placeholder. `rejectRateLimited` is the default for
     // any model not listed, so the floor tier fails too without hardcoding its (config-derived) name.
-    const rejectRateLimited = (): Promise<{ content: string }> =>
-      Promise.reject(new Error('429 rate limited'));
+    const rejectRateLimited = (): Promise<never> => Promise.reject(new Error('429 rate limited'));
     mockCreateChatModel.mockImplementation(({ modelName }: { modelName: string }) => ({
-      model: { invoke: rejectRateLimited },
+      model: { generate: rejectRateLimited },
       modelName,
     }));
 
@@ -321,5 +324,104 @@ describe('vision fallback chain (wiring / seam test)', () => {
     expect(invokedModels).not.toContain('fallback/model');
     // createChatModel was invoked exactly once — only the primary tier ran.
     expect(mockCreateChatModel).toHaveBeenCalledTimes(1);
+  });
+
+  // SCENARIO 4 — the production-incident shape (Alibaba `data_inspection_failed`, 7da570d8):
+  // primary's provider refuses the image (PROVIDER_CONTENT_REFUSED) → the REAL loop must
+  // ADVANCE rather than terminate; fallback then hits a rate limit (RATE_LIMIT) → advance
+  // again; the composed floor tier answers with an HTTP-200-shaped zero-choices response,
+  // which `invokeModelGuarded` (real, unmocked) turns into a classified EMPTY_RESPONSE
+  // failure instead of a raw TypeError. All three tiers get walked, in order, and the chain
+  // exhausts gracefully — the returned placeholder must carry the LAST attempt's category
+  // (EMPTY_RESPONSE), not the first tier's provider-refusal wording.
+  it('production-incident shape: provider refusal then rate-limit then a zero-choices 200 — all tiers walked, last category wins', async () => {
+    const providerRefusalError = Object.assign(
+      new Error(
+        '400 Provider returned error: data_inspection_failed - Input image data may contain inappropriate content'
+      ),
+      { status: 400 }
+    );
+    const rateLimitError = Object.assign(new Error('429 rate limited'), { status: 429 });
+
+    // Drives classification per-tier by inspecting the error message — this test's whole
+    // point is that the category differs per attempt, which the suite's shared default
+    // (always RATE_LIMIT) can't express.
+    mockParseApiError.mockImplementation((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('data_inspection_failed')) {
+        return {
+          category: ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
+          type: 'PERMANENT',
+          statusCode: 400,
+          shouldRetry: false,
+          technicalMessage: message,
+          referenceId: 'test-ref',
+          requestId: undefined,
+        };
+      }
+      if (message.includes('rate limited')) {
+        return {
+          category: ApiErrorCategory.RATE_LIMIT,
+          type: 'TRANSIENT',
+          statusCode: 429,
+          shouldRetry: true,
+          technicalMessage: message,
+          referenceId: 'test-ref',
+          requestId: undefined,
+        };
+      }
+      if (message === ERROR_MESSAGES.EMPTY_RESPONSE) {
+        return {
+          category: ApiErrorCategory.EMPTY_RESPONSE,
+          type: 'TRANSIENT',
+          statusCode: undefined,
+          shouldRetry: true,
+          technicalMessage: message,
+          referenceId: 'test-ref',
+          requestId: undefined,
+        };
+      }
+      throw new Error(`unexpected error classified in test: ${message}`);
+    });
+
+    mockCreateChatModel.mockImplementation(({ modelName }: { modelName: string }) => ({
+      model: {
+        generate: async () => {
+          if (modelName === 'primary/model') {
+            throw providerRefusalError;
+          }
+          if (modelName === 'fallback/model') {
+            throw rateLimitError;
+          }
+          // The composed floor tier (config-derived name, deliberately not hardcoded):
+          // an HTTP-200-shaped response carrying zero choices.
+          return { generations: [] };
+        },
+      },
+      modelName,
+    }));
+
+    const results = await processAttachments([imageAttachment], personality, {
+      isGuestMode: false,
+      visionAuth: buildVisionAuth(),
+    });
+
+    expect(results).toHaveLength(1);
+    const { description } = results[0];
+
+    // Never throws; always resolves to a placeholder.
+    expect(description.startsWith('[Image')).toBe(true);
+    // The LAST attempt's category (EMPTY_RESPONSE) rendered the generic transient wording,
+    // NOT the first tier's provider-refusal wording.
+    expect(description).not.toContain("vision provider's content filter declined");
+
+    // All three tiers were actually invoked, in order — proves tier 1 ADVANCED (rather than
+    // terminating) past PROVIDER_CONTENT_REFUSED, and tier 2 advanced past RATE_LIMIT.
+    const invokedModels = mockCreateChatModel.mock.calls.map(
+      call => (call[0] as { modelName: string }).modelName
+    );
+    expect(invokedModels[0]).toBe('primary/model');
+    expect(invokedModels[1]).toBe('fallback/model');
+    expect(invokedModels.length).toBeGreaterThanOrEqual(3);
   });
 });

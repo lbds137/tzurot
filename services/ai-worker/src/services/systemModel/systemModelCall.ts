@@ -20,6 +20,7 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { AIProvider, ZAI_MODEL_PREFIX } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createChatModel } from '../ModelFactory.js';
+import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
 
 /** One background model call's outcome — content plus token usage for cost rows. */
 export interface SystemModelResult {
@@ -94,7 +95,7 @@ export async function invokeSystemModel(
     provider: route.provider,
     ...(route.apiKey !== undefined ? { apiKey: route.apiKey } : {}),
   });
-  const response = await model.invoke([new HumanMessage(prompt)], {
+  const response = await invokeModelGuarded(model, [new HumanMessage(prompt)], {
     timeout: options.timeoutMs,
   });
   return {

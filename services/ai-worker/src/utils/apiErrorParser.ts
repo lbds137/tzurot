@@ -55,6 +55,20 @@ const ERROR_PATTERNS = {
     /authentication.*failed/i,
     /api.*key.*invalid/i,
   ],
+  // A provider's INPUT filter refused the payload. Alibaba (Qwen vision on
+  // OpenRouter) returns body code `data_inspection_failed` with "Input image
+  // data may contain inappropriate content", wrapped in a 400. Listed before
+  // CONTENT_POLICY so the narrower provider-refusal reading wins. BOTH
+  // patterns are deliberately Alibaba-shaped: the advance-not-terminate
+  // semantics this category carries rest on evidence that OTHER providers
+  // describe the refused image, and that evidence exists only for this
+  // provider's filter. Broaden only with per-provider evidence — a generic
+  // phrase here would also route image-intrinsic refusals (CONTENT_POLICY's
+  // terminate case) into tier-burning advances.
+  PROVIDER_CONTENT_REFUSED: [
+    /data_inspection_failed/i,
+    /input image data may contain inappropriate content/i,
+  ],
   // Content policy
   CONTENT_POLICY: [
     /content.*policy/i,
@@ -256,6 +270,8 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
             return ApiErrorCategory.RATE_LIMIT;
           case 'AUTHENTICATION':
             return ApiErrorCategory.AUTHENTICATION;
+          case 'PROVIDER_CONTENT_REFUSED':
+            return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
           case 'CONTENT_POLICY':
             return ApiErrorCategory.CONTENT_POLICY;
           case 'CONTEXT_WINDOW':
@@ -326,6 +342,14 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  * the generic TIMEOUT regex patterns, so it would otherwise fall through to
  * UNKNOWN (shouldRetry=true) and amplify into retry storms at the caller's
  * maxAttempts × timeout budget.
+ *
+ * Media-URL 404: OpenRouter/vision APIs wrap a media-fetch 404 inside a 400
+ * response body; must classify as MEDIA_NOT_FOUND before the wrapping 400
+ * reads as retryable BAD_REQUEST.
+ *
+ * Provider content refusal: a provider's INPUT filter (e.g. Alibaba's
+ * `data_inspection_failed`) also arrives wrapped in a 400; must classify as
+ * PROVIDER_CONTENT_REFUSED for the same reason.
  */
 function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // AbortError is always an Error subclass at the runtime level. If a future
@@ -368,6 +392,15 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     // messages that mention both 404s and URLs in unrelated clauses.
     if (/received 404.{0,40}?fetching.{0,30}?url/i.test(messageToSearch)) {
       return ApiErrorCategory.MEDIA_NOT_FOUND;
+    }
+    // A provider input-filter refusal arrives wrapped in a 400 ("400 Provider
+    // returned error" carrying `data_inspection_failed`). Like the media-404
+    // case above it must be caught BEFORE status extraction, or the wrapping
+    // 400 classifies as retryable BAD_REQUEST and the caller re-attempts the
+    // same provider that just refused. Reads the shared ERROR_PATTERNS group
+    // so the pattern list keeps a single home.
+    if (ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(messageToSearch))) {
+      return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
     }
   }
   return null;
@@ -470,7 +503,7 @@ function resolveCategoryAndType(
  *
  * @example
  * try {
- *   await model.invoke(messages);
+ *   await invokeModelGuarded(model, messages);
  * } catch (error) {
  *   const errorInfo = parseApiError(error);
  *   if (!errorInfo.shouldRetry) {

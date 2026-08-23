@@ -123,6 +123,12 @@ const RETARGETABLE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   // the internal-moderation guard.
   ApiErrorCategory.CENSORED,
   ApiErrorCategory.CONTENT_POLICY,
+  // PROVIDER_CONTENT_REFUSED is deliberately ABSENT despite its similarity to
+  // the two above: it is an input-filter refusal of image payloads, and the
+  // vision fallback chain owns routing around it tier-by-tier. The general
+  // generation path this set serves never carries raw image bytes (attachments
+  // are pre-converted to text descriptions), so a retarget entry here would be
+  // dead code with a live-looking name.
 ]);
 
 /**

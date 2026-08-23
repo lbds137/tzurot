@@ -342,6 +342,52 @@ describe('parseApiError', () => {
     });
   });
 
+  describe('provider content-refusal detection (data_inspection_failed)', () => {
+    it('classifies the real prod fixture (400 wrapping data_inspection_failed) as PROVIDER_CONTENT_REFUSED', () => {
+      const error = Object.assign(
+        new Error(
+          '400 Provider returned error: data_inspection_failed - Input image data may contain inappropriate content'
+        ),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+      expect(result.type).toBe(ApiErrorType.PERMANENT);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('classifies PROVIDER_CONTENT_REFUSED (not BAD_REQUEST) even though the error carries status 400 — precedence over HTTP status', () => {
+      const error = Object.assign(
+        new Error('400 Provider returned error: data_inspection_failed'),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+      expect(result.category).not.toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('classifies the second pattern alone (full Alibaba phrase) with no status code', () => {
+      const error = new Error('Input image data may contain inappropriate content');
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+    });
+
+    it('negative control: a generic "may contain inappropriate content" fragment from an unknown provider does NOT classify as a provider refusal', () => {
+      const error = Object.assign(
+        new Error('The image may contain inappropriate content and was rejected'),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).not.toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+    });
+
+    it('negative control: a plain 400 with an unrelated message still classifies BAD_REQUEST', () => {
+      const error = Object.assign(new Error('400 Invalid request parameters'), { status: 400 });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+  });
+
   describe('network error detection', () => {
     it('should detect ECONNRESET as network error', () => {
       const error = { code: 'ECONNRESET', message: 'Connection reset' };

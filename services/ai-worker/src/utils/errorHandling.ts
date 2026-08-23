@@ -121,7 +121,7 @@ export function logAndReturnFallback<T>(
  *
  * @example
  * try {
- *   await model.invoke(messages);
+ *   await invokeModelGuarded(model, messages);
  * } catch (error) {
  *   logErrorWithDetails(
  *     logger,
