@@ -224,6 +224,20 @@ describe('buildReasoningView', () => {
     // an outlier guard, so pin it rather than letting it silently drop.
     expect(result.chunkedText!.maxChunks).toBe(10);
   });
+
+  it('should neutralize triple-backtick runs so an unclosed fence in reasoning cannot break the chunked text', () => {
+    const payload = createMockPayload();
+    payload.postProcessing.thinkingContent = 'look: ```js\nunclosed fence';
+    const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
+
+    // Zero-width spaces break up the run (escapeFenceBreaks); the raw
+    // three-backtick sequence must not survive into the chunked text. The
+    // zero-width spaces are written as explicit escapes because the character
+    // is invisible in source.
+    expect(result.chunkedText!.text).not.toContain('```');
+    expect(result.chunkedText!.text).toContain('`\u200b`\u200b`js');
+    expect(result.chunkedText!.text).toContain('unclosed fence');
+  });
 });
 
 describe('buildMemoryInspectorView', () => {
