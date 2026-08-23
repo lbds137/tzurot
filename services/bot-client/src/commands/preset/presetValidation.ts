@@ -140,5 +140,5 @@ export const PARAMETER_DESCRIPTIONS: Record<string, string> = {
   max_tokens: 'Maximum response length in tokens (~4 chars each). Default: 2048-4096',
   seed: 'Fixed seed for reproducible outputs. Same seed + same input = same output.',
   thinking:
-    'Thinking intensity: max, high (~80%), medium (~50%), low (~20%), minimal (~10%), off. Leave blank to take the provider default.',
+    'Thinking intensity: max, xhigh (~90%), high (~80%), medium (~50%), low (~20%), minimal (~10%), off. Leave blank to take the provider default.',
 };
