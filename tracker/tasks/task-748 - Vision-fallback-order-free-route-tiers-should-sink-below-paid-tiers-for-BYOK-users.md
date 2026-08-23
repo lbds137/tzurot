@@ -3,9 +3,10 @@ id: TASK-748
 title: >-
   Vision fallback order: free-route tiers should sink below paid tiers for BYOK
   users
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 15:44'
+updated_date: '2026-08-23 18:37'
 labels:
   - 'area:ai-worker'
   - 'size:S'
