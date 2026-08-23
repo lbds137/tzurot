@@ -1,9 +1,10 @@
 ---
 id: TASK-737
 title: 'Vision media_not_found: expired Discord CDN URLs reach the vision fetch'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 01:58'
+updated_date: '2026-08-23 21:56'
 labels:
   - 'area:ai-worker'
   - 'size:M'
