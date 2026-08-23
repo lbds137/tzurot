@@ -49,3 +49,10 @@ require an at-mention IN THE FORWARDED TEXT: a forward without one yields no res
 negative result.
 
 <!-- SECTION:DESCRIPTION:END -->
+
+## Probe result (runtime observation, dev 2026-08-23 02:51 UTC)
+
+The #2171 probe fired on a triggering forward whose snapshot text contained one mention (messageId 1540916236685156474):
+`wrapperMentionCount=0 snapshotPresent=true snapshotMentionsPresent=true snapshotMentionCount=1 snapshotContentHasMentionToken=true`
+
+Answer: Discord POPULATES `snapshot.mentions` on forward payloads, and the wrapper message carries none — the snapshot is the only source. **Fix shape settled: resolve `<@id>` tokens in forwarded text against `snapshot.mentions.users` directly** (no regex-extract-and-resolve fallback needed). The fix PR also removes the probe (paired `debug` commit per its own docstring).

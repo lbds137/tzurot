@@ -78,7 +78,7 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **Rollback**: flip the toggle OFF — live, instant, no deploy.
   - **Report**: pass/fail + the `/inspect` Messages output if anything looks off. I'll run the log-side checks (per-stream prefix-diff before/after, stable-prefix diagnostic) from here once you say it's flipped.
 
-- [ ] **Rider on the item-3 activated-channel forward** (TASK-43 / #2171) — _no separate round needed, but narrowed 2026-08-22: the probe fires only on a TRIGGERING forward (envelope-build guard), so it must ride item 3's path (a), with an **at-mention in the forwarded text**. The 22:06 ambient forwards correctly did not fire it._
+- [x] **TASK-43 probe rider** — **OBSERVATION LANDED** (owner, 2026-08-22 22:50 dev; log 02:51 UTC): `snapshotMentionsPresent=true snapshotMentionCount=1 wrapperMentionCount=0` — Discord populates `snapshot.mentions`; the wrapper carries none. Fix shape settled on the task (resolve via `snapshot.mentions.users`); fix PR removes the probe (paired debug commit).
   - **Why it matters**: a forward with no at-mention logs a zero count, which reads as "Discord sends no mentions" when it is actually "nothing to send." That would settle the question the wrong way.
   - **Nothing to report by hand** — the probe writes it to the bot-client logs; the log line is `TASK-43 probe: forward mention sources`.
 
