@@ -23,4 +23,9 @@ Why: the board-commit-branch-gate hook (#2193) is a third ENFORCING copy of "is 
 Fix shape: extend the agreement test to pin the hook regex against the synced copies (extract the pattern to a greppable single line the test can read, the same mechanism the other bash copy used), or record an explicit documented exemption in the test naming why the hook is allowed to differ.
 
 Acceptance: gitCommitPatternAgreement covers (or explicitly exempts, with reason) board-commit-branch-gate.sh; a deliberate mutation of the hook regex reddens the guard.
+
+Members folded in from the #2193 round-7 review (reviewer: none block merge; all fail toward missed-block, never wrong-block):
+- The -a/-am/--all auto-stage detection scans the WHOLE stripped command, so `git branch -a && git commit` false-triggers it and a dirty unrelated file can turn a board-only commit into a spurious pass. Fix by scoping flag detection to the matched commit invocation (natural once detection is unified), or name it in KNOWN GAPS if unification lands first. Add the probe case.
+- lib/shell_quotes.py's CONSUMERS docstring gains board-commit-branch-gate.sh (4th importer).
+- The hook's right-hand commit boundary (`commit([[:space:]]|$)`) is stricter than the synced Python copies' `(?![-\w])` - a semicolon-chained space-free `git commit;git push` is seen by the siblings but missed here; concrete divergence data point for the unification.
 <!-- SECTION:DESCRIPTION:END -->
