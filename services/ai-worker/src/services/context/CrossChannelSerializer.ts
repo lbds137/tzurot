@@ -13,6 +13,7 @@ import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
   collectPersonalityNames,
   formatCrossChannelHistoryAsXml,
+  getPriorConversationsWrapperOverheadText,
 } from '../../jobs/utils/conversationUtils.js';
 import { measureHistoryEntryTokens } from './historyTokenMeasure.js';
 
@@ -48,8 +49,9 @@ export function serializeCrossChannelHistory(
   const selectedGroups: CrossChannelHistoryGroupEntry[] = [];
   let tokensUsed = 0;
 
-  // Account for <prior_conversations> wrapper overhead
-  const wrapperOverhead = countTextTokens('<prior_conversations>\n</prior_conversations>');
+  // Account for <prior_conversations> wrapper overhead — measured from the same
+  // helper the render uses, so the instruction's tokens are inside the budget.
+  const wrapperOverhead = countTextTokens(getPriorConversationsWrapperOverheadText());
   const availableBudget = tokenBudget - wrapperOverhead;
 
   if (availableBudget <= 0) {
@@ -140,7 +142,9 @@ export function serializeCrossChannelHistory(
  * which is already accounted for by `wrapperOverhead` in the caller.
  */
 function estimateChannelOverhead(group: CrossChannelHistoryGroupEntry): number {
-  const locationXml = formatLocationAsXml(group.channelEnvironment);
+  // Same options the render uses — the estimate must measure the bytes that
+  // formatCrossChannelHistoryAsXml actually emits.
+  const locationXml = formatLocationAsXml(group.channelEnvironment, { scope: 'prior' });
   const channelTags = '<channel_history>\n</channel_history>';
   // Speed tradeoff: chars/4 approximation here (called per-group) vs countTextTokens
   // for wrapperOverhead (called once). The ~1 token per 4 chars estimate is conservative

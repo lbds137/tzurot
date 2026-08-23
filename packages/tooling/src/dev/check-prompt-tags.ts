@@ -70,8 +70,9 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   platform_constraints: 'Hardcoded safety constraints (HardcodedConstraints).',
   output_constraints: 'Hardcoded output-format constraints (HardcodedConstraints).',
   context:
-    'Wrapper over <datetime> (system time) + <location> (escapeXml); no escaped-content descendant.',
+    'Wrapper over <datetime> (system time) + <current_location> (escapeXml); no escaped-content descendant.',
   datetime: 'System-generated current time (formatFullDateTime).',
+  current_location: 'Guild/channel names via escapeXml (full).',
   think: 'Literal example text inside a hardcoded <constraint>, not a content wrapper.',
   user: 'Literal example text inside a hardcoded <constraint>, not a content wrapper.',
   // Values fully entity-escaped via escapeXml (< > & " ' → entities) — a closing
