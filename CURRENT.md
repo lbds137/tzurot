@@ -24,6 +24,8 @@ Holistic release review: **no blocking findings** (verified 17-package bump lock
 
 ## ▶️ NEXT — beta.207 planning + the next-train queue
 
+**Resume pointer (owner directive 2026-08-23, pre-compaction): full backlog survey to decide beta.207 contents.** Method: `pnpm ops backlog:digest` (areas · oldest-20 · newest) + `backlog/cold/queue.md` theme order + the drain-campaign pre-grounded batches + `pnpm tracker task list` slices by state/priority — presented as a scoped proposal against the DRAFT plan below (the draft is the hypothesis, the survey may revise it; owner decides the final scope).
+
 **vNext theme (per the beta.206 plan's sketch): doc-12 observability** — the "incidents reach the owner before the tooling" layer; the realMessages flip's cache-cost read (TASK-685) feeds it. Starts with a scoping pass over doc-12.
 
 **Next-train small queue (all tracker-filed, `state:ready` unless noted):** TASK-43 fix (resolve forwarded mentions via `snapshot.mentions.users`; removes the probe) · TASK-740 (persona invalidation channel has no publisher + fragmented resolver instances; includes the #2190-review AccountEraser unification member) · TASK-741 (activation invalidation publishes from the caller, not the writer) · TASK-742 (db-sync bulk user writes skip cache invalidation) · TASK-736 (reasoning view fence-neutralizer class member) · TASK-737 (vision media_not_found on expired CDN URLs) · TASK-738 (Messages view boundary cosmetics, low) · TASK-732 (orchestration retrospective — owns the skill-table update for the 2026-08-22 dispatch-mode reversal) · TASK-730 (`/inspect` redaction — owner call).
