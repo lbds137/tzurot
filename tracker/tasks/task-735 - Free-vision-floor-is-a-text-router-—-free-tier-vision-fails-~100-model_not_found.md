@@ -3,10 +3,10 @@ id: TASK-735
 title: >-
   Free vision floor is a text router — free-tier vision fails ~100%
   (model_not_found)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 21:48'
-updated_date: '2026-08-22 22:27'
+updated_date: '2026-08-23 01:58'
 labels:
   - 'area:ai-worker'
   - 'size:M'
