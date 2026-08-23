@@ -1,10 +1,10 @@
 ---
 id: TASK-708
 title: Forwarded content of our own messages keeps the -# model footer in the prompt
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 22:28'
-updated_date: '2026-08-21 00:49'
+updated_date: '2026-08-23 05:24'
 labels:
   - 'area:bot-client'
   - 'size:L'
