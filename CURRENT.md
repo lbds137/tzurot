@@ -12,8 +12,8 @@ Holistic release review: **no blocking findings** (verified 17-package bump lock
 
 **Owner actions (owner-timed, in any order):**
 
-- [x] **Prod flip: `rosterBlurbEnabled` ON** — FLIPPED (owner, 2026-08-23 04:41:02 UTC per the ai-worker invalidation event). First enabled sweep verification in flight (log watch armed); dev's first live run for reference: `stamped=200 staleFound=10 generated=10 failedBilled=0 failedZeroSpend=0`. Rollback = flip OFF, live.
-- [x] **Prod flip: `realMessagesEnabled` ON** — FLIPPED (owner, 2026-08-23 04:41:32 UTC per the invalidation event). Log-side verification in flight (first post-flip generation: message-form + cache ratio + **promptTokens watch** — dev went 15.9k → 35.4k, expected budget-fill; confirm prod cost acceptable).
+- [x] **Prod flip: `rosterBlurbEnabled` ON** — FLIPPED (04:41:02 UTC) and **first enabled sweep VERIFIED** (04:48:27): `stamped=200 staleFound=10 generated=10 failedBilled=0 failedZeroSpend=0` — zero failures, backoff never fired; spend was 10 generations, not the whole roster. Rollback = flip OFF, live.
+- [x] **Prod flip: `realMessagesEnabled` ON** — FLIPPED (04:41:32 UTC). First post-flip generation observed (04:55:57, cold channel): promptTokens=45.6k vs the same personality's pre-flip 32.6k — the expected budget-fill increase; cacheHitRatio=0 is correct for a first in-channel turn. **Open half: cache-reuse confirmation** — a Monitor watches for the first flag-on turn with `cachedPromptTokens>0`; if the session ends first, re-check with `pnpm ops logs --env prod` grep `cachedPromptTokens=[1-9]` (post-04:56) or `pnpm ops cache:prefix-diff` on an active prod channel.
 - [x] **`/persona default` confirmed working in prod** (owner, 2026-08-23) — the #2190 fix holds; the setting sticks. Known cosmetic bound: the autocomplete ⭐ badge lags up to ~60s behind a change (bot-client's autocomplete fresh-cache TTL, self-healing; the stale fallback only serves on gateway errors). Longer-than-a-minute lag would be a new finding.
 
 **Watches (log-signal, no action needed):**
