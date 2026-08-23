@@ -11,7 +11,7 @@ import { rawOptionValue, parseIntFlag } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
 
 /**
- * Upper bound on `cache:prefix-diff --limit` (pair count).
+ * Upper bound on `cache:prefix-diff --limit` (row budget as pairs).
  *
  * The fetch runs in a subprocess whose stdout carries `limit + 1` full
  * diagnostic payloads — every compared pair costs two complete system
@@ -89,9 +89,13 @@ export function registerCacheCommands(cli: CAC): void {
     .option('--env <env>', 'Environment to target (local, dev, prod)', { default: 'dev' })
     .option('--channel <channelId>', 'Discord channel to trace (snowflake)')
     .option('--personality <uuid>', 'Restrict to one personality')
-    .option('--limit <pairs>', `Consecutive pairs to compare (max ${PREFIX_DIFF_MAX_PAIRS})`, {
-      default: PREFIX_DIFF_DEFAULT_PAIRS,
-    })
+    .option(
+      '--limit <pairs>',
+      `Row budget as pairs — per-stream pairing can yield fewer in a mixed channel (max ${PREFIX_DIFF_MAX_PAIRS})`,
+      {
+        default: PREFIX_DIFF_DEFAULT_PAIRS,
+      }
+    )
     .option(
       '--show-divergence [chars]',
       `Print the differing text around each divergence (default ${PREFIX_DIFF_DEFAULT_DIVERGENCE_CHARS} chars/side, max ${PREFIX_DIFF_MAX_DIVERGENCE_CHARS})`

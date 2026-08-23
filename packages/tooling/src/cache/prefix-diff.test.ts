@@ -29,6 +29,7 @@ import {
   sectionAtOffset,
   extractPromptRow,
   buildPairReports,
+  groupRowsByPersonality,
   renderDivergenceWindow,
   buildFetchScript,
   parsePayloadLine,
@@ -118,6 +119,25 @@ describe('extractPromptRow', () => {
         ...baseRow,
         data: { assembledPrompt: { messages: [{ role: 'user', content: 'no system' }] } },
       })
+    ).toBeNull();
+  });
+
+  it('passes the row-level personalityId through as the stream key', () => {
+    const row = extractPromptRow({
+      ...baseRow,
+      personalityId: '01234567-89ab-cdef-0123-456789abcdef',
+      data: { assembledPrompt: { messages: [{ role: 'system', content: 's' }] } },
+    });
+    expect(row?.personalityId).toBe('01234567-89ab-cdef-0123-456789abcdef');
+  });
+
+  it('normalizes an absent or null personalityId to null', () => {
+    const payload = { assembledPrompt: { messages: [{ role: 'system', content: 's' }] } };
+    // Absent: an older caller, or a row fetched without the column selected.
+    expect(extractPromptRow({ ...baseRow, data: payload })?.personalityId).toBeNull();
+    // SQL NULL: the column is nullable (personality lookups can fail post-hoc).
+    expect(
+      extractPromptRow({ ...baseRow, personalityId: null, data: payload })?.personalityId
     ).toBeNull();
   });
 
@@ -223,17 +243,99 @@ describe('renderDivergenceWindow', () => {
   });
 });
 
-describe('buildPairReports', () => {
-  function promptRow(requestId: string, systemPrompt: string): PromptRow {
-    return {
-      requestId,
-      createdAt: '2026-08-02T10:00:00Z',
-      model: 'glm-4.7',
-      systemPrompt,
-      sections: [{ id: 'system_identity', tier: 'S1', chars: systemPrompt.length, offset: 0 }],
-    };
-  }
+const PERSONALITY_A = '01234567-89ab-cdef-0123-456789abcdef';
+const PERSONALITY_B = 'fedcba98-7654-3210-fedc-ba9876543210';
 
+function promptRow(
+  requestId: string,
+  systemPrompt: string,
+  personalityId: string | null = null
+): PromptRow {
+  return {
+    requestId,
+    createdAt: '2026-08-02T10:00:00Z',
+    model: 'glm-4.7',
+    personalityId,
+    systemPrompt,
+    sections: [{ id: 'system_identity', tier: 'S1', chars: systemPrompt.length, offset: 0 }],
+  };
+}
+
+describe('groupRowsByPersonality', () => {
+  it('splits an interleaved channel into one stream per personality', () => {
+    // The measured prod shape: two personalities answering in one channel, so
+    // the row sequence alternates A/B/A/B and the middle raw pair compares two
+    // prompts no provider cache would have served from one another.
+    const streams = groupRowsByPersonality([
+      promptRow('a1111111', 'A one', PERSONALITY_A),
+      promptRow('b1111111', 'B one', PERSONALITY_B),
+      promptRow('a2222222', 'A two', PERSONALITY_A),
+      promptRow('b2222222', 'B two', PERSONALITY_B),
+    ]);
+    expect(streams).toHaveLength(2);
+    // First-appearance order of the streams, and row order within each.
+    expect(streams[0].personalityId).toBe(PERSONALITY_A);
+    expect(streams[0].rows.map(row => row.requestId)).toEqual(['a1111111', 'a2222222']);
+    expect(streams[1].personalityId).toBe(PERSONALITY_B);
+    expect(streams[1].rows.map(row => row.requestId)).toEqual(['b1111111', 'b2222222']);
+  });
+
+  it('keeps null-personality rows in their own stream rather than folding them in', () => {
+    const streams = groupRowsByPersonality([
+      promptRow('a1111111', 'A one', PERSONALITY_A),
+      promptRow('n1111111', 'no personality', null),
+      promptRow('a2222222', 'A two', PERSONALITY_A),
+      promptRow('n2222222', 'still none', null),
+    ]);
+    expect(streams).toHaveLength(2);
+    expect(streams[0].rows.map(row => row.requestId)).toEqual(['a1111111', 'a2222222']);
+    expect(streams[1].personalityId).toBeNull();
+    expect(streams[1].rows.map(row => row.requestId)).toEqual(['n1111111', 'n2222222']);
+  });
+
+  it('passes a single-personality channel through as one stream, order intact', () => {
+    const rows = [
+      promptRow('a1111111', 'one', PERSONALITY_A),
+      promptRow('a2222222', 'two', PERSONALITY_A),
+      promptRow('a3333333', 'three', PERSONALITY_A),
+    ];
+    const streams = groupRowsByPersonality(rows);
+    expect(streams).toHaveLength(1);
+    expect(streams[0].rows).toEqual(rows);
+  });
+
+  it('returns no streams for no rows', () => {
+    expect(groupRowsByPersonality([])).toEqual([]);
+  });
+
+  it('never pairs rows across two personality streams', () => {
+    // The pin named in groupRowsByPersonality's docstring. A cross-stream pair
+    // is not a cache-miss event (provider caches key per model+stream), so its
+    // divergence would be pure noise in the churn read.
+    const rows = [
+      promptRow('a1111111', 'A one', PERSONALITY_A),
+      promptRow('b1111111', 'B one', PERSONALITY_B),
+      promptRow('a2222222', 'A two', PERSONALITY_A),
+      promptRow('b2222222', 'B two', PERSONALITY_B),
+    ];
+    const owner = new Map(rows.map(row => [row.requestId, row.personalityId]));
+    const reports = groupRowsByPersonality(rows).flatMap(stream => buildPairReports(stream.rows));
+
+    // Four interleaved rows: three raw consecutive pairs, but only two
+    // within-stream ones — the third raw pair is exactly the artifact.
+    expect(reports).toHaveLength(2);
+    for (const report of reports) {
+      const header = /^(\S+) → (\S+)/.exec(report);
+      if (header === null) {
+        throw new Error(`report has no pair header: ${report}`);
+      }
+      expect(owner.get(header[1])).not.toBeUndefined();
+      expect(owner.get(header[1])).toBe(owner.get(header[2]));
+    }
+  });
+});
+
+describe('buildPairReports', () => {
   it('reports IDENTICAL for byte-equal consecutive prompts', () => {
     const reports = buildPairReports([
       promptRow('aaaaaaaa', 'same'),
@@ -319,6 +421,11 @@ describe('buildFetchScript', () => {
     expect(script).toContain('take: 6');
   });
 
+  it('selects the personalityId column so rows can be grouped into streams', () => {
+    const script = buildFetchScript({ channelId: '123456789012345678', rowLimit: 6 });
+    expect(script).toContain('personalityId: true');
+  });
+
   it('rejects a non-snowflake channelId (injection guard)', () => {
     expect(() => buildFetchScript({ channelId: "x' OR 1=1", rowLimit: 6 })).toThrow(/snowflake/);
   });
@@ -329,9 +436,13 @@ describe('buildFetchScript', () => {
     ).toThrow(/UUID/);
   });
 
-  it('omits the personality filter when not provided', () => {
+  it('omits the personality FILTER when not provided (the select still carries it)', () => {
     const script = buildFetchScript({ channelId: '123456789012345678', rowLimit: 6 });
-    expect(script).not.toContain('personalityId');
+    // Scoped to the interpolated where-clause form: the select names the same
+    // column unconditionally, so a bare substring check would now pass
+    // vacuously and stop discriminating a leaked filter.
+    expect(script).not.toContain("personalityId: '");
+    expect(script).toContain("where: { channelId: '123456789012345678' }");
   });
 
   it('rejects a non-integer rowLimit (interpolation guard)', () => {
@@ -375,11 +486,16 @@ describe('parsePayloadLine', () => {
 describe('runPrefixDiff (orchestration seam)', () => {
   const CHANNEL = '123456789012345678';
 
-  function payloadRow(requestId: string, systemPrompt: string | null): Record<string, unknown> {
+  function payloadRow(
+    requestId: string,
+    systemPrompt: string | null,
+    personalityId: string | null = null
+  ): Record<string, unknown> {
     return {
       requestId,
       createdAt: `2026-08-02T10:0${requestId.length % 10}:00Z`,
       model: 'glm-4.7',
+      personalityId,
       data:
         systemPrompt !== null
           ? {
@@ -483,7 +599,62 @@ describe('runPrefixDiff (orchestration seam)', () => {
     expect(logLines.some(line => line.includes('1 row(s) predate the section map'))).toBe(true);
   });
 
-  it('fetches limit+1 rows so limit means PAIRS', async () => {
+  it('diffs each personality stream separately in an interleaved channel', async () => {
+    // Newest-first from the DB; reversed to A1, B1, A2, B2.
+    mockExecFileSync.mockReturnValue(
+      JSON.stringify([
+        payloadRow('b2222222', 'B two', PERSONALITY_B),
+        payloadRow('a2222222', 'A two', PERSONALITY_A),
+        payloadRow('b1111111', 'B one', PERSONALITY_B),
+        payloadRow('a1111111', 'A one', PERSONALITY_A),
+      ])
+    );
+
+    await runPrefixDiff({ env: 'dev', channelId: CHANNEL, limit: 5 });
+
+    expect(logLines.some(line => line.includes(`stream: ${PERSONALITY_A} — 2 row(s)`))).toBe(true);
+    expect(logLines.some(line => line.includes(`stream: ${PERSONALITY_B} — 2 row(s)`))).toBe(true);
+    const pairLines = logLines.filter(line => line.includes('→'));
+    expect(pairLines).toHaveLength(2);
+    expect(pairLines[0]).toContain('a1111111 → a2222222');
+    expect(pairLines[1]).toContain('b1111111 → b2222222');
+    // The raw row sequence would have produced a b1111111 -> a2222222 pair.
+    expect(pairLines.some(line => line.includes('b1111111 → a2222222'))).toBe(false);
+  });
+
+  it('labels a null-personality stream instead of hiding those rows', async () => {
+    mockExecFileSync.mockReturnValue(
+      JSON.stringify([
+        payloadRow('nnnnnnnn', 'no personality NEW'),
+        payloadRow('mmmmmmmm', 'no personality OLD'),
+      ])
+    );
+
+    await runPrefixDiff({ env: 'dev', channelId: CHANNEL, limit: 5 });
+
+    expect(logLines.some(line => line.includes('stream: (no personality) — 2 row(s)'))).toBe(true);
+    expect(logLines.some(line => line.includes('mmmmmmmm → nnnnnnnn'))).toBe(true);
+  });
+
+  it('notes a single-row stream rather than dropping rows the operator fetched', async () => {
+    // Two usable rows in total, so the global guard passes — but each belongs
+    // to a different stream, which is ordinary in a mixed channel.
+    mockExecFileSync.mockReturnValue(
+      JSON.stringify([
+        payloadRow('b1111111', 'B one', PERSONALITY_B),
+        payloadRow('a1111111', 'A one', PERSONALITY_A),
+      ])
+    );
+
+    await runPrefixDiff({ env: 'dev', channelId: CHANNEL, limit: 5 });
+
+    expect(logLines.some(line => line.includes(`stream: ${PERSONALITY_A} — 1 row(s)`))).toBe(true);
+    expect(logLines.some(line => line.includes(`stream: ${PERSONALITY_B} — 1 row(s)`))).toBe(true);
+    expect(logLines.filter(line => line.includes('only one row in this stream'))).toHaveLength(2);
+    expect(logLines.some(line => line.includes('→'))).toBe(false);
+  });
+
+  it('fetches limit+1 rows — the shared row budget behind per-stream pairing', async () => {
     mockExecFileSync.mockReturnValue(JSON.stringify([]));
 
     await runPrefixDiff({ env: 'dev', channelId: CHANNEL, limit: 5 });

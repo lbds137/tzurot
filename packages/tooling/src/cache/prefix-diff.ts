@@ -11,6 +11,11 @@
  * reads as "persona edit, expected"; "divergence at V context" reads as
  * "datetime — the volatile tier is still in the prefix".
  *
+ * Rows are grouped into per-personality STREAMS before any pair is formed. A
+ * channel carrying two personalities interleaves their requests (A/B/A/B), and
+ * provider prompt caches key per model+stream — so an A-vs-B pair is not a
+ * cache-miss event at all, and diffing the raw row sequence overstates churn.
+ *
  * Fetching runs in a subprocess with the target env's DATABASE_URL injected
  * (the inspect/tts-configs pattern); all comparison/annotation logic is pure
  * and unit-tested here. Diagnostic rows live 24h — the tool diagnoses LIVE
@@ -35,8 +40,16 @@ export interface PromptRow {
   requestId: string;
   createdAt: string;
   model: string;
+  /** The request's personality (cache stream key); null when the row has none. */
+  personalityId: string | null;
   systemPrompt: string;
   sections?: PromptSectionEntry[];
+}
+
+/** One personality's request stream — the unit within which pairs are formed. */
+export interface PersonalityStream {
+  personalityId: string | null;
+  rows: PromptRow[];
 }
 
 /** Comparison of one consecutive request pair's system prompts. */
@@ -96,6 +109,8 @@ export function extractPromptRow(row: {
   requestId: string;
   createdAt: string | Date;
   model: string;
+  // Top-level column on the fetched row, not a field of the `data` payload.
+  personalityId?: string | null;
   data: unknown;
 }): PromptRow | null {
   const payload = row.data as {
@@ -115,6 +130,9 @@ export function extractPromptRow(row: {
     requestId: row.requestId,
     createdAt: typeof row.createdAt === 'string' ? row.createdAt : row.createdAt.toISOString(),
     model: row.model,
+    // Absent (older callers, unselected column) and SQL NULL both mean "no
+    // stream key", so they collapse to null rather than staying distinct.
+    personalityId: row.personalityId ?? null,
     systemPrompt: system.content,
     sections: payload?.assembledPrompt?.systemPromptSections,
   };
@@ -191,6 +209,35 @@ export function renderDivergenceWindow(
   );
 }
 
+/**
+ * Split rows into per-personality streams, preserving the first-appearance
+ * order of the streams and the row order within each.
+ *
+ * Rows with a null personalityId form their own stream — they are not folded
+ * into any UUID stream, since "no recorded personality" is not evidence of
+ * belonging to a particular one.
+ *
+ * Pairing within a stream is what makes a divergence a real cache-miss event;
+ * that no report ever pairs rows from two different streams is pinned by the
+ * "never pairs rows across two personality streams" test in prefix-diff.test.ts.
+ */
+export function groupRowsByPersonality(rows: PromptRow[]): PersonalityStream[] {
+  const streams: PersonalityStream[] = [];
+  // Map keys compare by SameValueZero, so a null key is distinct from every
+  // UUID string — no sentinel value that a real id could collide with.
+  const byId = new Map<string | null, PersonalityStream>();
+  for (const row of rows) {
+    let stream = byId.get(row.personalityId);
+    if (stream === undefined) {
+      stream = { personalityId: row.personalityId, rows: [] };
+      byId.set(row.personalityId, stream);
+      streams.push(stream);
+    }
+    stream.rows.push(row);
+  }
+  return streams;
+}
+
 /** One formatted line block per consecutive pair (oldest→newest order). */
 export function buildPairReports(
   rows: PromptRow[],
@@ -250,6 +297,7 @@ export function parsePayloadLine(stdout: string): {
   requestId: string;
   createdAt: string;
   model: string;
+  personalityId?: string | null;
   data: unknown;
 }[] {
   const lines = stdout
@@ -318,7 +366,7 @@ async function main() {
   try {
     const rows = await prisma.llmDiagnosticLog.findMany({
       where: { channelId: '${options.channelId}'${personalityFilter} },
-      select: { requestId: true, createdAt: true, model: true, data: true },
+      select: { requestId: true, createdAt: true, model: true, personalityId: true, data: true },
       orderBy: { createdAt: 'desc' },
       take: ${options.rowLimit},
     });
@@ -347,7 +395,9 @@ export async function runPrefixDiff(options: PrefixDiffOptions): Promise<void> {
   console.log(chalk.dim('────────────────────────────────────────\n'));
 
   const databaseUrl = resolveDatabaseUrl(options.env);
-  // limit = pair count; +1 rows produce that many consecutive pairs.
+  // limit is a ROW budget shared across streams: limit + 1 rows yield exactly
+  // that many pairs in a single-personality channel, and fewer in a mixed one
+  // (pairs form per stream, so each additional stream costs one pair).
   const script = buildFetchScript({
     channelId: options.channelId,
     personalityId: options.personalityId,
@@ -389,10 +439,22 @@ export async function runPrefixDiff(options: PrefixDiffOptions): Promise<void> {
     return;
   }
 
-  for (const report of buildPairReports(promptRows, {
-    showDivergence: options.showDivergence,
-  })) {
-    console.log(report + '\n');
+  for (const stream of groupRowsByPersonality(promptRows)) {
+    const label = stream.personalityId ?? '(no personality)';
+    console.log(chalk.cyan(`stream: ${label} — ${stream.rows.length} row(s)`));
+    console.log(chalk.dim('────────────────────────────────────────'));
+    if (stream.rows.length < 2) {
+      // Single-row streams are ordinary in a mixed channel. Printing the header
+      // anyway keeps every fetched row accounted for; dropping it silently would
+      // make part of the operator's row budget disappear without explanation.
+      console.log(chalk.dim('  only one row in this stream — no pair to diff\n'));
+      continue;
+    }
+    for (const report of buildPairReports(stream.rows, {
+      showDivergence: options.showDivergence,
+    })) {
+      console.log(report + '\n');
+    }
   }
   const withSections = promptRows.filter(row => (row.sections?.length ?? 0) > 0).length;
   if (withSections < promptRows.length) {
