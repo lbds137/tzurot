@@ -12,9 +12,9 @@ Holistic release review: **no blocking findings** (verified 17-package bump lock
 
 **Owner actions (owner-timed, in any order):**
 
-- [ ] **Prod flip: `rosterBlurbEnabled` ON** (`/admin settings` → Operations) — corpus-wide spend event (first sweep generates blurbs for the whole prod roster). Dev's first live run: `stamped=200 staleFound=10 generated=10 failedBilled=0 failedZeroSpend=0`, backoff never fired. Rollback = flip OFF, live.
-- [ ] **Prod flip: `realMessagesEnabled` ON** (`/admin settings` → Operations) — history ships as real user/assistant messages. Dev verification: flag-on prefix pairs IDENTICAL (full prefix reuse), system prompt 58k → 24.5k chars, cache ratio 0.02 → 0.37 by turn 2. **Watch at flip: promptTokens** (dev went 15.9k → 35.4k — expected PR 2.4 budget-fill, but confirm prod cost is acceptable). Say when flipped — the log-side checks (per-stream prefix-diff, stable-prefix diagnostic, cache ratio) run from here.
-- [ ] **Confirm `/persona default` shows the default you want** (prod) — the TASK-739 stale-cache window left the DB on the wrong persona during the repro (2026-08-23 03:17 UTC); the cache TTL has long expired and #2190 is now deployed, so one re-run of the command sticks correctly.
+- [x] **Prod flip: `rosterBlurbEnabled` ON** — FLIPPED (owner, 2026-08-23 04:41:02 UTC per the ai-worker invalidation event). First enabled sweep verification in flight (log watch armed); dev's first live run for reference: `stamped=200 staleFound=10 generated=10 failedBilled=0 failedZeroSpend=0`. Rollback = flip OFF, live.
+- [x] **Prod flip: `realMessagesEnabled` ON** — FLIPPED (owner, 2026-08-23 04:41:32 UTC per the invalidation event). Log-side verification in flight (first post-flip generation: message-form + cache ratio + **promptTokens watch** — dev went 15.9k → 35.4k, expected budget-fill; confirm prod cost acceptable).
+- [x] **`/persona default` confirmed working in prod** (owner, 2026-08-23) — the #2190 fix holds; the setting sticks. Known cosmetic bound: the autocomplete ⭐ badge lags up to ~60s behind a change (bot-client's autocomplete fresh-cache TTL, self-healing; the stale fallback only serves on gateway errors). Longer-than-a-minute lag would be a new finding.
 
 **Watches (log-signal, no action needed):**
 
