@@ -34,8 +34,10 @@ import {
   // Constructed by `createChannelInvalidationServices`; only the types are
   // needed here, for the `ServicesContext` shape.
   type ApiKeyCacheInvalidationService,
+  type ChannelActivationCacheInvalidationService,
   type DenylistCacheInvalidationService,
   type LlmConfigCacheInvalidationService,
+  type PersonaCacheInvalidationService,
   type SttResolverCacheInvalidationService,
   type TtsConfigCacheInvalidationService,
   type UserCacheInvalidationService,
@@ -151,6 +153,8 @@ interface ServicesContext {
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   systemSettingsInvalidation: SystemSettingsCacheInvalidationService;
   userCacheInvalidation: UserCacheInvalidationService;
+  personaCacheInvalidation: PersonaCacheInvalidationService;
+  channelActivationInvalidation: ChannelActivationCacheInvalidationService;
   systemSettings: SystemSettingsService;
   cascadeResolver: ConfigCascadeResolver;
   llmConfigResolver: LlmConfigResolver;
@@ -196,14 +200,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   await cacheInvalidationService.subscribe();
   logger.info('Subscribed to personality cache invalidation events');
 
-  const {
-    apiKeyCacheInvalidation,
-    llmConfigCacheInvalidation,
-    ttsConfigCacheInvalidation,
-    sttResolverCacheInvalidation,
-    denylistInvalidation,
-    userCacheInvalidation,
-  } = createChannelInvalidationServices(cacheRedis);
+  const channelInvalidation = createChannelInvalidationServices(cacheRedis);
 
   const cascadeInvalidation = new ConfigCascadeCacheInvalidationService(cacheRedis);
   logger.info('Config cascade cache invalidation service initialized');
@@ -237,7 +234,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   // cache-invalidation pub/sub as text configs — a preset/config edit must clear the
   // vision resolver's cache (incl. its global-default slot) too.
   const visionConfigResolver = new VisionConfigResolver(prisma);
-  await llmConfigCacheInvalidation.subscribe(event => {
+  await channelInvalidation.llmConfigCacheInvalidation.subscribe(event => {
     if (event.type === 'user') {
       llmConfigResolver.invalidateUserCache(event.discordId);
       visionConfigResolver.invalidateUserCache(event.discordId);
@@ -310,14 +307,9 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     personalityService,
     retentionService,
     cacheInvalidationService,
-    apiKeyCacheInvalidation,
-    llmConfigCacheInvalidation,
-    ttsConfigCacheInvalidation,
-    sttResolverCacheInvalidation,
-    denylistInvalidation,
+    ...channelInvalidation,
     cascadeInvalidation,
     systemSettingsInvalidation,
-    userCacheInvalidation,
     systemSettings,
     cascadeResolver,
     llmConfigResolver,
@@ -349,6 +341,8 @@ function registerRoutes(
     cascadeInvalidation,
     systemSettingsInvalidation,
     userCacheInvalidation,
+    personaCacheInvalidation,
+    channelActivationInvalidation,
     systemSettings,
     cascadeResolver,
     llmConfigResolver,
@@ -443,6 +437,8 @@ function registerRoutes(
     modelCache,
     systemSettingsInvalidation,
     userCacheInvalidation,
+    personaCacheInvalidation,
+    channelActivationInvalidation,
     redis: cacheRedis,
     aiQueue,
     releaseBroadcastQueue,

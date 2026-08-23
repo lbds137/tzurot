@@ -10,7 +10,6 @@
  * - Import getJobTracker(), getWebhookManager(), etc. in commands
  */
 
-import type { ChannelActivationCacheInvalidationService } from '@tzurot/cache-invalidation';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -22,8 +21,6 @@ import type { DenylistCache } from './DenylistCache.js';
 let jobTracker: JobTracker | undefined;
 let webhookManager: WebhookManager | undefined;
 let personalityService: IPersonalityLoader | undefined;
-let channelActivationCacheInvalidationService:
-  ChannelActivationCacheInvalidationService | undefined;
 let messageContextBuilder: MessageContextBuilder | undefined;
 let conversationPersistence: ConversationPersistence | undefined;
 let denylistCache: DenylistCache | undefined;
@@ -35,7 +32,6 @@ interface RegisteredServices {
   jobTracker: JobTracker;
   webhookManager: WebhookManager;
   personalityService: IPersonalityLoader;
-  channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   messageContextBuilder: MessageContextBuilder;
   conversationPersistence: ConversationPersistence;
   denylistCache: DenylistCache;
@@ -49,7 +45,6 @@ export function registerServices(services: RegisteredServices): void {
   jobTracker = services.jobTracker;
   webhookManager = services.webhookManager;
   personalityService = services.personalityService;
-  channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
   messageContextBuilder = services.messageContextBuilder;
   conversationPersistence = services.conversationPersistence;
   denylistCache = services.denylistCache;
@@ -88,20 +83,6 @@ export function getPersonalityLoader(): IPersonalityLoader {
     throw new Error('Personality loader not registered. Call registerServices() first.');
   }
   return personalityService;
-}
-
-/**
- * Get the ChannelActivationCacheInvalidationService instance
- * Used by /channel activate and /channel deactivate to publish invalidation events
- * @throws Error if services not registered
- */
-export function getChannelActivationCacheInvalidationService(): ChannelActivationCacheInvalidationService {
-  if (channelActivationCacheInvalidationService === undefined) {
-    throw new Error(
-      'ChannelActivationCacheInvalidationService not registered. Call registerServices() first.'
-    );
-  }
-  return channelActivationCacheInvalidationService;
 }
 
 /**
@@ -146,7 +127,6 @@ export function areServicesRegistered(): boolean {
     jobTracker !== undefined &&
     webhookManager !== undefined &&
     personalityService !== undefined &&
-    channelActivationCacheInvalidationService !== undefined &&
     messageContextBuilder !== undefined &&
     conversationPersistence !== undefined &&
     denylistCache !== undefined
@@ -166,7 +146,6 @@ export function resetServices(): void {
   jobTracker = undefined;
   webhookManager = undefined;
   personalityService = undefined;
-  channelActivationCacheInvalidationService = undefined;
   messageContextBuilder = undefined;
   conversationPersistence = undefined;
   denylistCache = undefined;

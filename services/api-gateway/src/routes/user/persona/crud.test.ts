@@ -60,6 +60,30 @@ import {
 describe('persona CRUD routes', () => {
   const mockPrisma = createMockPrisma();
 
+  /** The id `createMockReqRes` (via `createProvisionedMockReqRes`) stamps as `req.userId`. */
+  const DISCORD_ID = 'discord-user-123';
+
+  /**
+   * Stand-in for the broadcast half of the invalidation. `RouteDeps` types this
+   * as the real `PersonaCacheInvalidationService`, so the cast keeps the seam
+   * asserted without constructing a Redis-backed service.
+   */
+  function createPersonaCacheInvalidation(): { invalidateUserPersona: ReturnType<typeof vi.fn> } {
+    return { invalidateUserPersona: vi.fn().mockResolvedValue(undefined) };
+  }
+
+  function buildDeps(
+    personaCacheInvalidation?: ReturnType<typeof createPersonaCacheInvalidation>
+  ): Parameters<typeof handleCreatePersona>[0] {
+    return {
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+      personaCacheInvalidation: personaCacheInvalidation as unknown as Parameters<
+        typeof handleCreatePersona
+      >[0]['personaCacheInvalidation'],
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue(mockUser);
@@ -553,6 +577,67 @@ describe('persona CRUD routes', () => {
           error: 'VALIDATION_ERROR',
         })
       );
+    });
+  });
+
+  describe('persona-cache invalidation', () => {
+    it('broadcasts on create', async () => {
+      mockPrisma.persona.create.mockResolvedValue({
+        ...mockPersona,
+        id: 'e5f6a7b8-c9d0-1234-ef01-345678901234',
+      });
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleCreatePersona(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({
+        name: 'New Persona',
+        content: 'New persona content',
+      });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('broadcasts on update', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+      mockPrisma.persona.update.mockResolvedValue({ ...mockPersona, name: 'Updated Name' });
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleUpdatePersona(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({ name: 'Updated Name' }, { id: MOCK_PERSONA_ID });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('broadcasts on delete', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID_2 });
+      mockPrisma.persona.delete.mockResolvedValue({});
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleDeletePersona(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('still succeeds when the broadcast rejects', async () => {
+      mockPrisma.persona.create.mockResolvedValue({
+        ...mockPersona,
+        id: 'e5f6a7b8-c9d0-1234-ef01-345678901234',
+      });
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+      personaCacheInvalidation.invalidateUserPersona.mockRejectedValue(new Error('redis down'));
+
+      const handler = handleCreatePersona(buildDeps(personaCacheInvalidation));
+      const { req, res } = createMockReqRes({
+        name: 'New Persona',
+        content: 'New persona content',
+      });
+      await handler(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(201);
     });
   });
 });

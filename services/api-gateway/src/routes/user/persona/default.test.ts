@@ -71,8 +71,14 @@ describe('PATCH /api/user/persona/:id/default', () => {
     return { invalidateUser: vi.fn().mockResolvedValue(undefined) };
   }
 
+  /** Stand-in for the persona-channel broadcast half — same seam-cast shape. */
+  function createPersonaCacheInvalidation(): { invalidateUserPersona: ReturnType<typeof vi.fn> } {
+    return { invalidateUserPersona: vi.fn().mockResolvedValue(undefined) };
+  }
+
   function buildDeps(
-    userCacheInvalidation?: ReturnType<typeof createUserCacheInvalidation>
+    userCacheInvalidation?: ReturnType<typeof createUserCacheInvalidation>,
+    personaCacheInvalidation?: ReturnType<typeof createPersonaCacheInvalidation>
   ): Parameters<typeof handleSetPersonaDefault>[0] {
     return {
       ...stubRouteResolvers(),
@@ -80,6 +86,9 @@ describe('PATCH /api/user/persona/:id/default', () => {
       userCacheInvalidation: userCacheInvalidation as unknown as Parameters<
         typeof handleSetPersonaDefault
       >[0]['userCacheInvalidation'],
+      personaCacheInvalidation: personaCacheInvalidation as unknown as Parameters<
+        typeof handleSetPersonaDefault
+      >[0]['personaCacheInvalidation'],
     };
   }
 
@@ -167,6 +176,56 @@ describe('PATCH /api/user/persona/:id/default', () => {
       await handler(req, res, vi.fn());
 
       expect(userCacheInvalidation.invalidateUser).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('broadcasts on the PERSONA channel too after a write — a default change is a persona input', async () => {
+      // PersonaResolver reads user.defaultPersona through its own cache on its
+      // own channel; the provisioning-cache eviction above cannot reach it.
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Second',
+        preferredName: 'Tester',
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleSetPersonaDefault(buildDeps(undefined, personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).toHaveBeenCalledWith(DISCORD_ID);
+    });
+
+    it('does not broadcast on the persona channel when already default', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID,
+        name: 'First',
+        preferredName: 'Tester',
+      });
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+
+      const handler = handleSetPersonaDefault(buildDeps(undefined, personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
+      await handler(req, res, vi.fn());
+
+      expect(personaCacheInvalidation.invalidateUserPersona).not.toHaveBeenCalled();
+    });
+
+    it('still succeeds when the persona-channel broadcast rejects', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Second',
+        preferredName: 'Tester',
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+      const personaCacheInvalidation = createPersonaCacheInvalidation();
+      personaCacheInvalidation.invalidateUserPersona.mockRejectedValue(new Error('redis down'));
+
+      const handler = handleSetPersonaDefault(buildDeps(undefined, personaCacheInvalidation));
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
+      await handler(req, res, vi.fn());
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('still succeeds when the broadcast rejects (local eviction already happened)', async () => {

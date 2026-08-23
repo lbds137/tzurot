@@ -12,7 +12,7 @@
  * - Messages in that channel are incorrectly handled on Instance B
  *
  * Architecture:
- * - Publisher: bot-client (when /channel activate or /channel deactivate runs)
+ * - Publisher: api-gateway channel activate/deactivate write routes (the row writers)
  * - Subscribers: All bot-client instances (to invalidate their local cache)
  *
  * Events:

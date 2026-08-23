@@ -25,6 +25,25 @@ import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('channel-activate');
 
+/**
+ * Broadcast a channel-activation cache eviction. Swallowed on failure: the
+ * write already committed, so the request must still succeed. Blast radius of
+ * a failed broadcast is one resolver TTL of staleness in other processes.
+ */
+async function broadcastChannelActivationInvalidation(
+  deps: RouteDeps,
+  channelId: string
+): Promise<void> {
+  if (deps.channelActivationInvalidation === undefined) {
+    return;
+  }
+  try {
+    await deps.channelActivationInvalidation.invalidateChannel(channelId);
+  } catch (error) {
+    logger.warn({ err: error }, 'Channel-activation cache broadcast failed');
+  }
+}
+
 /** Channel settings select type for upsert */
 interface ChannelSettingsResult {
   id: string;
@@ -160,6 +179,8 @@ export const handleActivateChannel = (deps: RouteDeps): RequestHandler => {
       { discordUserId, channelId, personalitySlug, replaced: wasReplaced },
       'Activated personality in channel'
     );
+
+    await broadcastChannelActivationInvalidation(deps, channelId);
 
     sendCustomSuccess(res, buildActivationResponse(settings, wasReplaced), StatusCodes.CREATED);
   });

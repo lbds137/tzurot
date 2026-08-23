@@ -32,9 +32,11 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type {
   ApiKeyCacheInvalidationService,
   CacheInvalidationService,
+  ChannelActivationCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  PersonaCacheInvalidationService,
   SttResolverCacheInvalidationService,
   SystemSettingsCacheInvalidationService,
   TtsConfigCacheInvalidationService,
@@ -86,8 +88,12 @@ export interface RouteDeps {
   readonly apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService;
   /** System-settings cache pub/sub — the admin system-settings write route. */
   readonly systemSettingsInvalidation?: SystemSettingsCacheInvalidationService;
-  /** User provisioning-cache pub/sub — the set-default-persona route. */
+  /** User provisioning-cache pub/sub — set-default-persona, account-delete/retention-purge (via AccountEraserDeps), and admin db-sync. */
   readonly userCacheInvalidation?: UserCacheInvalidationService;
+  /** Persona cache pub/sub — persona CRUD, per-personality overrides, set-default, and admin db-sync. */
+  readonly personaCacheInvalidation?: PersonaCacheInvalidationService;
+  /** Channel-activation cache pub/sub — the channel activate/deactivate write routes. */
+  readonly channelActivationInvalidation?: ChannelActivationCacheInvalidationService;
 
   // ---- Cross-cutting services -------------------------------------------
 

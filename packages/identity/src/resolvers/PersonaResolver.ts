@@ -444,3 +444,22 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     return Promise.resolve(null);
   }
 }
+
+/**
+ * Shared PersonaResolver per PrismaClient. The resolution cache lives on the
+ * instance, so all callers within a process MUST share one instance for the
+ * cache — and its cross-process invalidation — to be coherent. Keyed on the
+ * PrismaClient reference; a process has one client, so one resolver. Mirrors
+ * `getOrCreateUserService`, for the same reason: ai-worker's context pipeline
+ * has to reach the same instance the invalidation subscriber evicts.
+ */
+const personaResolverByPrisma = new WeakMap<PrismaClient, PersonaResolver>();
+
+export function getOrCreatePersonaResolver(prisma: PrismaClient): PersonaResolver {
+  let resolver = personaResolverByPrisma.get(prisma);
+  if (resolver === undefined) {
+    resolver = new PersonaResolver(prisma);
+    personaResolverByPrisma.set(prisma, resolver);
+  }
+  return resolver;
+}

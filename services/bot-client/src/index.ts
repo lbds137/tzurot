@@ -408,7 +408,6 @@ function createServices(): Services {
     jobTracker,
     webhookManager,
     personalityService: routingPersonalityLoader,
-    channelActivationCacheInvalidationService,
     messageContextBuilder: contextBuilder,
     conversationPersistence: persistence,
     denylistCache,

@@ -16,7 +16,7 @@
 
 import { recordGuildMemberInfos } from '@tzurot/common-types/services/guildMemberInfoStore';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { getOrCreateUserService, PersonaResolver } from '@tzurot/identity';
+import { getOrCreatePersonaResolver, getOrCreateUserService } from '@tzurot/identity';
 import { PrismaContextDataSource } from '../../../services/context/PrismaContextDataSource.js';
 import { ContextAssembler } from '../../../services/context/ContextAssembler.js';
 import { ContextStep } from './steps/ContextStep.js';
@@ -35,7 +35,10 @@ export function buildContextStep(prisma: PrismaClient): ContextStep {
   const assembler = new ContextAssembler({
     dataSource,
     userService: getOrCreateUserService(prisma),
-    personaResolver: new PersonaResolver(prisma),
+    // Shared per-PrismaClient instance, for the same reason as `userService`
+    // above: the resolution cache lives on the instance, so this pipeline must
+    // reach the same resolver the invalidation subscriber evicts.
+    personaResolver: getOrCreatePersonaResolver(prisma),
     guildInfoRecorder: {
       record: (guildId, observations) => recordGuildMemberInfos(prisma, guildId, observations),
     },

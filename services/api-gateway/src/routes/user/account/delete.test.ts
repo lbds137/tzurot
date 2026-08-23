@@ -71,11 +71,6 @@ vi.mock('../../../services/AuthMiddleware.js', async importOriginal => {
 });
 
 const broadcastInvalidateMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock('@tzurot/cache-invalidation', () => ({
-  UserCacheInvalidationService: function MockUserCacheInvalidation() {
-    return { invalidateUser: broadcastInvalidateMock };
-  },
-}));
 
 import {
   handlePreviewAccountDelete,
@@ -98,6 +93,9 @@ function makeDeps(overrides: Partial<RouteDeps> = {}): RouteDeps {
     cacheInvalidationService: {
       invalidatePersonality: vi.fn().mockResolvedValue(undefined),
     } as unknown as RouteDeps['cacheInvalidationService'],
+    userCacheInvalidation: {
+      invalidateUser: broadcastInvalidateMock,
+    } as unknown as RouteDeps['userCacheInvalidation'],
     ...overrides,
   } as RouteDeps;
 }
