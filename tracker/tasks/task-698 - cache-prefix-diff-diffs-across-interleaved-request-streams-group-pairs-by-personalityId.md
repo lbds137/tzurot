@@ -3,9 +3,10 @@ id: TASK-698
 title: >-
   cache:prefix-diff diffs across interleaved request streams - group pairs by
   personalityId
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 15:03'
+updated_date: '2026-08-23 00:56'
 labels:
   - 'area:tooling'
   - 'size:S'
