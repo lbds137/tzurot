@@ -3,9 +3,10 @@ id: TASK-732
 title: >-
   Orchestration retrospective at the beta.206 cut - mine dispatch/report pairs +
   subagent transcripts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 16:25'
+updated_date: '2026-08-23 14:20'
 labels:
   - 'area:skills'
   - 'size:M'

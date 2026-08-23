@@ -22,13 +22,17 @@ Holistic release review: **no blocking findings** (verified 17-package bump lock
 - GLM (b) (now.md entry): a retarget succeeding where a demoted turn previously dead-ended; hardening (b) gated on TASK-639.
 - TASK-43 probe (`TASK-43 probe: forward mention sources`, bot-client): dev already answered it (`snapshot.mentions` populated); the fix PR removes the probe in a paired debug commit.
 
-## ▶️ NEXT — beta.207 planning + the next-train queue
+## ▶️ NEXT — beta.207 build queue
 
-**Resume pointer (owner directive 2026-08-23, pre-compaction): full backlog survey to decide beta.207 contents.** Method: `pnpm ops backlog:digest` (areas · oldest-20 · newest) + `backlog/cold/queue.md` theme order + the drain-campaign pre-grounded batches + `pnpm tracker task list` slices by state/priority — presented as a scoped proposal against the DRAFT plan below (the draft is the hypothesis, the survey may revise it; owner decides the final scope).
+**beta.207 scope SETTLED (owner, 2026-08-23; plan in `backlog/now.md`).** Shipped already: hygiene batch #2192 (TASK-740/741/742 Done, 6 review rounds each catching a real gap incl. the set-default route itself and the users-table sync path) · mining/retrospective operationalization #2193 (TASK-732 Done — mode-table rewrite, spec-template hardening T1–T12, board-commit-branch-gate hook with 23 probe cases, memory promotions M1–M8 executed with deletions). TASK-685 Done (prod re-measure: 0/10 S1 cuts — TASK-651 closed). TASK-708 closed on its smoke evidence.
 
-**vNext theme (per the beta.206 plan's sketch): doc-12 observability** — the "incidents reach the owner before the tooling" layer; the realMessages flip's cache-cost read (TASK-685) feeds it. Starts with a scoping pass over doc-12.
+**Resume pointer — next build units, nested dispatch per the (freshly updated) orchestration skill:**
 
-**Next-train small queue (all tracker-filed, `state:ready` unless noted):** TASK-43 fix (resolve forwarded mentions via `snapshot.mentions.users`; removes the probe) · TASK-740 (persona invalidation channel has no publisher + fragmented resolver instances; includes the #2190-review AccountEraser unification member) · TASK-741 (activation invalidation publishes from the caller, not the writer) · TASK-742 (db-sync bulk user writes skip cache invalidation) · TASK-736 (reasoning view fence-neutralizer class member) · TASK-737 (vision media_not_found on expired CDN URLs) · TASK-738 (Messages view boundary cosmetics, low) · TASK-732 (orchestration retrospective — owns the skill-table update for the 2026-08-22 dispatch-mode reversal) · TASK-730 (`/inspect` redaction — owner call).
+1. **TASK-745** (flag-on channel confusion, owner-approved all three shapes): (a) `<current_location>` echo beside `<datetime>` in `PromptBuilder.ts`'s V-tier builder (~:395-412); (b) instruction header / distinct scoping on the `<prior_conversations>` wrapper (produced in `ContextWindowManager`, ships as leading HumanMessage); (c) render-time strip/past-tense of legacy "This conversation is taking place" spans in memory content (`MemoryFormatter.ts`; the reference-path sibling filter is `storedReference.ts:226` — no live producer). Class-sweep results + watch items on the task.
+2. **TASK-747** (vision tier-3 TypeError + content-refusal classification, owner-approved): guard the `openrouter/auto` invoke path (`VisionProcessor.js:157` crash site) so malformed provider errors classify instead of TypeError; map `data_inspection_failed` → content-refusal, non-retryable same-tier. Full chain evidence on the task (requestId 7da570d8).
+3. Then the remaining train: TASK-43 · TASK-736 · TASK-737 · TASK-738 · TASK-639 · TASK-713 · TASK-616 · doc-12 P0.1+P0.2 (+privacy-policy rider; four owner Qs at build time).
+
+**Open question the owner raised (2026-08-23): why did Qwen vision start refusing** — "was reliable before." Checkable: sweep prior deployments' ImageDescription logs for this channel's earlier diary days to see whether qwen described them or a lower tier silently caught them all along. Offer stands.
 
 `ConversationHistoryEntry` (pipeline/types.ts) Pick/Omit fold still carried for whichever slice next touches the wire shape.
 
