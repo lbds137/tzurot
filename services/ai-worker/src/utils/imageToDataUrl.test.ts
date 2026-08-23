@@ -157,4 +157,55 @@ describe('downloadImageToDataUrl', () => {
     ).rejects.toBeInstanceOf(AttachmentTooLargeError);
     expect(mockFetchAttachmentBytes).toHaveBeenCalledTimes(1);
   });
+
+  it('does NOT retry a 404 on the Discord-CDN route (object is gone)', async () => {
+    mockValidateAttachmentUrl.mockReturnValue('https://cdn.discordapp.com/x.png');
+    mockFetchAttachmentBytes.mockRejectedValue(new HttpError(404, 'Not Found'));
+
+    await expect(
+      downloadImageToDataUrl('https://cdn.discordapp.com/x.png', { retryDelayMs: 0 })
+    ).rejects.toBeInstanceOf(HttpError);
+    expect(mockFetchAttachmentBytes).toHaveBeenCalledTimes(1);
+  });
+
+  it('still retries a 404 on the external route (may be a transient host hiccup)', async () => {
+    mockValidateAttachmentUrl.mockImplementation(() => {
+      throw new Error('must be from Discord CDN');
+    });
+    mockValidateExternalImageUrl.mockReturnValue('https://i.redd.it/x.jpg');
+    mockFetchExternalImageBytes
+      .mockRejectedValueOnce(new HttpError(404, 'Not Found'))
+      .mockResolvedValueOnce(Buffer.from('raw'));
+
+    const promise = downloadImageToDataUrl('https://i.redd.it/x.jpg', { retryDelayMs: 0 });
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(mockFetchExternalImageBytes).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws ExpiredCdnUrlError for an expired Discord CDN URL and performs ZERO fetches', async () => {
+    // A plausible-epoch-seconds `ex` value well in the past (year ~2020).
+    const pastExSeconds = 1_600_000_000;
+    const expiredUrl = `https://cdn.discordapp.com/x.png?ex=${pastExSeconds.toString(16)}&is=1&hm=deadbeef`;
+    mockValidateAttachmentUrl.mockReturnValue(expiredUrl);
+
+    await expect(downloadImageToDataUrl(expiredUrl, { retryDelayMs: 0 })).rejects.toThrow(
+      'Discord CDN URL expired'
+    );
+    expect(mockFetchAttachmentBytes).not.toHaveBeenCalled();
+    expect(mockFetchExternalImageBytes).not.toHaveBeenCalled();
+  });
+
+  it('a live Discord CDN URL (future ex) still fetches normally', async () => {
+    const futureExSeconds = Math.floor(Date.now() / 1000) + 3600;
+    const liveUrl = `https://cdn.discordapp.com/x.png?ex=${futureExSeconds.toString(16)}&is=1&hm=deadbeef`;
+    mockValidateAttachmentUrl.mockReturnValue(liveUrl);
+    mockFetchAttachmentBytes.mockResolvedValue(Buffer.from('raw'));
+
+    const result = await downloadImageToDataUrl(liveUrl);
+
+    expect(mockFetchAttachmentBytes).toHaveBeenCalledTimes(1);
+    expect(result.dataUrl).toBe('data:image/jpeg;base64,cmVzaXplZA==');
+  });
 });

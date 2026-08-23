@@ -30,6 +30,8 @@ import {
   VISION_FAILURE_CACHE_POLICY,
 } from '@tzurot/common-types/constants/error';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { HttpError } from '../../utils/attachmentFetch.js';
+import { ExpiredCdnUrlError } from '../../utils/discordCdnExpiry.js';
 
 /**
  * Adapt an `invoke`-shaped mock to the `generate` seam `invokeModelGuarded`
@@ -247,6 +249,99 @@ describe('VisionProcessor', () => {
         // The provider must receive the ORIGINAL source URL on fallback, not a
         // data URL — guards against resolveVisionImageUrl silently returning
         // undefined (or a stale data URL) instead of attachment.url on error.
+        const messages = mockModelInvoke.mock.calls[0][0];
+        const humanMessage = messages[messages.length - 1];
+        const imageContent = humanMessage.content.find(
+          (c: { type: string }) => c.type === 'image_url'
+        );
+        expect(imageContent.image_url.url).toBe(mockAttachment.url);
+      });
+    });
+
+    describe('dead vision image handling (proven-unreachable Discord CDN URLs)', () => {
+      it('skips the vision call entirely for an expired Discord CDN URL', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(
+          new ExpiredCdnUrlError(Date.parse('2020-01-01T00:00:00.000Z'))
+        );
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).not.toHaveBeenCalled();
+        expect(mockModelInvoke).not.toHaveBeenCalled();
+        expect(mockVisionCacheStoreFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            attachmentId: mockAttachment.id,
+            url: mockAttachment.url,
+            category: ApiErrorCategory.MEDIA_NOT_FOUND,
+          })
+        );
+        expect(result).toMatch(/^\[Image/);
+      });
+
+      it('throws a MEDIA_NOT_FOUND VisionModelError for an expired URL when throwOnFailure is set', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(
+          new ExpiredCdnUrlError(Date.parse('2020-01-01T00:00:00.000Z'))
+        );
+
+        await expect(
+          describeImage(mockAttachment, personality, false, undefined, { throwOnFailure: true })
+        ).rejects.toMatchObject({
+          name: 'VisionModelError',
+          category: ApiErrorCategory.MEDIA_NOT_FOUND,
+        });
+        expect(mockCreateChatModel).not.toHaveBeenCalled();
+      });
+
+      it('skips the vision call entirely on a 403 from our own fetch of a Discord CDN URL', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(new HttpError(403, 'Forbidden'));
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).not.toHaveBeenCalled();
+        expect(mockModelInvoke).not.toHaveBeenCalled();
+        expect(mockVisionCacheStoreFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            attachmentId: mockAttachment.id,
+            url: mockAttachment.url,
+            category: ApiErrorCategory.MEDIA_NOT_FOUND,
+          })
+        );
+        expect(result).toMatch(/^\[Image/);
+      });
+
+      it('skips the vision call entirely on a 404 from our own fetch of a Discord CDN URL', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(new HttpError(404, 'Not Found'));
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).not.toHaveBeenCalled();
+        expect(mockModelInvoke).not.toHaveBeenCalled();
+        expect(result).toMatch(/^\[Image/);
+      });
+
+      it('still runs the provider call for a live (non-dead) URL — regression guard', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('Mocked image description');
+        expect(mockCreateChatModel).toHaveBeenCalled();
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('still falls back to the provider URL for a non-Discord-CDN fetch failure — regression guard', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(new Error('host blocked our egress'));
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('Mocked image description');
+        expect(mockCreateChatModel).toHaveBeenCalled();
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         const messages = mockModelInvoke.mock.calls[0][0];
         const humanMessage = messages[messages.length - 1];
         const imageContent = humanMessage.content.find(

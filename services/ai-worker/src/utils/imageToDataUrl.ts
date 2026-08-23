@@ -24,6 +24,7 @@ import {
   MAX_ATTACHMENT_BYTES,
 } from './attachmentFetch.js';
 import { validateExternalImageUrl, fetchExternalImageBytes } from './safeExternalFetch.js';
+import { assertDiscordCdnUrlNotExpired } from './discordCdnExpiry.js';
 
 const logger = createLogger('imageToDataUrl');
 
@@ -89,8 +90,13 @@ async function fetchImageWithRetry(
     // 403 is the CDN-expiration signal — re-fetching an expired URL just 403s
     // again. Size-cap violations won't improve on retry either. Match by typed
     // class / status field so a future message-format tweak can't break the guard.
+    // 403 stays non-retryable for ANY host (an authorization verdict, not a
+    // transient condition), while 404 is non-retryable only on the Discord-CDN
+    // route: the object is gone there, whereas an external 404 may reflect a
+    // transient host hiccup and stays retryable below.
     if (
       (error instanceof HttpError && error.status === 403) ||
+      (error instanceof HttpError && error.status === 404 && !isExternal) ||
       error instanceof AttachmentTooLargeError
     ) {
       throw error;
@@ -106,14 +112,22 @@ async function fetchImageWithRetry(
 
 /**
  * Route → fetch (one transient retry) → resize → base64. Returns the `data:`
- * URL and its byte length. Throws on fetch/validation failure; the caller owns
- * the fallback decision.
+ * URL and its byte length. Throws on fetch/validation failure (including
+ * `ExpiredCdnUrlError` for an already-expired Discord CDN URL); the caller
+ * owns the fallback decision.
  */
 export async function downloadImageToDataUrl(
   rawUrl: string,
   options: DownloadImageOptions = {}
 ): Promise<{ dataUrl: string; bytes: number }> {
   const { sanitizedUrl, isExternal } = routeImageUrl(rawUrl);
+  // A Discord-CDN URL past its signed expiry cannot succeed for us OR for a
+  // downstream vision provider — skip the round trip entirely rather than pay
+  // for a fetch (and, upstream, a billed provider call) that is doomed. Scoped
+  // to the Discord-CDN route only: an external host has no such signature.
+  if (!isExternal) {
+    assertDiscordCdnUrlNotExpired(sanitizedUrl);
+  }
   const buffer = await fetchImageWithRetry(sanitizedUrl, isExternal, options);
   // Use the resize *output* contentType for the data URL — resize always emits
   // JPEG, so the MIME must reflect that even when the source was PNG.
