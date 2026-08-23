@@ -1,10 +1,10 @@
 ---
 id: TASK-43
 title: Resolve user-mentions in forwarded snapshots (rawMentionedUsers)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-29 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-08-23 21:31'
 labels:
   - 'origin:review'
   - 'area:bot-client'
