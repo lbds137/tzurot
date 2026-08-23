@@ -69,6 +69,14 @@ Constraint from the design refresh: fixes land as ENTRY-METADATA shapes Phase 2 
   - **Expect**: the reply text/embed in `/inspect` extended context. Failure = the reply absent while the invoking user's messages appear (today's behavior).
   - **Report**: `/inspect` or pass/fail.
 
+- [ ] **realMessagesEnabled dev flip + verification** (Phase 2 / #2180-#2186, owner-batched 2026-08-22) — _needs-smoke: the flip is the first runtime execution of the whole flag-on path; every piece is unit-pinned but the assembled flag-on prompt has never been generated outside tests._
+  - **Repro**: in dev, `/admin settings` → Operations → flip **Real Messages** ON (live, no deploy). Then generate 2+ turns with any character in one channel (extended context on or off — either).
+  - **Invariant**: history ships as real user/assistant provider messages instead of `<chat_log>` XML, and the reply quality is normal (no confusion about who said what).
+  - **Masking state**: none to reset — the setting is live and per-instance. A turn generated BEFORE the flip proves nothing; use fresh turns.
+  - **Expect**: `/inspect` → **Messages** view shows multiple user/assistant blocks with speaker headers (flag-off it shows only the current turn). Failure = still one big user message carrying `<chat_log>` XML, or a garbled/misattributed reply.
+  - **Rollback**: flip the toggle OFF — live, instant, no deploy.
+  - **Report**: pass/fail + the `/inspect` Messages output if anything looks off. I'll run the log-side checks (per-stream prefix-diff before/after, stable-prefix diagnostic) from here once you say it's flipped.
+
 - [ ] **Rider on ANY of the three forward smokes above** (TASK-43 / #2171) — _no separate round needed._
   - **One extra requirement**: the forwarded message must contain an **at-mention in its own text** (`@someone`). Any of the three repros above works otherwise.
   - **Why it matters**: a forward with no at-mention logs a zero count, which reads as "Discord sends no mentions" when it is actually "nothing to send." That would settle the question the wrong way.
