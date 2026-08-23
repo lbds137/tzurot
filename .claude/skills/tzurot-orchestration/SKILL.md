@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-21'
+lastUpdated: '2026-08-23'
 ---
 
 # Orchestrator Mode
@@ -22,19 +22,24 @@ gate that stops worker defects before CI does.
 Who drives the main loop determines the delegation posture. The mechanism is
 quality — fresh context plus an independent diff review — not budget.
 
-**Opus 5 orchestrating Sonnet workers is the SETTLED DEFAULT for drain
-sessions** (owner verdict, TASK-513) — Fable is reserved for design, semantic,
-and taste-heavy work, not held as the ordinary driver. Release operations are
-**not** model-scoped: release safety rests on the per-release owner-approval
-gate (`00-critical.md` § Merge Approval), which is model-independent. Schema and
-migration work, and any owner-taste call, still escalate to the owner regardless
-of driver.
+**Fable-driven NESTED DISPATCH is the PRIMARY workflow for routine work**
+(owner verdict 2026-08-22, superseding the earlier Opus-default call): Fable
+drives the main loop and dispatches one Opus orchestrator + Sonnet worker per
+unit. **The Opus single-hop main loop is the documented BACKUP lane** for when
+Fable usage runs low — its own record (TASK-513/487) stays valid and the lane
+stays maintained; it is a fallback, not a deprecation. The nested pattern's
+evidence ledger through the beta.206 epoch: 15 units, 33 dispatch-spec defects
+caught by the fresh-context orchestrator, zero worker-tier defects on units
+with complete specs. Release operations are **not** model-scoped: release
+safety rests on the per-release owner-approval gate (`00-critical.md` § Merge
+Approval), which is model-independent. Schema and migration work, and any
+owner-taste call, still escalate to the owner regardless of driver.
 
-| Driver                                                 | Posture                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop** _(design / semantic / taste work)_ | **Nested dispatch is the STANDARD** (owner verdict, TASK-718) — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit. |
-| **Opus main loop** _(DEFAULT — drain sessions)_        | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).                                                      |
-| **Bulk reading/exploration**                           | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                        |
+| Driver                                          | Posture                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop** _(PRIMARY — routine work)_  | **Nested dispatch is the STANDARD** (owner verdicts, TASK-718 + the 2026-08-22 hierarchy call) — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit. |
+| **Opus main loop** _(BACKUP — low Fable usage)_ | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).                                                                                       |
+| **Bulk reading/exploration**                    | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                         |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
 the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
@@ -92,18 +97,32 @@ fresh-context value the pattern buys).
 The dispatch prompt's non-negotiable contract points:
 
 - **Step 0 is base-SHA verification with the self-heal authorized** (§ "The
-  base IS stale by default"). Name the SHA with its subject line. A LOCAL-only
+  base IS stale by default"). Name the SHA with its subject line. **Copy the
+  four-condition self-heal block from that section VERBATIM — never
+  paraphrase it**: a paraphrase has already regressed to a bare
+  verify-and-stop once and to three-of-four conditions twice; those dispatches
+  survived only because the orchestrator overrode the spec by citing this
+  skill. A LOCAL-only
   commit is a valid base — the worktree shares the object store, so committing
   a precursor (e.g. a schema/migration half) on the feature branch in the main
   tree and dispatching against that SHA works without any push.
+- **The inner worker's first action is `pwd` PLUS an assertion that the path
+  contains `.claude/worktrees/`** — not a bare "confirm pwd". One worker
+  acknowledged the bare instruction and still began targeting the shared
+  checkout; only its own isolation guard stopped it.
+- **Instruct the inner worker to end its turn with its report as its final
+  text and make NO `SendMessage` attempt** — the orchestrator receives the
+  Agent tool result directly. An inner worker that tried to message its "peer
+  session" found no such agent and delivered its results to the MAIN loop
+  instead, twice in one unit.
 - **Work the harness cannot do in a worktree stays with the main loop**:
   anything needing `.env` or the local dev DB (migrations, `db:*` commands)
   is done in the MAIN tree and committed as the base the worker self-heals
   onto.
 - **NO commits, branches, or pushes** — the deliverable is a dirty worktree
-  plus the report. This supersedes spec-template item 7 for nested dispatch:
+  plus the report. This supersedes spec-template item 8 for nested dispatch:
   the harness's own `worktree-agent-*` branch already satisfies branch setup,
-  and step 0's base verification takes item 7's place as the separate first
+  and step 0's base verification takes item 8's place as the separate first
   step.
 - **Expect a bare worktree**: no node_modules, no built dist. The prompt says
   to run `pnpm install` + `pnpm --filter "./packages/**" build` up front, and
@@ -143,30 +162,61 @@ the argument for keeping every layer, not for trusting any one of them.
 ## The spec template
 
 Every implementation spec carries these sections, by name. A missing section is
-a gap the worker will fill by guessing.
+a gap the worker will fill by guessing. **Dropping sections under time pressure
+is measurable**: the two beta.206-epoch dispatches that omitted four sections
+each produced the epoch's only high-severity review escapes and most of its
+worker deviations — the template gets shortest exactly where the unit is
+largest, which is backwards.
 
 1. **Task** — the design decisions already made. The worker executes; it never
-   designs.
-2. **Files in scope.**
-3. **Landmines** — enumerated known traps: formatters that rewrite the file,
+   designs. Include a **premise ledger**: every premise the spec asserts about
+   RUNTIME behavior carries a one-line cite of the read that established it,
+   and the orchestrator is instructed to re-verify each by probe or test — not
+   by re-reading the same code — before building on it. The premises that
+   failed this pattern all looked correct on the page; the worst was caught
+   only by printing the actual runtime value after code-reading-based tests
+   went green.
+2. **Files in scope** — mandatory, never omitted. Every `file:line` cite is
+   marked "verify before editing — cites drift". State how the enumeration was
+   derived (the exact grep) and its positive control (the known-present
+   instance it matched), so the orchestrator can re-run and extend it. Name
+   what the pattern cannot see: an identifier grep misses a STRUCTURAL copy of
+   a type, so pair it with a distinctive field-name sweep.
+3. **Budget headroom** — for every named file, its current ESLint-counted line
+   total and headroom to 400 (`npx eslint <file> --rule '{"max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}'`
+   — `wc -l` is not the metric, `02-code-standards.md`). Where headroom is
+   smaller than the expected addition, name the extraction target as a
+   PRE-AUTHORIZED routine decision rather than a stop; same for any touched
+   function already at `max-lines-per-function`/`max-statements`/`max-params`.
+   13 mid-build ceiling collisions in one epoch, every one measurable in one
+   command at authoring time.
+4. **Landmines** — enumerated known traps: formatters that rewrite the file,
    gated baselines, hook behavior, fixture shapes.
-4. **Authorized routine decisions** — name the 2–3 calls the worker may make
+5. **Authorized routine decisions** — name the 2–3 calls the worker may make
    solo. Everything material not listed is a stop condition.
-5. **Stop conditions** — the task-specific ones, on top of the agent contract's
+6. **Stop conditions** — the task-specific ones, on top of the agent contract's
    defaults.
-6. **Verification gates — enumerate the exact commands.** Name every gate CI
-   will run for the touched packages; in particular BOTH `typecheck` AND
+7. **Verification gates — enumerate the exact commands, copied from the target
+   package's `package.json` scripts** (or the direct `npx` equivalent when the
+   script is absent — and say which): a missing script produces empty `pnpm`
+   output indistinguishable from a silent pass. Name every gate CI will run
+   for the touched packages; in particular BOTH `typecheck` AND
    `typecheck:spec` where the package defines it (separate tsconfig — plain
    `typecheck` misses test-file errors). Sequential, long timeouts, never in
    parallel (`05-tooling.md` § Resource Constraints).
-7. **Branch setup** — as a separate first step. The develop-code-commit-guard
+8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this
    step is preceded by the base-SHA verification WITH self-heal authorization
    (§ Worktree spawns › "The base IS stale by default") — never a bare
    verify-and-stop.
-8. **Report requirements** — deviations flagged, verbatim verification tails,
-   survivor-grep results.
+9. **Report requirements** — deviations flagged, verbatim verification tails,
+   survivor-grep results. The report also **declares the delegation shape**
+   ("no inner worker — I judged the unit small enough" is a valid answer;
+   silence is not) and carries **transfer notes**: tiers the worktree could
+   not reach (`typecheck:spec`, `pnpm test:component` when a snapshot surface
+   changed), gitignored artifacts the transfer must not sweep in, and whether
+   the main tree's branch moved during the dispatch window.
 
 ## Worktree spawns
 
@@ -279,6 +329,15 @@ Pre-stage the next unit's grounding — read the files, profile the data, draft
 the next spec. Never touch the worker's files while it holds them. Monitors
 exist so waiting is never the activity (`10-working-posture.md` § Momentum).
 
+**Board and tracker commits go to `develop` — check the branch first.** If the
+main tree is parked on a feature branch while a dispatch runs,
+`git switch develop`, commit, and switch back: both recovered
+board-on-feature-branch commits in the beta.206 epoch happened inside a
+dispatch window, and the push then no-ops as "Everything up-to-date" in
+silence. Interaction with `05-tooling.md` § PR Monitoring: a branch hop moves
+`$(git rev-parse HEAD)`, so arm any pending CI monitor — and see its SHA echo
+— before hopping, not after. Backstopped by `board-commit-branch-gate.sh`.
+
 ## When the worker reports
 
 **Read the FULL diff before any commit — the orchestrator's OWN read, never
@@ -302,8 +361,22 @@ use subagents to verify or double-check your own work. Then:
   worker before the resumed worker edits anything.
 - Check every reported deviation against the spec's intent, not just its
   letter.
+- **Verify, don't relay.** Re-run `git -C <worktree> log -1`,
+  `status --porcelain`, and `diff --stat` for every git claim the report makes,
+  and `git diff --stat -- <file>` for every "I added tests to X" — worker
+  git-state or authorship claims were false in 5 of 15 beta.206-epoch units,
+  every one caught only by this check. A worker's "this canary cannot redden"
+  is also a claim: build the discriminating fixture before accepting it.
 - Re-run the gates yourself when the worker's verification tails are absent or
   truncated; a claim without command output is unverified.
+- **Then sweep OUTWARD from the diff.** Every high-severity finding this
+  pattern has leaked to review was a claim or instruction on a surface the
+  diff did not touch — a system-prompt constant still naming a field the new
+  mode removed, an adjacent instruction string describing the old shape.
+  Enumerate, by name, the prose and constants that DESCRIBE the behavior the
+  unit changed but live outside its diff, and read each one. Neither the
+  worker (out of its diff) nor the reviewer above (reading only the diff) is
+  positioned to catch this — the orchestrator is.
 - Then the normal commit → PR → monitor cycle per `/tzurot-git-workflow`.
 - **Review-round hard cap (~6 rounds/PR)**: past it, stop iterating in this
   context — hand the open findings to a fresh-context implementer or the owner

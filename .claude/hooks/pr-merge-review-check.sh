@@ -1046,6 +1046,11 @@ if release_reminder_due; then RELEASE_DUE=1; fi
     printf '  - If the review surfaced a substantive finding (post-autosquash review\n'
     printf '    can differ from pre-autosquash), report it to the user and ask whether\n'
     printf '    to proceed, fix, or backlog.\n\n'
+    printf 'RE-DERIVE THE NUMBERS: before retrying the merge, re-run the command behind\n'
+    printf 'every count, ratio, and enumeration in the PR body and commit message and\n'
+    printf 'fix what moved — self-reported numbers are written once at peak confidence\n'
+    printf 'and never re-read, and reviewers have caught stale ones on most PRs that\n'
+    printf 'carried them (/tzurot-git-workflow, closing-reference procedure).\n\n'
     if [ "${ORIGIN_HITS:-0}" -gt 0 ] 2>/dev/null; then
         printf '⚠ ORIGIN-LANGUAGE DETECTED (%s matching line(s)). This review scopes at\n' "$ORIGIN_HITS"
         printf 'least one finding as pre-existing / not-a-regression. Origin is NOT a\n'

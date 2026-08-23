@@ -151,6 +151,20 @@ Does staleness cause incorrect behavior?
                   └── NO → Probably don't need caching
 ```
 
+### Redis counters: plain incr/expire, fail-open — no reflexive Lua
+
+For counters, quotas, and rate limits at this project's scale, default to the
+`VisionFallbackQuota` shape — plain `redis.incr` then compare against the
+limit, `redis.expire` for the window, non-atomic, fail-open (an over-limit
+caller still bumps the counter, which is moot once they are already denied).
+Where reject-bleed genuinely matters, fix it by ORDERING in plain TS — check
+before increment — not by reaching for Lua. Lua/EVALSHA only prevents
+same-user concurrent overshoot, which errs on the permissive side — the safe
+direction for a soft cap — while a nontrivial Lua script is untyped,
+TS-untestable logic in a string. Reach for Lua only on a DEMONSTRATED
+concurrency harm or a hard financial/security cap; advisors re-suggest it
+reflexively and it keeps getting scrapped here.
+
 ### TTLCache Usage
 
 ```typescript

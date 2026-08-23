@@ -245,6 +245,14 @@ export const MY_CONFIG = {
 never `./utils/index.js`. Re-exports create circular imports and break vitest
 mocking.
 
+**Explicit enumeration over opaque sugar in shared infrastructure.** In shared
+mocks, factories, and helpers, prefer explicitly listing properties over
+`{ ...actual, override }` spreads and `export *` — the reader of shared code
+must be able to see which exports are stubbed vs. passed through without
+resolving the spread, and explicit enumeration creates compile-time pressure
+when the underlying type changes where a spread propagates silently. Sugar is
+fine when the alternative is pure repetition with no distinction to track.
+
 **No wrapper re-export files.** Never create a local file that just re-exports
 from another package; import directly from the source package.
 
