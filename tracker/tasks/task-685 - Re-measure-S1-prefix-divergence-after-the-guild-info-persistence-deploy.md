@@ -1,9 +1,10 @@
 ---
 id: TASK-685
 title: Re-measure S1 prefix divergence after the guild-info persistence deploy
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 21:50'
+updated_date: '2026-08-23 08:39'
 labels:
   - 'area:ai-worker'
   - 'size:S'
