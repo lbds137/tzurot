@@ -1,9 +1,10 @@
 ---
 id: TASK-762
 title: 'Boot watchdog: fail fast when Discord login is not achieved within a timeout'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 14:33'
+updated_date: '2026-08-24 17:12'
 labels:
   - 'area:bot-client'
   - 'size:S'
