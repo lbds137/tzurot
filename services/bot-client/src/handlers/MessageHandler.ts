@@ -12,6 +12,7 @@ import { type MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceF
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
+import { reportDeliveryFailure, reportJobError } from '../observability/ErrorChannelReporter.js';
 import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
 import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceResponses.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
@@ -332,6 +333,7 @@ export class MessageHandler {
         { jobId, error: result.error, errorInfo: result.errorInfo },
         'Job failed with error from ai-worker'
       );
+      reportJobError(result.errorInfo?.category, result.requestId);
       await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
       return;
     }
@@ -366,6 +368,7 @@ export class MessageHandler {
       );
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling job result');
+      reportDeliveryFailure(error, result.requestId);
       await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
     }
   }
@@ -392,6 +395,7 @@ export class MessageHandler {
         { jobId, error: result.error, errorInfo: result.errorInfo },
         'Slash job failed; surfacing error to channel'
       );
+      reportJobError(result.errorInfo?.category, result.requestId);
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
     }
@@ -473,6 +477,7 @@ export class MessageHandler {
       );
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling slash job result');
+      reportDeliveryFailure(error, result.requestId);
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
     }
   }
