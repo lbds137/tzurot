@@ -8,6 +8,7 @@
 import type { Message } from 'discord.js';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { stripBotFooters } from '@tzurot/common-types/utils/discord';
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
@@ -32,7 +33,23 @@ type AttachmentList = NonNullable<ReturnType<typeof extractAttachments>>;
 
 export class MessageFormatter {
   /**
-   * Resolve message content and attachments, handling forwarded vs regular messages
+   * Resolve message content and attachments, handling forwarded vs regular messages.
+   *
+   * The result is prompt-bound: `buildRawReference` is the only caller, and its
+   * output feeds both the reference envelope and the stored-history snapshot.
+   * Our own footer markup (model attribution, guest mode, auto-response, ...)
+   * is therefore stripped on BOTH branches — inline here via `stripBotFooters`,
+   * and inside `extractForwardedContentForPrompt` for the forwarded branch —
+   * so a reply never quotes footer text back at the model. The strip runs
+   * BEFORE `withStickerAndPollDescriptions` so it cannot eat an appended
+   * sticker/poll description.
+   *
+   * A message that is nothing but a standalone footer (see
+   * `DiscordResponseSender.appendFooterToChunks`, which pushes the footer as
+   * its own message when it doesn't fit the last chunk) strips down to empty
+   * content. That ships as a contentless reference that is still present:
+   * its author metadata still carries the reply signal, and this is
+   * deliberate rather than a gap to fill with placeholder text.
    */
   private resolveMessageContent(
     message: Message,
@@ -56,7 +73,7 @@ export class MessageFormatter {
     return {
       // Without the descriptions, replying to a sticker-only or poll-only
       // message renders an empty [Reference N] block.
-      content: withStickerAndPollDescriptions(message, message.content),
+      content: withStickerAndPollDescriptions(message, stripBotFooters(message.content)),
       attachments: [
         ...(regularAttachments ?? []),
         ...(embedImages ?? []),

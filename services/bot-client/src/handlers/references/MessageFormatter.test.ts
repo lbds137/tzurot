@@ -287,6 +287,67 @@ describe('MessageFormatter', () => {
     });
   });
 
+  describe('Bot footer stripping', () => {
+    it('strips an inline footer from one of our own character messages', () => {
+      const message = createMockMessage({
+        id: 'msg-inline-footer',
+        content:
+          'Here is my answer.\n-# Model: [glm-5.2](<https://docs.z.ai/guides/llm/glm-5.2>) • via Z.AI Coding Plan',
+        author: createMockUser({ username: 'COLD', globalName: null }),
+        webhookId: 'webhook-1',
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.content).toBe('Here is my answer.');
+    });
+
+    it('ships a contentless reference when the whole message is a standalone footer', () => {
+      // A standalone footer (pushed as its own message by
+      // DiscordResponseSender.appendFooterToChunks when it doesn't fit the
+      // last chunk) strips to empty content. The reference is still present
+      // and still carries the reply signal via its author metadata — this is
+      // deliberate, not a hole to fill with placeholder text.
+      const message = createMockMessage({
+        id: 'msg-standalone-footer',
+        content:
+          '-# Model: [deepseek/deepseek-r1-0528:free](<https://openrouter.ai/deepseek/deepseek-r1-0528:free>) • 📍 auto',
+        author: createMockUser({ username: 'COLD', globalName: null }),
+        webhookId: 'webhook-1',
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.content).toBe('');
+      expect(result.discordMessageId).toBe('msg-standalone-footer');
+      expect(result.authorUsername).toBe('COLD');
+      expect(result.authorDisplayName).toBe('COLD');
+    });
+
+    it('keeps user-typed "-#" subtext unchanged (pattern-specific, not generic "-#" removal)', () => {
+      const message = createMockMessage({
+        id: 'msg-human-subtext',
+        content: 'Hello\n-# This is small text from user\n\nMore content',
+        author: createMockUser({
+          id: 'user-456',
+          username: 'TestUser',
+          globalName: 'Test User',
+        }),
+        webhookId: null,
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.content).toBe('Hello\n-# This is small text from user\n\nMore content');
+    });
+  });
+
   describe('Attachments', () => {
     it('should include attachments when present', async () => {
       const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
