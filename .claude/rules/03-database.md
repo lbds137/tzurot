@@ -84,6 +84,8 @@ pnpm ops release:premigrate             # apply to prod, THEN merge the release 
 
 Safe for **additive** migrations (a new column/table/constraint the old code ignores). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window — applying them breaks the still-live old code — so they need a brief maintenance window: `pnpm ops maintenance on --env prod` (friendly rejections + BullMQ drain) → `release:premigrate --allow-destructive` → merge → `pnpm ops maintenance off --env prod`. `release:premigrate` detects the likely-destructive shapes and refuses without `--allow-destructive`.
 
+**A migration that must run AFTER the deploy** — typically a pure-DML reshape of data the old code still reads (a JSONB key rename, a value re-encoding), which reads as additive to the shape scan — declares itself with the SQL comment `-- tzurot:apply-after-deploy` on its own line. `release:premigrate` refuses on it and prints the correct order: merge the release PR, let auto-deploy land the new code, THEN `pnpm ops db:migrate --env prod`. `--allow-marked` overrides and premigrates anyway; when the release mixes marked and unmarked migrations the command enumerates both and leaves the call to you, because `prisma migrate deploy` cannot apply a subset.
+
 **Dev:** dev auto-deploys on every push to `develop`, so there's no merge gate to run before — apply migrations promptly after the push (`pnpm ops db:migrate --env dev`); the brief window on dev is low-stakes.
 
 Forgetting the migration causes Prisma `P2002` and other constraint errors at runtime because the code expects schema changes that haven't been applied yet.

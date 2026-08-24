@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-18'
+lastUpdated: '2026-08-23'
 ---
 
 # Git Workflow Procedures
@@ -454,7 +454,7 @@ pnpm ops release:premigrate --dry-run   # preview the new migrations in the rele
 pnpm ops release:premigrate             # apply to prod, THEN proceed to merge
 ```
 
-Skip if the release has no migration — `release:premigrate` detects this and exits cleanly (or check `git log v<previous>..HEAD --no-merges -- prisma/migrations/`). Safe for **additive** migrations (old code ignores the new column/table/constraint). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window and need a brief maintenance window — `release:premigrate` refuses them without `--allow-destructive`. See `.claude/rules/03-database.md` § Deployment.
+Skip if the release has no migration — `release:premigrate` detects this and exits cleanly (or check `git log v<previous>..HEAD --no-merges -- prisma/migrations/`). Safe for **additive** migrations (old code ignores the new column/table/constraint). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window and need a brief maintenance window — `release:premigrate` refuses them without `--allow-destructive`. A migration marked `-- tzurot:apply-after-deploy` (a pure-DML reshape the old code reads) is refused too: the correct order is merge → deploy lands → `pnpm ops db:migrate --env prod`, or override with `--allow-marked`. See `.claude/rules/03-database.md` § Deployment.
 
 ### 5. Merge Release PR
 
