@@ -23,10 +23,11 @@ vi.mock('../db/run-migration.js', () => ({ runMigration: vi.fn() }));
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { runMigration } from '../db/run-migration.js';
-import { premigrate } from './premigrate.js';
+import { premigrate, hasApplyAfterDeployMarker, APPLY_AFTER_DEPLOY_MARKER } from './premigrate.js';
 
 const ADDITIVE_MIGRATION = 'prisma/migrations/20260627_add_kind/migration.sql';
 const DESTRUCTIVE_MIGRATION = 'prisma/migrations/20260628_drop_old/migration.sql';
+const MARKED_MIGRATION = 'prisma/migrations/20260629_reshape_payload/migration.sql';
 
 // The real specimen that motivated the comment-stripping fix: a pure-DML
 // migration whose header comments explain the destructive-shape detector
@@ -478,5 +479,201 @@ describe('premigrate', () => {
     // Unreadable → skipped in the scan → no destructive hit → migration proceeds.
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('could not read'));
     expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  describe('apply-after-deploy marker', () => {
+    it('the exported marker constant is itself recognized', () => {
+      // Pins that the constant used in operator-facing message text and the
+      // matcher cannot drift apart.
+      expect(hasApplyAfterDeployMarker(APPLY_AFTER_DEPLOY_MARKER)).toBe(true);
+    });
+
+    it('matches the marker on its own line inside a larger migration', () => {
+      const sql =
+        '-- migration header\n' +
+        `${APPLY_AFTER_DEPLOY_MARKER}\n` +
+        `UPDATE t SET payload = payload - 'old' || jsonb_build_object('new', payload->'old');`;
+      expect(hasApplyAfterDeployMarker(sql)).toBe(true);
+    });
+
+    it('tolerates leading whitespace before the comment', () => {
+      expect(hasApplyAfterDeployMarker('    -- tzurot:apply-after-deploy\n')).toBe(true);
+    });
+
+    it('does not match a longer token (end-anchored)', () => {
+      expect(hasApplyAfterDeployMarker('-- tzurot:apply-after-deployX\n')).toBe(false);
+      // A NON-word continuation must fall through too — a bare word-boundary
+      // would accept this one as the exact marker.
+      expect(hasApplyAfterDeployMarker('-- tzurot:apply-after-deploy-staging\n')).toBe(false);
+    });
+
+    it('tolerates trailing whitespace and CRLF on the marker line', () => {
+      expect(hasApplyAfterDeployMarker('-- tzurot:apply-after-deploy  \n')).toBe(true);
+      expect(hasApplyAfterDeployMarker('-- tzurot:apply-after-deploy\r\nSELECT 1;')).toBe(true);
+    });
+
+    it('does not match the phrase outside a comment', () => {
+      expect(hasApplyAfterDeployMarker("UPDATE t SET note = 'tzurot:apply-after-deploy';")).toBe(
+        false
+      );
+    });
+
+    it('refuses a marked migration without --allow-marked (exit 1, no migrate)', async () => {
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        `${APPLY_AFTER_DEPLOY_MARKER}\n` +
+          `UPDATE t SET payload = payload - 'old' || jsonb_build_object('new', payload->'old');`
+      );
+
+      await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(runMigration).not.toHaveBeenCalled();
+
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).toContain(MARKED_MIGRATION);
+      expect(logOutput).toContain('db:migrate --env prod');
+    });
+
+    it('enumerates BOTH lists when the release mixes marked and unmarked migrations', async () => {
+      mockGitDiff([MARKED_MIGRATION, ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockImplementation(((path: string) =>
+        path.includes('reshape_payload')
+          ? `${APPLY_AFTER_DEPLOY_MARKER}\nUPDATE t SET payload = payload - 'old';`
+          : 'ALTER TABLE "x" ADD COLUMN "kind" TEXT;') as unknown as typeof readFileSync);
+
+      await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).toContain(MARKED_MIGRATION);
+      expect(logOutput).toContain(ADDITIVE_MIGRATION);
+      expect(logOutput).toContain('all-or-nothing');
+    });
+
+    it('proceeds on a marked migration when --allow-marked is set, with a warning', async () => {
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        `${APPLY_AFTER_DEPLOY_MARKER}\nUPDATE t SET payload = payload - 'old';`
+      );
+
+      await premigrate({ env: 'prod', force: true, allowMarked: true });
+
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('--allow-marked set'));
+    });
+
+    it('reports a marked migration in dry-run without exiting', async () => {
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        `${APPLY_AFTER_DEPLOY_MARKER}\nUPDATE t SET payload = payload - 'old';`
+      );
+
+      await premigrate({ env: 'prod', dryRun: true });
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: false, dryRun: true });
+
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).toContain('[dry-run] would refuse without --allow-marked');
+    });
+
+    it('passes an unmarked release silently', async () => {
+      mockGitDiff([ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "x" ADD COLUMN "kind" TEXT;');
+
+      await premigrate({ env: 'prod', force: true });
+
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).not.toContain('apply-after-deploy');
+    });
+
+    it('warns on a near-miss marker and treats the migration as unmarked', async () => {
+      // The silent-false-negative footgun: an author who typed the marker
+      // slightly wrong must get a diagnostic, not a quiet premigration of the
+      // exact migration the marker exists to hold back.
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        "-- tzurot: apply-after-deploy\nUPDATE t SET payload = payload - 'old';"
+      );
+
+      await premigrate({ env: 'prod', force: true });
+
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('not in the recognized form')
+      );
+    });
+
+    it('does not near-miss-warn on a correctly marked migration', async () => {
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        `${APPLY_AFTER_DEPLOY_MARKER}\nUPDATE t SET payload = payload - 'old';`
+      );
+
+      await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+
+      const warnOutput = vi
+        .mocked(console.warn)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(warnOutput).not.toContain('not in the recognized form');
+    });
+
+    it('still refuses on destructive shapes when only --allow-marked is set (fall-through)', async () => {
+      // The override matrix's fall-through arm: --allow-marked clears the
+      // marker gate alone; a migration that is ALSO destructive-shaped must
+      // still be refused by the destructive gate behind it.
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        `${APPLY_AFTER_DEPLOY_MARKER}\nALTER TABLE "x" DROP COLUMN "legacy";`
+      );
+
+      await expect(premigrate({ env: 'prod', allowMarked: true })).rejects.toThrow(
+        'process.exit:1'
+      );
+
+      expect(runMigration).not.toHaveBeenCalled();
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).toContain('DESTRUCTIVE migration shapes detected');
+    });
+
+    it('refuses on the marker before analyzing destructive shapes (gate ordering)', async () => {
+      // Pins the gate ordering: a migration that is BOTH marked and
+      // destructive surfaces the one instruction that resolves it, rather than
+      // a shape analysis of a migration that was never going to run here.
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue(
+        `${APPLY_AFTER_DEPLOY_MARKER}\nALTER TABLE "x" DROP COLUMN "legacy";`
+      );
+
+      await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).toContain('marked apply-after-deploy');
+      expect(logOutput).not.toContain('DESTRUCTIVE migration shapes detected');
+      expect(runMigration).not.toHaveBeenCalled();
+    });
   });
 });

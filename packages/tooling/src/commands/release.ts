@@ -114,9 +114,19 @@ export function registerReleaseCommands(cli: CAC): void {
     });
 
   registerPublishCommand(cli);
+  registerPremigrateCommand(cli);
+}
 
-  // Apply prod migrations BEFORE merging the release PR — closes the
-  // breaking-migration deploy window. Full rationale in `premigrate.ts`.
+/**
+ * Apply prod migrations BEFORE merging the release PR — closes the
+ * breaking-migration deploy window. Extracted from `registerReleaseCommands`
+ * for the same reason as `registerPublishCommand`: to keep that function under
+ * the max-lines-per-function limit. Full rationale in `premigrate.ts`, which
+ * also documents the two gates this command's flags override — the
+ * destructive-shape scan (`--allow-destructive`) and the author-declared
+ * apply-after-deploy marker (`--allow-marked`).
+ */
+function registerPremigrateCommand(cli: CAC): void {
   cli
     .command(
       'release:premigrate',
@@ -129,6 +139,10 @@ export function registerReleaseCommands(cli: CAC): void {
       '--allow-destructive',
       'Proceed even if destructive migration shapes are detected (use only with a maintenance window)'
     )
+    .option(
+      '--allow-marked',
+      'Proceed even if a migration is marked apply-after-deploy (it will land before the new code)'
+    )
     .example('pnpm ops release:premigrate --dry-run')
     .example('pnpm ops release:premigrate')
     .action(
@@ -137,6 +151,7 @@ export function registerReleaseCommands(cli: CAC): void {
         dryRun?: boolean;
         force?: boolean;
         allowDestructive?: boolean;
+        allowMarked?: boolean;
       }) => {
         const { premigrate } = await import('../release/premigrate.js');
         await premigrate(options);

@@ -18,6 +18,11 @@
  * Where this fits the flow: run it as the step right before merging the release
  * PR. See `.claude/skills/tzurot-git-workflow/SKILL.md` (release procedure) and
  * `.claude/rules/03-database.md` (Deployment).
+ *
+ * A migration whose SQL reads additive but whose EFFECT breaks the old code
+ * (a pure-DML reshape of data the old code reads) can't be detected by shape.
+ * Its author declares it with an `-- tzurot:apply-after-deploy` comment line,
+ * and this command refuses it, pointing at the merge-then-migrate order.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -32,6 +37,46 @@ export interface PremigrateOptions {
   dryRun?: boolean;
   force?: boolean;
   allowDestructive?: boolean;
+  allowMarked?: boolean;
+}
+
+/**
+ * Opt-in SQL comment declaring "this migration must run AFTER the new code is
+ * live." Its use case is a migration whose SQL reads additive to the keyword
+ * scan but whose EFFECT breaks the still-live old code — typically a pure-DML
+ * reshape of data the old code still reads (a JSONB key rename, a value
+ * re-encoding). The scan cannot infer that from the DDL, so the author
+ * declares it.
+ *
+ * Written on its own line in the migration's `.sql`.
+ */
+export const APPLY_AFTER_DEPLOY_MARKER = '-- tzurot:apply-after-deploy';
+
+/**
+ * Line-anchored and comment-anchored, so the marker only counts as a
+ * declaration when it IS the comment — a migration that merely mentions the
+ * token inside a statement or in prose does not trip it. Case-sensitive, and
+ * end-anchored so ANY continuation after the token (`...-deployX`,
+ * `...-deploy-staging`) falls through to the near-miss warning instead of
+ * silently counting as the exact marker. Kept deliberately
+ * outside the statement-splitting machinery: for the marker's intended
+ * single-line-comment use the `^--` anchor rules out string-literal false
+ * positives — with one accepted caveat: a MULTI-line string literal whose
+ * payload contains a marker-shaped line would still match. That direction
+ * fails safe (over-refusal the operator resolves, never a silently-missed
+ * real marker), so it stays raw-text rather than statement-aware.
+ *
+ * The indent classes are HORIZONTAL whitespace only, never `\s`: under `/m`,
+ * a `\s*` that can consume newlines lets the same match be retried from every
+ * preceding line start, which is super-linear on input that never matches
+ * (`regexp/no-super-linear-move` flags it). A marker's own indentation is
+ * spaces or tabs, so nothing is lost.
+ */
+const APPLY_AFTER_DEPLOY_RE = /^[ \t]*--[ \t]*tzurot:apply-after-deploy[ \t]*\r?$/m;
+
+/** Whether the migration SQL carries the apply-after-deploy declaration. */
+export function hasApplyAfterDeployMarker(sql: string): boolean {
+  return APPLY_AFTER_DEPLOY_RE.test(sql);
 }
 
 /**
@@ -411,28 +456,126 @@ function scanSqlForDestructive(sql: string): string[] {
   return labels;
 }
 
+/**
+ * Read one migration file for a scan, or return null with a warning. Listed by
+ * git-diff but not readable from the working tree (e.g. a path that changed in
+ * a later commit) — skip rather than fail the scan, but warn so an unexpected
+ * read failure (permissions, corrupt tree) doesn't silently downgrade a
+ * dangerous migration to "safe". Shared by both scans for the read-and-warn
+ * shape alone — each scan still performs its own read, so a release's files
+ * are read once per scan (twice per run), acceptable at a handful of
+ * migration files per release.
+ */
+function readMigrationFile(repoRoot: string, file: string, scanLabel: string): string | null {
+  try {
+    return readFileSync(resolve(repoRoot, file), 'utf-8');
+  } catch {
+    console.warn(chalk.yellow(`  ⚠️  could not read ${file} for the ${scanLabel} scan — skipping`));
+    return null;
+  }
+}
+
 /** Scan the given migration files for destructive SQL shapes. */
 function scanDestructive(repoRoot: string, files: string[]): { file: string; label: string }[] {
   const hits: { file: string; label: string }[] = [];
   for (const file of files) {
-    let sql: string;
-    try {
-      sql = readFileSync(resolve(repoRoot, file), 'utf-8');
-    } catch {
-      // Listed by git-diff but not readable from the working tree (e.g. a path
-      // that changed in a later commit) — skip rather than fail the scan, but
-      // warn so an unexpected read failure (permissions, corrupt tree) doesn't
-      // silently downgrade a destructive migration to "safe".
-      console.warn(
-        chalk.yellow(`  ⚠️  could not read ${file} for the destructive scan — skipping`)
-      );
-      continue;
-    }
+    const sql = readMigrationFile(repoRoot, file, 'destructive');
+    if (sql === null) continue;
     for (const label of scanSqlForDestructive(sql)) {
       hits.push({ file, label });
     }
   }
   return hits;
+}
+
+/**
+ * Loose companion to the strict matcher: anything containing the phrase at
+ * all. When this fires and the strict form does not, the author almost
+ * certainly TRIED to mark the migration and got the format wrong — and a
+ * silent false negative here premigrates exactly the migration the marker
+ * exists to hold back. Case-insensitive on purpose: an echo of the phrase in
+ * ordinary prose is rare enough that a spurious warning is the cheap side of
+ * this trade.
+ */
+const APPLY_AFTER_DEPLOY_LOOSE_RE = /apply-after-deploy/i;
+
+/** The subset of the given migration files carrying the apply-after-deploy marker. */
+function scanMarked(repoRoot: string, files: string[]): string[] {
+  const marked: string[] = [];
+  for (const file of files) {
+    const sql = readMigrationFile(repoRoot, file, 'apply-after-deploy');
+    if (sql === null) continue;
+    if (hasApplyAfterDeployMarker(sql)) {
+      marked.push(file);
+    } else if (APPLY_AFTER_DEPLOY_LOOSE_RE.test(sql)) {
+      console.warn(
+        chalk.yellow(
+          `  ⚠️  ${file} mentions apply-after-deploy but not in the recognized form — ` +
+            `the marker is exactly \`${APPLY_AFTER_DEPLOY_MARKER}\` on its own comment line. ` +
+            'Treating this migration as UNMARKED.'
+        )
+      );
+    }
+  }
+  return marked;
+}
+
+/**
+ * Report apply-after-deploy-marked migrations and decide whether to proceed.
+ * Returns true to continue, false to stop (the caller exits). Mirrors
+ * `gateDestructive`'s override/dry-run contract: `--allow-marked` proceeds with
+ * a warning, and dry-run reports without ever exiting non-zero.
+ */
+function gateMarked(
+  hits: { marked: string[]; unmarked: string[] },
+  opts: { dryRun: boolean; allowMarked: boolean }
+): boolean {
+  if (hits.marked.length === 0) return true;
+
+  console.log(chalk.red.bold('\n⚠️  Migration(s) marked apply-after-deploy:'));
+  for (const file of hits.marked) console.log(chalk.red(`  ${file}`));
+  console.log(
+    chalk.yellow(
+      `\nThe ${APPLY_AFTER_DEPLOY_MARKER} marker declares that this migration reshapes data ` +
+        'the still-live OLD code reads, so applying it before the merge breaks prod for the ' +
+        'deploy window. Correct order: merge the release PR, let auto-deploy land the new ' +
+        'code, THEN apply it with `pnpm ops db:migrate --env prod`.'
+    )
+  );
+
+  if (hits.unmarked.length > 0) {
+    console.log(
+      chalk.yellow('\nThis release ALSO adds unmarked migrations, which do want premigrating:')
+    );
+    for (const file of hits.unmarked) console.log(chalk.yellow(`  ${file}`));
+    console.log(
+      chalk.yellow(
+        '`prisma migrate deploy` is all-or-nothing — it cannot apply a subset — so this one is ' +
+          'yours to resolve: either re-run with --allow-marked to premigrate everything ' +
+          '(accepting that the marked migration lands early), or split the release so the ' +
+          'marked migration ships on its own.'
+      )
+    );
+  }
+
+  if (opts.allowMarked) {
+    console.warn(
+      chalk.yellow(
+        '\n--allow-marked set — proceeding (the marked migration will land BEFORE the new code).'
+      )
+    );
+    return true;
+  }
+
+  if (opts.dryRun) {
+    console.log(chalk.dim('\n[dry-run] would refuse without --allow-marked'));
+    return true;
+  }
+
+  console.error(
+    chalk.red('\n❌ Refusing to premigrate an apply-after-deploy migration without --allow-marked.')
+  );
+  return false;
 }
 
 /**
@@ -491,6 +634,7 @@ export async function premigrate(options: PremigrateOptions = {}): Promise<void>
   const dryRun = options.dryRun ?? false;
   const force = options.force ?? false;
   const allowDestructive = options.allowDestructive ?? false;
+  const allowMarked = options.allowMarked ?? false;
 
   validateEnvironment(env);
 
@@ -515,6 +659,16 @@ export async function premigrate(options: PremigrateOptions = {}): Promise<void>
   for (const file of newSqlFiles) console.log(chalk.dim(`  ${file}`));
 
   const repoRoot = git(['rev-parse', '--show-toplevel']);
+
+  // Marked BEFORE destructive: an apply-after-deploy migration is refused on
+  // its own terms, so the operator reads one clear instruction instead of a
+  // destructive-shape analysis of a migration that was never going to run here.
+  const marked = scanMarked(repoRoot, newSqlFiles);
+  const unmarked = newSqlFiles.filter(file => !marked.includes(file));
+  if (!gateMarked({ marked, unmarked }, { dryRun, allowMarked })) {
+    process.exit(1);
+  }
+
   if (!gateDestructive(scanDestructive(repoRoot, newSqlFiles), { dryRun, allowDestructive })) {
     process.exit(1);
   }
