@@ -73,12 +73,14 @@ export interface HistoryMessageKwargs {
   isAi: boolean;
   discordMessageId?: string[];
   /**
-   * Rides on EVERY message, assistant included, so the kwargs shape is
-   * uniform even though an assistant row carries no header line. This is the
-   * ONLY place an assistant row's timestamp survives: §9c's council pass
-   * (Q2) sent assistant self-timestamps kwargs-only, on imitation-risk
-   * grounds — teaching the model its own `[Name — t]` header by example is
-   * exactly the header-leakage risk the new S0 constraint (D6a) forbids.
+   * Rides on EVERY message for machine-readable uniformity, regardless of
+   * role. The model-readable copy of the same value rides in the header line
+   * on every role too, assistant included — an assistant turn is stamped so
+   * the model can date its own prior statements when reasoning over history.
+   * The header-leakage risk that stamping raises is owned elsewhere: the S0
+   * header-leakage constraint tells the model never to emit the bracket form
+   * itself, and the output-side strip (`leadingHeaderLineMatcher`) removes
+   * any leading header-shaped line a reply produces anyway.
    */
   timestamp?: string;
   [key: string]: unknown;
@@ -241,9 +243,9 @@ function neutralizeHeaderShapedLines(body: string): { body: string; hits: number
 }
 
 /**
- * The time-gap line for the zone above the NEXT message's header (or, for an
- * assistant message with no header, the message's own first line) — computed
- * with the SAME threshold machinery the XML path's `maybeAddTimeGapMarker`
+ * The time-gap line for the zone above the NEXT message's header — the gap
+ * line precedes the header uniformly on every role — computed with the SAME
+ * threshold machinery the XML path's `maybeAddTimeGapMarker`
  * calls (`calculateTimeGap`/`shouldShowGap`/`formatTimeGap`), not a
  * re-derived rule. The FORM differs deliberately: a plain bracketed line, not
  * `formatTimeGapMarker`'s `<time_gap />` XML — real messages carry no XML
@@ -278,11 +280,12 @@ interface MessageContentOptions {
 }
 
 /**
- * Compose one entry's message content: an optional time-gap line, then (for
- * user/character) the `[Name — t]` header, then the shared body. An
- * assistant row carries no header — the assistant role already says whose
- * words these are (§2.3) — so a leading gap line is that message's first
- * line instead.
+ * Compose one entry's message content: an optional time-gap line, then the
+ * `[Name — t]` header (every role, assistant included), then the shared
+ * body. The assistant header exists so the model can date its own prior
+ * turns instead of reasoning over an undated statement; the leakage risk of
+ * teaching the model this header shape by example is owned by the S0
+ * header-leakage constraint plus the output-side leading-header strip.
  */
 function buildMessageContent(
   msg: StructuredHistoryEntry,
@@ -294,9 +297,7 @@ function buildMessageContent(
   if (opts.gapLine !== undefined) {
     lines.push(opts.gapLine);
   }
-  if (speakerInfo.role !== 'assistant') {
-    lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, opts.idTag));
-  }
+  lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, opts.idTag));
   // Strip leading blank lines from the body so the entry's own BODY can never
   // push the header down. The header is not unconditionally line 1 of a turn
   // — a platform time-gap line may legitimately precede it (pushed above) —
@@ -330,11 +331,12 @@ function renderBodyOrSkip(
   const body = renderHistoryEntryBody(msg, speakerInfo, opts);
   if (speakerInfo.role === 'assistant' && body.length === 0) {
     // An assistant row with a blanked body and no metadata sections has
-    // nothing to say (user/character rows always carry a header line, so
-    // only assistant rows can reach this). The XML path ships an empty
-    // <message/> element here, a shape only an XML document can carry — and
-    // provider APIs are not verified to accept an empty-content message (some
-    // reject it). Skip the row.
+    // nothing to say. Reachability rests on the explicit `role ===
+    // 'assistant'` condition above, not on header presence: every row
+    // carries a header line, so the header cannot distinguish this case.
+    // The XML path ships an empty <message/> element here, a shape only an
+    // XML document can carry — and provider APIs are not verified to accept
+    // an empty-content message (some reject it). Skip the row.
     return null;
   }
   return body;
