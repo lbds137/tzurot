@@ -52,6 +52,15 @@ export interface ProcessLifecycleOptions {
    * timer is unref'd so it cannot itself keep the process alive.
    */
   hardExitMs?: number;
+  /**
+   * Optional hook invoked after logging a `log-and-live` unhandled
+   * rejection, so a caller can surface it (e.g. an owner-channel report)
+   * without taking on rejection-handling policy itself. Wrapped in its own
+   * try/catch — a throwing hook must not break the process-level handler.
+   * The `crash` and `shutdown` policies do NOT invoke it: both paths exit
+   * the process, so there is nothing left to surface it to.
+   */
+  onUnhandledRejection?: (reason: unknown) => void;
 }
 
 const DEFAULT_HARD_EXIT_MS = 10_000;
@@ -66,7 +75,7 @@ const DEFAULT_HARD_EXIT_MS = 10_000;
 export function registerProcessLifecycle(options: ProcessLifecycleOptions): {
   shutdown: () => Promise<void>;
 } {
-  const { logger, dispose, rejectionPolicy } = options;
+  const { logger, dispose, rejectionPolicy, onUnhandledRejection } = options;
   const hardExitMs = options.hardExitMs ?? DEFAULT_HARD_EXIT_MS;
 
   // Re-entry guard. Checked-and-set synchronously before any await, so a
@@ -134,6 +143,13 @@ export function registerProcessLifecycle(options: ProcessLifecycleOptions): {
     // the root cause exactly when it matters most.
     if (rejectionPolicy === 'log-and-live') {
       logger.error({ err: reason }, 'Unhandled rejection');
+      if (onUnhandledRejection !== undefined) {
+        try {
+          onUnhandledRejection(reason);
+        } catch (hookError) {
+          logger.warn({ err: hookError }, 'onUnhandledRejection hook threw');
+        }
+      }
       return;
     }
     logger.fatal({ err: reason }, 'Unhandled rejection');

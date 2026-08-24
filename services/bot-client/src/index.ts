@@ -65,6 +65,8 @@ import {
   stopNotificationCacheCleanup,
 } from './processors/notificationCache.js';
 import { initVerificationCleanupService } from './services/VerificationCleanupService.js';
+import { initErrorChannelReporter, reportError } from './observability/ErrorChannelReporter.js';
+import { classifyErrorCode } from './observability/commandTelemetryClassify.js';
 import {
   startVerificationCleanupScheduler,
   stopVerificationCleanupScheduler,
@@ -526,6 +528,9 @@ client.once(Events.ClientReady, () => {
   initVerificationCleanupService(client);
   startVerificationCleanupScheduler();
 
+  // Wire the owner-channel error reporter to the live client.
+  initErrorChannelReporter(client);
+
   // Daily secret-rotation overdue check → owner-channel nag (weekly Redis
   // cooldown; see SecretRotationNagScheduler for the restart-cadence design).
   startSecretRotationNagScheduler(client, services.cacheRedis);
@@ -676,6 +681,13 @@ registerProcessLifecycle({
   logger,
   dispose: disposeBotClient,
   rejectionPolicy: 'log-and-live',
+  onUnhandledRejection: reason => {
+    reportError({
+      source: 'unhandled-rejection',
+      errorCode: classifyErrorCode(reason),
+      error: reason,
+    });
+  },
 });
 
 /**

@@ -29,6 +29,7 @@ import {
   type CommandOutcomeSlot,
 } from '../observability/commandOutcomeSlot.js';
 import { emitCommandEvent } from '../observability/emitCommandEvent.js';
+import { reportError } from '../observability/ErrorChannelReporter.js';
 import {
   classifyChannelKind,
   classifyErrorCode,
@@ -240,6 +241,13 @@ export class CommandHandler {
       );
       slot.outcome = 'system_error';
       slot.errorCode = classifyErrorCode(error);
+      reportError({
+        source: 'command',
+        errorCode: slot.errorCode,
+        command: interaction.commandName,
+        latencyMs: Date.now() - startedAt,
+        error,
+      });
       await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()));
     }
 

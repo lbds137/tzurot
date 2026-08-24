@@ -43,6 +43,11 @@ vi.mock('../observability/emitCommandEvent.js', () => ({
   emitCommandEvent: (...args: unknown[]) => mockEmitCommandEvent(...args),
 }));
 
+const mockReportError = vi.fn();
+vi.mock('../observability/ErrorChannelReporter.js', () => ({
+  reportError: (...args: unknown[]) => mockReportError(...args),
+}));
+
 import { readdirSync, statSync } from 'node:fs';
 
 describe('CommandHandler', () => {
@@ -705,6 +710,37 @@ describe('CommandHandler', () => {
       const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
       expect(event.outcome).toBe('system_error');
       expect(event.errorCode).toBe('TypeError');
+    });
+
+    it('reports the system_error to the owner-channel reporter', async () => {
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: vi.fn().mockRejectedValue(new TypeError('boom')) as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(mockReportError).toHaveBeenCalledTimes(1);
+      const report = mockReportError.mock.calls[0][0] as Record<string, unknown>;
+      expect(report).toMatchObject({
+        source: 'command',
+        errorCode: 'TypeError',
+        command: 'Inspect Message',
+      });
+      expect(typeof report.latencyMs).toBe('number');
+    });
+
+    it('does NOT report to the owner-channel reporter on success', async () => {
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: vi.fn().mockResolvedValue(undefined) as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(mockReportError).not.toHaveBeenCalled();
     });
 
     it('rejects a context-menu module exporting unknown properties (typo detection)', () => {
