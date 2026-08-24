@@ -1,9 +1,10 @@
 ---
 id: TASK-752
 title: 'Skill: recurring Claude Code usage audit + limit-drift ledger'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 20:27'
+updated_date: '2026-08-24 21:53'
 labels:
   - 'area:repo'
   - 'size:S'

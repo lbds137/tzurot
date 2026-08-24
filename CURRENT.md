@@ -24,6 +24,12 @@ Smoke ran pre-cut on dev: 3/3 PASS (telemetry row · error embed with no message
 - TASK-754 carry: owner-observed misdating should stop under assistant-turn headers.
 - Nightly dev↔prod sync self-heals tonight (schema skew resolved by the premigration).
 
+## 🔍 2026-08-24 mining run: delegation posture SHIPPED (PR #2214, post-beta.207)
+
+Fable-usage lens over the beta.207 window (owner ask: "dial back Fable"). Measured: 71/29 main-loop/delegated out-token split, ~70% of tool-attached spend mechanically delegable; root cause = the dispatch-only posture lived only in non-loading surfaces (memory + a skill invoked 2× in 32h). Shipped (all owner-approved): § Delegation posture in always-loaded `10-working-posture.md` · orchestration mid-review inline carve-out RETIRED + review-response § 3a (round fixes = one dispatch) · `dispatch-posture-gate.sh` (first src edit per branch/day blocks once; worktree workers exempt) · `python-heredoc-edit-guard.sh` (interpreter rewrite-scripts → Edit tool; `TZUROT_ALLOW_HEREDOC_EDIT=1` override) · `/tzurot-usage-audit` skill (TASK-752 Done; ledger is machine-local). 4 review rounds, batch-dispositioned; residue = task-769. Bash-side hook LIVE-VERIFIED in-session (fired twice, including on the agent's own heredoc habit).
+
+**Next-session check**: the `Edit|Write|MultiEdit` matcher gets its first live test (hook config loads at session start) — first main-tree src edit should print the DISPATCH POSTURE banner once; if it never fires, the matcher alternation is the suspect (fail-open). Next mining delta starts at this session (08a1ee8b, from 2026-08-24 ~20:30Z); first re-test targets: hooks firing + delegation ratio moving off 71/29.
+
 ## ▶️ NEXT — beta.208 queue (plan in `backlog/now.md` § 🚢)
 
 High-priority carried: **TASK-766** (MUTE slash-path leak, high — ship-and-file residual from #2212 review) · TASK-763 (transcript-reply retarget) · TASK-760 (invalid-model fallback cascade, owner-suggested) · TASK-761 (legacy job-failure path) · TASK-764/765 (deny UX + thread denials). Cycle openers: the dependabot trio. Theme pick = owner call (council queue: doc-64/65/66/67/70/71/72; or doc-12 P1).
@@ -37,7 +43,7 @@ High-priority carried: **TASK-766** (MUTE slash-path leak, high — ship-and-fil
 ## 📋 Open items (near-term)
 
 - **Purge remainder**: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call).
-- **Housekeeping**: `3f50da50.jsonl` (155MB, fully mined) is a disk-space deletion candidate — owner's explicit okay still needed.
+- **Housekeeping**: BOTH large session JSONLs are now fully mined and are disk-space deletion candidates — `015f3cbc` (152MB, mined through 2026-08-17) and `0059bca0` (147MB, session ended 2026-08-24, mined to end). Owner's explicit okay still needed. (The previously-listed `3f50da50.jsonl` was already deleted 2026-08-16.)
 
 ## 🔧 DRAIN CAMPAIGN — standing; batching is the method
 
