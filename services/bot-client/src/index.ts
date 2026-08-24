@@ -26,6 +26,7 @@ import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { handleCommandWithContext } from './handlers/commandDispatch.js';
 import { redis as botRedis, closeRedis } from './redis.js';
+import { armBootWatchdog } from './utils/bootWatchdog.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
 import { ResultsListener } from './services/ResultsListener.js';
@@ -783,6 +784,7 @@ async function subscribeToCacheInvalidation(): Promise<void> {
 // Start the bot with explicit return type
 async function start(): Promise<void> {
   try {
+    const bootWatchdog = armBootWatchdog();
     logger.info('Starting Tzurot v3 Bot Client...');
     logger.info(
       {
@@ -801,6 +803,11 @@ async function start(): Promise<void> {
         logger.warn({ err: error }, 'Failed to deploy commands, but continuing startup...');
       }
     }
+    // Marks "past the command-deploy step", not "deploy succeeded": it fires
+    // the same way when auto-deploy is disabled or when deployCommands failed
+    // and was caught above — the phase is a sequence position for the
+    // deadline log, never a success claim.
+    bootWatchdog.notePhase('commands-deployed');
 
     // Warn about deprecated env var (now controlled via config cascade)
     if (envConfig.AUTO_TRANSCRIBE_VOICE !== undefined) {
@@ -819,11 +826,13 @@ async function start(): Promise<void> {
     // Attach commands to client for access by commands like /help
     client.commands = commandHandler.getCommands();
     logger.info('Command handler initialized');
+    bootWatchdog.notePhase('commands-loaded');
 
     // Create all services with full dependency injection
     logger.info('Initializing services with dependency injection...');
     services = createServices();
     logger.info('All services initialized');
+    bootWatchdog.notePhase('services-initialized');
 
     // Hydrate denylist cache from gateway
     await services.denylistCache.hydrate();
@@ -840,6 +849,7 @@ async function start(): Promise<void> {
     logger.info('Checking gateway health...');
     const isHealthy = await healthCheck();
     logGatewayHealthStatus(isHealthy);
+    bootWatchdog.notePhase('gateway-health-checked');
 
     // Login to Discord
     if (config.discordToken === undefined || config.discordToken.length === 0) {
@@ -848,6 +858,7 @@ async function start(): Promise<void> {
 
     await client.login(config.discordToken);
     logger.info('Successfully logged in to Discord');
+    bootWatchdog.notePhase('logged-in');
 
     // Recover any multi-tag fan-outs left in-flight by the previous bot
     // shutdown. Marks old jobIds stale, resubmits fresh jobs, and
@@ -894,6 +905,9 @@ async function start(): Promise<void> {
 
     // Start listening for job results (async delivery pattern)
     await startResultsListener();
+
+    // Boot is complete once the results listener is up — cancel the deadline.
+    bootWatchdog.disarm();
   } catch (error) {
     logger.error({ err: error }, 'Failed to start bot');
     process.exit(1);
