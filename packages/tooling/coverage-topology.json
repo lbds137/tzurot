@@ -1808,6 +1808,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:recordCommandEvent",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /telemetry/command-event",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:recordGuildMemberInfo",
       "kind": "http-route",
       "producer": "client",

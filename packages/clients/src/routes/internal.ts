@@ -43,6 +43,8 @@ import {
   GuildMemberInfoRecordResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
+  RecordCommandEventRequestSchema,
+  RecordCommandEventResponseSchema,
   LoadPersonalityInternalResponseSchema,
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
@@ -615,5 +617,26 @@ export const internalRoutes = {
     serviceOnly: true,
     meta: { safeRead: true },
     timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * POST /api/internal/telemetry/command-event
+   * One row per slash-command / context-menu invocation, emitted
+   * fire-and-forget by bot-client's dispatch choke points. Records THAT a
+   * command ran — name, outcome, latency, coarse location — and never what
+   * was said. The handler drops every `context` key outside its allowlist
+   * before insert, so the recorded surface cannot widen from the caller side.
+   *
+   * No `timeoutMs`: it lands on the WRITE default, and the caller never
+   * awaits the promise anyway.
+   */
+  recordCommandEvent: {
+    audience: 'internal',
+    method: 'post',
+    path: '/telemetry/command-event',
+    id: 'recordCommandEvent',
+    input: RecordCommandEventRequestSchema,
+    output: RecordCommandEventResponseSchema,
+    serviceOnly: true,
   },
 } as const satisfies Record<string, RouteDef>;

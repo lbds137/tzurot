@@ -339,6 +339,25 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     seed: ctx => Promise.resolve({ body: { discordId: ctx.actorDiscordId } }),
   },
 
+  recordCommandEvent: {
+    // command_events has no user FK by design (it keys on the loose Discord
+    // snowflake), so the insert needs no seeded row at all — the actor's own
+    // id just keeps the written row attributable to this run. The `context`
+    // bag carries one allowlisted key so the replay exercises the strip
+    // rather than only the undefined-context path.
+    seed: ctx =>
+      Promise.resolve({
+        body: {
+          userId: ctx.actorDiscordId,
+          channelKind: 'guild',
+          command: 'conformance.record',
+          outcome: 'ok',
+          latencyMs: 12,
+          context: { model_family: 'conformance' },
+        },
+      }),
+  },
+
   secretRotationStatus: {
     // Empty ledger is a valid (pre-seed) state; the route returns
     // entries: [] + overdueCount: 0 — zero seed needed.

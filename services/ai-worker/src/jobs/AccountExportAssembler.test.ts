@@ -24,6 +24,7 @@ function makePrisma(): Record<string, { findMany?: ReturnType<typeof vi.fn> }> {
     memory: emptyModel(),
     memoryFact: emptyModel(),
     shapesPersonaMapping: emptyModel(),
+    commandEvent: emptyModel(),
     userPersonalityConfig: emptyModel(),
     userPersonaHistoryConfig: emptyModel(),
     llmConfig: emptyModel(),
@@ -67,6 +68,7 @@ describe('assembleAccountExport', () => {
       'apiKeyMetadata',
       'credentialMetadata',
       'shapesMappings',
+      'commandEvents',
     ] as const) {
       expect(payload[section]).toEqual([]);
     }
@@ -192,6 +194,19 @@ describe('assembleAccountExport', () => {
     // a character the user doesn't own.
     const directoryCall = prisma.personality.findMany?.mock.calls[2][0];
     expect(directoryCall.select).toEqual({ id: true, name: true, slug: true });
+  });
+
+  it('sweeps command events keyed on the Discord id, not the internal UUID', async () => {
+    prisma.commandEvent.findMany?.mockResolvedValue([{ id: 'ce-1', command: 'help' }]);
+
+    const payload = await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
+
+    expect(payload.commandEvents).toEqual([{ id: 'ce-1', command: 'help' }]);
+    // The bug this test exists to catch: passing the internal UUID ('user-1')
+    // instead of the profile's discordId ('1') would silently return nothing
+    // in production, since command_events has no user-UUID FK at all.
+    const call = prisma.commandEvent.findMany?.mock.calls[0][0];
+    expect(call.where).toEqual({ userId: '1' });
   });
 
   it('falls back to unknown-<id8> for directory ids that no longer resolve', async () => {

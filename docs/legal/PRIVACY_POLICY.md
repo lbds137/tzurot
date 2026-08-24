@@ -2,7 +2,7 @@
 
 **Status: In effect.**
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-08-23_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -22,6 +22,8 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **Usage records.** Per-request logs of provider, model, and token counts — kept to prevent infrastructure abuse, including for users on their own keys. No message content is in these records.
 
+**Command telemetry.** One record per command you run: the command's name, whether it succeeded (and an error code if not), how long it took, the server and channel-kind (server/DM/thread) it ran in, and a few coarse technical tags (model family, provider, voice mode). No message content is ever in these records. Kept 12 months, included in your data export, and removed by account erasure.
+
 **Feedback.** If you submit feedback via `/feedback`, the submission is stored and a copy is posted to a private channel the operator reads.
 
 **Diagnostic logs.** For 24 hours after each AI response, the bot keeps a "flight recorder" entry containing the full request context — your message, the assembled prompt (including character definition and retrieved memories), and the model's raw output — used to debug generation problems. You can view your own entries with `/inspect`; the operator can view all entries during that window. They are deleted automatically after 24 hours.
@@ -37,6 +39,7 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 | Personas, characters, uploads | Until you delete them                                                                                                      |
 | Feedback you submit           | Deleted once it is both 90 days old and reviewed by the operator — or when you delete your account                         |
 | Release-DM delivery records   | Deleted once 90 days old and settled (the record of your latest notification is kept until it's replaced or you delete it) |
+| Command telemetry             | 12 months (swept daily)                                                                                                    |
 | Account basics, usage records | Until you delete your account (see "Your controls"), or until the inactivity rule below applies                            |
 
 ### Inactive accounts

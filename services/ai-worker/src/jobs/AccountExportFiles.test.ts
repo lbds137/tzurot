@@ -36,6 +36,7 @@ function makeData(overrides: Partial<AccountExportData> = {}): AccountExportData
     exportJobs: [],
     releaseDeliveries: [],
     shapesMappings: [],
+    commandEvents: [],
     adminSettings: null,
     ...overrides,
   } as AccountExportData;
@@ -64,10 +65,21 @@ describe('buildAccountExportFiles', () => {
       'account/jobs.json',
       'account/release-deliveries.json',
       'account/shapes-mappings.json',
+      'telemetry/command-events.json',
     ]) {
       expect(files[jsonOnly]).toBeDefined();
       expect(files[`${jsonOnly.replace('.json', '.md')}`]).toBeUndefined();
     }
+  });
+
+  it('writes the command-events telemetry file as JSON-only, with a README count row', () => {
+    const files = buildAccountExportFiles(
+      makeData({ commandEvents: [{ id: 'ce-1', command: 'help', outcome: 'ok' }] })
+    );
+
+    expect(files['telemetry/command-events.json']).toContain('"command": "help"');
+    expect(files['telemetry/command-events.md']).toBeUndefined();
+    expect(files['README.md']).toContain('**Command events:** 1');
   });
 
   it('emits admin-settings only when present (superuser), and notes it in the README', () => {
