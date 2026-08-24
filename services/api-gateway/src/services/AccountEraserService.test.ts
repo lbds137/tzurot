@@ -54,6 +54,7 @@ function makeSummary(overrides: Partial<AccountDeletionSummary> = {}): AccountDe
     factsSweptByTag: 0,
     pendingMemories: 0,
     diagnosticLogs: 0,
+    commandEvents: 0,
     charactersReHomed: 0,
     characterNames: ['XBot', 'YBot'],
     characterSlugs: ['xbot', 'ybot'],

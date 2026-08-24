@@ -418,4 +418,16 @@ export class ServiceClient {
       timeoutMs: ROUTE_MANIFEST.getAdminSettingsInternal.timeoutMs,
     });
   }
+
+  async recordCommandEvent(input: z.input<typeof ROUTE_MANIFEST.recordCommandEvent.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.recordCommandEvent.output>>> {
+    const fullPath = '/api/internal/telemetry/command-event';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.recordCommandEvent.output,
+    });
+  }
 }

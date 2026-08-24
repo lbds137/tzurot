@@ -163,6 +163,7 @@ describe('DeleteAccountResponseSchema', () => {
         factsSweptByTag: 5,
         pendingMemories: 6,
         diagnosticLogs: 7,
+        commandEvents: 8,
         characterNames: ['XBot'],
       },
     });

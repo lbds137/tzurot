@@ -58,6 +58,7 @@ import { handleGetDenylistCache, handleAddDenylistEntry, handleListDenylistEntri
 import { handleUpdateDiagnosticResponseIds, handleGetRecentDiagnostics, handleGetDiagnosticByMessage, handleGetDiagnosticByResponse, handleGetDiagnosticByRequestId } from '../admin/diagnostic.js';
 import { handleGetUserChannel } from '../user/channel/get.js';
 import { handleGetAdminSettings, handleUpdateAdminSettings, handleClearAdminSettings } from '../admin/settings.js';
+import { handleRecordCommandEvent } from '../internal/telemetryCommandEvent.js';
 import { handleDbSync } from '../admin/dbSync.js';
 import { handleBroadcast } from '../admin/broadcast.js';
 import { handleCleanup } from '../admin/cleanup.js';
@@ -143,6 +144,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/internal/models', handleGetModels(deps));
   app.get('/api/internal/denylist/cache', handleGetDenylistCache(deps));
   app.get('/api/internal/admin-settings', handleGetAdminSettings(deps));
+  app.post('/api/internal/telemetry/command-event', handleRecordCommandEvent(deps));
   app.get('/api/internal/ai/job/:jobId', handleAiJobStatus(deps));
   app.post('/api/internal/ai/job/:jobId/confirm-delivery', handleAiConfirmDelivery(deps));
   app.post('/api/internal/release-broadcast/:releaseId/pending', handleReleaseBroadcastPending(deps));

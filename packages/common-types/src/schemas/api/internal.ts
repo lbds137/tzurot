@@ -598,3 +598,59 @@ export const RetentionNotifyReportResponseSchema = z.object({
   /** Rows a stamp actually wrote — guarded no-ops (re-reports) contribute 0. */
   processed: z.number().int().nonnegative(),
 });
+
+// ============================================================================
+// POST /internal/telemetry/command-event — one row per command invocation
+// Emitted fire-and-forget by bot-client's dispatch choke points. Records THAT
+// a command ran, never WHAT was said: no message content, no free text. The
+// `context` bag is allowlist-filtered by the handler before insert, so a
+// future caller cannot widen the recorded surface by adding a key here.
+// ============================================================================
+
+/** Coarse location class — deliberately not a channel id. */
+export const CommandEventChannelKindSchema = z.enum(['guild', 'dm', 'thread']);
+
+/** Invocation result class. `user_error` covers "the ask did not happen". */
+export const CommandEventOutcomeSchema = z.enum([
+  'ok',
+  'user_error',
+  'system_error',
+  'rate_limited',
+  'cancelled',
+]);
+
+export const RecordCommandEventRequestSchema = z.object({
+  userId: DiscordSnowflakeSchema,
+  /** Omitted for DM invocations. */
+  guildId: DiscordSnowflakeSchema.optional(),
+  channelKind: CommandEventChannelKindSchema,
+  /** Dotted command path, e.g. "character.create". Matches the column cap. */
+  command: z.string().min(1).max(100),
+  characterId: z.string().uuid().optional(),
+  outcome: CommandEventOutcomeSchema,
+  /** A stable machine code — never a rendered message. */
+  errorCode: z.string().max(100).optional(),
+  latencyMs: z.number().int().nonnegative(),
+  /**
+   * Coarse technical tags. KEYS are accepted permissively here and narrowed
+   * by the handler's allowlist: key-level rejection would turn a
+   * telemetry-only mistake into a 400 on a fire-and-forget path, so the
+   * handler drops unknown keys and still records the event.
+   *
+   * VALUES are restricted to scalars, and that half IS enforced here — a
+   * nested object or array under an allowlisted key would sail past a
+   * key-only allowlist carrying arbitrary content, so the shape has to close
+   * at the boundary rather than in the strip.
+   */
+  context: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+});
+
+/**
+ * The write is unconditional, so `recorded` is always true — the field exists
+ * because every manifest route needs an output schema for the typed client's
+ * return inference, and an empty body would fail that parse. A failed insert
+ * surfaces as a 500, not as `recorded: false`.
+ */
+export const RecordCommandEventResponseSchema = z.object({
+  recorded: z.boolean(),
+});

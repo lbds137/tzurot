@@ -38,6 +38,11 @@ vi.mock('node:fs', () => ({
   statSync: vi.fn(),
 }));
 
+const mockEmitCommandEvent = vi.fn();
+vi.mock('../observability/emitCommandEvent.js', () => ({
+  emitCommandEvent: (...args: unknown[]) => mockEmitCommandEvent(...args),
+}));
+
 import { readdirSync, statSync } from 'node:fs';
 
 describe('CommandHandler', () => {
@@ -572,6 +577,9 @@ describe('CommandHandler', () => {
       deferReply: ReturnType<typeof vi.fn>;
       editReply: ReturnType<typeof vi.fn>;
       followUp: ReturnType<typeof vi.fn>;
+      user: { id: string };
+      guildId: string | null;
+      channel: null;
     }
 
     function makeContextMenuInteraction(commandName: string): MockContextMenuInteraction {
@@ -586,6 +594,9 @@ describe('CommandHandler', () => {
         }),
         editReply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn().mockResolvedValue(undefined),
+        user: { id: 'user-1' },
+        guildId: null,
+        channel: null,
       };
       return interaction;
     }
@@ -619,6 +630,21 @@ describe('CommandHandler', () => {
       expect(execute).toHaveBeenCalledWith(interaction);
     });
 
+    it('emits nothing and does not run the command when the defer itself fails', async () => {
+      const execute = vi.fn().mockResolvedValue(undefined);
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: execute as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+      interaction.deferReply.mockRejectedValue(new Error('Unknown interaction'));
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(execute).not.toHaveBeenCalled();
+      expect(mockEmitCommandEvent).not.toHaveBeenCalled();
+    });
+
     it('routes an InfraError from execute to the transient copy via the deferred ack', async () => {
       handler.getContextMenuCommands().set('Inspect Message', {
         data: { name: 'Inspect Message' } as never,
@@ -650,6 +676,35 @@ describe('CommandHandler', () => {
       const { content } = interaction.editReply.mock.calls[0][0] as { content: string };
       expect(content.length).toBeGreaterThan(0);
       expect(content).not.toContain("Couldn't reach the server");
+    });
+
+    it('emits an ok telemetry event with the bare command name on success', async () => {
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: vi.fn().mockResolvedValue(undefined) as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(mockEmitCommandEvent).toHaveBeenCalledTimes(1);
+      const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
+      expect(event).toMatchObject({ command: 'Inspect Message', outcome: 'ok', userId: 'user-1' });
+    });
+
+    it('emits a system_error telemetry event with the constructor-name error code on failure', async () => {
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: vi.fn().mockRejectedValue(new TypeError('boom')) as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(mockEmitCommandEvent).toHaveBeenCalledTimes(1);
+      const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
+      expect(event.outcome).toBe('system_error');
+      expect(event.errorCode).toBe('TypeError');
     });
 
     it('rejects a context-menu module exporting unknown properties (typo detection)', () => {

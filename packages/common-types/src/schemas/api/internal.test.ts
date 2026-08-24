@@ -8,6 +8,10 @@ import {
   GuildMemberInfoRecordResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
+  RecordCommandEventRequestSchema,
+  RecordCommandEventResponseSchema,
+  CommandEventChannelKindSchema,
+  CommandEventOutcomeSchema,
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
@@ -1134,5 +1138,161 @@ describe('PatchForwardedOriginResponseSchema', () => {
     // `updated: false` is a real answer (no row matched), so an absent field
     // must not be readable as one.
     expect(PatchForwardedOriginResponseSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('CommandEventChannelKindSchema', () => {
+  it('accepts each coarse location class and rejects anything else', () => {
+    for (const kind of ['guild', 'dm', 'thread']) {
+      expect(CommandEventChannelKindSchema.safeParse(kind).success).toBe(true);
+    }
+    // A channel ID must never pass — the kind is deliberately coarse.
+    expect(CommandEventChannelKindSchema.safeParse('925094911961882704').success).toBe(false);
+    expect(CommandEventChannelKindSchema.safeParse('group_dm').success).toBe(false);
+  });
+});
+
+describe('CommandEventOutcomeSchema', () => {
+  it('accepts each outcome class and rejects free text', () => {
+    for (const outcome of ['ok', 'user_error', 'system_error', 'rate_limited', 'cancelled']) {
+      expect(CommandEventOutcomeSchema.safeParse(outcome).success).toBe(true);
+    }
+    // Rendered messages are not outcomes — the column holds a closed enum.
+    expect(CommandEventOutcomeSchema.safeParse('Something went wrong').success).toBe(false);
+    expect(CommandEventOutcomeSchema.safeParse('error').success).toBe(false);
+  });
+});
+
+describe('RecordCommandEventRequestSchema', () => {
+  const VALID = {
+    userId: '123456789012345678',
+    channelKind: 'guild' as const,
+    command: 'character.create',
+    outcome: 'ok' as const,
+    latencyMs: 42,
+  };
+
+  it('accepts the minimal shape with every optional field omitted', () => {
+    expect(RecordCommandEventRequestSchema.safeParse(VALID).success).toBe(true);
+  });
+
+  it('accepts the full shape', () => {
+    const result = RecordCommandEventRequestSchema.safeParse({
+      ...VALID,
+      guildId: '987654321098765432',
+      channelKind: 'thread',
+      characterId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+      outcome: 'user_error',
+      errorCode: 'ValidationError',
+      context: { model_family: 'claude' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it.each(['ok', 'user_error', 'system_error', 'rate_limited', 'cancelled'])(
+    'accepts outcome %s',
+    outcome => {
+      expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, outcome }).success).toBe(true);
+    }
+  );
+
+  it.each(['guild', 'dm', 'thread'])('accepts channelKind %s', channelKind => {
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, channelKind }).success).toBe(true);
+  });
+
+  it('rejects an unknown outcome', () => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, outcome: 'exploded' }).success
+    ).toBe(false);
+  });
+
+  it('rejects an unknown channelKind', () => {
+    // 'voice' is a real Discord channel type but not a telemetry class — the
+    // coarse set is deliberately closed.
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, channelKind: 'voice' }).success
+    ).toBe(false);
+  });
+
+  it('rejects a non-snowflake userId', () => {
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, userId: 'nope' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects a command longer than the column cap', () => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, command: 'x'.repeat(101) }).success
+    ).toBe(false);
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, command: 'x'.repeat(100) }).success
+    ).toBe(true);
+  });
+
+  it('rejects an empty command', () => {
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, command: '' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects an errorCode longer than the column cap', () => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, errorCode: 'x'.repeat(101) }).success
+    ).toBe(false);
+  });
+
+  it('rejects a negative or fractional latencyMs', () => {
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, latencyMs: -1 }).success).toBe(
+      false
+    );
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, latencyMs: 1.5 }).success).toBe(
+      false
+    );
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, latencyMs: 0 }).success).toBe(
+      true
+    );
+  });
+
+  it('rejects a non-uuid characterId', () => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, characterId: 'not-a-uuid' }).success
+    ).toBe(false);
+  });
+
+  it('accepts an arbitrary context KEY — the key strip is the handler, not the schema', () => {
+    // Deliberate: rejecting an unknown key would 400 a fire-and-forget path.
+    // The gateway handler drops the key and still records the event.
+    const result = RecordCommandEventRequestSchema.safeParse({
+      ...VALID,
+      context: { model_family: 'claude', message_content: 'private' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['a nested object', { model_family: { smuggled: 'a whole message' } }],
+    ['an array', { model_family: ['a', 'whole', 'message'] }],
+    ['a null', { model_family: null }],
+  ])('rejects %s as a context VALUE even under an allowlisted key', (_label, context) => {
+    // The key allowlist cannot help here — `model_family` is allowlisted, so
+    // a nested value would be copied through the strip verbatim. Closing the
+    // value shape at the boundary is what makes the guard total.
+    expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, context }).success).toBe(false);
+  });
+
+  it('accepts scalar context values', () => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({
+        ...VALID,
+        context: { model_family: 'claude', provider: 1, voice_mode: true },
+      }).success
+    ).toBe(true);
+  });
+});
+
+describe('RecordCommandEventResponseSchema', () => {
+  it('requires the recorded flag', () => {
+    expect(RecordCommandEventResponseSchema.safeParse({ recorded: true }).success).toBe(true);
+    expect(RecordCommandEventResponseSchema.safeParse({}).success).toBe(false);
   });
 });

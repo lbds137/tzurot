@@ -134,6 +134,7 @@ export const DeleteAccountResponseSchema = z.object({
     factsSweptByTag: z.number().int(),
     pendingMemories: z.number().int(),
     diagnosticLogs: z.number().int(),
+    commandEvents: z.number().int(),
     /** Names of the owned characters that were deleted for everyone. */
     characterNames: z.array(z.string()),
   }),

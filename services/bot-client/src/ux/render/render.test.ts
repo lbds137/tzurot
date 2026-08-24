@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderSpec } from './render.js';
 import { CATALOG } from '../catalog/catalog.js';
 import type { MessageSpec } from '../catalog/types.js';
+import * as commandOutcomeSlot from '../../observability/commandOutcomeSlot.js';
 
 describe('renderSpec', () => {
   it('prefixes the severity emoji (the single glyph source)', () => {
@@ -49,5 +50,16 @@ describe('renderSpec', () => {
 
     const uncertain = CATALOG.error.uncertainWrite('character', { refreshAffordance: true });
     expect(renderSpec(uncertain).length).toBeLessThanOrEqual(2000);
+  });
+
+  it('notes the rendered outcome for the command-telemetry seam without changing output', () => {
+    const noteSpy = vi.spyOn(commandOutcomeSlot, 'noteRenderedOutcome');
+    const spec = CATALOG.error.notFound('Preset');
+
+    const rendered = renderSpec(spec);
+
+    expect(rendered).toBe('❌ Preset not found.');
+    expect(noteSpy).toHaveBeenCalledWith(spec);
+    noteSpy.mockRestore();
   });
 });
