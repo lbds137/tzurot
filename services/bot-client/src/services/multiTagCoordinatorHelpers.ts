@@ -179,7 +179,7 @@ export type SlotOutcome =
       source: SlotSource;
       isAutoResponse: boolean;
     }
-  | { kind: 'denied'; personality: LoadedPersonality }
+  | { kind: 'denied'; personality: LoadedPersonality; silent?: boolean }
   | {
       kind: 'errored';
       personality: LoadedPersonality;

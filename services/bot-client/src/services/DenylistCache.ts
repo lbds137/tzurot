@@ -168,6 +168,17 @@ export class DenylistCache {
   }
 
   /**
+   * Whether a user's personality-scope denial is MUTE mode — the "ignore but
+   * keep in context" contract, whose whole point is that the bot never
+   * acknowledges the denial. Callers that would otherwise post a visible
+   * denial notice must stay silent when this is true. False for BLOCK
+   * entries and for users with no entry at all.
+   */
+  isPersonalityMuted(userId: string, personalityId: string): boolean {
+    return this.personalityUsers.get(userId)?.get(personalityId) === 'MUTE';
+  }
+
+  /**
    * Check if a user is BLOCK-denied (messages should be filtered from context).
    * Checks all scopes in priority order and returns true if ANY matching entry is BLOCK mode.
    * Used by the context builder to filter messages from extended context.

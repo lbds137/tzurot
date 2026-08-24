@@ -59,6 +59,13 @@ export type SubmitChatJobResult =
   | {
       kind: 'denied';
       reason: 'denylisted' | 'nsfw-blocked' | 'unsupported-channel';
+      /**
+       * True when the denial is a MUTE-mode denylist entry ("ignore but keep
+       * in context") — the caller must not surface ANY visible acknowledgment
+       * of the denial, including the all-denied unavailable notice. Absent/
+       * false for BLOCK entries and non-denylist denials, which stay overt.
+       */
+      silent?: boolean;
     };
 
 export class PersonalityChatManager {
@@ -89,7 +96,11 @@ export class PersonalityChatManager {
         { userId: message.author.id, personalityId: personality.id },
         'User denied for this personality, ignoring'
       );
-      return { kind: 'denied', reason: 'denylisted' };
+      return {
+        kind: 'denied',
+        reason: 'denylisted',
+        silent: this.denylistCache.isPersonalityMuted(message.author.id, personality.id),
+      };
     }
 
     const verificationResult = await handleNsfwVerification(message);
