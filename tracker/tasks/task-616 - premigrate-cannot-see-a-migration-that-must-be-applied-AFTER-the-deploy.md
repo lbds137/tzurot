@@ -1,9 +1,10 @@
 ---
 id: TASK-616
 title: premigrate cannot see a migration that must be applied AFTER the deploy
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 11:29'
+updated_date: '2026-08-24 01:57'
 labels:
   - 'area:tooling'
   - 'size:M'
