@@ -68,7 +68,7 @@ Providers accept `system/user/assistant/tool` roles only; a Discord channel has 
 [Name — 2026-07-05 14:32] message text…
 ```
 
-Absolute timestamps only (kills the relative-drift poison); `<time_gap>` markers become a line in the next message's header zone. Image descriptions and hydrated references stay inline-enriched exactly as today. The current persona's own messages need no header (the assistant role IS the attribution) — but keep a minimal timestamp so time reasoning survives.
+Absolute timestamps only (kills the relative-drift poison); `<time_gap>` markers become a line in the next message's header zone. Image descriptions and hydrated references stay inline-enriched exactly as today. The current persona's own messages carry the same header as every other row (REVERSED from the original no-header design by TASK-754/#2203: the kwargs-only timestamp proved model-invisible and a prod persona mis-dated its own 17-minutes-ago statement as "yesterday" — the exact temporal-error escape hatch Q2 pre-registered).
 
 - **No merging of consecutive same-speaker messages** (resolved by fact-check): the current Anthropic Messages API auto-combines consecutive same-role turns server-side ("Consecutive `user` or `assistant` turns in your request will be combined into a single turn" — API ref, fetched 2026-07-05), so merging is not a compliance requirement anywhere in our provider set; keeping messages separate preserves Discord's rapid-fire rhythm/timing cues (council: they carry emotional-urgency signal) and finer cache-prefix granularity.
 - **Participant roster reframing (council)**: the participants section explicitly declares in-scene names as fictional interlocutors, not operators — containing the instruction-authority a user-role message carries (an in-scene character saying "ignore your instructions" is dialogue, not a directive).
@@ -483,10 +483,13 @@ consecutive-user acceptance on z.ai/OpenRouter with a one-shot call during the
 build, council memory is not a probe — **PROBED 2026-08-21, both accept**:
 z.ai-direct `glm-4.7` returned 200 and answered the second user message from the
 first's content; OpenRouter `z-ai/glm-4.7` (upstream Venice that call) returned
-200 with reasoning explicitly citing both consecutive user messages). Q2 assistant self-timestamps go
+200 with reasoning explicitly citing both consecutive user messages). Q2 assistant self-timestamps went
 kwargs-only (imitation risk; temporal signal comes from surrounding attributed
 messages; single-line A/B escape hatch if "I just told you" temporal errors
-appear). Q3 as above. Q4 slicing adopted:
+appear). REVERSED by TASK-754/#2203: the escape hatch fired — prod misdating
+observed, payload-verified — and assistant turns now render the full header;
+the imitation risk is owned by the S0 leakage constraint plus the output-side
+leading-header strip with telemetry. Q3 as above. Q4 slicing adopted:
 
 | PR | Contents |
 | --- | --- |
