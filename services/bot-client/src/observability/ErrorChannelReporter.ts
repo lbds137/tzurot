@@ -242,10 +242,14 @@ export function reportError(report: ErrorReport): void {
 }
 
 /**
- * Report a delivery failure on an ALREADY-SUCCESSFUL result — a Discord API
- * failure or formatter bug while sending a good response. Always pageable
- * (never deny-listed): the job succeeded, so the failure is ours. Shared by
- * MessageHandler's async and slash delivery catch blocks.
+ * Report a bot-client-side failure with the original error in hand. Always
+ * pageable (never deny-listed) — both caller classes are OUR failures, not
+ * model/provider outcomes: a delivery failure on an already-successful result
+ * (Discord API failure or formatter bug while sending a good response —
+ * MessageHandler's async/slash/late-recovery catches), and a submit-time
+ * throw where the job never reached the queue (PersonalityMessageHandler's
+ * DM-session catch). Passing the real error lets the reporter hash its stack
+ * frames for dedup, unlike the category-keyed reportJobError below.
  */
 export function reportDeliveryFailure(error: unknown, requestId?: string): void {
   const name = error instanceof Error ? error.constructor.name : 'UnknownError';

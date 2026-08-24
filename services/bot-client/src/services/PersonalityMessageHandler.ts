@@ -17,6 +17,7 @@ import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/e
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { reportDeliveryFailure } from '../observability/ErrorChannelReporter.js';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { type JobTracker } from './JobTracker.js';
 import { type PersonalityChatManager } from './character/PersonalityChatManager.js';
@@ -83,6 +84,9 @@ export class PersonalityMessageHandler {
       this.jobTracker.trackJob(result.jobId, result.trackingContext);
     } catch (error) {
       logger.error({ err: error }, 'Error handling personality message');
+      // A submit-time throw is our failure (the job never reached the queue) —
+      // same always-pageable class as MessageHandler's delivery catches.
+      reportDeliveryFailure(error, message.id);
 
       // Deliver the error IN CHARACTER: the persona's own `errorMessage` (else
       // a generic fallback) via its webhook, never the raw `error.message`
