@@ -3,9 +3,10 @@ id: TASK-639
 title: >-
   OpenRouter model catalog unavailable in prod - ModelCapabilityChecker on
   pattern-fallback
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 02:00'
+updated_date: '2026-08-24 00:04'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -23,4 +24,6 @@ Why: the 2026-08-17 00:40-01:57 UTC prod log window shows repeated "[ModelCapabi
 Fix shape: find why the catalog fetch fails in prod (log the fetch error itself if it is currently swallowed), verify the Redis tier is being read, and add a WARN with the underlying error when the catalog goes unavailable for more than one refresh cycle.
 
 Acceptance: prod logs show the catalog loading normally (source not pattern-fallback) or a WARN naming the actual fetch failure; the unavailability cause is identified and filed or fixed.
+
+Closure (retro-verified): root cause was the catalog being fetched only on cold miss - after the 24h Redis TTL expired nothing re-populated it. Fixed by 586a1845b (scheduled refresh at TTL/3 with failure logging + empty-200 rejection), shipped in beta.205 on 2026-08-18. Prod verification 2026-08-23: api-gateway logs show 2 on-cadence refreshes (modelCount=422, zero failures) and ai-worker shows 0 "Model catalog unavailable" warns across a 7h window with 706 job-activity lines - vs. every-lookup warns in the 2026-08-17 window. Sustained-outage alerting remains TASK-650.
 <!-- SECTION:DESCRIPTION:END -->
