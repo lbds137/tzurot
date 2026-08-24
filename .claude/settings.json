@@ -45,6 +45,19 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/cwd-drift-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/python-heredoc-edit-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/dispatch-posture-gate.sh"
           }
         ]
       }

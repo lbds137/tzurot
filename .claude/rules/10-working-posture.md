@@ -13,6 +13,23 @@ action, or a true blocker. While CI runs on one PR, pre-stage the next unit's
 grounding (read the files, profile the data) instead of idling; monitors exist
 so waiting is never the activity.
 
+## Delegation posture: the main loop dispatches, it does not do
+
+Trigger: an implementation unit's fix shape is known, a review round lands,
+or a read fan-out is about to start. When Fable drives, nested dispatch is
+the default for EVERY unit — size:S included — and for review-round fixes:
+batch the round's findings into ONE dispatch; the worker runs the gates;
+the main loop reads the diff and the verdict (`/tzurot-orchestration` has
+the mechanics). Inline is a narrow exception: a ≤~5-line mechanical edit in
+a file already in context, or work where the spec would genuinely cost more
+than the edit. Read fan-outs of ~4+ files go to Explore (`model: haiku`);
+file mutations use the Edit tool, never interpreter rewrite-scripts in
+Bash. The reason is arithmetic, not ideology: every main-loop tool call
+re-reads the full context (~50k weighted tokens per call, measured), so
+inline legwork bills the scarcest budget at the highest rate. Enforced by
+`dispatch-posture-gate.sh` and `python-heredoc-edit-guard.sh`; measured by
+`/tzurot-usage-audit`.
+
 ## Boards are snapshots; git and code are the truth
 
 `06-backlog.md` § Freshness-check covers presenting entries; the extension here
