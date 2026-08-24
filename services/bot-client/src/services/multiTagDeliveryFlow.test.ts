@@ -19,10 +19,15 @@ import {
 } from './multiTagDeliveryFlow.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
+import { reportJobError } from '../observability/ErrorChannelReporter.js';
 
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
   confirmDelivery: vi.fn(),
   setDmSessionPersonality: vi.fn(),
+}));
+
+vi.mock('../observability/ErrorChannelReporter.js', () => ({
+  reportJobError: vi.fn(),
 }));
 
 function buildPersonality(name: string, errorMessage?: string): LoadedPersonality {
@@ -126,6 +131,30 @@ describe('deliverGroup', () => {
 
     expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
     expect(slotDelivery.deliverError).not.toHaveBeenCalled();
+    expect(vi.mocked(reportJobError)).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed slot to the error channel with its category and requestId', async () => {
+    // The seam this pins: a persona erroring at a user via the prefix-trigger
+    // path must reach the owner error channel — the beta.207 smoke test found
+    // this path silently bypassing the reporter.
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', {
+          result: {
+            requestId: 'req-Alice',
+            success: false,
+            error: '400 not a valid model ID',
+            errorInfo: { category: 'api_error' },
+          } as unknown as LLMGenerationResult,
+        }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
+    expect(vi.mocked(reportJobError)).toHaveBeenCalledWith('api_error', 'req-Alice');
   });
 
   it('routes empty-content "success" through deliverError instead', async () => {
@@ -526,5 +555,32 @@ describe('deliverErroredOutcomes', () => {
       c => (c[2] as { personality: { id: string } }).personality.id
     );
     expect(deliveredIds).toEqual(['id-alice', 'id-bob']);
+  });
+
+  it('reports each errored outcome to the error channel with its category and requestId', async () => {
+    const deliverErrorNoPersist = vi.fn().mockResolvedValue(undefined);
+    const deps = {
+      slotDelivery: { deliverErrorNoPersist } as unknown as DeliveryFlowDeps['slotDelivery'],
+    };
+    const message = {
+      id: 'msg-source',
+      guildId: 'guild-1',
+      client: { user: { id: 'bot-1' } },
+    } as unknown as Message;
+    const channel = { id: 'channel-1' } as unknown as TypingChannel;
+    const spec = {
+      requestId: 'req-Alice',
+      success: false,
+      error: 'submit blew up',
+      errorInfo: { category: 'api_error' },
+    } as unknown as LLMGenerationResult;
+
+    await deliverErroredOutcomes(
+      { message, channel },
+      [{ personality: buildPersonality('Alice'), isAutoResponse: false, spec }],
+      deps
+    );
+
+    expect(vi.mocked(reportJobError)).toHaveBeenCalledWith('api_error', 'req-Alice');
   });
 });

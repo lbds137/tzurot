@@ -646,6 +646,12 @@ describe('MessageHandler', () => {
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+      // Send failure on an already-successful late result is always-pageable —
+      // the ORIGINAL error crosses the reporter seam so its stack can be hashed.
+      expect(mockReportDeliveryFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'rate limited' }),
+        'req-late'
+      );
     });
 
     it('recovers once, then drops a duplicate result (marker cleared after first)', async () => {
@@ -1072,6 +1078,12 @@ describe('MessageHandler', () => {
 
       await messageHandler.handleJobResult(jobId, result);
 
+      // An undeliverable "success" is a bug, not an expected outcome — it must
+      // reach the error channel like the success:false branch does. No
+      // errorInfo exists on this shape, so the category crosses as undefined
+      // (reportJobError resolves it to 'unknown' internally).
+      expect(mockReportJobError).toHaveBeenCalledWith(undefined, 'req-invalid-meta');
+
       // Empty content → routes to deliverError; metadata still flows through
       // the result so the error response can render footer fields.
       expect(mockSlotDelivery.deliverError).toHaveBeenCalledWith(
@@ -1407,6 +1419,20 @@ describe('MessageHandler', () => {
       } as unknown as LLMGenerationResult);
 
       expect(mockReportJobError).toHaveBeenCalledWith('model_not_found', 'req-slash-report');
+    });
+
+    it('reports an empty-content "success" from the slash path — undeliverable success is a bug', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-4'] });
+
+      await messageHandler.handleJobResult('job-empty-slash', {
+        requestId: 'req-empty-slash',
+        success: true,
+        content: '',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockReportJobError).toHaveBeenCalledWith(undefined, 'req-empty-slash');
     });
 
     it('falls back to channel.send when responseSender throws on the error path', async () => {

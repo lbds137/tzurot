@@ -304,6 +304,9 @@ export class MessageHandler {
       );
     } catch (err) {
       logger.error({ err, jobId }, 'Late recovery: follow-up send failed');
+      // Send failure on an already-successful late result — the same
+      // always-pageable class as the two delivery catches below.
+      reportDeliveryFailure(err, result.requestId);
     }
     // finalize() runs even when the send threw. confirmDelivery is an idempotent
     // job_results status flip (PENDING_DELIVERY → DELIVERED), and nothing sweeps
@@ -353,6 +356,10 @@ export class MessageHandler {
         },
         'Job result missing or invalid content field'
       );
+      // A "successful" result that cannot be delivered is a bug, not an
+      // expected outcome — same owner-visibility class as the success:false
+      // branch above (category resolves to 'unknown' here, never deny-listed).
+      reportJobError(result.errorInfo?.category, result.requestId);
       await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
       return;
     }
@@ -408,6 +415,8 @@ export class MessageHandler {
         { jobId, contentType: typeof content },
         'Slash job result missing or invalid content field'
       );
+      // Same undeliverable-"success" class as the message path above.
+      reportJobError(result.errorInfo?.category, result.requestId);
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
     }

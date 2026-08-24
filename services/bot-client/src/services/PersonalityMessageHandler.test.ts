@@ -12,6 +12,11 @@ import { PersonalityMessageHandler } from './PersonalityMessageHandler.js';
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { reportDeliveryFailure } from '../observability/ErrorChannelReporter.js';
+
+vi.mock('../observability/ErrorChannelReporter.js', () => ({
+  reportDeliveryFailure: vi.fn(),
+}));
 
 describe('PersonalityMessageHandler', () => {
   let handler: PersonalityMessageHandler;
@@ -110,6 +115,30 @@ describe('PersonalityMessageHandler', () => {
       });
       expect(message.reply).not.toHaveBeenCalled();
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
+    });
+
+    it('reports a submit-time throw to the error channel with the original error', async () => {
+      const message = createMockMessage();
+      const submitError = new Error('gateway unreachable');
+      mockManager.submitChatJob.mockRejectedValueOnce(submitError);
+
+      await handler.handleMessage(message, createMockPersonality(), 'Hi');
+
+      // The ORIGINAL error crosses the seam (the reporter hashes its stack) —
+      // the synthetic in-character spec is only for the user-facing delivery.
+      expect(vi.mocked(reportDeliveryFailure)).toHaveBeenCalledWith(submitError, message.id);
+    });
+
+    it('does not report to the error channel on a clean submit', async () => {
+      mockManager.submitChatJob.mockResolvedValueOnce({
+        kind: 'submitted',
+        jobId: 'job-1',
+        trackingContext: baseTrackingContext,
+      });
+
+      await handler.handleMessage(createMockMessage(), createMockPersonality(), 'Hi');
+
+      expect(vi.mocked(reportDeliveryFailure)).not.toHaveBeenCalled();
     });
 
     it('delivers in-character for non-Error throws too (no raw leak)', async () => {

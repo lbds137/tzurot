@@ -24,6 +24,7 @@ import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { reportJobError } from '../observability/ErrorChannelReporter.js';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { pickNewDMActivePersonality } from './SlotResolver.js';
 import {
@@ -142,6 +143,13 @@ async function deliverSlot(
       slot.personality.errorMessage !== undefined
         ? { ...baseSynthetic, personalityErrorMessage: slot.personality.errorMessage }
         : baseSynthetic;
+    // Owner-channel visibility for the prefix-trigger path: MessageHandler's
+    // two job-result handlers report before their deliverError calls, and this
+    // slot-error branch is the multi-tag equivalent — without it, a persona
+    // erroring at a user via `&tag` never reaches the error channel (the
+    // beta.207 smoke test caught exactly this). Skip-listed expected
+    // categories are filtered inside reportJobError itself.
+    reportJobError(synthetic.errorInfo?.category, synthetic.requestId);
     await deps.slotDelivery.deliverError(buildErrorContent(synthetic), synthetic, slotContext);
     await deps.persistence.markSlotDelivered(slot.jobId);
   } catch (err) {
@@ -298,6 +306,10 @@ export async function deliverErroredOutcomes(
         personality: outcome.personality,
         isAutoResponse: outcome.isAutoResponse,
       };
+      // Submit-time failures are system errors too (the job never reached the
+      // queue). Denied slots never enter erroredOutcomes, so expected
+      // user-level outcomes stay out of the owner channel.
+      reportJobError(outcome.spec.errorInfo?.category, outcome.spec.requestId);
       await deps.slotDelivery.deliverErrorNoPersist(
         buildErrorContent(outcome.spec),
         outcome.spec,
