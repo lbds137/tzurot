@@ -45,7 +45,13 @@ describe('registerProcessLifecycle', () => {
     vi.useRealTimers();
   });
 
-  function register(opts: { dispose?: () => Promise<void>; policy?: RejectionPolicy } = {}): {
+  function register(
+    opts: {
+      dispose?: () => Promise<void>;
+      policy?: RejectionPolicy;
+      onUnhandledRejection?: (reason: unknown) => void;
+    } = {}
+  ): {
     shutdown: () => Promise<void>;
     handlers: Map<string, (arg?: unknown) => void>;
     dispose: ReturnType<typeof vi.fn>;
@@ -55,6 +61,9 @@ describe('registerProcessLifecycle', () => {
       logger,
       dispose,
       rejectionPolicy: opts.policy ?? 'shutdown',
+      ...(opts.onUnhandledRejection !== undefined
+        ? { onUnhandledRejection: opts.onUnhandledRejection }
+        : {}),
     });
     const handlers = new Map<string, (arg?: unknown) => void>();
     for (const [event, handler] of onSpy.mock.calls as [string, (arg?: unknown) => void][]) {
@@ -206,6 +215,54 @@ describe('registerProcessLifecycle', () => {
 
       expect(logger.fatal).toHaveBeenCalledWith({ err: reason }, 'Unhandled rejection');
       expect(dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it("'log-and-live' invokes the onUnhandledRejection hook after logging", () => {
+      const hook = vi.fn();
+      const { handlers } = register({ policy: 'log-and-live', onUnhandledRejection: hook });
+      const reason = new Error('stray rejection');
+
+      handlers.get('unhandledRejection')?.(reason);
+
+      expect(logger.error).toHaveBeenCalledWith({ err: reason }, 'Unhandled rejection');
+      expect(hook).toHaveBeenCalledWith(reason);
+    });
+
+    it('a throwing onUnhandledRejection hook does not break the handler (canary: removing the hook try/catch turns this red)', () => {
+      const hook = vi.fn(() => {
+        throw new Error('hook exploded');
+      });
+      const { handlers } = register({ policy: 'log-and-live', onUnhandledRejection: hook });
+      const reason = new Error('stray rejection');
+
+      expect(() => handlers.get('unhandledRejection')?.(reason)).not.toThrow();
+      expect(logger.error).toHaveBeenCalledWith({ err: reason }, 'Unhandled rejection');
+      expect(logger.warn).toHaveBeenCalledWith(
+        { err: expect.objectContaining({ message: 'hook exploded' }) },
+        'onUnhandledRejection hook threw'
+      );
+    });
+
+    it("'crash' policy does NOT invoke onUnhandledRejection (the process exits — nothing left to surface to)", () => {
+      const hook = vi.fn();
+      const { handlers } = register({ policy: 'crash', onUnhandledRejection: hook });
+
+      expect(() => handlers.get('unhandledRejection')?.(new Error('worker rejection'))).toThrow(
+        'process.exit(1)'
+      );
+      expect(hook).not.toHaveBeenCalled();
+    });
+
+    it("'shutdown' policy does NOT invoke onUnhandledRejection (the process exits — nothing left to surface to)", async () => {
+      const hook = vi.fn();
+      const { handlers, dispose } = register({ policy: 'shutdown', onUnhandledRejection: hook });
+      exitSpy.mockImplementation((() => undefined) as never);
+
+      handlers.get('unhandledRejection')?.(new Error('gateway rejection'));
+      await vi.runAllTimersAsync();
+
+      expect(dispose).toHaveBeenCalledTimes(1);
+      expect(hook).not.toHaveBeenCalled();
     });
 
     it("'shutdown' policy survives a rejection thrown DURING shutdown (no recursion)", async () => {

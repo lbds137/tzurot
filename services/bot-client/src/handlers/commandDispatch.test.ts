@@ -26,6 +26,11 @@ vi.mock('../observability/emitCommandEvent.js', () => ({
   emitCommandEvent: (...args: unknown[]) => mockEmitCommandEvent(...args),
 }));
 
+const mockReportError = vi.fn();
+vi.mock('../observability/ErrorChannelReporter.js', () => ({
+  reportError: (...args: unknown[]) => mockReportError(...args),
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -386,6 +391,33 @@ describe('handleCommandWithContext', () => {
       const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
       expect(event.outcome).toBe('system_error');
       expect(event.errorCode).toBe('TypeError');
+    });
+
+    it('reports the system_error to the owner-channel reporter with the dotted command path', async () => {
+      const interaction = makeInteraction({ group: 'profile', subcommand: 'create' });
+      const thrown = new TypeError('boom');
+      const command = makeCommand({ execute: vi.fn().mockRejectedValue(thrown) });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      expect(mockReportError).toHaveBeenCalledTimes(1);
+      const report = mockReportError.mock.calls[0][0] as Record<string, unknown>;
+      expect(report).toMatchObject({
+        source: 'command',
+        errorCode: 'TypeError',
+        command: 'test.profile.create',
+        error: thrown,
+      });
+      expect(typeof report.latencyMs).toBe('number');
+    });
+
+    it('does NOT report to the owner-channel reporter on success', async () => {
+      const interaction = makeInteraction({ commandName: 'help' });
+      const command = makeCommand({ execute: vi.fn().mockResolvedValue(undefined) });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      expect(mockReportError).not.toHaveBeenCalled();
     });
 
     it('reports user_error when a failed spec renders during execute', async () => {

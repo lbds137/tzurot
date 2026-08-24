@@ -33,6 +33,13 @@ vi.mock('../utils/gatewayServiceCalls.js', () => ({
     mockGatewayClient.updateDiagnosticResponseIds(...args),
 }));
 
+const mockReportJobError = vi.fn();
+const mockReportDeliveryFailure = vi.fn();
+vi.mock('../observability/ErrorChannelReporter.js', () => ({
+  reportJobError: (...args: unknown[]) => mockReportJobError(...args),
+  reportDeliveryFailure: (...args: unknown[]) => mockReportDeliveryFailure(...args),
+}));
+
 // Mock dependencies
 const mockResponseSender = {
   sendResponse: vi.fn(),
@@ -834,6 +841,103 @@ describe('MessageHandler', () => {
       );
     });
 
+    it('reports a delivery failure on a SUCCESSFUL result via reportError (pageable system error)', async () => {
+      const jobId = 'job-delivery-fail';
+      const result = {
+        requestId: 'req-delivery-fail',
+        success: true,
+        content: 'a perfectly good response',
+      } as unknown as LLMGenerationResult;
+
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: { reply: vi.fn() } as unknown as Message,
+        personality: { id: 'p-1', name: 'GoodBot' },
+        personaId: 'persona-ok',
+        userMessageContent: 'hi',
+        userMessageTime: new Date(),
+      });
+      mockSlotDelivery.deliverSuccess.mockRejectedValueOnce(new TypeError('discord send failed'));
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      expect(mockReportDeliveryFailure).toHaveBeenCalledWith(
+        expect.any(TypeError),
+        'req-delivery-fail'
+      );
+      // The user-facing error fallback still runs after the report.
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalled();
+    });
+
+    it('forwards the deny-listed rate_limit category to reportJobError — the skip decision lives in ErrorChannelReporter', async () => {
+      const jobId = 'job-failed-skip';
+      const result = {
+        requestId: 'req-failed-skip',
+        success: false,
+        error: 'API rate limit exceeded',
+        errorInfo: {
+          category: 'rate_limit' as const,
+          referenceId: 'ref-124',
+        },
+      } as unknown as LLMGenerationResult;
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'ErrorBot' },
+        personaId: 'persona-err',
+        userMessageContent: 'Trigger error',
+        userMessageTime: new Date(),
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      expect(mockReportJobError).toHaveBeenCalledWith('rate_limit', 'req-failed-skip');
+    });
+
+    it('forwards a non-deny-listed category (server_error) to reportJobError', async () => {
+      const jobId = 'job-failed-report';
+      const result = {
+        requestId: 'req-failed-report',
+        success: false,
+        error: 'upstream 500',
+        errorInfo: {
+          category: 'server_error' as const,
+          referenceId: 'ref-125',
+        },
+      } as unknown as LLMGenerationResult;
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'ErrorBot' },
+        personaId: 'persona-err',
+        userMessageContent: 'Trigger error',
+        userMessageTime: new Date(),
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      expect(mockReportJobError).toHaveBeenCalledWith('server_error', 'req-failed-report');
+    });
+
     it('should include metadata in error responses for explicit failures', async () => {
       const jobId = 'job-meta-error';
       const result = {
@@ -1260,7 +1364,7 @@ describe('MessageHandler', () => {
         requestId: 'req-slash',
         success: false,
         error: 'rate limited',
-        errorInfo: { category: 'rate_limit_error', referenceId: 'ref-1' },
+        errorInfo: { category: 'rate_limit', referenceId: 'ref-1' },
       } as unknown as LLMGenerationResult);
 
       // sendResponse called with error content (not 'Hi')
@@ -1273,6 +1377,36 @@ describe('MessageHandler', () => {
       const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
       expect(typeof sentContent).toBe('string');
       expect(sentContent.length).toBeGreaterThan(0);
+    });
+
+    it('forwards the deny-listed rate_limit category to reportJobError from the slash path — skip decision downstream', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-2'] });
+
+      await messageHandler.handleJobResult('job-fail-skip', {
+        requestId: 'req-slash-skip',
+        success: false,
+        error: 'rate limited',
+        errorInfo: { category: 'rate_limit', referenceId: 'ref-2' },
+      } as unknown as LLMGenerationResult);
+
+      expect(mockReportJobError).toHaveBeenCalledWith('rate_limit', 'req-slash-skip');
+    });
+
+    it('forwards a non-deny-listed category to reportJobError from the slash path', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-3'] });
+
+      await messageHandler.handleJobResult('job-fail-report', {
+        requestId: 'req-slash-report',
+        success: false,
+        error: 'model not found',
+        errorInfo: { category: 'model_not_found', referenceId: 'ref-3' },
+      } as unknown as LLMGenerationResult);
+
+      expect(mockReportJobError).toHaveBeenCalledWith('model_not_found', 'req-slash-report');
     });
 
     it('falls back to channel.send when responseSender throws on the error path', async () => {

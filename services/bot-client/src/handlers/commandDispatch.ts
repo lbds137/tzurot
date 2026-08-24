@@ -32,6 +32,7 @@ import {
   type CommandOutcomeSlot,
 } from '../observability/commandOutcomeSlot.js';
 import { emitCommandEvent } from '../observability/emitCommandEvent.js';
+import { reportError } from '../observability/ErrorChannelReporter.js';
 import {
   classifyChannelKind,
   classifyErrorCode,
@@ -181,6 +182,13 @@ export async function handleCommandWithContext(
     logger.error({ err: error, commandName: interaction.commandName }, 'Error executing command');
     slot.outcome = 'system_error';
     slot.errorCode = classifyErrorCode(error);
+    reportError({
+      source: 'command',
+      errorCode: slot.errorCode,
+      command: buildCommandPath(interaction),
+      latencyMs: Date.now() - startedAt,
+      error,
+    });
     await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()), {
       logContext: { commandName: interaction.commandName },
     });
