@@ -470,6 +470,23 @@ CREATE TABLE "llm_diagnostic_logs" (
 );
 
 -- CreateTable
+CREATE TABLE "command_events" (
+    "id" UUID NOT NULL,
+    "occurred_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "user_id" VARCHAR(20) NOT NULL,
+    "guild_id" VARCHAR(20),
+    "channel_kind" VARCHAR(10) NOT NULL,
+    "command" VARCHAR(100) NOT NULL,
+    "character_id" UUID,
+    "outcome" VARCHAR(20) NOT NULL,
+    "error_code" VARCHAR(100),
+    "latency_ms" INTEGER NOT NULL,
+    "context" JSONB,
+
+    CONSTRAINT "command_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "denylisted_entities" (
     "id" UUID NOT NULL,
     "type" VARCHAR(10) NOT NULL,
@@ -872,6 +889,15 @@ CREATE INDEX "llm_diagnostic_logs_guild_id_idx" ON "llm_diagnostic_logs"("guild_
 
 -- CreateIndex
 CREATE INDEX "llm_diagnostic_logs_channel_id_idx" ON "llm_diagnostic_logs"("channel_id");
+
+-- CreateIndex
+CREATE INDEX "command_events_occurred_at_idx" ON "command_events"("occurred_at");
+
+-- CreateIndex
+CREATE INDEX "command_events_command_occurred_at_idx" ON "command_events"("command", "occurred_at");
+
+-- CreateIndex
+CREATE INDEX "command_events_user_id_idx" ON "command_events"("user_id");
 
 -- CreateIndex
 CREATE INDEX "denylisted_entities_type_discord_id_idx" ON "denylisted_entities"("type", "discord_id");
