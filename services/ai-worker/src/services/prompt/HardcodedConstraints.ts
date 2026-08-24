@@ -79,15 +79,16 @@ export const OUTPUT_CONSTRAINTS = `<output_constraints>
 
 /**
  * The extra constraint appended ONLY when `realMessagesEnabled` is on (PR 2.3
- * of the prompt-assembly epic): history messages now carry a
- * `[Name — timestamp]` header line the platform renders, and the model must
- * not learn to emit that bracket form itself — the existing generic
- * name/timestamp-label constraint above stays as-is; this one names the new
- * shape specifically, because a model that has just SEEN the form in its own
- * context window is the one most likely to imitate it.
+ * of the prompt-assembly epic): every history message below — including the
+ * model's own earlier turns — carries a `[Name — timestamp]` header line the
+ * platform renders, not the speaker. The model must not learn to emit that
+ * bracket form itself — the existing generic name/timestamp-label constraint
+ * above stays as-is; this one names the new shape specifically, because a
+ * model that has just SEEN the form on its own prior turns is the one most
+ * likely to imitate it.
  */
 const REAL_MESSAGES_HEADER_LEAKAGE_CONSTRAINT =
-  '<constraint>History messages below are rendered with a "[Name — timestamp]" header by the platform, not written by their speakers — never emit that bracket-header form yourself. Your own turn needs no such header: the fact that you are responding already says whose words these are.</constraint>';
+  '<constraint>History messages below — including your own earlier turns — are rendered with a "[Name — timestamp]" header by the platform, not written by their speakers — never emit that bracket-header form yourself. The platform stamps your own reply with this same header automatically once it enters history; you never need to write it.</constraint>';
 
 /**
  * Companion to the header-leakage constraint, covering the READ direction:

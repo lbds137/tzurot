@@ -421,7 +421,7 @@ describe('buildRealMessages', () => {
       );
     });
 
-    it('renders NO header at all on an assistant (self) message — the role already says whose words these are', () => {
+    it('renders the SAME header form on an assistant (self) message, so the model can date its own prior turns', () => {
       const entries: StructuredHistoryEntry[] = [
         {
           role: 'assistant',
@@ -440,8 +440,9 @@ describe('buildRealMessages', () => {
         headerIdTags: new Map(),
       });
 
-      expect(String(message.content)).toBe('hello there');
-      expect(String(message.content)).not.toContain('[');
+      expect(String(message.content)).toMatch(
+        /^\[TestBot — \d{4}-\d{2}-\d{2} \(\w+\) \d{2}:\d{2}\]\nhello there$/
+      );
     });
   });
 
@@ -623,6 +624,31 @@ describe('buildRealMessages', () => {
       expect(siblingContent).toContain('(id:bbbb)');
       expect(siblingContent).not.toContain('(@kaiuser)');
     });
+
+    it('tags an assistant SELF row via its own id when the personality is in a collision group', () => {
+      const entries: StructuredHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'hello there',
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ];
+      const headerIdTags: HeaderIdTagMap = new Map([[PERSONALITY_ID, 'abcd']]);
+
+      const [message] = buildRealMessages(entries, {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: PERSONALITY_ID,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: headerIdTags,
+      });
+
+      expect(String(message.content)).toMatch(
+        /^\[TestBot \(id:abcd\) — \d{4}-\d{2}-\d{2} \(\w+\) \d{2}:\d{2}\]\nhello there$/
+      );
+    });
   });
 
   describe('additional_kwargs', () => {
@@ -799,7 +825,7 @@ describe('buildRealMessages', () => {
       expect(lines[2]).toBe('after');
     });
 
-    it("places the gap line as the assistant message's first line when it has no header", () => {
+    it('renders the gap marker above the header line of the NEXT assistant message too', () => {
       const entries: StructuredHistoryEntry[] = [
         {
           role: 'assistant',
@@ -824,8 +850,11 @@ describe('buildRealMessages', () => {
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
       });
+      const lines = String(messages[1].content).split('\n');
 
-      expect(String(messages[1].content)).toBe('[time gap: 5 hours]\nafter');
+      expect(lines[0]).toBe('[time gap: 5 hours]');
+      expect(lines[1]).toMatch(/^\[TestBot — /);
+      expect(lines[2]).toBe('after');
     });
 
     it('omits the gap marker below the default threshold', () => {
@@ -1100,11 +1129,24 @@ describe('buildRealMessages', () => {
       expect(xmlMeasure).toBeGreaterThan(realTokens);
     });
 
-    it('the real-message MEASURE (worst-case gap line + wire overhead included) is still smaller than the XML measure, over the same fixture', () => {
-      // D-E test 5: even after re-adding the costs a per-entry measure cannot
-      // derive for free (the worst-case gap line, the per-message wire
-      // overhead), the real-message measure stays under the XML measure —
-      // the recalibration narrows the gap, it does not invert it.
+    it('the real-message MEASURE never under-charges the render it prices, and the XML comparison splits by role', () => {
+      // The safety property the flag-on budget rests on: the measure must
+      // never come in UNDER what `buildRealMessages` actually ships, or a
+      // selected window can overflow the context. It over-charges on purpose
+      // — a worst-case gap line on EVERY entry plus the per-message wire
+      // framing — so this comparison is one-sided by construction.
+      //
+      // The per-role split below is asserted instead of a flat "the real form
+      // is cheaper than XML" claim, because that claim holds for only one of
+      // the two roles. A user row's XML envelope carries a `from_id`
+      // attribute the header form has no equivalent for, so the real form
+      // comes in cheaper there. The responder's OWN rows deliberately carry
+      // no `from_id` (`formatFromIdAttribute` — the assistant role already
+      // says whose words they are), so their XML envelope is already minimal
+      // and the header this path renders on them costs more than the envelope
+      // it replaces. Assistant-heavy history therefore measures slightly
+      // HIGHER flag-on than flag-off — the over-measure direction, which is
+      // the safe one for a budget.
       const entries: StructuredHistoryEntry[] = [];
       for (let i = 0; i < 20; i++) {
         entries.push({
@@ -1118,26 +1160,39 @@ describe('buildRealMessages', () => {
         });
       }
       const names = new Set([PERSONALITY_NAME]);
-      const xmlMeasure = entries.reduce(
-        (sum, e) =>
-          sum + measureHistoryEntryTokens(e, PERSONALITY_NAME, names, PERSONALITY_ID, false),
-        0
-      );
-      const realMeasure = entries.reduce(
-        (sum, e) =>
-          sum +
-          measureHistoryEntryRealTokens(e, {
-            personalityName: PERSONALITY_NAME,
-            allPersonalityNames: names,
-            responderPersonalityId: PERSONALITY_ID,
-            realMessagesEnabled: true,
-            headerSpoofNeutralizeEnabled: false,
-            headerIdTags: new Map(),
-          }),
-        0
-      );
+      const realMeasureOf = (e: StructuredHistoryEntry): number =>
+        measureHistoryEntryRealTokens(e, {
+          personalityName: PERSONALITY_NAME,
+          allPersonalityNames: names,
+          responderPersonalityId: PERSONALITY_ID,
+          realMessagesEnabled: true,
+          headerSpoofNeutralizeEnabled: false,
+          headerIdTags: new Map(),
+        });
+      const xmlMeasureOf = (e: StructuredHistoryEntry): number =>
+        measureHistoryEntryTokens(e, PERSONALITY_NAME, names, PERSONALITY_ID, false);
 
-      expect(realMeasure).toBeLessThan(xmlMeasure);
+      const realMeasure = entries.reduce((sum, e) => sum + realMeasureOf(e), 0);
+      const shipped = buildRealMessages(entries, {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: PERSONALITY_ID,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
+      const shippedTokens = shipped.reduce((sum, m) => sum + countTextTokens(String(m.content)), 0);
+
+      // Every row renders, so the measure is pricing all 20 — an accidental
+      // skip would make the over-charge assertion below trivially true.
+      expect(shipped).toHaveLength(20);
+      expect(realMeasure).toBeGreaterThanOrEqual(shippedTokens);
+
+      // The role asymmetry itself, so a future change to either envelope
+      // reddens here rather than silently moving the budget.
+      const userRow = entries[0];
+      const assistantRow = entries[1];
+      expect(realMeasureOf(userRow)).toBeLessThan(xmlMeasureOf(userRow));
+      expect(realMeasureOf(assistantRow)).toBeGreaterThan(xmlMeasureOf(assistantRow));
     });
   });
 
@@ -1193,6 +1248,28 @@ describe('buildRealMessages', () => {
       });
 
       expect(rendered).toContain('Vlad');
+      expect(rendered).toContain('hello there');
+    });
+
+    it('returns the header + body for an assistant row too — measure-form and ship-form must not disagree', () => {
+      const entry: StructuredHistoryEntry = {
+        role: 'assistant',
+        content: 'hello there',
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      };
+
+      const rendered = renderHistoryEntryForMeasure(entry, {
+        personalityName: PERSONALITY_NAME,
+        allPersonalityNames: undefined,
+        responderPersonalityId: PERSONALITY_ID,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+      });
+
+      expect(rendered).toContain('TestBot');
       expect(rendered).toContain('hello there');
     });
   });
