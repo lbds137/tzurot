@@ -27,12 +27,25 @@ import {
   createManualContext,
   type DeferralMode,
 } from '../utils/commandContext/index.js';
+import {
+  runWithOutcomeSlot,
+  type CommandOutcomeSlot,
+} from '../observability/commandOutcomeSlot.js';
+import { emitCommandEvent } from '../observability/emitCommandEvent.js';
+import {
+  classifyChannelKind,
+  classifyErrorCode,
+} from '../observability/commandTelemetryClassify.js';
+import type { RecordCommandEventRequest } from '../observability/recordCommandEvent.js';
 
 const logger = createLogger('CommandDispatch');
 
 /**
  * Get the subcommand path for looking up deferral mode overrides.
  * Returns 'group subcommand' for subcommand groups, or just 'subcommand' for simple subcommands.
+ *
+ * Also feeds the command-telemetry dotted path (see `buildCommandPath`) —
+ * the same subcommand resolution, joined with '.' instead of ' '.
  */
 function getSubcommandPath(interaction: ChatInputCommandInteraction): string | null {
   try {
@@ -71,6 +84,21 @@ export function resolveEffectiveDeferralMode(
   return defaultMode;
 }
 
+/** Dotted command path for telemetry, e.g. "character.create" or
+ *  "memory.batch.delete" (group + subcommand). Mirrors
+ *  `resolveEffectiveDeferralMode`'s space-joined path, dot-joined instead. */
+function buildCommandPath(interaction: ChatInputCommandInteraction): string {
+  const subcommandPath = getSubcommandPath(interaction);
+  if (subcommandPath === null) {
+    return interaction.commandName;
+  }
+  return [interaction.commandName, ...subcommandPath.split(' ')].join('.');
+}
+
+/** Internal sentinel for the failed-defer path — thrown so the telemetry
+ *  emission after the try/catch can be skipped without a second flag. */
+class DeferFailedError extends Error {}
+
 /**
  * Handle a command using the typed context pattern.
  *
@@ -97,46 +125,80 @@ export async function handleCommandWithContext(
   // Resolve effective deferral mode (may be overridden per-subcommand)
   const effectiveMode = resolveEffectiveDeferralMode(command, interaction);
 
+  // Started AFTER the unknown-command early return above, so that path stays
+  // untimed and unemitted (there is no command to attribute an event to).
+  const startedAt = Date.now();
+  const slot: CommandOutcomeSlot = {};
+
   try {
-    switch (effectiveMode) {
-      case 'ephemeral':
-      case 'public': {
-        // Defer appropriately
-        const isEphemeral = effectiveMode === 'ephemeral';
-        try {
-          await interaction.deferReply({
-            flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
-          });
-        } catch (deferError) {
-          // A failed defer leaves nothing to reply to — log and bail out
-          // WITHOUT attempting the error UX below.
-          logger.error(
-            { err: deferError, command: interaction.commandName },
-            'Failed to defer interaction'
-          );
-          return;
+    await runWithOutcomeSlot(slot, async () => {
+      switch (effectiveMode) {
+        case 'ephemeral':
+        case 'public': {
+          // Defer appropriately
+          const isEphemeral = effectiveMode === 'ephemeral';
+          try {
+            await interaction.deferReply({
+              flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
+            });
+          } catch (deferError) {
+            // A failed defer leaves nothing to reply to — log and bail out
+            // WITHOUT attempting the error UX below. Thrown as the sentinel
+            // rather than returned, because a plain return from inside the
+            // ALS callback would fall through to the telemetry emission: this
+            // path ran no command and has no live interaction to attribute an
+            // event to. Pinned by the "emits nothing when the defer fails"
+            // test in the colocated spec.
+            logger.error(
+              { err: deferError, command: interaction.commandName },
+              'Failed to defer interaction'
+            );
+            throw new DeferFailedError();
+          }
+          // Create typed context (no deferReply method!)
+          await command.execute(createDeferredContext(interaction, isEphemeral));
+          break;
         }
-        // Create typed context (no deferReply method!)
-        await command.execute(createDeferredContext(interaction, isEphemeral));
-        break;
-      }
 
-      case 'modal': {
-        // Don't defer - command will show modal
-        await command.execute(createModalContext(interaction));
-        break;
-      }
+        case 'modal': {
+          // Don't defer - command will show modal
+          await command.execute(createModalContext(interaction));
+          break;
+        }
 
-      case 'none': {
-        // Don't defer - command handles timing itself
-        await command.execute(createManualContext(interaction));
-        break;
+        case 'none': {
+          // Don't defer - command handles timing itself
+          await command.execute(createManualContext(interaction));
+          break;
+        }
       }
-    }
+    });
   } catch (error) {
+    if (error instanceof DeferFailedError) {
+      // Already logged above; no event emitted (see the throw site).
+      return;
+    }
     logger.error({ err: error, commandName: interaction.commandName }, 'Error executing command');
+    slot.outcome = 'system_error';
+    slot.errorCode = classifyErrorCode(error);
     await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()), {
       logContext: { commandName: interaction.commandName },
     });
   }
+
+  const event: RecordCommandEventRequest = {
+    userId: interaction.user.id,
+    ...(interaction.guildId !== null ? { guildId: interaction.guildId } : {}),
+    channelKind: classifyChannelKind(interaction),
+    command: buildCommandPath(interaction),
+    // characterId omitted: resolving the personality at the dispatch layer
+    // needs context individual commands don't uniformly expose; the column
+    // is nullable by design.
+    outcome: slot.outcome ?? 'ok',
+    ...(slot.errorCode !== undefined ? { errorCode: slot.errorCode } : {}),
+    latencyMs: Date.now() - startedAt,
+    // context omitted: bot-client has nothing to put here yet; the
+    // gateway-side allowlist is the guard for when it does.
+  };
+  emitCommandEvent(event);
 }

@@ -20,6 +20,7 @@ import { setupFactExtraction } from './jobs/factExtractionSetup.js';
 import { sweepRosterBlurbs } from './jobs/rosterBlurbSweep.js';
 import { logZaiFreeTierBootCoherence } from './services/ZaiFreeTierAdmission.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
+import { cleanupCommandEvents } from './jobs/CleanupCommandEvents.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
 import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
@@ -57,6 +58,7 @@ const SCHEDULED_JOBS = {
   CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
   CLEANUP_CONVERSATION_RETENTION: 'cleanup-conversation-retention',
   CLEANUP_NOTIFICATIONS_RETENTION: 'cleanup-notifications-retention',
+  CLEANUP_COMMAND_EVENTS: 'cleanup-command-events',
   REEMBED_NULL_VECTORS: 'reembed-null-vectors',
   RELEASE_RECONCILE: 'release-reconcile',
   ROSTER_BLURB_SWEEP: 'roster-blurb-sweep',
@@ -240,6 +242,7 @@ const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
   { name: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS, pattern: '30 * * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION, pattern: '25 9 * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_COMMAND_EVENTS, pattern: '35 9 * * *' },
   { name: SCHEDULED_JOBS.RELEASE_RECONCILE, pattern: '41 * * * *' },
   // Every 10 minutes, on marks no other job in this list uses. The offset is
   // load-bearing, not cosmetic: a tick can run up to MAX_GENERATIONS_PER_SWEEP
@@ -320,6 +323,10 @@ async function setupScheduledJobs(
         // rows); the returned counts are the daily run's verification trail.
         logger.info('Running notifications/feedback retention cleanup');
         return cleanupNotificationsRetention(prisma);
+      }
+      if (job.name === SCHEDULED_JOBS.CLEANUP_COMMAND_EVENTS) {
+        logger.info('Running command-event telemetry cleanup');
+        return cleanupCommandEvents(prisma);
       }
       if (job.name === SCHEDULED_JOBS.RELEASE_RECONCILE) {
         // Thin authed trigger — the sweep itself runs in api-gateway, where

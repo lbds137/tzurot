@@ -19,6 +19,12 @@ import { InfraError } from '@tzurot/clients';
 import { handleCommandWithContext, resolveEffectiveDeferralMode } from './commandDispatch.js';
 import type { Command } from '../types.js';
 import type { DeferralMode, SafeCommandContext } from '../utils/commandContext/index.js';
+import { noteRenderedOutcome } from '../observability/commandOutcomeSlot.js';
+
+const mockEmitCommandEvent = vi.fn();
+vi.mock('../observability/emitCommandEvent.js', () => ({
+  emitCommandEvent: (...args: unknown[]) => mockEmitCommandEvent(...args),
+}));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -169,6 +175,7 @@ describe('resolveEffectiveDeferralMode', () => {
 describe('handleCommandWithContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEmitCommandEvent.mockClear();
   });
 
   it('replies ephemerally and skips dispatch when the command lookup came back empty', async () => {
@@ -344,5 +351,74 @@ describe('handleCommandWithContext', () => {
       );
       expect(execute).toHaveBeenCalledTimes(1);
     }
+  });
+
+  describe('command-telemetry emission', () => {
+    it('emits exactly one ok event with the bare command name on success', async () => {
+      const interaction = makeInteraction({ commandName: 'help' });
+      const command = makeCommand({ execute: vi.fn().mockResolvedValue(undefined) });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      expect(mockEmitCommandEvent).toHaveBeenCalledTimes(1);
+      const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
+      expect(event).toMatchObject({ command: 'help', outcome: 'ok', userId: 'user-1' });
+      expect(typeof event.latencyMs).toBe('number');
+    });
+
+    it('joins group + subcommand into a dotted command path', async () => {
+      const interaction = makeInteraction({ group: 'profile', subcommand: 'create' });
+      const command = makeCommand({ execute: vi.fn().mockResolvedValue(undefined) });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
+      expect(event.command).toBe('test.profile.create');
+    });
+
+    it('reports system_error with the constructor-name error code when execute throws', async () => {
+      const interaction = makeInteraction();
+      const command = makeCommand({ execute: vi.fn().mockRejectedValue(new TypeError('boom')) });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      expect(mockEmitCommandEvent).toHaveBeenCalledTimes(1);
+      const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
+      expect(event.outcome).toBe('system_error');
+      expect(event.errorCode).toBe('TypeError');
+    });
+
+    it('reports user_error when a failed spec renders during execute', async () => {
+      const interaction = makeInteraction();
+      const command = makeCommand({
+        execute: vi.fn().mockImplementation(async () => {
+          noteRenderedOutcome({ severity: 'error', outcome: 'failed', text: 'nope' });
+        }),
+      });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      expect(mockEmitCommandEvent).toHaveBeenCalledTimes(1);
+      const event = mockEmitCommandEvent.mock.calls[0][0] as Record<string, unknown>;
+      expect(event.outcome).toBe('user_error');
+    });
+
+    it('emits nothing on the unknown-command path', async () => {
+      const interaction = makeInteraction({ commandName: 'ghost' });
+
+      await handleCommandWithContext(asInteraction(interaction), undefined);
+
+      expect(mockEmitCommandEvent).not.toHaveBeenCalled();
+    });
+
+    it('emits nothing when the defer itself fails', async () => {
+      const interaction = makeInteraction();
+      interaction.deferReply = vi.fn().mockRejectedValue(new Error('Unknown interaction'));
+      const command = makeCommand({ execute: vi.fn().mockResolvedValue(undefined) });
+
+      await handleCommandWithContext(asInteraction(interaction), command);
+
+      expect(mockEmitCommandEvent).not.toHaveBeenCalled();
+    });
   });
 });

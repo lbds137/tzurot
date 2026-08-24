@@ -71,6 +71,7 @@ function buildReadme(data: AccountExportData): string {
     ['Memories', data.memories.length],
     ['Facts', data.facts.length],
     ['Feedback items', data.feedback.length],
+    ['Command events', data.commandEvents.length],
   ];
   return [
     '# Tzurot Account Export',
@@ -83,7 +84,7 @@ function buildReadme(data: AccountExportData): string {
     ...counts.map(([label, count]) => `- **${label}:** ${String(count)}`),
     '',
     'Every user-readable section ships as a `.json`/`.md` pair; operational',
-    'metadata (`configs/`, `account/`) is JSON-only.',
+    'metadata (`configs/`, `account/`, `telemetry/`) is JSON-only.',
     '',
     '- `profile.{json,md}` — your account record',
     '- `personas/` — one file per persona you authored',
@@ -93,6 +94,7 @@ function buildReadme(data: AccountExportData): string {
     '- `configs/` — your LLM/TTS configs, per-character overrides, and personal defaults',
     '- `account/` — key/credential metadata, job history, release deliveries' +
       (data.adminSettings !== null ? ', admin settings' : ''),
+    '- `telemetry/command-events.json` — one record per command you ran (name, outcome, timing)',
     '- `personality-directory.json` — id → name/slug for every character referenced above',
     '',
     '## Profile vs. personas',
@@ -190,6 +192,7 @@ export function buildAccountExportFiles(data: AccountExportData): Record<string,
   files['account/jobs.json'] = json({ importJobs: data.importJobs, exportJobs: data.exportJobs });
   files['account/release-deliveries.json'] = json(data.releaseDeliveries);
   files['account/shapes-mappings.json'] = json(data.shapesMappings);
+  files['telemetry/command-events.json'] = json(data.commandEvents);
   // Superuser only — the owner IS the admin.
   if (data.adminSettings !== null) {
     files['account/admin-settings.json'] = json(data.adminSettings);

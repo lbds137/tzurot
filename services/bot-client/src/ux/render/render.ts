@@ -8,6 +8,7 @@
  */
 
 import type { MessageIcon, MessageSeverity, MessageSpec } from '../catalog/types.js';
+import { noteRenderedOutcome } from '../../observability/commandOutcomeSlot.js';
 
 /** Severity → default glyph. Icon tokens override (session-expiry, loading). */
 const SEVERITY_EMOJI: Record<MessageSeverity, string> = {
@@ -36,6 +37,11 @@ export interface RenderOptions {
 
 /** Render a MessageSpec to a Discord content string (emoji prefix + text). */
 export function renderSpec(spec: MessageSpec, opts: RenderOptions = {}): string {
+  // Command-telemetry seam: no-op outside an active command invocation (see
+  // commandOutcomeSlot.ts) — this is the universal render choke point, so
+  // it's the one place that can observe a `failed` outcome without touching
+  // the other 335 call sites.
+  noteRenderedOutcome(spec);
   const emoji = spec.icon !== undefined ? ICON_EMOJI[spec.icon] : SEVERITY_EMOJI[spec.severity];
   const text =
     opts.register === 'persona' && spec.personaText !== undefined ? spec.personaText : spec.text;

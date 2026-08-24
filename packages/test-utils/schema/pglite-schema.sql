@@ -894,9 +894,6 @@ CREATE INDEX "llm_diagnostic_logs_channel_id_idx" ON "llm_diagnostic_logs"("chan
 CREATE INDEX "command_events_occurred_at_idx" ON "command_events"("occurred_at");
 
 -- CreateIndex
-CREATE INDEX "command_events_command_occurred_at_idx" ON "command_events"("command", "occurred_at");
-
--- CreateIndex
 CREATE INDEX "command_events_user_id_idx" ON "command_events"("user_id");
 
 -- CreateIndex

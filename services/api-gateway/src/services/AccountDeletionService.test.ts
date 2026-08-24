@@ -35,6 +35,7 @@ function makeTx(overrides: Record<string, unknown> = {}): Record<string, unknown
     memoryFact: { count: vi.fn().mockResolvedValue(1) },
     pendingMemory: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
     llmDiagnosticLog: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    commandEvent: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
     retentionPurgeLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
     ...overrides,
   };
@@ -122,6 +123,9 @@ describe('AccountDeletionService.deleteAccount', () => {
     expect(
       (tx.pendingMemory as { deleteMany: ReturnType<typeof vi.fn> }).deleteMany
     ).not.toHaveBeenCalled();
+    expect(
+      (tx.commandEvent as { deleteMany: ReturnType<typeof vi.fn> }).deleteMany
+    ).not.toHaveBeenCalled();
   });
 
   it('builds a lowercased user: tag vocabulary from username + persona names', async () => {
@@ -156,6 +160,10 @@ describe('AccountDeletionService.deleteAccount', () => {
       .mock.calls[0][0].where;
     expect(diagWhere).toEqual({ userId: 'discord-1' });
 
+    const commandEventsWhere = (tx.commandEvent as { deleteMany: ReturnType<typeof vi.fn> })
+      .deleteMany.mock.calls[0][0].where;
+    expect(commandEventsWhere).toEqual({ userId: 'discord-1' });
+
     expect((tx.user as { delete: ReturnType<typeof vi.fn> }).delete).toHaveBeenCalledWith({
       where: { id: 'user-1' },
     });
@@ -168,6 +176,7 @@ describe('AccountDeletionService.deleteAccount', () => {
         facts: 1,
         pendingMemories: 2,
         diagnosticLogs: 1,
+        commandEvents: 2,
         characterNames: ['XBot'],
         characterSlugs: ['xbot'],
         characterIds: ['x1'],

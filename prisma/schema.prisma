@@ -1058,9 +1058,9 @@ model CommandEvent {
   /// Dotted command path, e.g. "character.create" or "memory.browse".
   command String @db.VarChar(100)
 
-  /// Null when the invocation involved no personality; the personality UUID
-  /// otherwise (resolved best-effort at emission — a failed resolution stays
-  /// null rather than blocking the event).
+  /// Null when the invocation involved no personality. Not yet populated by
+  /// any emission site — reserved for a future site that can resolve the
+  /// personality; nullable by design so that site can stay best-effort.
   characterId String? @map("character_id") @db.Uuid
 
   /// ok | user_error | system_error | rate_limited | cancelled.
@@ -1078,7 +1078,6 @@ model CommandEvent {
   context Json?
 
   @@index([occurredAt])
-  @@index([command, occurredAt])
   @@index([userId])
   @@map("command_events")
 }

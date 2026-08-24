@@ -92,6 +92,10 @@ export interface AccountExportData {
   exportJobs: unknown[];
   releaseDeliveries: unknown[];
   shapesMappings: unknown[];
+  /** Raw command-telemetry rows (name, outcome, latency, coarse location —
+   *  never message content); see the fetch site for why this is the
+   *  assembler's first Discord-id-keyed section rather than internal-UUID. */
+  commandEvents: unknown[];
   /** The global admin-settings row — populated only when the exporting user
    *  is the superuser (the owner IS the admin); null for everyone else. */
   adminSettings: ExportAdminSettings | null;
@@ -376,6 +380,15 @@ export async function assembleAccountExport(
 
   const ancillary = await fetchAncillarySections(prisma, userId);
 
+  // command_events has no user FK (it keys on the loose Discord-snowflake
+  // string, by design — see the schema comment), so this is the assembler's
+  // first section keyed on the DISCORD id rather than the internal UUID
+  // every other sweep above uses. `sweep`'s bound (`T extends { id: string }`)
+  // is satisfied directly since CommandEvent has a uuid `id`.
+  const commandEvents = await sweep(c =>
+    prisma.commandEvent.findMany({ where: { userId: user.discordId }, ...pageArgs(c) })
+  );
+
   return {
     meta: {
       exportedAt: new Date().toISOString(),
@@ -390,6 +403,7 @@ export async function assembleAccountExport(
     memories,
     facts,
     shapesMappings,
+    commandEvents,
     adminSettings,
     ...ancillary,
   };

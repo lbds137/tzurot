@@ -24,6 +24,16 @@ import {
 } from 'discord.js';
 import { CATALOG } from '../ux/catalog/catalog.js';
 import { replySpecSafe, topLevelErrorSpec } from '../ux/render/reply.js';
+import {
+  runWithOutcomeSlot,
+  type CommandOutcomeSlot,
+} from '../observability/commandOutcomeSlot.js';
+import { emitCommandEvent } from '../observability/emitCommandEvent.js';
+import {
+  classifyChannelKind,
+  classifyErrorCode,
+} from '../observability/commandTelemetryClassify.js';
+import type { RecordCommandEventRequest } from '../observability/recordCommandEvent.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { Command, ContextMenuCommand } from '../types.js';
@@ -202,16 +212,49 @@ export class CommandHandler {
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    // Started AFTER the unknown-command early return above, so that path
+    // stays untimed and unemitted (there is no command to attribute an event
+    // to). Context-menu commands have no subcommands, so the telemetry
+    // command name is just the bare commandName.
+    const startedAt = Date.now();
+    const slot: CommandOutcomeSlot = {};
+
     try {
-      await command.execute(interaction);
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    } catch (deferError) {
+      // A failed defer leaves nothing to reply to and no invocation ran —
+      // log and bail without emitting telemetry, mirroring the chat-input
+      // dispatcher's defer-failure handling.
+      logger.error(
+        { err: deferError, commandName: interaction.commandName },
+        'Failed to defer context-menu interaction'
+      );
+      return;
+    }
+    try {
+      await runWithOutcomeSlot(slot, () => command.execute(interaction));
     } catch (error) {
       logger.error(
         { err: error, commandName: interaction.commandName },
         'Context-menu command failed'
       );
+      slot.outcome = 'system_error';
+      slot.errorCode = classifyErrorCode(error);
       await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()));
     }
+
+    const event: RecordCommandEventRequest = {
+      userId: interaction.user.id,
+      ...(interaction.guildId !== null ? { guildId: interaction.guildId } : {}),
+      channelKind: classifyChannelKind(interaction),
+      command: interaction.commandName,
+      // characterId/context omitted: see the chat-input dispatcher's same
+      // omission in commandDispatch.ts for the rationale.
+      outcome: slot.outcome ?? 'ok',
+      ...(slot.errorCode !== undefined ? { errorCode: slot.errorCode } : {}),
+      latencyMs: Date.now() - startedAt,
+    };
+    emitCommandEvent(event);
   }
 
   /** Loaded context-menu commands (manifest + tests). */

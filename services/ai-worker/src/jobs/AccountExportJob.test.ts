@@ -121,6 +121,7 @@ function makePayload(): AccountExportData {
     exportJobs: [],
     releaseDeliveries: [],
     shapesMappings: [],
+    commandEvents: [],
     adminSettings: null,
   };
 }

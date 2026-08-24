@@ -73,6 +73,7 @@ export interface AccountDeletionSummary {
   factsSweptByTag: number;
   pendingMemories: number;
   diagnosticLogs: number;
+  commandEvents: number;
   characterNames: string[];
   /** Characters re-homed to the orphan sentinel instead of deleted (retention
    *  mode only; always 0 for self-serve, which deletes owned characters). */
@@ -152,7 +153,12 @@ async function sweepLooseRefs(
     scope: ReturnType<typeof blastRadiusFilter>;
     discordUserId: string;
   }
-): Promise<{ factsSweptByTag: number; pendingMemories: number; diagnosticLogs: number }> {
+): Promise<{
+  factsSweptByTag: number;
+  pendingMemories: number;
+  diagnosticLogs: number;
+  commandEvents: number;
+}> {
   const { username, personas, scope, discordUserId } = args;
 
   // Facts ABOUT the user under any scope (other personas, other owners'
@@ -180,10 +186,16 @@ async function sweepLooseRefs(
     where: { userId: discordUserId },
   });
 
+  // Command telemetry keys on the loose Discord-ID string, not the user FK.
+  const commandEvents = await tx.commandEvent.deleteMany({
+    where: { userId: discordUserId },
+  });
+
   return {
     factsSweptByTag,
     pendingMemories: pendingMemories.count,
     diagnosticLogs: diagnosticLogs.count,
+    commandEvents: commandEvents.count,
   };
 }
 
@@ -365,6 +377,7 @@ export class AccountDeletionService {
         factsSweptByTag: summary.factsSweptByTag,
         pendingMemories: summary.pendingMemories,
         diagnosticLogs: summary.diagnosticLogs,
+        commandEvents: summary.commandEvents,
       },
       'ACCOUNT DELETED'
     );
