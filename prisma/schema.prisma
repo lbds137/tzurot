@@ -475,14 +475,14 @@ model Personality {
   /// guarding only on null will try to render an empty description. Treat
   /// null (not generated yet) and `''` (generated, nothing to say) alike:
   /// render name-only for both.
-  rosterBlurb           String? @map("roster_blurb")
+  rosterBlurb                 String?   @map("roster_blurb")
   /// Full 64-hex sha-256 of the card fields `rosterBlurb` was generated from
   /// (`hashRosterBlurbCard`, common-types/utils/rosterBlurbCard.ts).
   /// Deferred-set, and written atomically with `rosterBlurb`: the pair records
   /// what the stored blurb describes. Compare it against `card_source_hash`
   /// below to decide staleness; never against a freshly-computed hash, which
   /// is the reader-side rehash this design exists to avoid.
-  rosterBlurbSourceHash String? @map("roster_blurb_source_hash") @db.VarChar(64)
+  rosterBlurbSourceHash       String?   @map("roster_blurb_source_hash") @db.VarChar(64)
   /// Full 64-hex sha-256 of this character's CURRENT card, stamped by every
   /// write path that can change a card field (`hashRosterBlurbCard`,
   /// common-types/utils/rosterBlurbCard.ts). Deferred-set: null on rows written
@@ -491,7 +491,7 @@ model Personality {
   /// FROM card_source_hash` — a pure SQL comparison, which is the whole point:
   /// no reader ever rehashes a card to discover that it changed, because the
   /// write that changed it already recorded the new digest.
-  cardSourceHash        String? @map("card_source_hash") @db.VarChar(64)
+  cardSourceHash              String?   @map("card_source_hash") @db.VarChar(64)
   /// Consecutive failed blurb generations for the card identified by
   /// `roster_blurb_failed_source_hash`. Deferred-set-by-failure: 0 on every
   /// row until the sweep's generation for it fails, incremented per failure
@@ -502,19 +502,19 @@ model Personality {
   /// column must pair it with the failed hash to know whether it is live.
   /// Written via $executeRaw only: this table is sync-tracked, and a failure
   /// stamp must never bump `updated_at`.
-  rosterBlurbAttempts Int @default(0) @map("roster_blurb_attempts")
+  rosterBlurbAttempts         Int       @default(0) @map("roster_blurb_attempts")
   /// When the most recent blurb generation for this card failed. Null until a
   /// failure occurs and after any success; paired atomically with the attempt
   /// counter. The sweep admits a failed row again only after an exponential
   /// backoff from this stamp (or a card edit). Same $executeRaw-only rule as
   /// the counter.
-  rosterBlurbLastFailedAt DateTime? @map("roster_blurb_last_failed_at")
+  rosterBlurbLastFailedAt     DateTime? @map("roster_blurb_last_failed_at")
   /// The `card_source_hash` the recorded failures belong to. Null until a
   /// failure occurs and after any success. Keys the failure state to one exact
   /// card: if the current `card_source_hash` differs, the failures are about a
   /// card that no longer exists and the row is admitted immediately. Same
   /// $executeRaw-only rule as the counter.
-  rosterBlurbFailedSourceHash String? @map("roster_blurb_failed_source_hash") @db.VarChar(64)
+  rosterBlurbFailedSourceHash String?   @map("roster_blurb_failed_source_hash") @db.VarChar(64)
 
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")
@@ -1030,6 +1030,57 @@ model LlmDiagnosticLog {
   @@index([guildId])
   @@index([channelId])
   @@map("llm_diagnostic_logs")
+}
+
+/// Command telemetry: exactly one append-only row per slash-command or
+/// context-menu invocation, success and failure alike. Records THAT things
+/// happened, never WHAT was said — no message content, no free text beyond
+/// the command's own dotted name and a stable error code. Keyed by Discord
+/// snowflake with no User FK (mirrors LlmDiagnosticLog) so guest and
+/// unprovisioned invocations still count; account erasure sweeps it by
+/// Discord id and /export includes the raw rows. Retention: a daily cleanup
+/// job deletes rows older than 12 months.
+model CommandEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  /// Discord user snowflake (not the internal User UUID — no FK on purpose).
+  userId String @map("user_id") @db.VarChar(20)
+
+  /// Null for DM invocations; a guild snowflake otherwise.
+  guildId String? @map("guild_id") @db.VarChar(20)
+
+  /// Coarse location class: guild | dm | thread. Deliberately not a channel
+  /// id — the coarse kind answers the analytics questions without widening
+  /// the identifier surface.
+  channelKind String @map("channel_kind") @db.VarChar(10)
+
+  /// Dotted command path, e.g. "character.create" or "memory.browse".
+  command String @db.VarChar(100)
+
+  /// Null when the invocation involved no personality; the personality UUID
+  /// otherwise (resolved best-effort at emission — a failed resolution stays
+  /// null rather than blocking the event).
+  characterId String? @map("character_id") @db.Uuid
+
+  /// ok | user_error | system_error | rate_limited | cancelled.
+  outcome String @db.VarChar(20)
+
+  /// Null on ok outcomes; a stable machine code (catalog intent or error
+  /// class name) otherwise — never a rendered message.
+  errorCode String? @map("error_code") @db.VarChar(100)
+
+  latencyMs Int @map("latency_ms")
+
+  /// Allowlisted keys only (model_family, provider, voice_mode, ...) — the
+  /// gateway writer strips unknown keys before insert, so future features
+  /// cannot smuggle content into telemetry.
+  context Json?
+
+  @@index([occurredAt])
+  @@index([command, occurredAt])
+  @@index([userId])
+  @@map("command_events")
 }
 
 /// Denylist: block specific Discord users or guilds from using the bot.
