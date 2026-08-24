@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-23'
+lastUpdated: '2026-08-24'
 ---
 
 # Orchestrator Mode
@@ -35,11 +35,11 @@ safety rests on the per-release owner-approval gate (`00-critical.md` § Merge
 Approval), which is model-independent. Schema and migration work, and any
 owner-taste call, still escalate to the owner regardless of driver.
 
-| Driver                                          | Posture                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop** _(PRIMARY — routine work)_  | **Nested dispatch is the STANDARD** (owner verdicts, TASK-718 + the 2026-08-22 hierarchy call) — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit. |
-| **Opus main loop** _(BACKUP — low Fable usage)_ | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).                                                                                       |
-| **Bulk reading/exploration**                    | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                         |
+| Driver                                          | Posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop** _(PRIMARY — routine work)_  | **Nested dispatch is the STANDARD** (owner verdicts, TASK-718 + the 2026-08-22 hierarchy call) — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), or work where writing the spec genuinely costs more than the edit. Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a); the mid-review carve-out compounded to 13 inline rounds in one night and is retired (owner call, 2026-08-24). |
+| **Opus main loop** _(BACKUP — low Fable usage)_ | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).                                                                                                                                                                                                                                                                                                                                                           |
+| **Bulk reading/exploration**                    | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                             |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
 the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
@@ -211,7 +211,10 @@ largest, which is backwards.
    (§ Worktree spawns › "The base IS stale by default") — never a bare
    verify-and-stop.
 9. **Report requirements** — deviations flagged, verbatim verification tails,
-   survivor-grep results. The report also **declares the delegation shape**
+   survivor-grep results. Git-state claims (current branch, base SHA,
+   porcelain status) appear as pasted command output, never restated prose —
+   restated git state was wrong twice in one day with the pasted form correct
+   both times. The report also **declares the delegation shape**
    ("no inner worker — I judged the unit small enough" is a valid answer;
    silence is not) and carries **transfer notes**: tiers the worktree could
    not reach (`typecheck:spec`, `pnpm test:component` when a snapshot surface
