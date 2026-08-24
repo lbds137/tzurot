@@ -1201,7 +1201,7 @@ describe('ContentBudgetManager', () => {
         ]);
       });
 
-      it("follows EACH flag polarity's OWN shipped set — the real-measure mode fits a different (larger) set under the same budget", () => {
+      it("follows EACH flag polarity's OWN shipped set, whatever each one prices the window at", () => {
         const realManager = new RealContextWindowManager();
         const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
         vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
@@ -1212,9 +1212,21 @@ describe('ContentBudgetManager', () => {
         settingsState.realMessagesEnabled = true;
         const preselectedOn = manager.preselectHistory(options);
 
-        // The real measure prices the same window lower, so flag-on fits a
-        // strictly larger set under the same budget.
-        expect(preselectedOn.messagesDropped).toBeLessThan(preselectedOff.messagesDropped);
+        // No comparative claim between the polarities: which one fits more
+        // depends on the window's ROLE MIX, so it is not a property of the
+        // flag. A user row's XML envelope carries attribution the header form
+        // does not, so the real form prices it lower; the responder's own
+        // rows carry no `from_id` at all, so their XML envelope is already
+        // minimal and the header the real form renders on them prices HIGHER.
+        // This fixture alternates the two evenly, which is close to the point
+        // where the two effects cancel. What both polarities must do — the
+        // actual subject of this case — is derive the dedup boundary from
+        // their OWN shipped set, asserted per-polarity below.
+        //
+        // Both must still evict something, or the per-polarity loop below
+        // would assert over an empty eviction set and pass vacuously.
+        expect(preselectedOff.messagesDropped).toBeGreaterThan(0);
+        expect(preselectedOn.messagesDropped).toBeGreaterThan(0);
 
         // Each polarity's dedup boundary follows its OWN shipped set — the
         // point of the case, and the reason the two are asserted separately
