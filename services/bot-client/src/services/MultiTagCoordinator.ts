@@ -174,10 +174,17 @@ export class MultiTagCoordinator {
     const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions(slotSubmissions);
 
     if (runtimeSlots.length === 0) {
+      // Every-denial-is-MUTE means the user asked for zero acknowledgment —
+      // the unavailable notice would announce the very denial MUTE hides.
+      // Any errored or BLOCK-denied slot keeps the notice/error delivery.
+      const allDenialsSilent =
+        erroredOutcomes.length === 0 &&
+        slotSubmissions.every(outcome => outcome.kind === 'denied' && outcome.silent === true);
       await deliverAllFailedNotice(
         { message: input.message, channel: input.channel },
         erroredOutcomes,
-        this.deps
+        this.deps,
+        allDenialsSilent
       );
       return;
     }
@@ -505,7 +512,11 @@ export class MultiTagCoordinator {
           },
           'Multi-tag slot denied — omitting from fan-out'
         );
-        return { kind: 'denied', personality: resolved.personality };
+        return {
+          kind: 'denied',
+          personality: resolved.personality,
+          silent: result.kind === 'denied' && result.silent === true,
+        };
       }
       // Register with JobTracker for typing-indicator refresh + context
       // storage, but skip ordering-service registration (the coordinator
