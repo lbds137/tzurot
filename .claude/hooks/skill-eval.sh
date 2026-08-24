@@ -99,6 +99,15 @@ if echo "$PROMPT" | grep -qiE '\bmine\b.*session|session.*mining|mined[ -]corpus
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-session-mining"
 fi
 
+# Weekly usage audit → tzurot-usage-audit skill
+# Bare "usage" and bare "capacity" are deliberately NOT triggers: they carry a
+# far more common non-plan meaning here (memory/CPU usage, pool capacity, the
+# usage of a function), so every branch below scopes the word to the
+# weekly-plan-budget sense with a qualifier.
+if echo "$PROMPT" | grep -qiE 'weekly (limit|reset|usage|cap|budget)|usage (limit|audit|ledger|reading|report)|token (spend|budget)|delegation ratio|weighted (token|total)|implied capacity|how much .*(have we|did we|weve|we.ve) (used|spent)'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-usage-audit"
+fi
+
 # PR review response → tzurot-review-response skill
 # The primary trigger is agent-internal (05-tooling's PR-monitoring step 4 says
 # to INVOKE the skill), so this hook is the SECOND path: the owner asking about

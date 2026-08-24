@@ -73,6 +73,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/develop-code-commit-guard.probe.sh',
   },
   {
+    hook: '.claude/hooks/dispatch-posture-gate.sh',
+    probe: '.claude/hooks/dispatch-posture-gate.probe.sh',
+  },
+  {
     hook: '.claude/hooks/lossy-pipe-guard.sh',
     probe: '.claude/hooks/lossy-pipe-guard.probe.sh',
   },
@@ -92,6 +96,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   {
     hook: '.claude/hooks/pr-monitor-reminder.sh',
     probe: '.claude/hooks/pr-monitor-reminder.probe.sh',
+  },
+  {
+    hook: '.claude/hooks/python-heredoc-edit-guard.sh',
+    probe: '.claude/hooks/python-heredoc-edit-guard.probe.sh',
   },
   {
     hook: '.claude/hooks/queued-message-receipt.sh',
