@@ -268,6 +268,78 @@ describe('MultiTagCoordinator', () => {
       );
     });
 
+    it('stays FULLY silent when every denial is MUTE mode — no unavailable notice', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockResolvedValue({
+        kind: 'denied',
+        reason: 'denylist',
+        silent: true,
+      });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [buildResolvedSlot(buildPersonality('Alice'))],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
+    it('still posts the notice on a MIXED batch (one MUTE, one BLOCK denial)', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylist', silent: true })
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylist' });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')),
+          buildResolvedSlot(buildPersonality('Bob')),
+        ],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
+        expect.stringContaining('None of the tagged characters are currently available')
+      );
+    });
+
+    it('MUTE-denied + errored batch: the errored character still speaks (no full silence)', async () => {
+      // Pins the doc-commented rule directly: an errored slot keeps its
+      // in-character error delivery even when every DENIAL was MUTE — full
+      // silence applies only to the all-denials-silent case.
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
+        if (personality.id === 'id-Alice') {
+          throw new Error('gateway timeout');
+        }
+        return { kind: 'denied', reason: 'denylist', silent: true };
+      });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')), // errored → speaks
+          buildResolvedSlot(buildPersonality('Bob')), // MUTE-denied → silent
+        ],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(slotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+      expect(slotDelivery.deliverErrorNoPersist.mock.calls[0][2].personality.id).toBe('id-Alice');
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
     it('delivers each errored character in-character (webhook), not a single system notice', async () => {
       const msg = buildMessage();
       // submitSlot catches the throw and synthesizes an 'errored' slot carrying

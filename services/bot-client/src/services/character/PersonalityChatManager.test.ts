@@ -55,7 +55,10 @@ describe('PersonalityChatManager', () => {
   let manager: PersonalityChatManager;
   let mockContextBuilder: { buildContext: ReturnType<typeof vi.fn> };
   let mockPersistence: { saveUserMessage: ReturnType<typeof vi.fn> };
-  let mockDenylistCache: { isPersonalityDenied: ReturnType<typeof vi.fn> };
+  let mockDenylistCache: {
+    isPersonalityDenied: ReturnType<typeof vi.fn>;
+    isPersonalityMuted: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -75,7 +78,10 @@ describe('PersonalityChatManager', () => {
       }),
     };
     mockPersistence = { saveUserMessage: vi.fn().mockResolvedValue(undefined) };
-    mockDenylistCache = { isPersonalityDenied: vi.fn().mockReturnValue(false) };
+    mockDenylistCache = {
+      isPersonalityDenied: vi.fn().mockReturnValue(false),
+      isPersonalityMuted: vi.fn().mockReturnValue(false),
+    };
 
     manager = new PersonalityChatManager({
       contextBuilder: mockContextBuilder as any,
@@ -144,7 +150,25 @@ describe('PersonalityChatManager', () => {
       expect(result.kind).toBe('denied');
       if (result.kind !== 'denied') return;
       expect(result.reason).toBe('denylisted');
+      // BLOCK-mode denial is overt: silent must be false so callers may post
+      // the unavailable notice.
+      expect(result.silent).toBe(false);
       expect(vi.mocked(generate)).not.toHaveBeenCalled();
+    });
+
+    it('marks a MUTE-mode denial silent — no caller may acknowledge it', async () => {
+      mockDenylistCache.isPersonalityDenied.mockReturnValueOnce(true);
+      mockDenylistCache.isPersonalityMuted.mockReturnValueOnce(true);
+
+      const result = await manager.submitChatJob({
+        message: createMockMessage(),
+        personality: createMockPersonality(),
+        content: 'Hi',
+      });
+
+      expect(result.kind).toBe('denied');
+      if (result.kind !== 'denied') return;
+      expect(result.silent).toBe(true);
     });
 
     it('returns nsfw-blocked when verification disallows', async () => {

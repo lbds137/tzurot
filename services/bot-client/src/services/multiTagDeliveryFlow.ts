@@ -334,16 +334,24 @@ export async function deliverErroredOutcomes(
 export async function deliverAllFailedNotice(
   source: { message: Message; channel: TypingChannel },
   erroredOutcomes: ErroredSlotOutcome[],
-  deps: Pick<DeliveryFlowDeps, 'slotDelivery'>
+  deps: Pick<DeliveryFlowDeps, 'slotDelivery'>,
+  allDenialsSilent = false
 ): Promise<void> {
   const { message } = source;
   logger.info(
-    { sourceMessageId: message.id, erroredCount: erroredOutcomes.length },
+    { sourceMessageId: message.id, erroredCount: erroredOutcomes.length, allDenialsSilent },
     'All multi-tag slots failed (denied or errored) — nothing to coordinate'
   );
 
   if (erroredOutcomes.length > 0) {
     await deliverErroredOutcomes(source, erroredOutcomes, deps);
+    return;
+  }
+
+  // Every denial was a MUTE-mode entry: the mode's contract is "ignore but
+  // keep in context", so posting the unavailable notice would announce the
+  // exact denial MUTE exists to hide. Full silence is the feature.
+  if (allDenialsSilent) {
     return;
   }
 

@@ -235,6 +235,44 @@ describe('DenylistCache', () => {
     });
   });
 
+  describe('isPersonalityMuted', () => {
+    it('returns true only for a MUTE-mode personality entry', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'PERSONALITY',
+          scopeId: 'pers1',
+          mode: 'MUTE',
+        },
+      });
+
+      expect(cache.isPersonalityMuted('user1', 'pers1')).toBe(true);
+      // Denied AND muted — both are true for the same entry.
+      expect(cache.isPersonalityDenied('user1', 'pers1')).toBe(true);
+    });
+
+    it('returns false for a BLOCK-mode entry (overt denial)', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'PERSONALITY',
+          scopeId: 'pers1',
+          mode: 'BLOCK',
+        },
+      });
+
+      expect(cache.isPersonalityMuted('user1', 'pers1')).toBe(false);
+    });
+
+    it('returns false when no entry exists', () => {
+      expect(cache.isPersonalityMuted('nobody', 'pers1')).toBe(false);
+    });
+  });
+
   describe('isBlocked', () => {
     it('should return true for BLOCK-mode bot-wide user', () => {
       cache.handleEvent({
