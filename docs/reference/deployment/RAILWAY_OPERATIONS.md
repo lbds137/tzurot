@@ -385,6 +385,31 @@ railway login --browserless
 2. Verify env vars: `railway variables --service <name> --json`
 3. Confirm DATABASE_URL and REDIS_URL are set
 
+### bot-client: "Boot deadline exceeded" log line
+
+`Boot deadline exceeded — exiting so the platform restart policy can recover`
+means the bot-client boot watchdog fired: boot did not reach ready within 5
+minutes (healthy boots take seconds), so the process exited 1 on purpose to
+convert a silent hang into a platform restart. This is the fix for the
+observed failure where a boot stalled indefinitely inside the boot-time
+Discord command-deploy REST call while the deploy showed SUCCESS.
+
+Reading it:
+
+- **Expected outcome**: Railway restarts the service and the next boot
+  usually succeeds (the observed hang was a transient REST stall). One
+  occurrence needs no action beyond noticing it happened.
+- **`lastPhase` field**: the last boot milestone that COMPLETED
+  (`armed` = hang before the first milestone, i.e. inside command deploy;
+  then `commands-deployed` → `commands-loaded` → `services-initialized` →
+  `gateway-health-checked` → `logged-in`). It localizes the hang to the
+  window AFTER the named phase.
+- **Repeated firings back-to-back** mean the hang is persistent, not
+  transient — investigate the window `lastPhase` points at (e.g. repeated
+  `armed` = Discord REST or its network path; repeated
+  `gateway-health-checked` = Discord login).
+- Source: `services/bot-client/src/utils/bootWatchdog.ts`.
+
 ### Services Not Communicating
 
 - Use Railway's internal networking (`.railway.internal`)
