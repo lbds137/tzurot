@@ -3,9 +3,10 @@ id: TASK-754
 title: >-
   Flag-on: assistant turns are unstamped - persona mis-dates its own recent
   statements
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 21:05'
+updated_date: '2026-08-24 00:42'
 labels:
   - 'area:ai-worker'
   - 'size:M'
