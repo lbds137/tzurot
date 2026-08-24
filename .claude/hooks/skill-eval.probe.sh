@@ -174,6 +174,13 @@ assert_hit "session-mining: mine the session logs" "tzurot-session-mining"
 invoke 'we determined the root file to undermine the session'
 assert_miss "session-mining: 'determine'/'undermine' do not false-match \\bmine\\b" "tzurot-session-mining"
 
+invoke 'how much of the weekly limit have we used'
+assert_hit "usage-audit: weekly limit" "tzurot-usage-audit"
+invoke 'what is our delegation ratio this week'
+assert_hit "usage-audit: delegation ratio" "tzurot-usage-audit"
+invoke 'this query is hammering memory usage, check the pool capacity'
+assert_miss "usage-audit: bare 'usage'/'capacity' do not false-match" "tzurot-usage-audit"
+
 invoke 'can you delegate this to a worker agent'
 assert_hit "orchestration: delegate to a worker" "tzurot-orchestration"
 invoke 'can you rename this variable for clarity'
