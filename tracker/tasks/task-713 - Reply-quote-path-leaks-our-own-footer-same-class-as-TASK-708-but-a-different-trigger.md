@@ -3,9 +3,10 @@ id: TASK-713
 title: >-
   Reply-quote path leaks our own -# footer, same class as TASK-708 but a
   different trigger
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 04:43'
+updated_date: '2026-08-24 00:35'
 labels:
   - 'area:bot-client'
   - 'size:M'
