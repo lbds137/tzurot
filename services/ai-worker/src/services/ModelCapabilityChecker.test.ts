@@ -24,6 +24,7 @@ import {
   modelSupportsVision,
   modelSupportsReasoning,
   getModelContextLength,
+  isModelListed,
   clearCapabilityCache,
 } from './ModelCapabilityChecker.js';
 
@@ -671,6 +672,53 @@ describe('ModelCapabilityChecker', () => {
       // survived the clear, this would still report 4096.
       vi.mocked(mockRedis.get).mockResolvedValue(null);
       expect(await getModelContextLength('test-model', mockRedis)).toBeNull();
+    });
+  });
+
+  describe('isModelListed', () => {
+    it('returns true for a model the catalog lists', async () => {
+      const models = [createMockModel('google/gemma-3-27b-it', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('google/gemma-3-27b-it', mockRedis)).toBe(true);
+    });
+
+    it('returns false when the catalog loaded but does not list the model', async () => {
+      const models = [createMockModel('google/gemma-3-27b-it', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('z-ai/glm-5.3', mockRedis)).toBe(false);
+    });
+
+    it('returns null when redis.get resolves null (catalog unavailable)', async () => {
+      vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+      expect(await isModelListed('any/model', mockRedis)).toBeNull();
+    });
+
+    it('returns null when redis.get resolves an empty string', async () => {
+      vi.mocked(mockRedis.get).mockResolvedValue('');
+
+      expect(await isModelListed('any/model', mockRedis)).toBeNull();
+    });
+
+    it('returns null on unparseable JSON', async () => {
+      vi.mocked(mockRedis.get).mockResolvedValue('{not json');
+
+      expect(await isModelListed('any/model', mockRedis)).toBeNull();
+    });
+
+    it('returns null when redis.get rejects', async () => {
+      vi.mocked(mockRedis.get).mockRejectedValue(new Error('connection lost'));
+
+      expect(await isModelListed('any/model', mockRedis)).toBeNull();
+    });
+
+    it('resolves a :free-suffixed id against the unsuffixed catalog entry', async () => {
+      const models = [createMockModel('x-ai/grok-4.1-fast', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('x-ai/grok-4.1-fast:free', mockRedis)).toBe(true);
     });
   });
 });

@@ -12,7 +12,11 @@ import { type MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceF
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
-import { reportDeliveryFailure, reportJobError } from '../observability/ErrorChannelReporter.js';
+import {
+  reportDeliveryFailure,
+  reportJobError,
+  reportQuotaFallbackRescue,
+} from '../observability/ErrorChannelReporter.js';
 import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
 import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceResponses.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
@@ -26,9 +30,10 @@ import {
   type SlashJobContext,
 } from '../services/JobTracker.js';
 import { confirmDelivery, updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
-import type { SlotDeliveryService, SlotDeliveryContext } from '../services/SlotDeliveryService.js';
+import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+import { messageJobContextToSlotContext } from './messageJobContextToSlotContext.js';
 
 /** Notice prepended to a late-recovered reply so the user knows why it's late. */
 const LATE_RECOVERY_NOTICE = '-# ⏰ This reply took longer than expected to generate.\n\n';
@@ -287,6 +292,8 @@ export class MessageHandler {
       return true;
     }
 
+    reportQuotaFallbackRescue(result.metadata?.quotaFallback, result.requestId);
+
     try {
       await this.responseSender.sendResponse({
         content: LATE_RECOVERY_NOTICE + result.content,
@@ -364,6 +371,8 @@ export class MessageHandler {
       return;
     }
 
+    reportQuotaFallbackRescue(result.metadata?.quotaFallback, result.requestId);
+
     try {
       const { chunkMessageIds } = await this.slotDelivery.deliverSuccess(
         result as LLMGenerationResult & { success: true },
@@ -420,6 +429,8 @@ export class MessageHandler {
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
     }
+
+    reportQuotaFallbackRescue(result.metadata?.quotaFallback, result.requestId);
 
     const {
       channel,
@@ -571,35 +582,4 @@ export class MessageHandler {
       });
     }
   }
-}
-
-/**
- * Project a `MessageJobContext` (what JobTracker stores) into the slot-shaped
- * context `SlotDeliveryService` expects. Pure projection — no side effects.
- *
- * Used by the @mention/reply/auto-response delivery path. Multi-tag fan-out
- * builds equivalent slot contexts directly in MultiTagCoordinator.
- */
-function messageJobContextToSlotContext(jobContext: MessageJobContext): SlotDeliveryContext {
-  return {
-    message: jobContext.message,
-    channel: jobContext.channel,
-    guildId: jobContext.guildId,
-    clientId: jobContext.clientId,
-    personality: jobContext.personality,
-    personaId: jobContext.personaId,
-    userMessageContent: jobContext.userMessageContent,
-    userMessageTime: jobContext.userMessageTime,
-    // jobContext.isAutoResponse is optional on the source type but every
-    // call site (single-personality, multi-tag) sets it explicitly today.
-    // Coerce missing → false; SlotDeliveryContext.isAutoResponse is now
-    // non-nullable.
-    isAutoResponse: jobContext.isAutoResponse ?? false,
-    // discord.js types `author` as non-nullable User on regular Messages,
-    // and system messages (which lack author) are filtered upstream by
-    // BotMessageFilter. Use optional chaining anyway so tests with minimal
-    // Message fixtures don't trip on the access; the empty-string fallback
-    // never fires in production (every handled message has an author).
-    recipientUserId: jobContext.message.author?.id ?? '',
-  };
 }

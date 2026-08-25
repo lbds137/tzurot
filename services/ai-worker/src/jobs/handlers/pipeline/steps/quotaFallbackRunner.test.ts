@@ -92,6 +92,9 @@ function buildDeps(overrides?: {
   free?: { model: string } | null;
   systemKey?: string | undefined;
   userOpenRouterKey?: string | undefined;
+  /** Catalog-presence probe for `isVetoedAsUnlistedTarget` — undefined means
+   *  unwired (never vetoes), matching production's optional bag member. */
+  catalogPresence?: (model: string) => Promise<boolean | null>;
 }): QuotaFallbackDeps {
   return {
     configResolver: {
@@ -101,6 +104,9 @@ function buildDeps(overrides?: {
     caches: {
       creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
       rateLimit: { isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }) },
+      ...(overrides?.catalogPresence !== undefined
+        ? { catalogPresence: overrides.catalogPresence }
+        : {}),
     } as unknown as QuotaFallbackDeps['caches'],
     resolveSystemKey: vi
       .fn()
@@ -154,16 +160,49 @@ describe('runWithQuotaFallback', () => {
     // Turn A (429 arrives LIVE): the rate-limit error reaches this gate,
     // classifies, the retarget fires, the user gets a response.
     // Turn B (429 comes from the RateLimitCache): AuthStep demotes straight to
-    // tier 2, so no quota error is ever produced — the only error here is the
-    // 400, which classifies as nothing, and the turn dead-ends in an
-    // in-character error.
+    // tier 2, so no quota error is ever produced — the only error this gate
+    // ever sees is whatever the demoted route returned.
+    //
+    // TWO independent mechanisms rescue Turn B, pinned separately below. The
+    // classifier recognizes the staggered-release wording itself, so that
+    // specific 400 carries MODEL_NOT_FOUND — a retargetable category — and
+    // retargets on its own. The inherited category is the GENERAL mechanism,
+    // and the only one that helps when the demoted route's failure classifies
+    // as nothing at all.
     //
     // The user is equally rate-limited in both. The outcome differed only by
     // whether we had cached the fact.
     const staggeredReleaseError = new Error('z-ai/glm-5.3 is not a valid model ID');
 
-    it('dead-ends without the inherited category (the bug)', async () => {
+    it('retargets on the staggered-release 400 alone, with no inherited category', async () => {
+      // The production Turn-B error, standalone: the classifier recognizes the
+      // wording, so it arrives as MODEL_NOT_FOUND and the gate opens without
+      // the demotion having carried anything.
       const primary = vi.fn().mockRejectedValue(staggeredReleaseError);
+      const retry = vi.fn().mockResolvedValue(okResult);
+
+      const result = await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(), // no inheritedQuotaCategory
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      });
+
+      expect(result.quotaFallback).toMatchObject({
+        toModel: 'paid/default',
+        category: ApiErrorCategory.MODEL_NOT_FOUND,
+        mode: 'reactive',
+      });
+    });
+
+    it('dead-ends on an unclassifiable failure with no inherited category', async () => {
+      // What the gate still guards, and what the old staggered-release fixture
+      // stood for before the classifier learned its wording: an error that
+      // classifies as nothing, on a turn that inherited nothing, has no reason
+      // to retarget.
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
       const retry = vi.fn();
 
       await expect(
@@ -175,12 +214,14 @@ describe('runWithQuotaFallback', () => {
           requestId: 'req-1',
           deps: buildDeps({ global: { model: 'paid/default' } }),
         })
-      ).rejects.toThrow('not a valid model ID');
+      ).rejects.toThrow('synthetic authentication');
       expect(retry).not.toHaveBeenCalled();
     });
 
     it('retargets when the demotion carried the rate-limit category (the fix)', async () => {
-      const primary = vi.fn().mockRejectedValue(staggeredReleaseError);
+      // Unclassifiable downstream failure — the inherited category is the only
+      // thing that can open the gate here.
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
       const retry = vi.fn().mockResolvedValue(okResult);
 
       const result = await runWithQuotaFallback({
@@ -201,6 +242,28 @@ describe('runWithQuotaFallback', () => {
         toModel: 'paid/default',
         category: ApiErrorCategory.RATE_LIMIT,
         mode: 'reactive',
+      });
+    });
+
+    it('files the staggered-release 400 under its LIVE category, not the inherited one', async () => {
+      // Both mechanisms are live at once on the real Turn B: the demotion
+      // carried RATE_LIMIT and the error classifies as MODEL_NOT_FOUND. The
+      // live reading wins, so the footer names why THIS attempt failed rather
+      // than why the route was demoted.
+      const primary = vi.fn().mockRejectedValue(staggeredReleaseError);
+      const retry = vi.fn().mockResolvedValue(okResult);
+
+      const result = await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({ inheritedQuotaCategory: ApiErrorCategory.RATE_LIMIT }),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      });
+
+      expect(result.quotaFallback).toMatchObject({
+        category: ApiErrorCategory.MODEL_NOT_FOUND,
       });
     });
 
@@ -691,6 +754,45 @@ describe('runWithQuotaFallback', () => {
     expect(retry).not.toHaveBeenCalled();
   });
 
+  it('a catalog-vetoed tiered target falls through to the floor (the runner never exercised catalogPresence before this test)', async () => {
+    // buildDeps() never populated `catalogPresence`, so the veto path in
+    // `selectQuotaFallbackTarget` (isVetoedAsUnlistedTarget) went completely
+    // untested end-to-end through the runner. A vetoed tiered target makes
+    // `selectQuotaFallbackTarget` return null exactly like "no admin
+    // default" — the runner code path is identical either way — so this
+    // mirrors the hop-1 floor-promotion cascade: the floor is promoted and
+    // the retry lands on it, never on the vetoed admin default.
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.MODEL_NOT_FOUND));
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(), // no inheritedQuotaCategory; default model 'expensive/primary'
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({
+        global: { model: 'paid/default' },
+        catalogPresence: vi
+          .fn()
+          .mockImplementation((model: string) =>
+            Promise.resolve(model === 'paid/default' ? false : null)
+          ),
+      }),
+    });
+
+    // The vetoed admin default never crosses the invocation seam — the
+    // static paid floor (openrouter/auto, unregistered in this describe) does.
+    expect(retry).toHaveBeenCalledTimes(1);
+    const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+    expect(hop1Opts.personality.model).toBe('openrouter/auto');
+    expect(result.quotaFallback).toMatchObject({
+      toModel: 'openrouter/auto',
+      category: ApiErrorCategory.MODEL_NOT_FOUND,
+      mode: 'reactive',
+    });
+  });
+
   it('rethrows the original when NOTHING is attemptable (no admin default, floor vetoed)', async () => {
     // No admin default alone is no longer terminal — the floor is promoted to
     // hop 1 (see the "hop-1 floor promotion" suite). Terminal now requires the
@@ -901,11 +1003,11 @@ describe('D12 availability-class entry + two-hop floor descent', () => {
   });
 
   it('an INHERITED-category turn still reaches the floor on an unclassifiable hop-1 failure', async () => {
-    // The demoted route's 400 classifies as nothing and the hop-1 target's
-    // failure is unclassifiable too — but the user is demonstrably
+    // The demoted route's failure classifies as nothing and the hop-1
+    // target's failure is unclassifiable too — but the user is demonstrably
     // rate-limited (that is why the demotion fired), so the floor stays
     // reachable.
-    const primary = vi.fn().mockRejectedValue(new Error('z-ai/glm-5.3 is not a valid model ID'));
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
     const retry = vi
       .fn()
       .mockRejectedValueOnce(quotaError(ApiErrorCategory.AUTHENTICATION))
@@ -1180,7 +1282,7 @@ describe('hop-1 floor promotion (no tier-aware retarget exists)', () => {
     // free default. This pins that the widened gate serves that arm too —
     // re-introducing the "no solvent entity" exclusion at THIS layer would
     // redden it while every RATE_LIMIT test stayed green.
-    const original = new Error('z-ai/glm-5.3 is not a valid model ID');
+    const original = quotaError(ApiErrorCategory.AUTHENTICATION);
     const primary = vi.fn().mockRejectedValue(original);
     const retry = vi
       .fn()
@@ -1213,7 +1315,7 @@ describe('hop-1 floor promotion (no tier-aware retarget exists)', () => {
     // together: the widened gate lets an INHERITED-category turn attempt
     // hop 2, and `excludeModels` then vetoes re-trying the very floor that
     // was promoted to hop 1 — terminal, with exactly one retry attempt.
-    const original = new Error('z-ai/glm-5.3 is not a valid model ID');
+    const original = quotaError(ApiErrorCategory.AUTHENTICATION);
     const primary = vi.fn().mockRejectedValue(original);
     const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
 

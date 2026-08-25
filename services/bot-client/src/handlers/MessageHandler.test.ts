@@ -38,6 +38,25 @@ const mockReportDeliveryFailure = vi.fn();
 vi.mock('../observability/ErrorChannelReporter.js', () => ({
   reportJobError: (...args: unknown[]) => mockReportJobError(...args),
   reportDeliveryFailure: (...args: unknown[]) => mockReportDeliveryFailure(...args),
+  // Mirrors the real implementation's no-op-when-absent + delegate-to-
+  // reportJobError(category, requestId, { rescued: true }) shape, so existing
+  // mockReportJobError assertions keep working unchanged for the
+  // success-path quota-fallback seam.
+  // KEPT IN SYNC BY HAND with reportQuotaFallbackRescue in
+  // ErrorChannelReporter.ts — a behavior change there (deny-list routing,
+  // no-op condition, the rescued opts flag) is NOT caught by this file's
+  // wiring tests, only by ErrorChannelReporter.test.ts's direct tests.
+  // Exercising the real chain here would need the reporter's module-level
+  // client + dedup caches reset per test, which is more fragile than this
+  // hand-mirror.
+  reportQuotaFallbackRescue: (
+    quotaFallback: { category: string } | undefined,
+    requestId: string | undefined
+  ) => {
+    if (quotaFallback !== undefined) {
+      mockReportJobError(quotaFallback.category, requestId, { rescued: true });
+    }
+  },
 }));
 
 // Mock dependencies
@@ -681,6 +700,38 @@ describe('MessageHandler', () => {
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledTimes(1);
     });
+
+    it('reports the quota-fallback rescue when a late success result carries one', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+      mockPersonalityService.loadPersonality.mockResolvedValue({
+        id: 'p-lila',
+        slug: 'lila',
+        displayName: 'Lila',
+      });
+      mockClient.channels.fetch.mockResolvedValue({
+        id: 'channel-late',
+        isTextBased: () => true,
+        isThread: () => false,
+        type: 0,
+      });
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
+      const lateResultWithRescue = {
+        ...lateResult,
+        metadata: {
+          ...lateResult.metadata,
+          quotaFallback: { category: 'model_not_found' },
+        },
+      } as LLMGenerationResult;
+
+      await messageHandler.handleJobResult('job-late', lateResultWithRescue);
+
+      // The mocked reportQuotaFallbackRescue delegates to reportJobError with
+      // the rescue's category — asserting this crosses the mocked seam rather
+      // than only checking the delivery succeeded.
+      expect(mockReportJobError).toHaveBeenCalledWith('model_not_found', 'req-late', {
+        rescued: true,
+      });
+    });
   });
 
   describe('handleJobResult - Async Job Completion (single-personality path)', () => {
@@ -942,6 +993,111 @@ describe('MessageHandler', () => {
       await messageHandler.handleJobResult(jobId, result);
 
       expect(mockReportJobError).toHaveBeenCalledWith('server_error', 'req-failed-report');
+    });
+
+    it('reports a successful quota-fallback rescue carrying a non-deny-listed category (model_not_found)', async () => {
+      // A turn rescued by the tier-aware quota fallback still arrives
+      // success: true — a delisted-model persona must not self-heal
+      // silently. Suppression of routine categories is reportJobError's
+      // own deny-list behavior (tested in ErrorChannelReporter.test.ts);
+      // this seam test only pins that the category crosses the mock.
+      const jobId = 'job-success-rescue-report';
+      const result = {
+        requestId: 'req-success-rescue-report',
+        success: true,
+        content: 'Rescued response',
+        metadata: {
+          quotaFallback: {
+            fromModel: 'delisted/model',
+            toModel: 'admin/default',
+            category: 'model_not_found' as const,
+            mode: 'reactive' as const,
+          },
+        },
+      } as unknown as LLMGenerationResult;
+
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: {} as Message,
+        personality: { id: 'p-1', name: 'RescueBot' },
+        personaId: 'persona-rescue',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      });
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-rescue'] });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      expect(mockReportJobError).toHaveBeenCalledWith(
+        'model_not_found',
+        'req-success-rescue-report',
+        { rescued: true }
+      );
+    });
+
+    it('forwards a deny-listed quota-fallback category (rate_limit) on the success path', async () => {
+      const jobId = 'job-success-rescue-skip';
+      const result = {
+        requestId: 'req-success-rescue-skip',
+        success: true,
+        content: 'Rescued response',
+        metadata: {
+          quotaFallback: {
+            fromModel: 'busy/model',
+            toModel: 'admin/default',
+            category: 'rate_limit' as const,
+            mode: 'reactive' as const,
+          },
+        },
+      } as unknown as LLMGenerationResult;
+
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: {} as Message,
+        personality: { id: 'p-1', name: 'RescueBot' },
+        personaId: 'persona-rescue',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      });
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-rescue'] });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      expect(mockReportJobError).toHaveBeenCalledWith('rate_limit', 'req-success-rescue-skip', {
+        rescued: true,
+      });
+    });
+
+    it('does not call reportJobError on an ordinary success with no quotaFallback metadata', async () => {
+      const jobId = 'job-success-no-rescue';
+      const result = {
+        requestId: 'req-success-no-rescue',
+        success: true,
+        content: 'Ordinary response',
+      } as unknown as LLMGenerationResult;
+
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: {} as Message,
+        personality: { id: 'p-1', name: 'Bot' },
+        personaId: 'persona-1',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      });
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-1'] });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      expect(mockReportJobError).not.toHaveBeenCalled();
     });
 
     it('should include metadata in error responses for explicit failures', async () => {
@@ -1419,6 +1575,46 @@ describe('MessageHandler', () => {
       } as unknown as LLMGenerationResult);
 
       expect(mockReportJobError).toHaveBeenCalledWith('model_not_found', 'req-slash-report');
+    });
+
+    it('reports a successful quota-fallback rescue on the slash path (model_not_found)', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-rescue'] });
+
+      await messageHandler.handleJobResult('job-slash-rescue-report', {
+        requestId: 'req-slash-rescue-report',
+        success: true,
+        content: 'Rescued slash response',
+        metadata: {
+          quotaFallback: {
+            fromModel: 'delisted/model',
+            toModel: 'admin/default',
+            category: 'model_not_found',
+            mode: 'reactive',
+          },
+        },
+      } as unknown as LLMGenerationResult);
+
+      expect(mockReportJobError).toHaveBeenCalledWith(
+        'model_not_found',
+        'req-slash-rescue-report',
+        { rescued: true }
+      );
+    });
+
+    it('does not call reportJobError on an ordinary slash success with no quotaFallback metadata', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-ordinary'] });
+
+      await messageHandler.handleJobResult('job-slash-no-rescue', {
+        requestId: 'req-slash-no-rescue',
+        success: true,
+        content: 'Ordinary slash response',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockReportJobError).not.toHaveBeenCalled();
     });
 
     it('reports an empty-content "success" from the slash path — undeliverable success is a bug', async () => {

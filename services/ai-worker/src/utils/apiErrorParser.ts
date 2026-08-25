@@ -27,6 +27,21 @@ import {
 import { type ApiErrorInfo } from '@tzurot/common-types/types/schemas/generation';
 
 /**
+ * OpenRouter's wording when a model id is not in its catalog — the shape a
+ * staggered provider release produces for a model that exists upstream but is
+ * not yet published on OpenRouter. Named separately from the broader
+ * MODEL_NOT_FOUND group below because `detectSpecialCases` hoists THIS pattern
+ * (and only this one) above HTTP-status classification: OpenRouter returns it
+ * wrapped in a 400, which would otherwise read as BAD_REQUEST.
+ *
+ * Anchored through "model ID" — the full verified specimen shape — so sibling
+ * "not a valid model <other-noun>" wordings (e.g. a rejected request
+ * parameter) keep their BAD_REQUEST classification and surface as the config
+ * bugs they are instead of entering the retarget cascade.
+ */
+const INVALID_MODEL_ID_PATTERN = /not a valid model id/i;
+
+/**
  * Patterns to detect specific error types from error messages
  */
 const ERROR_PATTERNS = {
@@ -86,7 +101,12 @@ const ERROR_PATTERNS = {
     /context.*window/i,
   ],
   // Model availability
-  MODEL_NOT_FOUND: [/model.*not.*found/i, /model.*unavailable/i, /invalid.*model/i],
+  MODEL_NOT_FOUND: [
+    /model.*not.*found/i,
+    /model.*unavailable/i,
+    /invalid.*model/i,
+    INVALID_MODEL_ID_PATTERN,
+  ],
   // Timeout
   TIMEOUT: [/timeout/i, /timed.*out/i, /deadline.*exceeded/i],
   // Server errors
@@ -350,6 +370,11 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  * Provider content refusal: a provider's INPUT filter (e.g. Alibaba's
  * `data_inspection_failed`) also arrives wrapped in a 400; must classify as
  * PROVIDER_CONTENT_REFUSED for the same reason.
+ *
+ * Unpublished model id: OpenRouter's "not a valid model" wording for a model
+ * that exists upstream but isn't yet published on OpenRouter also arrives
+ * wrapped in a 400; must classify as MODEL_NOT_FOUND before the wrapping 400
+ * reads as retryable BAD_REQUEST and dead-ends the quota-fallback retarget.
  */
 function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // AbortError is always an Error subclass at the runtime level. If a future
@@ -401,6 +426,18 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     // so the pattern list keeps a single home.
     if (ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(messageToSearch))) {
       return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
+    }
+    // An unpublished-model id arrives wrapped in a 400, exactly like the
+    // media-404 and provider-refusal cases above, so it must be caught BEFORE
+    // status extraction — a 400 otherwise classifies as BAD_REQUEST, which the
+    // quota-fallback retarget gate treats as non-retargetable and dead-ends.
+    // Deliberately narrower than the full MODEL_NOT_FOUND group: only this
+    // specimen-grounded phrase is hoisted, so the broader `invalid.*model` /
+    // `model.*not.*found` patterns keep their existing post-status precedence
+    // and no unrelated error is re-routed. A 404 already maps to
+    // MODEL_NOT_FOUND via status, so this changes only the 400-wrapped shape.
+    if (INVALID_MODEL_ID_PATTERN.test(messageToSearch)) {
+      return ApiErrorCategory.MODEL_NOT_FOUND;
     }
   }
   return null;

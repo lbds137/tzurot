@@ -205,6 +205,15 @@ export enum ApiErrorCategory {
 }
 
 /**
+ * Admission-time substitution category — the guest/free ladder swapped the
+ * configured model before dispatch, with no failure behind it. Single-sourced
+ * here so ai-worker (the producer) and bot-client (a consumer, alongside
+ * every other importer) both import this constant instead of hardcoding the
+ * `'guest_mode'` literal.
+ */
+export const GUEST_MODE_CATEGORY = 'guest_mode';
+
+/**
  * The reasons a model swap can be announced in the footer — the wire values
  * carried in `quotaFallback` result metadata. Single source of truth: the Zod
  * enum in `generation.ts` and every hand-typed `category` field derive from
@@ -234,7 +243,7 @@ export const QUOTA_FALLBACK_CATEGORIES = [
   // Not a failure: the guest/free ladder substituted the configured model
   // before dispatch. Produced ONLY by the guest admission path, never by the
   // quota-fallback runner (which narrows from `ApiErrorCategory`).
-  'guest_mode',
+  GUEST_MODE_CATEGORY,
 ] as const;
 
 export type QuotaFallbackCategoryValue = (typeof QUOTA_FALLBACK_CATEGORIES)[number];

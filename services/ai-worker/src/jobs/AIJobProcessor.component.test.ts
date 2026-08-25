@@ -52,6 +52,9 @@ vi.mock('../redis.js', () => ({
     isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
     markRateLimited: vi.fn(),
   },
+  // Catalog-presence probe for the retarget veto — null ("catalog unavailable")
+  // is the fail-open arm, so component flows never veto.
+  checkModelListedInCatalog: vi.fn().mockResolvedValue(null),
   // Free-tier fair-share quota — default to "allowed" so component flows run.
   freeTierRequestQuota: {
     tryConsume: vi.fn().mockResolvedValue({ allowed: true, reason: 'ok' }),

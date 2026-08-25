@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto';
 import { EmbedBuilder, type Client } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
@@ -35,16 +35,27 @@ export interface ErrorReport {
   latencyMs?: number;
   requestId?: string;
   error?: unknown;
+  /**
+   * True when this report describes a SUCCESSFUL turn that only succeeded
+   * because a fallback retargeted away from the configured model (see
+   * {@link reportQuotaFallbackRescue}) — as opposed to a genuine failure of
+   * the same category. Rendered distinctly by {@link buildEmbed} and folded
+   * into the dedup hash so a rescue and a failure never share a bucket.
+   */
+  rescued?: boolean;
 }
 
 /**
  * Job-error categories that are expected user/provider outcomes rather than
  * bot-client bugs — a deny-list, so anything NOT listed here reports by
- * default. Two classes:
+ * default. Three classes:
  *   - the user (or the shared free pool) hit a limit they can act on
  *     (rate_limit, quota_exceeded, free_tier_quota, credit_exhaustion);
  *   - the user's own content was refused by a provider or the model
- *     (content_policy, censored, provider_content_refused).
+ *     (content_policy, censored, provider_content_refused);
+ *   - the guest/free ladder proactively substituted a free model at
+ *     admission time (guest_mode) — not a failure at all, so it must never
+ *     reach the owner channel on the quota-fallback success-path report.
  * Everything else — auth failures, bad requests, model/media lookups,
  * server errors, timeouts, network errors, empty responses, TTS voice
  * errors, and any unrecognized category — reports.
@@ -57,6 +68,12 @@ export const JOB_ERROR_SKIP_CATEGORIES: readonly string[] = [
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.CENSORED,
   ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
+  // The guest/free ladder's admission-time substitution — not a retargetable
+  // failure (see the `guest_mode` member of QUOTA_FALLBACK_CATEGORIES in
+  // common-types' error.ts). `GUEST_MODE_CATEGORY` is single-sourced in
+  // common-types, importable from both ai-worker (the producer) and
+  // bot-client (this consumer) alike.
+  GUEST_MODE_CATEGORY,
 ];
 
 const WINDOW_TTL_MS = 60 * 60 * 1000; // 1h
@@ -137,8 +154,12 @@ export function extractStackFrames(error: unknown): string[] {
     .slice(0, MAX_STACK_FRAMES);
 }
 
-function hashFrames(frames: string[], errorCode: string): string {
-  const material = frames.length > 0 ? frames.join('\n') : errorCode;
+function hashFrames(frames: string[], errorCode: string, rescued: boolean): string {
+  // The rescued flag is folded into the hash material (not just the
+  // errorCode/category) so a rescue report and a genuine failure report of
+  // the SAME category land in separate dedup buckets — see the invariant
+  // paragraph on `reportQuotaFallbackRescue`.
+  const material = `${frames.length > 0 ? frames.join('\n') : errorCode}::rescued=${String(rescued)}`;
   return createHash('sha256').update(material).digest('hex');
 }
 
@@ -153,13 +174,25 @@ function buildEmbed(
   // over its 256-char title limit — which would silently drop the report.
   const rawTitle =
     report.source === 'job' ? (report.jobErrorCategory ?? report.errorCode) : report.errorCode;
+  const rescued = report.rescued === true;
   const embed = new EmbedBuilder()
-    .setTitle(`🚨 ${rawTitle.slice(0, MAX_TITLE_LENGTH)}`)
-    .setColor(DISCORD_COLORS.ERROR)
+    .setTitle(
+      rescued
+        ? `⚠️ ${rawTitle.slice(0, MAX_TITLE_LENGTH)} (rescued)`
+        : `🚨 ${rawTitle.slice(0, MAX_TITLE_LENGTH)}`
+    )
+    .setColor(rescued ? DISCORD_COLORS.WARNING : DISCORD_COLORS.ERROR)
     .addFields(
       { name: 'Source', value: report.source, inline: true },
       { name: 'Stack Hash', value: hash.slice(0, 8), inline: true }
     );
+
+  if (rescued) {
+    embed.addFields({
+      name: 'Outcome',
+      value: 'rescued — turn succeeded via fallback',
+    });
+  }
 
   if (report.command !== undefined) {
     embed.addFields({ name: 'Command', value: report.command, inline: true });
@@ -207,7 +240,7 @@ export function reportError(report: ErrorReport): void {
   // the catch's log fields.
   try {
     const frames = extractStackFrames(report.error);
-    const hash = hashFrames(frames, report.errorCode);
+    const hash = hashFrames(frames, report.errorCode, report.rescued === true);
 
     // Dedup: a repeat within the window bumps the running tally and returns
     // WITHOUT posting (decision B) — this early return is the dedup canary's
@@ -266,7 +299,11 @@ export function reportDeliveryFailure(error: unknown, requestId?: string): void 
  * listed expected-outcome categories (see {@link JOB_ERROR_SKIP_CATEGORIES}).
  * Centralizes the skip check so both MessageHandler call sites stay one line.
  */
-export function reportJobError(category: string | undefined, requestId?: string): void {
+export function reportJobError(
+  category: string | undefined,
+  requestId?: string,
+  opts?: { rescued?: boolean }
+): void {
   const resolvedCategory = category ?? 'unknown';
   if (JOB_ERROR_SKIP_CATEGORIES.includes(resolvedCategory)) {
     return;
@@ -276,5 +313,35 @@ export function reportJobError(category: string | undefined, requestId?: string)
     errorCode: resolvedCategory,
     jobErrorCategory: resolvedCategory,
     ...(requestId !== undefined ? { requestId } : {}),
+    ...(opts?.rescued !== undefined ? { rescued: opts.rescued } : {}),
   });
+}
+
+/**
+ * Report a SUCCESSFUL turn's quota-fallback rescue to the owner channel —
+ * a job can arrive `success: true` only because the tier-aware fallback (or
+ * the guest/free ladder) retargeted away from the configured model, and that
+ * rescue can itself be owner-visible (e.g. a delisted-model persona silently
+ * self-healing every turn instead of surfacing the misconfiguration).
+ * Shares {@link reportJobError}'s deny-list, so routine rescues (rate
+ * limits, quota, guest-mode admission) stay silent — only unusual categories
+ * like `model_not_found` report. No-ops when the result carries no
+ * quotaFallback metadata. Centralizes the check so every success-path call
+ * site (MessageHandler's message + slash paths, multiTagDeliveryFlow's
+ * per-slot delivery) stays one line.
+ *
+ * Invariant: a rescue report is rendered distinctly from a genuine failure
+ * report of the same category (⚠️ warning-colored title + an Outcome field
+ * vs. the plain 🚨 failure embed — see {@link buildEmbed}) and occupies a
+ * SEPARATE dedup bucket, because the rescued flag is folded into the dedup
+ * hash. A rescue and a failure of the same category can therefore both post
+ * within one window; two rescues of the same category still dedup as usual.
+ */
+export function reportQuotaFallbackRescue(
+  quotaFallback: { category: string } | undefined,
+  requestId: string | undefined
+): void {
+  if (quotaFallback !== undefined) {
+    reportJobError(quotaFallback.category, requestId, { rescued: true });
+  }
 }

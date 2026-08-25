@@ -27,6 +27,7 @@ import {
   modelSupportsVision,
   modelSupportsReasoning,
   getModelContextLength,
+  isModelListed,
 } from './services/ModelCapabilityChecker.js';
 
 const { redis, voiceTranscriptCache } = initCoreRedisServices('WorkerRedis');
@@ -143,4 +144,16 @@ export async function checkModelReasoningSupport(modelId: string): Promise<boole
  */
 export async function checkModelContextLength(modelId: string): Promise<number | null> {
   return getModelContextLength(modelId, redis);
+}
+
+/**
+ * Is a model present in OpenRouter's cached catalog? Singleton wrapper over the
+ * shared ioredis client.
+ *
+ * @param modelId - The model ID to look up
+ * @returns true when listed, false when the catalog loaded without it, and null
+ *   when the catalog was unavailable — callers must not treat null as absence.
+ */
+export async function checkModelListedInCatalog(modelId: string): Promise<boolean | null> {
+  return isModelListed(modelId, redis);
 }

@@ -20,6 +20,7 @@ import {
   USER_ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
 import { FREE_TIER_QUOTA_ERROR_MESSAGE } from '../services/FreeTierRequestQuota.js';
+import { classifyQuotaFailure } from '../services/quotaFallback.js';
 
 describe('parseApiError', () => {
   describe('free-tier fair-share sentinel', () => {
@@ -385,6 +386,55 @@ describe('parseApiError', () => {
       const error = Object.assign(new Error('400 Invalid request parameters'), { status: 400 });
       const result = parseApiError(error);
       expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+  });
+
+  describe('unpublished model id detection ("not a valid model")', () => {
+    const specimen = 'z-ai/glm-5.3 is not a valid model ID';
+
+    it('classifies a bare error (no status) as MODEL_NOT_FOUND', () => {
+      const error = new Error(specimen);
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+
+    it('classifies the error as MODEL_NOT_FOUND even when wrapped in a 400 — the production shape; the 400 wrapper must not win and read as BAD_REQUEST', () => {
+      const error = Object.assign(new Error(specimen), { status: 400 });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+
+    it('classifies the error as MODEL_NOT_FOUND when the 400 arrives via response.status', () => {
+      const error = Object.assign(new Error(specimen), { response: { status: 400 } });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+
+    it('does NOT hoist the broader "invalid.*model" pattern — a 400-wrapped unrelated invalid-model message stays BAD_REQUEST', () => {
+      const error = Object.assign(new Error('400 Invalid model parameter supplied'), {
+        status: 400,
+      });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('does NOT match a "not a valid model <other-noun>" sibling — the pattern is anchored through "model ID", so a 400-wrapped parameter rejection stays BAD_REQUEST', () => {
+      const error = Object.assign(new Error("'temperature' is not a valid model parameter"), {
+        status: 400,
+      });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('is permanent (shouldRetry === false)', () => {
+      const error = Object.assign(new Error(specimen), { status: 400 });
+      const result = parseApiError(error);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('is retarget-eligible: classifyQuotaFailure resolves it to MODEL_NOT_FOUND for the production 400-wrapped shape', () => {
+      const error = Object.assign(new Error(specimen), { status: 400 });
+      expect(classifyQuotaFailure(error)).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
     });
   });
 
