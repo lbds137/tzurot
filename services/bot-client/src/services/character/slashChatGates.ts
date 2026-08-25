@@ -17,6 +17,8 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { UserClient } from '@tzurot/clients';
 import { type DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { getDenylistCache } from '../serviceRegistry.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   evaluateNsfwGate,
   sendVerificationConfirmation,
@@ -51,11 +53,20 @@ export async function runSlashChatGates(
     !isBotOwner(actorId) &&
     denylistCache.isPersonalityDenied(actorId, personality.id)
   ) {
+    // MUTE's contract is that the bot never acknowledges the denial. A slash
+    // interaction must be acked, so the closest available behaviour is a reply
+    // indistinguishable from a transient failure — the same catalog entry and
+    // action string `handleChatError` renders for these commands. BLOCK keeps
+    // the explicit notice.
+    const muted = denylistCache.isPersonalityMuted(actorId, personality.id);
     logger.debug(
-      { userId: actorId, personalityId: personality.id },
+      { userId: actorId, personalityId: personality.id, muted },
       'User denied for this personality (slash) — blocking'
     );
-    await context.editReply({ content: DENYLIST_BLOCK_MESSAGE });
+    const content = muted
+      ? renderSpec(CATALOG.error.operationFailed('process the chat request'))
+      : DENYLIST_BLOCK_MESSAGE;
+    await context.editReply({ content });
     return true;
   }
 
