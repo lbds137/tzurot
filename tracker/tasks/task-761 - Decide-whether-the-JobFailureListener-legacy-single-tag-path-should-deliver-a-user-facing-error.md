@@ -3,9 +3,10 @@ id: TASK-761
 title: >-
   Decide whether the JobFailureListener legacy single-tag path should deliver a
   user-facing error
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 12:06'
+updated_date: '2026-08-25 18:39'
 labels:
   - 'area:bot-client'
   - 'size:S'

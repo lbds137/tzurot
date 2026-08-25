@@ -1,10 +1,10 @@
 ---
 id: TASK-111
 title: JobTracker orphan state after JobFailureListener cancels a job
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-19 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-08-25 18:39'
 labels:
   - 'area:bot-client'
   - 'area:jobs'
