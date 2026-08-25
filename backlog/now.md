@@ -28,14 +28,14 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 ---
 
-### 🚢 Next Release — beta.208 (theme: **owner picks — queue below**)
+### 🚢 Next Release — beta.208 (theme: **doc-12 P1 — the telemetry consumer** — owner pick 2026-08-25)
 
 _Drafted at the beta.207 cut (2026-08-24). beta.207 shipped the full plan plus four same-day additions — 18 PRs / 16 runtime / 245 files; both headline observability features caught real gaps before shipping (#2207 smoke-found, #2212 live-found during owner moderation)._
 
 - **Cycle openers (first in line, riders call made at the beta.207 cut)**: dependabot trio — #2209 (7 prod deps) · #2210 (21 dev deps) · #2208 (claude-code-action bump — ⚠️ if it touches `claude.yml`/`claude-code-review.yml` it needs the MAIN-CUT path per guard:workflow-sync, never develop).
 - **High-priority carried fixes**: **TASK-766** (MUTE slash-path leak — the #2212 ship-and-file residual; high, ready, fix shape recorded) · TASK-763 (reply-to-transcript references misattribute the speaker) · TASK-760 (invalid-model 400s should retarget through the fallback cascade — owner suggestion; realistic trigger = model delisted after configuration) · TASK-761 (legacy single-tag job-failure path delivers no user-facing error — verify reachability first).
 - **Owner-taste queue (design before build)**: TASK-764 (/deny add UX redesign — owner verbatim: clunky and confusing) · TASK-765 (thread-only denials, low) · doc-12 P1 (discoverability report SQL etc.) if the owner wants the telemetry consumer this cycle.
-- **Theme pick = owner call**: council-queue idea docs (doc-64/65/66/67/70/71/72) or doc-12 P1 or a drain batch cycle.
+- **Theme PICKED (owner, 2026-08-25): doc-12 P1** — discoverability report SQL over the accumulating `command_events` rows; closes the observability theme beta.207 opened. Council-queue docs (doc-64/65/66/67/70/71/72) and drain batches stay queued for beta.209+.
 - **Watches feeding this cycle**: first organic `command_events` rows in prod · error-channel first prod posts · boot-watchdog (a `Boot deadline exceeded` line = it worked) · TASK-754 misdating stop · nightly sync self-heal.
 - **Explicitly NOT in** (unchanged): memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · standing watches clear on log signals.
 - **Deploy notes**: nothing pending; no migration queued yet.
