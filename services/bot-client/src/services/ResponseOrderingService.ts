@@ -207,31 +207,6 @@ export class ResponseOrderingService {
   }
 
   /**
-   * Cancel a job (e.g., if it failed before producing a result).
-   * This unblocks any results waiting for this job.
-   *
-   * @param channelId - Discord channel ID
-   * @param jobId - BullMQ job ID
-   */
-  async cancelJob(channelId: string, jobId: string): Promise<void> {
-    const queue = this.channelQueues.get(channelId);
-    if (!queue) {
-      return;
-    }
-
-    const wasRegistered = queue.pendingJobs.delete(jobId);
-
-    if (wasRegistered) {
-      logger.info({ channelId, jobId }, 'Cancelled pending job');
-      // Re-process queue in case this unblocks buffered results — each
-      // buffered result uses its own captured deliverFn.
-      await this.processQueue(channelId);
-    }
-
-    this.cleanupIfEmpty(channelId, queue);
-  }
-
-  /**
    * Find the earliest userMessageTime among pending jobs, excluding a specific job.
    * Returns null if no other pending jobs exist.
    */
@@ -356,7 +331,7 @@ export class ResponseOrderingService {
    * This handles the edge case where a job is registered but:
    * - The worker crashes before producing a result
    * - BullMQ doesn't retry (exhausted retries, job removed, etc.)
-   * - No explicit cancelJob call is made
+   * - No terminal event ever reaches JobFailureListener's handleResult routing
    *
    * Without cleanup, these orphaned jobs would stay in pendingJobs forever,
    * causing a slow memory leak over long uptimes.

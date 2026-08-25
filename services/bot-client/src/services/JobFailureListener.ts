@@ -1,9 +1,9 @@
 /**
  * Job Failure Listener
  *
- * Subscribes to BullMQ QueueEvents for the AI requests queue and unblocks
- * channel-ordering bookkeeping when a job fails or is removed without
- * producing a result.
+ * Subscribes to BullMQ QueueEvents for the AI requests queue and handles
+ * terminal (failed/removed) job outcomes that will never produce a result
+ * on the normal results path.
  *
  * Two routing paths depending on which subsystem owns the failed jobId:
  *
@@ -14,11 +14,17 @@
  *      bot error. Live-failure routing matches the rehydration-time
  *      synthesis path: same shape, same flush behavior.
  *
- *   2. **Single-tag (legacy) job**: unblock the channel-ordering queue via
- *      `orderingService.cancelJob`. This was the listener's original purpose
- *      — multi-tag jobs register the groupId in the ordering service rather
- *      than individual slot.jobIds, so cancelJob is a safe no-op for them
- *      (kept as the fall-through path for non-multi-tag failures).
+ *   2. **Single-tag (legacy) job**: route the synthesized failure through
+ *      `orderingService.handleResult`, the same channel-ordering entry point
+ *      the soft-result listener (`index.ts`) uses, so a hard failure is
+ *      delivered in the same userMessageTime order as every other result in
+ *      the channel instead of jumping ahead of buffered siblings. The
+ *      deliverFn it's given routes to `MessageHandler.handleJobResult`, which
+ *      looks up the job's stored kind/context itself and dispatches to the
+ *      same per-kind error rendering (`reportJobError` plus the slash/message
+ *      error responder) that a soft `success: false` result would trigger —
+ *      so a hard BullMQ failure on a slash `/chat`/`/random`/`/chime-in` job
+ *      or a DM session message is no longer silent to the user.
  */
 
 import { QueueEvents } from 'bullmq';
@@ -26,11 +32,25 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
+import type { MessageHandler } from '../handlers/MessageHandler.js';
 import type { JobTracker } from './JobTracker.js';
 import type { MultiTagCoordinator } from './MultiTagCoordinator.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
 const logger = createLogger('JobFailureListener');
+
+/** Synthesizes the same failure `LLMGenerationResult` shape both routing paths deliver. */
+function buildSyntheticFailure(
+  reason: 'failed' | 'removed',
+  jobId: string,
+  failedReason?: string
+): LLMGenerationResult {
+  return {
+    requestId: jobId,
+    success: false,
+    error: failedReason ?? `Job ${reason} (no reason provided)`,
+  };
+}
 
 export class JobFailureListener {
   private queueEvents?: QueueEvents;
@@ -38,7 +58,8 @@ export class JobFailureListener {
   constructor(
     private readonly jobTracker: JobTracker,
     private readonly orderingService: ResponseOrderingService,
-    private readonly multiTagCoordinator: MultiTagCoordinator
+    private readonly multiTagCoordinator: MultiTagCoordinator,
+    private readonly messageHandler: MessageHandler
   ) {}
 
   start(): void {
@@ -85,13 +106,13 @@ export class JobFailureListener {
    * a real BullMQ QueueEvents instance. The event listeners above are thin
    * adapters that call this method.
    *
-   * Intentionally does NOT call jobTracker.completeJob: the typing indicator
-   * and "taking longer" notification cleanup lives there, and silently deleting
-   * the "taking longer" message on failure would leave the user with no
-   * indication that anything went wrong. The typing indicator times out at
-   * TYPING_INDICATOR_TIMEOUT_MS and the orphan sweep releases the tracker
-   * slot — that's the existing behavior for failures; this fix doesn't make
-   * it worse. Surfacing failures to the user is a separate concern.
+   * This method itself never calls `jobTracker.completeJob` — for the
+   * single-tag path below, tracker completion and user-facing delivery both
+   * belong to `MessageHandler.handleJobResult`, which that path hands off
+   * to. For the multi-tag path, `MultiTagCoordinator.handleJobResult` owns
+   * both instead. Either way, this listener stays a thin router and failure
+   * handling lands on the same completion/delivery path a soft
+   * `success: false` result already takes.
    */
   async handleTerminalEvent(
     reason: 'failed' | 'removed',
@@ -107,11 +128,7 @@ export class JobFailureListener {
       // coordinator's normal delivery flow. This drives the slot to terminal
       // immediately instead of waiting for the 10-min safety timeout.
       if (this.multiTagCoordinator.ownsJob(jobId)) {
-        const syntheticFailure: LLMGenerationResult = {
-          requestId: jobId,
-          success: false,
-          error: failedReason ?? `Job ${reason} (no reason provided)`,
-        };
+        const syntheticFailure = buildSyntheticFailure(reason, jobId, failedReason);
         logger.info(
           { jobId, reason, failedReason },
           'Multi-tag slot terminal event — routing to coordinator'
@@ -120,11 +137,15 @@ export class JobFailureListener {
         return;
       }
 
-      // Single-tag path: unblock the channel-ordering queue. (Multi-tag jobs
-      // register groupId on the ordering service rather than individual
-      // slot.jobIds, so reaching this branch for a multi-tag jobId is
-      // already a safe no-op — but the ownsJob check above keeps the
-      // semantics explicit.)
+      // Single-tag path: deliver a synthesized failure through
+      // orderingService.handleResult, the same channel-ordering entry point
+      // the soft-result listener uses (index.ts's startResultsListener), so
+      // the failure notice takes its place in userMessageTime order instead
+      // of bypassing the queue and landing ahead of buffered siblings.
+      // (Multi-tag jobs register groupId on the ordering service rather than
+      // individual slot.jobIds, so reaching this branch for a multi-tag
+      // jobId can't happen in practice — but the ownsJob check above keeps
+      // the routing explicit rather than relying on that absence.)
       const context = this.jobTracker.getContext(jobId);
       if (context === null) {
         logger.debug({ jobId, reason }, 'Terminal event for unknown job — no action');
@@ -133,9 +154,22 @@ export class JobFailureListener {
       const channelId = context.channel.id;
       logger.info(
         { jobId, channelId, reason, failedReason },
-        'AI job terminal event — unblocking channel ordering queue'
+        'AI job terminal event — routing synthesized failure through ordering service'
       );
-      await this.orderingService.cancelJob(channelId, jobId);
+
+      // Route the same synthesized failure shape through the results-path
+      // entry point so the job kind's own error rendering fires. No
+      // `jobResult` row exists to confirm delivery against here — only
+      // `AIJobProcessor.persistAndPublishResult` (which never ran for a
+      // hard-failed job) creates one — so there is nothing to confirm.
+      const syntheticFailure = buildSyntheticFailure(reason, jobId, failedReason);
+      await this.orderingService.handleResult(
+        channelId,
+        jobId,
+        syntheticFailure,
+        context.userMessageTime,
+        (jId, res) => this.messageHandler.handleJobResult(jId, res)
+      );
     } catch (err) {
       logger.error({ err, jobId, reason, failedReason }, 'Failed to handle AI job terminal event');
     }
