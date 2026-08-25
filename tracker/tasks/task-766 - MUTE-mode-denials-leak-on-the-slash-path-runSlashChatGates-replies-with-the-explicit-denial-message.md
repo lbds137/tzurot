@@ -3,9 +3,10 @@ id: TASK-766
 title: >-
   MUTE-mode denials leak on the slash path - runSlashChatGates replies with the
   explicit denial message
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 16:17'
+updated_date: '2026-08-25 16:02'
 labels:
   - 'area:bot-client'
   - 'size:S'
