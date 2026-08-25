@@ -45,6 +45,10 @@ import {
   StampUserActivityResponseSchema,
   RecordCommandEventRequestSchema,
   RecordCommandEventResponseSchema,
+  ExportSmokeStartRequestSchema,
+  ExportSmokeStartResponseSchema,
+  ExportSmokeStatusRequestSchema,
+  ExportSmokeStatusResponseSchema,
   LoadPersonalityInternalResponseSchema,
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
@@ -638,5 +642,44 @@ export const internalRoutes = {
     input: RecordCommandEventRequestSchema,
     output: RecordCommandEventResponseSchema,
     serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/export-smoke/start
+   * Weekly export-path smoke: starts a full account-export job against the
+   * system-reserved Orphaned-Characters sentinel account, self-healing the
+   * sentinel row if it doesn't yet exist. Returns the created exportJobId
+   * plus a source-DB row-count snapshot the smoke asserts the finished
+   * artifact's manifest against. Deliberately bypasses the user route's
+   * 24h export cooldown — this runs on its own weekly cadence against a
+   * non-user-facing account, not a real user's export quota.
+   */
+  startExportSmoke: {
+    audience: 'internal',
+    method: 'post',
+    path: '/export-smoke/start',
+    id: 'startExportSmoke',
+    input: ExportSmokeStartRequestSchema,
+    output: ExportSmokeStartResponseSchema,
+    serviceOnly: true,
+    // No explicit timeoutMs — a full-account export assembly is a real
+    // write (job-row upsert + BullMQ enqueue), so it inherits the WRITE
+    // default rather than the tight GATEWAY_RPC budget a read gets.
+  },
+
+  /**
+   * GET /api/internal/export-smoke/status
+   * Polls the export-path smoke's export_jobs row by id.
+   */
+  getExportSmokeStatus: {
+    audience: 'internal',
+    method: 'get',
+    path: '/export-smoke/status',
+    id: 'getExportSmokeStatus',
+    query: ExportSmokeStatusRequestSchema,
+    output: ExportSmokeStatusResponseSchema,
+    serviceOnly: true,
+    meta: { safeRead: true },
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 } as const satisfies Record<string, RouteDef>;

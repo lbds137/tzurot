@@ -11,7 +11,6 @@
 import { type Response, type RequestHandler } from 'express';
 import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
-import { getConfig } from '@tzurot/common-types/config/config';
 import { JobType, JOB_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { StartShapesExportInputSchema } from '@tzurot/common-types/schemas/api/shapes';
 import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
@@ -31,6 +30,7 @@ import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import { enqueueExportJobOrMarkFailed } from '../../../utils/enqueueExportJob.js';
+import { buildExportDownloadUrl } from '../../../utils/exportDownloadUrl.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
@@ -122,7 +122,7 @@ async function createExportJobOrConflict(
   return { exportJobId, downloadToken, conflictStatus };
 }
 
-function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string) {
+function createExportHandler(prisma: PrismaClient, queue: Queue) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -224,7 +224,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string
       'Export job created'
     );
 
-    const downloadUrl = `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`;
+    const downloadUrl = buildExportDownloadUrl(downloadToken);
 
     sendCustomSuccess(
       res,
@@ -241,7 +241,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string
   };
 }
 
-function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
+function createListExportJobsHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
@@ -275,10 +275,7 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
     // it must never leave the server except as part of the download URL.
     const jobsWithUrls = jobs.map(({ downloadToken, ...job }) => ({
       ...job,
-      downloadUrl:
-        job.status === 'completed'
-          ? `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`
-          : null,
+      downloadUrl: job.status === 'completed' ? buildExportDownloadUrl(downloadToken) : null,
     }));
 
     sendCustomSuccess(res, { jobs: jobsWithUrls });
@@ -287,27 +284,9 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
 
 // ===== Handler factories ===================================================
 
-/**
- * Memoized base URL. Env vars don't change at runtime, so we resolve once
- * lazily on first read and reuse the value for every subsequent factory
- * invocation in this module. Single-source: both `handleStartShapesExport`
- * and `handleListShapesExportJobs` go through this getter.
- */
-let _baseUrlCache: string | undefined;
-function resolveBaseUrl(): string {
-  if (_baseUrlCache === undefined) {
-    const envConfig = getConfig();
-    _baseUrlCache = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
-  }
-  return _baseUrlCache;
-}
-
 /** POST /api/user/shapes/export — start an async export job. */
-export const handleStartShapesExport = (deps: RouteDeps): RequestHandler => {
-  // Resolve baseUrl once at factory-call time (cached across factory calls
-  // by `resolveBaseUrl`) — env vars don't change at runtime.
-  const baseUrl = resolveBaseUrl();
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleStartShapesExport = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     if (deps.aiQueue === undefined) {
       sendError(
         res,
@@ -315,10 +294,9 @@ export const handleStartShapesExport = (deps: RouteDeps): RequestHandler => {
       );
       return;
     }
-    await createExportHandler(deps.prisma, deps.aiQueue, baseUrl)(req, res);
+    await createExportHandler(deps.prisma, deps.aiQueue)(req, res);
   });
-};
 
 /** GET /api/user/shapes/export/jobs — list export history for the caller. */
 export const handleListShapesExportJobs = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createListExportJobsHandler(deps.prisma, resolveBaseUrl()));
+  asyncHandler(createListExportJobsHandler(deps.prisma));

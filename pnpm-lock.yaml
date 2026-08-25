@@ -619,6 +619,9 @@ importers:
       discord.js:
         specifier: ^14.27.0
         version: 14.27.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
