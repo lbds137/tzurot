@@ -24,7 +24,10 @@ import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { reportJobError } from '../observability/ErrorChannelReporter.js';
+import {
+  reportJobError,
+  reportQuotaFallbackRescue,
+} from '../observability/ErrorChannelReporter.js';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { pickNewDMActivePersonality } from './SlotResolver.js';
 import {
@@ -86,6 +89,9 @@ async function deliverSlot(
     // response AND no error for that slot. Route through the error path
     // so the user at least sees a fallback message.
     if (hasUsableContent(slot)) {
+      // Owner-channel visibility for the quota-fallback rescue, mirroring
+      // MessageHandler's success-path check.
+      reportQuotaFallbackRescue(slot.result?.metadata?.quotaFallback, slot.result?.requestId);
       await deps.slotDelivery.deliverSuccess(
         slot.result as LLMGenerationResult & { success: true },
         slotContext

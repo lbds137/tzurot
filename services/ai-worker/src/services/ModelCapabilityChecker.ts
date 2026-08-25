@@ -306,6 +306,29 @@ export async function getModelContextLength(modelId: string, redis: Redis): Prom
 }
 
 /**
+ * Is `modelId` listed in the OpenRouter catalog?
+ *
+ * Three-valued, mirroring `CatalogLookup`: `true` when the catalog lists the
+ * model, `false` when the catalog loaded and genuinely does not list it, and
+ * `null` when the catalog itself was unavailable — in which case a caller must
+ * NOT treat absence as an answer.
+ *
+ * Reads `resolveFromRedis` directly rather than `getCapabilities`: the latter
+ * caches an `absent` lookup as pattern-derived capabilities, which a later read
+ * cannot distinguish from a resolved one.
+ */
+export async function isModelListed(modelId: string, redis: Redis): Promise<boolean | null> {
+  const lookup = await resolveFromRedis(modelId, normalizeModelId(modelId), redis);
+  if (lookup.kind === 'resolved') {
+    return true;
+  }
+  if (lookup.kind === 'absent') {
+    return false;
+  }
+  return null;
+}
+
+/**
  * Clear the in-memory capability caches, including the long-lived context-length
  * memo — the memo is part of the same capability state, so a caller asking for a
  * clean slate must not be left with a stale remembered limit.

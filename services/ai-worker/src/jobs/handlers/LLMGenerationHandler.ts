@@ -44,6 +44,7 @@ import {
   freeTierRequestQuota,
   zaiFreeTierAdmission,
   zaiFreeTierFailureReactor,
+  checkModelListedInCatalog,
 } from '../../redis.js';
 import { type QuotaFallbackCaches } from '../../services/quotaFallback.js';
 import { type QuotaFallbackDeps } from './pipeline/steps/quotaFallbackRunner.js';
@@ -136,6 +137,7 @@ export class LLMGenerationHandler {
     const quotaFallbackCaches: QuotaFallbackCaches = {
       creditExhaustion: creditExhaustionCache,
       rateLimit: rateLimitCache,
+      catalogPresence: checkModelListedInCatalog,
     };
     const quotaFallbackDeps: QuotaFallbackDeps | undefined =
       configResolver !== undefined && apiKeyResolver !== undefined

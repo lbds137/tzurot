@@ -28,7 +28,7 @@
 import { AIProvider, isFreeModel } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeTextFloor } from './freeFloors.js';
-import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
 import { applyLlmOverrideParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -64,15 +64,12 @@ export type QuotaFallbackCategory =
   | ApiErrorCategory.CENSORED
   | ApiErrorCategory.CONTENT_POLICY;
 
-/**
- * The guest/free ladder's admission-time substitution. Deliberately NOT a
- * member of `QuotaFallbackCategory`: that union narrows from
- * `ApiErrorCategory` (a type predicate TypeScript rejects the moment a
- * non-enum literal joins it), and no failure occurred here — the guest simply
- * may not run a paid model on the system key. It shares the announce carrier
- * below because the footer question is identical.
- */
-export const GUEST_MODE_CATEGORY = 'guest_mode';
+// GUEST_MODE_CATEGORY is single-sourced in common-types' error.ts (imported
+// above) — deliberately NOT a member of `QuotaFallbackCategory`: that union
+// narrows from `ApiErrorCategory` (a type predicate TypeScript rejects the
+// moment a non-enum literal joins it), and no failure occurred here — the
+// guest simply may not run a paid model on the system key. It shares the
+// announce carrier below because the footer question is identical.
 
 /** Every reason a model swap can be announced with: a retargetable failure, or guest mode. */
 type QuotaFallbackAnnounceCategory = QuotaFallbackCategory | typeof GUEST_MODE_CATEGORY;
@@ -88,6 +85,14 @@ export interface QuotaFallbackInfo {
 export interface QuotaFallbackCaches {
   creditExhaustion: CreditExhaustionCache;
   rateLimit: RateLimitCache;
+  /**
+   * OpenRouter catalog presence probe: `true` listed, `false` genuinely absent,
+   * `null` catalog unavailable. Rides this bag because it answers the same
+   * "is this model attemptable?" question the doom caches do, at the same
+   * seams. Optional and fail-open: an unwired probe (test fixtures) or a `null`
+   * result never vetoes — an unavailable catalog must not block a rescue.
+   */
+  catalogPresence?: (model: string) => Promise<boolean | null>;
 }
 
 /** A selected retarget: the target config, and whether the billing entity changes. */
@@ -227,6 +232,47 @@ export async function checkModelViability(options: {
 }
 
 /**
+ * Veto an OpenRouter-bound retarget target that the catalog does not list.
+ * Retargeting to an unpublished model id is a guaranteed 400, so the candidate
+ * is treated as unavailable and the caller falls through the existing cascade.
+ *
+ * Fail-open on every uncertain path — an unwired probe, an unknown
+ * (`null`) catalog, or a throwing probe all return `false` (no veto), because
+ * a catalog outage must never convert a rescuable turn into a dead end.
+ *
+ * Accepted tradeoff: a model published between catalog refreshes reads as
+ * genuinely absent and gets vetoed until the next refresh. The candidates
+ * judged here are admin-configured fallback targets — stable models, not
+ * just-published ones — and a wrong veto degrades to the next cascade tier,
+ * not a dead end.
+ */
+async function isVetoedAsUnlistedTarget(options: {
+  model: string;
+  caches: QuotaFallbackCaches;
+}): Promise<boolean> {
+  const { model, caches } = options;
+  const probe = caches.catalogPresence;
+  if (probe === undefined) {
+    return false;
+  }
+  // try/catch rather than .catch(): a synchronously-throwing probe would
+  // escape before a .catch() handler ever attaches, breaking the fail-open
+  // guarantee for a non-async bag member.
+  let listed: boolean | null;
+  try {
+    listed = await probe(model);
+  } catch (err: unknown) {
+    logger.warn({ err, model }, 'Catalog presence probe threw — not vetoing the target');
+    listed = null;
+  }
+  if (listed !== false) {
+    return false;
+  }
+  logger.info({ model }, 'Retarget target vetoed: not listed in the OpenRouter catalog');
+  return true;
+}
+
+/**
  * The floor beneath the tier-aware default. Two call sites share it: the
  * SECOND descent hop (D12) after a failed hop-1 retarget, and the hop-1
  * PROMOTION in quotaFallbackRunner when no tiered retarget exists at all
@@ -236,7 +282,8 @@ export async function checkModelViability(options: {
  * guest-safe default below); paid users on `fallbackTextModel` (their own
  * key; seeded `openrouter/auto` — the floor's job is to always answer).
  * Null when the floor is already among the models that failed this turn
- * (nothing new to try) or the doom caches veto it.
+ * (nothing new to try), the doom caches veto it, or the catalog confirms it
+ * is not a listed OpenRouter model id.
  */
 export async function selectFloorTarget(options: {
   isGuestMode: boolean;
@@ -252,6 +299,10 @@ export async function selectFloorTarget(options: {
   }
   const viability = await checkModelViability({ model: floor, cacheKeyId, caches });
   if (!viability.viable) {
+    return null;
+  }
+  // The floor is OpenRouter-bound by construction (see the returned config).
+  if (await isVetoedAsUnlistedTarget({ model: floor, caches })) {
     return null;
   }
   return {
@@ -291,7 +342,8 @@ async function resolveGuestSafeFreeDefault(
 /**
  * Pick the tier-aware retarget for a quota-class failure, or null when the
  * turn should fail exactly as it does today (no target, same model, target
- * also doomed, or no different billing entity exists).
+ * also doomed, no different billing entity exists, or — for an
+ * OpenRouter-bound target — the catalog confirms the model id isn't listed).
  */
 export async function selectQuotaFallbackTarget(options: {
   category: QuotaFallbackCategory;
@@ -345,6 +397,20 @@ export async function selectQuotaFallbackTarget(options: {
     caches,
   });
   if (!viability.viable) {
+    return null;
+  }
+
+  // Gate to OpenRouter-bound targets: the catalog only describes OpenRouter,
+  // so a z.ai-direct (or other provider) target's absence from it is
+  // meaningless. Mirrors the provider defaulting in `applyConfigToPersonality`
+  // — a config predating the provider field is OpenRouter-routed.
+  // `ResolvedLlmConfig.provider` is a plain string, so the enum side is widened
+  // for the comparison — the same shape `resolveRetryCredentials` uses.
+  const targetProvider: string = config.provider ?? AIProvider.OpenRouter;
+  if (
+    targetProvider === (AIProvider.OpenRouter as string) &&
+    (await isVetoedAsUnlistedTarget({ model: config.model, caches }))
+  ) {
     return null;
   }
 
