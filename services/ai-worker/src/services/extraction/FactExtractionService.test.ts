@@ -476,6 +476,7 @@ describe('extraction usage rows (cost visibility)', () => {
           requestType: 'fact_extraction',
           tokensIn: 120,
           tokensOut: 40,
+          personalityId: PERSONALITY,
         }),
       })
     );

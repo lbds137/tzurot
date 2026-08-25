@@ -496,8 +496,16 @@ async function executeRetarget(options: {
   try {
     const result = await retry(opts);
     // OpenRouter actually served this request; report it so the footer's
-    // provider badge doesn't show the stale pre-retarget provider.
-    return { ...result, effectiveProviderUsed: AIProvider.OpenRouter, quotaFallback: info };
+    // provider badge doesn't show the stale pre-retarget provider. The
+    // guest-mode flag gets the same correction: `opts` here carries the
+    // RESOLVED retry credentials, so a forced entity swap (BYOK → system
+    // key) must reach the usage row's byok column, not the stale value.
+    return {
+      ...result,
+      effectiveProviderUsed: AIProvider.OpenRouter,
+      effectiveIsGuestMode: opts.isGuestMode,
+      quotaFallback: info,
+    };
   } catch (retryError) {
     const floorOutcome = await attemptFloorHop({
       retry,
@@ -588,7 +596,14 @@ async function attemptFloorHop(params: {
     });
     return {
       kind: 'success',
-      result: { ...result, effectiveProviderUsed: AIProvider.OpenRouter, quotaFallback: floorInfo },
+      // Hop 2 reuses hop-1's resolved credentials (opts carries them), so
+      // the effective guest-mode correction mirrors executeRetarget's.
+      result: {
+        ...result,
+        effectiveProviderUsed: AIProvider.OpenRouter,
+        effectiveIsGuestMode: opts.isGuestMode,
+        quotaFallback: floorInfo,
+      },
     };
   } catch (floorError) {
     logger.error(
