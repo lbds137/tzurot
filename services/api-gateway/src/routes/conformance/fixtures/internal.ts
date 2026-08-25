@@ -8,6 +8,8 @@
  * shaping is what's under test, not the queue.
  */
 
+import { ACCOUNT_EXPORT_SOURCE } from '@tzurot/common-types/types/account-export';
+import { ensureOrphanSentinel } from '../../../services/OrphanSentinelBootstrap.js';
 import {
   generateReleaseAnnouncementUuid,
   generateReleaseDeliveryLogUuid,
@@ -442,4 +444,47 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
   },
 
   getAdminSettingsInternal: {},
+
+  // Both export-smoke routes operate on locally-stored rows (export_jobs +
+  // a BullMQ enqueue the harness's fake queue absorbs) — no external round
+  // trip, so they run for real like the user-tier account/shapes export
+  // routes. `startExportSmoke` self-heals the Orphaned-Characters sentinel
+  // via `ensureOrphanSentinel`, so no seed is needed for it to reach its
+  // success path.
+  startExportSmoke: {},
+
+  getExportSmokeStatus: {
+    // Seeds its OWN row directly (rather than calling the real start route)
+    // so it never contends with `startExportSmoke`'s fixture over the
+    // sentinel account's single deterministic export-job id — both fixtures
+    // target the same sentinel, and the active-job conflict check in
+    // `createExportJobOrConflict` is never bypassed, so a real start call
+    // here would 409 whichever fixture runs second.
+    seed: async ctx => {
+      const id = '14b00000-0000-4000-8000-000000000010';
+      // Under the SENTINEL, not the actor: the status route scopes its query
+      // to the sentinel's own userId (id-only lookup would resolve arbitrary
+      // users' export download URLs), so an actor-owned row would 404.
+      const sentinelId = await ensureOrphanSentinel(ctx.prisma);
+      await ctx.prisma.exportJob.create({
+        data: {
+          id,
+          userId: sentinelId,
+          sourceSlug: 'conf-export-smoke',
+          sourceService: ACCOUNT_EXPORT_SOURCE,
+          status: 'completed',
+          format: 'zip',
+          fileName: 'conf-export-smoke.zip',
+          fileSizeBytes: 42,
+          // download_token is UNIQUE and conformance fixtures share one
+          // database — 'e'.repeat(64) and 'f'.repeat(64) are already taken
+          // (listShapesExportJobs, getAccountExportStatus).
+          downloadToken: 'd'.repeat(64),
+          completedAt: new Date(),
+          expiresAt: new Date(Date.now() + 3600 * 1000),
+        },
+      });
+      return { query: { jobId: id } };
+    },
+  },
 };

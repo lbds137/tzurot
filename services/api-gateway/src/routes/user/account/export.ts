@@ -12,7 +12,6 @@
 import { type Response, type RequestHandler } from 'express';
 import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
-import { getConfig } from '@tzurot/common-types/config/config';
 import { JobType, JOB_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { StartAccountExportInputSchema } from '@tzurot/common-types/schemas/api/account';
 import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
@@ -31,13 +30,14 @@ import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import { enqueueExportJobOrMarkFailed } from '../../../utils/enqueueExportJob.js';
+import { buildExportDownloadUrl } from '../../../utils/exportDownloadUrl.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('account-export');
 
 /** Export jobs expire after 24 hours (mirrors the shapes-export policy). */
-const EXPORT_EXPIRY_HOURS = 24;
+export const EXPORT_EXPIRY_HOURS = 24;
 
 /** Account exports are a ZIP archive (JSON + Markdown per section) from v2 on. */
 const EXPORT_FORMAT = 'zip';
@@ -49,7 +49,7 @@ const EXPORT_FORMAT = 'zip';
  */
 const EXPORT_COOLDOWN_HOURS = 24;
 
-interface CreateOrConflictResult {
+export interface CreateOrConflictResult {
   exportJobId: string;
   /** The random public-download token, always minted for this run. */
   downloadToken: string;
@@ -62,13 +62,22 @@ interface CreateOrConflictResult {
  * row. The UUID is deterministic on (userId, 'account', 'account', 'zip'),
  * so a re-export upserts the same row — replacing any previous
  * completed/failed export and invalidating its download URL. An active
- * (pending/in_progress) job or a completed job newer than the cooldown
- * window triggers a 409 instead.
+ * (pending/in_progress) job always triggers a 409; a completed job newer
+ * than the cooldown window triggers a 409 too, but ONLY when `checkCooldown`
+ * is true.
+ *
+ * `checkCooldown: false` is the export-path smoke's deliberate bypass (see
+ * `internal/exportSmoke.ts`): the smoke runs on its own weekly cadence
+ * against a system-reserved sentinel account, not a real user's export
+ * quota, so the 24h user-facing cooldown doesn't apply to it. The
+ * active-job conflict check is NOT skippable by either caller — a smoke
+ * that stampedes a running export is a bug, not a feature.
  */
-async function createExportJobOrConflict(
+export async function createExportJobOrConflict(
   prisma: PrismaClient,
   userId: string,
-  expiresAt: Date
+  expiresAt: Date,
+  checkCooldown: boolean
 ): Promise<CreateOrConflictResult> {
   const exportJobId = generateExportJobUuid(
     userId,
@@ -94,17 +103,19 @@ async function createExportJobOrConflict(
       return { conflictStatus: existingJob.status, onCooldown: false };
     }
 
-    const recentCompleted = await tx.exportJob.findFirst({
-      where: {
-        userId,
-        sourceService: ACCOUNT_EXPORT_SOURCE,
-        status: 'completed',
-        completedAt: { gt: cooldownFloor },
-      },
-    });
+    if (checkCooldown) {
+      const recentCompleted = await tx.exportJob.findFirst({
+        where: {
+          userId,
+          sourceService: ACCOUNT_EXPORT_SOURCE,
+          status: 'completed',
+          completedAt: { gt: cooldownFloor },
+        },
+      });
 
-    if (recentCompleted !== null) {
-      return { conflictStatus: null, onCooldown: true };
+      if (recentCompleted !== null) {
+        return { conflictStatus: null, onCooldown: true };
+      }
     }
 
     await tx.exportJob.upsert({
@@ -141,20 +152,7 @@ async function createExportJobOrConflict(
   return { exportJobId, downloadToken, ...outcome };
 }
 
-/**
- * Memoized base URL (env vars don't change at runtime); same posture as the
- * shapes export module's resolver.
- */
-let _baseUrlCache: string | undefined;
-function resolveBaseUrl(): string {
-  if (_baseUrlCache === undefined) {
-    const envConfig = getConfig();
-    _baseUrlCache = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
-  }
-  return _baseUrlCache;
-}
-
-function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string) {
+function createStartExportHandler(prisma: PrismaClient, queue: Queue) {
   return async (req: ProvisionedRequest, res: Response) => {
     const parsed = parseBodyOrSendError(res, StartAccountExportInputSchema, req.body ?? {});
     if (parsed === null) {
@@ -172,7 +170,8 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
       ({ exportJobId, downloadToken, conflictStatus, onCooldown } = await createExportJobOrConflict(
         prisma,
         userId,
-        expiresAt
+        expiresAt,
+        true
       ));
     } catch (error: unknown) {
       if (isPrismaUniqueConstraintError(error)) {
@@ -231,7 +230,7 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
         success: true,
         exportJobId,
         status: 'pending',
-        downloadUrl: `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`,
+        downloadUrl: buildExportDownloadUrl(downloadToken),
         expiresAt: expiresAt.toISOString(),
       },
       StatusCodes.ACCEPTED
@@ -239,7 +238,7 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
   };
 }
 
-function createStatusHandler(prisma: PrismaClient, baseUrl: string) {
+function createStatusHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const userId = resolveProvisionedUserId(req);
 
@@ -271,19 +270,15 @@ function createStatusHandler(prisma: PrismaClient, baseUrl: string) {
     sendCustomSuccess(res, {
       job: {
         ...jobFields,
-        downloadUrl:
-          job.status === 'completed'
-            ? `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`
-            : null,
+        downloadUrl: job.status === 'completed' ? buildExportDownloadUrl(downloadToken) : null,
       },
     });
   };
 }
 
 /** POST /api/user/account/export — start a full-account export job. */
-export const handleStartAccountExport = (deps: RouteDeps): RequestHandler => {
-  const baseUrl = resolveBaseUrl();
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleStartAccountExport = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     if (deps.aiQueue === undefined) {
       sendError(
         res,
@@ -291,10 +286,9 @@ export const handleStartAccountExport = (deps: RouteDeps): RequestHandler => {
       );
       return;
     }
-    await createStartExportHandler(deps.prisma, deps.aiQueue, baseUrl)(req, res);
+    await createStartExportHandler(deps.prisma, deps.aiQueue)(req, res);
   });
-};
 
 /** GET /api/user/account/export/status — latest account export job. */
 export const handleGetAccountExportStatus = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createStatusHandler(deps.prisma, resolveBaseUrl()));
+  asyncHandler(createStatusHandler(deps.prisma));

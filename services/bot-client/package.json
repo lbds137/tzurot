@@ -28,6 +28,7 @@
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.81.3",
     "discord.js": "^14.27.0",
+    "fflate": "^0.8.3",
     "ioredis": "^5.11.1",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",

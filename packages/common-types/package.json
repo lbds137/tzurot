@@ -21,6 +21,10 @@
       "types": "./dist/schemas/api/*.d.ts",
       "default": "./dist/schemas/api/*.js"
     },
+    "./schemas/export/*": {
+      "types": "./dist/schemas/export/*.d.ts",
+      "default": "./dist/schemas/export/*.js"
+    },
     "./services/*": {
       "types": "./dist/services/*.d.ts",
       "default": "./dist/services/*.js"

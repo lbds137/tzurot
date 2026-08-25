@@ -85,6 +85,10 @@ import {
   stopRetentionNagScheduler,
 } from './services/RetentionNagScheduler.js';
 import {
+  startExportSmokeScheduler,
+  stopExportSmokeScheduler,
+} from './services/ExportSmokeScheduler.js';
+import {
   startNightlyDbSyncScheduler,
   stopNightlyDbSyncScheduler,
 } from './services/NightlyDbSyncScheduler.js';
@@ -548,6 +552,10 @@ client.once(Events.ClientReady, () => {
   // restart-friendly cadence; nothing purges automatically in Phase 2).
   startRetentionNagScheduler(client, services.cacheRedis);
 
+  // Daily check, weekly real export-path smoke → owner-channel nag on
+  // failure only (silent on a clean pass; see ExportSmokeScheduler).
+  startExportSmokeScheduler(client, services.cacheRedis);
+
   // Daily REAL dev↔prod sync — silent when already in agreement, owner-channel
   // summary when rows moved. Its Redis cooldown gates the sync itself (not just
   // the post); see NightlyDbSyncScheduler for that inversion.
@@ -635,6 +643,7 @@ async function disposeBotClient(): Promise<void> {
     stopSecretRotationNagScheduler();
     stopReleaseFlagNagScheduler();
     stopRetentionNagScheduler();
+    stopExportSmokeScheduler();
     stopNightlyDbSyncScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.

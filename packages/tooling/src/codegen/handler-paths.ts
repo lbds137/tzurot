@@ -157,6 +157,8 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   syncConversation: '../internal/conversationSync.js',
   loadPersonalityInternal: '../internal/personalityLoad.js',
   routingContextCreate: '../internal/routingContextCreate.js',
+  startExportSmoke: '../internal/exportSmoke.js',
+  getExportSmokeStatus: '../internal/exportSmoke.js',
 
   // User LLM config
   createUserLlmConfig: USER_LLM_CONFIG,

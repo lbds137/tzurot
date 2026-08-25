@@ -926,6 +926,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:getExportSmokeStatus",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /export-smoke/status",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:getFact",
       "kind": "http-route",
       "producer": "client",
@@ -2359,6 +2373,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "POST /account/export",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:startExportSmoke",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /export-smoke/start",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
