@@ -76,6 +76,9 @@ CREATE TABLE "usage_logs" (
     "tokens_out" INTEGER NOT NULL,
     "request_type" VARCHAR(50) NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "latency_ms" INTEGER,
+    "byok" BOOLEAN,
+    "personality_id" UUID,
 
     CONSTRAINT "usage_logs_pkey" PRIMARY KEY ("id")
 );
@@ -660,6 +663,9 @@ CREATE INDEX "usage_logs_user_id_provider_idx" ON "usage_logs"("user_id", "provi
 CREATE INDEX "usage_logs_user_id_provider_created_at_idx" ON "usage_logs"("user_id", "provider", "created_at");
 
 -- CreateIndex
+CREATE INDEX "usage_logs_personality_id_idx" ON "usage_logs"("personality_id");
+
+-- CreateIndex
 CREATE INDEX "user_api_keys_user_id_idx" ON "user_api_keys"("user_id");
 
 -- CreateIndex
@@ -964,6 +970,9 @@ ALTER TABLE "users" ADD CONSTRAINT "users_default_persona_id_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "usage_logs" ADD CONSTRAINT "usage_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usage_logs" ADD CONSTRAINT "usage_logs_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
