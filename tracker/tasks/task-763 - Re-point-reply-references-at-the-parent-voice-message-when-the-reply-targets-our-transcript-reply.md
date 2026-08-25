@@ -3,9 +3,10 @@ id: TASK-763
 title: >-
   Re-point reply references at the parent voice message when the reply targets
   our transcript reply
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 15:19'
+updated_date: '2026-08-25 17:26'
 labels:
   - 'area:bot-client'
   - 'size:S'
