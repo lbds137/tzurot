@@ -11,6 +11,8 @@ import {
   isDuplicateReference,
   isBotAuthoredReference,
 } from '@tzurot/common-types/utils/referenceEnrichment';
+import { isBotTranscriptReply } from '../../services/channelFetcher/messageTypeFilters.js';
+import { hasVoiceAttachments } from '../../utils/forwardedMessageUtils.js';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
 import { type ReferenceMetadata, type ReferenceResult, ReferenceType } from './types.js';
 import { type LinkExtractor } from './LinkExtractor.js';
@@ -111,37 +113,25 @@ export class ReferenceCrawler {
           continue;
         }
 
-        // Fetch the referenced message
-        let referencedMessage: Message | null = null;
-
-        // For reply references, use the direct fetchReference() method if available
-        if (refResult.type === ReferenceType.REPLY && currentMessage.reference) {
-          try {
-            referencedMessage = await currentMessage.fetchReference();
-          } catch (error) {
-            logger.debug(
-              {
-                messageId: currentMessage.id,
-                referencedMessageId: refResult.messageId,
-                error: (error as Error).message,
-              },
-              'Failed to fetch reply reference'
-            );
-          }
-        }
-
-        // For link references or if fetchReference failed, use LinkExtractor
-        referencedMessage ??= await this.linkExtractor.fetchMessageFromLink(
-          {
-            guildId: refResult.guildId,
-            channelId: refResult.channelId,
-            messageId: refResult.messageId,
-            fullUrl: refResult.discordUrl ?? '',
-          },
-          currentMessage
+        const referencedMessage = await this.fetchAndRetargetReference(
+          refResult,
+          currentMessage,
+          extractedMessageIds
         );
 
         if (!referencedMessage) {
+          continue;
+        }
+
+        // A retarget can converge on an already-processed message: several
+        // transcript chunks reply to one voice message, so two distinct
+        // pre-retarget ids can resolve to the same parent. The pre-retarget
+        // guard above cannot see that, so re-check the RESOLVED id before
+        // storing or queueing it again.
+        if (
+          referencedMessage.id !== refResult.messageId &&
+          extractedMessageIds.has(referencedMessage.id)
+        ) {
           continue;
         }
 
@@ -195,6 +185,60 @@ export class ReferenceCrawler {
     return { messages, maxDepth };
   }
 
+  /**
+   * Fetch the message a reference result points at, then apply the transcript
+   * retarget hop. Records `refResult.messageId` in `extractedMessageIds` on
+   * success — the pre-retarget id, in addition to the resolved id that
+   * `addToResults` records later — so a second reference path to the same
+   * transcript is recognized as already-processed instead of re-fetching and
+   * re-crawling it. No-op when retarget didn't apply (the two ids are equal).
+   * @returns The resolved (possibly retargeted) message, or `null` if it
+   *   could not be fetched by either the reply or link path
+   */
+  private async fetchAndRetargetReference(
+    refResult: ReferenceResult,
+    currentMessage: Message,
+    extractedMessageIds: Set<string>
+  ): Promise<Message | null> {
+    let referencedMessage: Message | null = null;
+
+    // For reply references, use the direct fetchReference() method if available
+    if (refResult.type === ReferenceType.REPLY && currentMessage.reference) {
+      try {
+        referencedMessage = await currentMessage.fetchReference();
+      } catch (error) {
+        logger.debug(
+          {
+            messageId: currentMessage.id,
+            referencedMessageId: refResult.messageId,
+            error: (error as Error).message,
+          },
+          'Failed to fetch reply reference'
+        );
+      }
+    }
+
+    // For link references or if fetchReference failed, use LinkExtractor
+    referencedMessage ??= await this.linkExtractor.fetchMessageFromLink(
+      {
+        guildId: refResult.guildId,
+        channelId: refResult.channelId,
+        messageId: refResult.messageId,
+        fullUrl: refResult.discordUrl ?? '',
+      },
+      currentMessage
+    );
+
+    if (!referencedMessage) {
+      return null;
+    }
+
+    referencedMessage = await this.retarget(referencedMessage, currentMessage);
+    extractedMessageIds.add(refResult.messageId);
+
+    return referencedMessage;
+  }
+
   /** Store a fetched reference in the results map with metadata */
   private addToResults(opts: {
     message: Message;
@@ -217,6 +261,56 @@ export class ReferenceCrawler {
         },
       });
     }
+  }
+
+  /**
+   * Retarget a resolved transcript message one hop, to the voice message
+   * it replies to.
+   *
+   * A reply or pasted link resolving to the bot's voice-transcript message
+   * resolves (via `fetchReference`/link fetch) to the transcript itself —
+   * author is the bot, content is the user's own transcribed speech — so
+   * without this hop the referenced message misattributes the user's words
+   * to the bot.
+   *
+   * The stage-1 predicate (`isBotTranscriptReply`) matches any bot reply
+   * carrying content, so the voice-attachment check on the fetched parent is
+   * what discriminates a real transcript from the bot's other reply-shaped
+   * notices (verification prompts, maintenance notices, error replies). A bot
+   * notice that is itself a reply to a voice message still retargets — same
+   * conversation locus, and attributing the voice sender's transcript is more
+   * correct than attributing the notice text to the bot.
+   *
+   * @param referencedMessage - The message resolved by the caller's reply/link fetch
+   * @param currentMessage - The message the reference was extracted from (source of `client.user`)
+   * @returns The parent voice message when the retarget applies; otherwise `referencedMessage` unchanged
+   */
+  private async retarget(referencedMessage: Message, currentMessage: Message): Promise<Message> {
+    const botUserId = currentMessage.client.user?.id;
+    if (botUserId === undefined || !isBotTranscriptReply(referencedMessage, botUserId)) {
+      return referencedMessage;
+    }
+
+    try {
+      const parent = await referencedMessage.fetchReference();
+      if (hasVoiceAttachments(parent)) {
+        logger.debug(
+          { messageId: referencedMessage.id, parentMessageId: parent.id },
+          'Retargeted transcript reply to its voice message'
+        );
+        return parent;
+      }
+    } catch (error) {
+      logger.debug(
+        {
+          messageId: referencedMessage.id,
+          error: (error as Error).message,
+        },
+        'Failed to fetch transcript reply parent; keeping resolved message'
+      );
+    }
+
+    return referencedMessage;
   }
 
   /**
