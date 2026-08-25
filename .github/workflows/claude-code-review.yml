@@ -44,7 +44,7 @@ jobs:
       - name: Run Claude Code Review
         if: github.event.pull_request.base.ref != 'main'
         id: claude-review
-        uses: anthropics/claude-code-action@v1.0.199
+        uses: anthropics/claude-code-action@v1.0.200
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -77,7 +77,7 @@ jobs:
       - name: Run Claude Code Review (release)
         if: github.event.pull_request.base.ref == 'main'
         id: claude-review-release
-        uses: anthropics/claude-code-action@v1.0.199
+        uses: anthropics/claude-code-action@v1.0.200
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
