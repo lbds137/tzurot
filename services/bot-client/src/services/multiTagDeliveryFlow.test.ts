@@ -26,9 +26,29 @@ vi.mock('../utils/gatewayServiceCalls.js', () => ({
   setDmSessionPersonality: vi.fn(),
 }));
 
-vi.mock('../observability/ErrorChannelReporter.js', () => ({
-  reportJobError: vi.fn(),
-}));
+vi.mock('../observability/ErrorChannelReporter.js', () => {
+  const reportJobError = vi.fn();
+  return {
+    reportJobError,
+    // Mirrors the real implementation's no-op-when-absent + delegate-to-
+    // reportJobError(category, requestId, { rescued: true }) shape, so
+    // existing `vi.mocked(reportJobError)` assertions keep working unchanged
+    // for the success-path seam.
+    // KEPT IN SYNC BY HAND with reportQuotaFallbackRescue in
+    // ErrorChannelReporter.ts — behavior changes there (including the
+    // rescued opts flag) are caught only by that file's own tests, not these
+    // wiring tests (the reporter's module-level client + dedup caches make
+    // exercising the real chain here more fragile than this hand-mirror).
+    reportQuotaFallbackRescue: (
+      quotaFallback: { category: string } | undefined,
+      requestId: string | undefined
+    ) => {
+      if (quotaFallback !== undefined) {
+        reportJobError(quotaFallback.category, requestId, { rescued: true });
+      }
+    },
+  };
+});
 
 function buildPersonality(name: string, errorMessage?: string): LoadedPersonality {
   return {
@@ -155,6 +175,38 @@ describe('deliverGroup', () => {
 
     expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
     expect(vi.mocked(reportJobError)).toHaveBeenCalledWith('api_error', 'req-Alice');
+  });
+
+  it('reports a successful quota-fallback rescue slot carrying a non-deny-listed category (model_not_found)', async () => {
+    // Mirrors MessageHandler's success-path check: a slot that succeeded
+    // only because the tier-aware fallback retargeted away from a
+    // misconfigured model must still reach the owner channel.
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', {
+          result: {
+            requestId: 'req-Alice-rescue',
+            success: true,
+            content: 'Rescued response',
+            metadata: {
+              quotaFallback: {
+                fromModel: 'delisted/model',
+                toModel: 'admin/default',
+                category: 'model_not_found',
+                mode: 'reactive',
+              },
+            },
+          } as unknown as LLMGenerationResult,
+        }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
+    expect(vi.mocked(reportJobError)).toHaveBeenCalledWith('model_not_found', 'req-Alice-rescue', {
+      rescued: true,
+    });
   });
 
   it('routes empty-content "success" through deliverError instead', async () => {

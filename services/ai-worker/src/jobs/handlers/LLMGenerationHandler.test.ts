@@ -49,6 +49,9 @@ vi.mock('../../redis.js', () => ({
     isEnabled: vi.fn().mockReturnValue(false),
   },
   zaiFreeTierFailureReactor: vi.fn().mockResolvedValue(undefined),
+  // Catalog presence probe wired into QuotaFallbackCaches. Default to "listed"
+  // (true) so existing generation tests never trip the catalog-absent veto.
+  checkModelListedInCatalog: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock conversationUtils

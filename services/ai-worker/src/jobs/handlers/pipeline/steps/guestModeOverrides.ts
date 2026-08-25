@@ -20,9 +20,9 @@ import {
   ZAI_FREE_TIER_MODEL,
 } from '@tzurot/common-types/constants/ai';
 import { getFreeTextFloor } from '../../../../services/freeFloors.js';
+import { GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
-  GUEST_MODE_CATEGORY,
   logQuotaFallbackAudit,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';

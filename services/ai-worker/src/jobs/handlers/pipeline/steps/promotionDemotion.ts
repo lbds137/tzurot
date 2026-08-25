@@ -117,9 +117,10 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
     // correct next step if this passthrough also fails. But the retarget's
     // eligibility is decided by classifying the ERROR, and after a demotion the
     // z.ai 429 never happens: the doom cache short-circuits it, so the only
-    // error downstream is whatever the passthrough returns. A staggered model
-    // release makes that a 400 (`<model> is not a valid model ID`), which
-    // classifies as nothing, and the turn dead-ends.
+    // error downstream is whatever the passthrough returns. When that failure
+    // classifies as nothing at all (the staggered-release 400 once did, before
+    // the classifier learned its wording; other unclassifiable shapes still
+    // do), this inherited category is the only thing that opens the gate.
     //
     // Without this field the SAME rate-limited user gets a response when the
     // 429 arrives live (the error propagates, the retarget fires) and an

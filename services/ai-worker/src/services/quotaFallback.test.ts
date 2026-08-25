@@ -4,6 +4,7 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { ApiError } from '../utils/apiErrorParser.js';
@@ -29,6 +30,7 @@ import {
 function buildCaches(overrides?: {
   exhausted?: boolean | string[];
   rateLimitedModels?: (string | { cacheKeyId: string; model: string })[];
+  catalogPresence?: (model: string) => Promise<boolean | null>;
 }): QuotaFallbackCaches {
   const exhausted = overrides?.exhausted ?? false;
   const rateLimitedModels = overrides?.rateLimitedModels ?? [];
@@ -59,6 +61,7 @@ function buildCaches(overrides?: {
           )
         ),
     },
+    ...(overrides?.catalogPresence !== undefined && { catalogPresence: overrides.catalogPresence }),
   } as unknown as QuotaFallbackCaches;
 }
 
@@ -357,6 +360,95 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
   });
 });
 
+describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.restoreAllMocks());
+
+  const base = {
+    failingModel: 'expensive/primary',
+    cacheKeyId: 'user:123',
+  };
+
+  it('vetoes a tiered target the catalog confirms is absent — falls through (null)', async () => {
+    const catalogPresence = vi.fn().mockResolvedValue(false);
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: false,
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches({ catalogPresence }),
+    });
+    expect(target).toBeNull();
+    // Seam pin: the SELECTED TARGET's model is what gets probed, not the failing model.
+    expect(catalogPresence).toHaveBeenCalledWith('paid/default');
+  });
+
+  it('does NOT veto when the catalog is unavailable (null) — fail-open', async () => {
+    const catalogPresence = vi.fn().mockResolvedValue(null);
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: false,
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches({ catalogPresence }),
+    });
+    expect(target?.config.model).toBe('paid/default');
+  });
+
+  it('does NOT veto when the catalog confirms the target is listed', async () => {
+    const catalogPresence = vi.fn().mockResolvedValue(true);
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: false,
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches({ catalogPresence }),
+    });
+    expect(target?.config.model).toBe('paid/default');
+  });
+
+  it('does NOT veto when catalogPresence is omitted entirely', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: false,
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target?.config.model).toBe('paid/default');
+  });
+
+  it('does NOT veto a non-OpenRouter-provider target even when the catalog reports it absent', async () => {
+    const catalogPresence = vi.fn().mockResolvedValue(false);
+    const resolver = {
+      getFreeDefaultConfig: vi.fn().mockResolvedValue(null),
+      getGlobalDefaultConfig: vi
+        .fn()
+        .mockResolvedValue({ model: 'glm-5.2', provider: AIProvider.ZaiCoding }),
+    };
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: false,
+      configResolver: resolver as never,
+      caches: buildCaches({ catalogPresence }),
+    });
+    expect(target?.config.model).toBe('glm-5.2');
+  });
+
+  it('does NOT veto when the catalog probe rejects — fail-open', async () => {
+    const catalogPresence = vi.fn().mockRejectedValue(new Error('redis down'));
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: false,
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches({ catalogPresence }),
+    });
+    expect(target?.config.model).toBe('paid/default');
+  });
+});
+
 describe('applyConfigToPersonality', () => {
   it('swaps the model and the FULL parameter set — unset target params are cleared, not inherited', () => {
     const personality = {
@@ -591,5 +683,27 @@ describe('selectFloorTarget (the D12 second hop)', () => {
       caches: caches('divergent/paid-floor'),
     });
     expect(target).toBeNull();
+  });
+
+  it('returns null when the floor model is catalog-absent', async () => {
+    registerFloors('divergent/paid-floor', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: [],
+      cacheKeyId: 'user:1',
+      caches: { ...caches(), catalogPresence: vi.fn().mockResolvedValue(false) },
+    });
+    expect(target).toBeNull();
+  });
+
+  it('returns the floor target when the catalog is unavailable (null) — fail-open', async () => {
+    registerFloors('divergent/paid-floor', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: [],
+      cacheKeyId: 'user:1',
+      caches: { ...caches(), catalogPresence: vi.fn().mockResolvedValue(null) },
+    });
+    expect(target?.config.model).toBe('divergent/paid-floor');
   });
 });

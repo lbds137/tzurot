@@ -18,7 +18,9 @@ import {
   __resetErrorChannelReporterForTests,
   type ErrorReport,
   reportDeliveryFailure,
+  reportQuotaFallbackRescue,
 } from './ErrorChannelReporter.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 
 function makeReport(overrides: Partial<ErrorReport> = {}): ErrorReport {
   return {
@@ -200,6 +202,12 @@ describe('ErrorChannelReporter', () => {
       expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
     });
 
+    it('does not report the guest-mode admission-time substitution — a proactive, expected swap', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError('guest_mode');
+      expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+    });
+
     it('reports a non-deny-listed category', () => {
       initErrorChannelReporter(fakeClient());
       reportJobError('server_error');
@@ -212,7 +220,7 @@ describe('ErrorChannelReporter', () => {
       expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
     });
 
-    it('exhaustively lists exactly the two documented classes', () => {
+    it('exhaustively lists exactly the three documented classes', () => {
       expect([...JOB_ERROR_SKIP_CATEGORIES].sort()).toEqual(
         [
           'rate_limit',
@@ -222,6 +230,7 @@ describe('ErrorChannelReporter', () => {
           'content_policy',
           'censored',
           'provider_content_refused',
+          'guest_mode',
         ].sort()
       );
     });
@@ -314,6 +323,77 @@ describe('ErrorChannelReporter', () => {
       expect(serialized).not.toContain('SENTINEL_MULTILINE_EMBED');
       // The genuine frame still survives, so this is not passing by posting nothing.
       expect(serialized).toContain('/app/real.ts:9:9');
+    });
+  });
+
+  describe('rescue vs. failure rendering', () => {
+    function lastEmbedJson(): {
+      title?: string;
+      color?: number;
+      fields?: { name: string; value: string }[];
+    } {
+      const call = mockPostOwnerChannelEmbed.mock.calls.at(-1) as [
+        unknown,
+        { toJSON: () => unknown },
+      ];
+      return call[1].toJSON() as {
+        title?: string;
+        color?: number;
+        fields?: { name: string; value: string }[];
+      };
+    }
+
+    it('renders a rescued report with the warning title, warning color, and Outcome field', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-rescue-render');
+
+      const json = lastEmbedJson();
+      expect(json.title).toContain('⚠️');
+      expect(json.title).toContain('(rescued)');
+      expect(json.color).toBe(DISCORD_COLORS.WARNING);
+      expect(json.fields?.some(f => f.name === 'Outcome' && f.value.includes('rescued'))).toBe(
+        true
+      );
+    });
+
+    it('renders a failure report of the same category unchanged: 🚨 title, ERROR color, no Outcome field', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError('model_not_found', 'req-failure-render');
+
+      const json = lastEmbedJson();
+      expect(json.title).toContain('🚨');
+      expect(json.title).not.toContain('(rescued)');
+      expect(json.color).toBe(DISCORD_COLORS.ERROR);
+      expect(json.fields?.some(f => f.name === 'Outcome')).toBe(false);
+    });
+
+    it('dedup separation: a rescue and a failure of the SAME category both post within one window', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-both-1');
+      reportJobError('model_not_found', 'req-both-2');
+
+      expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(2);
+    });
+
+    it('two rescues of the same category still dedup as before (second is suppressed)', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-rescue-dup-1');
+      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-rescue-dup-2');
+
+      expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    });
+
+    it('canary: the rescued/failure discriminator can actually fail (pins that the assertion is load-bearing)', () => {
+      // This test intentionally asserts the OPPOSITE of the real branch to
+      // document the canary result inline: reverting buildEmbed's rescued
+      // branch (e.g. always using DISCORD_COLORS.ERROR) turns the two
+      // rendering tests above red. See the PR report for the actual red-tail
+      // capture from temporarily reverting the branch.
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-canary');
+
+      const json = lastEmbedJson();
+      expect(json.color).not.toBe(DISCORD_COLORS.ERROR);
     });
   });
 });
