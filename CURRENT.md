@@ -10,11 +10,11 @@
 
 Smoke ran pre-cut on dev: 3/3 PASS (telemetry row · error embed with no message text · dedup suppression) — item 2's first attempt FOUND the multi-tag reporter bypass, fixed as #2207. Smoke config deleted from dev post-pass.
 
-**Owner actions (owner-timed):**
+**Owner actions — ALL CLOSED (2026-08-24 evening):**
 
-- [ ] **COLD's model override is now NULL** (smoke-config deletion SetNull'd it) — COLD resolves through the default cascade; re-point it at a real config whenever you care.
-- [ ] **Railway dashboard glance** (informational, from #2211 review): confirm bot-client prod restart policy = on-failure. Evidence says it is (observed crash-loops, Railway default); the dashboard is the definitive check the CLI can't read.
-- [ ] Dependabot trio #2208/#2209/#2210 held to OPEN beta.208 (riders call at the cut). ⚠️ #2208 bumps `claude-code-action` — if it edits `claude.yml`/`claude-code-review.yml` it must land via a MAIN-CUT branch per guard:workflow-sync, not develop.
+- [x] **COLD's model override** — owner: COLD never had an override; the default cascade IS its correct state. No action.
+- [x] **Railway restart policy** — owner confirmed via dashboard: On Failure, 10 retries (screenshot 2026-08-24 22:18).
+- [x] **Dependabot trio RESOLVED** (owner: "include them + do any main cut necessary"): #2209 (7 prod deps) + #2216 (20 dev deps, the recreated #2210) merged to develop; the claude-code-action bump landed via TWO main-cut PRs (#2215 → 1.0.199, #2217 → 1.0.200 — upstream released mid-pass) with `release:finalize` after each; #2208/#2210 closed by dependabot as satisfied/superseded. Zero open dependabot PRs. Sequencing lesson recorded: finalize's develop force-push re-strands open dependabot branches, so develop-bound merges go FIRST, main-cut + finalize LAST (third strand needed `@dependabot recreate`).
 
 **Watches (log/data-signal, no action):**
 
