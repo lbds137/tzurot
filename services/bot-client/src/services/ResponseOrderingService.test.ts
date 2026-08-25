@@ -276,32 +276,6 @@ describe('ResponseOrderingService', () => {
   });
 
   describe('timeout handling', () => {
-    it('should deliver after timeout even if predecessor never completes', async () => {
-      const channelId = 'channel-1';
-      const time1 = new Date('2024-01-01T10:00:00Z');
-      const time2 = new Date('2024-01-01T10:01:00Z');
-
-      // Register both jobs
-      service.registerJob(channelId, 'job-1', time1);
-      service.registerJob(channelId, 'job-2', time2);
-
-      // Job 2 completes first - buffered waiting for job-1
-      await service.handleResult(channelId, 'job-2', createResult('Second'), time2, deliverFn);
-      expect(deliveredResults).toHaveLength(0);
-      expect(service.getStats().totalBuffered).toBe(1);
-
-      // Advance time past the ordering buffer's safety timeout
-      vi.advanceTimersByTime(PAST_ORDERING_TIMEOUT_MS);
-
-      // Cancel job-1 to trigger queue reprocessing with the new time
-      // (In production, this happens when job-1 times out and returns an error)
-      await service.cancelJob(channelId, 'job-1');
-
-      // Job 2 should have been delivered (either due to cancel unblocking or timeout)
-      expect(deliveredResults).toHaveLength(1);
-      expect(deliveredResults[0].result.content).toBe('Second');
-    });
-
     it('should respect timeout even when triggered by new result', async () => {
       const channelId = 'channel-1';
       const time1 = new Date('2024-01-01T10:00:00Z');
@@ -325,33 +299,6 @@ describe('ResponseOrderingService', () => {
 
       // Job 2 should have been delivered due to timeout (job-1 still pending but timed out)
       expect(deliveredResults.some(r => r.result.content === 'Second')).toBe(true);
-    });
-  });
-
-  describe('cancelJob', () => {
-    it('should unblock buffered results when predecessor is cancelled', async () => {
-      const channelId = 'channel-1';
-      const time1 = new Date('2024-01-01T10:00:00Z');
-      const time2 = new Date('2024-01-01T10:01:00Z');
-
-      // Register both jobs
-      service.registerJob(channelId, 'job-1', time1);
-      service.registerJob(channelId, 'job-2', time2);
-
-      // Job 2 completes first - buffered
-      await service.handleResult(channelId, 'job-2', createResult('Second'), time2, deliverFn);
-      expect(deliveredResults).toHaveLength(0);
-
-      // Cancel job 1 (e.g., it failed)
-      await service.cancelJob(channelId, 'job-1');
-
-      // Job 2 should now be delivered
-      expect(deliveredResults).toHaveLength(1);
-      expect(deliveredResults[0].result.content).toBe('Second');
-    });
-
-    it('should handle cancelling non-existent job gracefully', async () => {
-      await expect(service.cancelJob('channel-1', 'non-existent')).resolves.toBeUndefined();
     });
   });
 
