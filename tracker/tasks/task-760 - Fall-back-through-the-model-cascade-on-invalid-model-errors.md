@@ -1,9 +1,10 @@
 ---
 id: TASK-760
 title: Fall back through the model cascade on invalid-model errors
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 11:40'
+updated_date: '2026-08-25 19:43'
 labels:
   - 'area:ai-worker'
   - 'size:M'
