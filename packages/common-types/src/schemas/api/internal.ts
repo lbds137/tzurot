@@ -11,6 +11,7 @@ import { forwardedOriginSchema, messageMetadataSchema } from '../../types/schema
 import { guildMemberInfoSchema } from '../../types/schemas/discord.js';
 import { SYNC_LIMITS } from '../../constants/timing.js';
 import { DISCORD_SNOWFLAKE } from '../../constants/discord.js';
+import { AccountExportJobStatusSchema } from './account.js';
 
 // ============================================================================
 // GET /internal/users/recent
@@ -653,4 +654,62 @@ export const RecordCommandEventRequestSchema = z.object({
  */
 export const RecordCommandEventResponseSchema = z.object({
   recorded: z.boolean(),
+});
+
+// ============================================================================
+// POST /internal/export-smoke/start
+// GET  /internal/export-smoke/status
+//
+// Weekly export-path smoke: drives the real account-export job pipeline
+// (assembler → ZIP → download) against a system-reserved sentinel account
+// (`ORPHAN_SENTINEL_DISCORD_ID`), never a real user. `start` snapshots
+// expected row counts from the source DB so the smoke can assert the
+// finished artifact's manifest against them; `status` polls the resulting
+// export_jobs row by id. No human-actor semantics — service-auth only, like
+// every other /internal/* route.
+// ============================================================================
+
+/**
+ * The `ExpectedExportManifestInput` payload (see
+ * `@tzurot/common-types/schemas/export/accountExportManifest`), minus
+ * `directory` — the finished export artifact supplies `personality-
+ * directory.json` itself, so the smoke doesn't need the gateway to echo it
+ * back. `totals` is a convenience denormalization of the count maps for a
+ * cheap sanity check before the smoke parses the full artifact.
+ */
+export const ExportSmokeExpectedCountsSchema = z.object({
+  personas: z.array(z.object({ id: z.string().uuid(), name: z.string() })),
+  characters: z.array(z.object({ id: z.string().uuid(), slug: z.string() })),
+  conversationCountsByPersonalityId: z.record(z.string(), z.number().int().nonnegative()),
+  memoryCountsByPersonalityId: z.record(z.string(), z.number().int().nonnegative()),
+  factCountsByPersonalityId: z.record(z.string(), z.number().int().nonnegative()),
+  totals: z.object({
+    personas: z.number().int().nonnegative(),
+    characters: z.number().int().nonnegative(),
+    conversations: z.number().int().nonnegative(),
+    memories: z.number().int().nonnegative(),
+    facts: z.number().int().nonnegative(),
+  }),
+  /** The sentinel is never a superuser — always false for the smoke's own row. */
+  isSuperuser: z.boolean(),
+});
+
+/** No request body — `.strict()` so a stray field is a parse error, not a silent no-op. */
+export const ExportSmokeStartRequestSchema = z.object({}).strict();
+
+export const ExportSmokeStartResponseSchema = z.object({
+  exportJobId: z.string().uuid(),
+  expectedCounts: ExportSmokeExpectedCountsSchema,
+});
+
+export const ExportSmokeStatusRequestSchema = z.object({
+  jobId: z.string().uuid(),
+});
+
+export const ExportSmokeStatusResponseSchema = z.object({
+  // The DB column is untyped varchar, but the smoke's own wire contract pins
+  // the known values — a typo'd status should fail parse loudly here rather
+  // than silently poll until the scheduler's timeout.
+  status: AccountExportJobStatusSchema,
+  downloadUrl: z.string().nullable(),
 });

@@ -10,6 +10,11 @@ import {
   StampUserActivityResponseSchema,
   RecordCommandEventRequestSchema,
   RecordCommandEventResponseSchema,
+  ExportSmokeStartRequestSchema,
+  ExportSmokeExpectedCountsSchema,
+  ExportSmokeStartResponseSchema,
+  ExportSmokeStatusRequestSchema,
+  ExportSmokeStatusResponseSchema,
   CommandEventChannelKindSchema,
   CommandEventOutcomeSchema,
   MessagePersonalityResponseSchema,
@@ -1294,5 +1299,83 @@ describe('RecordCommandEventResponseSchema', () => {
   it('requires the recorded flag', () => {
     expect(RecordCommandEventResponseSchema.safeParse({ recorded: true }).success).toBe(true);
     expect(RecordCommandEventResponseSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('ExportSmokeStartRequestSchema', () => {
+  it('accepts an empty body', () => {
+    expect(ExportSmokeStartRequestSchema.safeParse({}).success).toBe(true);
+  });
+
+  it('rejects a stray field (strict, no request body expected)', () => {
+    expect(ExportSmokeStartRequestSchema.safeParse({ extra: true }).success).toBe(false);
+  });
+});
+
+describe('ExportSmokeExpectedCountsSchema / ExportSmokeStartResponseSchema', () => {
+  const VALID_COUNTS = {
+    personas: [{ id: '829e4567-e89b-42d3-a456-426614174000', name: 'Alex' }],
+    characters: [{ id: '829e4567-e89b-42d3-a456-426614174001', slug: 'my-character' }],
+    conversationCountsByPersonalityId: { '829e4567-e89b-42d3-a456-426614174001': 3 },
+    memoryCountsByPersonalityId: {},
+    factCountsByPersonalityId: {},
+    totals: { personas: 1, characters: 1, conversations: 3, memories: 0, facts: 0 },
+    isSuperuser: false,
+  };
+
+  it('accepts a valid expected-counts payload', () => {
+    expect(ExportSmokeExpectedCountsSchema.safeParse(VALID_COUNTS).success).toBe(true);
+  });
+
+  it('rejects a negative count', () => {
+    expect(
+      ExportSmokeExpectedCountsSchema.safeParse({
+        ...VALID_COUNTS,
+        conversationCountsByPersonalityId: { p1: -1 },
+      }).success
+    ).toBe(false);
+  });
+
+  it('accepts a valid start response envelope', () => {
+    const result = ExportSmokeStartResponseSchema.safeParse({
+      exportJobId: '829e4567-e89b-42d3-a456-426614174002',
+      expectedCounts: VALID_COUNTS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a non-uuid exportJobId', () => {
+    expect(
+      ExportSmokeStartResponseSchema.safeParse({
+        exportJobId: 'not-a-uuid',
+        expectedCounts: VALID_COUNTS,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('ExportSmokeStatusRequestSchema / ExportSmokeStatusResponseSchema', () => {
+  it('requires a uuid jobId', () => {
+    expect(
+      ExportSmokeStatusRequestSchema.safeParse({
+        jobId: '829e4567-e89b-42d3-a456-426614174000',
+      }).success
+    ).toBe(true);
+    expect(ExportSmokeStatusRequestSchema.safeParse({ jobId: 'not-a-uuid' }).success).toBe(false);
+  });
+
+  it('accepts a completed status with a download URL', () => {
+    expect(
+      ExportSmokeStatusResponseSchema.safeParse({
+        status: 'completed',
+        downloadUrl: 'https://example.invalid/exports/token',
+      }).success
+    ).toBe(true);
+  });
+
+  it('accepts a pending status with a null download URL', () => {
+    expect(
+      ExportSmokeStatusResponseSchema.safeParse({ status: 'pending', downloadUrl: null }).success
+    ).toBe(true);
   });
 });

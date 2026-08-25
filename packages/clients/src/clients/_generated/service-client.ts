@@ -430,4 +430,31 @@ export class ServiceClient {
       outputSchema: ROUTE_MANIFEST.recordCommandEvent.output,
     });
   }
+
+  async startExportSmoke(input: z.input<typeof ROUTE_MANIFEST.startExportSmoke.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startExportSmoke.output>>> {
+    const fullPath = '/api/internal/export-smoke/start';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.startExportSmoke.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async getExportSmokeStatus(options: { jobId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getExportSmokeStatus.output>>> {
+    const fullPath = '/api/internal/export-smoke/status' + buildQueryString([['jobId', options.jobId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.getExportSmokeStatus.output,
+      timeoutMs: ROUTE_MANIFEST.getExportSmokeStatus.timeoutMs,
+    });
+  }
 }
