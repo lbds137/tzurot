@@ -378,16 +378,6 @@ function createServices(): Services {
     stateQueue: multiTagStateQueue,
   });
 
-  // Live failure routing: now that the coordinator exists, wire the
-  // failure listener so it can route multi-tag slot failures through
-  // `coordinator.handleJobResult` instead of falling through to the
-  // single-tag-only `cancelJob` path.
-  const jobFailureListener = new JobFailureListener(
-    jobTracker,
-    responseOrderingService,
-    multiTagCoordinator
-  );
-
   // Message-handling stack: processor chain (order matters) + MessageHandler.
   const messageHandler = buildMessageHandler({
     denylistCache,
@@ -405,6 +395,18 @@ function createServices(): Services {
     client,
     maintenanceFlag,
   });
+
+  // Live failure routing: now that both the coordinator and messageHandler
+  // exist, wire the failure listener so it can route multi-tag slot failures
+  // through `coordinator.handleJobResult`, and single-tag (legacy) failures
+  // through `messageHandler.handleJobResult`, instead of leaving either kind
+  // of hard failure silent to the user.
+  const jobFailureListener = new JobFailureListener(
+    jobTracker,
+    responseOrderingService,
+    multiTagCoordinator,
+    messageHandler
+  );
 
   // Register services for global access (used by slash commands)
   registerServices({
@@ -730,10 +732,12 @@ async function startResultsListener(): Promise<void> {
   });
   logger.info('Results listener started');
 
-  // Failure listener subscribes to BullMQ QueueEvents and unblocks the channel
-  // ordering queue when an AI job ends without producing a result. Placement
-  // after ResultsListener is stylistic — both subscribers are independent and
-  // the ordering doesn't affect correctness.
+  // Failure listener subscribes to BullMQ QueueEvents and delivers a
+  // synthesized failure result when an AI job ends without ever producing one
+  // (multi-tag slots via the coordinator; single-tag jobs through the same
+  // ordering-service + MessageHandler path the results listener above uses).
+  // Placement after ResultsListener is stylistic — both subscribers are
+  // independent and the ordering doesn't affect correctness.
   services.jobFailureListener.start();
 }
 
