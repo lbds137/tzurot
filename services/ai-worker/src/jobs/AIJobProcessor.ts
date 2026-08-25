@@ -56,6 +56,16 @@ import { processAccountExportJob } from './AccountExportJob.js';
 const logger = createLogger('AIJobProcessor');
 const LOG_PROCESSING_JOB = '[AIJobProcessor] Processing job';
 
+/**
+ * Map the generation result's guest-mode flag onto the tri-state `byok`
+ * column. Absent metadata is "not applicable" (null), never "free tier"
+ * (false) — a system/background call and a free-tier user's call are
+ * different facts and the column must keep them distinct.
+ */
+export function deriveByok(isGuestMode: boolean | undefined): boolean | null {
+  return isGuestMode === undefined ? null : !isGuestMode;
+}
+
 /** Options for constructing AIJobProcessor */
 interface AIJobProcessorOptions {
   /** Required: Prisma client for database operations */
@@ -434,6 +444,9 @@ export class AIJobProcessor {
             tokensOut,
             requestType: 'llm_generation',
             createdAt,
+            latencyMs: result.metadata?.processingTimeMs ?? null,
+            byok: deriveByok(result.metadata?.isGuestMode),
+            personalityId: personality.id,
           },
         });
 

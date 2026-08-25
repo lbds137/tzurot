@@ -32,7 +32,11 @@ export default defineConfig({
 
     // Run component tests - co-located *.component.test.ts files
     include: ['**/*.component.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
+    // .claude/worktrees holds live agent checkouts of this same repo; without
+    // the exclude, the bare include glob sweeps their duplicate test files,
+    // which then resolve the aliased packages from THIS tree and everything
+    // else from their own — a cross-tree mix that fails on any schema skew.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts', '**/.claude/**'],
 
     // Component tests need longer timeouts
     testTimeout: TEST_TIMEOUTS.INTEGRATION_TEST,

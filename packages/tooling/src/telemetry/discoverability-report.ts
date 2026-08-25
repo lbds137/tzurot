@@ -7,16 +7,12 @@
  * user id.
  */
 
-import { writeFileSync } from 'node:fs';
-import chalk from 'chalk';
-import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
-import { createPrismaClient } from '@tzurot/common-types/services/prisma';
+import type { Environment } from '../utils/env-runner.js';
 import {
-  type Environment,
-  validateEnvironment,
-  showEnvironmentBanner,
-  getRailwayDatabaseUrl,
-} from '../utils/env-runner.js';
+  runTelemetryReport,
+  type PrismaQueryable,
+  type TelemetryReportOptions,
+} from './reportRunner.js';
 
 /**
  * A row is flagged when its user_error share meets or exceeds this ratio —
@@ -26,12 +22,6 @@ const USER_ERROR_RATIO_THRESHOLD = 0.2;
 
 /** Below this many invocations, a ratio is noise rather than signal. */
 const USER_ERROR_MIN_INVOCATIONS = 5;
-
-export interface TelemetryReportOptions {
-  env: Environment;
-  days?: number | string;
-  output?: string;
-}
 
 /** Raw shape returned by the per-command query — counts arrive as `bigint`. */
 export interface PerCommandRawRow {
@@ -89,22 +79,6 @@ export interface ReportData {
   header: HeaderStats;
   perCommand: PerCommandStats[];
   breadthBuckets: BreadthBucket[];
-}
-
-/**
- * Parse and validate the `--days` option. Returns a positive integer or
- * throws a plain `Error` describing why the input was rejected — the caller
- * prints it and returns before opening a DB connection.
- */
-export function parseDays(input: number | string | undefined): number {
-  if (input === undefined) {
-    return 30;
-  }
-  const asNumber = typeof input === 'string' ? Number(input) : input;
-  if (!Number.isInteger(asNumber) || asNumber <= 0) {
-    throw new Error(`--days must be a positive integer, got: ${String(input)}`);
-  }
-  return asNumber;
 }
 
 /** Bucket a single breadth value into one of the four fixed labels. */
@@ -214,7 +188,7 @@ export function renderDiscoverabilityMarkdown(data: ReportData): string {
 }
 
 async function queryReportData(
-  prisma: { $queryRaw: <T>(strings: TemplateStringsArray, ...values: unknown[]) => Promise<T> },
+  prisma: PrismaQueryable,
   env: Environment,
   days: number
 ): Promise<ReportData> {
@@ -273,36 +247,7 @@ async function queryReportData(
  * window. Read-only: SELECTs only, never mutates `command_events`.
  */
 export async function telemetryReport(options: TelemetryReportOptions): Promise<void> {
-  let days: number;
-  try {
-    days = parseDays(options.days);
-  } catch (error) {
-    console.error(chalk.red(error instanceof Error ? error.message : String(error)));
-    process.exitCode = 1;
-    return;
-  }
-
-  const env = options.env;
-  validateEnvironment(env);
-  showEnvironmentBanner(env);
-
-  if (env !== 'local') {
-    process.env.DATABASE_URL = getRailwayDatabaseUrl(env);
-  }
-
-  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
-
-  try {
-    const data = await queryReportData(prisma, env, days);
-    const markdown = renderDiscoverabilityMarkdown(data);
-
-    if (options.output !== undefined) {
-      writeFileSync(options.output, markdown, 'utf-8');
-      console.log(chalk.dim(`Report written to ${options.output}`));
-    } else {
-      console.log(markdown);
-    }
-  } finally {
-    await dispose().catch(() => undefined);
-  }
+  await runTelemetryReport(options, async (prisma, env, days) =>
+    renderDiscoverabilityMarkdown(await queryReportData(prisma, env, days))
+  );
 }

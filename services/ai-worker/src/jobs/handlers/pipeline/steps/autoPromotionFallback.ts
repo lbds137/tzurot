@@ -85,6 +85,16 @@ export interface GenerateAttemptResult {
    */
   effectiveProviderUsed?: AIProvider;
   /**
+   * The guest-mode flag the SERVING attempt actually ran under, set only when
+   * a fallback swap changed the credentials mid-turn (a credit-exhausted BYOK
+   * request retargeted onto the system key runs with guest semantics).
+   * `undefined` on the happy path, where the caller's own isGuestMode is
+   * already effective. Consumers use `effectiveIsGuestMode ?? isGuestMode` —
+   * the usage row's `byok` column derives from this, so a stale value
+   * misclassifies a system-key rescue as BYOK spend.
+   */
+  effectiveIsGuestMode?: boolean;
+  /**
    * Footer announce info for a swap that SERVED the response, set only when
    * the promoted attempt's failure classifies as a quota-class category (the
    * three the footer renders). Without this, the FIRST fallback response of
@@ -182,7 +192,11 @@ export async function runWithAutoPromotionFallback(
       // ApiError whose generic message would regex-parse to the WRONG category.
       const category = classifyBillingQuotaFailure(originalError);
       if (category === null) {
-        return { ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter };
+        return {
+          ...fallbackResult,
+          effectiveProviderUsed: AIProvider.OpenRouter,
+          effectiveIsGuestMode: fallback.isGuestMode,
+        };
       }
       const info: QuotaFallbackInfo = {
         fromModel: opts.personality.model,
@@ -207,6 +221,7 @@ export async function runWithAutoPromotionFallback(
       return {
         ...fallbackResult,
         effectiveProviderUsed: AIProvider.OpenRouter,
+        effectiveIsGuestMode: fallback.isGuestMode,
         autoPromotionFallback: info,
       };
     } catch (fallbackError) {

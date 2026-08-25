@@ -372,7 +372,7 @@ describe('runWithQuotaFallback', () => {
     const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.CREDIT_EXHAUSTION));
     const retry = vi.fn().mockResolvedValue(okResult);
 
-    await runWithQuotaFallback({
+    const result = await runWithQuotaFallback({
       primary,
       retry,
       opts: buildOpts(),
@@ -388,6 +388,28 @@ describe('runWithQuotaFallback', () => {
         personality: expect.objectContaining({ model: 'freebie/model:free' }),
       })
     );
+    // The BYOK→guest swap must reach the result, not just the retry call: the
+    // usage row's byok column derives from effectiveIsGuestMode, and the stale
+    // pre-retarget value would record this system-key rescue as BYOK spend.
+    expect(result.effectiveIsGuestMode).toBe(true);
+  });
+
+  it('same-key retargets report the unchanged guest-mode as effective (no false swap)', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.QUOTA_EXCEEDED));
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'paid/default', temperature: 0.5 } as never }),
+    });
+
+    // The retarget kept the user's own key, so the effective flag mirrors the
+    // original false — the `?? isGuestMode` consumer fallback stays a no-op.
+    expect(result.effectiveIsGuestMode).toBe(false);
   });
 
   it('meters the credit-exhausted BYOK → shared-system-key transition exactly once', async () => {

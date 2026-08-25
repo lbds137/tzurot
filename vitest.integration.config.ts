@@ -41,7 +41,10 @@ export default defineConfig({
     // the code they lock (e.g. the golden-fixture consumer test in ai-worker) or
     // live under tests/e2e/ (the BullMQ pair) — match both by suffix, repo-wide.
     include: ['**/*.integration.test.ts', '**/*.contract.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
+    // .claude/worktrees holds live agent checkouts of this same repo — exclude
+    // them or the repo-wide glob sweeps their duplicate test files (see the
+    // matching note in vitest.component.config.ts).
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts', '**/.claude/**'],
 
     // These tiers need longer timeouts
     testTimeout: TEST_TIMEOUTS.INTEGRATION_TEST,

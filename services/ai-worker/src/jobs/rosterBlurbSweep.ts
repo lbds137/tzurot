@@ -265,6 +265,7 @@ async function logUsage(
         tokensOut: usage.tokensOut,
         requestType: 'roster_blurb',
         createdAt,
+        personalityId,
       },
     });
   } catch (error) {

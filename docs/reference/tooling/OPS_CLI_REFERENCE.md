@@ -136,9 +136,10 @@ Characters sentinel — are always excluded.
 
 ## Telemetry Commands
 
-| Command                                | Description                                                          |
-| -------------------------------------- | -------------------------------------------------------------------- |
-| `pnpm ops telemetry:report --env prod` | Command discoverability report over `command_events` (**read-only**) |
+| Command                                   | Description                                                                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm ops telemetry:report --env prod`    | Command discoverability report over `command_events` (**read-only**)                   |
+| `pnpm ops telemetry:inference --env prod` | Inference usage report over `usage_logs` — tokens, BYOK split, latency (**read-only**) |
 
 ## Context Commands
 

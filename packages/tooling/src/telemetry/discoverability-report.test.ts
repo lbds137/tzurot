@@ -61,28 +61,6 @@ describe('discoverability-report', () => {
     vi.useRealTimers();
   });
 
-  describe('parseDays', () => {
-    it('defaults to 30 when undefined', async () => {
-      const { parseDays } = await import('./discoverability-report.js');
-      expect(parseDays(undefined)).toBe(30);
-    });
-
-    it('accepts a valid positive integer string', async () => {
-      const { parseDays } = await import('./discoverability-report.js');
-      expect(parseDays('7')).toBe(7);
-    });
-
-    it('accepts a valid positive integer number', async () => {
-      const { parseDays } = await import('./discoverability-report.js');
-      expect(parseDays(14)).toBe(14);
-    });
-
-    it.each([0, -1, 2.5, 'abc'])('rejects invalid --days value %p', async input => {
-      const { parseDays } = await import('./discoverability-report.js');
-      expect(() => parseDays(input as never)).toThrow();
-    });
-  });
-
   describe('bucketBreadth', () => {
     it('buckets every boundary correctly', async () => {
       const { bucketBreadth } = await import('./discoverability-report.js');

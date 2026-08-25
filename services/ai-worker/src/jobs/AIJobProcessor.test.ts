@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AIJobProcessor } from './AIJobProcessor.js';
+import { AIJobProcessor, deriveByok } from './AIJobProcessor.js';
 import type { Job } from 'bullmq';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { ConversationalRAGService } from '../services/ConversationalRAGService.js';
@@ -676,6 +676,100 @@ describe('AIJobProcessor', () => {
       });
     });
 
+    it('maps a system/free-tier call (isGuestMode: true) to byok: false', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          providerUsed: 'openrouter',
+          isGuestMode: true,
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ byok: false }),
+      });
+    });
+
+    it('maps a BYOK call (isGuestMode: false) to byok: true', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          providerUsed: 'openrouter',
+          isGuestMode: false,
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ byok: true }),
+      });
+    });
+
+    it('maps an absent isGuestMode (system/background call) to byok: null, never false', async () => {
+      // Default mockProcessJob fixture omits isGuestMode entirely.
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ byok: null }),
+      });
+    });
+
+    it('carries text-generation pipeline latency onto latencyMs', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          providerUsed: 'openrouter',
+          processingTimeMs: 1234,
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ latencyMs: 1234 }),
+      });
+    });
+
+    it('leaves latencyMs null (never 0) when processingTimeMs is absent from metadata', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ latencyMs: null }),
+      });
+    });
+
+    it('attributes the usage row to the generating personality', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ personalityId: 'personality-123' }),
+      });
+    });
+
     it('stamps notifyOptedInAt on the first real generation (null-guarded)', async () => {
       const job = createMockJob(baseLLMJobData, 'llm-job-123');
 
@@ -1047,5 +1141,19 @@ describe('AIJobProcessor', () => {
       const result = await processor.processJob(job);
       expect(result.success).toBe(true);
     });
+  });
+});
+
+describe('deriveByok', () => {
+  it('maps isGuestMode: true (system/free key) to byok: false', () => {
+    expect(deriveByok(true)).toBe(false);
+  });
+
+  it('maps isGuestMode: false (the users own key) to byok: true', () => {
+    expect(deriveByok(false)).toBe(true);
+  });
+
+  it('maps an absent isGuestMode to byok: null, never false', () => {
+    expect(deriveByok(undefined)).toBeNull();
   });
 });

@@ -27,6 +27,7 @@ export default defineConfig({
       '**/dist/**',
       '**/*.d.ts',
       '**/tzurot-legacy/**',
+      '**/.claude/**', // Live agent worktrees are full checkouts of this repo — never collect their copies
       '**/*.component.test.ts', // Component tests use vitest.component.config.ts
       '**/*.integration.test.ts', // Integration tier uses vitest.integration.config.ts
       '**/*.contract.test.ts', // Contract tier uses vitest.integration.config.ts (colocated or under tests/e2e/)

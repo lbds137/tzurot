@@ -158,8 +158,14 @@ describe('runWithAutoPromotionFallback', () => {
     // The fallback keeps the default retry budget — only the primary fails fast.
     expect(attempt.mock.calls[1]?.[0]?.maxLlmAttempts).toBeUndefined();
     // Result is the fallback's, tagged with the effective provider (OpenRouter)
-    // so the response footer links to the OpenRouter model card, not z.ai docs.
-    expect(result).toEqual({ ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter });
+    // so the response footer links to the OpenRouter model card, not z.ai docs —
+    // and with the fallback credentials' own guest-mode flag, so the usage
+    // row's byok column reflects the key that actually served the request.
+    expect(result).toEqual({
+      ...fallbackResult,
+      effectiveProviderUsed: AIProvider.OpenRouter,
+      effectiveIsGuestMode: false,
+    });
   });
 
   it('attaches the reactive footer breadcrumb when the swap rescues a quota-class failure', async () => {
