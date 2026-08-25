@@ -3,6 +3,8 @@ import type { Channel } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
@@ -59,21 +61,51 @@ describe('runSlashChatGates', () => {
   });
 
   describe('denylist', () => {
-    it('blocks and replies when the personality is denied to the actor', async () => {
-      mockGetDenylistCache.mockReturnValue({ isPersonalityDenied: vi.fn().mockReturnValue(true) });
+    it('blocks with the explicit block message when denied in BLOCK mode', async () => {
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn().mockReturnValue(true),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
       const { context, editReply } = makeContext();
 
       const blocked = await runSlashChatGates(context, personality, channel, userClient);
 
       expect(blocked).toBe(true);
       expect(editReply).toHaveBeenCalledTimes(1);
+      expect(editReply).toHaveBeenCalledWith({
+        content:
+          "🚫 You don't have access to this character. If you think this is a mistake, contact the character's owner.",
+      });
+      // The NSFW gate must not run once denied.
+      expect(mockEvaluateNsfwGate).not.toHaveBeenCalled();
+    });
+
+    it('blocks with generic-failure copy (no denial language) when denied in MUTE mode', async () => {
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn().mockReturnValue(true),
+        isPersonalityMuted: vi.fn().mockReturnValue(true),
+      });
+      const { context, editReply } = makeContext();
+
+      const blocked = await runSlashChatGates(context, personality, channel, userClient);
+
+      expect(blocked).toBe(true);
+      expect(editReply).toHaveBeenCalledTimes(1);
+      expect(editReply).toHaveBeenCalledWith({
+        content: renderSpec(CATALOG.error.operationFailed('process the chat request')),
+      });
+      const [[{ content }]] = editReply.mock.calls;
+      expect(content).not.toMatch(/access|denied|denylist|🚫/i);
       // The NSFW gate must not run once denied.
       expect(mockEvaluateNsfwGate).not.toHaveBeenCalled();
     });
 
     it('bypasses the denylist for the bot owner', async () => {
       mockIsBotOwner.mockReturnValue(true);
-      mockGetDenylistCache.mockReturnValue({ isPersonalityDenied: vi.fn().mockReturnValue(true) });
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn().mockReturnValue(true),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
       const { context } = makeContext();
 
       const blocked = await runSlashChatGates(context, personality, channel, userClient);
