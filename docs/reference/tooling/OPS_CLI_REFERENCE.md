@@ -134,6 +134,12 @@ or their Discord account is gone) **and** inactive past the retention window.
 The bot owner and any `retention_exempt` account — including the Orphaned
 Characters sentinel — are always excluded.
 
+## Telemetry Commands
+
+| Command                                | Description                                                          |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `pnpm ops telemetry:report --env prod` | Command discoverability report over `command_events` (**read-only**) |
+
 ## Context Commands
 
 Quick codebase state for AI session startup:
