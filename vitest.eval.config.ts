@@ -21,7 +21,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/*.eval.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
+    // .claude/worktrees holds live agent checkouts of this repo — same
+    // exclude as the other root configs (see vitest.component.config.ts).
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts', '**/.claude/**'],
     // Deliberately NOT the shared TEST_TIMEOUTS constants: real embedding-model
     // load (cold cache) + per-golden embedding calls need more headroom than the
     // shared tiers provide.

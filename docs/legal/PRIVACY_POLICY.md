@@ -20,7 +20,7 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **API keys (BYOK).** If you connect your own AI-provider API key, it is encrypted at rest with AES-256-GCM (unique IV per encryption, authenticated tags) and used only to call that provider on your behalf. The same encryption applies to any external session credentials you supply for data imports.
 
-**Usage records.** Per-request logs of provider, model, and token counts — kept to prevent infrastructure abuse, including for users on their own keys. No message content is in these records.
+**Usage records.** Per-request logs of provider, model, and token counts — kept to prevent infrastructure abuse, including for users on their own keys. Each record also notes which of your characters it was for; AI-generation records additionally note how long the request took and whether it ran on your own API key or on the free tier. No message content is in these records.
 
 **Command telemetry.** One record per command you run: the command's name, whether it succeeded (and an error code if not), how long it took, the server and channel-kind (server/DM/thread) it ran in, and a few coarse technical tags (model family, provider, voice mode). No message content is ever in these records. Kept 12 months, included in your data export, and removed by account erasure.
 

@@ -38,7 +38,13 @@ function mockQuota(allowed = true): FreeTierRequestQuota {
 // wrapper, so the auth -> attemptOpts hop can be asserted. Delegates to the
 // REAL implementation, so no other test in this file changes behaviour — the
 // spy observes, it does not stub.
-const { quotaFallbackOptsSpy } = vi.hoisted(() => ({ quotaFallbackOptsSpy: vi.fn() }));
+const { quotaFallbackOptsSpy, quotaFallbackResultTransform } = vi.hoisted(() => ({
+  quotaFallbackOptsSpy: vi.fn(),
+  // Per-test hook to reshape the runner's RESULT (e.g. simulate a mid-turn
+  // credential swap by injecting effectiveIsGuestMode) without stubbing the
+  // runner itself — set `.fn`, reset in afterEach.
+  quotaFallbackResultTransform: { fn: null as null | ((result: unknown) => unknown) },
+}));
 
 vi.mock('./quotaFallbackRunner.js', async () => {
   const actual = await vi.importActual<typeof import('./quotaFallbackRunner.js')>(
@@ -46,9 +52,12 @@ vi.mock('./quotaFallbackRunner.js', async () => {
   );
   return {
     ...actual,
-    runWithQuotaFallback: (options: Parameters<typeof actual.runWithQuotaFallback>[0]) => {
+    runWithQuotaFallback: async (options: Parameters<typeof actual.runWithQuotaFallback>[0]) => {
       quotaFallbackOptsSpy(options.opts);
-      return actual.runWithQuotaFallback(options);
+      const result = await actual.runWithQuotaFallback(options);
+      return quotaFallbackResultTransform.fn === null
+        ? result
+        : quotaFallbackResultTransform.fn(result);
     },
   };
 });
@@ -406,6 +415,38 @@ describe('GenerationStep', () => {
 
       expect(result.result?.metadata?.configSource).toBe('user-personality');
       expect(result.result?.metadata?.isGuestMode).toBe(true);
+    });
+
+    it('reports the EFFECTIVE guest mode when a mid-turn credential swap changed it', async () => {
+      // A credit-exhausted BYOK request retargeted onto the system key runs
+      // with guest semantics; the runner reports that as effectiveIsGuestMode.
+      // The metadata (and so the usage row's byok column) must follow the key
+      // that actually served the request, not the pre-retarget auth.
+      const ragResponse: RAGResponse = {
+        content: 'Response',
+        retrievedMemories: 0,
+        tokensIn: 10,
+        tokensOut: 5,
+      };
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+      quotaFallbackResultTransform.fn = result => ({
+        ...(result as Record<string, unknown>),
+        effectiveIsGuestMode: true,
+      });
+
+      try {
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth, // isGuestMode: false — the stale pre-swap value
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.metadata?.isGuestMode).toBe(true);
+      } finally {
+        quotaFallbackResultTransform.fn = null;
+      }
     });
 
     it('should pass preprocessed attachments to RAG service', async () => {

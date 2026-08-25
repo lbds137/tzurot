@@ -199,6 +199,11 @@ describe('sweepRosterBlurbs', () => {
     expect(writeArgs).toContain('Ilana is a dry-witted archivist.');
     expect(writeArgs).toContain(stale.cardSourceHash);
     expect(usageCreate).toHaveBeenCalledTimes(1);
+    // The usage row is attributed to the character the blurb is FOR, not just
+    // its owner — the shared attribution column every write site populates.
+    expect(usageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ personalityId: stale.id }) })
+    );
     // A success clears failure state in the same statement that makes the row
     // current — otherwise a row that failed four times and then succeeded would
     // sit one failure away from a freeze it no longer deserves.

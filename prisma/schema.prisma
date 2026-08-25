@@ -193,9 +193,10 @@ model UsageLog {
   createdAt     DateTime     @default(now()) @map("created_at")
   /// Not-measured marker: NULL when the write site has no timing in scope
   /// (fact_extraction and roster_blurb system calls, plus all rows predating
-  /// the column); populated with end-to-end pipeline latency only by the
-  /// llm_generation path. Reads guard with != null and must not treat NULL
-  /// as zero latency.
+  /// the column); populated only by the llm_generation path with the
+  /// TEXT-GENERATION pipeline's latency — TTS synthesis runs after the
+  /// measurement and is not included. Reads guard with != null and must not
+  /// treat NULL as zero latency.
   latencyMs     Int?         @map("latency_ms")
   /// Tri-state applicability: NULL = the BYOK-vs-free distinction does not
   /// apply (system/background calls, rows predating the column); true = ran

@@ -161,6 +161,7 @@ export class GenerationStep implements IPipelineStep {
         echoRetries,
         leakedThinkingRetries,
         effectiveProviderUsed,
+        effectiveIsGuestMode,
         quotaFallback: reactiveQuotaFallback,
         autoPromotionFallback,
       } = await runWithQuotaFallback({
@@ -272,7 +273,11 @@ export class GenerationStep implements IPipelineStep {
               modelUsed: response.modelUsed,
               providerUsed: effectiveProviderUsed ?? provider,
               configSource,
-              isGuestMode,
+              // Effective guest-mode after any mid-turn credential swap (a
+              // credit-exhausted BYOK request retargeted onto the system key
+              // ran with guest semantics) — mirrors providerUsed above; the
+              // usage row's byok column derives from this.
+              isGuestMode: effectiveIsGuestMode ?? isGuestMode,
               // Include thinking content so it can be shown even on failure
               thinkingContent: response.thinkingContent,
               showModelFooter: context.configOverrides?.showModelFooter,
@@ -306,7 +311,10 @@ export class GenerationStep implements IPipelineStep {
             // when the promoted z.ai call failed), so the footer links correctly.
             providerUsed: effectiveProviderUsed ?? provider,
             configSource,
-            isGuestMode,
+            // Same mid-turn-swap correction as providerUsed: the usage row's
+            // byok column derives from this, and the pre-retarget value would
+            // record a system-key rescue as BYOK spend.
+            isGuestMode: effectiveIsGuestMode ?? isGuestMode,
             crossTurnDuplicateDetected: duplicateRetries > 0,
             freshModeEnabled: response.freshModeEnabled,
             incognitoModeActive: response.incognitoModeActive,

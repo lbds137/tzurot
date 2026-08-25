@@ -1,7 +1,7 @@
 /**
  * Telemetry CLI commands
  *
- * Read-only reporting over the `command_events` table.
+ * Read-only reporting over the `command_events` and `usage_logs` tables.
  */
 
 import type { CAC } from 'cac';
@@ -20,6 +20,20 @@ export function registerTelemetryCommands(cli: CAC): void {
     .action(async (options: { env?: Environment; days?: number | string; output?: string }) => {
       const { telemetryReport } = await import('../telemetry/discoverability-report.js');
       await telemetryReport({
+        env: options.env ?? 'dev',
+        days: options.days,
+        output: options.output,
+      });
+    });
+
+  cli
+    .command('telemetry:inference', 'Inference usage report over usage_logs (read-only)')
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--days <n>', 'Trailing window in days', { default: 30 })
+    .option('--output <file>', 'Write the markdown to a file instead of stdout')
+    .action(async (options: { env?: Environment; days?: number | string; output?: string }) => {
+      const { telemetryInferenceReport } = await import('../telemetry/inference-report.js');
+      await telemetryInferenceReport({
         env: options.env ?? 'dev',
         days: options.days,
         output: options.output,

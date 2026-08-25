@@ -324,6 +324,7 @@ export class FactExtractionService {
           tokensOut: modelResult.tokensOut,
           requestType: 'fact_extraction',
           createdAt,
+          personalityId: scope.personalityId,
         },
       });
     } catch (error) {
