@@ -5,7 +5,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ReferenceCrawler } from './ReferenceCrawler.js';
 import { ReferenceType } from './types.js';
-import { createMockMessage } from '../../test/mocks/Discord.mock.js';
+import {
+  createMockMessage,
+  createMockCollection,
+  createMockUser,
+} from '../../test/mocks/Discord.mock.js';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
 import type { LinkExtractor } from './LinkExtractor.js';
 
@@ -501,6 +505,423 @@ describe('ReferenceCrawler', () => {
       const result = await crawler.crawl(message);
 
       expect(result.messages.size).toBe(1); // Only one copy
+    });
+  });
+
+  describe('Transcript reply retargeting', () => {
+    it('retargets a transcript reply to its voice-message parent', async () => {
+      const voiceAttachment = { contentType: 'audio/ogg', duration: 5 };
+      const parentMessage = createMockMessage({
+        id: '100000000000000003',
+        author: createMockUser({ id: '200000000000000001' }),
+        content: 'voice note',
+        attachments: createMockCollection([['att-1', voiceAttachment]]),
+      });
+
+      const transcriptMessage = createMockMessage({
+        id: '100000000000000002',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'this is what you said',
+        reference: { messageId: '100000000000000003' } as any,
+        fetchReference: vi.fn().mockResolvedValue(parentMessage),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000001',
+        reference: { messageId: '100000000000000002' } as any,
+        fetchReference: vi.fn().mockResolvedValue(transcriptMessage),
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000002',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.REPLY,
+        },
+      ]);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000003')).toBe(true);
+      expect(result.messages.get('100000000000000003')?.message.author.id).toBe(
+        '200000000000000001'
+      );
+      expect(result.messages.has('100000000000000002')).toBe(false);
+    });
+
+    it('keeps the resolved message when the fetched parent has no voice attachment', async () => {
+      const plainParent = createMockMessage({
+        id: '100000000000000006',
+        content: 'plain text',
+      });
+
+      const noticeMessage = createMockMessage({
+        id: '100000000000000005',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: '⚠️ Please verify you are 18+ to continue.',
+        reference: { messageId: '100000000000000006' } as any,
+        fetchReference: vi.fn().mockResolvedValue(plainParent),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000004',
+        reference: { messageId: '100000000000000005' } as any,
+        fetchReference: vi.fn().mockResolvedValue(noticeMessage),
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000005',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.REPLY,
+        },
+      ]);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000005')).toBe(true);
+      expect(result.messages.has('100000000000000006')).toBe(false);
+    });
+
+    it('keeps the resolved message when fetching the parent fails', async () => {
+      const transcriptMessage = createMockMessage({
+        id: '100000000000000008',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'this is what you said',
+        reference: { messageId: '100000000000000009' } as any,
+        fetchReference: vi.fn().mockRejectedValue(new Error('Unknown Message')),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000007',
+        reference: { messageId: '100000000000000008' } as any,
+        fetchReference: vi.fn().mockResolvedValue(transcriptMessage),
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000008',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.REPLY,
+        },
+      ]);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000008')).toBe(true);
+    });
+
+    it('does not retarget a normal user message reference', async () => {
+      const referencedMessage = createMockMessage({
+        id: '100000000000000011',
+        author: createMockUser({ id: '300000000000000001', bot: false }),
+        content: 'a normal user reply target',
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000010',
+        reference: { messageId: '100000000000000011' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000011',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.REPLY,
+        },
+      ]);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000011')).toBe(true);
+    });
+
+    it('does not retarget a bot message with content but no reference of its own', async () => {
+      const referencedMessage = createMockMessage({
+        id: '100000000000000013',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'a bot reply with no reference of its own',
+        reference: null,
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000012',
+        reference: { messageId: '100000000000000013' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000013',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.REPLY,
+        },
+      ]);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000013')).toBe(true);
+    });
+
+    it('retargets a LINK-resolved transcript message to its voice-message parent', async () => {
+      const voiceAttachment = { contentType: 'audio/ogg', duration: 5 };
+      const parentMessage = createMockMessage({
+        id: '100000000000000103',
+        author: createMockUser({ id: '200000000000000101' }),
+        content: 'voice note',
+        attachments: createMockCollection([['att-1', voiceAttachment]]),
+      });
+
+      const transcriptMessage = createMockMessage({
+        id: '100000000000000102',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'this is what you said',
+        reference: { messageId: '100000000000000103' } as any,
+        fetchReference: vi.fn().mockResolvedValue(parentMessage),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000101',
+        content: 'https://discord.com/channels/1/2/100000000000000102',
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000102',
+          channelId: '2',
+          guildId: '1',
+          type: ReferenceType.LINK,
+          discordUrl: 'https://discord.com/channels/1/2/100000000000000102',
+        },
+      ]);
+
+      vi.mocked(mockLinkExtractor.fetchMessageFromLink).mockResolvedValue(transcriptMessage);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000103')).toBe(true);
+      expect(result.messages.get('100000000000000103')?.message.author.id).toBe(
+        '200000000000000101'
+      );
+      expect(result.messages.has('100000000000000102')).toBe(false);
+    });
+
+    it('retargets a bot notice whose parent is itself a voice message (documented residual)', async () => {
+      const voiceAttachment = { contentType: 'audio/ogg', duration: 5 };
+      const voiceParent = createMockMessage({
+        id: '100000000000000303',
+        author: createMockUser({ id: '200000000000000301' }),
+        content: 'voice note',
+        attachments: createMockCollection([['att-1', voiceAttachment]]),
+      });
+
+      // A transcription-failure notice: bot-authored reply with content whose
+      // parent IS the voice message — stage 1 matches, and stage 2 accepts.
+      const failureNotice = createMockMessage({
+        id: '100000000000000302',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: '⚠️ Could not transcribe this voice message.',
+        reference: { messageId: '100000000000000303' } as any,
+        fetchReference: vi.fn().mockResolvedValue(voiceParent),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000301',
+        reference: { messageId: '100000000000000302' } as any,
+        fetchReference: vi.fn().mockResolvedValue(failureNotice),
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000302',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.REPLY,
+        },
+      ]);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000303')).toBe(true);
+      expect(result.messages.has('100000000000000302')).toBe(false);
+    });
+
+    it('does not re-fetch the retargeted parent when the same transcript is referenced twice', async () => {
+      const voiceAttachment = { contentType: 'audio/ogg', duration: 5 };
+      const parentMessage = createMockMessage({
+        id: '100000000000000203',
+        author: createMockUser({ id: '200000000000000201' }),
+        content: 'voice note',
+        attachments: createMockCollection([['att-1', voiceAttachment]]),
+      });
+
+      const transcriptMessage = createMockMessage({
+        id: '100000000000000202',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'this is what you said',
+        reference: { messageId: '100000000000000203' } as any,
+        fetchReference: vi.fn().mockResolvedValue(parentMessage),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000201',
+        content:
+          'https://discord.com/channels/1/2/100000000000000202 and also https://discord.com/channels/1/2/100000000000000202',
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000202',
+          channelId: '2',
+          guildId: '1',
+          type: ReferenceType.LINK,
+          discordUrl: 'https://discord.com/channels/1/2/100000000000000202',
+        },
+        {
+          messageId: '100000000000000202',
+          channelId: '2',
+          guildId: '1',
+          type: ReferenceType.LINK,
+          discordUrl: 'https://discord.com/channels/1/2/100000000000000202',
+        },
+      ]);
+
+      vi.mocked(mockLinkExtractor.fetchMessageFromLink).mockResolvedValue(transcriptMessage);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000203')).toBe(true);
+      expect(transcriptMessage.fetchReference).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not re-crawl the parent when two DIFFERENT transcript chunks retarget to it', async () => {
+      // A long transcription posts several chunk replies against ONE voice
+      // message, so two distinct pre-retarget ids converge on the same parent.
+      const voiceAttachment = { contentType: 'audio/ogg', duration: 5 };
+      const parentMessage = createMockMessage({
+        id: '100000000000000403',
+        author: createMockUser({ id: '200000000000000401' }),
+        content: 'voice note',
+        attachments: createMockCollection([['att-1', voiceAttachment]]),
+      });
+
+      const chunkOne = createMockMessage({
+        id: '100000000000000401',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'first chunk of what you said',
+        reference: { messageId: '100000000000000403' } as any,
+        fetchReference: vi.fn().mockResolvedValue(parentMessage),
+      });
+      const chunkTwo = createMockMessage({
+        id: '100000000000000402',
+        author: createMockUser({ id: 'mock-client-bot-id', bot: true }),
+        content: 'second chunk of what you said',
+        reference: { messageId: '100000000000000403' } as any,
+        fetchReference: vi.fn().mockResolvedValue(parentMessage),
+      });
+
+      const message = createMockMessage({
+        id: '100000000000000400',
+        content:
+          'https://discord.com/channels/1/2/100000000000000401 https://discord.com/channels/1/2/100000000000000402',
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: '100000000000000401',
+          channelId: '2',
+          guildId: '1',
+          type: ReferenceType.LINK,
+          discordUrl: 'https://discord.com/channels/1/2/100000000000000401',
+        },
+        {
+          messageId: '100000000000000402',
+          channelId: '2',
+          guildId: '1',
+          type: ReferenceType.LINK,
+          discordUrl: 'https://discord.com/channels/1/2/100000000000000402',
+        },
+      ]);
+
+      vi.mocked(mockLinkExtractor.fetchMessageFromLink)
+        .mockResolvedValueOnce(chunkOne)
+        .mockResolvedValueOnce(chunkTwo);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('100000000000000403')).toBe(true);
+      // The parent is stored and BFS-queued exactly once: extraction runs for
+      // the root and for the parent — a re-queued parent would add a third.
+      expect(mockStrategy.extract).toHaveBeenCalledTimes(2);
     });
   });
 });
