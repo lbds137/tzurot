@@ -25,10 +25,16 @@ a file already in context, or work where the spec would genuinely cost more
 than the edit. Read fan-outs of ~4+ files go to Explore (`model: haiku`);
 file mutations use the Edit tool, never interpreter rewrite-scripts in
 Bash. The reason is arithmetic, not ideology: every main-loop tool call
-re-reads the full context (~50k weighted tokens per call, measured), so
-inline legwork bills the scarcest budget at the highest rate. Enforced by
+re-reads the full context (~50k weighted tokens per call, measured; ~85% of
+main-loop spend is that cache re-read, and the per-call cost scales with
+context length), so inline legwork bills the scarcest budget at the highest
+rate. Two corollaries with the same arithmetic: **batch independent
+bookkeeping commands into one Bash call** (each avoided call saves a full
+context re-read), and **treat compaction at clean unit boundaries as a cost
+lever, naming boundaries proactively** — halving average context roughly
+halves the dominant main-loop cost line. Enforced by
 `dispatch-posture-gate.sh` and `python-heredoc-edit-guard.sh`; measured by
-`/tzurot-usage-audit`.
+`/tzurot-usage-audit` (whose § Step 4a names the over-trajectory response).
 
 ## Boards are snapshots; git and code are the truth
 
