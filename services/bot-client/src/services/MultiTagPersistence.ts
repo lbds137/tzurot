@@ -496,8 +496,13 @@ export class MultiTagPersistence {
 
   /**
    * Returns true if a previous run already delivered this slot to Discord.
-   * Used by `MultiTagRecovery` to skip re-dispatching deferred deliveries
-   * for slots already sent. Fails closed (returns false) on Redis errors
+   * Read by `MultiTagRecovery.applyAlreadyDeliveredMarkers` at rehydration
+   * time: a slot with this marker carries `RuntimeSlot.alreadyDelivered`,
+   * which drops its deferred re-dispatch. When a sibling can still produce
+   * output the slot enters the rebuilt entry in a TERMINAL state, keeping it
+   * out of the re-armed safety timer's pending set; when every slot is marked,
+   * recovery discards the entry rather than rebuilding it. Fails closed
+   * (returns false) on Redis errors
    * because re-dispatching is safer than silently dropping: the failure
    * mode of a false negative is duplicate message; of a false positive,
    * permanently missing message. Duplicate is the better mode.

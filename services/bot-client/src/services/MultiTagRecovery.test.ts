@@ -24,6 +24,13 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { MultiTagRecovery, type MultiTagRecoveryDeps } from './MultiTagRecovery.js';
 import type { CoordinatorEntrySnapshot, SlotSnapshot } from './MultiTagPersistence.js';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { confirmDelivery } from '../utils/gatewayServiceCalls.js';
+
+// Only `confirmDelivery` is reached from this module; the rest of the gateway
+// surface is deliberately absent so a new import would fail loudly here.
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  confirmDelivery: vi.fn(),
+}));
 
 // Stable UUID for the test user's default persona; exercised in every resolution assertion.
 const RESOLVED_PERSONA_ID = '00000000-0000-4000-8000-000000000aaa';
@@ -166,6 +173,8 @@ describe('MultiTagRecovery', () => {
         fetch: vi.fn().mockResolvedValue(mockChannel as unknown as Channel),
       },
     };
+    vi.mocked(confirmDelivery).mockReset();
+    vi.mocked(confirmDelivery).mockResolvedValue(undefined);
 
     recovery = new MultiTagRecovery({
       persistence: persistence as unknown as MultiTagRecoveryDeps['persistence'],
@@ -384,6 +393,68 @@ describe('MultiTagRecovery', () => {
       expect(stats.slotsRecoveredCompleted).toBe(1);
       expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
       expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
+    });
+
+    it('an already-delivered completed slot does not keep an ancient entry alive for its still-pending sibling', async () => {
+      // Mixed ancient entry: Alice polled 'completed' AND carries the
+      // slot-delivered marker (the user already has her reply); Bob is
+      // genuinely in flight with no marker. The age gate's "real result"
+      // exception is evaluated against the SURVIVING deliveries, so Alice —
+      // already served — cannot vouch for Bob. Bob is the wedged-slot shape
+      // the gate exists for: if the old instance were alive it would have
+      // safety-flushed this group long ago.
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({
+            state: 'completed',
+            returnvalue: {
+              requestId: 'old-job-Alice',
+              success: true,
+              content: 'already sent',
+            } as LLMGenerationResult,
+          });
+        }
+        return buildMockJob({ state: 'waiting-children' });
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({
+          createdAt: ANCIENT(),
+          slots: [
+            {
+              slotIndex: 0,
+              personalityId: 'id-alice',
+              personalitySlug: 'alice',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Alice',
+              status: 'pending',
+            },
+            {
+              slotIndex: 1,
+              personalityId: 'id-bob',
+              personalitySlug: 'bob',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Bob',
+              status: 'pending',
+            },
+          ],
+        }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+      // Bob's jobId is marked stale so a late arrival for the discarded entry
+      // is dropped rather than delivered against nothing.
+      expect(persistence.markStale).toHaveBeenCalledWith('old-job-Alice', 'old-job-Bob');
     });
 
     it('a YOUNG entry with a pending slot adopts as before (regression guard)', async () => {
@@ -728,6 +799,408 @@ describe('MultiTagRecovery', () => {
       expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
       expect(coordinator.handleJobResult).toHaveBeenCalledWith('old-job-Bob', bobResult);
       expect(stats.slotsAlreadyDelivered).toBe(1);
+    });
+
+    it('counts an already-delivered slot only once, under slotsAlreadyDelivered', async () => {
+      // Disjointness of the aggregate RecoveryStats: both slots poll
+      // 'completed', but Alice carries the delivered marker. Alice must NOT
+      // also appear in slotsRecoveredCompleted — otherwise the top-level
+      // recovery-health numbers overstate dispatches and stop reconciling
+      // against the sum of the per-entry 'Multi-tag entry rehydrated' logs,
+      // which are computed from the post-marker-pass survivors.
+      queue.getJob.mockImplementation(async (jobId: string) =>
+        buildMockJob({
+          state: 'completed',
+          returnvalue: { requestId: jobId, success: true, content: 'content' },
+        })
+      );
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({
+          slots: [
+            {
+              slotIndex: 0,
+              personalityId: 'id-alice',
+              personalitySlug: 'alice',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Alice',
+              status: 'pending',
+            },
+            {
+              slotIndex: 1,
+              personalityId: 'id-bob',
+              personalitySlug: 'bob',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Bob',
+              status: 'pending',
+            },
+          ],
+        }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+      // Bob alone — Alice's completed poll is absorbed by the marker.
+      expect(stats.slotsRecoveredCompleted).toBe(1);
+      // The whole per-slot family sums to the two slots, no slot twice.
+      expect(
+        stats.slotsAlreadyDelivered +
+          stats.slotsRecoveredCompleted +
+          stats.slotsRecoveredFailed +
+          stats.slotsUnrecoverable +
+          stats.slotsTrustedToStream
+      ).toBe(2);
+    });
+  });
+
+  describe('already-delivered slots never reach the safety timer', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /**
+     * The prod shape: a group fully delivered seconds before a deploy restart,
+     * its Redis entry outliving the shutdown. Recovery correctly identified the
+     * slot as delivered but still rehydrated it as pending and armed the safety
+     * timer, which ~17 minutes later synthesized an in-character timeout for a
+     * user who already had the real reply.
+     */
+    it('cleans up an entry whose only slot is already delivered — no adoption, no timer, no flush', async () => {
+      queue.getJob.mockResolvedValue(
+        buildMockJob({
+          state: 'completed',
+          returnvalue: { requestId: 'old-job-Alice', success: true, content: 'already sent' },
+        })
+      );
+      persistence.isSlotDelivered.mockResolvedValue(true);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+      expect(stats.entriesResumed).toBe(0);
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+      expect(persistence.deleteEntry).toHaveBeenCalledOnce();
+
+      // Past the full coordinator budget: nothing may fire.
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS * 2);
+      expect(coordinator.handleSafetyTimeoutPublic).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The same bug reached through the poll's ERROR path. `pollPriorJobState`
+     * reports `inFlight` when `queue.getJob` or `job.getState` throws, so a job
+     * that actually completed and was actually delivered looks in-flight
+     * whenever the poll hits a Redis error — and recovery runs at boot, right
+     * after the Redis connection is re-established. The marker lookup is what
+     * separates the two, so it must run for a pending slot as well.
+     */
+    it('cleans up a delivered slot whose state poll THREW — the poll error must not skip the marker lookup', async () => {
+      queue.getJob.mockRejectedValue(new Error('Redis blip'));
+      persistence.isSlotDelivered.mockResolvedValue(true);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+      // Not also counted as trusted-to-stream: the five per-slot counters are
+      // disjoint, and this slot's marker resolved true.
+      expect(stats.slotsTrustedToStream).toBe(0);
+      expect(stats.entriesResumed).toBe(0);
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+
+      // Past the full coordinator budget: no synthetic timeout for a slot the
+      // user already received.
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS * 2);
+      expect(coordinator.handleSafetyTimeoutPublic).not.toHaveBeenCalled();
+    });
+
+    it('leaves a delivered failed-poll slot terminal inside a mixed entry, timer-covering only its live sibling', async () => {
+      // Alice: getState throws (error-path inFlight) AND carries a marker.
+      // Bob: genuinely active, no marker — the timer must still cover him.
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return {
+            getState: vi.fn().mockRejectedValue(new Error('Connection lost')),
+            returnvalue: undefined,
+            failedReason: undefined,
+          };
+        }
+        return buildMockJob({ state: 'active' });
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({
+          slots: [
+            {
+              slotIndex: 0,
+              personalityId: 'id-alice',
+              personalitySlug: 'alice',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Alice',
+              status: 'pending',
+            },
+            {
+              slotIndex: 1,
+              personalityId: 'id-bob',
+              personalitySlug: 'bob',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Bob',
+              status: 'pending',
+            },
+          ],
+        }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesResumed).toBe(1);
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+      // Bob alone — Alice's marker took her out of the trusted-to-stream bucket.
+      expect(stats.slotsTrustedToStream).toBe(1);
+
+      const adopted = coordinator.adoptRehydratedEntry.mock.calls[0][0] as {
+        slots: { jobId: string; status: string; alreadyDelivered?: boolean }[];
+      };
+      const alice = adopted.slots.find(s => s.jobId === 'old-job-Alice');
+      const bob = adopted.slots.find(s => s.jobId === 'old-job-Bob');
+      expect(alice?.status).toBe('completed');
+      expect(alice?.alreadyDelivered).toBe(true);
+      expect(bob?.status).toBe('pending');
+      expect(bob?.alreadyDelivered).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS);
+      expect(coordinator.handleSafetyTimeoutPublic).toHaveBeenCalledWith('group-1');
+    });
+
+    it('adopts a mixed entry with the delivered slot already terminal and the pending one still timer-covered', async () => {
+      const bobResult: LLMGenerationResult = {
+        requestId: 'old-job-Bob',
+        success: true,
+        content: 'bob still owes a reply',
+      };
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({
+            state: 'completed',
+            returnvalue: { requestId: 'old-job-Alice', success: true, content: 'already sent' },
+          });
+        }
+        return buildMockJob({ state: 'active', returnvalue: bobResult });
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({
+          slots: [
+            {
+              slotIndex: 0,
+              personalityId: 'id-alice',
+              personalitySlug: 'alice',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Alice',
+              status: 'pending',
+            },
+            {
+              slotIndex: 1,
+              personalityId: 'id-bob',
+              personalitySlug: 'bob',
+              personaId: RESOLVED_PERSONA_ID,
+              source: 'mention',
+              isAutoResponse: false,
+              jobId: 'old-job-Bob',
+              status: 'pending',
+            },
+          ],
+        }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesResumed).toBe(1);
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
+      // No re-dispatch for the delivered slot; the pending one is left to the stream.
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+
+      const adopted = coordinator.adoptRehydratedEntry.mock.calls[0][0] as {
+        slots: { jobId: string; status: string; alreadyDelivered?: boolean }[];
+      };
+      const alice = adopted.slots.find(s => s.jobId === 'old-job-Alice');
+      const bob = adopted.slots.find(s => s.jobId === 'old-job-Bob');
+      expect(alice?.status).toBe('completed');
+      expect(alice?.alreadyDelivered).toBe(true);
+      expect(bob?.status).toBe('pending');
+      expect(bob?.alreadyDelivered).toBeUndefined();
+
+      // The timer still exists — it covers Bob, who can still produce output.
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS);
+      expect(coordinator.handleSafetyTimeoutPublic).toHaveBeenCalledWith('group-1');
+    });
+  });
+
+  /**
+   * A discarded entry never reaches `deliverGroup`, whose confirm fan-out is
+   * what flips a slot's gateway `job_results` row from PENDING_DELIVERY to
+   * DELIVERED. Since the ai-worker cleanup job only deletes DELIVERED rows,
+   * an unconfirmed row for a slot the prior run actually sent is never
+   * reclaimed — so every discard path confirms its already-delivered slots,
+   * and only those.
+   */
+  describe('delivery confirmation on discard paths', () => {
+    /**
+     * Two slots so "confirms each delivered jobId" is distinguishable from
+     * "confirms one of them", and so a per-jobId marker mock can make the two
+     * slots differ — a single-slot fixture cannot separate "confirms the
+     * delivered slot" from "confirms every slot".
+     */
+    function aliceAndBobSlots(): SlotSnapshot[] {
+      return [
+        {
+          slotIndex: 0,
+          personalityId: 'id-alice',
+          personalitySlug: 'alice',
+          personaId: RESOLVED_PERSONA_ID,
+          source: 'mention',
+          isAutoResponse: false,
+          jobId: 'old-job-Alice',
+          status: 'pending',
+        },
+        {
+          slotIndex: 1,
+          personalityId: 'id-bob',
+          personalitySlug: 'bob',
+          personaId: RESOLVED_PERSONA_ID,
+          source: 'mention',
+          isAutoResponse: false,
+          jobId: 'old-job-Bob',
+          status: 'pending',
+        },
+      ];
+    }
+
+    it('confirms delivery for EVERY slot when the whole entry was already delivered', async () => {
+      queue.getJob.mockImplementation(async (jobId: string) =>
+        buildMockJob({
+          state: 'completed',
+          returnvalue: { requestId: jobId, success: true, content: 'already sent' },
+        })
+      );
+      persistence.isSlotDelivered.mockResolvedValue(true);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ slots: aliceAndBobSlots() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(stats.slotsAlreadyDelivered).toBe(2);
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('old-job-Alice');
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('old-job-Bob');
+    });
+
+    it('does NOT confirm a slot the prior run never delivered (age-gate discard of a mixed entry)', async () => {
+      // Ancient entry: Alice completed AND marked delivered; Bob genuinely
+      // wedged with no marker. The gate discards, and Bob — never sent to
+      // Discord — must not be flipped to DELIVERED.
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({
+            state: 'completed',
+            returnvalue: { requestId: 'old-job-Alice', success: true, content: 'already sent' },
+          });
+        }
+        return buildMockJob({ state: 'waiting-children' });
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({
+          createdAt: Date.now() - (MULTI_TAG.COORDINATOR_TIMEOUT_MS + 60_000),
+          slots: aliceAndBobSlots(),
+        }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(1);
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('old-job-Alice');
+      expect(vi.mocked(confirmDelivery)).not.toHaveBeenCalledWith('old-job-Bob');
+    });
+
+    it('confirms the delivered slot when a mixed entry is discarded for an unreachable channel', async () => {
+      discordClient.channels.fetch.mockResolvedValue(null);
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({
+            state: 'completed',
+            returnvalue: { requestId: 'old-job-Alice', success: true, content: 'already sent' },
+          });
+        }
+        return buildMockJob({ state: 'active' });
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ slots: aliceAndBobSlots() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('old-job-Alice');
+    });
+
+    it('confirms nothing when a discarded entry carries no delivered slot', async () => {
+      discordClient.channels.fetch.mockResolvedValue(null);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ slots: aliceAndBobSlots() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(vi.mocked(confirmDelivery)).not.toHaveBeenCalled();
+    });
+
+    it('skips the confirm for a timed-out slot, mirroring deliverGroup', async () => {
+      // ai-worker never wrote a JobResult row for a synthesized timeout, so
+      // confirming it is a guaranteed 404 — deliverGroup filters the same shape
+      // out of its own fan-out.
+      persistence.isSlotDelivered.mockResolvedValue(true);
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({
+          slots: [{ ...aliceAndBobSlots()[0], status: 'timedout' }],
+        }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+      expect(vi.mocked(confirmDelivery)).not.toHaveBeenCalled();
     });
   });
 

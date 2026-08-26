@@ -141,7 +141,10 @@ export const REDIS_KEY_PREFIXES = {
   MULTI_TAG_STALE_JOBS: 'multitag:stale-jobids',
   /** Prefix for the DM "we already attempted history-scan backfill" sentinel */
   MULTI_TAG_DM_BACKFILL_TRIED: 'multitag:dm-backfill-tried:',
-  /** Prefix for per-slot "already delivered" dedup marker (recovery skips dispatch when present) */
+  /** Prefix for per-slot "already delivered" dedup marker. When present, recovery drops the slot's
+   * re-dispatch; if a sibling can still produce output the slot is rehydrated in a terminal state
+   * (out of the safety timer's pending set, skipped at flush), and if every slot is marked the
+   * entry is discarded instead of rehydrated. */
   MULTI_TAG_SLOT_DELIVERED: 'multitag:slot-delivered:',
   /**
    * Prefix for the synthetic-timeout recovery marker, keyed by jobId. Written

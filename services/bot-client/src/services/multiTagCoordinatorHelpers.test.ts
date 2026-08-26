@@ -174,6 +174,23 @@ describe('toSnapshot', () => {
     clearTimeout(entry.timeoutHandle);
   });
 
+  it('does not persist the runtime-only alreadyDelivered slot flag', () => {
+    // This is the invariant that lets recovery mark a slot delivered WITHOUT a
+    // schema migration: the flag is derived from the Redis marker each boot and
+    // must never reach SlotSnapshot. `toSnapshot` guarantees it by projecting
+    // fields explicitly rather than spreading; a regression to `{ ...slot }`
+    // would leak it, and `toEqual` would not notice (it treats an explicit
+    // `undefined` as absent), so assert absence on the property directly.
+    const entry = buildEntry({
+      slots: [buildSlot('Alice', { slotIndex: 0, status: 'completed', alreadyDelivered: true })],
+    });
+    const snap = toSnapshot(entry);
+    expect(snap.slots[0] as unknown as Record<string, unknown>).not.toHaveProperty(
+      'alreadyDelivered'
+    );
+    clearTimeout(entry.timeoutHandle);
+  });
+
   it('maps personality.id and personality.slug onto slot fields', () => {
     const entry = buildEntry({
       slots: [
