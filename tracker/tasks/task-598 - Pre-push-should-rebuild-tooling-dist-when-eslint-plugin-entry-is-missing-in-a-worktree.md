@@ -77,4 +77,20 @@ This sharpens the fix rather than changing it: the explicit edge (`lint dependsO
 STATUS: still code-read plus observational inference, NOT runtime-confirmed. The discriminating test is unchanged and now cheaper to interpret: in a worktree with dist PRESENT, run the pre-push `build lint test` invocation and check whether dist disappears mid-run. If it does, B is confirmed directly, and the edge is the fix.
 
 RECURRENCE: 9 hits. Both hits 8 and 9 came from agent worktrees on consecutive PRs (2166, 2167) — the worktree orchestration pattern makes this near-per-PR now, which is what moves it off "annoyance" and onto the drain queue.
+
+EDGE SHIPPED IN PR 2229 — C CONFIRMED, B WAS THE RIGHT EFFECT WITH THE WRONG ACTOR. Task stays OPEN pending recurrence data; read this before adding a tenth hit or reopening the cache line of inquiry.
+
+C is runtime-confirmed, not inferred. `turbo run lint --filter @tzurot/bot-client --dry=json` before the change listed no `@tzurot/tooling#build` node in the graph AT ALL — not merely unordered, absent. After: all 16 lint tasks carry the edge, zero missing.
+
+The destructive actor is NOT turbo. Every hypothesis above (A, B, C's framing) went looking in turbo's cache internals; the answer was in turbo's own stdout the moment a build executed — `@tzurot/tooling:build: > rm -rf dist tsconfig.tsbuildinfo && tsc`. The tooling build script deletes dist before tsc repopulates it. So B's "a restore clears the output directory" had the right EFFECT (dist emptied mid-run) and the wrong ACTOR (the build script, not the cache restore). The composition in the hit-9 analysis above stands with that substitution: C admits the concurrency, the clean-first build is what makes it destructive. Do not remove the `rm -rf` — clean-first builds are the deliberate turbo-cache-poisoning escape.
+
+The discriminating test named above (does dist disappear mid-run in a worktree) is therefore no longer needed to decide anything — the mechanism is read directly off the build script. Do not spend a worktree cycle on it.
+
+Verified with dist entirely absent (hits 6/7's state), in the main tree: turbo scheduled @tzurot/tooling:build (cache miss, executed) ahead of @tzurot/bot-client:lint, which passed, exit 0.
+
+WHY THIS IS NOT Done: the acceptance line's first clause is "pushing from a worktree ... succeeds without a manual rebuild", and that scenario is not directly exercised — the verification above is in the main tree with dist deleted. The second clause ("no measurable time" in the main checkout) is reasoned (tooling#build is already cached there) but not baselined. The third ("probe the hook") is moot: the hook presence-check was deliberately NOT added, per the fix-shape note above making it conditional on the edge being insufficient.
+
+CLOSE WHEN: a stretch of worktree PRs passes with no hit 10. If a hit 10 DOES occur, it falsifies "the edge is sufficient" and the hook presence-check becomes live again — capture the turbo output showing which tasks ran concurrently, since that is what distinguishes a surviving race from a new mechanism.
+
+SECOND FINDING, shipped in the same PR: the new guard reads root turbo.json and eslint.config.js, neither of which was a declared cache input for the tooling test tasks — so a local full test run could report the guard green off a stale cache hit. Both declared, and added to INLINE_LITERAL_ROOTS so turbo-inputs-coverage enforces them. Surfaced by dev:deferred-refs pointing at TASK-510.
 <!-- SECTION:DESCRIPTION:END -->
