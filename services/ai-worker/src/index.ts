@@ -10,7 +10,6 @@
  */
 
 import { Worker, type Job, Queue } from 'bullmq';
-import { Redis } from 'ioredis';
 import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
@@ -41,7 +40,11 @@ import {
 import { type AnyJobData } from '@tzurot/common-types/types/jobs';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
-import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
+import {
+  parseRedisUrl,
+  createBullMQRedisConfig,
+  createIORedisClient,
+} from '@tzurot/common-types/utils/redis';
 import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
 import { setupCacheInvalidation } from './cacheInvalidation.js';
 
@@ -394,8 +397,7 @@ async function main(): Promise<void> {
   // service that needs DB access, disposed in the shutdown handler below.
   const { prisma, dispose: disposePrisma } = createPrismaClient();
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated at startup by validateRequiredEnvVars(), but TypeScript can't track validation across function boundaries
-  const cacheRedis = new Redis(envConfig.REDIS_URL!);
-  cacheRedis.on('error', err => logger.error({ err }, 'Cache Redis error'));
+  const cacheRedis = createIORedisClient(envConfig.REDIS_URL!, 'AiWorkerCacheRedis', logger);
 
   // Set up cache invalidation for all resolvers
   const cacheResult = await setupCacheInvalidation({ cacheRedis, prisma });
