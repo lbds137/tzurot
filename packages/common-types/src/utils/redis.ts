@@ -8,27 +8,9 @@ import type { Logger } from 'pino';
 import { createLogger } from './logger.js';
 import { getConfig } from '../config/index.js';
 import { VoiceTranscriptCache } from '../services/VoiceTranscriptCache.js';
-import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
+import { REDIS_CONNECTION } from '../constants/index.js';
 
 const logger = createLogger('RedisUtils');
-
-/**
- * Shared reconnection strategy for all Redis clients.
- * Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s.
- * Gives up after REDIS_MAX_RETRIES attempts.
- */
-function createReconnectStrategy(retries: number): number | Error {
-  if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
-    logger.error('[RedisUtils] Max reconnection attempts reached');
-    return new Error('Max reconnection attempts reached');
-  }
-  const delay = Math.min(
-    retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER,
-    RETRY_CONFIG.REDIS_MAX_DELAY
-  );
-  logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
-  return delay;
-}
 
 interface RedisConnectionConfig {
   host: string;
@@ -36,24 +18,6 @@ interface RedisConnectionConfig {
   password?: string;
   username?: string;
   family?: 4 | 6;
-}
-
-interface RedisSocketConfig {
-  socket: {
-    host: string;
-    port: number;
-    family: 4 | 6;
-    connectTimeout: number;
-    commandTimeout: number;
-    keepAlive: boolean;
-    keepAliveInitialDelay: number;
-    reconnectStrategy: (retries: number) => number | Error;
-  };
-  password?: string;
-  username?: string;
-  maxRetriesPerRequest: number;
-  lazyConnect: boolean;
-  enableReadyCheck: boolean;
 }
 
 export interface BullMQRedisConfig {
@@ -65,7 +29,6 @@ export interface BullMQRedisConfig {
   connectTimeout: number;
   commandTimeout: number;
   keepAlive: number;
-  reconnectStrategy: (retries: number) => number | Error;
   maxRetriesPerRequest: number | null; // BullMQ requires null
   lazyConnect: boolean;
   enableReadyCheck: boolean;
@@ -106,37 +69,6 @@ export function parseRedisUrl(url: string): RedisConnectionConfig {
 }
 
 /**
- * Create standardized Redis socket configuration with timeouts and reconnection strategy
- *
- * Used by direct redis clients (not BullMQ)
- *
- * @param config Basic Redis connection config
- * @returns Full socket configuration with timeouts
- */
-export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSocketConfig {
-  return {
-    socket: {
-      host: config.host,
-      port: config.port,
-      // REQUIRED: Railway private network requires IPv6 (family: 6) for internal service communication
-      // IPv4 (family: 4) is NOT supported for Railway private networking
-      // See: https://docs.railway.app/reference/private-networking
-      family: config.family ?? 6,
-      connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
-      commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
-      keepAlive: true, // Enable TCP keepalive
-      keepAliveInitialDelay: REDIS_CONNECTION.KEEPALIVE,
-      reconnectStrategy: createReconnectStrategy,
-    },
-    password: config.password,
-    username: config.username,
-    maxRetriesPerRequest: RETRY_CONFIG.REDIS_RETRIES_PER_REQUEST,
-    lazyConnect: false, // Connect immediately to fail fast
-    enableReadyCheck: true, // Verify Redis is ready
-  };
-}
-
-/**
  * Create standardized Redis configuration for BullMQ
  *
  * BullMQ uses IORedis format (flattened, not nested socket)
@@ -161,7 +93,6 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
     commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
     keepAlive: REDIS_CONNECTION.KEEPALIVE,
-    reconnectStrategy: createReconnectStrategy,
     maxRetriesPerRequest: null, // BullMQ requires null - it manages its own retries
     lazyConnect: false, // Connect immediately to fail fast
     enableReadyCheck: true, // Verify Redis is ready
@@ -171,8 +102,8 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
 /**
  * Create a standard IORedis client with logging and connection config.
  *
- * Uses BullMQ connection settings (timeouts, keepAlive, reconnect strategy) but
- * retains default maxRetriesPerRequest (20) for general Redis operations.
+ * Uses BullMQ connection settings (timeouts, keepAlive) but retains default
+ * maxRetriesPerRequest (20) for general Redis operations.
  * For BullMQ queues, use createBullMQRedisConfig directly (requires null).
  *
  * @param redisUrl - Redis connection URL (e.g., redis://default:password@host:port)
@@ -218,6 +149,10 @@ export function createIORedisClient(
     enableReadyCheck: ioredisConfig.enableReadyCheck,
     // Note: maxRetriesPerRequest is set to null for BullMQ queues, but we want
     // standard retries for general Redis operations. Leave as default (20).
+    // No custom retryStrategy: ioredis's default unbounded retry with capped
+    // exponential backoff is the deliberate choice for a long-running service —
+    // a permanent give-up after N attempts is worse than self-healing
+    // reconnection once the underlying Redis blip clears.
   });
 
   client.on('error', (error: Error) => {
