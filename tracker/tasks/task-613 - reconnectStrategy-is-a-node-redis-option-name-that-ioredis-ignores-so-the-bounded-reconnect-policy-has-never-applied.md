@@ -3,9 +3,10 @@ id: TASK-613
 title: >-
   reconnectStrategy is a node-redis option name that ioredis ignores, so the
   bounded reconnect policy has never applied
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 18:43'
+updated_date: '2026-08-26 21:48'
 labels:
   - 'area:common-types'
   - 'size:S'
