@@ -1395,3 +1395,151 @@ describe('ContextAssembler guild-info write-through', () => {
     expect(record).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The seam between the two halves of channel history: the personality-scoped
+ * DB read and the UNSCOPED live-channel read (extended context, fetched
+ * bot-side from Discord). Each half is unit-tested elsewhere with the other
+ * absent, which is precisely why a sibling personality's replies could survive
+ * isolation — the shared merger dedups by Discord message id and applies no
+ * personality predicate. These cases run both halves together, with only the
+ * data source mocked.
+ */
+describe('ContextAssembler — history isolation vs extended context (seam)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const GUILD = '123456789012345678';
+
+  /** A row the ACTIVE personality wrote — what a scoped DB read returns. */
+  const ownDbRow = {
+    id: 'db-own',
+    role: MessageRole.Assistant,
+    content: 'my own earlier reply',
+    createdAt: new Date('2026-06-01T00:00:00Z'),
+    personalityId: 'pers-1',
+    discordMessageId: ['d-own'],
+  };
+
+  /**
+   * A SIBLING personality's reply as it arrives from the live channel read.
+   * Its Discord id appears in no scoped DB row, so the merger cannot dedup it
+   * away — it is appended unless the merge is skipped.
+   */
+  function siblingExtendedContext(): NonNullable<JobContext['rawAssemblyInputs']> {
+    return {
+      rawMessageContent: 'hello',
+      rawExtendedContextMessages: [
+        {
+          id: 'd-sibling',
+          role: MessageRole.Assistant,
+          content: 'a different character speaking',
+          createdAt: '2026-06-02T00:00:00.000Z',
+          personalityId: 'pers-sibling',
+          personalityName: 'Sibling',
+          discordMessageId: ['d-sibling'],
+        },
+      ],
+    } as NonNullable<JobContext['rawAssemblyInputs']>;
+  }
+
+  function depsWithOwnRow(): ContextAssemblerDeps {
+    return makeDeps({
+      dataSource: { getChannelHistoryWindow: mockHistoryWindow([ownDbRow]) },
+    });
+  }
+
+  it('DM + isolation: a sibling personality reaches neither the DB read nor the merge', async () => {
+    const deps = depsWithOwnRow();
+
+    const core = await new ContextAssembler(deps).assembleCore(
+      makeJobContext({ serverId: undefined, rawAssemblyInputs: siblingExtendedContext() }),
+      PERSONALITY,
+      { shareHistoryAcrossPersonalities: 'never' } as ResolvedConfigOverrides
+    );
+
+    // The DB half is scoped...
+    expect(deps.dataSource.getChannelHistoryWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ personalityId: 'pers-1' })
+    );
+    // ...and the live-channel half is dropped, so the sibling is nowhere in
+    // the assembled history.
+    expect(core.history.map(m => m.id)).toEqual(['db-own']);
+  });
+
+  it('guild + isolation: the sibling STILL flows through extended context', async () => {
+    const deps = depsWithOwnRow();
+
+    const core = await new ContextAssembler(deps).assembleCore(
+      makeJobContext({ serverId: GUILD, rawAssemblyInputs: siblingExtendedContext() }),
+      PERSONALITY,
+      { shareHistoryAcrossPersonalities: 'never' } as ResolvedConfigOverrides
+    );
+
+    // Deliberate asymmetry, not an oversight: in a guild the sibling's reply is
+    // already visible in the room to everyone present, so the live-channel read
+    // is left alone. Only the DB half is scoped.
+    expect(deps.dataSource.getChannelHistoryWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ personalityId: 'pers-1' })
+    );
+    expect(core.history.map(m => m.id)).toEqual(['db-own', 'd-sibling']);
+  });
+
+  it("DM + 'always': extended context flows normally and the DB read is unscoped", async () => {
+    const deps = depsWithOwnRow();
+
+    const core = await new ContextAssembler(deps).assembleCore(
+      makeJobContext({ serverId: undefined, rawAssemblyInputs: siblingExtendedContext() }),
+      PERSONALITY,
+      { shareHistoryAcrossPersonalities: 'always' } as ResolvedConfigOverrides
+    );
+
+    expect(deps.dataSource.getChannelHistoryWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ personalityId: undefined })
+    );
+    expect(core.history.map(m => m.id)).toEqual(['db-own', 'd-sibling']);
+  });
+
+  it('the skip path leaves extended-context users unprovisioned', async () => {
+    const deps = depsWithOwnRow();
+
+    await new ContextAssembler(deps).assembleCore(
+      makeJobContext({
+        serverId: undefined,
+        rawAssemblyInputs: {
+          ...siblingExtendedContext(),
+          rawExtendedContextUsers: [
+            { discordId: '555', username: 'extuser', displayName: 'Ext User' },
+          ],
+        },
+      }),
+      PERSONALITY,
+      { shareHistoryAcrossPersonalities: 'never' } as ResolvedConfigOverrides
+    );
+
+    // Dropping the messages drops the upserts that exist to attribute them.
+    expect(deps.userService.getOrCreateUsersInBatch).not.toHaveBeenCalled();
+  });
+
+  it('the skip path preserves the ABSENT vs EMPTY participant-guild-map distinction', async () => {
+    const absent = await new ContextAssembler(depsWithOwnRow()).assembleCore(
+      makeJobContext({ serverId: undefined, rawAssemblyInputs: siblingExtendedContext() }),
+      PERSONALITY,
+      { shareHistoryAcrossPersonalities: 'never' } as ResolvedConfigOverrides
+    );
+    const empty = await new ContextAssembler(depsWithOwnRow()).assembleCore(
+      makeJobContext({
+        serverId: undefined,
+        rawAssemblyInputs: { ...siblingExtendedContext(), rawParticipantGuildInfo: {} },
+      }),
+      PERSONALITY,
+      { shareHistoryAcrossPersonalities: 'never' } as ResolvedConfigOverrides
+    );
+
+    // The ContextStep adopt-guard reads this distinction, so the skip must not
+    // collapse "the fetch never ran" into "the fetch observed nothing".
+    expect(absent.participantGuildInfo).toBeUndefined();
+    expect(empty.participantGuildInfo).toEqual({});
+  });
+});

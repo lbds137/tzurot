@@ -207,11 +207,12 @@ describe('User Default Settings Dashboard', () => {
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       // D14 page 1 = Memory (5 settings); Context & Display and Voice follow.
-      expect(embedJson.fields).toHaveLength(4);
+      expect(embedJson.fields).toHaveLength(5);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Share Memories'),
+          expect.stringContaining('Share Chat History'),
           expect.stringContaining('Memory Relevance'),
           expect.stringContaining('Memory Limit'),
         ])

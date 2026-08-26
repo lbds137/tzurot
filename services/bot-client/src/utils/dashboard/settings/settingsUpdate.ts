@@ -34,6 +34,7 @@ const SETTING_FIELDS = [
   'maxImages',
   'crossChannelHistoryEnabled',
   'shareLtmAcrossPersonalities',
+  'shareHistoryAcrossPersonalities',
   'memoryScoreThreshold',
   'memoryLimit',
   'showModelFooter',

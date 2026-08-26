@@ -23,6 +23,8 @@ import {
   NULL_TERMINAL_FIELDS,
   isNullTerminalField,
   CONFIG_WIRE_OFF,
+  shouldScopeHistoryToPersonality,
+  type ShareHistoryAcrossPersonalitiesMode,
 } from './configOverrides.js';
 
 describe('ConfigOverridesSchema', () => {
@@ -74,6 +76,14 @@ describe('ConfigOverridesSchema', () => {
       expect(ConfigOverridesSchema.safeParse({ voiceTranscriptionEnabled: false }).success).toBe(
         true
       );
+    });
+
+    it('should accept shareHistoryAcrossPersonalities enum values', () => {
+      for (const mode of ['always', 'guilds-only', 'dms-only', 'never']) {
+        expect(
+          ConfigOverridesSchema.safeParse({ shareHistoryAcrossPersonalities: mode }).success
+        ).toBe(true);
+      }
     });
 
     it('should accept maxAge as null (no limit)', () => {
@@ -172,6 +182,13 @@ describe('ConfigOverridesSchema', () => {
       const result = ConfigOverridesSchema.safeParse({ voiceTranscriptionEnabled: 'yes' });
       expect(result.success).toBe(false);
     });
+
+    it('should reject invalid shareHistoryAcrossPersonalities value', () => {
+      const result = ConfigOverridesSchema.safeParse({
+        shareHistoryAcrossPersonalities: 'sometimes',
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('unknown key handling', () => {
@@ -208,6 +225,7 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
     expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('always');
     expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
+    expect(HARDCODED_CONFIG_DEFAULTS.shareHistoryAcrossPersonalities).toBe('always');
   });
 
   it('should tie the memory defaults to AI_DEFAULTS (single source of truth)', () => {
@@ -449,5 +467,23 @@ describe('NULL_TERMINAL_FIELDS registry', () => {
     for (const key of NULL_TERMINAL_FIELDS) {
       expect(ConfigOverridesSchema.safeParse({ [key]: CONFIG_WIRE_OFF }).success).toBe(false);
     }
+  });
+});
+
+describe('shouldScopeHistoryToPersonality', () => {
+  // The complete lattice: all 4 modes × both scopes (DM / guild).
+  const cases: Array<[ShareHistoryAcrossPersonalitiesMode, boolean, boolean]> = [
+    ['always', true, false],
+    ['always', false, false],
+    ['guilds-only', true, true],
+    ['guilds-only', false, false],
+    ['dms-only', true, false],
+    ['dms-only', false, true],
+    ['never', true, true],
+    ['never', false, true],
+  ];
+
+  it.each(cases)('mode=%s isDm=%s -> scoped=%s', (mode, isDm, expected) => {
+    expect(shouldScopeHistoryToPersonality(mode, isDm)).toBe(expected);
   });
 });

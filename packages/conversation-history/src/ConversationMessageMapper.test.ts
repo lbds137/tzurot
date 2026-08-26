@@ -4,6 +4,7 @@ import {
   mapToConversationMessage,
   mapToConversationMessages,
   conversationHistorySelect,
+  buildChannelHistoryWhere,
   type ConversationHistoryQueryResult,
 } from './ConversationMessageMapper.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
@@ -435,5 +436,37 @@ describe('parseMessageMetadata — null/invalid guards', () => {
     expect(result?.embedsXml).toEqual(['<embed />']);
     expect(result?.isForwarded).toBe(true);
     expect(result?.forwardedFrom?.authorName).toBe('COLD');
+  });
+});
+
+describe('buildChannelHistoryWhere', () => {
+  it('omits the personalityId predicate when not supplied (unscoped/shared)', () => {
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1' });
+
+    expect(where).not.toHaveProperty('personalityId');
+  });
+
+  it('includes the personalityId predicate when supplied (scoped/isolated)', () => {
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1', personalityId: 'persona-a' });
+
+    expect(where).toHaveProperty('personalityId', 'persona-a');
+  });
+
+  it('combines the personalityId predicate with the other filters', () => {
+    const cutoff = new Date('2024-01-01T00:00:00Z');
+    const where = buildChannelHistoryWhere({
+      channelId: 'chan-1',
+      cutoff,
+      excludeDiscordMessageId: 'discord-1',
+      personalityId: 'persona-a',
+    });
+
+    expect(where).toMatchObject({
+      channelId: 'chan-1',
+      deletedAt: null,
+      createdAt: { gte: cutoff },
+      NOT: { discordMessageId: { has: 'discord-1' } },
+      personalityId: 'persona-a',
+    });
   });
 });
