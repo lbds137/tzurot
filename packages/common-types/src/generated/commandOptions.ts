@@ -229,30 +229,6 @@ export const chimeInOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /deny add <target, type, scope, channel, character, reason, mode>
- */
-export const denyAddOptions = defineTypedOptions({
-  target: { type: 'string', required: true },
-  type: { type: 'string', required: false },
-  scope: { type: 'string', required: false },
-  channel: { type: 'channel', required: false },
-  character: { type: 'string', required: false },
-  reason: { type: 'string', required: false },
-  mode: { type: 'string', required: false },
-});
-
-/**
- * /deny remove <target, type, scope, channel, character>
- */
-export const denyRemoveOptions = defineTypedOptions({
-  target: { type: 'string', required: true },
-  type: { type: 'string', required: false },
-  scope: { type: 'string', required: false },
-  channel: { type: 'channel', required: false },
-  character: { type: 'string', required: false },
-});
-
-/**
  * /deny browse <filter>
  */
 export const denyBrowseOptions = defineTypedOptions({

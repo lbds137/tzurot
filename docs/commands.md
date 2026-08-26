@@ -75,6 +75,7 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 | -------- | ----------------------------------------------------- | -------------------------------- |
 | `/admin` | `ping` `health` `metrics` `servers` `kick` `usage`    | Monitoring and management        |
 |          | `cleanup` `db-sync` `broadcast` `settings` `presence` | Maintenance and configuration    |
-| `/deny`  | `add` `remove` `browse` `view`                        | User and guild denial management |
+| `/deny`  | `add`/`remove` × `everywhere` `this-server`           | User and guild denial management |
+|          | `channel` `character` · `browse` `view`               | (scope is the subcommand name)   |
 
 > **`db-sync` deletion semantics**: hard deletes on synced tables PROPAGATE — deleting a row (preset, character, persona…) in either environment deletes it in the other on the next sync, instead of the old resurrect-from-the-other-side behavior. Corollary for one-off cleanup scripts: an accidental `DELETE` on one side now applies to both on the next sync (clear the matching `sync_tombstones` row to undo before syncing). Re-creating a row after deleting it wins over its tombstone. Syncs also run automatically once a night, scheduled from the PROD bot at an owner-configurable UTC hour (default 07:00 UTC ≈ 3am US Eastern) and silent when nothing changed — so "the next sync" is at most ~24h away even without a manual `/admin db-sync`. Both the hour and the on/off switch live in `/admin settings` → System · Operations.

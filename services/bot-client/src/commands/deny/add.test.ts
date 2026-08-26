@@ -38,17 +38,30 @@ function createStub(): OwnerStub {
   return { addDenylistEntry: vi.fn() };
 }
 
-function createMockContext(options: Record<string, unknown> = {}): DeferredCommandContext {
-  const optionMap = new Map(Object.entries(options));
+/** Stand-in for the resolved User a native `user:` option hands the handler. */
+const TARGET_USER = { id: '999888777', username: 'lbds137', displayName: 'Vlad' };
+
+interface MockContextInput {
+  /** The scope subcommand name (`everywhere` | `this-server` | `channel` | `character`). */
+  subcommand?: string | null;
+  user?: { id: string; username: string; displayName: string } | null;
+  channel?: { id: string } | null;
+  options?: Record<string, unknown>;
+}
+
+function createMockContext(input: MockContextInput = {}): DeferredCommandContext {
+  const optionMap = new Map(Object.entries(input.options ?? {}));
   return {
     user: { id: 'user-123' },
     guildId: 'guild-456',
     interaction: {
       user: { id: 'user-123' },
       options: {
-        getChannel: vi.fn().mockReturnValue(options.channel ?? null),
+        getUser: vi.fn().mockReturnValue(input.user ?? null),
+        getChannel: vi.fn().mockReturnValue(input.channel ?? null),
       },
     },
+    getSubcommand: vi.fn(() => input.subcommand ?? 'everywhere'),
     getOption: vi.fn((name: string) => optionMap.get(name) ?? null),
     getRequiredOption: vi.fn((name: string) => optionMap.get(name)),
     editReply: vi.fn(),
@@ -64,13 +77,14 @@ describe('handleAdd', () => {
     clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
-  it('should add a bot-wide user denial', async () => {
+  it('derives BOT scope and USER type from the everywhere subcommand and a filled user option', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
     stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
-    const context = createMockContext({ target: '999888777', type: 'USER', scope: 'BOT' });
+    const context = createMockContext({ subcommand: 'everywhere', user: TARGET_USER });
 
     await handleAdd(context);
 
+    expect(checkDenyPermission).toHaveBeenCalledWith(context, 'BOT', null, null);
     expect(stub.addDenylistEntry).toHaveBeenCalledWith({
       type: 'USER',
       discordId: '999888777',
@@ -80,79 +94,148 @@ describe('handleAdd', () => {
       reason: undefined,
     });
     expect(context.editReply).toHaveBeenCalledWith(
-      '✅ User <@999888777> (`999888777`) denied (bot-wide).'
+      '✅ Denied **Vlad** (@lbds137 · `999888777`) everywhere (every server and DM) — blocked.'
     );
   });
 
-  it('should add a channel-scoped denial with reason', async () => {
-    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: 'chan-123' });
+  it('derives GUILD type from the server option on everywhere', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
     stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
     const context = createMockContext({
-      target: '999888777',
-      scope: 'CHANNEL',
-      reason: 'Spam',
+      subcommand: 'everywhere',
+      options: { server: '111222333' },
     });
 
     await handleAdd(context);
 
     expect(stub.addDenylistEntry).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: 'CHANNEL',
-        scopeId: 'chan-123',
-        reason: 'Spam',
-      })
+      expect.objectContaining({ type: 'GUILD', discordId: '111222333', scope: 'BOT' })
     );
     expect(context.editReply).toHaveBeenCalledWith(
-      '✅ User <@999888777> (`999888777`) denied (channel-scoped).'
+      '✅ Denied server `111222333` everywhere (every server and DM) — blocked.'
     );
   });
 
-  it('should reject GUILD type with non-BOT scope', async () => {
-    const context = createMockContext({ target: '111222333', type: 'GUILD', scope: 'CHANNEL' });
+  it('derives GUILD scope from the this-server subcommand', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: 'guild-456' });
+    stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+    const context = createMockContext({ subcommand: 'this-server', user: TARGET_USER });
 
     await handleAdd(context);
 
-    expect(context.editReply).toHaveBeenCalledWith('❌ Server denials only support Bot scope.');
+    expect(checkDenyPermission).toHaveBeenCalledWith(context, 'GUILD', null, null);
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'GUILD', scopeId: 'guild-456' })
+    );
+    expect(context.editReply).toHaveBeenCalledWith(
+      '✅ Denied **Vlad** (@lbds137 · `999888777`) in this server — blocked.'
+    );
+  });
+
+  it('derives CHANNEL scope from the channel subcommand and forwards the channel id', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: 'chan-123' });
+    stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+    const context = createMockContext({
+      subcommand: 'channel',
+      user: TARGET_USER,
+      channel: { id: 'chan-123' },
+      options: { reason: 'Spam' },
+    });
+
+    await handleAdd(context);
+
+    expect(checkDenyPermission).toHaveBeenCalledWith(context, 'CHANNEL', 'chan-123', null);
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'CHANNEL', scopeId: 'chan-123', reason: 'Spam' })
+    );
+    expect(context.editReply).toHaveBeenCalledWith(
+      '✅ Denied **Vlad** (@lbds137 · `999888777`) in <#chan-123> — blocked.'
+    );
+  });
+
+  it('derives PERSONALITY scope from the character subcommand and forwards the character', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: 'pers-1' });
+    stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+    const context = createMockContext({
+      subcommand: 'character',
+      user: TARGET_USER,
+      options: { character: 'lilith' },
+    });
+
+    await handleAdd(context);
+
+    expect(checkDenyPermission).toHaveBeenCalledWith(context, 'PERSONALITY', null, 'lilith');
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'PERSONALITY', scopeId: 'pers-1' })
+    );
+    expect(context.editReply).toHaveBeenCalledWith(
+      '✅ Denied **Vlad** (@lbds137 · `999888777`) for the character **lilith** — blocked.'
+    );
+  });
+
+  it('reports mute mode in the confirmation', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
+    stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+    const context = createMockContext({
+      subcommand: 'everywhere',
+      user: TARGET_USER,
+      options: { mode: 'MUTE' },
+    });
+
+    await handleAdd(context);
+
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(expect.objectContaining({ mode: 'MUTE' }));
+    expect(context.editReply).toHaveBeenCalledWith(
+      '✅ Denied **Vlad** (@lbds137 · `999888777`) everywhere (every server and DM) — muted (ignored, but still kept in context).'
+    );
+  });
+
+  it('rejects when neither user nor server is supplied', async () => {
+    const context = createMockContext({ subcommand: 'everywhere' });
+
+    await handleAdd(context);
+
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Pick a `user`'));
+    expect(checkDenyPermission).not.toHaveBeenCalled();
+  });
+
+  it('rejects when both user and server are supplied', async () => {
+    const context = createMockContext({
+      subcommand: 'everywhere',
+      user: TARGET_USER,
+      options: { server: '111222333' },
+    });
+
+    await handleAdd(context);
+
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.stringContaining('either `user` or `server`, not both')
+    );
+    expect(checkDenyPermission).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unrecognised scope subcommand', async () => {
+    const context = createMockContext({ subcommand: 'nonsense', user: TARGET_USER });
+
+    await handleAdd(context);
+
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Unknown denial scope'));
     expect(checkDenyPermission).not.toHaveBeenCalled();
   });
 
   it('should stop when permission denied', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: false, scopeId: '' });
-    const context = createMockContext({ target: '999888777' });
+    const context = createMockContext({ subcommand: 'everywhere', user: TARGET_USER });
 
     await handleAdd(context);
 
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
-  it('should strip Discord mention wrapper from target', async () => {
-    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
-    stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
-    const context = createMockContext({ target: '<@999888777>' });
-
-    await handleAdd(context);
-
-    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ discordId: '999888777' })
-    );
-  });
-
-  it('should strip nickname mention wrapper from target', async () => {
-    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
-    stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
-    const context = createMockContext({ target: '<@!999888777>' });
-
-    await handleAdd(context);
-
-    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ discordId: '999888777' })
-    );
-  });
-
   it('should handle API error', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
     stub.addDenylistEntry.mockResolvedValue(makeErr(400, 'Cannot deny the bot owner'));
-    const context = createMockContext({ target: '999888777' });
+    const context = createMockContext({ subcommand: 'everywhere', user: TARGET_USER });
 
     await handleAdd(context);
 

@@ -1,8 +1,10 @@
 /**
- * Deny Add Subcommand
+ * Deny Add Subcommand Group
  *
- * Adds a denylist entry. Validates scope/type combinations and
- * checks three-tier permissions before calling the gateway API.
+ * Handles all four scope subcommands (`everywhere`, `this-server`, `channel`,
+ * `character`). The scope comes from the subcommand name and the entity type
+ * from the filled target option, then the three-tier permission check runs
+ * before the gateway call.
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -12,29 +14,30 @@ import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';
-import { stripMention } from './mentionUtils.js';
+import { describeDenyScope, resolveDenyTarget, scopeForSubcommand } from './denyTarget.js';
 
 const logger = createLogger('deny-add');
 
 export async function handleAdd(context: DeferredCommandContext): Promise<void> {
-  const type = context.getOption<string>('type') ?? 'USER';
-  const target = stripMention(context.getRequiredOption<string>('target'));
-  const scope = context.getOption<string>('scope') ?? 'BOT';
-  const channelId = context.interaction.options.getChannel('channel')?.id ?? null;
-  const personality = context.getOption<string>('character');
-  const reason = context.getOption<string>('reason');
-  const mode = context.getOption<string>('mode') ?? 'BLOCK';
-
-  // GUILD type can only use BOT scope
-  if (type === 'GUILD' && scope !== 'BOT') {
-    await context.editReply(
-      renderSpec(CATALOG.error.validation('Server denials only support Bot scope.'))
-    );
+  const scope = scopeForSubcommand(context.getSubcommand());
+  if (scope === null) {
+    await context.editReply(renderSpec(CATALOG.error.validation('Unknown denial scope.')));
     return;
   }
 
+  const resolved = resolveDenyTarget(context);
+  if (!resolved.ok) {
+    await context.editReply(renderSpec(CATALOG.error.validation(resolved.message)));
+    return;
+  }
+
+  const channelId = context.interaction.options.getChannel('channel')?.id ?? null;
+  const character = context.getOption<string>('character');
+  const reason = context.getOption<string>('reason');
+  const mode = context.getOption<string>('mode') ?? 'BLOCK';
+
   // Permission check + scopeId resolution
-  const perm = await checkDenyPermission(context, scope, channelId, personality);
+  const perm = await checkDenyPermission(context, scope, channelId, character);
   if (!perm.allowed) {
     return;
   }
@@ -42,9 +45,9 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
   try {
     const { ownerClient } = clientsFor(context.interaction);
     const result = await ownerClient.addDenylistEntry({
-      type: type as 'USER' | 'GUILD',
-      discordId: target,
-      scope: scope as 'BOT' | 'GUILD' | 'CHANNEL' | 'PERSONALITY',
+      type: resolved.target.type,
+      discordId: resolved.target.discordId,
+      scope,
       scopeId: perm.scopeId,
       mode: mode as 'BLOCK' | 'MUTE',
       reason: reason ?? undefined,
@@ -57,17 +60,10 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
       return;
     }
 
-    const targetDisplay = type === 'USER' ? `<@${target}> (\`${target}\`)` : `\`${target}\``;
-    const label = type === 'GUILD' ? 'Server' : 'User';
-    const scopeDesc =
-      scope === 'BOT'
-        ? 'bot-wide'
-        : scope === 'GUILD'
-          ? 'guild-scoped'
-          : `${scope.toLowerCase()}-scoped`;
-    const modeDesc = mode === 'MUTE' ? ', muted' : '';
+    const modeDesc = mode === 'MUTE' ? 'muted (ignored, but still kept in context)' : 'blocked';
+    const scopeDesc = describeDenyScope(scope, { channelId, character });
 
-    await context.editReply(`✅ ${label} ${targetDisplay} denied (${scopeDesc}${modeDesc}).`);
+    await context.editReply(`✅ Denied ${resolved.target.display} ${scopeDesc} — ${modeDesc}.`);
   } catch (error) {
     logger.error({ err: error }, 'Failed to add denial');
     await context.editReply(

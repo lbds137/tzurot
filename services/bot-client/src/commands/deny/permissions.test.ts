@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { checkDenyPermission } from './permissions.js';
+import type { DenyScope } from './denyTarget.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
@@ -242,14 +243,17 @@ describe('checkDenyPermission', () => {
       expect(context.editReply).not.toHaveBeenCalledWith(expect.stringContaining('not found'));
     });
 
-    it('should deny when personality option missing', async () => {
+    it('should deny when character option missing', async () => {
       const context = createMockContext();
 
       const result = await checkDenyPermission(context, 'PERSONALITY', null, null);
 
       expect(result.allowed).toBe(false);
+      // Names the option the picker actually exposes — `character`. The option
+      // has never been called `personality`, so the older copy pointed at
+      // something the user could not supply.
       expect(context.editReply).toHaveBeenCalledWith(
-        '❌ Personality scope requires the `personality` option.'
+        '❌ Character scope requires the `character` option.'
       );
     });
 
@@ -275,7 +279,11 @@ describe('checkDenyPermission', () => {
     it('should deny with error', async () => {
       const context = createMockContext();
 
-      const result = await checkDenyPermission(context, 'INVALID', null, null);
+      // The cast is deliberate. `DenyScope` constrains callers, not runtime
+      // values, and the fallback it exercises is the guard for a value that
+      // reaches here despite the type — so the branch stays covered rather
+      // than being deleted as unreachable.
+      const result = await checkDenyPermission(context, 'INVALID' as DenyScope, null, null);
 
       expect(result.allowed).toBe(false);
       expect(context.editReply).toHaveBeenCalledWith('❌ Invalid scope.');
