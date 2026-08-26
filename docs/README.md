@@ -40,7 +40,6 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - [`ENCRYPTION_KEY_ROTATION.md`](reference/operations/ENCRYPTION_KEY_ROTATION.md) - Rotating the BYOK API-key encryption key
 - [`PRISMA_PGVECTOR_REFERENCE.md`](reference/operations/PRISMA_PGVECTOR_REFERENCE.md) - Prisma + pgvector operations reference
 - [`REDIS_MAINTENANCE.md`](reference/operations/REDIS_MAINTENANCE.md) - Redis health maintenance procedures
-- [`REDIS_TIMEOUT_ANALYSIS.md`](reference/operations/REDIS_TIMEOUT_ANALYSIS.md) - Redis timeout root-cause analysis
 
 **Database:**
 
