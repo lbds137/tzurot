@@ -122,8 +122,14 @@ count is far above `(10 + 50) × queues + active`, retention isn't being applied
 — confirm the queue was constructed with `removeOnComplete` / `removeOnFail`
 from `QUEUE_CONFIG` rather than ad-hoc options.
 
-Timeouts that aren't accompanied by memory pressure are usually connection-level;
-see [`REDIS_TIMEOUT_ANALYSIS.md`](REDIS_TIMEOUT_ANALYSIS.md).
+Timeouts that aren't accompanied by memory pressure are usually connection-level.
+The bounds live in `REDIS_CONNECTION` (`packages/common-types/src/constants/timing.ts`)
+and are applied by `createIORedisClient` in
+`packages/common-types/src/utils/redis.ts` — read those rather than a prose copy
+of the numbers. Note that reconnection itself is deliberately **unbounded**
+(ioredis default, capped backoff): a client keeps retrying rather than giving up
+permanently, so a persistent timeout is a Redis- or network-side problem, not a
+client that has stopped trying.
 
 ### Connection refused / errors on Railway
 
@@ -152,6 +158,6 @@ check the consumer service's logs for that job id.
 
 - `packages/common-types/src/constants/queue.ts` — queue names, retention limits, key prefixes, pub/sub channels
 - `packages/common-types/src/utils/redis.ts` — connection construction
-- [`REDIS_TIMEOUT_ANALYSIS.md`](REDIS_TIMEOUT_ANALYSIS.md) — timeout root-cause analysis
+- `packages/common-types/src/constants/timing.ts` — `REDIS_CONNECTION` timeout bounds
 - [Operations Guide](../deployment/RAILWAY_OPERATIONS.md)
 - [BullMQ docs](https://docs.bullmq.io/)
