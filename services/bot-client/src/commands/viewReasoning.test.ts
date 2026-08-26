@@ -6,7 +6,7 @@
  * path, and the chunked-reply splitter all run for real, so a trace that never
  * reaches `editReply` fails here rather than passing against a stubbed render.
  *
- * Two lookup tiers are exercised: the 24h diagnostic log (`resolveMock`) and
+ * Two lookup tiers are exercised: the 7d diagnostic log (`resolveMock`) and
  * the persisted history trace (`getMessageReasoningMock`). The tier-2 default
  * is a 404 so every pre-existing tier-1 case keeps asserting tier-1 behaviour;
  * cases that mean to reach tier 2 override it explicitly.

@@ -2,7 +2,7 @@
  * Tests for Cleanup Diagnostic Logs
  *
  * Tests the scheduled cleanup of LLM diagnostic logs:
- * - 24 hour retention by default
+ * - 7 day retention by default
  * - Custom retention period support
  * - Error propagation
  * - Timing calculation

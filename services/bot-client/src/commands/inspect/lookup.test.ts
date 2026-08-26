@@ -221,7 +221,7 @@ describe('lookupByMessageId', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('No diagnostic logs found');
-      expect(result.errorMessage).toContain('24h retention');
+      expect(result.errorMessage).toContain('7d retention');
     }
   });
 
@@ -304,7 +304,7 @@ describe('lookupByRequestId', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('Diagnostic log not found');
-      expect(result.errorMessage).toContain('24h retention');
+      expect(result.errorMessage).toContain('7d retention');
     }
   });
 

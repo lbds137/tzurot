@@ -252,7 +252,7 @@ describe('reasoning trace persistence + read-back (component, PGLite)', () => {
    * The trigger-message bridge. Tier 1 (the diagnostic lookup this falls back
    * FROM) resolves EITHER click target via its by-message → by-response
    * fallback, so tier 2 has to as well — otherwise the command silently stops
-   * answering for one of two inputs at exactly the 24h boundary this column
+   * answering for one of two inputs at exactly the 7d boundary this column
    * exists to cover.
    */
   describe('trigger-message bridge', () => {

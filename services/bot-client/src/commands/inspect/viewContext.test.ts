@@ -75,8 +75,10 @@ describe('computeViewContext', () => {
   });
 
   it('returns canViewCharacter:true for legacy logs without personalityOwnerDiscordId (backward compat)', () => {
-    // Logs written before PR-#898 do not carry the owner field. Pre-PR behavior
-    // was "show everything" — preserve that for the 24h transition window.
+    // A log predating the owner field does not carry it. The original
+    // behavior was "show everything", preserved so such a log still renders
+    // rather than erroring. Defensive only: the retention sweep should have
+    // aged every such row out long ago (not verified against prod).
     mockIsBotOwner.mockReturnValue(false);
     const log = buildLog(undefined);
     const ctx = computeViewContext(log, NON_OWNER_DISCORD_ID);

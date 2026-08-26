@@ -76,7 +76,7 @@ export interface DiagnosticMeta {
   personalityName: string;
   /** Discord ID of the personality owner. Captured at write time as an
    *  immutable telemetry snapshot — survives personality deletion within the
-   *  24h log retention window. Used by /inspect view-builders to redact
+   *  7d log retention window. Used by /inspect view-builders to redact
    *  character internals (system prompt, memory previews) for non-owners.
    *  Stored as Discord snowflake (matching `userId` field semantics) so
    *  bot-client can compare directly against `interaction.user.id` without a
