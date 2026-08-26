@@ -28,18 +28,16 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 ---
 
-### 🚢 Next Release — beta.208 (theme: **doc-12 P1 — the telemetry consumer** — owner pick 2026-08-25)
+### 🚢 Next Release — beta.209 (theme: TBD — owner pick at next session)
 
-_Drafted at the beta.207 cut (2026-08-24). beta.207 shipped the full plan plus four same-day additions — 18 PRs / 16 runtime / 245 files; both headline observability features caught real gaps before shipping (#2207 smoke-found, #2212 live-found during owner moderation)._
+_Drafted at the beta.208 cut (2026-08-26). beta.208 shipped the full expanded plan — 10 PRs / 8 runtime / 137 files: doc-12's FULL P1 tier (#2222/#2223/#2224), four carried fixes (#2218–#2221), deps (#2209/#2216), mining operationalization (#2214). First prod export-smoke PASSED 80s after deploy boot._
 
-- **Cycle openers (first in line, riders call made at the beta.207 cut)**: dependabot trio — #2209 (7 prod deps) · #2210 (21 dev deps) · #2208 (claude-code-action bump — ⚠️ if it touches `claude.yml`/`claude-code-review.yml` it needs the MAIN-CUT path per guard:workflow-sync, never develop).
-- **High-priority carried fixes — ALL SHIPPED 2026-08-25**: ~~TASK-766~~ (#2218, MUTE slash-path leak) · ~~TASK-763~~ (#2219, transcript-reply retarget, widened to link references) · ~~TASK-760~~ (#2220, invalid-model classification + catalog-absent veto + rescue owner-reporting; closes Production-Issue item (b)) · ~~TASK-761~~ (#2221, legacy hard-failure delivery; also closed TASK-111). Review-spawned follow-ups filed: TASK-771 (webhook-identity users-row sweep) · TASK-772 (hard-failure personality voice).
-- **Owner-taste queue (design before build)**: TASK-764 (/deny add UX redesign — owner verbatim: clunky and confusing) · TASK-765 (thread-only denials, low).
-- **Theme (owner pick + expansion): doc-12 FULL P1 TIER — ALL SHIPPED 2026-08-25/26**: **#2222** `telemetry:report` (discoverability over `command_events`; first prod run delivered same day; roster join = TASK-773) · **#2223** usage attribution (`latency_ms`/tri-state `byok`/`personality_id` on `usage_logs`, `telemetry:inference` report, privacy-rider owner-approved, byok-swap-through-quota-fallback HIGH fixed via `effectiveIsGuestMode`) · **#2224** weekly export-path smoke (sentinel-driven real pipeline, checked-in export contract schemas, owner-embed on failure; snapshot-bound follow-up = TASK-774). Council-queue docs (doc-64/65/66/67/70/71/72) and drain batches stay queued for beta.209+.
-- **Watches feeding this cycle**: first organic `command_events` rows in prod · error-channel first prod posts · boot-watchdog (a `Boot deadline exceeded` line = it worked) · TASK-754 misdating stop · nightly sync self-heal · NEW: export-smoke first run (dev fires ~60s after next deploy boot; a clean pass is silent, failure = 🧯 owner embed) · `usage_logs` attribution columns populate in prod only after the beta.208 deploy.
-- **Explicitly NOT in** (unchanged): memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · standing watches clear on log signals.
-- **Deploy notes**: TWO additive migrations ride this release (`add_usage_attribution`, `add_usage_personality_index`) — standard `release:premigrate` before merging the release PR; dev already migrated 2026-08-25.
-- **Cut when**: MET — the picked theme (expanded by owner to the full P1 tier) has landed. Cut proposal is the next owner ask.
+- **Theme candidates (owner pick)**: owner-taste pair TASK-764 (/deny add UX redesign — owner verbatim: clunky and confusing) + TASK-765 (thread-only denials) · a drain-campaign themed batch (doc-7; ~107 `state:ready` tasks) · a council-queue doc (doc-64/65/66/67/70/71/72) · doc-78 DM context isolation (design settled + grounded, buildable).
+- **In already**: (empty — grows as PRs merge)
+- **Waiting on**: the theme pick.
+- **Explicitly NOT in**: memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · doc-12 P2 (build-on-demand by design).
+- **Deploy notes**: nothing pending; no migration queued.
+- **Cut when**: the picked theme lands, or the backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
 
 ### 🎯 Current Focus (max 3)
 
