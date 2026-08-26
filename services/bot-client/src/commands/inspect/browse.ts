@@ -132,7 +132,7 @@ function buildBackToListRow(page: number): ActionRowBuilder<MessageActionRowComp
  * Build a complete browse page (embed + components).
  * Uses client-side pagination: the gateway returns all logs (capped at 100) and we
  * slice per page. This is intentional — the dataset is small and ephemeral
- * (24h retention), so server-side pagination would add complexity for no real gain.
+ * (7d retention), so server-side pagination would add complexity for no real gain.
  */
 export function buildBrowsePage(
   logs: DiagnosticLogSummary[],
@@ -159,7 +159,7 @@ export function buildBrowsePage(
       empty: {
         noItems:
           'No recent diagnostic logs found \u2014 logs are created when AI ' +
-          'responses are generated and retained for 24 hours.',
+          'responses are generated and retained for 7 days.',
       },
       footerSegments: [
         pluralize(logs.length, { singular: 'total log', plural: 'total logs' }),

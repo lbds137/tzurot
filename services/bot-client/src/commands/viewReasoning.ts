@@ -4,12 +4,12 @@
  *
  * Right-click any message → Apps → View Reasoning. Two lookup tiers, in order:
  *
- *  1. The diagnostic log (24h retention) — the same lookup "Inspect Message"
+ *  1. The diagnostic log (7d retention) — the same lookup "Inspect Message"
  *     uses, whose by-message → by-response fallback means clicking EITHER the
  *     triggering user message OR the AI's reply resolves to the same log.
  *  2. The reasoning trace persisted on the assistant's conversation-history
  *     row, which lives for the full history-retention window and dies with its
- *     row. This is what makes the command useful past 24h.
+ *     row. This is what makes the command useful past 7d.
  *
  * Both tiers render through the same `buildReasoningTextView` and the shared
  * unpack path, so the output is identical regardless of which store answered.
@@ -84,10 +84,10 @@ async function lookupPersistedReasoning(
   const view = buildReasoningTextView(result.data.thinkingContent, NO_TRACE_FOR_MESSAGE);
 
   // Age is worth stating on THIS tier specifically. Tier 2 runs only after the
-  // diagnostic lookup missed, and expiry at 24h is the usual reason (a log that
+  // diagnostic lookup missed, and expiry at 7d is the usual reason (a log that
   // never existed, or belongs to another user, misses too) — so a trace arriving
   // here is typically old enough that "when was this?" is a real question. The
-  // diagnostic tier carries no such line; anything it answers is within 24h.
+  // diagnostic tier carries no such line; anything it answers is within 7d.
   //
   // The line goes on `chunkedText.text`, NOT on `content`: `renderViewResult`
   // reads `chunkedText.text` and ignores `content` whenever the former is set,
@@ -125,7 +125,7 @@ export default defineContextMenuCommand({
       const result = await resolveDiagnosticLog(interaction.targetId, userClient);
 
       if (!result.success) {
-        // The diagnostic aged out (24h) or never existed. Fall through to the
+        // The diagnostic aged out (7d) or never existed. Fall through to the
         // persisted trace, which outlives it — this is the whole point of the
         // second tier.
         const persisted = await lookupPersistedReasoning(interaction.targetId, userClient);

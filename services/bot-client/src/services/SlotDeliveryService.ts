@@ -180,7 +180,7 @@ export class SlotDeliveryService {
         content,
         chunkMessageIds,
         userMessageTime: slot.userMessageTime,
-        // Persisting the reasoning trace here is what lets it outlive the 24h
+        // Persisting the reasoning trace here is what lets it outlive the 7d
         // diagnostic window.
         thinkingContent: result.metadata?.thinkingContent,
       });

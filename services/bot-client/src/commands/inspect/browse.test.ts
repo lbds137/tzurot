@@ -230,7 +230,7 @@ describe('buildBrowsePage', () => {
 
     expect(result.embeds).toHaveLength(1);
     expect(result.embeds[0].data.description).toContain('No recent diagnostic logs');
-    expect(result.embeds[0].data.description).toContain('24 hours');
+    expect(result.embeds[0].data.description).toContain('7 days');
     expect(result.components).toHaveLength(0);
   });
 

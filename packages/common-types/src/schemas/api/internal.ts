@@ -139,7 +139,7 @@ export const PersistAssistantMessageRequestSchema = z.object({
   userMessageTime: z.string().datetime(),
   /**
    * The model's reasoning trace, persisted onto the history row so it outlives
-   * the 24h diagnostic-log window. Absent when the model produced no trace.
+   * the 7d diagnostic-log window. Absent when the model produced no trace.
    * Declared here deliberately: an undeclared key is stripped by the parse
    * below, which would leave the column null forever with no error — see the
    * sentinel-survival test in internal.test.ts.
