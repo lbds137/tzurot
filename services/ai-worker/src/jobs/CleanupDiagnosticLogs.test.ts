@@ -45,7 +45,7 @@ describe('CleanupDiagnosticLogs', () => {
   });
 
   describe('cleanupDiagnosticLogs', () => {
-    it('should delete logs older than 24 hours by default', async () => {
+    it('should delete logs older than 7 days by default', async () => {
       mockPrisma.llmDiagnosticLog.deleteMany.mockResolvedValue({ count: 5 });
 
       const before = Date.now();
@@ -60,12 +60,12 @@ describe('CleanupDiagnosticLogs', () => {
         },
       });
 
-      // Cutoff should be ~24 hours ago
+      // Cutoff should be ~7 days ago
       const deleteCall = mockPrisma.llmDiagnosticLog.deleteMany.mock.calls[0][0];
       const cutoffTime = deleteCall.where.createdAt.lt.getTime();
 
-      const expectedCutoffMin = before - 24 * 60 * 60 * 1000;
-      const expectedCutoffMax = after - 24 * 60 * 60 * 1000;
+      const expectedCutoffMin = before - 7 * 24 * 60 * 60 * 1000;
+      const expectedCutoffMax = after - 7 * 24 * 60 * 60 * 1000;
 
       expect(cutoffTime).toBeGreaterThanOrEqual(expectedCutoffMin);
       expect(cutoffTime).toBeLessThanOrEqual(expectedCutoffMax);

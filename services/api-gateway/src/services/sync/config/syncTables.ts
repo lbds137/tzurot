@@ -29,7 +29,7 @@ export const EXCLUDED_TABLES: Record<string, string> = {
 
   // Transient/ephemeral data
   pending_memories: 'Transient queue data for memory processing',
-  llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 24h)',
+  llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 7d)',
   command_events:
     'Environment-specific command telemetry — each environment records its own invocations, and syncing would double-count every analytics query',
   usage_logs: 'Environment-specific usage tracking',

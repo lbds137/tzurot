@@ -3,7 +3,7 @@
  *
  * The persisted reasoning trace for one assistant turn, looked up by any of
  * the turn's Discord chunk message IDs. This is the long-lived counterpart to
- * the diagnostic-log lookup: `llm_diagnostic_logs` is purged at 24h, while the
+ * the diagnostic-log lookup: `llm_diagnostic_logs` is purged at 7d, while the
  * trace persisted on the conversation-history row lives for the full history
  * retention window and dies with its row.
  *

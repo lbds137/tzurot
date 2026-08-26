@@ -2,7 +2,7 @@
 
 **Status: In effect.**
 
-_Last updated: 2026-08-23_
+_Last updated: 2026-08-26_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -26,14 +26,14 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **Feedback.** If you submit feedback via `/feedback`, the submission is stored and a copy is posted to a private channel the operator reads.
 
-**Diagnostic logs.** For 24 hours after each AI response, the bot keeps a "flight recorder" entry containing the full request context — your message, the assembled prompt (including character definition and retrieved memories), and the model's raw output — used to debug generation problems. You can view your own entries with `/inspect`; the operator can view all entries during that window. They are deleted automatically after 24 hours.
+**Diagnostic logs.** For 7 days after each AI response, the bot keeps a "flight recorder" entry containing the full request context — your message, the assembled prompt (including character definition and retrieved memories), and the model's raw output — used to debug generation problems. You can view your own entries with `/inspect`; the operator can view all entries during that window. They are deleted automatically after 7 days.
 
 ## Retention
 
 | Data                          | Kept for                                                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Conversation history          | 30 days (swept daily)                                                                                                      |
-| Diagnostic logs               | 24 hours (swept hourly)                                                                                                    |
+| Diagnostic logs               | 7 days (swept hourly)                                                                                                      |
 | Data exports you request      | 24 hours, then deleted                                                                                                     |
 | Memories and extracted facts  | Hidden from use the moment you forget them; rows erased with their persona/character (see below)                           |
 | Personas, characters, uploads | Until you delete them                                                                                                      |
