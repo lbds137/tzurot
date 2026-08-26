@@ -26,7 +26,7 @@ Why THIS signal: historyMessagesDropped is already recorded per request in the l
 
 Action when it fires: the cache-aware history-window policy in docs/proposals/backlog/prompt-assembly-architecture.md section 2.5 stops being theoretical. Build the chunked eviction as specified, and reconsider window-start quantization with real data to tune against.
 
-Query: count rows in llm_diagnostic_logs over the last 24h where data->tokenBudget->>historyMessagesDropped is greater than 0. 24h retention, so this wants a periodic check rather than a one-off.
+Query: count rows in llm_diagnostic_logs over the last 7d where data->tokenBudget->>historyMessagesDropped is greater than 0. Retention is 7d as of 2026-08-26 (was 24h), so a weekly check now covers the whole window without gaps — the periodic-check requirement is softer than when this was filed, but it is still a window, not an archive.
 
 Acceptance: a scheduled or ops-health check reports the count, and a non-zero result surfaces to the owner.
 <!-- SECTION:DESCRIPTION:END -->

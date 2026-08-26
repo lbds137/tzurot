@@ -39,7 +39,7 @@ _Theme decided 2026-08-26 (owner pick at the usage stocktake). Build posture: Op
 - **Waiting on**: the owner's deny-UX taste round. Nothing else gates a cut.
 - **Scope note from #2227's review**: history is THREE reads, not one — stored, live-channel, reply-references. Isolation covers the first two (the live read only in DMs); explicit reply references are an owner-approved exception. Recorded in tracker doc-78; anyone revisiting isolation must account for all three.
 - **Explicitly NOT in**: memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · doc-12 P2 (build-on-demand by design) · council-queue docs (design-heavy — wrong fit for an Opus week).
-- **Deploy notes**: nothing pending; no migration queued (doc-78 needs none).
+- **Deploy notes**: no migration queued (doc-78 needs none). **REQUIRED in the release notes / release DM — owner decision 2026-08-26**: state that the diagnostic-log window moved **24h → 7 days**. `docs/legal/PRIVACY_POLICY.md` is a published commitment and changed with the code (#2231), and the owner chose to announce the extension rather than let users find it in the repo history. This is a release-notes line the cut must not omit.
 - **Cut when**: the theme lands, or the backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
 
 ### 🎯 Current Focus (max 3)
