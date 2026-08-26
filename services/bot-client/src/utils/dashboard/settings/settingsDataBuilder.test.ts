@@ -30,6 +30,7 @@ describe('buildCascadeSettingsData', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      shareHistoryAcrossPersonalities: 'always' as const,
       sources: {
         maxMessages: 'admin',
         maxAge: 'personality',
@@ -41,6 +42,7 @@ describe('buildCascadeSettingsData', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        shareHistoryAcrossPersonalities: 'hardcoded' as const,
       },
     };
 
@@ -66,6 +68,7 @@ describe('buildCascadeSettingsData', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      shareHistoryAcrossPersonalities: 'always' as const,
       sources: {
         maxMessages: 'channel',
         maxAge: 'hardcoded',
@@ -77,6 +80,7 @@ describe('buildCascadeSettingsData', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        shareHistoryAcrossPersonalities: 'hardcoded' as const,
       },
     };
 
@@ -132,6 +136,7 @@ describe('buildCascadeSettingsData', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      shareHistoryAcrossPersonalities: 'always' as const,
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -143,6 +148,7 @@ describe('buildCascadeSettingsData', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        shareHistoryAcrossPersonalities: 'hardcoded' as const,
       },
     };
 
@@ -198,6 +204,7 @@ describe('convertResolveDefaultsResponse', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      shareHistoryAcrossPersonalities: 'always' as const,
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -234,6 +241,7 @@ describe('convertResolveDefaultsResponse', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      shareHistoryAcrossPersonalities: 'always' as const,
       sources: {
         maxMessages: 'hardcoded',
         maxAge: 'hardcoded',

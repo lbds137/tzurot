@@ -88,6 +88,7 @@ describe('Character Overrides Dashboard', () => {
     showModelFooter: true,
     voiceResponseMode: 'always' as const,
     voiceTranscriptionEnabled: true,
+    shareHistoryAcrossPersonalities: 'always' as const,
     sources: {
       maxMessages: 'personality',
       maxAge: 'personality',
@@ -99,6 +100,7 @@ describe('Character Overrides Dashboard', () => {
       showModelFooter: 'hardcoded',
       voiceResponseMode: 'hardcoded' as const,
       voiceTranscriptionEnabled: 'hardcoded' as const,
+      shareHistoryAcrossPersonalities: 'hardcoded' as const,
     },
   };
 

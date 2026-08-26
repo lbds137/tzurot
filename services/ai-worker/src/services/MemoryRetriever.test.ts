@@ -1091,6 +1091,7 @@ describe('MemoryRetriever', () => {
         showModelFooter: true,
         voiceResponseMode: 'always' as const,
         voiceTranscriptionEnabled: true,
+        shareHistoryAcrossPersonalities: 'always' as const,
         sources: {
           maxMessages: 'user-personality',
           maxAge: 'hardcoded',
@@ -1102,6 +1103,7 @@ describe('MemoryRetriever', () => {
           showModelFooter: 'hardcoded' as const,
           voiceResponseMode: 'hardcoded' as const,
           voiceTranscriptionEnabled: 'hardcoded' as const,
+          shareHistoryAcrossPersonalities: 'hardcoded' as const,
         },
       };
 

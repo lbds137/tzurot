@@ -87,6 +87,12 @@ export interface ChannelHistoryWindowParams {
    * it twice.
    */
   excludeDiscordMessageId?: string;
+  /**
+   * Restrict the window to rows written by this personality. Absence means
+   * unscoped (shared across personalities, today's behavior) — the caller
+   * decides scoping via `shouldScopeHistoryToPersonality`.
+   */
+  personalityId?: string;
 }
 
 /** A windowed channel-history read: the messages plus how they were chosen. */
@@ -275,80 +281,6 @@ export class ConversationHistoryService {
     } catch (error) {
       logger.error({ err: error }, 'Failed to update user message');
       return false;
-    }
-  }
-
-  /**
-   * Get paginated conversation history with cursor support
-   * Returns messages in chronological order (oldest first)
-   *
-   * @param channelId Channel ID
-   * @param personalityId Personality ID
-   * @param limit Number of messages to fetch (default: 20, max: 100)
-   * @param cursor Optional cursor (message ID) to fetch messages before
-   * @param contextEpoch Optional epoch timestamp - messages before this time are excluded (STM reset)
-   * @returns Paginated messages and cursor for next page
-   */
-  async getHistory(
-    channelId: string,
-    personalityId: string,
-    limit = 20,
-    cursor?: string,
-    contextEpoch?: Date
-  ): Promise<{
-    messages: ConversationMessage[];
-    hasMore: boolean;
-    nextCursor?: string;
-  }> {
-    try {
-      // Enforce max limit to prevent excessive queries
-      const safeLimit = Math.min(limit, 100);
-
-      const messages = await this.prisma.conversationHistory.findMany({
-        where: {
-          channelId,
-          personalityId,
-          // Exclude soft-deleted messages
-          deletedAt: null,
-          // Filter by context epoch if provided (STM reset feature)
-          ...(contextEpoch !== undefined && {
-            createdAt: {
-              gt: contextEpoch,
-            },
-          }),
-        },
-        orderBy: conversationRecencyOrderBy,
-        take: safeLimit + 1, // Fetch one extra to check if there are more
-        ...(cursor !== undefined && cursor.length > 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
-        select: conversationHistorySelect,
-      });
-
-      // Check if there are more messages
-      const hasMore = messages.length > safeLimit;
-      const resultMessages = hasMore ? messages.slice(0, safeLimit) : messages;
-
-      // Reverse to get chronological order (oldest first) and map to domain objects
-      const history = mapToConversationMessages(resultMessages.reverse());
-
-      // Next cursor is the ID of the last message (in desc order, before reversal)
-      const nextCursor = hasMore ? resultMessages[resultMessages.length - 1].id : undefined;
-
-      logger.debug(
-        `Retrieved ${history.length} messages (hasMore: ${hasMore}, cursor: ${cursor ?? 'none'}) ` +
-          `from history (channel: ${channelId}, personality: ${personalityId})`
-      );
-
-      return {
-        messages: history,
-        hasMore,
-        nextCursor,
-      };
-    } catch (error) {
-      logger.error({ err: error }, `Failed to get paginated conversation history`);
-      return {
-        messages: [],
-        hasMore: false,
-      };
     }
   }
 
@@ -680,8 +612,10 @@ async function readWindowByCapOnly(
  * hysteresis-quantized window. Returns messages in chronological order (oldest
  * first) plus the window telemetry that produced them.
  *
- * Does NOT filter by personalityId — it returns all messages in the channel.
- * Use this when you need complete channel context (e.g. extended context).
+ * By default returns all messages in the channel (no personalityId filter) —
+ * use this when you need complete channel context (e.g. extended context).
+ * Pass `personalityId` to restrict the window to one personality's own rows
+ * (per-personality history isolation).
  *
  * **The count and the fetch run in ONE repeatable-read transaction.** Both
  * halves of the window arithmetic read the same predicate, so a write landing
@@ -706,9 +640,15 @@ export async function getChannelHistoryWindow(
   prisma: TransactionalConversationHistoryClient,
   params: ChannelHistoryWindowParams
 ): Promise<ChannelHistoryWindowResult> {
-  const { channelId, cap, contextEpoch, maxAgeSeconds, excludeDiscordMessageId } = params;
+  const { channelId, cap, contextEpoch, maxAgeSeconds, excludeDiscordMessageId, personalityId } =
+    params;
   const cutoff = computeHistoryCutoff(maxAgeSeconds, contextEpoch);
-  const where = buildChannelHistoryWhere({ channelId, cutoff, excludeDiscordMessageId });
+  const where = buildChannelHistoryWhere({
+    channelId,
+    cutoff,
+    excludeDiscordMessageId,
+    personalityId,
+  });
 
   try {
     // The snapshot exists so the count and the fetch describe the SAME row set —

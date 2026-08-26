@@ -266,63 +266,6 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
-  describe('getHistory — query construction (epoch, cursor, clamp, hasMore)', () => {
-    beforeEach(() => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-    });
-
-    function findManyArgs(): Record<string, unknown> {
-      return mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
-    }
-
-    it('gates on createdAt > contextEpoch when an epoch is provided', async () => {
-      const epoch = new Date('2026-01-01T00:00:00Z');
-      await service.getHistory('chan-1', 'pers-1', 10, undefined, epoch);
-      expect((findManyArgs().where as Record<string, unknown>).createdAt).toEqual({ gt: epoch });
-    });
-
-    it('omits the createdAt gate without an epoch', async () => {
-      await service.getHistory('chan-1', 'pers-1', 10);
-      expect(findManyArgs().where).not.toHaveProperty('createdAt');
-    });
-
-    it('treats an empty-string cursor as no cursor', async () => {
-      await service.getHistory('chan-1', 'pers-1', 10, '');
-      expect(findManyArgs()).not.toHaveProperty('cursor');
-      expect(findManyArgs()).not.toHaveProperty('skip');
-    });
-
-    it('applies cursor + skip for a real cursor id', async () => {
-      await service.getHistory('chan-1', 'pers-1', 10, 'row-5');
-      expect(findManyArgs().cursor).toEqual({ id: 'row-5' });
-      expect(findManyArgs().skip).toBe(1);
-    });
-
-    it('reports NO more when the row count is exactly the limit (the strict-inequality boundary)', async () => {
-      const row = (id: string) => ({
-        id,
-        role: MessageRole.User,
-        content: `Message ${id}`,
-        tokenCount: 3,
-        createdAt: new Date('2026-01-01T10:00:00Z'),
-        personaId: 'persona-1',
-        personalityId: 'pers-1',
-        discordMessageId: [`discord-${id}`],
-        messageMetadata: null,
-        persona: { name: 'User', preferredName: null, owner: { username: 'testuser' } },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
-      });
-      // Exactly safeLimit rows came back (no over-fetch row): hasMore must be
-      // false and nothing may be sliced off.
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([row('a'), row('b')]);
-
-      const result = await service.getHistory('chan-1', 'pers-1', 2);
-
-      expect(result.hasMore).toBe(false);
-      expect(result.messages).toHaveLength(2);
-    });
-  });
-
   describe('getHistoryStats — count wiring and epoch threading', () => {
     beforeEach(() => {
       mockPrismaClient.conversationHistory.count.mockResolvedValue(0);
@@ -507,135 +450,6 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       // Service reverses to chronological order (oldest first)
       expect(result[0].tokenCount).toBeUndefined(); // msg-old (null becomes undefined)
       expect(result[1].tokenCount).toBe(6); // msg-new
-    });
-  });
-
-  describe('getHistory - Paginated Token Count Retrieval', () => {
-    it('should include cached token counts in paginated results', async () => {
-      // Mock returns messages in DESC order (newest first)
-      const mockMessages = [
-        {
-          id: 'msg-2',
-          role: MessageRole.Assistant,
-          content: 'Message 2',
-          tokenCount: 5,
-          createdAt: new Date('2025-11-08T10:01:00Z'),
-          personaId: 'persona-456',
-          personalityId: 'personality-456',
-          discordMessageId: ['discord-2'],
-          messageMetadata: null,
-          persona: {
-            name: 'Bot',
-            preferredName: null,
-            owner: { username: 'botuser' },
-          },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
-        },
-        {
-          id: 'msg-1',
-          role: MessageRole.User,
-          content: 'Message 1',
-          tokenCount: 3,
-          createdAt: new Date('2025-11-08T10:00:00Z'),
-          personaId: 'persona-123',
-          personalityId: 'personality-456',
-          discordMessageId: ['discord-1'],
-          messageMetadata: null,
-          persona: {
-            name: 'Alice',
-            preferredName: 'Alice Smith',
-            owner: { username: 'aliceuser' },
-          },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
-        },
-      ];
-
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
-
-      const result = await service.getHistory('channel-123', 'personality-456', 20);
-
-      expect(result.messages).toHaveLength(2);
-      // Service reverses to chronological order (oldest first)
-      expect(result.messages[0].tokenCount).toBe(3); // msg-1
-      expect(result.messages[1].tokenCount).toBe(5); // msg-2
-
-      // Verify tokenCount was requested in the query
-      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          select: expect.objectContaining({
-            tokenCount: true,
-          }),
-        })
-      );
-    });
-
-    it('should handle mixed null and non-null token counts in paginated results', async () => {
-      // Mock returns messages in DESC order (newest first)
-      const mockMessages = [
-        {
-          id: 'msg-new-2',
-          role: MessageRole.Assistant,
-          content: 'New message 2',
-          tokenCount: 9,
-          createdAt: new Date('2025-11-08T10:01:00Z'),
-          personaId: 'persona-456',
-          personalityId: 'personality-456',
-          discordMessageId: ['discord-new-2'],
-          messageMetadata: null,
-          persona: { name: 'Bot', preferredName: null, owner: { username: 'botuser' } },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
-        },
-        {
-          id: 'msg-new-1',
-          role: MessageRole.Assistant,
-          content: 'New message 1',
-          tokenCount: 7,
-          createdAt: new Date('2025-11-08T10:00:00Z'),
-          personaId: 'persona-456',
-          personalityId: 'personality-456',
-          discordMessageId: ['discord-new-1'],
-          messageMetadata: null,
-          persona: { name: 'Bot', preferredName: null, owner: { username: 'botuser' } },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
-        },
-        {
-          id: 'msg-old-2',
-          role: MessageRole.User,
-          content: 'Old message 2',
-          tokenCount: null,
-          createdAt: new Date('2025-01-02T00:00:00Z'),
-          personaId: 'persona-123',
-          personalityId: 'personality-456',
-          discordMessageId: ['discord-old-2'],
-          messageMetadata: null,
-          persona: { name: 'Alice', preferredName: null, owner: { username: 'aliceuser' } },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
-        },
-        {
-          id: 'msg-old-1',
-          role: MessageRole.User,
-          content: 'Old message 1',
-          tokenCount: null,
-          createdAt: new Date('2025-01-01T00:00:00Z'),
-          personaId: 'persona-123',
-          personalityId: 'personality-456',
-          discordMessageId: ['discord-old-1'],
-          messageMetadata: null,
-          persona: { name: 'Alice', preferredName: null, owner: { username: 'aliceuser' } },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
-        },
-      ];
-
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
-
-      const result = await service.getHistory('channel-123', 'personality-456', 20);
-
-      expect(result.messages).toHaveLength(4);
-      // Service reverses to chronological order (oldest first)
-      expect(result.messages[0].tokenCount).toBeUndefined(); // msg-old-1
-      expect(result.messages[1].tokenCount).toBeUndefined(); // msg-old-2
-      expect(result.messages[2].tokenCount).toBe(7); // msg-new-1
-      expect(result.messages[3].tokenCount).toBe(9); // msg-new-2
     });
   });
 
@@ -1016,106 +830,6 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
-  describe('getHistory - Pagination', () => {
-    it('should enforce max limit of 100', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-
-      await service.getHistory('channel-123', 'personality-456', 500); // Request 500
-
-      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          take: 101, // Should be limited to 100 + 1
-        })
-      );
-    });
-
-    it('should indicate hasMore when more messages exist', async () => {
-      // Mock returns 21 messages (limit + 1) in DESC order (newest first)
-      const mockMessages = Array.from({ length: 21 }, (_, i) => ({
-        id: `msg-${20 - i}`, // Reverse order: msg-20, msg-19, ..., msg-0
-        role: MessageRole.User,
-        content: `Message ${20 - i}`,
-        tokenCount: 3,
-        createdAt: new Date(`2025-11-08T10:${(20 - i).toString().padStart(2, '0')}:00Z`),
-        personaId: `persona-${20 - i}`,
-        personalityId: 'personality-456',
-        discordMessageId: [`discord-${20 - i}`],
-        messageMetadata: null,
-        persona: { name: 'User', preferredName: null, owner: { username: 'testuser' } },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
-      }));
-
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
-
-      const result = await service.getHistory('channel-123', 'personality-456', 20);
-
-      expect(result.messages).toHaveLength(20); // Should only return 20
-      expect(result.hasMore).toBe(true);
-      // nextCursor is the last message after reversal (newest message in result: msg-20)
-      expect(result.nextCursor).toBe('msg-20');
-    });
-
-    it('should indicate no more messages when at the end', async () => {
-      const mockMessages = Array.from({ length: 10 }, (_, i) => ({
-        id: `msg-${i}`,
-        role: MessageRole.User,
-        content: `Message ${i}`,
-        tokenCount: 3,
-        createdAt: new Date(`2025-11-08T10:${i.toString().padStart(2, '0')}:00Z`),
-        personaId: `persona-${i}`,
-        personalityId: 'personality-456',
-        discordMessageId: [`discord-${i}`],
-        messageMetadata: null,
-        persona: { name: 'User', preferredName: null, owner: { username: 'testuser' } },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
-      }));
-
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
-
-      const result = await service.getHistory('channel-123', 'personality-456', 20);
-
-      expect(result.messages).toHaveLength(10);
-      expect(result.hasMore).toBe(false);
-      expect(result.nextCursor).toBeUndefined();
-    });
-
-    it('should use cursor for pagination', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-
-      await service.getHistory('channel-123', 'personality-456', 20, 'cursor-msg-123');
-
-      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          cursor: { id: 'cursor-msg-123' },
-          skip: 1,
-        })
-      );
-    });
-
-    it('should not use cursor when empty string provided', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-
-      await service.getHistory('channel-123', 'personality-456', 20, '');
-
-      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
-        expect.not.objectContaining({
-          cursor: expect.anything(),
-        })
-      );
-    });
-
-    it('should return empty result on error', async () => {
-      const error = new Error('Database connection failed');
-      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
-
-      const result = await service.getHistory('channel-123', 'personality-456', 20);
-
-      expect(result.messages).toEqual([]);
-      expect(result.hasMore).toBe(false);
-      expect(result.nextCursor).toBeUndefined();
-    });
-  });
-
   describe('updateLastAssistantMessageId', () => {
     it('should update assistant message with Discord message IDs', async () => {
       const discordIds = ['discord-chunk-1', 'discord-chunk-2', 'discord-chunk-3'];
@@ -1236,6 +950,29 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       // Verify personalityId is NOT in the where clause
       const callArg = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
       expect(callArg.where.personalityId).toBeUndefined();
+    });
+
+    it('scopes the window to one personality when personalityId is supplied', async () => {
+      // cap 22 pushes into the eviction-chunk regime, which routes through the
+      // transaction path (readWindowIn) — the count and the fetch must both
+      // see the SAME predicate, or the window's count and its rows would
+      // describe two different row sets.
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(5);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await getChannelHistoryWindow(mockPrismaClient as unknown as PrismaClient, {
+        channelId: 'channel-123',
+        cap: 22,
+        personalityId: 'personality-456',
+      });
+
+      const countArg = mockPrismaClient.conversationHistory.count.mock.calls[0][0];
+      const findManyArg = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+      expect(countArg.where.personalityId).toBe('personality-456');
+      expect(findManyArg.where.personalityId).toBe('personality-456');
+      // Same predicate object reference — the shared-builder guarantee the
+      // module doc describes, not two independently-built where clauses.
+      expect(countArg.where).toBe(findManyArg.where);
     });
 
     it('should return messages in chronological order', async () => {

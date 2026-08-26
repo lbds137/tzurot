@@ -85,6 +85,28 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
       'instead of being per-character',
   },
   {
+    id: 'shareHistoryAcrossPersonalities',
+    label: 'Share Chat History',
+    emoji: '📜',
+    description:
+      "Controls whether characters see each other's replies (and your messages to them) " +
+      'in the same channel, or only their own conversation with you.',
+    type: SettingType.ENUM,
+    choices: [
+      { value: 'always', label: 'Always Shared', emoji: '📜' },
+      { value: 'guilds-only', label: 'Shared in Servers, Isolated in DMs', emoji: '🏰' },
+      { value: 'dms-only', label: 'Shared in DMs, Isolated in Servers', emoji: '✉️' },
+      { value: 'never', label: 'Always Isolated', emoji: '🔒' },
+    ],
+    helpText:
+      '"Isolated" means a character reads only its own conversation with you. ' +
+      "In DMs that covers everything it picks up on its own — no other character's replies, " +
+      "and none of your messages to them. Replying directly to another character's message " +
+      'still shows that message, since that is you quoting it on purpose. In servers, ' +
+      'isolation applies to stored history only: recent messages still visible in the ' +
+      'channel can still be included, since everyone there can already see them.',
+  },
+  {
     id: 'memoryScoreThreshold',
     label: 'Memory Relevance',
     emoji: '📊',

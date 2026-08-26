@@ -45,10 +45,49 @@ export const ConfigOverridesSchema = z
     voiceResponseMode: z.enum(['always', 'voice-only', 'never']).optional(),
     /** Whether to auto-transcribe voice messages (runtime control; VOICE_ENGINE_URL remains infrastructure config) */
     voiceTranscriptionEnabled: z.boolean().optional(),
+    /** Scopes in which conversation history is shared across personalities in the same channel:
+     * 'always' = shared everywhere (today's behavior), 'guilds-only' = shared in guild channels
+     * but isolated per-personality in DMs, 'dms-only' = the inverse, 'never' = always isolated
+     * per-personality. Isolation always scopes the STORED history read; in a DM it additionally
+     * drops the live-channel read, so a personality there sees only its own rows. In a guild the
+     * live read still contributes, since those messages are already visible to everyone present. */
+    shareHistoryAcrossPersonalities: z
+      .enum(['always', 'guilds-only', 'dms-only', 'never'])
+      .optional(),
   })
   .strip();
 
 export type ConfigOverrides = z.infer<typeof ConfigOverridesSchema>;
+
+/** The `shareHistoryAcrossPersonalities` enum values, as a standalone type. */
+export type ShareHistoryAcrossPersonalitiesMode = NonNullable<
+  ConfigOverrides['shareHistoryAcrossPersonalities']
+>;
+
+/**
+ * Given the resolved `shareHistoryAcrossPersonalities` mode and whether the
+ * current channel is a DM, returns true when conversation history must be
+ * restricted to rows written by the given personality. This governs the STORED
+ * history read in both DMs and guilds; callers additionally drop the live
+ * channel read when this is true AND the channel is a DM, which is what makes
+ * DM isolation complete (see `channelHistoryHydration.ts`). Colocated with the
+ * enum so drift between the truth table and the enum's values is impossible.
+ */
+export function shouldScopeHistoryToPersonality(
+  mode: ShareHistoryAcrossPersonalitiesMode,
+  isDm: boolean
+): boolean {
+  switch (mode) {
+    case 'always':
+      return false;
+    case 'never':
+      return true;
+    case 'guilds-only':
+      return isDm;
+    case 'dms-only':
+      return !isDm;
+  }
+}
 
 // ============================================================================
 // OFF-sentinel wire contract
@@ -115,6 +154,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly showModelFooter: true;
   readonly voiceResponseMode: 'always';
   readonly voiceTranscriptionEnabled: true;
+  readonly shareHistoryAcrossPersonalities: 'always';
 } = {
   maxMessages: 50,
   maxAge: null,
@@ -126,6 +166,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   showModelFooter: true,
   voiceResponseMode: 'always',
   voiceTranscriptionEnabled: true,
+  shareHistoryAcrossPersonalities: 'always',
 };
 
 // ============================================================================
@@ -158,6 +199,7 @@ export interface ResolvedConfigOverrides {
   showModelFooter: boolean;
   voiceResponseMode: 'always' | 'voice-only' | 'never';
   voiceTranscriptionEnabled: boolean;
+  shareHistoryAcrossPersonalities: ShareHistoryAcrossPersonalitiesMode;
 
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;
@@ -196,6 +238,7 @@ export const CONFIG_OVERRIDES_KEYS = [
   'showModelFooter',
   'voiceResponseMode',
   'voiceTranscriptionEnabled',
+  'shareHistoryAcrossPersonalities',
 ] as const satisfies readonly (keyof ConfigOverrides)[];
 
 const ConfigOverridesKeySchema = z.enum(CONFIG_OVERRIDES_KEYS);

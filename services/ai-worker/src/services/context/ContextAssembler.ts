@@ -16,7 +16,7 @@
  * cannot drift during burn-in.
  */
 
-import { MESSAGE_LIMITS, MessageRole } from '@tzurot/common-types/constants/message';
+import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import { type JobContext } from '@tzurot/common-types/types/jobs';
@@ -46,6 +46,7 @@ import {
 import { resolveExtendedContextPersonaIds } from '@tzurot/common-types/utils/extendedContextPersonaResolver';
 import { mergeWithHistory } from '@tzurot/common-types/utils/historyMerger';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { hydrateChannelHistory } from './channelHistoryHydration.js';
 import { fromApiMessage } from './fromApiMessage.js';
 import { countEntriesBeforeHead, logCacheBoundary } from './historyWindowTelemetry.js';
 import type { PersonaResolver, UserService } from '@tzurot/identity';
@@ -159,34 +160,14 @@ export class ContextAssembler {
     const activePersonaName = summon.kind === 'personal' ? summon.activePersonaName : null;
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
 
-    // Step 3: hydrate channel history — same cap derivation as the
-    // bot-side dbLimit.
-    const cap = Math.min(
-      configOverrides?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
-    );
-    // Exclude the trigger message from the assembled history. bot-client
-    // persists it to the gateway BEFORE submitting this job (durability for the
-    // next turn), and this hydration runs after — so the just-sent message is
-    // already in the channel history. It is also delivered as the live user
-    // turn, so without this exclusion it appears twice: once in the assembled
-    // history and again as the current message. (The bot-side history fetch
-    // reads before the persist and never saw it; the worker must drop it here.)
-    //
-    // The exclusion is a predicate, not a post-filter, and that placement is
-    // load-bearing under windowing: the window's count and its rows must
-    // describe the same set. Dropping a row afterwards returned one message
-    // fewer than the arithmetic promised, which the old code compensated for
-    // with a fetch-one-extra `+1`. Inside the predicate there is nothing to
-    // compensate for.
-    const { messages: dbHistory, meta: historyWindowMeta } =
-      await this.deps.dataSource.getChannelHistoryWindow({
-        channelId,
-        cap,
-        contextEpoch,
-        maxAgeSeconds: configOverrides?.maxAge ?? undefined,
-        excludeDiscordMessageId: jobContext.triggerMessageId,
-      });
+    const { dbHistory, historyWindowMeta, cap, isolatedDm } = await hydrateChannelHistory({
+      dataSource: this.deps.dataSource,
+      jobContext,
+      personality,
+      configOverrides,
+      channelId,
+      contextEpoch,
+    });
 
     // Step 4: envelope-carried extended context — batch-upsert the observed
     // users, resolve placeholder personaIds (shared impl, which also re-keys
@@ -200,7 +181,8 @@ export class ContextAssembler {
         channelId,
         guildId: jobContext.serverId ?? null,
         activeUserId: user.userId,
-      }
+      },
+      isolatedDm
     );
 
     // Step 4.5: re-resolve transcripts for extended-context voice messages the
@@ -446,12 +428,16 @@ export class ContextAssembler {
   /**
    * Steps the envelope's extended context through upsert → resolve → merge,
    * and writes through the guild memberships it observed on the way.
+   *
+   * `isolatedDm` drops the extended-context messages wholesale (see the note
+   * at the `rawMessages` binding below); the write-throughs are unaffected.
    */
   private async mergeExtendedContext(
     raw: RawAssemblyInputs,
     dbHistory: ConversationMessage[],
     personalityId: string,
-    location: { channelId: string; guildId: string | null; activeUserId: string }
+    location: { channelId: string; guildId: string | null; activeUserId: string },
+    isolatedDm: boolean
   ): Promise<{
     history: ConversationMessage[];
     participantGuildInfo: Record<string, GuildMemberInfo> | undefined;
@@ -476,7 +462,17 @@ export class ContextAssembler {
       logger.warn({ err, userId: location.activeUserId }, 'Active guild-info write-through failed');
     });
 
-    const rawMessages = raw.rawExtendedContextMessages;
+    // Under DM isolation the live-channel read is dropped wholesale. It is a
+    // Discord fetch, not a DB read, so the personality predicate the DB half
+    // applies never touched it — and the shared merger dedups by Discord
+    // message id alone, so a sibling character's replies no longer collide
+    // with the (now personality-scoped) DB rows and would be APPENDED rather
+    // than deduped away. Emptying the input rather than bypassing the call
+    // routes the skip through the same no-messages early return below, so both
+    // guild-info write-throughs and the ABSENT-vs-EMPTY participant map keep
+    // behaving exactly as they already do on that path. Pinned by the DM/guild
+    // seam pair in `ContextAssembler.test.ts`.
+    const rawMessages = isolatedDm ? undefined : raw.rawExtendedContextMessages;
     if (rawMessages === undefined || rawMessages.length === 0) {
       // No extended-context messages to merge, but the guild map can still be
       // present (e.g. {} = fetch ran in a guild, observed no member data).
