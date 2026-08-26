@@ -3,9 +3,10 @@ id: TASK-767
 title: >-
   Recovery rehydrates already-delivered slots as pending - safety flush sends a
   spurious timeout after the real reply
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 17:57'
+updated_date: '2026-08-26 12:55'
 labels:
   - 'area:bot-client'
   - 'size:S'

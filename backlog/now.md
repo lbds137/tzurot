@@ -35,8 +35,8 @@ _Theme decided 2026-08-26 (owner pick at the usage stocktake). Build posture: Op
 - **Theme**: doc-78 — DM context isolation (enum `shareHistoryAcrossPersonalities`, default `always`; no migration). Design + 7 registration sites + runtime evidence live in tracker doc-78.
 - **Riding**: owner-taste pair TASK-764 (/deny add UX redesign — owner verbatim: clunky and confusing) + TASK-765 (thread-only denials) — needs the owner's UX taste round before build.
 - **Filler between PRs**: drain-batch slices (doc-7; ~107 `state:ready` tasks).
-- **In already**: #2227 doc-78 DM context isolation (the theme — SHIPPED to develop 2026-08-26).
-- **Waiting on**: the owner's deny-UX taste round · #2228 (TASK-767 spurious-timeout fix) in review.
+- **In already**: #2227 doc-78 DM context isolation (the theme) · #2228 TASK-767 recovery spurious-timeout fix (closed four defects of one class — see its commit).
+- **Waiting on**: the owner's deny-UX taste round. Nothing else gates a cut.
 - **Scope note from #2227's review**: history is THREE reads, not one — stored, live-channel, reply-references. Isolation covers the first two (the live read only in DMs); explicit reply references are an owner-approved exception. Recorded in tracker doc-78; anyone revisiting isolation must account for all three.
 - **Explicitly NOT in**: memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · doc-12 P2 (build-on-demand by design) · council-queue docs (design-heavy — wrong fit for an Opus week).
 - **Deploy notes**: nothing pending; no migration queued (doc-78 needs none).
