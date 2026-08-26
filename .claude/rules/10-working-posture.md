@@ -44,6 +44,22 @@ and code — work described as "next" may have shipped, "duplicated code" may
 have diverged to zero clones. The user's "I think we already did that" is a
 search order, not a debate.
 
+The same seam runs the other way, and this half has no tripwire: before
+changing a **documented parameter** — a retention window, a TTL, a cap, a
+threshold, a default — search for a prior DECISION about it, not just the
+code that reads it. The tracker first (`pnpm tracker doc search <term>` AND
+`pnpm tracker task list --search <term> --plain`), then the narrative
+surfaces the tracker does not index: `docs/incidents/`,
+`docs/reference/architecture/`, `backlog/references.md`. A clean tracker
+search alone is a negative existence claim, and `00-critical.md` governs
+those. Code and docs give the current value; the decision record is what
+says whether someone already weighed this exact change, closed it, and with
+what numbers — a retention bump reached review calling its storage cost
+unmeasured while an idea doc had measured it and recorded
+**Closed: no widening**. A prior close is not a veto; reversing it is often
+right. But it is reversed **deliberately, with the reason written back into
+the doc that closed it**, never by a session that did not know it existed.
+
 ## Principle from advisors, target from the code
 
 Council passes, review sketches, and design docs reliably name the right
