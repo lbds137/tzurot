@@ -7,13 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   parseRedisUrl,
-  createRedisSocketConfig,
   createBullMQRedisConfig,
   createIORedisClient,
   initCoreRedisServices,
 } from './redis.js';
 import { getConfig } from '../config/index.js';
-import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
+import { REDIS_CONNECTION } from '../constants/index.js';
 
 // Mock ioredis - must use class so `new Redis()` works as constructor
 const mockOn = vi.fn().mockReturnThis();
@@ -108,96 +107,6 @@ describe('parseRedisUrl', () => {
   });
 });
 
-describe('createRedisSocketConfig', () => {
-  it('should create config with correct timeout values from constants', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    expect(config.socket.connectTimeout).toBe(REDIS_CONNECTION.CONNECT_TIMEOUT);
-    expect(config.socket.commandTimeout).toBe(REDIS_CONNECTION.COMMAND_TIMEOUT);
-    expect(config.socket.keepAliveInitialDelay).toBe(REDIS_CONNECTION.KEEPALIVE);
-  });
-
-  it('should set maxRetriesPerRequest to RETRY_CONFIG value (not null)', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    expect(config.maxRetriesPerRequest).toBe(RETRY_CONFIG.REDIS_RETRIES_PER_REQUEST);
-    expect(config.maxRetriesPerRequest).toBe(3); // Direct Redis clients use 3
-  });
-
-  it('should default to IPv6 (family 6) for Railway', () => {
-    const config = createRedisSocketConfig({
-      host: 'redis.railway.internal',
-      port: 6379,
-    });
-
-    expect(config.socket.family).toBe(6);
-  });
-
-  it('should respect explicit family setting', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-      family: 4,
-    });
-
-    expect(config.socket.family).toBe(4);
-  });
-
-  it('should include password and username if provided', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-      password: 'secret',
-      username: 'admin',
-    });
-
-    expect(config.password).toBe('secret');
-    expect(config.username).toBe('admin');
-  });
-
-  it('should enable keepAlive and readyCheck', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    expect(config.socket.keepAlive).toBe(true);
-    expect(config.enableReadyCheck).toBe(true);
-    expect(config.lazyConnect).toBe(false);
-  });
-
-  it('should have a reconnectStrategy function', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    expect(typeof config.socket.reconnectStrategy).toBe('function');
-
-    // Test that it returns a delay for early retries
-    const delay = config.socket.reconnectStrategy(1);
-    expect(typeof delay).toBe('number');
-    expect(delay).toBeGreaterThan(0);
-  });
-
-  it('should give up after max retries', () => {
-    const config = createRedisSocketConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    const result = config.socket.reconnectStrategy(RETRY_CONFIG.REDIS_MAX_RETRIES + 1);
-    expect(result).toBeInstanceOf(Error);
-    expect((result as Error).message).toContain('Max reconnection attempts reached');
-  });
-});
-
 describe('createBullMQRedisConfig', () => {
   it('should set maxRetriesPerRequest to null for BullMQ compatibility', () => {
     const config = createBullMQRedisConfig({
@@ -260,48 +169,19 @@ describe('createBullMQRedisConfig', () => {
     expect(config.lazyConnect).toBe(false);
   });
 
-  it('should have a reconnectStrategy function', () => {
+  it('advertises no reconnect policy, because a config-level one cannot take effect', () => {
     const config = createBullMQRedisConfig({
       host: 'localhost',
       port: 6379,
     });
 
-    expect(typeof config.reconnectStrategy).toBe('function');
-
-    // Test that it returns a delay for early retries
-    const delay = config.reconnectStrategy(1);
-    expect(typeof delay).toBe('number');
-    expect(delay).toBeGreaterThan(0);
-  });
-
-  it('should give up after max retries', () => {
-    const config = createBullMQRedisConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    const result = config.reconnectStrategy(RETRY_CONFIG.REDIS_MAX_RETRIES + 1);
-    expect(result).toBeInstanceOf(Error);
-    expect((result as Error).message).toContain('Max reconnection attempts reached');
-  });
-
-  it('should use exponential backoff for retries', () => {
-    const config = createBullMQRedisConfig({
-      host: 'localhost',
-      port: 6379,
-    });
-
-    const delay1 = config.reconnectStrategy(1) as number;
-    const delay2 = config.reconnectStrategy(2) as number;
-    const delay3 = config.reconnectStrategy(3) as number;
-
-    // Each retry should have increasing delay (up to max)
-    expect(delay2).toBeGreaterThan(delay1);
-    expect(delay3).toBeGreaterThan(delay2);
-
-    // But capped at REDIS_MAX_DELAY (test within valid range)
-    const delayMax = config.reconnectStrategy(RETRY_CONFIG.REDIS_MAX_RETRIES - 1) as number;
-    expect(delayMax).toBeLessThanOrEqual(RETRY_CONFIG.REDIS_MAX_DELAY);
+    // `reconnectStrategy` is node-redis's option name. ioredis reads
+    // `retryStrategy` and silently ignores the other, so a config carrying
+    // either key would advertise a bound the client never honours — verified
+    // by probe: passing `reconnectStrategy` yields the same `retryStrategy`
+    // function reference as passing nothing at all.
+    expect(config).not.toHaveProperty('reconnectStrategy');
+    expect(config).not.toHaveProperty('retryStrategy');
   });
 });
 

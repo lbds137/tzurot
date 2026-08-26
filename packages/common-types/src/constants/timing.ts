@@ -196,12 +196,6 @@ export const RETRY_CONFIG = {
   BACKOFF_MULTIPLIER: 2,
 
   // Redis-specific retry configuration
-  /** Maximum Redis retry attempts before giving up */
-  REDIS_MAX_RETRIES: 10,
-  /** Base delay multiplier for Redis retries (milliseconds) */
-  REDIS_RETRY_MULTIPLIER: 100,
-  /** Maximum delay for Redis retries (3 seconds) */
-  REDIS_MAX_DELAY: 3000,
   /** Max retries per Redis request for direct Redis clients (BullMQ uses null instead) */
   REDIS_RETRIES_PER_REQUEST: 3,
 } as const;

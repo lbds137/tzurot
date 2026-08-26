@@ -1,12 +1,16 @@
 import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
 import { Queue, type Worker } from 'bullmq';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
-import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
+import {
+  parseRedisUrl,
+  createBullMQRedisConfig,
+  createIORedisClient,
+} from '@tzurot/common-types/utils/redis';
 import {
   CacheInvalidationService,
   ChannelActivationCacheInvalidationService,
@@ -193,10 +197,7 @@ interface Services {
 function buildCacheRedis(): Redis {
   validateRedisUrl();
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated by validateRedisUrl() above; TS can't narrow across the function boundary
-  const cacheRedis = new Redis(envConfig.REDIS_URL!);
-  cacheRedis.on('error', err => {
-    logger.error({ err }, 'Cache Redis connection error');
-  });
+  const cacheRedis = createIORedisClient(envConfig.REDIS_URL!, 'BotClientCacheRedis', logger);
   logger.info('Redis client initialized for cache invalidation');
   return cacheRedis;
 }
