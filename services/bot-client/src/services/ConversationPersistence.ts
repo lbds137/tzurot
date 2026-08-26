@@ -72,7 +72,7 @@ interface SaveAssistantMessageOptions {
   userMessageTime: Date;
   /**
    * Reasoning trace from the job result metadata. Persisted onto the history
-   * row so it survives the 24h diagnostic window; absent when the model
+   * row so it survives the 7d diagnostic window; absent when the model
    * produced none.
    */
   thinkingContent?: string;
