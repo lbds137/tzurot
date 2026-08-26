@@ -7,10 +7,13 @@
  * - Character creators: PERSONALITY scope for characters they own
  *
  * Subcommands:
- * - /deny add — Add a denial entry
- * - /deny remove — Remove a denial entry
+ * - /deny add {everywhere|this-server|channel|character} — Add a denial entry
+ * - /deny remove {everywhere|this-server|channel|character} — Remove a denial entry
  * - /deny browse — Browse denial entries with pagination (owner only)
  * - /deny view — Look up denylist entries by Discord ID (owner only)
+ *
+ * `add` and `remove` are subcommand GROUPS so the scope is picked by name and
+ * only the options legal for that scope appear; `browse` and `view` stay flat.
  */
 
 import {
@@ -18,6 +21,8 @@ import {
   SlashCommandBuilder,
   type AutocompleteInteraction,
   type ButtonInteraction,
+  type SlashCommandSubcommandBuilder,
+  type SlashCommandSubcommandGroupBuilder,
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
@@ -46,10 +51,9 @@ import './browseRebuilder.js';
 
 const logger = createLogger('deny-command');
 
+/** Flat subcommands only — `add` and `remove` are groups, routed by group name below. */
 const denyRouter = createSubcommandContextRouter(
   {
-    add: handleAdd,
-    remove: handleRemove,
     browse: handleBrowse,
     view: handleView,
   },
@@ -58,6 +62,20 @@ const denyRouter = createSubcommandContextRouter(
 
 async function execute(ctx: SafeCommandContext): Promise<void> {
   const context = ctx as DeferredCommandContext;
+  const group = context.getSubcommandGroup();
+
+  // Both groups carry the same four scope subcommands, so a flat router keyed
+  // on subcommand name alone would collide; each group has one handler that
+  // derives the scope from the subcommand name.
+  if (group === 'add') {
+    await handleAdd(context);
+    return;
+  }
+  if (group === 'remove') {
+    await handleRemove(context);
+    return;
+  }
+
   await denyRouter(context);
 }
 
@@ -92,13 +110,6 @@ const TYPE_CHOICES: { name: string; value: string }[] = [
   { name: 'Server', value: 'GUILD' },
 ];
 
-const SCOPE_CHOICES: { name: string; value: string }[] = [
-  { name: 'Bot (bot-wide)', value: 'BOT' },
-  { name: 'Guild (this server)', value: 'GUILD' },
-  { name: 'Channel', value: 'CHANNEL' },
-  { name: 'Character', value: 'PERSONALITY' },
-];
-
 const MODE_CHOICES: { name: string; value: string }[] = [
   { name: 'Block (full deny, default)', value: 'BLOCK' },
   { name: 'Mute (ignore but keep in context)', value: 'MUTE' },
@@ -112,6 +123,116 @@ const FILTER_CHOICES: { name: string; value: string }[] = [
   { name: 'Servers Only', value: 'guild' },
 ];
 
+const USER_OPTION_DESCRIPTION = 'The user to deny';
+
+/** `reason` + `mode` are add-only; removing a denial takes neither. */
+function withAddOnlyOptions(
+  sub: SlashCommandSubcommandBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandBuilder {
+  if (!isAdd) {
+    return sub;
+  }
+  return sub
+    .addStringOption(opt =>
+      opt.setName('reason').setDescription('Reason for the denial').setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt
+        .setName('mode')
+        .setDescription('Denial mode (default: Block)')
+        .setRequired(false)
+        .addChoices(...MODE_CHOICES)
+    );
+}
+
+function buildEverywhere(
+  sub: SlashCommandSubcommandBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandBuilder {
+  // The only subcommand exposing `server:` — a server denial is bot-wide by
+  // definition, so the narrower scopes cannot offer the option at all.
+  sub
+    .setName('everywhere')
+    .setDescription(
+      isAdd ? 'Deny in every server and DM (owner only)' : 'Remove a bot-wide denial (owner only)'
+    )
+    .addUserOption(opt =>
+      opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName('server').setDescription('Server ID to deny instead of a user').setRequired(false)
+    );
+  return withAddOnlyOptions(sub, isAdd);
+}
+
+function buildThisServer(
+  sub: SlashCommandSubcommandBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandBuilder {
+  sub
+    .setName('this-server')
+    .setDescription(isAdd ? 'Deny throughout this server' : 'Remove a denial for this server')
+    .addUserOption(opt =>
+      opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
+    );
+  return withAddOnlyOptions(sub, isAdd);
+}
+
+function buildChannel(
+  sub: SlashCommandSubcommandBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandBuilder {
+  sub
+    .setName('channel')
+    .setDescription(isAdd ? 'Deny in one channel' : 'Remove a denial for one channel')
+    .addUserOption(opt =>
+      opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
+    )
+    .addChannelOption(opt =>
+      opt
+        .setName('channel')
+        .setDescription('The channel the denial applies to')
+        .setRequired(true)
+        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
+    );
+  return withAddOnlyOptions(sub, isAdd);
+}
+
+function buildCharacter(
+  sub: SlashCommandSubcommandBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandBuilder {
+  sub
+    .setName('character')
+    .setDescription(isAdd ? 'Deny for one character' : 'Remove a denial for one character')
+    .addUserOption(opt =>
+      opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt
+        .setName('character')
+        .setDescription('The character the denial applies to')
+        .setRequired(true)
+        .setAutocomplete(true)
+    );
+  return withAddOnlyOptions(sub, isAdd);
+}
+
+/** Scope-first group: the subcommand name IS the denial scope. */
+function buildScopeGroup(
+  group: SlashCommandSubcommandGroupBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandGroupBuilder {
+  return group
+    .setName(isAdd ? 'add' : 'remove')
+    .setDescription(isAdd ? 'Deny a user or server' : 'Remove a denial')
+    .addSubcommand(sub => buildEverywhere(sub, isAdd))
+    .addSubcommand(sub => buildThisServer(sub, isAdd))
+    .addSubcommand(sub => buildChannel(sub, isAdd))
+    .addSubcommand(sub => buildCharacter(sub, isAdd));
+}
+
 export default defineCommand({
   deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
@@ -120,88 +241,8 @@ export default defineCommand({
     // Hide from non-admin members' command pickers. The owner runtime gates
     // stay authoritative — this is picker hygiene, not access control.
     .setDefaultMemberPermissions('0')
-    .addSubcommand(sub =>
-      sub
-        .setName('add')
-        .setDescription('Deny a user or server')
-        .addStringOption(opt =>
-          opt.setName('target').setDescription(TARGET_DESCRIPTION).setRequired(true)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('type')
-            .setDescription('Entity type (default: User)')
-            .setRequired(false)
-            .addChoices(...TYPE_CHOICES)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('scope')
-            .setDescription('Denial scope (default: Bot)')
-            .setRequired(false)
-            .addChoices(...SCOPE_CHOICES)
-        )
-        .addChannelOption(opt =>
-          opt
-            .setName('channel')
-            .setDescription('Target channel (for Channel scope)')
-            .setRequired(false)
-            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('character')
-            .setDescription('Target character name (for Character scope)')
-            .setRequired(false)
-            .setAutocomplete(true)
-        )
-        .addStringOption(opt =>
-          opt.setName('reason').setDescription('Reason for the denial').setRequired(false)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('mode')
-            .setDescription('Denial mode (default: Block)')
-            .setRequired(false)
-            .addChoices(...MODE_CHOICES)
-        )
-    )
-    .addSubcommand(sub =>
-      sub
-        .setName('remove')
-        .setDescription('Remove a denial')
-        .addStringOption(opt =>
-          opt.setName('target').setDescription(TARGET_DESCRIPTION).setRequired(true)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('type')
-            .setDescription('Entity type (default: User)')
-            .setRequired(false)
-            .addChoices(...TYPE_CHOICES)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('scope')
-            .setDescription('Denial scope (default: Bot)')
-            .setRequired(false)
-            .addChoices(...SCOPE_CHOICES)
-        )
-        .addChannelOption(opt =>
-          opt
-            .setName('channel')
-            .setDescription('Target channel (for Channel scope)')
-            .setRequired(false)
-            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
-        )
-        .addStringOption(opt =>
-          opt
-            .setName('character')
-            .setDescription('Target character name (for Character scope)')
-            .setRequired(false)
-            .setAutocomplete(true)
-        )
-    )
+    .addSubcommandGroup(group => buildScopeGroup(group, true))
+    .addSubcommandGroup(group => buildScopeGroup(group, false))
     .addSubcommand(sub =>
       sub
         .setName('browse')
