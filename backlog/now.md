@@ -28,16 +28,18 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 ---
 
-### 🚢 Next Release — beta.209 (theme: TBD — owner pick at next session)
+### 🚢 Next Release — beta.209 (theme: doc-78 DM context isolation + deny-UX pair)
 
-_Drafted at the beta.208 cut (2026-08-26). beta.208 shipped the full expanded plan — 10 PRs / 8 runtime / 137 files: doc-12's FULL P1 tier (#2222/#2223/#2224), four carried fixes (#2218–#2221), deps (#2209/#2216), mining operationalization (#2214). First prod export-smoke PASSED 80s after deploy boot._
+_Theme decided 2026-08-26 (owner pick at the usage stocktake). Build posture: Opus-driver week (Fable meter over trajectory — see CURRENT.md § Open items), which is why the theme is execution-heavy by intent: doc-78's design is already settled._
 
-- **Theme candidates (owner pick)**: owner-taste pair TASK-764 (/deny add UX redesign — owner verbatim: clunky and confusing) + TASK-765 (thread-only denials) · a drain-campaign themed batch (doc-7; ~107 `state:ready` tasks) · a council-queue doc (doc-64/65/66/67/70/71/72) · doc-78 DM context isolation (design settled + grounded, buildable).
+- **Theme**: doc-78 — DM context isolation (enum `shareHistoryAcrossPersonalities`, default `always`; no migration). Design + 7 registration sites + runtime evidence live in tracker doc-78.
+- **Riding**: owner-taste pair TASK-764 (/deny add UX redesign — owner verbatim: clunky and confusing) + TASK-765 (thread-only denials) — needs the owner's UX taste round before build.
+- **Filler between PRs**: drain-batch slices (doc-7; ~107 `state:ready` tasks).
 - **In already**: (empty — grows as PRs merge)
-- **Waiting on**: the theme pick.
-- **Explicitly NOT in**: memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · doc-12 P2 (build-on-demand by design).
-- **Deploy notes**: nothing pending; no migration queued.
-- **Cut when**: the picked theme lands, or the backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
+- **Waiting on**: doc-78 build slices · the owner's deny-UX taste round.
+- **Explicitly NOT in**: memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · doc-12 P2 (build-on-demand by design) · council-queue docs (design-heavy — wrong fit for an Opus week).
+- **Deploy notes**: nothing pending; no migration queued (doc-78 needs none).
+- **Cut when**: the theme lands, or the backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
 
 ### 🎯 Current Focus (max 3)
 
