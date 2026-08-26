@@ -122,6 +122,36 @@ timings, token budget) — triage material that goes stale in hours anyway.
 Widening to 7d would 25× a mostly-prompt payload store to make durable a thing
 part 2 already made durable. **Closed: no widening.**
 
+#### REVERSED 2026-08-26 — the window IS now 7d (owner call, PR #2231)
+
+`RETENTION_HOURS` is `7 * 24`, and the privacy policy moved with it. This is a
+deliberate reversal of the decision above, not a session that failed to find it:
+the owner asked for the bump, the claude-review on #2231 surfaced this Part 3
+decision before merge, and the owner re-decided with these numbers in view.
+
+What actually changed the answer:
+
+- **The storage objection is weaker than the prose above claims.** "25×" does not
+  match this doc's own measurement — 8.5 MB at 24h to ≈60 MB at 7d is about 7×,
+  which is the window multiple. 60 MB total is negligible for this Postgres, so
+  cost was not the deciding axis either way.
+- **"Triage material that goes stale in hours anyway" is the clause that did not
+  hold up.** Deep diagnostics go stale as a *live debugging* aid, but the reports
+  that need them arrive late — this doc's own § Report Issue item records a
+  tag-leak report that arrived >24h after the fact with the log already gone. A
+  24h window guarantees the evidence is missing precisely when someone finally
+  reports something.
+
+Part 2's premise is unaffected and still correct: `thinking_content` is live
+(`prisma/schema.prisma`), so the trace outlives the diagnostic window on the
+history row for the full 30-day retention. The 7d window is about the deep
+diagnostics beside it, not the trace.
+
+Knock-on for § Report Issue: its evidence-pinning motivation is **weakened, not
+removed** — a 7d window would have caught the specific incident it cites, but a
+report arriving after a week still loses the log, so the pin-at-report-time
+design keeps its value for the tail.
+
 ### PR split
 
 - **PR 1 (size S)** — the context-menu command per the part-1 spec. Ships
