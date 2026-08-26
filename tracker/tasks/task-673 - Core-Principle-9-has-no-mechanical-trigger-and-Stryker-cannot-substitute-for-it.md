@@ -36,4 +36,22 @@ Weaker fallback if that does not work: a hook that counts added expect( lines in
 Sibling tasks, same family (a known rule with no mechanical trigger): TASK-669 (prose describing a removed mechanism), TASK-653 (numeric claims in a PR body), TASK-547 (completion claims), TASK-520 (external-system claims in comments). Read them before designing; a shared diff-inspection step may serve several.
 
 Acceptance: adding an assertion that cannot fail is caught before merge by something other than the author remembering to check; the mechanism is demonstrated against at least one of the three real cases above rather than a synthetic one; if the diff-scoped Stryker run is the answer, its wall-clock cost on a typical PR is measured and stated.
+
+PROBED 2026-08-26 — the leading candidate is VIABLE and better than this task assumed. Flags read off the installed binary (@stryker-mutator/core 10.0.0, packages/config-resolver/node_modules/.bin/stryker), not from docs or memory.
+
+Do NOT probe this with `npx stryker` — npx resolves the ancient deprecated registry package `stryker` (not `@stryker-mutator/core`) and dies with "Cannot find module 'rx'". Run the package-local binary.
+
+What the flags actually support:
+- `-m, --mutate` takes a MUTATION RANGE, not merely a file glob: `src/index.js:startLine[:startColumn]-endLine[:endColumn]`. So a diff-scoped run can target the exact changed line ranges of a hunk, which is sharper than the file-level scoping this task hypothesized — an untouched function in a touched file is never mutated.
+- `--allowEmpty` exits without error when nothing matches. That is the silent-pass property a gate needs for a diff with no mutable source; without it, a docs-only or test-only diff would fail the gate.
+- `-t, --testFiles` limits which test files run, described upstream as verifying that a module's own unit tests kill its mutants independently.
+- `--incremental` / `--incrementalFile` / `--force` exist as guessed.
+
+MEASURED wall-clock, the acceptance's third clause: `stryker run --mutate 'src/SttResolver.ts:60-130' --allowEmpty` in packages/config-resolver produced 35 mutants over 71 lines in 8.1s real (34 killed, 1 survived — a `createLogger('SttResolver')` string literal, the known logger-noise class). Fixed overhead is about 4s: the same command over lines 1-40 (imports and types, ZERO mutants) took 4.2s. So roughly 4s startup plus ~4s for 35 mutants, at ~0.49 mutants/line of logic.
+
+Projection: a PR touching ~200 lines of real source is ~100 mutants, comfortably under a minute. Against the 30-70min whole-package figure that blocked this task, diff-scoping is about two orders of magnitude cheaper, which moves it from not-per-PR-viable to plainly viable.
+
+THE LIMIT OF THIS MEASUREMENT, stated because the number is tempting to over-read: it was taken in config-resolver, a small package that ALREADY has a stryker.config.mjs. The three defects this task exists for lived in packages/tooling, which has no Stryker config at all and carries 172 test files / 2857 tests. The ~4s floor is dominated by the initial dry run of the package's test suite, so it will NOT hold in tooling — measure there before promising a per-PR gate over that package. Adding a config to tooling is itself the 4-step onboarding in mutation-check.WHY.md § Onboarding, and the whole-package baseline problem does not go away just because the gate is diff-scoped.
+
+Sibling-list correction: TASK-547 and TASK-520 have been Done since 2026-08-12; the list above predates that check. The live family is this task, TASK-669, and TASK-653.
 <!-- SECTION:DESCRIPTION:END -->
