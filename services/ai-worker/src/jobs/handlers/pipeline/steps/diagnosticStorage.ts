@@ -19,7 +19,7 @@ const logger = createLogger('DiagnosticStorage');
  * the llm_diagnostic_logs table. It runs asynchronously and does NOT
  * block the response - any errors are logged but don't affect the user.
  *
- * Data is automatically cleaned up after 24 hours via the scheduled
+ * Data is automatically cleaned up after 7 days via the scheduled
  * cleanup-diagnostic-logs job.
  */
 export function storeDiagnosticLog(

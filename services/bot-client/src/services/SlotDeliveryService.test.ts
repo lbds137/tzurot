@@ -118,7 +118,7 @@ describe('SlotDeliveryService', () => {
       await service.deliverSuccess(result, slot);
 
       // The reasoning trace must reach persistence — otherwise it dies with
-      // the 24h diagnostic log.
+      // the 7d diagnostic log.
       expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
         expect.objectContaining({ thinkingContent: 'SLOT_TRACE_SENTINEL' })
       );

@@ -18,8 +18,8 @@
  *
  * Fetching runs in a subprocess with the target env's DATABASE_URL injected
  * (the inspect/tts-configs pattern); all comparison/annotation logic is pure
- * and unit-tested here. Diagnostic rows live 24h — the tool diagnoses LIVE
- * cache behavior, not history.
+ * and unit-tested here. Diagnostic rows live 7d, so the tool reaches back
+ * about a week — recent cache behavior, not long-run history.
  */
 
 import chalk from 'chalk';
@@ -433,7 +433,7 @@ export async function runPrefixDiff(options: PrefixDiffOptions): Promise<void> {
     console.log(
       chalk.yellow(
         `Need at least 2 rows with assembled prompts to diff; found ${promptRows.length}. ` +
-          'Diagnostic rows live 24h — generate two turns in the channel and re-run.'
+          'Diagnostic rows live 7d — generate two turns in the channel and re-run.'
       )
     );
     return;

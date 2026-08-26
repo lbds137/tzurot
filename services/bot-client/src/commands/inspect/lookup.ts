@@ -24,7 +24,7 @@ import type { LookupResult, DiagnosticLog } from './types.js';
 const logger = createLogger('inspect');
 
 /** Shared hint appended to 404 messages about log retention */
-const RETENTION_HINT = '• The log may have expired (24h retention)';
+const RETENTION_HINT = '• The log may have expired (7d retention)';
 
 /** Common "not found" message used for 404s */
 const NOT_FOUND_MESSAGE = 'Diagnostic log not found.\n';
