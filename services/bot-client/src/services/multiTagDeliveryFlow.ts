@@ -79,6 +79,16 @@ async function deliverSlot(
   slot: RuntimeSlot,
   deps: DeliveryFlowDeps
 ): Promise<void> {
+  if (slot.alreadyDelivered === true) {
+    // Set by MultiTagRecovery from the prior process's slot-delivered marker.
+    // The user already has this slot's message; re-sending it here would turn
+    // a sibling slot's late flush into a duplicate.
+    logger.info(
+      { groupId: entry.groupId, slotIndex: slot.slotIndex, jobId: slot.jobId },
+      'Slot already delivered by a prior run — skipping re-send'
+    );
+    return;
+  }
   const slotContext = buildSlotContext(entry, slot);
   try {
     // Parity with MessageHandler.handleSinglePersonalityResult: a slot
@@ -204,6 +214,13 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
   // ai-worker never wrote a JobResult row for them, so confirmDelivery is a
   // guaranteed 404. Their real confirmation happens via the late-result
   // recovery path in MessageHandler if/when the result eventually lands.
+  //
+  // Slots an earlier process already sent (`alreadyDelivered`) are NOT
+  // skipped, despite looking like the same redundant-call class. The
+  // slot-delivered marker is written inside the per-slot loop above, while
+  // this fan-out runs after the whole loop and `deleteEntry` after that — so
+  // a marker is not evidence the confirm for that slot ran, and skipping it
+  // could strand a genuine PENDING_DELIVERY row for the gateway cleanup job.
   await Promise.all(
     entry.slots
       .filter(slot => slot.status !== 'timedout')

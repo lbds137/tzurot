@@ -33,6 +33,17 @@ export interface RuntimeSlot {
   jobId: string;
   status: 'pending' | 'completed' | 'errored' | 'timedout';
   result?: LLMGenerationResult;
+  /**
+   * Runtime-only marker set by `MultiTagRecovery` when the
+   * `slot-delivered:{jobId}` Redis marker says a prior process already sent
+   * this slot to Discord. Deliberately absent from `SlotSnapshot` — it is
+   * derived from the marker at rehydration time, never persisted, so the
+   * stored snapshot schema stays unchanged. `deliverSlot` skips a slot
+   * carrying it (`multiTagDeliveryFlow.test.ts` — "skips a slot a prior run
+   * already delivered"), which is what keeps a mixed entry's surviving
+   * pending slot flushable without re-sending its delivered sibling.
+   */
+  alreadyDelivered?: boolean;
 }
 
 /** Per-fan-out runtime state. Mirrors the coordinator's private type. */

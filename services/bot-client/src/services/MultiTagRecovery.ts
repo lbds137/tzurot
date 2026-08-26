@@ -28,9 +28,23 @@
  *            an "unavailable after restart" failure result.
  *          • `getJob` / `getState` throws → fall back to adopting as
  *            still-pending; don't fail recovery for a transient Redis blip.
+ *            This outcome is NOT evidence the job is live — the marker pass
+ *            below is what separates a genuinely-running job from one whose
+ *            reply the prior run already sent.
  *      - For each terminal slot in the snapshot: preserve as-is (the result
  *        was never persisted in the snapshot, so the slot will flush as an
  *        error via the existing `deliverError` path — same as before).
+ *      - **Already-delivered pass**: reconcile EVERY slot — in-flight ones
+ *        included, since a failed state poll is indistinguishable from a live
+ *        job at this layer — against the `slot-delivered:{jobId}` marker the
+ *        prior process wrote after each successful Discord send. A delivered slot enters the
+ *        rehydrated entry TERMINAL (never pending) and carries
+ *        `alreadyDelivered`, so the re-armed safety timer covers only slots
+ *        that can still produce output and the eventual flush skips re-sending
+ *        it. When EVERY slot is already delivered the entry is cleaned up
+ *        instead of rehydrated — before the Discord fetches below. Every
+ *        discard path confirms delivery for the slots the prior run sent,
+ *        since none of them reaches `deliverGroup`'s own confirm fan-out.
  *      - **Age gate**: an entry older than `MULTI_TAG.COORDINATOR_TIMEOUT_MS`
  *        is adopted only if a slot recovered a real completed result. The
  *        old instance would already have safety-flushed such a group, so a
@@ -86,9 +100,14 @@ import type {
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import {
+  applyAlreadyDeliveredMarkers,
+  buildRuntimeSlots,
   buildSentinelPersonality,
+  discardRecoveredEntry,
+  dispatchDeferredDeliveries,
   pollPriorJobState,
   synthesizeFailureResult,
+  tallyEntrySlots,
   type DeferredDelivery,
   type RecoveryStats,
 } from './multiTagRecoveryHelpers.js';
@@ -196,40 +215,90 @@ export class MultiTagRecovery {
       // terminal ones. Slots whose personality became inaccessible are
       // kept as errored sentinel slots (not dropped) so the group still
       // flushes a fallback error message for each position.
-      //
-      // Track inFlight slot count locally during the loop rather than
-      // re-deriving from `runtimeSlots` post-`handleJobResult`. The
-      // derive-from-slot-status approach is load-bearing on the
-      // coordinator mutating slot objects in place when delivering — it
-      // works today (see `MultiTagCoordinator.handleJobResult`), but
-      // counting here keeps the per-entry log independent of that
-      // implementation detail. A slot enters this count iff its outcome
-      // was `inFlight` (returns a pending base slot with no deferred
-      // delivery); revoked/terminal slots don't qualify.
-      const runtimeSlots: RuntimeSlot[] = [];
-      const deferredDeliveries: DeferredDelivery[] = [];
-      let entryTrustedToStreamCount = 0;
-      for (const slotSnap of snapshot.slots) {
-        const { slot, deferredDelivery } = await this.rebuildSlot(slotSnap, snapshot, stats);
-        runtimeSlots.push(slot);
-        if (deferredDelivery !== undefined) {
-          deferredDeliveries.push(deferredDelivery);
-        } else if (slot.status === 'pending') {
-          entryTrustedToStreamCount++;
-        }
-      }
+      const {
+        runtimeSlots,
+        deferredDeliveries,
+        trustedToStreamCount: entryTrustedToStreamCount,
+      } = await buildRuntimeSlots(snapshot.slots, slotSnap =>
+        this.rebuildSlot(slotSnap, snapshot, stats)
+      );
 
       if (runtimeSlots.length === 0) {
         // Defense-in-depth: `parseSnapshotOrLog` validates `slots.length > 0`
         // at parse time, so this branch should be unreachable. Kept as a
         // floor against future schema/validation drift — a malformed
         // snapshot with zero slots shouldn't crash recovery.
-        await this.discardEntry(snapshot, 'snapshot has zero slots', stats);
+        // No slots means no marker pass has run and nothing can have been
+        // delivered, so there is no jobId to confirm.
+        await this.discardEntry(snapshot, 'snapshot has zero slots', stats, []);
+        return;
+      }
+
+      // Reconcile against the prior run's slot-delivered markers BEFORE the
+      // entry is built. A slot the old instance already sent must enter the
+      // rehydrated entry in a terminal state (or, when that is every slot,
+      // must not be rehydrated at all) — otherwise the re-armed safety timer
+      // covers it and flushes a synthetic in-character timeout to a user who
+      // already has the real reply.
+      const { remainingDeliveries, alreadyDeliveredCount, deliveredTrustedToStreamCount } =
+        await applyAlreadyDeliveredMarkers(runtimeSlots, deferredDeliveries, jobId =>
+          this.deps.persistence.isSlotDelivered(jobId)
+        );
+      // Single derivation site for the five per-slot counters, run AFTER the
+      // marker pass so an already-delivered slot lands in
+      // `slotsAlreadyDelivered` only — never also under the poll outcome whose
+      // delivery the pass just dropped. Counted before both discard branches
+      // below, so a slot the age gate throws away still reports the outcome
+      // recovery resolved for it.
+      //
+      // The trusted-to-stream count is netted the same way: `buildRuntimeSlots`
+      // counted it before the marker pass, and the pass can flag one of those
+      // slots delivered (a state-poll error reads as `inFlight` too), so the
+      // pass's own tally of that overlap comes back out here.
+      // Named rather than computed at each use: every counter and log line that
+      // reports trusted-to-stream must report the SAME netted number, and an
+      // inline subtraction at one site is how the other site drifts.
+      const netTrustedToStreamCount = entryTrustedToStreamCount - deliveredTrustedToStreamCount;
+      const entryCounts = tallyEntrySlots(
+        stats,
+        remainingDeliveries,
+        netTrustedToStreamCount,
+        alreadyDeliveredCount
+      );
+
+      // The jobIds a PRIOR run genuinely sent to Discord — the only ones a
+      // discard is allowed to confirm. `alreadyDelivered` is set exclusively by
+      // `applyAlreadyDeliveredMarkers`, and only when `isSlotDelivered` returned
+      // true for that jobId, so a slot that was never sent cannot appear here.
+      // `'timedout'` slots are excluded for the reason `deliverGroup`'s own
+      // confirm fan-out excludes them: ai-worker never wrote a JobResult row for
+      // a synthesized timeout, making the confirm a guaranteed 404.
+      const deliveredJobIds = runtimeSlots
+        .filter(s => s.alreadyDelivered === true && s.status !== 'timedout')
+        .map(s => s.jobId);
+
+      if (runtimeSlots.every(s => s.alreadyDelivered === true)) {
+        // Nothing left that can produce output: clean the entry up instead of
+        // adopting it. Runs before the Discord fetches for the same reason the
+        // age gate does — a boot resolving several of these must not spend two
+        // API calls per entry it is about to delete.
+        await this.discardEntry(
+          snapshot,
+          'every slot already delivered by a prior run',
+          stats,
+          deliveredJobIds
+        );
         return;
       }
 
       if (
-        await this.discardIfExpired(snapshot, deferredDeliveries, entryTrustedToStreamCount, stats)
+        await this.discardIfExpired(
+          snapshot,
+          remainingDeliveries,
+          netTrustedToStreamCount,
+          stats,
+          deliveredJobIds
+        )
       ) {
         return;
       }
@@ -238,7 +307,7 @@ export class MultiTagRecovery {
       // zombie groups (the incident class) must not spend two Discord API
       // calls per entry it's about to throw away — recovery is sequential
       // precisely to respect rate limits after heavy-traffic shutdowns.
-      const targets = await this.resolveDeliveryTargets(snapshot, stats);
+      const targets = await this.resolveDeliveryTargets(snapshot, stats, deliveredJobIds);
       if (targets === null) {
         return;
       }
@@ -276,55 +345,19 @@ export class MultiTagRecovery {
       // updateEntry persistence write inside handleJobResult itself. No
       // explicit updateEntry needed at this layer.
       //
-      // **Idempotency**: `multiTagDeliveryFlow.deliverSlot` writes a per-slot
-      // `slot-delivered:{jobId}` marker after every successful Discord send.
-      // Checking it here closes the narrow crash window where a prior recovery
-      // run delivered the slot but crashed before `deleteEntry` ran (the
-      // entry-snapshot still shows the flush-trigger slot as pending, the
-      // BullMQ job is completed, and without the marker this loop would
-      // re-dispatch → duplicate user-visible message). Two awaits across the
-      // bus rather than one, paid only on the recovery path which is rare.
-      //
-      // Per-delivery try/catch: a throw from one `handleJobResult` must
-      // not block subsequent deliveries in the same entry. The narrow
-      // failure shape today is `handleJobResult` itself throwing on its
-      // inner `updateEntry` persistence write (handler is otherwise
-      // robust), but the cost of the guard is negligible and the
-      // resilience matches the per-slot catch in `multiTagDeliveryFlow.deliverSlot`.
-      for (const delivery of deferredDeliveries) {
-        try {
-          if (await this.deps.persistence.isSlotDelivered(delivery.jobId)) {
-            logger.info(
-              { groupId: snapshot.groupId, jobId: delivery.jobId, kind: delivery.kind },
-              'Recovery: slot already delivered by a prior run — skipping dispatch'
-            );
-            stats.slotsAlreadyDelivered++;
-            continue;
-          }
-          await this.deps.coordinator.handleJobResult(delivery.jobId, delivery.result);
-        } catch (err) {
-          logger.error(
-            {
-              err,
-              jobId: delivery.jobId,
-              groupId: snapshot.groupId,
-              kind: delivery.kind,
-            },
-            'Recovery: deferred-delivery dispatch threw — continuing with remaining slots'
-          );
-        }
-      }
+      // **Idempotency**: slots a prior run already delivered were dropped from
+      // this list by `applyAlreadyDeliveredMarkers` above, so nothing here can
+      // re-dispatch a message the user has already seen.
+      await dispatchDeferredDeliveries(snapshot.groupId, remainingDeliveries, (jobId, result) =>
+        this.deps.coordinator.handleJobResult(jobId, result)
+      );
 
       stats.entriesResumed++;
       logger.info(
         {
           groupId: snapshot.groupId,
           channelId: snapshot.channelId,
-          slotsRecoveredCompleted: deferredDeliveries.filter(d => d.kind === 'recoveredCompleted')
-            .length,
-          slotsRecoveredFailed: deferredDeliveries.filter(d => d.kind === 'recoveredFailed').length,
-          slotsUnrecoverable: deferredDeliveries.filter(d => d.kind === 'unrecoverable').length,
-          slotsTrustedToStream: entryTrustedToStreamCount,
+          ...entryCounts,
           remainingBudgetMs,
         },
         'Multi-tag entry rehydrated'
@@ -403,7 +436,6 @@ export class MultiTagRecovery {
 
     switch (outcome.kind) {
       case 'completed':
-        stats.slotsRecoveredCompleted++;
         return {
           slot: baseSlot,
           deferredDelivery: {
@@ -413,7 +445,6 @@ export class MultiTagRecovery {
           },
         };
       case 'failed':
-        stats.slotsRecoveredFailed++;
         return {
           slot: baseSlot,
           deferredDelivery: {
@@ -423,10 +454,8 @@ export class MultiTagRecovery {
           },
         };
       case 'inFlight':
-        stats.slotsTrustedToStream++;
         return { slot: baseSlot };
       case 'unrecoverable':
-        stats.slotsUnrecoverable++;
         return {
           slot: baseSlot,
           deferredDelivery: {
@@ -478,19 +507,24 @@ export class MultiTagRecovery {
    * Resolve the Discord channel + source message an entry delivers to.
    * Either failure means the user can't be delivered to; the entry is
    * discarded cleanly and null is returned (caller stops processing it).
+   *
+   * `deliveredJobIds` is forwarded to the discard so a mixed entry — a slot a
+   * prior run already sent alongside one still pending — still confirms the
+   * delivered slot when the channel or source message has since vanished.
    */
   private async resolveDeliveryTargets(
     snapshot: CoordinatorEntrySnapshot,
-    stats: RecoveryStats
+    stats: RecoveryStats,
+    deliveredJobIds: string[]
   ): Promise<{ channel: TypingChannel; sourceMessage: Message } | null> {
     const channel = await this.fetchTypingChannel(snapshot.channelId);
     if (channel === null) {
-      await this.discardEntry(snapshot, 'channel unavailable', stats);
+      await this.discardEntry(snapshot, 'channel unavailable', stats, deliveredJobIds);
       return null;
     }
     const sourceMessage = await this.fetchSourceMessage(channel, snapshot.sourceMessageId);
     if (sourceMessage === null) {
-      await this.discardEntry(snapshot, 'source message unavailable', stats);
+      await this.discardEntry(snapshot, 'source message unavailable', stats, deliveredJobIds);
       return null;
     }
     return { channel, sourceMessage };
@@ -513,14 +547,26 @@ export class MultiTagRecovery {
    * noise when the group is flushing anyway.
    *
    * Returns true when the entry was discarded (caller stops processing it).
+   * An aged entry can still hold a slot a prior run delivered (delivered A +
+   * wedged B), so `deliveredJobIds` is forwarded to the discard for A's
+   * delivery confirmation.
    */
   private async discardIfExpired(
     snapshot: CoordinatorEntrySnapshot,
     deferredDeliveries: DeferredDelivery[],
     trustedToStreamCount: number,
-    stats: RecoveryStats
+    stats: RecoveryStats,
+    deliveredJobIds: string[]
   ): Promise<boolean> {
     const entryAgeMs = Date.now() - snapshot.createdAt;
+    // `deferredDeliveries` here is the SURVIVING list — the already-delivered
+    // pass has already dropped every slot the prior run sent. So a completed
+    // slot the user was already served does not satisfy the exception: it is
+    // evidence the old instance got that far, not evidence that a sibling
+    // still sitting pending is live rather than wedged. The gate's own
+    // reasoning applies unchanged to that sibling. Pinned by "an
+    // already-delivered completed slot does not keep an ancient entry alive
+    // for its still-pending sibling" in `MultiTagRecovery.test.ts`.
     const hasRecoveredResult = deferredDeliveries.some(d => d.kind === 'recoveredCompleted');
     if (entryAgeMs <= MULTI_TAG.COORDINATOR_TIMEOUT_MS || hasRecoveredResult) {
       return false;
@@ -535,7 +581,12 @@ export class MultiTagRecovery {
       },
       'Multi-tag entry expired past the safety window with no recoverable result — resolving silently'
     );
-    await this.discardEntry(snapshot, 'expired past safety window, no recoverable result', stats);
+    await this.discardEntry(
+      snapshot,
+      'expired past safety window, no recoverable result',
+      stats,
+      deliveredJobIds
+    );
     return true;
   }
 
@@ -679,36 +730,22 @@ export class MultiTagRecovery {
   }
 
   /**
-   * Discard an unrecoverable entry: mark every pending jobId stale (so
-   * post-recovery arrivals are dropped), then delete the Redis snapshot.
-   * Best-effort — log on failure but don't throw.
+   * Thin delegation to `discardRecoveredEntry`, which owns the stale-mark +
+   * delivery-confirm + snapshot-delete sequence. Kept as a method so every
+   * discard site in this class reads the same as before.
    */
   private async discardEntry(
     snapshot: CoordinatorEntrySnapshot,
     reason: string,
-    stats: RecoveryStats
+    stats: RecoveryStats,
+    deliveredJobIds: string[]
   ): Promise<void> {
-    const pendingJobIds = snapshot.slots.filter(s => s.status === 'pending').map(s => s.jobId);
-    if (pendingJobIds.length > 0) {
-      try {
-        await this.deps.persistence.markStale(...pendingJobIds);
-        stats.staleJobIdsMarked += pendingJobIds.length;
-      } catch (err) {
-        logger.warn(
-          { err, groupId: snapshot.groupId },
-          'Recovery: failed to mark stale during entry discard'
-        );
-      }
-    }
-    try {
-      await this.deps.persistence.deleteEntry(snapshot);
-    } catch (err) {
-      logger.warn({ err, groupId: snapshot.groupId }, 'Recovery: failed to delete discarded entry');
-    }
-    stats.entriesDiscarded++;
-    logger.info(
-      { groupId: snapshot.groupId, channelId: snapshot.channelId, reason },
-      'Multi-tag entry discarded during recovery'
-    );
+    await discardRecoveredEntry({
+      persistence: this.deps.persistence,
+      snapshot,
+      reason,
+      stats,
+      deliveredJobIds,
+    });
   }
 }

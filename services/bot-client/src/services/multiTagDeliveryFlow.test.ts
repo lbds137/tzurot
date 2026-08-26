@@ -154,6 +154,33 @@ describe('deliverGroup', () => {
     expect(vi.mocked(reportJobError)).not.toHaveBeenCalled();
   });
 
+  it('skips a slot a prior run already delivered', async () => {
+    // MultiTagRecovery sets `alreadyDelivered` from the prior process's
+    // slot-delivered marker. Without the skip, a mixed entry's late flush
+    // would re-send the message the user already has.
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', { slotIndex: 0, jobId: 'job-Alice', alreadyDelivered: true }),
+        buildSlot('Bob', { slotIndex: 1, jobId: 'job-Bob' }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(1);
+    expect(slotDelivery.deliverSuccess.mock.calls[0][0].content).toBe('Hello from Bob');
+    expect(slotDelivery.deliverError).not.toHaveBeenCalled();
+    // No second marker write for a slot this process never sent.
+    expect(persistence.markSlotDelivered).toHaveBeenCalledTimes(1);
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Bob');
+    // confirmDelivery still fires for the already-delivered slot, unlike the
+    // timed-out class. The marker is written inside the per-slot loop while
+    // the confirm fan-out runs after it, so a marker does not imply the
+    // confirm ran — skipping it could strand a real PENDING_DELIVERY row.
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Alice');
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Bob');
+  });
+
   it('reports a failed slot to the error channel with its category and requestId', async () => {
     // The seam this pins: a persona erroring at a user via the prefix-trigger
     // path must reach the owner error channel — the beta.207 smoke test found
