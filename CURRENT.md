@@ -24,6 +24,8 @@ Full session arc 2026-08-25→26: four carried fixes → owner picked doc-12 P1 
 
 ## 📋 Open items (near-term)
 
+- **Usage posture (through the Sun 02:00 ET reset)**: Fable meter over trajectory at the 2026-08-25 21:02 reading (53% vs ~37% pro-rata; all-models 41%) → **the Opus-driver backup lane is the standing driver for routine work this week**; Fable reserved for beta.209 design/verification passes. Durable operationalization (flip trigger in `/tzurot-usage-audit`, batching/compaction economics in `10-working-posture.md`) is in a review-gated PR.
+
 - **Retention: FULLY caught up 2026-08-26** (owner-approved): 11 never-used accounts purged, then the last pending warning DM **bounced** (DMs closed / left every shared server) → that user flipped to unreachable and was purged too. Userbase 212 → 200; 0 eligible, 0 awaiting DM, 7 in grace (~09-08 expiries are the next retention event).
 - **Housekeeping**: BOTH large session JSONLs are now fully mined and are disk-space deletion candidates — `015f3cbc` (152MB, mined through 2026-08-17) and `0059bca0` (147MB, session ended 2026-08-24, mined to end). Owner's explicit okay still needed. (The previously-listed `3f50da50.jsonl` was already deleted 2026-08-16.)
 
