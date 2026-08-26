@@ -48,10 +48,16 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  *   just a test), and through it by db/check-migration-safety.ts and
  *   db/inspect-database.ts, so this root gates the checker's own behaviour,
  *   not only a fixture it reads
+ * - turbo-lint-build-edge.test.ts: the root turbo.json and eslint.config.js,
+ *   whose RELATIONSHIP it guards — an edit to either is what that test exists
+ *   to react to, so both must invalidate the cache or the guard reports on a
+ *   pairing it never re-read
  */
 const INLINE_LITERAL_ROOTS = [
   '.github/workflows/ci.yml',
   'package.json',
+  'turbo.json',
+  'eslint.config.js',
   'services/api-gateway/src',
   'services/bot-client/src',
   'services/ai-worker/src',
