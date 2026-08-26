@@ -19,6 +19,7 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import type { DenyScope } from './denyTarget.js';
 
 interface PermissionResult {
   allowed: boolean;
@@ -34,9 +35,9 @@ const DENIED: PermissionResult = { allowed: false, scopeId: '' };
  */
 export async function checkDenyPermission(
   context: DeferredCommandContext,
-  scope: string,
+  scope: DenyScope,
   channelId: string | null,
-  personalitySlug: string | null
+  character: string | null
 ): Promise<PermissionResult> {
   const isOwner = isBotOwner(context.user.id);
 
@@ -63,7 +64,7 @@ export async function checkDenyPermission(
 
   // PERSONALITY scope: owner or character creator
   if (scope === 'PERSONALITY') {
-    return checkPersonalityPermission(context, isOwner, personalitySlug);
+    return checkPersonalityPermission(context, isOwner, character);
   }
 
   await context.editReply(renderSpec(CATALOG.error.validation('Invalid scope.')));
@@ -98,22 +99,22 @@ async function resolveModScopeId(
 async function checkPersonalityPermission(
   context: DeferredCommandContext,
   isOwner: boolean,
-  personalitySlug: string | null
+  character: string | null
 ): Promise<PermissionResult> {
-  if (personalitySlug === null || personalitySlug.length === 0) {
+  if (character === null || character.length === 0) {
     await context.editReply(
-      renderSpec(CATALOG.error.validation('Personality scope requires the `personality` option.'))
+      renderSpec(CATALOG.error.validation('Character scope requires the `character` option.'))
     );
     return DENIED;
   }
 
-  if (isAutocompleteErrorSentinel(personalitySlug)) {
+  if (isAutocompleteErrorSentinel(character)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return DENIED;
   }
 
   const { userClient } = clientsFor(context.interaction);
-  const result = await userClient.getPersonality(personalitySlug);
+  const result = await userClient.getPersonality(character);
 
   if (!result.ok) {
     // Distinguish "can't reach the gateway" (transient, retryable) from a genuine
@@ -122,7 +123,7 @@ async function checkPersonalityPermission(
     await context.editReply(
       isInfraFailure(result)
         ? renderSpec(CATALOG.error.transient("Couldn't reach the server right now."))
-        : renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) }))
+        : renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(character) }))
     );
     return DENIED;
   }
