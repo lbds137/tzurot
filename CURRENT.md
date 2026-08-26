@@ -1,54 +1,24 @@
 # Current
 
-> **Version**: v3.0.0-beta.207 — "observability + invalidation hygiene": doc-12 P0 (command telemetry #2205 + error-channel reporter #2206, hardened by smoke-found #2207), boot watchdog #2211 (born from the same-day 85-min silent boot hang), MUTE-denial silence #2212 (live-found during owner moderation), the hygiene batch #2192, real-messages fixes (#2194/#2202/#2203), vision cost guards (#2196/#2200), premigrate marker #2204, riders #2195/#2197/#2198/#2199/#2201. 18 PRs / 16 runtime / 245 files (release range 228 + version bump). Premigrated (`add_command_events`, additive) BEFORE the merge; merged 2026-08-24 17:34 UTC; finalize SHA-aligned develop; tagged + released. Holistic review: no blocking findings. Prod deploy verified: bot-client SUCCESS + clean login 17:35Z.
+> **Version**: v3.0.0-beta.208 — "telemetry consumers + carried fixes": doc-12 FULL P1 tier (#2222 telemetry:report · #2223 usage attribution + telemetry:inference + privacy rider · #2224 weekly export-path smoke) + four carried fixes (#2218 MUTE denial copy · #2219 transcript-reply retarget · #2220 invalid-model classify/veto/rescue-reporting · #2221 hard-failure delivery) + dependabot deps (#2209/#2216) + mining operationalization (#2214). 10 PRs / 8 runtime / 137 files. TWO additive migrations premigrated BEFORE the merge (`add_usage_attribution`, `add_usage_personality_index`). Merged 2026-08-26 00:35 UTC; finalize SHA-aligned develop; tagged + published (latest). Holistic review: no blocking findings (dug the byok×quota-fallback seam independently). Prod deploy: new-build verification via the export-smoke scheduler boot line — see watches.
 >
-> **Previous**: v3.0.0-beta.206 — "forwards attributed everywhere, blurbs hardened, history as real messages" (25 PRs / 218 files, 2026-08-23). Both prod flags (rosterBlurb, realMessages) flipped ON and verified.
+> **Previous**: v3.0.0-beta.207 — "observability + invalidation hygiene" (18 PRs / 16 runtime / 245 files, 2026-08-24). doc-12 P0: command telemetry + error-channel reporter + boot watchdog.
 
 ---
 
-## 🚀 beta.207 SHIPPED (2026-08-24) — post-deploy state
+## 🚀 beta.208 SHIPPED (2026-08-26) — post-deploy state
 
-Smoke ran pre-cut on dev: 3/3 PASS (telemetry row · error embed with no message text · dedup suppression) — item 2's first attempt FOUND the multi-tag reporter bypass, fixed as #2207. Smoke config deleted from dev post-pass.
-
-**Owner actions — ALL CLOSED (2026-08-24 evening):**
-
-- [x] **COLD's model override** — owner: COLD never had an override; the default cascade IS its correct state. No action.
-- [x] **Railway restart policy** — owner confirmed via dashboard: On Failure, 10 retries (screenshot 2026-08-24 22:18).
-- [x] **Dependabot trio RESOLVED** (owner: "include them + do any main cut necessary"): #2209 (7 prod deps) + #2216 (20 dev deps, the recreated #2210) merged to develop; the claude-code-action bump landed via TWO main-cut PRs (#2215 → 1.0.199, #2217 → 1.0.200 — upstream released mid-pass) with `release:finalize` after each; #2208/#2210 closed by dependabot as satisfied/superseded. Zero open dependabot PRs. Sequencing lesson recorded: finalize's develop force-push re-strands open dependabot branches, so develop-bound merges go FIRST, main-cut + finalize LAST (third strand needed `@dependabot recreate`).
+Full session arc 2026-08-25→26: four carried fixes → owner picked doc-12 P1 and expanded to the full tier → P1.1/P1.2/P1.3 shipped → cut approved → premigrated → merged 00:35Z → finalized → published. **Prod new-build verified live 00:35:38Z** (shard ready + `export-smoke` scheduler registered — the new code's own boot line). All nested-dispatch; review process caught two Mediums + one HIGH across the feature PRs (byok-stale-across-retarget, sentinel-scoping oracle, zero-count blind spot) — all fixed pre-merge.
 
 **Watches (log/data-signal, no action):**
 
-- `command_events` accumulating in PROD (first organic rows; P1.1 report SQL is the consumer).
-- Error channel: first prod posts should be real system errors only (deny-listed categories stay out); category-only dedup fan-in is the TASK-759 design member.
-- Boot watchdog live in prod — a `Boot deadline exceeded` line = it worked (runbook: RAILWAY_OPERATIONS.md § bot-client).
-- TASK-754 carry: owner-observed misdating should stop under assistant-turn headers.
-- Nightly dev↔prod sync self-heals tonight (schema skew resolved by the premigration).
+- **First prod export-smoke run: PASSED 00:36:58Z** (`Export-path smoke passed`, 80s after boot) — the real export pipeline validated end-to-end in prod on first fire. Weekly cadence after; silent = pass, 🧯 owner embed = failure.
+- `usage_logs` attribution columns (`latency_ms`/`byok`/`personality_id`) now populating in prod — `pnpm ops telemetry:inference --env prod` becomes meaningful after ~a day of rows; discoverability report likewise accumulating (`telemetry:report`).
+- `model_not_found (rescued)` ⚠️ embeds = a delisted-model persona self-healing (GLM now.md entry clears on first observation).
+- Error channel: first prod posts should be real system errors only; TASK-754 misdating stop; boot-watchdog standing.
+- Carried question watches: glm-5.2 median-4000 maxTokens saturation (owner lever: per-persona maxTokens); Qwen `data_inspection_failed` background rate (owner lever: per-personality visionModel).
 
-## 🔍 2026-08-24 mining run: delegation posture SHIPPED (PR #2214, post-beta.207)
-
-Fable-usage lens over the beta.207 window (owner ask: "dial back Fable"). Measured: 71/29 main-loop/delegated out-token split, ~70% of tool-attached spend mechanically delegable; root cause = the dispatch-only posture lived only in non-loading surfaces (memory + a skill invoked 2× in 32h). Shipped (all owner-approved): § Delegation posture in always-loaded `10-working-posture.md` · orchestration mid-review inline carve-out RETIRED + review-response § 3a (round fixes = one dispatch) · `dispatch-posture-gate.sh` (first src edit per branch/day blocks once; worktree workers exempt) · `python-heredoc-edit-guard.sh` (interpreter rewrite-scripts → Edit tool; `TZUROT_ALLOW_HEREDOC_EDIT=1` override) · `/tzurot-usage-audit` skill (TASK-752 Done; ledger is machine-local). 4 review rounds, batch-dispositioned; residue = task-769. Bash-side hook LIVE-VERIFIED in-session (fired twice, including on the agent's own heredoc habit).
-
-**Matcher LIVE-VERIFIED 2026-08-25**: the `Edit|Write|MultiEdit` dispatch-posture gate fired correctly on the session's first main-tree src edit (banner once, per-branch ack, retry passed) — the mining PR's last open verification item is closed. Posture practiced all day: every unit nested-dispatched, review rounds batched to workers, groundings via haiku Explore. Next mining delta starts at session 08a1ee8b (2026-08-24 ~20:30Z); re-test target: delegation ratio off 71/29.
-
-## ✅ 2026-08-25 — beta.208 carried fixes ALL SHIPPED (4 PRs, one session, full nested-dispatch)
-
-**Theme picked (owner): doc-12 P1** — the telemetry consumer. Shipped ahead of it: **#2218** (TASK-766, MUTE slash denials get transient-failure copy) · **#2219** (TASK-763, transcript-reply retarget at the voice parent — review widened it to link references; parent-verification design after the recognizer-looseness stop) · **#2220** (TASK-760 + Production-Issue item (b): invalid-model 400 classification, catalog-absent retarget veto, and NEW success-path rescue reporting to the error channel with ⚠️ rescued embeds in separate dedup buckets; 7 review rounds, round 7 owner-approved) · **#2221** (TASK-761 + TASK-111: coordinator-unowned hard failures now deliver per-kind errors + owner reports through the ordering service; BullMQ failed-is-terminal premise probe-verified). Follow-ups filed: TASK-771 (webhook-identity users-row sweep — the retention-report Dionysus row, entry path closed since the June extended-context fix) · TASK-772 (hard-failure personality voice). Watches now live: `model_not_found (rescued)` embeds = a delisted-model persona self-healing; the GLM now.md entry is watch-only.
-
-## ✅ 2026-08-25 — beta.208 theme SHIPPED: doc-12 P1.1 (#2222)
-
-`pnpm ops telemetry:report [--env prod] [--days N] [--output f]` — read-only markdown discoverability report over `command_events` (per-command stats + ⚠️ elevated-user_error flag at ≥20%/≥5, dark features ≤1 user, breadth buckets, zero user ids in output; SQL runtime-verified local AND prod). Built via nested dispatch; review clean (3 non-blocking observations, dispositioned). **First prod report delivered to owner same day** — caveat: ~1 day of organic rows in a 30d window. TASK-773 filed (roster join for zero-invocation commands).
-
-## ✅ 2026-08-25/26 — doc-12 FULL P1 TIER SHIPPED (#2223, #2224; owner expanded scope)
-
-**#2223** (P1.2, owner-approved shape: extend `usage_logs`): `latency_ms` + tri-state `byok` + `personality_id` (SetNull FK + index), all three writers populate, `pnpm ops telemetry:inference` (per-model latency/byok split, free-tier lower-bound proxy, per-character top-15), privacy-rider owner-approved then reviewer-tightened ("AI-generation records" scoping). Six review rounds; the big catch was the reviewer's HIGH — `byok` went stale across quota-fallback retargets, fixed by threading `effectiveIsGuestMode` alongside `effectiveProviderUsed` through both fallback layers (verified independently by the final review). Rider: vitest root configs exclude `.claude/` (live worktrees were being swept into repo-glob test runs). **#2224** (P1.3): weekly export-path smoke — bot-client scheduler drives the REAL export pipeline for the orphan sentinel via a new internal route (24h-cooldown bypass, active-job 409 kept), validates the artifact against NEW checked-in export contract schemas (`schemas/export/`, mechanically diffed vs Prisma) + source-DB count snapshot; failure = 🧯 owner embed. Review Mediums fixed: status route scoped to the sentinel (deterministic job ids made it an arbitrary-user export-URL oracle), zero-count blind spot closed. Follow-up: TASK-774 (snapshot bound). Dev migrated 2026-08-25.
-
-## ▶️ NEXT — beta.208 cut
-
-**Cut criterion MET** (theme + owner's expansion complete). Next: propose the cut — contents ≈ 10 merged PRs (8 runtime incl. dependabot prod deps), ~105 files, TWO additive migrations (`release:premigrate` before merging the release PR). Owner-taste queue for later cycles: TASK-764 (/deny add UX) · TASK-765 (thread-only denials). Watches: export-smoke first dev run ~60s post-deploy-boot (silent = pass); `usage_logs` attribution columns start populating in prod at the beta.208 deploy; `model_not_found (rescued)` embeds. Usage note: owner reported 40% Fable at ~2.3d (2026-08-25); ledger seeded; flip-to-Opus lever stays available.
-
-**Response-length question ANSWERED (prod usage_logs, 2026-08-23)**: per-model output tokens collapsed ~5x during the beta.203/204 window and recovered the day beta.205 deployed — hypothesis (timing + the pinned GLM-5.3-fallback prod issue, not per-request-confirmed): z.ai fallback until #2153. Watch item: glm-5.2's Aug-22 median was exactly 4000 — may be saturating a 4000 maxTokens cap; owner lever = per-persona maxTokens, surfaced, no action taken.
-
-**Qwen question ANSWERED (log sweep, 2026-08-23)**: `data_inspection_failed` is a steady background rate (≥Aug 14), normally caught silently by the fallback tiers; surfaced only when both tiers failed at once (TASK-747, fixed). Owner lever if first-try diary descriptions matter: per-personality `visionModel` on a non-Alibaba tier-1 — surfaced, owner's call.
+**Mining posture (carry)**: delegation posture + gates shipped in #2214 and live-verified both sides; next mining delta starts at session 08a1ee8b (2026-08-24 ~20:30Z); re-test target: delegation ratio off 71/29. This release cycle ran fully on the new posture.
 
 `ConversationHistoryEntry` (pipeline/types.ts) Pick/Omit fold still carried for whichever slice next touches the wire shape.
 
