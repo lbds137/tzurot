@@ -1,7 +1,7 @@
 ---
 name: tzurot-usage-audit
 description: 'Measure weekly Claude Code plan usage — weighted token totals per model, delegation ratio, implied capacity, and a machine-local drift ledger. Invoke with /tzurot-usage-audit near the weekly reset, after an unusually heavy day, or whenever the owner asks how much of the plan has been spent.'
-lastUpdated: '2026-08-24'
+lastUpdated: '2026-08-25'
 ---
 
 # Weekly Usage Audit
@@ -106,7 +106,11 @@ done | awk '{
 | cache read  | 0.1x       |
 | cache write | 1.25x      |
 
-Cache reads are typically **~75-80% of the weighted bill**. The practical
+Cache reads are typically **~75-80% of the weighted bill** blended across main
+loop and subagents — and **~85% of main-loop spend specifically** (subagents
+start from smaller fresh contexts, pulling the blended figure down; the
+main-loop-only number is the one `10-working-posture.md` § Delegation posture
+quotes). The practical
 consequence is worth stating every time this runs: the lever is the number of
 **main-loop tool calls**, not reply length. Each main-loop call re-reads the
 whole context as a cache read, so a chatty reply is cheap and an extra inline
@@ -153,6 +157,32 @@ Compare the implied capacity against the prior rows in the ledger. **Flag drift
 greater than ~15% as "limits may have moved"** and say so plainly; do not
 silently adopt the new number as truth on a single reading, because a
 mis-computed `CUTOFF` produces exactly the same symptom.
+
+**Per-model capacity division is unreliable — use it for the all-models total
+only.** Dividing one model's measured weighted spend by that model's meter
+percentage produced mutually inconsistent answers from two same-day readings
+(2026-08-25: the Fable meter moved 13 points across a stretch where measured
+Fable spend implied ~3× that), so Anthropic's internal per-model weighting
+evidently differs from the table above. The weighted formula remains the right
+instrument for the TOTAL trend and the delegation ratio; for per-model
+decisions (is Fable specifically tight?), read the meter percentages directly.
+
+## Step 4a — act on the reading
+
+A reading is a decision point, not just a row. Compare each percentage against
+pro-rata for the window (`days elapsed ÷ 7`):
+
+- **Fable ahead of pro-rata** → the named lever is the **Opus-driver backup
+  lane** (`/tzurot-orchestration` § Mode decision table): routine work moves to
+  an Opus-driven main loop until the reset, reserving Fable for
+  planning/design/verification passes. Surface this to the owner as a
+  recommendation at the moment of the reading — the lane is their sanctioned
+  fallback, and waiting for them to notice the meter defeats the audit.
+- **All-models ahead of pro-rata** → pace levers: lighter days, boundary
+  compaction, batched bookkeeping (`10-working-posture.md` § Delegation
+  posture carries the economics).
+- **Both comfortably under** → say so and change nothing; the audit's job is
+  also to license normal pace.
 
 ## Step 5 — append to the ledger
 
