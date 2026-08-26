@@ -24,7 +24,7 @@ Full session arc 2026-08-25→26: four carried fixes → owner picked doc-12 P1 
 
 ## 📋 Open items (near-term)
 
-- **Purge remainder**: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call).
+- **Purge remainder**: 1 reachable user awaits the warning DM — `retention:notify` NOT run (outward-facing; separate owner call). The unreachable cohort (11 never-used accounts, zero characters) was purged 2026-08-26 with owner approval — userbase 212 → 201, preview re-verified 0 eligible.
 - **Housekeeping**: BOTH large session JSONLs are now fully mined and are disk-space deletion candidates — `015f3cbc` (152MB, mined through 2026-08-17) and `0059bca0` (147MB, session ended 2026-08-24, mined to end). Owner's explicit okay still needed. (The previously-listed `3f50da50.jsonl` was already deleted 2026-08-16.)
 
 ## 🔧 DRAIN CAMPAIGN — standing; batching is the method
