@@ -24,6 +24,8 @@ Full session arc 2026-08-25→26: four carried fixes → owner picked doc-12 P1 
 
 ## 📋 Open items (near-term)
 
+- **beta.209 in progress (Opus-driver week)**: theme **doc-78 DM context isolation SHIPPED** (#2227, 2026-08-26) — enum `shareHistoryAcrossPersonalities`, default `always`, no migration. Its review established that history is THREE reads (stored · live-channel · reply-references), not one; the live read is dropped in isolated DMs only, reply references are an owner-approved exception. Both decisions recorded in tracker doc-78. **#2228 (TASK-767 spurious-timeout fix) in review.** Remaining for the release: the owner's deny-UX taste round on TASK-764/765, then drain slices as filler.
+
 - **Usage posture (through the Sun 02:00 ET reset)**: Fable meter over trajectory at the 2026-08-25 21:02 reading (53% vs ~37% pro-rata; all-models 41%) → **the Opus-driver backup lane is the standing driver for routine work this week**; Fable reserved for beta.209 design/verification passes. Durable operationalization SHIPPED in #2226 (flip trigger = `/tzurot-usage-audit` § Step 4a, batching/compaction economics in `10-working-posture.md`).
 
 - **Retention: FULLY caught up 2026-08-26** (owner-approved): 11 never-used accounts purged, then the last pending warning DM **bounced** (DMs closed / left every shared server) → that user flipped to unreachable and was purged too. Userbase 212 → 200; 0 eligible, 0 awaiting DM, 7 in grace (~09-08 expiries are the next retention event).
