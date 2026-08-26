@@ -128,6 +128,12 @@ export interface ChannelHistoryWhereParams {
    * hand back one message fewer than the arithmetic promised.
    */
   excludeDiscordMessageId?: string;
+  /**
+   * Restrict the read to rows written by this personality. Absence means
+   * unscoped (shared across personalities) — the caller decides scoping via
+   * `shouldScopeHistoryToPersonality`; this predicate only applies what it's given.
+   */
+  personalityId?: string;
 }
 
 /**
@@ -136,12 +142,13 @@ export interface ChannelHistoryWhereParams {
  * convenience: two independently-built predicates that drift produce a count
  * over one row set and a window over another, and nothing would detect it.
  *
- * Deliberately NO personalityId filter — channel history is cross-personality.
+ * NO personalityId filter unless explicitly requested — channel history is
+ * cross-personality by default; the caller opts into per-personality scoping.
  */
 export function buildChannelHistoryWhere(
   params: ChannelHistoryWhereParams
 ): Prisma.ConversationHistoryWhereInput {
-  const { channelId, cutoff, excludeDiscordMessageId } = params;
+  const { channelId, cutoff, excludeDiscordMessageId, personalityId } = params;
   return {
     channelId,
     deletedAt: null,
@@ -149,6 +156,7 @@ export function buildChannelHistoryWhere(
     ...(excludeDiscordMessageId !== undefined
       ? { NOT: { discordMessageId: { has: excludeDiscordMessageId } } }
       : {}),
+    ...(personalityId !== undefined ? { personalityId } : {}),
   };
 }
 

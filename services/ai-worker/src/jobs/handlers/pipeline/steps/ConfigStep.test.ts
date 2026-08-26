@@ -156,6 +156,7 @@ describe('ConfigStep', () => {
         showModelFooter: true,
         voiceResponseMode: 'always' as const,
         voiceTranscriptionEnabled: true,
+        shareHistoryAcrossPersonalities: 'always' as const,
         sources: {
           maxMessages: 'hardcoded' as const,
           maxAge: 'hardcoded' as const,
@@ -167,6 +168,7 @@ describe('ConfigStep', () => {
           showModelFooter: 'hardcoded' as const,
           voiceResponseMode: 'hardcoded' as const,
           voiceTranscriptionEnabled: 'hardcoded' as const,
+          shareHistoryAcrossPersonalities: 'hardcoded' as const,
         },
       };
       vi.mocked(mockCascade.resolveOverrides).mockResolvedValue(mockOverrides);

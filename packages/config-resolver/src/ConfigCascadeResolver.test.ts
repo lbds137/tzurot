@@ -80,11 +80,25 @@ describe('ConfigCascadeResolver', () => {
         HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities
       );
       expect(result.showModelFooter).toBe(HARDCODED_CONFIG_DEFAULTS.showModelFooter);
+      expect(result.shareHistoryAcrossPersonalities).toBe(
+        HARDCODED_CONFIG_DEFAULTS.shareHistoryAcrossPersonalities
+      );
 
       // All sources should be 'hardcoded'
       for (const source of Object.values(result.sources)) {
         expect(source).toBe('hardcoded');
       }
+    });
+
+    it('applies a personality-tier shareHistoryAcrossPersonalities override with correct source', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        configDefaults: { shareHistoryAcrossPersonalities: 'guilds-only' },
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.shareHistoryAcrossPersonalities).toBe('guilds-only');
+      expect(result.sources.shareHistoryAcrossPersonalities).toBe('personality');
     });
 
     it('should apply admin tier override with correct source', async () => {

@@ -193,6 +193,43 @@ is now known to be clean, so this is not a live defect blocking the work.
 was active in this window too — worth keeping distinct from the per-character
 axis when reasoning about what a character can see.
 
+## THREE history surfaces, not one — scope DECIDED by the owner 2026-08-26
+
+Review of the implementation PR found that "history" is not one read. There are
+three surfaces, and the design above only ever considered the first:
+
+1. **Stored history** — the DB read (`buildChannelHistoryWhere`). Scoped by
+   `personalityId` whenever the mode isolates that scope, in DMs and guilds alike.
+2. **Live channel read** ("extended context") — a Discord fetch performed
+   bot-side, merged by `mergeWithHistory`, which dedups by Discord message id and
+   applies no personality filter. **It runs on essentially every real turn,
+   including in DMs**, so without gating it the feature was close to a no-op in
+   exactly the case it was built for. Worse: scoping the DB read REMOVES sibling
+   rows from the dedup map, so sibling messages stop colliding and get appended
+   instead.
+3. **Explicit reply/forward references** — `rawReferencedMessages`, crawled from
+   Discord's reply chain with no personality filter anywhere in the path.
+
+**Owner decision on surface 2 (2026-08-26): drop the live read in DMs when
+isolation applies; leave guild behaviour untouched.** The asymmetry is
+principled rather than a compromise — in a guild a sibling's replies are already
+visible in the room to everyone present, so surfacing them is not a leak; in a
+DM it is. Under `'never'`/`'dms-only'`-in-a-guild the stored read is still
+scoped, so isolation there means "stored history only".
+
+**Owner decision on surface 3 (2026-08-26): accepted as a deliberate exception,
+NOT a gap to close.** In a DM every persona posts through the same bot account,
+so replying to an old message from character B while talking to character A does
+put B's content into A's context. That is the user explicitly citing a message,
+not ambient leakage — the same spirit as the standing "direct replies always
+re-vision" call. Filtering it would make Discord's Reply silently do nothing,
+with no way for the character to explain why, which is a worse surprise than the
+leak it prevents. The dashboard help text names the exception so "Always
+Isolated" does not overpromise.
+
+Anyone revisiting isolation must account for all three surfaces; enumerating
+only the DB read is what made the first implementation ineffective.
+
 ## Implementation checklist (read from the code 2026-08-18, not invented)
 
 `configOverrides.ts` documents its own "field #12 checklist" for adding a

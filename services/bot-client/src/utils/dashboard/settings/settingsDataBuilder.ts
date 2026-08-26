@@ -64,6 +64,7 @@ export interface ResolveDefaultsResponse {
   showModelFooter: boolean;
   voiceResponseMode: 'always' | 'voice-only' | 'never';
   voiceTranscriptionEnabled: boolean;
+  shareHistoryAcrossPersonalities: 'always' | 'guilds-only' | 'dms-only' | 'never';
   sources: Record<string, ConfigOverrideSource>;
   userOverrides: Record<string, unknown> | null;
 }
@@ -88,6 +89,7 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     showModelFooter: response.showModelFooter,
     voiceResponseMode: response.voiceResponseMode,
     voiceTranscriptionEnabled: response.voiceTranscriptionEnabled,
+    shareHistoryAcrossPersonalities: response.shareHistoryAcrossPersonalities,
     sources: response.sources,
   };
   const userOverrides = response.userOverrides ?? null;
