@@ -4,8 +4,11 @@
  * Utility function that removes LLM diagnostic logs older than the retention period.
  * Called by the scheduled-jobs worker on an hourly basis.
  *
- * Diagnostic logs are ephemeral debug data with 24-hour retention.
+ * Diagnostic logs are ephemeral debug data with 7-day retention.
  * They capture full LLM request/response data for debugging prompt issues.
+ *
+ * The window is a published commitment: docs/legal/PRIVACY_POLICY.md states
+ * this same period to users, so the two must move together.
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -13,8 +16,8 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('cleanup-diagnostic-logs');
 
-/** Default retention period in hours */
-const RETENTION_HOURS = 24;
+/** Default retention period in hours (7 days) */
+const RETENTION_HOURS = 7 * 24;
 
 /**
  * Result of cleanup operation
@@ -32,7 +35,7 @@ interface DiagnosticCleanupResult {
  * Clean up diagnostic logs older than the retention period.
  *
  * This function deletes all records from llm_diagnostic_logs where
- * createdAt is older than RETENTION_HOURS (default 24 hours).
+ * createdAt is older than RETENTION_HOURS (default 7 days).
  *
  * @param prisma - Prisma client for database operations
  * @param retentionHours - Optional override for retention period (for testing)

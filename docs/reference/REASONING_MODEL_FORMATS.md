@@ -203,7 +203,7 @@ readable via `/inspect`.
 
 5. **Result Building** - `ConversationalRAGService` includes `thinkingContent` (the extracted reasoning) in the RAG response.
 
-6. **Persistence** - `SlotDeliveryService` saves `thinkingContent` with the assistant turn, so the trace outlives the 24h diagnostic window.
+6. **Persistence** - `SlotDeliveryService` saves `thinkingContent` with the assistant turn, so the trace outlives the 7d diagnostic window.
 
 ---
 

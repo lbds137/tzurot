@@ -12,7 +12,7 @@
  * - GET /api/user/diagnostic/:requestId - Get diagnostic log by request ID
  * - PATCH /api/internal/diagnostic/:requestId/response-ids - Update response message IDs
  *
- * Note: Diagnostic logs are ephemeral (24h retention) and stored for debugging
+ * Note: Diagnostic logs are ephemeral (7d retention) and stored for debugging
  * prompt construction issues.
  */
 
@@ -269,7 +269,7 @@ export const handleGetDiagnosticByMessage = (deps: DiagnosticDeps): RequestHandl
     if (logs.length === 0) {
       sendError(
         res,
-        ErrorResponses.notFound('Diagnostic logs for message (may have expired - 24h retention)')
+        ErrorResponses.notFound('Diagnostic logs for message (may have expired - 7d retention)')
       );
       return;
     }
@@ -323,7 +323,7 @@ export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHan
     });
 
     if (!log) {
-      sendError(res, ErrorResponses.notFound('Diagnostic log (may have expired - 24h retention)'));
+      sendError(res, ErrorResponses.notFound('Diagnostic log (may have expired - 7d retention)'));
       return;
     }
 
@@ -373,7 +373,7 @@ export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHand
       sendError(
         res,
         ErrorResponses.notFound(
-          'Diagnostic log for response message (may have expired - 24h retention)'
+          'Diagnostic log for response message (may have expired - 7d retention)'
         )
       );
       return;
@@ -434,10 +434,7 @@ export const handleUpdateDiagnosticResponseIds = (deps: DiagnosticDeps): Request
     } catch (error) {
       // Handle not found case (Prisma throws if record doesn't exist)
       if ((error as { code?: string }).code === 'P2025') {
-        sendError(
-          res,
-          ErrorResponses.notFound('Diagnostic log (may have expired - 24h retention)')
-        );
+        sendError(res, ErrorResponses.notFound('Diagnostic log (may have expired - 7d retention)'));
         return;
       }
       throw error;
