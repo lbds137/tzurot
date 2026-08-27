@@ -22,12 +22,17 @@ import {
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
-import { AIProvider, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  FREE_ROUTER_MODEL,
+  ZAI_FREE_TIER_MODEL,
+} from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
   composeVisionTiers,
+  composeWalkTiers,
   describeImageWithFallback,
   sinkFreeRouteFallbacks,
 } from './describeImageWithFallback.js';
@@ -71,6 +76,27 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     }),
   };
 });
+
+const mockZaiReactor = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../redis.js', () => ({
+  zaiFreeTierFailureReactor: (...args: unknown[]) => mockZaiReactor(...args),
+  visionDescriptionCache: {
+    tryAcquireInflight: vi.fn().mockResolvedValue(true),
+    isInflight: vi.fn().mockResolvedValue(false),
+    releaseInflight: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue(null),
+    store: vi.fn().mockResolvedValue(undefined),
+    getFailure: vi.fn().mockResolvedValue(null),
+    storeFailure: vi.fn().mockResolvedValue(undefined),
+  },
+  visionFallbackQuota: { tryConsume: vi.fn().mockResolvedValue(true) },
+  checkModelVisionSupport: vi.fn().mockResolvedValue(false),
+  zaiFreeTierAdmission: {
+    admit: vi.fn().mockResolvedValue({ admitted: false, reason: 'disabled' }),
+    systemKey: vi.fn().mockReturnValue(undefined),
+    isEnabled: vi.fn().mockReturnValue(false),
+  },
+}));
 
 // VisionProcessor: mock describeImage/selectVisionModel/buildFailureFallback,
 // keep the REAL VisionModelError + VISION_TERMINATE_CATEGORIES so the wrapper's
@@ -785,5 +811,305 @@ describe('describeImageWithFallback', () => {
       expect.anything(),
       false
     );
+  });
+});
+
+describe('z.ai piggyback vision tier (composeWalkTiers)', () => {
+  const eligible = (personality: LoadedPersonality): ResolveVisionConfigOptions =>
+    makeAuthOptions({ personality, isGuestMode: true, userId: 'guest-1', requestId: 'req-1' });
+
+  it('prepend never evicts the floor — tail is byte-identical to the no-piggyback chain', () => {
+    // Only ONE stamped fallback, so the (primary, fallback, floor) triple fits
+    // under the cap BEFORE the piggyback prepend — the floor survives in both.
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+
+    const walk = composeWalkTiers('primary/model', personality, eligible(personality));
+    const withoutPiggyback = composeVisionTiers('primary/model', personality, true);
+
+    expect(walk.tiers[0]).toBe(ZAI_FREE_TIER_MODEL);
+    expect(walk.tiers.slice(1)).toEqual(withoutPiggyback);
+    expect(walk.primaryTierIndex).toBe(1);
+    // Regression floor: the un-prepended chain is today's exact output.
+    expect(withoutPiggyback).toEqual(['primary/model', 'tier-a', FREE_ROUTER_MODEL]);
+  });
+
+  it('no prepend when the primary already IS the piggyback id — primary index stays 0', () => {
+    const personality = makePersonality({ visionFallbackModels: ['paid/global-default'] });
+
+    const walk = composeWalkTiers(ZAI_FREE_TIER_MODEL, personality, eligible(personality));
+
+    expect(walk.tiers).toEqual(composeVisionTiers(ZAI_FREE_TIER_MODEL, personality, true));
+    expect(walk.primaryTierIndex).toBe(0);
+  });
+
+  it('an ineligible walk is untouched — no prepend, primary index 0', () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    const notGuest = makeAuthOptions({ personality, userId: 'user-1', requestId: 'req-1' });
+
+    const walk = composeWalkTiers('primary/model', personality, notGuest);
+
+    expect(walk.tiers).toEqual(composeVisionTiers('primary/model', personality, false));
+    expect(walk.primaryTierIndex).toBe(0);
+  });
+});
+
+describe('z.ai piggyback vision tier (walkFallbackChain)', () => {
+  function makeGuestAuthOptions(
+    overrides: Partial<ResolveVisionConfigOptions> = {}
+  ): ResolveVisionConfigOptions {
+    return makeAuthOptions({
+      isGuestMode: true,
+      userId: 'guest-1',
+      requestId: 'req-1',
+      ...overrides,
+    });
+  }
+
+  function piggybackResolved(): VisionConfigResult {
+    return {
+      kind: 'resolved',
+      config: {
+        apiKey: 'zai-key',
+        provider: AIProvider.ZaiCoding,
+        model: ZAI_FREE_TIER_MODEL,
+        source: 'system',
+        isGuestMode: true,
+      },
+    };
+  }
+
+  it('admitted, flash fails RETRYABLE → the real primary tier is attempted next', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL ? piggybackResolved() : resolvedFor(tierModel)
+    );
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'rate limited'))
+      .mockResolvedValueOnce('primary description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result).toBe('primary description');
+    expect(mockDescribeImage).toHaveBeenNthCalledWith(
+      1,
+      attachment,
+      personality,
+      true,
+      'zai-key',
+      expect.objectContaining({ model: ZAI_FREE_TIER_MODEL, provider: AIProvider.ZaiCoding })
+    );
+    expect(mockDescribeImage).toHaveBeenNthCalledWith(
+      2,
+      attachment,
+      personality,
+      false,
+      'k',
+      expect.objectContaining({ model: 'primary/model', provider: AIProvider.OpenRouter })
+    );
+  });
+
+  it('admitted flash succeeds → its description is returned and the floor is never invoked', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL ? piggybackResolved() : resolvedFor(tierModel)
+    );
+    mockDescribeImage.mockResolvedValueOnce('flash description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result).toBe('flash description');
+    expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    // Seam assertion: without it this test passes vacuously when the tier is never
+    // prepended — the single call would just be the primary returning the same string.
+    expect(mockDescribeImage).toHaveBeenNthCalledWith(
+      1,
+      attachment,
+      personality,
+      true,
+      'zai-key',
+      expect.objectContaining({ model: ZAI_FREE_TIER_MODEL, provider: AIProvider.ZaiCoding })
+    );
+  });
+
+  it('denied → the walk continues past the piggyback tier, offered exactly once', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL
+        ? { kind: 'failFast', provider: AIProvider.ZaiCoding }
+        : resolvedFor(tierModel)
+    );
+    mockDescribeImage.mockResolvedValueOnce('floor description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result).toBe('floor description');
+    expect(mockDescribeImage).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ model: ZAI_FREE_TIER_MODEL })
+    );
+    expect(
+      mockResolveVisionAuth.mock.calls.filter(call => call[0] === ZAI_FREE_TIER_MODEL)
+    ).toHaveLength(1);
+  });
+
+  it('non-guest walk: no piggyback tier is ever offered', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockDescribeImage.mockResolvedValueOnce('primary description');
+
+    await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality, isGuestMode: false, userId: 'user-1', requestId: 'req-1' }),
+      { model: 'primary/model' }
+    );
+
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).not.toContain(
+      ZAI_FREE_TIER_MODEL
+    );
+  });
+
+  it('guest WITHOUT requestId: no piggyback tier (strict no-regression gate)', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockDescribeImage.mockResolvedValueOnce('primary description');
+
+    await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality, isGuestMode: true, userId: 'guest-1', requestId: undefined }),
+      { model: 'primary/model' }
+    );
+
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).not.toContain(
+      ZAI_FREE_TIER_MODEL
+    );
+  });
+
+  it('bare-flash primary: the paid stamped fallback stays a NON-primary guest tier', async () => {
+    // No prepend happens when the primary already IS the piggyback id, so the
+    // primary index must stay 0. Deriving it from `tiers[0] === ZAI_FREE_TIER_MODEL`
+    // instead would mark the stamped fallback primary, exempting it from the guest
+    // free-forcing and putting a PAID model on the system key.
+    const personality = makePersonality({ visionFallbackModels: ['paid/global-default'] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL
+        ? { kind: 'failFast', provider: AIProvider.ZaiCoding }
+        : resolvedFor(tierModel)
+    );
+    mockDescribeImage.mockResolvedValueOnce('fallback description');
+
+    await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: ZAI_FREE_TIER_MODEL }
+    );
+
+    const flashCall = mockResolveVisionAuth.mock.calls.find(
+      call => call[0] === ZAI_FREE_TIER_MODEL
+    );
+    const paidCall = mockResolveVisionAuth.mock.calls.find(
+      call => call[0] === 'paid/global-default'
+    );
+    expect(flashCall?.[3]).toBe(true);
+    expect(paidCall?.[3]).toBe(false);
+  });
+
+  it('isPrimaryTier offset: the piggyback tier gets false, the real primary gets true', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL ? piggybackResolved() : resolvedFor(tierModel)
+    );
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'rate limited'))
+      .mockResolvedValueOnce('floor description');
+
+    await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(mockResolveVisionAuth).toHaveBeenNthCalledWith(
+      1,
+      ZAI_FREE_TIER_MODEL,
+      expect.anything(),
+      expect.anything(),
+      false
+    );
+    expect(mockResolveVisionAuth).toHaveBeenNthCalledWith(
+      2,
+      'primary/model',
+      expect.anything(),
+      expect.anything(),
+      true
+    );
+  });
+
+  it('arms the z.ai reactor on a retryable piggyback failure', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL ? piggybackResolved() : resolvedFor(tierModel)
+    );
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'rate limited'))
+      .mockResolvedValueOnce('floor description');
+
+    await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(mockZaiReactor).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT arm the z.ai reactor when the piggyback tier succeeds', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockImplementation(async tierModel =>
+      tierModel === ZAI_FREE_TIER_MODEL ? piggybackResolved() : resolvedFor(tierModel)
+    );
+    mockDescribeImage.mockResolvedValueOnce('flash description');
+
+    await describeImageWithFallback(
+      attachment,
+      personality,
+      makeGuestAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(mockZaiReactor).not.toHaveBeenCalled();
+  });
+
+  it('does NOT arm the z.ai reactor on a normal (non-piggyback) tier failure', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'rate limited'))
+      .mockResolvedValueOnce('second tier description');
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'primary/model',
+    });
+
+    expect(mockZaiReactor).not.toHaveBeenCalled();
   });
 });

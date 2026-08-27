@@ -43,6 +43,8 @@ export interface ResolveRagVisionAuthOptions {
   mainApiKey: string | undefined;
   /** Effective post-promotion provider (auth.provider). */
   mainProvider: AIProvider | undefined;
+  /** Per-request idempotency anchor, forwarded to the vision auth bundle. */
+  requestId?: string;
   /** Absent in legacy/test callers → degrade to passing the main key through. */
   apiKeyResolver?: ApiKeyResolver;
 }
@@ -50,7 +52,8 @@ export interface ResolveRagVisionAuthOptions {
 export async function resolveRagVisionAuth(
   opts: ResolveRagVisionAuthOptions
 ): Promise<ResolvedVisionAuth> {
-  const { personality, userId, isGuestMode, mainApiKey, mainProvider, apiKeyResolver } = opts;
+  const { personality, userId, isGuestMode, mainApiKey, mainProvider, requestId, apiKeyResolver } =
+    opts;
 
   if (apiKeyResolver === undefined || mainProvider === undefined) {
     return { userApiKey: mainApiKey };
@@ -63,6 +66,7 @@ export async function resolveRagVisionAuth(
       mainApiKey,
       isGuestMode,
       userId,
+      requestId,
       apiKeyResolver,
     });
     if (result.kind === 'resolved') {
