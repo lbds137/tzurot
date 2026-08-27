@@ -238,9 +238,10 @@ async function tryZaiFreeTierUpgrade(
       ...personality,
       model: ZAI_FREE_TIER_MODEL,
       provider: AIProvider.ZaiCoding,
-      // The upgrade covers the TEXT model alone; the vision slot keeps the
-      // guest rules (free OpenRouter models only), whatever the piggyback
-      // model's own modality support happens to be.
+      // This step rewrites the TEXT model only; the vision slot still follows the
+      // guest rules here (free OpenRouter models only). The vision-side piggyback
+      // is a separate, independently-admitted tier inside the vision fallback
+      // chain, so a denial on one slot never decides the other.
       visionModel: guestVisionModel(personality),
     },
     zaiSystemKey,

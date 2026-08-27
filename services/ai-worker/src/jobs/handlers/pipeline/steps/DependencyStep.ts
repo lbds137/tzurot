@@ -124,6 +124,7 @@ export class DependencyStep implements IPipelineStep {
           userApiKey: auth?.apiKey,
           sttDispatch: auth?.sttDispatch,
           mainProvider: auth?.provider,
+          requestId: job.data.requestId,
         },
         jobContext.userId
       );
@@ -278,10 +279,11 @@ export class DependencyStep implements IPipelineStep {
       userApiKey?: string;
       sttDispatch?: SttDispatch;
       mainProvider?: AIProvider;
+      requestId: string | undefined;
     },
     userId: string
   ): Promise<ProcessedAttachment[]> {
-    const { isGuestMode, userApiKey, sttDispatch, mainProvider } = authOptions;
+    const { isGuestMode, userApiKey, sttDispatch, mainProvider, requestId } = authOptions;
     // Filter to only images
     const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
     if (imageAttachments.length === 0) {
@@ -328,6 +330,7 @@ export class DependencyStep implements IPipelineStep {
         personality,
         jobId,
         userId,
+        requestId,
         isGuestMode,
         userApiKey,
         sttDispatch,

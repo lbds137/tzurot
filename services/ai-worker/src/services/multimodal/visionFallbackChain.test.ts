@@ -99,6 +99,11 @@ vi.mock('../../redis.js', () => ({
   visionFallbackQuota: {
     tryConsume: mockVisionFallbackQuotaConsume,
   },
+  zaiFreeTierAdmission: {
+    admit: vi.fn().mockResolvedValue({ admitted: false, reason: 'disabled' }),
+    systemKey: vi.fn().mockReturnValue(undefined),
+    isEnabled: vi.fn().mockReturnValue(false),
+  },
 }));
 
 // Guard against real image fetching: imageToDataUrl would attempt a network download.

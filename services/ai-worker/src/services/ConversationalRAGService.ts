@@ -147,6 +147,7 @@ export class ConversationalRAGService {
         isGuestMode,
         mainApiKey: userApiKey,
         mainProvider: options.effectiveProvider,
+        requestId: context.requestId,
         apiKeyResolver: this.apiKeyResolver,
       });
 

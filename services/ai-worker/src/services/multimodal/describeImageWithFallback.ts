@@ -13,13 +13,19 @@
  * the prompt-facing `[Image … couldn't be processed …]` placeholder.
  */
 
-import { AIProvider, isFreeModel } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  isFreeModel,
+  isZaiFreeTierModel,
+  ZAI_FREE_TIER_MODEL,
+} from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
+import { zaiFreeTierFailureReactor } from '../../redis.js';
 import {
   describeImage,
   selectVisionModel,
@@ -34,6 +40,7 @@ import {
   visionAuthFailFastDescription,
   type ResolveVisionConfigOptions,
   type VisionConfig,
+  type VisionQuotaTracker,
 } from './visionAuthResolver.js';
 
 const logger = createLogger('VisionFallbackLoop');
@@ -50,12 +57,18 @@ const MAX_VISION_FALLBACK_TIERS = 3;
 type TierOutcome =
   { kind: 'resolved'; description: string } | { kind: 'advance'; category: ApiErrorCategory };
 
-/** Run one already-resolved tier: describe, or classify its failure into terminate-vs-advance. */
+/**
+ * Run one already-resolved tier: describe, or classify its failure into terminate-vs-advance.
+ * `onTierFailure` is invoked with the underlying provider error before classification —
+ * used only for the z.ai piggyback tier, whose account/window failures must arm the
+ * free-tier kill switch (the text path arms it through `quotaFallbackRunner` instead).
+ */
 async function runVisionTier(
   config: VisionConfig,
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
-  describeOptions: DescribeImageOptions
+  describeOptions: DescribeImageOptions,
+  onTierFailure?: (error: unknown) => Promise<void>
 ): Promise<TierOutcome> {
   try {
     const description = await describeImage(
@@ -77,6 +90,11 @@ async function runVisionTier(
     );
     return { kind: 'resolved', description };
   } catch (error) {
+    if (onTierFailure !== undefined) {
+      // `VisionModelError` wraps the provider error; the reactor classifies on the
+      // provider's own business code, so hand it the cause when there is one.
+      await onTierFailure(error instanceof VisionModelError ? (error.cause ?? error) : error);
+    }
     if (!(error instanceof VisionModelError)) {
       // Non-vision throw raised OUTSIDE invokeVisionModel's try — e.g. createChatModel's
       // synchronous missing-key throw, or a malformed-URL TypeError. The loop is the
@@ -121,6 +139,10 @@ async function runVisionTier(
  *
  * BYOK reordering is NOT this function's job — `walkFallbackChain` applies
  * `sinkFreeRouteFallbacks` lazily, only once the primary tier has already failed.
+ *
+ * The guest piggyback tier is NOT this function's job either: `composeWalkTiers`
+ * prepends it to this function's finished output, so the chain computed here is
+ * exactly what a walk without the piggyback would use.
  */
 export function composeVisionTiers(
   primaryModel: string,
@@ -249,6 +271,132 @@ async function userHasOpenRouterKey(authOptions: ResolveVisionConfigOptions): Pr
   }
 }
 
+/**
+ * Compose the tier list plus the index of the REAL primary tier for one walk.
+ * Eligibility for the guest piggyback vision tier is deliberately NOT gated on
+ * `zaiFreeTierAdmission.isEnabled()`: a disabled admission denies synchronously
+ * inside `resolveVisionAuth` with no I/O, and keeping the gate to inputs the loop
+ * already holds avoids a second Redis singleton dependency here. `requestId` is
+ * the idempotency anchor admission counts by — without one the tier is skipped
+ * rather than admitted unanchored, and `userId` is required to meter at all.
+ *
+ * A prepended piggyback occupies index 0 without being the primary: the
+ * primary-tier semantics (the same-provider fast path, and exemption from the
+ * guest fallback-tier free-forcing) must stay with the model the chain actually
+ * selected, or a guest's chosen free vision model would be forced to the floor
+ * purely because a tier was prepended in front of it.
+ *
+ * `primaryTierIndex` is derived from whether a prepend actually HAPPENED, never
+ * from what `tiers[0]` is. When the chain's own primary already IS the piggyback
+ * id (an explicit `describeOptions.model` override), no prepend occurs and the
+ * primary stays at index 0 — reading `tiers[0]` there would shift the index onto
+ * the first stamped fallback, exempting a possibly-PAID model from the guest
+ * free-forcing and resolving the system key for it. Pinned by the "bare-flash
+ * primary: the paid stamped fallback stays a NON-primary guest tier" test.
+ *
+ * The prepend lands on `composeVisionTiers`'s FINISHED output, so the tail below
+ * a piggyback tier is byte-identical to the chain a non-piggyback walk would use —
+ * the cap can never evict the floor on account of the extra tier. Worst case is
+ * one tier more than `MAX_VISION_FALLBACK_TIERS`, and the loop's resolved-model
+ * dedup still collapses the guest fallbacks onto the floor, so attempted API
+ * calls stay bounded.
+ *
+ * Exported for the tier-composition unit tests; production reaches it via
+ * `walkFallbackChain`.
+ */
+export function composeWalkTiers(
+  primaryModel: string,
+  personality: LoadedPersonality,
+  authOptions: ResolveVisionConfigOptions
+): { tiers: string[]; primaryTierIndex: number } {
+  const isGuestMode = authOptions.isGuestMode;
+  const piggybackEligible =
+    isGuestMode && authOptions.userId !== undefined && authOptions.requestId !== undefined;
+  const base = composeVisionTiers(primaryModel, personality, isGuestMode);
+  const prepended = piggybackEligible && !base.includes(ZAI_FREE_TIER_MODEL);
+  return {
+    tiers: prepended ? [ZAI_FREE_TIER_MODEL, ...base] : base,
+    primaryTierIndex: prepended ? 1 : 0,
+  };
+}
+
+/**
+ * Only the piggyback tier arms the z.ai free-tier reactor: a BYOK z.ai user's
+ * own plan state is theirs, and only a system-key guest tier can be the shared
+ * coding plan.
+ */
+function isPiggybackTierConfig(config: VisionConfig): boolean {
+  return config.isGuestMode && config.source === 'system' && isZaiFreeTierModel(config.model);
+}
+
+/** Outcome of attempting ONE tier index, folding the failFast/dedup/run branching. */
+type TierAttempt =
+  | { kind: 'skip' }
+  | { kind: 'resolved'; description: string }
+  | { kind: 'advance'; category: ApiErrorCategory; source: 'user' | 'system' };
+
+/** Inputs for {@link attemptTier}, bundled to stay under the parameter-count limit. */
+interface AttemptTierOptions {
+  tierIndex: number;
+  primaryTierIndex: number;
+  tierModel: string;
+  attempted: Set<string>;
+  authOptions: ResolveVisionConfigOptions;
+  quota: VisionQuotaTracker;
+  attachment: AttachmentMetadata;
+  personality: LoadedPersonality;
+  describeOptions: DescribeImageOptions;
+}
+
+/**
+ * Resolve + (maybe) run one tier index. `skip` covers both a failFast auth
+ * result and a dedup hit — neither counts as an attempt, so the caller's
+ * `lastAttempt` must not update for either.
+ */
+async function attemptTier(options: AttemptTierOptions): Promise<TierAttempt> {
+  const {
+    tierIndex,
+    primaryTierIndex,
+    tierModel,
+    attempted,
+    authOptions,
+    quota,
+    attachment,
+    personality,
+    describeOptions,
+  } = options;
+  // Only the FIRST (real primary) tier may take the same-provider fast path
+  // (reuse the upstream main key) — a fallback tier re-handing back the
+  // identical key would retry the exact credential that just failed and
+  // defeat the loop's resilience purpose.
+  const auth = await resolveVisionAuth(
+    tierModel,
+    authOptions,
+    quota,
+    tierIndex === primaryTierIndex
+  );
+  if (auth.kind === 'failFast' || attempted.has(auth.config.model)) {
+    return { kind: 'skip' };
+  }
+  attempted.add(auth.config.model);
+
+  // `.catch` keeps the reactor fail-soft — the walk must proceed regardless.
+  const onTierFailure = isPiggybackTierConfig(auth.config)
+    ? (error: unknown) => zaiFreeTierFailureReactor(error).catch(() => undefined)
+    : undefined;
+  const outcome = await runVisionTier(
+    auth.config,
+    attachment,
+    personality,
+    describeOptions,
+    onTierFailure
+  );
+  if (outcome.kind === 'resolved') {
+    return { kind: 'resolved', description: outcome.description };
+  }
+  return { kind: 'advance', category: outcome.category, source: auth.config.source };
+}
+
 async function walkFallbackChain(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
@@ -261,7 +409,9 @@ async function walkFallbackChain(
       ? describeOptions.model
       : await selectVisionModel(personality, isGuestMode);
 
-  let tiers = composeVisionTiers(primaryModel, personality, isGuestMode);
+  const walkTiers = composeWalkTiers(primaryModel, personality, authOptions);
+  let tiers = walkTiers.tiers;
+  const primaryTierIndex = walkTiers.primaryTierIndex;
   const quota = createVisionQuotaTracker(authOptions.userId);
   // Dedup by the RESOLVED model: the broad-free-fallback can collapse several distinct
   // tiers onto the same free model, and re-invoking the same (model, attachment) is what
@@ -273,30 +423,32 @@ async function walkFallbackChain(
   let lastAttempt: { category: ApiErrorCategory; source: 'user' | 'system' } | undefined;
 
   for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
-    if (tierIndex === 1) {
+    if (tierIndex === primaryTierIndex + 1) {
       // The reorder never touches tiers[0], so its cost (a possible wallet probe — see
       // maybeReorderFallbacks) is deferred until the primary tier has actually failed:
-      // the common primary-succeeds walk pays nothing.
+      // the common primary-succeeds walk pays nothing. The offset keeps "past the
+      // primary" correct when a piggyback tier was prepended (for a guest the reorder
+      // is a no-op anyway — the wallet probe returns false).
       tiers = await maybeReorderFallbacks(tiers, authOptions);
     }
-    const tierModel = tiers[tierIndex];
-    // Only the FIRST tier may take the same-provider fast path (reuse the upstream
-    // main key) — a fallback tier re-handing back the identical key would retry the
-    // exact credential that just failed and defeat the loop's resilience purpose.
-    const auth = await resolveVisionAuth(tierModel, authOptions, quota, tierIndex === 0);
-    if (auth.kind === 'failFast') {
-      continue; // no usable key for this tier's provider (and no free fallback) — advance
+    const attempt = await attemptTier({
+      tierIndex,
+      primaryTierIndex,
+      tierModel: tiers[tierIndex],
+      attempted,
+      authOptions,
+      quota,
+      attachment,
+      personality,
+      describeOptions,
+    });
+    if (attempt.kind === 'skip') {
+      continue; // no usable key for this tier's provider (and no free fallback), or a dedup hit — advance
     }
-    if (attempted.has(auth.config.model)) {
-      continue;
+    if (attempt.kind === 'resolved') {
+      return attempt.description;
     }
-    attempted.add(auth.config.model);
-
-    const outcome = await runVisionTier(auth.config, attachment, personality, describeOptions);
-    if (outcome.kind === 'resolved') {
-      return outcome.description;
-    }
-    lastAttempt = { category: outcome.category, source: auth.config.source };
+    lastAttempt = { category: attempt.category, source: attempt.source };
   }
 
   logger.warn(
