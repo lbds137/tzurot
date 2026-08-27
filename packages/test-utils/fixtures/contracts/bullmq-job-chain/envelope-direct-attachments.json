@@ -102,6 +102,7 @@
       "name": "image-description",
       "data": {
         "requestId": "fixture-req-envelope-direct-image",
+        "parentRequestId": "fixture-req-envelope-direct",
         "jobType": "image-description",
         "attachments": [
           {

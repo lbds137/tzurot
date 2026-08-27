@@ -45,7 +45,12 @@ import {
 
 const logger = createLogger('VisionFallbackLoop');
 
-/** Hard cap on vision attempts per attachment — each tier is a ~1-3s + $ API call. */
+/**
+ * Cap on the composed base chain per attachment — each tier is a ~1-3s + $ API
+ * call. Not an absolute ceiling on the walk: the guest piggyback hoist can put
+ * the tier count one above this (see `composeWalkTiers`), with the loop's
+ * resolved-model dedup bounding the actually-attempted calls.
+ */
 const MAX_VISION_FALLBACK_TIERS = 3;
 
 /**
@@ -141,8 +146,10 @@ async function runVisionTier(
  * `sinkFreeRouteFallbacks` lazily, only once the primary tier has already failed.
  *
  * The guest piggyback tier is NOT this function's job either: `composeWalkTiers`
- * prepends it to this function's finished output, so the chain computed here is
- * exactly what a walk without the piggyback would use.
+ * derives the guest walk from this finished output, hoisting the piggyback tier
+ * to the front and removing any flash member already present. A flash-free
+ * chain here is therefore unchanged below the hoisted tier, while a
+ * flash-bearing one has that member relocated rather than left in place.
  */
 export function composeVisionTiers(
   primaryModel: string,
@@ -285,36 +292,39 @@ async function userHasOpenRouterKey(authOptions: ResolveVisionConfigOptions): Pr
  * Eligibility for the guest piggyback vision tier is deliberately NOT gated on
  * `zaiFreeTierAdmission.isEnabled()`: a disabled admission denies synchronously
  * inside `resolveVisionAuth` with no I/O, and keeping the gate to inputs the loop
- * already holds avoids a second Redis singleton dependency here. `requestId` is
- * the idempotency anchor admission counts by — without one the tier is skipped
- * rather than admitted unanchored, and `userId` is required to meter at all.
+ * already holds avoids a second Redis singleton dependency here. `userId` is
+ * required to meter at all, and `requestId` is the idempotency anchor admission
+ * counts by — without one the tier is skipped rather than admitted unanchored.
  *
- * A prepended piggyback occupies index 0 without being the primary: the
- * primary-tier semantics (the same-provider fast path, and exemption from the
- * guest fallback-tier free-forcing) must stay with the model the chain actually
- * selected, or a guest's chosen free vision model would be forced to the floor
- * purely because a tier was prepended in front of it.
+ * Postcondition, for an ELIGIBLE walk: `tiers[0]` is always the bare
+ * `ZAI_FREE_TIER_MODEL`, exactly one member of `tiers` satisfies
+ * `isZaiFreeTierModel`, and the remainder is `composeVisionTiers`'s finished
+ * output with every flash member (bare or `z-ai/`-prefixed) removed, order
+ * otherwise preserved. This holds whether the chain arrived with no flash
+ * member, a bare-flash primary, or a flash tier stamped anywhere in the DB
+ * fallbacks — a chain-resident flash is normalized into the single hoisted
+ * tier rather than left in place, which would otherwise send the walk through
+ * admission twice for one image. An INELIGIBLE walk returns `composeVisionTiers`'s
+ * output untouched, with `primaryTierIndex` 0.
  *
- * Membership is tested with `isZaiFreeTierModel` rather than an exact-string
- * match, so a `z-ai/`-prefixed tier counts as the piggyback already being in the
- * chain. An exact match would miss the prefixed form and prepend a second flash
- * tier, sending the walk through admission twice for one image.
+ * `primaryTierIndex` follows the model the chain actually SELECTED as primary,
+ * not positionally: it is `isZaiFreeTierModel(base[0]) ? 0 : 1`. When the
+ * chain's own primary already IS the piggyback id (an explicit
+ * `describeOptions.model` override, in bare or prefixed form), that model keeps
+ * index 0 even after hoisting — hoisting a tier that's already first is a no-op
+ * on order. When flash was hoisted in front of a DIFFERENT primary, that
+ * primary now sits at index 1. Primary-tier semantics (the same-provider fast
+ * path, and exemption from the guest fallback-tier free-forcing) must travel
+ * with the model the chain actually selected: reading `tiers[0]` unconditionally
+ * would mark a possibly-PAID stamped fallback as primary and resolve the system
+ * key for it. Pinned by the "bare-flash primary: the paid stamped fallback
+ * stays a NON-primary guest tier" test.
  *
- * `primaryTierIndex` is derived from whether a prepend actually HAPPENED, never
- * from what `tiers[0]` is. When the chain's own primary already IS the piggyback
- * id in either form (an explicit `describeOptions.model` override), no prepend
- * occurs and the primary stays at index 0 — reading `tiers[0]` there would shift
- * the index onto the first stamped fallback, exempting a possibly-PAID model
- * from the guest free-forcing and resolving the system key for it. Pinned by the
- * "bare-flash primary: the paid stamped fallback stays a NON-primary guest tier"
- * test.
- *
- * The prepend lands on `composeVisionTiers`'s FINISHED output, so the tail below
- * a piggyback tier is byte-identical to the chain a non-piggyback walk would use —
- * the cap can never evict the floor on account of the extra tier. Worst case is
- * one tier more than `MAX_VISION_FALLBACK_TIERS`, and the loop's resolved-model
- * dedup still collapses the guest fallbacks onto the floor, so attempted API
- * calls stay bounded.
+ * Because the tail is `base` minus its flash member(s), it can be one entry
+ * SHORTER than `base`, so the hoisted tier can push the total back up to
+ * `MAX_VISION_FALLBACK_TIERS` and, when `base` was already at the cap, one over
+ * it — the loop's resolved-model dedup keeps the actually-attempted API calls
+ * bounded regardless.
  *
  * Exported for the tier-composition unit tests; production reaches it via
  * `walkFallbackChain`.
@@ -328,10 +338,13 @@ export function composeWalkTiers(
   const piggybackEligible =
     isGuestMode && authOptions.userId !== undefined && authOptions.requestId !== undefined;
   const base = composeVisionTiers(primaryModel, personality, isGuestMode);
-  const prepended = piggybackEligible && !base.some(isZaiFreeTierModel);
+  if (!piggybackEligible) {
+    return { tiers: base, primaryTierIndex: 0 };
+  }
+  const flashIsExplicitPrimary = base.length > 0 && isZaiFreeTierModel(base[0]);
   return {
-    tiers: prepended ? [ZAI_FREE_TIER_MODEL, ...base] : base,
-    primaryTierIndex: prepended ? 1 : 0,
+    tiers: [ZAI_FREE_TIER_MODEL, ...base.filter(model => !isZaiFreeTierModel(model))],
+    primaryTierIndex: flashIsExplicitPrimary ? 0 : 1,
   };
 }
 
