@@ -18,7 +18,11 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
-import { AIProvider, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  FREE_ROUTER_MODEL,
+  ZAI_FREE_TIER_MODEL,
+} from '@tzurot/common-types/constants/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
   resolveVisionConfig,
@@ -63,6 +67,8 @@ vi.mock('./VisionProcessor.js', () => ({
 const mockStoreFailure = vi.fn();
 // Default: quota allows (under cap). Over-cap tests override per-case.
 const mockTryConsume = vi.fn().mockResolvedValue(true);
+const mockZaiAdmit = vi.fn();
+const mockZaiSystemKey = vi.fn();
 vi.mock('../../redis.js', () => ({
   visionDescriptionCache: {
     tryAcquireInflight: vi.fn().mockResolvedValue(true),
@@ -72,6 +78,10 @@ vi.mock('../../redis.js', () => ({
   },
   visionFallbackQuota: {
     tryConsume: (...args: unknown[]) => mockTryConsume(...args),
+  },
+  zaiFreeTierAdmission: {
+    admit: (...args: unknown[]) => mockZaiAdmit(...args),
+    systemKey: () => mockZaiSystemKey(),
   },
 }));
 
@@ -101,6 +111,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: under the daily fallback cap. Over-cap tests override per-case.
   mockTryConsume.mockResolvedValue(true);
+  // Default: piggyback admission denied, no system key — existing (non-piggyback)
+  // tests must be unaffected by the new tier's presence.
+  mockZaiAdmit.mockResolvedValue({ admitted: false, reason: 'disabled' });
+  mockZaiSystemKey.mockReturnValue(undefined);
 });
 
 describe('resolveVisionConfig', () => {
@@ -567,6 +581,174 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
     if (result.kind === 'resolved') {
       expect(result.config.model).toBe(FREE_ROUTER_MODEL);
       expect(result.config.apiKey).toBe('system-key');
+    }
+  });
+});
+
+describe('z.ai piggyback vision tier', () => {
+  it('admitted → resolved config, all four fields asserted', async () => {
+    mockZaiAdmit.mockResolvedValue({ admitted: true, reason: 'ok' });
+    mockZaiSystemKey.mockReturnValue('zai-system-key-sentinel');
+
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      false
+    );
+
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      expect(result.config.model).toBe(ZAI_FREE_TIER_MODEL);
+      expect(result.config.provider).toBe(AIProvider.ZaiCoding);
+      expect(result.config.apiKey).toBe('zai-system-key-sentinel');
+      expect(result.config.source).toBe('system');
+      expect(result.config.isGuestMode).toBe(true);
+    }
+  });
+
+  it('denied → failFast, and apiKeyResolver.resolveApiKey is NOT called', async () => {
+    mockZaiAdmit.mockResolvedValue({ admitted: false, reason: 'quota' });
+
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      false
+    );
+
+    expect(result.kind).toBe('failFast');
+    expect(mockResolveApiKey).not.toHaveBeenCalled();
+  });
+
+  it('missing requestId → failFast AND admit never called', async () => {
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-123',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      false
+    );
+
+    expect(result.kind).toBe('failFast');
+    expect(mockZaiAdmit).not.toHaveBeenCalled();
+  });
+
+  it('missing userId → failFast AND admit never called', async () => {
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: undefined,
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker(undefined),
+      false
+    );
+
+    expect(result.kind).toBe('failFast');
+    expect(mockZaiAdmit).not.toHaveBeenCalled();
+  });
+
+  it('admitted but systemKey() returns undefined → failFast', async () => {
+    mockZaiAdmit.mockResolvedValue({ admitted: true, reason: 'ok' });
+    mockZaiSystemKey.mockReturnValue(undefined);
+
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      false
+    );
+
+    expect(result.kind).toBe('failFast');
+    expect(mockResolveApiKey).not.toHaveBeenCalled();
+  });
+
+  it('admit is called with exactly (userId, requestId)', async () => {
+    mockZaiAdmit.mockResolvedValue({ admitted: true, reason: 'ok' });
+    mockZaiSystemKey.mockReturnValue('zai-system-key-sentinel');
+
+    await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      false
+    );
+
+    expect(mockZaiAdmit).toHaveBeenCalledWith('user-123', 'req-abc');
+  });
+
+  it('non-piggyback guest tier is unchanged: admit is not called', async () => {
+    mockResolveApiKey.mockResolvedValue({
+      apiKey: 'system-or-key',
+      source: 'system',
+      provider: AIProvider.OpenRouter,
+      isGuestMode: true,
+      userId: undefined,
+    });
+
+    const result = await resolveVisionAuth(
+      'qwen/qwen3.5-397b-a17b',
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      false
+    );
+
+    expect(mockZaiAdmit).not.toHaveBeenCalled();
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      expect(result.config.apiKey).toBe('system-or-key');
     }
   });
 });

@@ -24,16 +24,25 @@
  * On `failFast`, the fallback loop (`describeImageWithFallback`) renders the
  * `visionAuthFailFastDescription` "configure your key" placeholder per attachment
  * once every fallback tier is exhausted.
+ *
+ * The z.ai free-tier piggyback participates as a GUEST vision tier: when the
+ * target model is the piggyback model and the caller is a guest, admission
+ * (flag + key + kill switch + plan headroom + fair-share quota) decides, and any
+ * denial `failFast`s so the walk continues down the normal guest chain.
  */
 
-import { type AIProvider } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  ZAI_FREE_TIER_MODEL,
+  isZaiFreeTierModel,
+} from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getFreeVisionFloor } from '../freeFloors.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
-import { visionFallbackQuota } from '../../redis.js';
+import { visionFallbackQuota, zaiFreeTierAdmission } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 
 const logger = createLogger('VisionAuthResolver');
@@ -117,6 +126,13 @@ export interface ResolveVisionConfigOptions {
   isGuestMode: boolean;
   /** Discord user ID, if known. Required for any user-key lookup. */
   userId: string | undefined;
+  /**
+   * Per-request idempotency anchor. Required for the z.ai free-tier piggyback vision tier:
+   * admission counts per (userId, requestId), so the same request re-admitting
+   * costs nothing. Absent → the piggyback tier is skipped rather than admitted
+   * without an anchor.
+   */
+  requestId?: string;
   /** Resolver instance for cross-provider lookups. */
   apiKeyResolver: ApiKeyResolver;
 }
@@ -225,6 +241,70 @@ async function resolveBroadFreeFallback(
 }
 
 /**
+ * The z.ai piggyback VISION tier. Mirrors the text-slot upgrade in
+ * `guestModeOverrides`: an admitted guest runs the bare piggyback model on the
+ * system coding-plan key with `provider: zai-coding` so the model factory routes
+ * z.ai-direct. Every denial shape — feature off, kill switch, no headroom, quota,
+ * missing key, missing user, missing request anchor — returns `failFast`, which
+ * the fallback loop treats as "advance to the next tier", so the guest lands on
+ * today's free floor unchanged.
+ *
+ * The piggyback model is NEVER routed through `apiKeyResolver`: there is no
+ * system ZaiCoding key in the wallet, so a resolver call would throw rather
+ * than degrade.
+ *
+ * `requestId` is the idempotency anchor — `admit` counts per (userId, requestId)
+ * (zset membership per user, SET-NX per request for the global counter), so a
+ * guest whose TEXT slot already admitted this request consumes nothing extra
+ * here. Pinned by `visionAuthResolver.test.ts` ("missing requestId → failFast,
+ * admit never called").
+ */
+async function resolveZaiPiggybackVision(
+  userId: string | undefined,
+  requestId: string | undefined
+): Promise<VisionConfigResult> {
+  if (userId === undefined || requestId === undefined) {
+    logger.debug(
+      { userId, hasRequestId: requestId !== undefined },
+      'z.ai piggyback vision tier skipped — no user or no request anchor'
+    );
+    return { kind: 'failFast', provider: AIProvider.ZaiCoding };
+  }
+  const verdict = await zaiFreeTierAdmission.admit(userId, requestId);
+  if (!verdict.admitted) {
+    logger.info(
+      { userId, reason: verdict.reason },
+      'z.ai piggyback vision tier denied — advancing to the next vision tier'
+    );
+    return { kind: 'failFast', provider: AIProvider.ZaiCoding };
+  }
+  const systemKey = zaiFreeTierAdmission.systemKey();
+  if (systemKey === undefined) {
+    // Admission already consumed the guest's quota share; the log line keeps a
+    // vanished key distinguishable from a plain denial.
+    logger.warn(
+      { userId },
+      'z.ai piggyback vision admitted but the system key vanished — advancing with quota consumed'
+    );
+    return { kind: 'failFast', provider: AIProvider.ZaiCoding };
+  }
+  logger.info(
+    { userId, model: ZAI_FREE_TIER_MODEL },
+    'Guest vision upgraded to the piggyback model on the system coding plan'
+  );
+  return {
+    kind: 'resolved',
+    config: {
+      apiKey: systemKey,
+      provider: AIProvider.ZaiCoding,
+      model: ZAI_FREE_TIER_MODEL,
+      source: 'system',
+      isGuestMode: true,
+    },
+  };
+}
+
+/**
  * Resolve the API key + provider for a SPECIFIC vision model. Parameterized by the
  * target model so a caller can resolve auth for ANY tier (the runtime fallback
  * loop), not just the primary — a cross-provider fallback and a free-tier downgrade
@@ -233,14 +313,18 @@ async function resolveBroadFreeFallback(
  *
  * Branch order:
  * 1. Same-provider fast path (PRIMARY tier only) — reuse the upstream main-model key.
- * 2. Genuine guest (or unknown user) — system key for the vision provider
+ * 2. Guest (or unknown user) asking for the z.ai piggyback model — admission decides;
+ *    admitted guests get the bare piggyback model on the system coding-plan key, every
+ *    denial shape `failFast`s so the walk advances to the next tier. Resolved ahead of
+ *    the guest free-forcing so the forcing never rewrites it.
+ * 3. Genuine guest (or unknown user) — system key for the vision provider
  *    (fallback tiers force the free model — see the guest branch).
- * 3. Authenticated user with a vision-provider key — use it.
- * 4. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key
+ * 4. Authenticated user with a vision-provider key — use it.
+ * 5. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key
  *    downgrades to the free vision model on the system OpenRouter key (instead
  *    of fail-fasting). Forces BOTH the free model AND its provider's system key
  *    so the system key never gets billed for a paid model.
- * 5. Fallback-of-fallback — if even the free-model system key is unavailable
+ * 6. Fallback-of-fallback — if even the free-model system key is unavailable
  *    (no system OpenRouter key configured), `failFast` so the caller emits the
  *    "configure your key" placeholder against the ORIGINAL vision provider.
  *
@@ -258,7 +342,7 @@ export async function resolveVisionAuth(
   quotaTracker: VisionQuotaTracker,
   isPrimaryTier: boolean
 ): Promise<VisionConfigResult> {
-  const { mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver } = options;
+  const { mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver, requestId } = options;
   // Self-derive the provider from the target model rather than accepting it as a separate
   // trusted param — the per-tier fallback loop supplies only the model, and a mismatched
   // (model, provider) pair would silently resolve auth for the wrong provider.
@@ -321,6 +405,14 @@ export async function resolveVisionAuth(
   // there is a real error worth surfacing, not masking as a placeholder.)
   try {
     if (treatAsGuest) {
+      // The piggyback tier is resolved BEFORE the guest free-forcing below, so
+      // the forcing never rewrites it to the floor regardless of tier index —
+      // and the piggyback model never reaches `apiKeyResolver` (no system
+      // ZaiCoding key exists there).
+      if (isZaiFreeTierModel(targetModel)) {
+        return await resolveZaiPiggybackVision(userId, requestId);
+      }
+
       // Genuine guest — system key is the only path that works for them.
       // For the primary tier `selectVisionModel` already returned the free model,
       // so `targetModel` is correct as-is. FALLBACK tiers carry the stamped DB

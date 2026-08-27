@@ -93,7 +93,8 @@ interface ImageJobAuth {
 function resolveImageJobAuth(
   apiKeyResolver: ApiKeyResolver | undefined,
   userId: string,
-  personality: ImageDescriptionJobData['personality']
+  personality: ImageDescriptionJobData['personality'],
+  requestId: string
 ): ImageJobAuth {
   const base: ImageJobAuth = {
     isGuestMode: false,
@@ -111,6 +112,10 @@ function resolveImageJobAuth(
         mainApiKey: undefined,
         isGuestMode: false,
         userId,
+        // This path always sets isGuestMode: false, so the piggyback tier never
+        // fires here — the anchor is threaded so per-tier auth resolution stays
+        // correct if that invariant ever changes.
+        requestId,
         apiKeyResolver,
       },
     };
@@ -270,7 +275,7 @@ export async function processImageDescriptionJob(
   );
 
   const { visionAuth, isGuestMode, userApiKey, visionProvider, visionModel, apiKeySource } =
-    resolveImageJobAuth(apiKeyResolver, context.userId, personality);
+    resolveImageJobAuth(apiKeyResolver, context.userId, personality, requestId);
 
   const loggingContext = {
     userId: context.userId,

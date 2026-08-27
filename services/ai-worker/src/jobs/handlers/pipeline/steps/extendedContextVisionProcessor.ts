@@ -28,6 +28,8 @@ export interface CrossProviderVisionOptions {
   personality: GenerationContext['job']['data']['personality'];
   jobId: string | undefined;
   userId: string;
+  /** Per-request idempotency anchor for the guest z.ai piggyback vision tier. */
+  requestId: string | undefined;
   isGuestMode: boolean;
   userApiKey?: string;
   sttDispatch?: SttDispatch;
@@ -54,6 +56,7 @@ export async function processCrossProviderVisionImages(
     personality,
     jobId,
     userId,
+    requestId,
     isGuestMode,
     userApiKey,
     sttDispatch,
@@ -75,6 +78,7 @@ export async function processCrossProviderVisionImages(
         mainApiKey: userApiKey,
         isGuestMode,
         userId,
+        requestId,
         apiKeyResolver,
       },
       loggingContext: { userId },

@@ -76,6 +76,7 @@ function buildOpts(resolver: ApiKeyResolver) {
     personality: CROSS_PROVIDER_PERSONALITY as GenerationContext['job']['data']['personality'],
     jobId: 'job-1',
     userId: 'user-1',
+    requestId: undefined,
     isGuestMode: false,
     userApiKey: 'user-zai-key',
     sttDispatch: undefined,
