@@ -26,6 +26,7 @@ import {
   AIProvider,
   FREE_ROUTER_MODEL,
   ZAI_FREE_TIER_MODEL,
+  isZaiFreeTierModel,
 } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -839,6 +840,29 @@ describe('z.ai piggyback vision tier (composeWalkTiers)', () => {
     const walk = composeWalkTiers(ZAI_FREE_TIER_MODEL, personality, eligible(personality));
 
     expect(walk.tiers).toEqual(composeVisionTiers(ZAI_FREE_TIER_MODEL, personality, true));
+    expect(walk.primaryTierIndex).toBe(0);
+  });
+
+  it('no prepend when a PREFIXED flash is the primary — primary index stays 0', () => {
+    const personality = makePersonality({ visionFallbackModels: ['paid/global-default'] });
+    const prefixedFlash = `z-ai/${ZAI_FREE_TIER_MODEL}`;
+
+    const walk = composeWalkTiers(prefixedFlash, personality, eligible(personality));
+
+    expect(walk.tiers).toEqual(composeVisionTiers(prefixedFlash, personality, true));
+    expect(walk.tiers[0]).toBe(prefixedFlash);
+    expect(walk.primaryTierIndex).toBe(0);
+  });
+
+  it('no prepend when a PREFIXED flash is a stamped fallback — the walk consults admission once', () => {
+    const personality = makePersonality({
+      visionFallbackModels: [`z-ai/${ZAI_FREE_TIER_MODEL}`],
+    });
+
+    const walk = composeWalkTiers('primary/model', personality, eligible(personality));
+
+    expect(walk.tiers).toEqual(composeVisionTiers('primary/model', personality, true));
+    expect(walk.tiers.filter(isZaiFreeTierModel)).toHaveLength(1);
     expect(walk.primaryTierIndex).toBe(0);
   });
 

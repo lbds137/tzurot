@@ -70,13 +70,20 @@ const IMAGE: AttachmentMetadata = {
 
 const mockProcessAttachments = vi.fn();
 
+/**
+ * Non-undefined so the forwarding of `requestId` is observable: it is the
+ * idempotency anchor the guest piggyback vision tier meters admission by, and
+ * a dropped anchor silently skips that tier rather than failing.
+ */
+const REQUEST_ID = 'req-sentinel-ec';
+
 function buildOpts(resolver: ApiKeyResolver) {
   return {
     imageAttachments: [IMAGE],
     personality: CROSS_PROVIDER_PERSONALITY as GenerationContext['job']['data']['personality'],
     jobId: 'job-1',
     userId: 'user-1',
-    requestId: undefined,
+    requestId: REQUEST_ID,
     isGuestMode: false,
     userApiKey: 'user-zai-key',
     sttDispatch: undefined,
@@ -123,6 +130,7 @@ describe('processCrossProviderVisionImages', () => {
           mainApiKey: 'user-zai-key',
           isGuestMode: false,
           userId: 'user-1',
+          requestId: REQUEST_ID,
           apiKeyResolver: resolver,
         }),
       })
@@ -151,6 +159,7 @@ describe('processCrossProviderVisionImages', () => {
           mainProvider: AIProvider.ZaiCoding,
           mainApiKey: 'user-zai-key',
           userId: 'user-1',
+          requestId: REQUEST_ID,
           apiKeyResolver: resolver,
         }),
       })

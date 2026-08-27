@@ -38,6 +38,12 @@ const PERSONALITY = {
 } as unknown as LoadedPersonality;
 // A non-null sentinel — resolveVisionConfig is mocked, so the resolver is never actually invoked.
 const RESOLVER = {} as unknown as ApiKeyResolver;
+/**
+ * Non-undefined so the forwarding of `requestId` is observable: it is the
+ * idempotency anchor the guest piggyback vision tier meters admission by, and a
+ * dropped anchor silently skips that tier rather than failing.
+ */
+const REQUEST_ID = 'req-sentinel-rag';
 
 describe('resolveRagVisionAuth', () => {
   beforeEach(() => {
@@ -62,6 +68,7 @@ describe('resolveRagVisionAuth', () => {
       isGuestMode: false,
       mainApiKey: 'main-z.ai-key',
       mainProvider: AIProvider.ZaiCoding,
+      requestId: REQUEST_ID,
       apiKeyResolver: RESOLVER,
     });
 
@@ -77,6 +84,7 @@ describe('resolveRagVisionAuth', () => {
         mainApiKey: 'main-z.ai-key',
         userId: 'user-1',
         isGuestMode: false,
+        requestId: REQUEST_ID,
       })
     );
   });
