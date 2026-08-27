@@ -37,6 +37,13 @@
  * only the FIRST consume of a requestId advances it. A retry that crosses
  * UTC midnight counts once per day (acceptable; the day rolled anyway).
  *
+ * The VERDICT is idempotent too, not just the counters: a request already
+ * holding a slot in its user's window is re-judged `allowed` without
+ * re-running the cap checks. Without that, the second consult of one request
+ * — the z.ai piggyback design issues one per admission tier — would read a
+ * ZCARD that already includes its own member and, at the boundary, deny the
+ * very request holding the last slot.
+ *
  * **Fail-open**: any Redis error logs a warn and ALLOWS the request. A counter
  * blip must not break generation for legitimate users.
  */
@@ -152,6 +159,11 @@ export class FreeTierRequestQuota {
    * on allow the counters have advanced. Fails OPEN (allowed:true) on any Redis
    * error. `requestId` must be unique per logical message and STABLE across job
    * retries (idempotent per-user counting relies on it).
+   *
+   * The verdict is idempotent per `(userId, requestId)`: a re-consume of a
+   * request that already holds a window slot returns `allowed` without
+   * re-counting and without re-running the cap checks. Pinned by the
+   * same-request boundary tests in `FreeTierRequestQuota.test.ts`.
    */
   async tryConsume(userId: string, requestId: string): Promise<QuotaVerdict> {
     try {
@@ -178,6 +190,18 @@ export class FreeTierRequestQuota {
 
       const windowCap = this.computeWindowCap(activeUsers);
       const globalCount = Number((await this.redis.get(globalKey)) ?? 0);
+
+      // Same-request re-consult: this request already holds a window slot, so
+      // it is re-judged allowed without advancing anything. One logical
+      // request can consult twice (the z.ai piggyback admits a vision tier and
+      // a text slot separately), and by then `userCount` INCLUDES this
+      // request's own member — re-running the cap checks would count the
+      // request against itself and, at the boundary, deny the slot it already
+      // holds. The member's score is deliberately not refreshed: the original
+      // timestamp must keep pruning on its own schedule.
+      if (await this.holdsWindowSlot(userKey, requestId)) {
+        return { allowed: true, reason: 'ok', windowCap, activeUsers, userCount, globalCount };
+      }
 
       // Check BEFORE any increment (no reject-bleed). Global hard cap first —
       // it overrides the per-user floor (D4).
@@ -244,6 +268,25 @@ export class FreeTierRequestQuota {
     const floor = Math.min(config.minPerWindow, config.maxPerWindow);
     const ceiling = Math.max(config.minPerWindow, config.maxPerWindow);
     return Math.max(floor, Math.min(ceiling, raw));
+  }
+
+  /**
+   * Whether `requestId` is already a member of this user's rolling window —
+   * i.e. an earlier consult of the SAME request took a slot. A probe failure
+   * resolves to `false` so the caller falls through to the normal
+   * check-then-increment path instead of short-circuiting on a Redis blip;
+   * the outer fail-open handler still covers every other command.
+   */
+  private async holdsWindowSlot(userKey: string, requestId: string): Promise<boolean> {
+    try {
+      return (await this.redis.zscore(userKey, requestId)) !== null;
+    } catch (error) {
+      logger.warn(
+        { err: error, requestId },
+        'Free-tier window-slot membership probe failed — treating the request as new'
+      );
+      return false;
+    }
   }
 
   private logDeny(
