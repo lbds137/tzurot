@@ -198,6 +198,12 @@ Selector descriptions unified: one shared phrasing per selector ("Which characte
 
 Problems: 7-option `add` with conditionally-relevant options (`channel` only for Channel scope, `character` only for Character scope), raw-snowflake `target` with no autocomplete, value-vocabulary leak (`PERSONALITY` as the Character scope value), silent non-owner denial on components ("This interaction failed" ghosts), red list embeds.
 
+**SUPERSEDED 2026-08-26 — the modal-form recommendation below was NOT the direction taken.** The owner chose **scope-first subcommand groups** instead (TASK-764 § DESIGN SETTLED, shipped in PR #2233): scope becomes the subcommand name (`/deny add channel`, `/deny add character`, …), so options that do not apply to a scope stop existing rather than being conditionally ignored. The modal builder was weighed against it and declined — it adds session state, custom-ID routing and expiry failure modes, and is slower to drive in exactly the live-moderation moment this was reported from.
+
+What the shipped design delivers from the paragraph below: the raw-snowflake `target` is gone (native user picker, with a `server:` ID option surviving only on `everywhere` — which is the raw-ID caveat, satisfied structurally); conditionally-relevant options are gone; internal values no longer leak into display. **Still open** from this section: `remove`/`view` autocomplete from existing denial entries, badges + BLURPLE list per §2, and the non-owner component-click ghost.
+
+Original recommendation, kept for the reasoning rather than the conclusion:
+
 Redesign (single recommendation, upgraded by §3.6): **`/deny add` becomes a modal form** — User/Mentionable Select for the target (no more pasted snowflakes), Radio Group for scope, Checkbox for mute-mode, Text Input for reason, Text Display explaining scope semantics; Channel scope uses a Channel Select. `remove`/`view` gain autocomplete from existing denial entries. Plus: (a) internal values never leak into display (PERSONALITY → Character); (b) badges + BLURPLE list per §2; (c) non-owner component clicks get an ephemeral catalog line, never a "This interaction failed" ghost. Caveat: denying a server the bot shares no context with may still need a raw-ID path — keep a `target` fallback for that case only.
 
 ## 5. Discoverability
