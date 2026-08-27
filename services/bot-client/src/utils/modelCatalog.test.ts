@@ -117,14 +117,50 @@ describe('fetchModelCatalog', () => {
     expect(auto?.source).toBe('openrouter');
   });
 
-  it('excludes z.ai (text-only) models from the vision capability view', async () => {
+  it('excludes z.ai models that declare no vision flag from the vision capability view', async () => {
     fetchModelsMock.mockResolvedValue([
       model({ id: 'anthropic/claude-sonnet-4', supportsVision: true }),
     ]);
     const catalog = await fetchModelCatalog({ capability: 'vision' });
-    expect(catalog.some(m => m.id.startsWith('z-ai/'))).toBe(false);
+    // glm-5.2 declares no modality flags, so it fails closed out of this view.
+    expect(catalog.some(m => m.id === 'z-ai/glm-5.2')).toBe(false);
     // and it requests the vision endpoint
     expect(fetchModelsMock).toHaveBeenCalledWith(expect.objectContaining({ visionOnly: true }));
+  });
+
+  it('includes a vision-flagged z.ai model absent from OpenRouter in the vision view', async () => {
+    // OpenRouter omits glm-5.3-flash, so the synthetic zai-catalog branch builds
+    // the entry — the path that previously hardcoded supportsVision: false.
+    fetchModelsMock.mockResolvedValue([
+      model({ id: 'anthropic/claude-sonnet-4', supportsVision: true }),
+    ]);
+    const catalog = await fetchModelCatalog({ capability: 'vision' });
+    const flash = catalog.find(m => m.id === 'z-ai/glm-5.3-flash');
+    expect(flash).toBeDefined();
+    expect(flash?.source).toBe('zai-catalog');
+    // The synthetic entry carries the catalog's own flags, not hardcoded falses.
+    expect(flash?.supportsVision).toBe(true);
+    expect(flash?.supportsImageGeneration).toBe(false);
+    expect(flash?.supportsAudioInput).toBe(false);
+    expect(flash?.supportsAudioOutput).toBe(false);
+  });
+
+  it('excludes every z.ai model from the image-gen view — none declares that flag', async () => {
+    fetchModelsMock.mockResolvedValue([]);
+    const catalog = await fetchModelCatalog({ capability: 'image-gen' });
+    expect(catalog.some(m => m.id.startsWith('z-ai/'))).toBe(false);
+  });
+
+  it('keeps OpenRouter authoritative when a vision-flagged z.ai model is on both sources', async () => {
+    // Adversarial merge pin: OpenRouter (hypothetically) disagrees with the
+    // catalog's supportsVision. The merge branch must keep OpenRouter's flags —
+    // a future edit that starts reading the z.ai side's modality flags in the
+    // "both" branch would flip this to true.
+    fetchModelsMock.mockResolvedValue([model({ id: 'z-ai/glm-5.3-flash', supportsVision: false })]);
+    const catalog = await fetchModelCatalog();
+    const flash = catalog.find(m => m.id === 'z-ai/glm-5.3-flash');
+    expect(flash?.source).toBe('both');
+    expect(flash?.supportsVision).toBe(false);
   });
 
   it('filters z.ai models by search term', async () => {

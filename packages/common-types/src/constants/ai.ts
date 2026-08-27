@@ -309,9 +309,11 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *
  * 2. **Model docs URL** — `buildModelInfoUrl()` (z.ai branch) reads the
  *    `docsUrl` for the response footer link. Every catalog member has a
- *    dedicated docs page at `docs.z.ai/guides/llm/<model>`; the field is
- *    explicit anyway, since z.ai has docked a variant on its parent family's
- *    page before and would again.
+ *    dedicated docs page under `docs.z.ai/guides/` — `llm/<model>` for the
+ *    text models, `vlm/<model>` for vision ones (glm-5.3-flash) — which is
+ *    why the field is explicit: z.ai has docked a variant on its parent
+ *    family's page before, and the section a model lands in is not
+ *    derivable from its name.
  *
  * 3. **Context length** — `getZaiCodingPlanContextLength()` reads the
  *    `contextLength` for the context-window cap. This is load-bearing: when a
@@ -332,9 +334,9 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    rounded-down label (OpenRouter's card for glm-5.1 is 202752, z.ai shows
  *    "200K"), so the decimal reading sits at or below the real served limit,
  *    which is the safe direction for a cap. glm-5/5.1/5-turbo/4.7 = 200K,
- *    glm-5.2/5.3 = 1M. (z.ai documents 128K max output for the GLM-5 family
- *    and 5-turbo — output headroom the cap formula reserves automatically;
- *    recorded here so the next audit has it.)
+ *    glm-5.2/5.3/5.3-flash = 1M. (z.ai documents 128K max output for the
+ *    GLM-5 family and 5-turbo — output headroom the cap formula reserves
+ *    automatically; recorded here so the next audit has it.)
  *
  * Source of truth for membership: docs.z.ai/devpack/overview. Source of truth
  * for context lengths + docs URLs: the per-model pages under
@@ -346,10 +348,10 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
 // the synthetic catalog entry's `created` so `/models` can sort them by recency.
 // Models that also live on OpenRouter take OpenRouter's `created` via the merge,
 // so `released` is optional and only worth setting for z.ai-only entries.
-// Modality flags are OPTIONAL and omitted = false (text-only). Every current
-// z.ai coding-plan model is text-only, so none set them; the fields exist so a
-// future z.ai vision/audio model is a one-line value change, not a schema
-// change. `zaiCodingPlanModelCapabilities` reads them with `?? false`.
+// Modality flags are OPTIONAL and omitted = false (text-only). glm-5.3-flash
+// is the first member to set one (`supportsVision`); every other member is
+// text-only and omits them all. `zaiCodingPlanModelCapabilities` reads them
+// with `?? false`.
 //
 // `thinkingOff` records how far a `thinking: 'off'` request is actually honored
 // by each model, so save-time validation can warn instead of silently promising
@@ -414,6 +416,25 @@ const ZAI_MODEL_CATALOG: Readonly<
     docsUrl: 'https://docs.z.ai/guides/llm/glm-5.3',
     contextLength: 1_000_000,
     released: '2026-08-14',
+    thinkingOff: GLM_5X_THINKING_OFF,
+  },
+  // The catalog's first VISION-capable member: z.ai documents native
+  // multimodal input (image_url content blocks, plus video/file input) and
+  // docks the model's page under guides/vlm/ rather than guides/llm/ — the
+  // variant-docking drift the explicit docsUrl field exists to absorb.
+  // Context is "1M-token context window"; the non-vision generation
+  // parameters match glm-5.3's per z.ai's card. OpenRouter listed it at
+  // launch (no 5.3-style stagger), so the merge takes OpenRouter's `created`
+  // and `released` stays inert-but-kept, as with glm-5.2. `thinkingOff` is
+  // doc-read family calibration, not probed against this model.
+  // A NEW vision member also adds its entry to ai-worker's
+  // VISION_MODEL_PATTERNS — the degraded-mode (Redis-outage) mirror of this
+  // flag; the two have no mechanical tie, so this comment is the tie.
+  'glm-5.3-flash': {
+    docsUrl: 'https://docs.z.ai/guides/vlm/glm-5.3-flash',
+    contextLength: 1_000_000,
+    released: '2026-08-26',
+    supportsVision: true,
     thinkingOff: GLM_5X_THINKING_OFF,
   },
   'glm-5-turbo': {
@@ -530,10 +551,11 @@ export function zaiThinkingOffSupport(model: string): ZaiThinkingOffSupport | un
  * {@link getZaiCodingPlanContextLength}). Returns `null` for any model not in
  * the catalog — callers treat that as "not a z.ai coding-plan model."
  *
- * z.ai coding-plan models are text-only today, so the catalog's modality flags
- * are optional and read as `false` when omitted. A `kind='vision'` config on a
- * z.ai model therefore fails closed (no confirmed vision support) until a z.ai
- * vision model is explicitly flagged in the catalog.
+ * The catalog's modality flags are optional and read as `false` when omitted,
+ * so a member that declares nothing fails closed — a `kind='vision'` config on
+ * it resolves to no confirmed vision support. A member that DOES declare the
+ * flag resolves to it: glm-5.3-flash sets `supportsVision`, so a `kind='vision'`
+ * config on that model passes.
  */
 export function zaiCodingPlanModelCapabilities(model: string): ModelCapabilities | null {
   const lower = model.toLowerCase();
