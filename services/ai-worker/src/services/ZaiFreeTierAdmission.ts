@@ -94,9 +94,13 @@ export class ZaiFreeTierAdmission {
 
   /**
    * Evaluate one guest request. On admit, the fair-share counters have
-   * advanced (`requestId` keeps retries idempotent per user). Gate checks
-   * fail OPEN on Redis errors — the static allocator inside `quota` is the
-   * last line and itself fails open, matching the house counter contract.
+   * advanced (`requestId` keeps retries idempotent per user). A re-consult of
+   * a request that already holds a window slot is admitted again without
+   * advancing anything — the quota's verdict, not just its counters, is
+   * idempotent per `(userId, requestId)`, so the piggyback's two admission
+   * tiers cost one slot between them. Gate checks fail OPEN on Redis errors —
+   * the static allocator inside `quota` is the last line and itself fails
+   * open, matching the house counter contract.
    */
   async admit(userId: string, requestId: string): Promise<ZaiAdmissionVerdict> {
     if (!this.isEnabled()) {
