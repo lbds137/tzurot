@@ -39,7 +39,10 @@ const GLOBAL_KEY = `${CACHE_KEY_PREFIXES.FREE_TIER_GLOBAL}${DAY}`;
 /**
  * Mock ioredis where the two `zcard` reads (active-set N, then per-user count)
  * and the `get` (global count) are keyed by their target so a test can set each
- * independently.
+ * independently. `zscore` (the same-request membership probe) answers "absent"
+ * by default — a test that needs a request to already hold a slot overrides it,
+ * or uses `makeStatefulRedis` below to have the first consume's ZADD show up in
+ * the second consume's reads.
  */
 function makeRedis(state: { activeN?: number; userCount?: number; globalCount?: number } = {}): {
   redis: Redis;
@@ -52,6 +55,7 @@ function makeRedis(state: { activeN?: number; userCount?: number; globalCount?: 
   const mocks = {
     zremrangebyscore: vi.fn().mockResolvedValue(0),
     zcard,
+    zscore: vi.fn().mockResolvedValue(null),
     get,
     zadd: vi.fn().mockResolvedValue(1),
     // SET … NX for the global-counter dedup marker: 'OK' = first consume
@@ -60,6 +64,52 @@ function makeRedis(state: { activeN?: number; userCount?: number; globalCount?: 
     expire: vi.fn().mockResolvedValue(1),
   };
   return { redis: mocks as unknown as Redis, mocks };
+}
+
+/**
+ * Redis fake whose per-user ZSET is REAL state, so a second `tryConsume` sees
+ * what the first one wrote. A fixed-return `zcard`/`zscore` pair cannot
+ * discriminate the same-request short-circuit from the ordinary path — which is
+ * exactly how the double-consult boundary bug stayed invisible.
+ *
+ * `seedUserMembers` pre-fills the window (the "N slots already used" setup);
+ * the active-set N and the global counter stay fixed knobs.
+ */
+function makeStatefulRedis(state: {
+  activeN?: number;
+  globalCount?: number;
+  seedUserMembers?: string[];
+}): {
+  redis: Redis;
+  mocks: Record<string, ReturnType<typeof vi.fn>>;
+  userZset: Map<string, number>;
+} {
+  const userZset = new Map<string, number>((state.seedUserMembers ?? []).map(m => [m, NOW]));
+  const mocks = {
+    zremrangebyscore: vi.fn().mockResolvedValue(0),
+    zcard: vi.fn((key: string) =>
+      Promise.resolve(key === ACTIVE_KEY ? (state.activeN ?? 0) : userZset.size)
+    ),
+    zscore: vi.fn((key: string, member: string) =>
+      Promise.resolve(key === USER_KEY ? (userZset.get(member)?.toString() ?? null) : null)
+    ),
+    get: vi.fn(() => Promise.resolve(String(state.globalCount ?? 0))),
+    zadd: vi.fn((key: string, score: number, member: string) => {
+      if (key === USER_KEY) {
+        userZset.set(member, score);
+      }
+      return Promise.resolve(1);
+    }),
+    set: vi.fn().mockResolvedValue('OK'),
+    incr: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(1),
+  };
+  return { redis: mocks as unknown as Redis, mocks, userZset };
+}
+
+/** `n` distinct pre-existing window members ('seed-0' … 'seed-n-1'). */
+function seed(n: number): string[] {
+  return Array.from({ length: n }, (_, i) => `seed-${i}`);
 }
 
 function build(
@@ -151,7 +201,13 @@ describe('tryConsume — allow path', () => {
     expect(mocks.incr).toHaveBeenCalledTimes(1);
   });
 
-  it('a BullMQ retry (same requestId) does NOT re-increment the global counter', async () => {
+  it('a long-delayed BullMQ retry (member pruned, NX marker alive) does NOT re-increment the global counter', async () => {
+    // A retry landing more than one window later: the per-user member has been
+    // pruned (zscore absent → no same-request short-circuit, so the full path
+    // runs), but the day-scoped NX marker outlives the window (25h vs 60min),
+    // so the global counter still refuses the second bill. Inside the window
+    // the re-consult short-circuits earlier instead — see the
+    // verdict-idempotent block below.
     const { quota, mocks } = build({ activeN: 0, userCount: 0, globalCount: 1 });
     // NX marker already present from the first consume
     mocks.set.mockResolvedValue(null);
@@ -159,10 +215,83 @@ describe('tryConsume — allow path', () => {
     const v = await quota.tryConsume('user-1', 'req-1');
 
     expect(v.allowed).toBe(true);
-    // Per-user ZSET re-add is harmless (idempotent by member identity)…
+    // The pruned member is re-added, taking a fresh window slot…
     expect(mocks.zadd).toHaveBeenCalledWith(USER_KEY, NOW, 'req-1');
     // …but the global budget is not double-billed
     expect(mocks.incr).not.toHaveBeenCalled();
+  });
+});
+
+describe('tryConsume — same-request re-consult is verdict-idempotent', () => {
+  // One logical request consults the quota more than once (the z.ai piggyback
+  // admits a vision tier and a text slot separately). The second consult reads
+  // a per-user ZCARD that already counts the first consult's own member, so
+  // without the membership short-circuit the request is denied the slot it is
+  // already holding. N=0 → cap 30, and 29 members are pre-seeded so the first
+  // consult takes the LAST slot — the exact boundary.
+  it('re-consulting with the same requestId at the cap boundary is ALLOWED', async () => {
+    const { redis } = makeStatefulRedis({ activeN: 0, globalCount: 0, seedUserMembers: seed(29) });
+    const quota = new FreeTierRequestQuota(redis, CONFIG, () => NOW);
+
+    const first = await quota.tryConsume('user-1', 'req-1');
+    expect(first).toMatchObject({ allowed: true, reason: 'ok', windowCap: 30, userCount: 29 });
+
+    // The window is now full (30/30) and the 30th slot is req-1's own.
+    const second = await quota.tryConsume('user-1', 'req-1');
+    expect(second).toMatchObject({ allowed: true, userCount: 30, windowCap: 30 });
+  });
+
+  it('the re-consult advances NO counters (no second ZADD, no global INCR)', async () => {
+    const { redis, mocks, userZset } = makeStatefulRedis({
+      activeN: 0,
+      globalCount: 0,
+      seedUserMembers: seed(29),
+    });
+    const quota = new FreeTierRequestQuota(redis, CONFIG, () => NOW);
+
+    await quota.tryConsume('user-1', 'req-1');
+    mocks.zadd.mockClear();
+    mocks.set.mockClear();
+    mocks.incr.mockClear();
+
+    await quota.tryConsume('user-1', 'req-1');
+
+    expect(mocks.zadd).not.toHaveBeenCalled();
+    expect(mocks.set).not.toHaveBeenCalled();
+    expect(mocks.incr).not.toHaveBeenCalled();
+    // The member's ORIGINAL score survives — a refreshed timestamp would push
+    // the slot's expiry out and break rolling-window pruning.
+    expect(userZset.get('req-1')).toBe(NOW);
+    expect(userZset.size).toBe(30);
+  });
+
+  it('a DIFFERENT requestId at the same boundary is still denied (the cap still works)', async () => {
+    const { redis, mocks } = makeStatefulRedis({
+      activeN: 0,
+      globalCount: 0,
+      seedUserMembers: seed(29),
+    });
+    const quota = new FreeTierRequestQuota(redis, CONFIG, () => NOW);
+
+    await quota.tryConsume('user-1', 'req-1');
+    const other = await quota.tryConsume('user-1', 'req-2');
+
+    expect(other).toMatchObject({ allowed: false, reason: 'user' });
+    expect(mocks.incr).toHaveBeenCalledTimes(1); // only the first consume billed
+  });
+
+  it('a failing membership probe falls THROUGH to the cap checks (not fail-open, not allow)', async () => {
+    // userCount 30 at cap 30: the probe is the only thing that could allow it,
+    // so a denial proves the error path re-entered the normal logic rather
+    // than short-circuiting — and reason 'user' (not 'fail-open') proves the
+    // outer handler did not swallow the whole decision.
+    const { quota, mocks } = build({ activeN: 0, userCount: 30, globalCount: 0 });
+    mocks.zscore.mockRejectedValue(new Error('redis down'));
+
+    const v = await quota.tryConsume('user-1', 'req-1');
+
+    expect(v).toMatchObject({ allowed: false, reason: 'user' });
+    expect(mocks.zadd).not.toHaveBeenCalled();
   });
 });
 
@@ -225,6 +354,10 @@ describe('key-pool parameterization (z.ai piggyback instance)', () => {
       zcard: vi.fn(async (key: string) => {
         calls.push(key);
         return 0;
+      }),
+      zscore: vi.fn(async (key: string) => {
+        calls.push(key);
+        return null;
       }),
       get: vi.fn(async (key: string) => {
         calls.push(key);

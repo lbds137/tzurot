@@ -254,10 +254,15 @@ async function resolveBroadFreeFallback(
  * than degrade.
  *
  * `requestId` is the idempotency anchor — `admit` counts per (userId, requestId)
- * (zset membership per user, SET-NX per request for the global counter), so a
- * guest whose TEXT slot already admitted this request consumes nothing extra
- * here. Pinned by `visionAuthResolver.test.ts` ("missing requestId → failFast,
- * admit never called").
+ * (zset membership per user, SET-NX per request for the global counter) — and
+ * the verdict is idempotent on that pair too, so whichever of this tier and the
+ * text slot admits the request FIRST pays for it and the other consumes nothing
+ * extra. Order between them is not fixed: the image-description job commonly
+ * admits before the LLM job reaches its text slot. Pinned by
+ * `FreeTierRequestQuota.test.ts` § "same-request re-consult is
+ * verdict-idempotent"; the absent-anchor branch is pinned here by
+ * `visionAuthResolver.test.ts` ("missing requestId → failFast, admit never
+ * called").
  */
 async function resolveZaiPiggybackVision(
   userId: string | undefined,

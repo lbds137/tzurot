@@ -93,6 +93,11 @@ class FakeRedis {
     return this.zsets.get(key)?.size ?? 0;
   }
 
+  async zscore(key: string, member: string): Promise<string | null> {
+    const score = this.zsets.get(key)?.get(member);
+    return score === undefined ? null : String(score);
+  }
+
   async zremrangebyscore(key: string, min: number | string, max: number | string): Promise<number> {
     const zset = this.zsets.get(key);
     if (zset === undefined) {
