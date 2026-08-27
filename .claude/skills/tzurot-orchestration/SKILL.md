@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-24'
+lastUpdated: '2026-08-26'
 ---
 
 # Orchestrator Mode
@@ -191,7 +191,10 @@ largest, which is backwards.
    13 mid-build ceiling collisions in one epoch, every one measurable in one
    command at authoring time.
 4. **Landmines** — enumerated known traps: formatters that rewrite the file,
-   gated baselines, hook behavior, fixture shapes.
+   gated baselines, hook behavior, fixture shapes. Say up front that the worker
+   edits files with the Edit tool and never an interpreter heredoc rewrite
+   script — `python-heredoc-edit-guard.sh` blocks those, and each block costs
+   the worker a retry.
 5. **Authorized routine decisions** — name the 2–3 calls the worker may make
    solo. Everything material not listed is a stop condition.
 6. **Stop conditions** — the task-specific ones, on top of the agent contract's

@@ -1,0 +1,228 @@
+#!/bin/bash
+# Fixture check for pr-body-ref-gate.sh — run after ANY edit to the hook.
+#
+# The hook decides ONE thing: block a `gh pr create`/`gh pr edit`/
+# `pnpm ops gh:pr-edit` whose --body (or --body-file content) claims a
+# tracker reference that does not resolve on origin/develop. Every case runs
+# it inside a THROWAWAY git repo built here rather than the real repo — CI
+# checkouts can be shallow and may not carry an `origin/develop` ref at all,
+# which would silently turn every blocking case into a fail-open pass if the
+# probe depended on the real repo's remote-tracking state. The fixture
+# filenames mirror the real tracker/ shape (`tracker/tasks/task-<N> - ….md`,
+# `tracker/archive/tasks/…`, `tracker/docs/doc-<N> - ….md`) so the hook's
+# `/task-<n> ` / `/doc-<n> ` matching is exercised against realistic paths.
+#
+# Usage: .claude/hooks/pr-body-ref-gate.probe.sh   (from anywhere)
+
+set -uo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+HOOK="$SCRIPT_DIR/pr-body-ref-gate.sh"
+
+TMPDIR_PROBE=$(mktemp -d)
+cleanup() { rm -rf "$TMPDIR_PROBE"; }
+trap cleanup EXIT
+
+fail=0
+OUT=""
+RC=0
+
+# Build a fresh fixture repo with a committed tracker/ tree, and register it
+# as `origin/develop` via update-ref — no actual remote required.
+make_repo() {
+  local repo="$TMPDIR_PROBE/$1"
+  mkdir -p "$repo/tracker/tasks" "$repo/tracker/archive/tasks" "$repo/tracker/docs"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email probe@example.invalid
+  git -C "$repo" config user.name probe
+  echo "task" >"$repo/tracker/tasks/task-100 - Real Task.md"
+  echo "archived" >"$repo/tracker/archive/tasks/task-112 - Archived Task.md"
+  echo "doc" >"$repo/tracker/docs/doc-11 - Theme Doc.md"
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm init
+  git -C "$repo" update-ref refs/remotes/origin/develop HEAD
+  printf '%s' "$repo"
+}
+
+# Fixture repo with origin/develop but no tracker/ dir at all (empty-listing
+# fail-open case).
+make_repo_no_tracker() {
+  local repo="$TMPDIR_PROBE/$1"
+  mkdir -p "$repo"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email probe@example.invalid
+  git -C "$repo" config user.name probe
+  echo "x" >"$repo/README.md"
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm init
+  git -C "$repo" update-ref refs/remotes/origin/develop HEAD
+  printf '%s' "$repo"
+}
+
+# Run the hook from inside $1's cwd with a Bash command $2.
+run_hook() {
+  local repo="$1"
+  local cmd="$2"
+  OUT=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && "$HOOK") 2>&1)
+  RC=$?
+}
+
+assert_pass() { # $1 = label
+  if [ "$RC" != 0 ]; then
+    echo "FAIL [exit=$RC want=0]: $1"
+    [ -n "$OUT" ] && printf '     got: %s\n' "$OUT"
+    fail=1
+  else
+    echo "ok: $1"
+  fi
+}
+
+assert_blocks() { # $1 = label, $2 = substring the message must carry
+  if [ "$RC" != 2 ] || [[ "$OUT" != *"$2"* ]]; then
+    echo "FAIL [exit=$RC want=2 | substr($2)=$([[ "$OUT" == *"$2"* ]] && echo yes || echo no)]: $1"
+    [ -n "$OUT" ] && printf '     got: %s\n' "$OUT"
+    fail=1
+  else
+    echo "ok: $1"
+  fi
+}
+
+REPO=$(make_repo main)
+
+# ---- Case 1: resolving TASK ref → pass --------------------------------------
+run_hook "$REPO" 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-100 for the follow-up."'
+assert_pass "resolving TASK-100 passes"
+
+# ---- Case 2: unresolved TASK ref → block ------------------------------------
+run_hook "$REPO" 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up."'
+assert_blocks "unresolved TASK-99999 blocks" "task-99999"
+
+# ---- Case 3: non-PR command → pass -------------------------------------------
+run_hook "$REPO" 'git status --porcelain'
+assert_pass "non-PR command passes"
+
+# ---- Case 4: --body-file with unresolved ref → block ------------------------
+BODY_FILE="$TMPDIR_PROBE/body-unresolved.txt"
+echo "Closes TASK-99999" >"$BODY_FILE"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE"
+assert_blocks "--body-file unresolved ref blocks" "task-99999"
+
+# ---- Case 5: --body-file with resolving ref → pass --------------------------
+BODY_FILE2="$TMPDIR_PROBE/body-resolved.txt"
+echo "Closes TASK-100" >"$BODY_FILE2"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE2"
+assert_pass "--body-file resolving ref passes"
+
+# ---- Case 6: resolving doc ref → pass ----------------------------------------
+run_hook "$REPO" 'gh pr create --body "Tracked in doc-11."'
+assert_pass "resolving doc-11 passes"
+
+# ---- Case 7: unresolved doc ref → block --------------------------------------
+run_hook "$REPO" 'gh pr create --body "Tracked in doc-99999."'
+assert_blocks "unresolved doc-99999 blocks" "doc-99999"
+
+# ---- Case 8: git broken → fail open ------------------------------------------
+SHIM_DIR="$TMPDIR_PROBE/shim"
+mkdir -p "$SHIM_DIR"
+cat >"$SHIM_DIR/git" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$SHIM_DIR/git"
+OUT=$(jq -n --arg c 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up."' '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$REPO" && PATH="$SHIM_DIR:$PATH" "$HOOK") 2>&1)
+RC=$?
+assert_pass "broken git fails open"
+
+# ---- Case 9: no refs at all → pass -------------------------------------------
+run_hook "$REPO" 'gh pr create --base develop --title "feat: x" --body "Adds a thing. No refs here."'
+assert_pass "no refs passes"
+
+# ---- Case 10: archived task resolves → pass ----------------------------------
+run_hook "$REPO" 'gh pr create --body "Closes TASK-112."'
+assert_pass "archived TASK-112 resolves"
+
+# ---- Case 11: pnpm ops gh:pr-edit variant → block ----------------------------
+run_hook "$REPO" 'pnpm ops gh:pr-edit 123 --body "Closes TASK-99999"'
+assert_blocks "ops gh:pr-edit unresolved ref blocks" "task-99999"
+
+# ---- Case 12: bare gh pr edit → block ----------------------------------------
+run_hook "$REPO" 'gh pr edit 123 --body "Closes TASK-99999"'
+assert_blocks "gh pr edit unresolved ref blocks" "task-99999"
+
+# ---- Case 13: prefix collision (task-10 vs task-100) → block ----------------
+run_hook "$REPO" 'gh pr create --body "Closes TASK-10."'
+assert_blocks "TASK-10 prefix collision blocks (fixture has only task-100)" "task-10"
+
+# ---- Case 14: --body-file pointing at missing path → pass (fail open) -------
+run_hook "$REPO" "gh pr create --base develop --body-file $TMPDIR_PROBE/does-not-exist.txt"
+assert_pass "--body-file missing path fails open"
+
+# ---- Case 15: bare mention, no claim verb → pass -----------------------------
+run_hook "$REPO" 'gh pr create --body "See TASK-99999 for background."'
+assert_pass "bare mention with no claim verb passes"
+
+# ---- Case 16: empty tracker/ listing → fail open -----------------------------
+REPO_NOTRACKER=$(make_repo_no_tracker notracker)
+run_hook "$REPO_NOTRACKER" 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up."'
+assert_pass "empty tracker/ listing fails open"
+
+# ---- Case 17: mixed refs, one resolves one doesn't → block ------------------
+run_hook "$REPO" 'gh pr create --body "Closes TASK-100 and filed as TASK-99999."'
+assert_blocks "mixed refs block on the unresolved one" "task-99999"
+
+# ---- Case 18: case-insensitivity → block -------------------------------------
+run_hook "$REPO" 'gh pr create --body "closes task-99999"'
+assert_blocks "lowercase claim+id blocks" "task-99999"
+
+# ---- Case 19: per-kind fail-open — empty tasks/, populated docs/ -------------
+# The empty-listing skip must be PER KIND: with no task files on the ref but a
+# populated docs/ listing, an unresolvable task id is skipped (fail-open) while
+# the unresolved doc id is still checked against its own listing and blocks.
+# An all-or-nothing fail-open would pass this command through entirely.
+REPO_DOCSONLY="$TMPDIR_PROBE/docsonly"
+mkdir -p "$REPO_DOCSONLY/tracker/docs"
+git -C "$REPO_DOCSONLY" init -q
+git -C "$REPO_DOCSONLY" config user.email probe@example.invalid
+git -C "$REPO_DOCSONLY" config user.name probe
+echo "doc" >"$REPO_DOCSONLY/tracker/docs/doc-11 - Theme Doc.md"
+git -C "$REPO_DOCSONLY" add -A
+git -C "$REPO_DOCSONLY" commit -qm init
+git -C "$REPO_DOCSONLY" update-ref refs/remotes/origin/develop HEAD
+run_hook "$REPO_DOCSONLY" 'gh pr create --body "Closes TASK-99999 and tracked in doc-99999."'
+assert_blocks "empty tasks listing skips task id but doc id still blocks" "doc-99999"
+
+# ---- Case 20: prose "--body-file" inside an inline --body → still scans -----
+# The --body-file extraction runs over the WHOLE command, so prose naming the
+# flag yields a junk path (`for`). An unreadable path must DEGRADE to scanning
+# the command text, not abandon the claim scan — this case passed silently
+# before that fix.
+run_hook "$REPO" 'gh pr create --body "You can pass --body-file for large bodies. Closes TASK-99999."'
+assert_blocks "prose --body-file mention still scans inline body" "task-99999"
+
+# ---- Case 21: verb lookbehind — `discloses` is not `closes` -----------------
+run_hook "$REPO" 'gh pr create --body "This discloses TASK-99999 to reviewers."'
+assert_pass "discloses does not match the closes verb"
+
+# ---- Case 22: id lookbehind — SUBTASK-99999 is not TASK-99999 ---------------
+run_hook "$REPO" 'gh pr create --body "Closes SUBTASK-99999 upstream."'
+assert_pass "SUBTASK-99999 does not match the TASK id"
+
+# ---- Case 23: id lookbehind must not break wrapper chars -------------------
+# The lookbehind sits after the `[\x60*_(\[]*` wrapper class, so a backticked
+# id still matches. Uses the UNRESOLVED id so a silently-non-matching pattern
+# would show up as a pass rather than hiding behind a resolving id.
+run_hook "$REPO" 'gh pr create --body "Closes `TASK-99999`."'
+assert_blocks "backticked id still matches through the lookbehind" "task-99999"
+
+# ---- Case 24: >4 chained ids — the fifth is still extracted ----------------
+# The `{0,3}` intervening-token window caps one span at ~4 ids; the chain tail
+# is what carries the run past it. Only the FIFTH id is unresolved, so a
+# missing tail fails open and this case passes instead of blocking.
+run_hook "$REPO" 'gh pr create --body "Closes TASK-100, TASK-100, TASK-100, TASK-100, and TASK-99999."'
+assert_blocks "fifth chained id is still checked" "task-99999"
+
+# ---- Case 25: colon after the verb (GitHub `Closes: TASK-N` convention) -----
+run_hook "$REPO" 'gh pr create --body "Closes: TASK-99999"'
+assert_blocks "colon-suffixed claim verb still matches" "task-99999"
+
+exit $fail

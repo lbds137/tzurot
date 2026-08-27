@@ -81,8 +81,8 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/lossy-pipe-guard.probe.sh',
   },
   {
-    hook: '.claude/hooks/promise-ledger-check.sh',
-    probe: '.claude/hooks/promise-ledger-check.probe.sh',
+    hook: '.claude/hooks/pr-body-ref-gate.sh',
+    probe: '.claude/hooks/pr-body-ref-gate.probe.sh',
   },
   {
     // The ack file is reached through `$(id -u)`, so the probe shims `id` on
@@ -96,6 +96,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   {
     hook: '.claude/hooks/pr-monitor-reminder.sh',
     probe: '.claude/hooks/pr-monitor-reminder.probe.sh',
+  },
+  {
+    hook: '.claude/hooks/promise-ledger-check.sh',
+    probe: '.claude/hooks/promise-ledger-check.probe.sh',
   },
   {
     hook: '.claude/hooks/python-heredoc-edit-guard.sh',
