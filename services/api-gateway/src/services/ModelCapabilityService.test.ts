@@ -70,7 +70,7 @@ describe('ModelCapabilityService', () => {
   it('OpenRouter is authoritative for z.ai models that ALSO live on OpenRouter', async () => {
     // glm-5.1 is on OpenRouter. Even though it's z.ai-namespaced, the OpenRouter
     // tags win — here OpenRouter (hypothetically) reports vision support, and the
-    // z.ai catalog (text-only) must NOT override it.
+    // z.ai catalog (which declares no vision flag for it) must NOT override it.
     const cache = cacheReturning({
       'z-ai/glm-5.1': modelOption({ id: 'z-ai/glm-5.1', supportsVision: true }),
     });
@@ -79,9 +79,11 @@ describe('ModelCapabilityService', () => {
     expect(caps?.supportsVision).toBe(true);
   });
 
-  it('falls back to the z.ai catalog (text-only) for z.ai-only models absent from OpenRouter', async () => {
-    // glm-5.2 is z.ai's flagship and is NOT on OpenRouter — only the z.ai catalog
-    // resolves it, and z.ai coding-plan models are text-only.
+  it('falls back to the z.ai catalog for z.ai-only models absent from OpenRouter', async () => {
+    // The mocked cache returns nothing, simulating a model OpenRouter doesn't
+    // carry — only the z.ai catalog resolves it, and glm-5.2 declares no
+    // modality flags, so each reads false. (The real OpenRouter list does
+    // carry glm-5.2; the absence here is the fixture's, not the world's.)
     const cache = cacheReturning({}); // getModelById → null for everything
     const caps = await new ModelCapabilityService(cache).resolve('z-ai/glm-5.2');
     expect(caps).toEqual({
@@ -90,11 +92,34 @@ describe('ModelCapabilityService', () => {
       supportsAudioInput: false,
       supportsAudioOutput: false,
       contextLength: 1_000_000,
-      // Text-only, but still a reasoning model — the catalog's whole lineup is.
+      // No declared modality, but still a reasoning model — the whole lineup is.
       supportsReasoning: true,
       thinkingOff: 'best-effort',
       source: 'zai',
     });
+  });
+
+  it('resolves a vision-flagged z.ai-only model as vision-capable', async () => {
+    // The sibling of the case above: glm-5.3-flash declares supportsVision, so the
+    // same catalog fallback must forward `true` rather than a blanket false.
+    const cache = cacheReturning({}); // getModelById → null for everything
+    const caps = await new ModelCapabilityService(cache).resolve('z-ai/glm-5.3-flash');
+    expect(caps?.source).toBe('zai');
+    expect(caps?.supportsVision).toBe(true);
+    expect(caps?.supportsImageGeneration).toBe(false);
+  });
+
+  it('OpenRouter stays authoritative even when the z.ai catalog flags vision', async () => {
+    // Adversarial version of the priority pin: the catalog says glm-5.3-flash
+    // is vision-capable, OpenRouter (hypothetically) says it is not. Priority 1
+    // must win with OpenRouter's answer — the z.ai flag is consulted only on
+    // the catalog-fallback branch.
+    const cache = cacheReturning({
+      'z-ai/glm-5.3-flash': modelOption({ id: 'z-ai/glm-5.3-flash', supportsVision: false }),
+    });
+    const caps = await new ModelCapabilityService(cache).resolve('z-ai/glm-5.3-flash');
+    expect(caps?.source).toBe('openrouter');
+    expect(caps?.supportsVision).toBe(false);
   });
 
   it('returns null for a model unknown to both sources (fail closed)', async () => {

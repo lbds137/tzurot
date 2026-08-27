@@ -20,6 +20,7 @@ import {
   isZaiFreeTierModel,
   isZaiCodingPlanModel,
   listZaiCodingPlanModels,
+  type ZaiCodingPlanModelInfo,
 } from '@tzurot/common-types/constants/ai';
 import { type ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import { fetchModels } from './modelAutocomplete.js';
@@ -120,23 +121,29 @@ function fromOpenRouter(m: ModelAutocompleteOption): CatalogModel {
 
 /**
  * Whether a z.ai catalog entry passes the active capability/search filter.
- * z.ai coding-plan models are text-only, so they're excluded from the
- * vision/image-gen capability views.
+ * The capability views read the entry's OWN modality flags, which the catalog
+ * declares per-model and omits by default: an omitted flag means the model
+ * doesn't declare that modality, so an undeclared model is excluded from that
+ * view (fail closed) while a flagged one is included.
  */
 function zaiPassesFilter(
-  slug: string,
-  displayName: string,
+  entry: ZaiCodingPlanModelInfo,
   capability: CapabilityFilter,
   searchLower: string
 ): boolean {
-  if (capability === 'vision' || capability === 'image-gen') {
+  if (capability === 'vision' && entry.supportsVision !== true) {
+    return false;
+  }
+  if (capability === 'image-gen' && entry.supportsImageGeneration !== true) {
     return false;
   }
   if (searchLower.length === 0) {
     return true;
   }
+  const slug = `${ZAI_MODEL_PREFIX}${entry.model}`;
   return (
-    slug.toLowerCase().includes(searchLower) || displayName.toLowerCase().includes(searchLower)
+    slug.toLowerCase().includes(searchLower) ||
+    zaiDisplayName(entry.model).toLowerCase().includes(searchLower)
   );
 }
 
@@ -177,17 +184,19 @@ export async function fetchModelCatalog(
       byKey.set(key, { ...existing, isZaiCoding: true, docsUrl: z.docsUrl, source: 'both' });
       continue;
     }
-    if (!zaiPassesFilter(slug, zaiDisplayName(z.model), capability, searchLower)) {
+    if (!zaiPassesFilter(z, capability, searchLower)) {
       continue;
     }
     byKey.set(key, {
       id: slug,
       name: zaiDisplayName(z.model),
       contextLength: z.contextLength,
-      supportsVision: false,
-      supportsImageGeneration: false,
-      supportsAudioInput: false,
-      supportsAudioOutput: false,
+      // The catalog omits a modality flag for any model that doesn't declare it,
+      // so normalize undefined → false to match the OpenRouter-sourced shape.
+      supportsVision: z.supportsVision ?? false,
+      supportsImageGeneration: z.supportsImageGeneration ?? false,
+      supportsAudioInput: z.supportsAudioInput ?? false,
+      supportsAudioOutput: z.supportsAudioOutput ?? false,
       promptPricePerMillion: 0,
       completionPricePerMillion: 0,
       // ISO release date → `created` (Unix seconds) so the recency sort ranks
