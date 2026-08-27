@@ -149,11 +149,11 @@ export function composeVisionTiers(
   personality: LoadedPersonality,
   isGuestMode: boolean
 ): string[] {
-  // The floor is the paid model unless we KNOW this is a guest. Some callers (e.g.
-  // ImageDescriptionJob) pass isGuestMode=false even for a genuine guest — that's safe: the
-  // paid floor is only a MODEL NAME here; when the loop actually reaches it, resolveVisionAuth
-  // downgrades a keyless user onto the free model on the system key anyway (broad-free-fallback).
-  // So a "wrong" isGuestMode picks a floor model name that auth-time resolution converges to free.
+  // The floor is the paid model unless we KNOW this is a guest. Even a caller that
+  // under-reports guest-ness here degrades safely: the paid floor is only a MODEL NAME at
+  // this composition step; when the loop actually reaches it, resolveVisionAuth downgrades a
+  // keyless user onto the free model on the system key anyway (broad-free-fallback). So a
+  // "wrong" isGuestMode picks a floor model name that auth-time resolution converges to free.
   const floor = isGuestMode ? getFreeVisionFloor() : getSystemSetting('fallbackVisionModel');
   const ordered = [primaryModel, ...(personality.visionFallbackModels ?? []), floor];
   const seen = new Set<string>();
@@ -203,6 +203,15 @@ async function maybeReorderFallbacks(
   tiers: string[],
   authOptions: ResolveVisionConfigOptions
 ): Promise<string[]> {
+  // A prepended piggyback tier only exists for guests (composeWalkTiers), and for them
+  // `tiers[0]` is the piggyback model, not the primary tier this reorder assumes it's
+  // sinking free routes AROUND — the boundary the function hardcodes below no longer
+  // holds. Guests also never carry the wallet OpenRouter key this reorder exists to
+  // honor, so skipping it costs a genuine guest nothing (userHasOpenRouterKey's own
+  // `authOptions.isGuestMode` guard already returns false for them independently).
+  if (authOptions.isGuestMode) {
+    return tiers;
+  }
   const fallbackTail = tiers.slice(1);
   const reorderCouldMatter =
     fallbackTail.some(isFreeModel) && fallbackTail.some(model => !isFreeModel(model));

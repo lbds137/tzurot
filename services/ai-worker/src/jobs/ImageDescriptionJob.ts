@@ -82,11 +82,44 @@ interface ImageJobAuth {
 }
 
 /**
+ * Derive genuine guest-ness for the resolver-wired auth path: guest means no BYOK key in
+ * EITHER chat-capable provider (mirrors `CHAT_CAPABLE_PROVIDERS`), not just OpenRouter. The
+ * OpenRouter lookup is the primary probe — a system-key fallback there (`isGuestMode: true`)
+ * is exactly the signal `visionAuthResolver`'s guest arm forwards. The ZaiCoding probe only
+ * runs when that primary probe already says system, since an OpenRouter user-key result
+ * already proves the user isn't a guest and skipping keeps the common authenticated case a
+ * single lookup.
+ *
+ * Any throw (notably when no key exists anywhere at all) degrades to `false` — today's
+ * behavior — rather than failing the job; a guest-mode misclassification only costs the
+ * piggyback tier's eligibility, not correctness.
+ */
+async function resolveGuestMode(apiKeyResolver: ApiKeyResolver, userId: string): Promise<boolean> {
+  try {
+    const result = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
+    if (!result.isGuestMode) {
+      return false;
+    }
+    const zaiCodingKey = await apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);
+    return zaiCodingKey === null;
+  } catch (error) {
+    logger.warn(
+      { err: error, userId },
+      'Guest-mode derivation failed for image job auth — treating as authenticated'
+    );
+    return false;
+  }
+}
+
+/**
  * Resolve per-image auth for the job:
  * - Resolver wired (production): hand the auth INPUTS to the fallback loop, which resolves
  *   per tier + retries down the model chain + renders the "configure your key" placeholder on
  *   auth-exhaustion. We do NOT pre-resolve — a pre-resolve's broad-free-fallback would consume
  *   the daily free-vision quota a SECOND time against the loop's own once-per-request consume.
+ *   `isGuestMode` is derived by `resolveGuestMode` at the call site from a real resolver lookup and
+ *   forwarded here, so the loop's guest piggyback tier sees genuine guest-ness for this user
+ *   rather than a hardcoded value.
  * - No resolver (legacy test path): resolve once (always synthesizes a `resolved` config, never
  *   fail-fast) and expose the pre-resolved fields for the single-model describeImage.
  */
@@ -94,7 +127,8 @@ function resolveImageJobAuth(
   apiKeyResolver: ApiKeyResolver | undefined,
   userId: string,
   personality: ImageDescriptionJobData['personality'],
-  requestId: string
+  requestId: string,
+  isGuestMode: boolean
 ): ImageJobAuth {
   const base: ImageJobAuth = {
     isGuestMode: false,
@@ -110,11 +144,11 @@ function resolveImageJobAuth(
         personality,
         mainProvider: undefined,
         mainApiKey: undefined,
-        isGuestMode: false,
+        // Real guest-ness (see resolveGuestMode) — this is what makes the piggyback
+        // tier reachable for a genuine guest's own current-message images, not just
+        // extended-context ones.
+        isGuestMode,
         userId,
-        // This path always sets isGuestMode: false, so the piggyback tier never
-        // fires here — the anchor is threaded so per-tier auth resolution stays
-        // correct if that invariant ever changes.
         requestId,
         apiKeyResolver,
       },
@@ -274,8 +308,11 @@ export async function processImageDescriptionJob(
     'Processing image description job'
   );
 
+  const resolvedGuestMode =
+    apiKeyResolver !== undefined ? await resolveGuestMode(apiKeyResolver, context.userId) : false;
+
   const { visionAuth, isGuestMode, userApiKey, visionProvider, visionModel, apiKeySource } =
-    resolveImageJobAuth(apiKeyResolver, context.userId, personality, requestId);
+    resolveImageJobAuth(apiKeyResolver, context.userId, personality, requestId, resolvedGuestMode);
 
   const loggingContext = {
     userId: context.userId,

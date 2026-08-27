@@ -618,6 +618,199 @@ describe('ImageDescriptionJob', () => {
       ]);
     });
 
+    it('derives genuine guest-ness from the resolver and forwards piggyback eligibility', async () => {
+      // `composeWalkTiers` gates the guest piggyback vision tier on isGuestMode + userId +
+      // requestId together, so all three must survive the hop from the resolver-wired auth
+      // path into the fallback loop for a guest's own current-message image to be eligible.
+      // Asserting them as a set is what pins that: any one of them dropped or hardcoded
+      // silently makes the tier unreachable here while every other assertion still passes.
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-genuine-guest',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'genuine-guest-999', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-req-genuine-guest',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue(null),
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: 'system-sentinel-key',
+          source: 'system',
+          provider: 'openrouter',
+          userId: 'genuine-guest-999',
+          isGuestMode: true,
+        }),
+      } as unknown as ApiKeyResolver;
+
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+        'genuine-guest-999',
+        'openrouter'
+      );
+      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
+        'genuine-guest-999',
+        'zai-coding'
+      );
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        expect.objectContaining({
+          isGuestMode: true,
+          userId: 'genuine-guest-999',
+          requestId: 'test-req-genuine-guest',
+        }),
+        expect.anything()
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('is not a guest when a z.ai key-holder without an OpenRouter key resolves onto the system key', async () => {
+      // House definition of guest is "no key in ANY chat-capable provider" (CHAT_CAPABLE_PROVIDERS
+      // = OpenRouter + ZaiCoding). A user with a z.ai BYOK key but no OpenRouter key resolves the
+      // OpenRouter lookup onto the system key (isGuestMode: true from that probe alone), but the
+      // ZaiCoding probe finding a real key must override that to isGuestMode: false.
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-zai-only',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'zai-only-user-321', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-req-zai-only',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue('zai-coding-user-key'),
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: 'system-sentinel-key',
+          source: 'system',
+          provider: 'openrouter',
+          userId: 'zai-only-user-321',
+          isGuestMode: true,
+        }),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
+        'zai-only-user-321',
+        'zai-coding'
+      );
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        expect.objectContaining({ isGuestMode: false, userId: 'zai-only-user-321' }),
+        expect.anything()
+      );
+    });
+
+    it('keeps an authenticated user out of the piggyback tier', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-authed-user',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'authed-user-777', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-req-authed-user',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: 'user-own-key',
+          source: 'user',
+          provider: 'openrouter',
+          userId: 'authed-user-777',
+          isGuestMode: false,
+        }),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // The OpenRouter probe alone proves not-guest, so the short-circuit must skip the
+      // ZaiCoding probe entirely for the common authenticated case.
+      expect(mockApiKeyResolver.tryResolveUserKey).not.toHaveBeenCalled();
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        expect.objectContaining({ isGuestMode: false, userId: 'authed-user-777' }),
+        expect.anything()
+      );
+    });
+
+    it('degrades to isGuestMode: false when the guest-mode lookup throws', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-lookup-throws',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'no-key-anywhere-user', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-req-lookup-throws',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn().mockRejectedValue(new Error('NoApiKeyAvailableError')),
+      } as unknown as ApiKeyResolver;
+
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // The job completes rather than failing when guest-mode derivation throws.
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        expect.objectContaining({ isGuestMode: false, userId: 'no-key-anywhere-user' }),
+        expect.anything()
+      );
+      expect(result.success).toBe(true);
+    });
+
     it('routes BYOK users to describeImageWithFallback with the auth INPUTS bundle', async () => {
       // Phase-4: the BYOK "use the user key on the vision provider" decision moved
       // into the loop's per-tier resolveVisionAuth. The job just forwards the inputs.
