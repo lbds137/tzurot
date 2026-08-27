@@ -705,21 +705,17 @@ export function isFreeModel(modelId: string): boolean {
  * piggyback). Scope is deliberately a single model — widening it is an owner
  * decision, not a config knob.
  *
- * This named GLM-4.5-Air until a live probe showed z.ai serving `glm-4.5-air`
- * requests as `glm-4.7` (requested air → responded 4.7; requested 4.7 →
- * responded 4.7). z.ai's own docs no longer list Air and describe automatic
- * rerouting of retired models. Naming the served model directly costs nothing
- * — it is the same upstream request — and fixes two things the old name got
- * wrong: the context cap resolved from {@link ZAI_MODEL_CATALOG} (128K for Air
- * vs the 200K actually available) and the thinking-support flag.
+ * This constant carries only the model id. Everything the piggyback's
+ * capabilities depend on — context length, vision support, thinking-off
+ * handling — resolves from that id through {@link ZAI_MODEL_CATALOG}, so
+ * moving the piggyback is a one-line change here plus a catalog entry.
  *
- * The Air id is NOT kept as an alias here. It is still a distinct, PAID model
- * on OpenRouter (131_072 context, no `:free` variant), so recognizing it as
- * free-tier-eligible would have granted guests a paid model on the strength of
- * z.ai's reroute alone. Dropping it from {@link ZAI_MODEL_CATALOG} likewise
- * sends the id to OpenRouter, which is the only place it still resolves to Air.
+ * Previously-held ids (`glm-4.5-air`, `glm-4.7`) are NOT kept as aliases. Each
+ * still resolves as a distinct, PAID model on OpenRouter with no `:free`
+ * variant, so recognizing one as free-tier-eligible would hand guests a
+ * billable model.
  */
-export const ZAI_FREE_TIER_MODEL = 'glm-4.7';
+export const ZAI_FREE_TIER_MODEL = 'glm-5.3-flash';
 
 /** True for the piggyback model in bare or `z-ai/`-prefixed form. */
 export function isZaiFreeTierModel(modelId: string): boolean {

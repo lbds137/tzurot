@@ -18,6 +18,7 @@ import {
   AUTO_ROUTER_MODEL,
   FREE_ROUTER_MODEL,
   MODEL_DEFAULTS,
+  ZAI_FREE_TIER_MODEL,
   type ModelSlot,
 } from '../../constants/ai.js';
 import { MULTI_TAG } from '../../constants/message.js';
@@ -41,7 +42,7 @@ export const SystemSettingsSchema = z.object({
   realMessagesEnabled: z.boolean(),
   /** Convert header-shaped lines in real-message body content to parentheses, so a user cannot forge a platform speaker header (prompt-assembly kill switch). */
   headerSpoofNeutralizeEnabled: z.boolean(),
-  /** Share GLM-4.7 with guests via the system z.ai coding-plan key. */
+  /** Share the z.ai piggyback model ({@link ZAI_FREE_TIER_MODEL}) with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
   /** Vision-describe rasterizable stickers (instance-funded, cached per snowflake). */
   stickerVisionEnabled: z.boolean(),
@@ -308,7 +309,10 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
   zaiFreeTierEnabled: {
     key: 'zaiFreeTierEnabled',
     label: 'z.ai Free Tier Enabled',
-    description: 'Share GLM-4.7 with guests via the system z.ai coding-plan key.',
+    // Interpolated, not spelled out: this string renders verbatim into the
+    // /admin settings embed, so it must name whatever the piggyback constant
+    // currently holds — a hand-written id drifts the moment it moves.
+    description: `Share the z.ai piggyback model (${ZAI_FREE_TIER_MODEL}) with guests via the system z.ai coding-plan key.`,
     group: GROUP_ZAI,
     control: 'boolean',
     liveness: 'live',

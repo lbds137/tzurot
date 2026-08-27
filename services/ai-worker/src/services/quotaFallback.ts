@@ -316,7 +316,7 @@ export async function selectFloorTarget(options: {
 
 /**
  * The GUEST-safe free default. The admin free-default config may point at the
- * z.ai piggyback preset (`z-ai/glm-4.7`) — a model that is NOT free on
+ * z.ai piggyback preset (`z-ai/glm-5.3-flash`) — a model that is NOT free on
  * OpenRouter. A guest retarget that ran it on the system OpenRouter key would
  * bill a paid model to the owner, so any non-actually-free config degrades to
  * the runtime free floor (`fallbackTextModelFree`) here — itself guarded by
