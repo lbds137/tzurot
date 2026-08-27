@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-24 15:34'
+updated_date: '2026-08-27 00:28'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -39,4 +40,15 @@ Discord subcommand GROUPS, not new top-level commands — the sketch's `/deny us
 REMOVE gets the same treatment, not just add. The task names only `add`, but remove carries the identical six-option shape (index.ts, the remove subcommand) — fixing one leaves the confusion one subcommand over.
 
 Landmines for the build: command structure changes require `pnpm test:component` (CommandHandler snapshots capture the full command tree, per 02-code-standards). The three-tier permission model (owner all scopes, mods GUILD+CHANNEL in their guild, character creators PERSONALITY for their own) is enforced at runtime and must be preserved per-subcommand — the restructure must not become an access-control change. Confirm whether a command may mix subcommand GROUPS with plain subcommands (browse/view stay flat) before committing to the shape.
+
+CODE SHIPPED 2026-08-26 in PR 2233. Task stays OPEN on the first acceptance clause only. Three review rounds, none blocking.
+
+  1. "owner can complete the two common moderation flows without consulting docs" — NOT VERIFIED, and not verifiable by the agent. This clause is about the owner's experience of the interface. The structure supports it (`/deny add channel user:@x channel:#y mode:Mute` and `/deny add character user:@x character:Z mode:Mute`), but whether that reads as obvious to the person typing it is the owner's judgement, not something a test or a review can settle.
+  2. "the confirmation makes the resolved target unambiguous" — MET. The line now carries display name, account handle and snowflake together plus the scope in plain words, and both the display name and the character name are markdown-escaped with tests pinning that a crafted name cannot reshape it.
+
+CLOSE WHEN: the owner runs both flows and confirms they read right. The specific open question is the subcommand naming — `everywhere` and `this-server` were the agent's choice, not the owner's, and they are the words the owner has to type. `everywhere` vs something like `bot-wide`, and `this-server` vs `server`, are one-line changes if either reads wrong.
+
+Note for whoever closes this: an agent marked this Done at ship and reverted it in the same minute. The acceptance is experiential; shipping the code does not satisfy it, and a green CI run is not evidence about clause 1.
+
+Follow-ons, all filed rather than left in the PR: TASK-765 (thread types on the channel option, deliberately sequenced AFTER this so it applies to the new structure rather than being done twice), TASK-779 (the codegen skips subcommand groups, so deny lost its generated option schemas — no consumers, pre-existing for every grouped command). Also still open from the ux-design-system-spec §4.5 section this supersedes: `remove`/`view` autocomplete from existing entries, badges + BLURPLE list, and the non-owner component-click ghost.
 <!-- SECTION:DESCRIPTION:END -->
