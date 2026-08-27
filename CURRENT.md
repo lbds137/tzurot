@@ -57,7 +57,16 @@ Also from this drain pass (tracker notes pushed, no code): TASK-653 is a **parti
 7. (2026-08-27, #2238) A design decision pinned by a test is not thereby correct: #2237's membership check had a test asserting the suppression as intended behavior, and the defect was a CONFIG interaction (free vision default = flash) outside the scenario matrix — caught by the owner's first live test, not by five review rounds or the suite. Fix shape generalized: state walk-composition goals as output postconditions, not input conditionals. The suffixed-requestId anchor mismatch shipped the same way — the "one slot per message" claim was verified against the text path only, never against the id the image job actually carries.
 8. (2026-08-27, Fable, #2237) Both High findings trace to MY dispatch specs, not the workers: specified loop-level tier injection without tracing which runtime entry points reach the loop as guests (the dominant path was unreachable), and asserted quota idempotency from the counter mechanics without walking the VERDICT path (boundary denial). The structural halves: entry-point wiring tests now exist as a class, and the quota contract is boundary-tested rather than prose-asserted. Also: my worktree diff-read staged the files and the round-2 orchestrator burned effort diagnosing "mystery staging" I caused — transfer reads should note the staging side effect in the resume.
 
-Remaining for the release: the owner's deny-UX taste round on TASK-764/765, then drain slices as filler.
+**beta.209 smoke slate (checklist: `docs/local/beta.209-smoke-checklist.md`, sent 2026-08-27; owner runs it pre-cut)** — per-item status:
+
+1. DM isolation, isolated path (#2227) — ⬜ pending (the release's only runtime-unverified user-visible path)
+2. /deny `everywhere` flow (#2233 / TASK-764 acceptance) — ⬜ pending
+3. /deny `this-server` flow (#2233 / TASK-764 acceptance) — ⬜ pending (2+3 pass ⇒ TASK-764 closes)
+4. (opt) invalidation delivery (#2230) — ⬜ pending (pass ⇒ TASK-612 closes)
+5. (opt) /models vision badge (#2235) — ⬜ pending
+6. (cond) BYOK vision on flash defaults — ⬜ pending on the owner's default-flip decision
+
+Guest vision (#2237/#2238) and the text swap (#2236) are runtime-VERIFIED 2026-08-27 21:45Z — excluded from the slate with log evidence in the checklist. Next after the cut: testing-epic slices delegated Opus-side (owner call 2026-08-27, Fable-budget lever); TASK-765 rides the next release.
 
 - **Usage posture (through the Sun 02:00 ET reset)**: owner directive 2026-08-27 (~10:19 reading: Fable 70%, all-models 57%) — **≤10% weekly Fable per day for Thu/Fri/Sat**. Levers in force: nested dispatch for everything (worker spend bills all-models, not Fable), batched main-loop calls, agent-routed multi-file reads, compaction at unit boundaries. The earlier Opus-driver-week call (2026-08-25 reading) is superseded by this per-day ceiling; Fable keeps driving with the dispatch posture absorbing the spend. Durable operationalization of the flip trigger: #2226 (`/tzurot-usage-audit` § Step 4a).
 
