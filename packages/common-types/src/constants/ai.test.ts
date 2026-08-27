@@ -217,18 +217,22 @@ describe('buildModelInfoUrl', () => {
 
 describe('isFreeModelForUser', () => {
   it('treats the piggyback model as free for GUESTS only', () => {
-    expect(isFreeModelForUser('z-ai/glm-4.7', true)).toBe(true);
-    expect(isFreeModelForUser('glm-4.7', true)).toBe(true);
+    // Literal ids on purpose: a silent move of ZAI_FREE_TIER_MODEL must redden
+    // this test rather than follow the constant into agreement with itself.
+    expect(isFreeModelForUser('z-ai/glm-5.3-flash', true)).toBe(true);
+    expect(isFreeModelForUser('glm-5.3-flash', true)).toBe(true);
     // Key-holders are billed on their own key — not free for them
-    expect(isFreeModelForUser('z-ai/glm-4.7', false)).toBe(false);
+    expect(isFreeModelForUser('z-ai/glm-5.3-flash', false)).toBe(false);
   });
 
-  it('does NOT treat the retired Air id as free for anyone', () => {
-    // z.ai reroutes glm-4.5-air to glm-4.7, but OpenRouter still serves Air as
-    // a distinct PAID model with no :free variant — so honouring the old id
-    // here would hand guests a billable model on the strength of a reroute.
+  it('does NOT treat a PREVIOUSLY-held piggyback id as free for anyone', () => {
+    // Each id the piggyback has held still resolves as a distinct PAID model on
+    // OpenRouter with no :free variant, whatever z.ai reroutes it to upstream —
+    // so honouring an old id here would hand guests a billable model.
     expect(isFreeModelForUser('z-ai/glm-4.5-air', true)).toBe(false);
     expect(isFreeModelForUser('glm-4.5-air', true)).toBe(false);
+    expect(isFreeModelForUser('z-ai/glm-4.7', true)).toBe(false);
+    expect(isFreeModelForUser('glm-4.7', true)).toBe(false);
   });
 
   it('literal free models are free for every audience', () => {

@@ -1531,14 +1531,14 @@ describe('AuthStep', () => {
 
     beforeEach(() => {
       vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(GUEST_KEY_RESULT);
-      // The owner's free default IS the piggyback preset (z-ai/glm-4.7 on OpenRouter).
+      // The owner's free default IS the piggyback preset (z-ai/glm-5.3-flash on OpenRouter).
       vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue({
-        model: 'z-ai/glm-4.7',
+        model: 'z-ai/glm-5.3-flash',
         provider: 'openrouter',
       } as never);
     });
 
-    it('admitted guest crosses into ModelFactory as BARE glm-4.7 on zai-coding with the plan key', async () => {
+    it('admitted guest crosses into ModelFactory as BARE glm-5.3-flash on zai-coding with the plan key', async () => {
       const admission = admissionStub(true);
       step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
         zaiFreeTierAdmission: admission,

@@ -479,7 +479,7 @@ describe('handleAutocomplete', () => {
     });
 
     it('shows the z.ai piggyback preset to guests (conditionally free)', async () => {
-      // GLM-4.7 is not literally free on OpenRouter but IS free-tier
+      // GLM-5.3-Flash is not literally free on OpenRouter but IS free-tier
       // eligible — the guest picker must offer it (this exact absence was the
       // reported bug: not selectable in /preset default set).
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
@@ -490,8 +490,8 @@ describe('handleAutocomplete', () => {
         [
           mockLlmConfigSummary({
             id: '00000000-0000-4000-8000-0000000000c3',
-            name: 'GLM 4.7',
-            model: 'z-ai/glm-4.7',
+            name: 'GLM 5.3 Flash',
+            model: 'z-ai/glm-5.3-flash',
             provider: 'openrouter',
             isGlobal: true,
             isOwned: false,
@@ -509,7 +509,7 @@ describe('handleAutocomplete', () => {
       // The piggyback preset + the upsell option
       expect(choices).toHaveLength(2);
       expect(choices[0].value).toBe('00000000-0000-4000-8000-0000000000c3');
-      expect(choices[0].name).toContain('GLM 4.7');
+      expect(choices[0].name).toContain('GLM 5.3 Flash');
     });
 
     it('free-filters and upsells for a voice-ONLY (ElevenLabs) wallet', async () => {

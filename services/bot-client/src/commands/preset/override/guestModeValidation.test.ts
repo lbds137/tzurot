@@ -174,11 +174,13 @@ describe('guestModeValidation', () => {
     });
 
     it('does not block a guest selecting the z.ai piggyback preset (conditionally free)', async () => {
-      // GLM-4.7 is free-tier ELIGIBLE (admission decides at runtime) —
+      // GLM-5.3-Flash is free-tier ELIGIBLE (admission decides at runtime) —
       // the picker gate must not bounce it as premium.
       stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
       stub.listUserLlmConfigs.mockResolvedValue(
-        makeOk({ configs: [{ id: 'config-1', name: 'GLM 4.7', model: 'z-ai/glm-4.7' }] })
+        makeOk({
+          configs: [{ id: 'config-1', name: 'GLM 5.3 Flash', model: 'z-ai/glm-5.3-flash' }],
+        })
       );
 
       const result = await checkGuestModePremiumAccess(

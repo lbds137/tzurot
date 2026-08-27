@@ -123,7 +123,7 @@ const PLAN_KEY = 'sk-coding-plan';
 const PERSONAL_ZAI = {
   id: 'p1',
   name: 'Testy',
-  model: 'z-ai/glm-4.7',
+  model: 'z-ai/glm-5.3-flash',
   provider: 'openrouter',
 } as unknown as EffectivePersonality;
 
