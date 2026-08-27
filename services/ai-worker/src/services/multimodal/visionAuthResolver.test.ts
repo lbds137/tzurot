@@ -721,6 +721,63 @@ describe('z.ai piggyback vision tier', () => {
     expect(mockZaiAdmit).toHaveBeenCalledWith('user-123', 'req-abc');
   });
 
+  it('piggyback model is excluded from the same-provider fast path: a GUEST still goes through admission', async () => {
+    // A guest whose TEXT slot was admitted onto the piggyback arrives at the
+    // PRIMARY vision tier with mainProvider=ZaiCoding and the system coding-plan
+    // key in hand — exactly the shape the fast path would short-circuit.
+    mockZaiAdmit.mockResolvedValue({ admitted: true, reason: 'ok' });
+    mockZaiSystemKey.mockReturnValue('admission-key-sentinel');
+
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: AIProvider.ZaiCoding,
+        mainApiKey: 'main-zai-key-must-not-be-reused',
+        isGuestMode: true,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      true
+    );
+
+    expect(mockZaiAdmit).toHaveBeenCalledWith('user-123', 'req-abc');
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      // The admission-issued key, NOT the upstream main key, reaches the config.
+      expect(result.config.apiKey).toBe('admission-key-sentinel');
+    }
+  });
+
+  it('piggyback model is excluded from the same-provider fast path: an AUTHENTICATED user uses their own z.ai key', async () => {
+    mockTryResolveUserKey.mockResolvedValue('user-zai-key');
+
+    const result = await resolveVisionAuth(
+      ZAI_FREE_TIER_MODEL,
+      {
+        personality,
+        mainProvider: AIProvider.ZaiCoding,
+        mainApiKey: 'main-zai-key-must-not-be-reused',
+        isGuestMode: false,
+        userId: 'user-123',
+        requestId: 'req-abc',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-123'),
+      true
+    );
+
+    expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
+    expect(mockZaiAdmit).not.toHaveBeenCalled();
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      expect(result.config.apiKey).toBe('user-zai-key');
+      expect(result.config.source).toBe('user');
+    }
+  });
+
   it('non-piggyback guest tier is unchanged: admit is not called', async () => {
     mockResolveApiKey.mockResolvedValue({
       apiKey: 'system-or-key',

@@ -257,7 +257,11 @@ describe('ConversationalRAGService', () => {
         {} as unknown as ApiKeyResolver
       );
       const personality = createMockPersonality();
-      const context = createMockContext();
+      // Non-undefined so the `context.requestId` → vision-auth-bundle hop is
+      // observable here: it is the idempotency anchor the guest piggyback vision
+      // tier meters admission by, and this is the only test that runs the real
+      // `resolveRagVisionAuth` between the service and the mocked resolver.
+      const context = createMockContext({ requestId: 'req-sentinel-rag-service' });
 
       await serviceWithResolver.generateResponse(personality, 'Hi', context, {
         userApiKey: 'main-model-key', // z.ai main key — must NOT leak to the OpenRouter vision call
@@ -271,6 +275,7 @@ describe('ConversationalRAGService', () => {
           mainProvider: AIProvider.ZaiCoding,
           mainApiKey: 'main-model-key',
           userId: context.userId,
+          requestId: 'req-sentinel-rag-service',
         })
       );
     });
