@@ -136,15 +136,15 @@ describe('handleBrowse', () => {
   }
 
   it('renders the z.ai piggyback preset as available (not struck) for guests', async () => {
-    // GLM-4.7 is free-tier ELIGIBLE: a guest's browse must not strike it
+    // GLM-5.3-Flash is free-tier ELIGIBLE: a guest's browse must not strike it
     // through or claim it "(requires API key)" — same class as the picker gate.
     configurePresets(
       stub,
       [
         {
           id: '00000000-0000-4000-8000-00000000000a',
-          name: 'GLM 4.7',
-          model: 'z-ai/glm-4.7',
+          name: 'GLM 5.3 Flash',
+          model: 'z-ai/glm-5.3-flash',
           provider: 'openrouter',
           isGlobal: true,
           isDefault: false,
@@ -161,15 +161,15 @@ describe('handleBrowse', () => {
       components: { components: { data: { options?: { description?: string }[] } }[] }[];
     };
     const description = payload.embeds[0].data.description ?? '';
-    expect(description).toContain('**GLM 4.7**');
-    expect(description).not.toContain('~~GLM 4.7~~');
+    expect(description).toContain('**GLM 5.3 Flash**');
+    expect(description).not.toContain('~~GLM 5.3 Flash~~');
     // Guest-aware 🆓: the piggyback model IS the guest's free experience
     expect(description).toContain('🆓');
     const selectOptions = payload.components
       .flatMap(row => row.components)
       .flatMap(c => c.data.options ?? []);
-    const airOption = selectOptions.find(o => o.description?.includes('glm-4.7'));
-    expect(airOption?.description ?? '').not.toContain('requires API key');
+    const piggybackOption = selectOptions.find(o => o.description?.includes('glm-5.3-flash'));
+    expect(piggybackOption?.description ?? '').not.toContain('requires API key');
   });
 
   it('does NOT badge the piggyback preset 🆓 for key-holders (billed on their key)', async () => {
@@ -178,8 +178,8 @@ describe('handleBrowse', () => {
       [
         {
           id: '00000000-0000-4000-8000-00000000000b',
-          name: 'GLM 4.7',
-          model: 'z-ai/glm-4.7',
+          name: 'GLM 5.3 Flash',
+          model: 'z-ai/glm-5.3-flash',
           provider: 'openrouter',
           isGlobal: true,
           isDefault: false,
@@ -203,8 +203,8 @@ describe('handleBrowse', () => {
       [
         {
           id: '00000000-0000-4000-8000-00000000000c',
-          name: 'GLM 4.7',
-          model: 'z-ai/glm-4.7',
+          name: 'GLM 5.3 Flash',
+          model: 'z-ai/glm-5.3-flash',
           provider: 'openrouter',
           isGlobal: true,
           isDefault: false,
@@ -228,7 +228,7 @@ describe('handleBrowse', () => {
     const description =
       (mockEditReply.mock.calls[0][0] as { embeds: { data: { description?: string } }[] }).embeds[0]
         .data.description ?? '';
-    expect(description).toContain('GLM 4.7');
+    expect(description).toContain('GLM 5.3 Flash');
     expect(description).not.toContain('Claude Paid');
   });
 

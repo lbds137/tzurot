@@ -216,7 +216,7 @@ describe('annotateUsability', () => {
 
   it('marks the piggyback model free/usable for a KEYLESS (guest) user', () => {
     const [r] = annotateUsability(
-      [catalogModel({ id: 'z-ai/glm-4.7', source: 'both' })],
+      [catalogModel({ id: 'z-ai/glm-5.3-flash', source: 'both' })],
       new Set()
     );
     expect(r.usability).toBe('free');
@@ -227,7 +227,7 @@ describe('annotateUsability', () => {
     // An ElevenLabs key buys voice, not models — the wallet is non-empty but
     // holds no chat-capable key, so the free-tier presentation still applies.
     const [r] = annotateUsability(
-      [catalogModel({ id: 'z-ai/glm-4.7', source: 'both' })],
+      [catalogModel({ id: 'z-ai/glm-5.3-flash', source: 'both' })],
       new Set(['elevenlabs'])
     );
     expect(r.usability).toBe('free');
@@ -237,7 +237,7 @@ describe('annotateUsability', () => {
   it('keeps key-based verdicts for the piggyback model when the user HAS a key', () => {
     // Key-holders are billed on their own key — normal source-based routing
     const [r] = annotateUsability(
-      [catalogModel({ id: 'z-ai/glm-4.7', source: 'both' })],
+      [catalogModel({ id: 'z-ai/glm-5.3-flash', source: 'both' })],
       new Set(['openrouter'])
     );
     expect(r.usability).toBe('usable');
@@ -245,7 +245,10 @@ describe('annotateUsability', () => {
   });
 
   it('keeps the unknown verdict for the piggyback model when the wallet fetch failed', () => {
-    const [r] = annotateUsability([catalogModel({ id: 'z-ai/glm-4.7', source: 'both' })], null);
+    const [r] = annotateUsability(
+      [catalogModel({ id: 'z-ai/glm-5.3-flash', source: 'both' })],
+      null
+    );
     expect(r.usability).toBe('unknown');
   });
 

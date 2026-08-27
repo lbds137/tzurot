@@ -257,7 +257,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
       isGuestMode: true,
-      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
+      configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
       caches: buildCaches(),
     });
     expect(target?.config.model).toBe('openrouter/free');
@@ -282,7 +282,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
         ...base,
         category: ApiErrorCategory.QUOTA_EXCEEDED,
         isGuestMode: true,
-        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
+        configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
         caches: buildCaches(),
       });
       expect(target?.config.model).toBe('divergent/floor:free');
@@ -294,7 +294,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
         ...base,
         category: ApiErrorCategory.QUOTA_EXCEEDED,
         isGuestMode: true,
-        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
+        configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
         caches: buildCaches(),
       });
       expect(target?.config.model).toBe('openrouter/free');
@@ -306,7 +306,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       isGuestMode: false,
-      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.7' } }) as never,
+      configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
       caches: buildCaches(),
     });
     expect(target?.config.model).toBe('openrouter/free');

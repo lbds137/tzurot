@@ -29,6 +29,9 @@ type EffectivePersonality = NonNullable<GenerationContext['config']>['effectiveP
  */
 const LIVE_TEXT_FLOOR = 'divergent/text-floor:free';
 
+/** The piggyback model in its `z-ai/`-prefixed form — derived so the id never drifts. */
+const PREFIXED_ZAI = `z-ai/${ZAI_FREE_TIER_MODEL}`;
+
 beforeAll(() => {
   registerSystemSettings({
     get: (key: string) => (key === 'fallbackTextModelFree' ? LIVE_TEXT_FLOOR : undefined),
@@ -91,6 +94,27 @@ describe('applyGuestModeOverrides', () => {
     expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
   });
 
+  it('degrades a STALE free-default (a retired piggyback id) to the free floor', async () => {
+    // The deploy window: ZAI_FREE_TIER_MODEL moves in code ahead of the DB
+    // free-default preset, so the stored id is briefly neither `:free` nor the
+    // current piggyback. It must take the misconfigured-paid branch — the
+    // retired id is a plain PAID OpenRouter model and must never reach the
+    // system OpenRouter key.
+    const gate = admission(true);
+    const result = await applyGuestModeOverrides(
+      { configResolver: resolverWith('z-ai/glm-4.7'), zaiFreeTierAdmission: gate },
+      PAID_PERSONALITY,
+      'u1',
+      'r1'
+    );
+
+    expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
+    expect(result.zaiSystemKey).toBeUndefined();
+    // No admission attempt: a retired id is not the piggyback, so no guest
+    // quota share is consumed on its behalf.
+    expect(vi.mocked(gate.admit)).not.toHaveBeenCalled();
+  });
+
   it('clears a non-free vision model on the guest override', async () => {
     const result = await applyGuestModeOverrides(
       { configResolver: resolverWith(null) },
@@ -103,7 +127,7 @@ describe('applyGuestModeOverrides', () => {
   });
 
   describe('z.ai piggyback as the guest PERSONAL selection (conditionally free)', () => {
-    const PERSONAL_ZAI = { ...PAID_PERSONALITY, model: 'z-ai/glm-4.7' };
+    const PERSONAL_ZAI = { ...PAID_PERSONALITY, model: PREFIXED_ZAI };
 
     it('admitted: upgrades WITHOUT consulting the global free default', async () => {
       const gate = admission(true);
@@ -142,7 +166,7 @@ describe('applyGuestModeOverrides', () => {
       // admit() call (admission consumes quota when it admits).
       const gate = admission(false);
       const result = await applyGuestModeOverrides(
-        { configResolver: resolverWith('z-ai/glm-4.7'), zaiFreeTierAdmission: gate },
+        { configResolver: resolverWith(PREFIXED_ZAI), zaiFreeTierAdmission: gate },
         PERSONAL_ZAI,
         'u1',
         'r1'
@@ -204,11 +228,11 @@ describe('applyGuestModeOverrides', () => {
     });
   });
 
-  describe('z.ai piggyback (free default = z-ai/glm-4.7)', () => {
+  describe('z.ai piggyback (free default = the prefixed piggyback id)', () => {
     it('admitted: upgrades to the BARE model on zai-coding with the plan key', async () => {
       const gate = admission(true);
       const result = await applyGuestModeOverrides(
-        { configResolver: resolverWith('z-ai/glm-4.7'), zaiFreeTierAdmission: gate },
+        { configResolver: resolverWith(PREFIXED_ZAI), zaiFreeTierAdmission: gate },
         PAID_PERSONALITY,
         'u1',
         'r1'
@@ -223,7 +247,7 @@ describe('applyGuestModeOverrides', () => {
     it('denied: degrades silently to the dynamic free router', async () => {
       const result = await applyGuestModeOverrides(
         {
-          configResolver: resolverWith('z-ai/glm-4.7'),
+          configResolver: resolverWith(PREFIXED_ZAI),
           zaiFreeTierAdmission: admission(false),
         },
         PAID_PERSONALITY,
@@ -237,7 +261,7 @@ describe('applyGuestModeOverrides', () => {
 
     it('no admission gate wired (ships dark): degrades to the router', async () => {
       const result = await applyGuestModeOverrides(
-        { configResolver: resolverWith('z-ai/glm-4.7') },
+        { configResolver: resolverWith(PREFIXED_ZAI) },
         PAID_PERSONALITY,
         'u1',
         'r1'
@@ -252,7 +276,7 @@ describe('applyGuestModeOverrides', () => {
         systemKey: vi.fn().mockReturnValue(undefined),
       } as unknown as ZaiFreeTierAdmission;
       const result = await applyGuestModeOverrides(
-        { configResolver: resolverWith('z-ai/glm-4.7'), zaiFreeTierAdmission: gate },
+        { configResolver: resolverWith(PREFIXED_ZAI), zaiFreeTierAdmission: gate },
         PAID_PERSONALITY,
         'u1',
         'r1'
@@ -306,7 +330,7 @@ describe('applyGuestModeOverrides', () => {
 
     it('announces the piggyback upgrade reached from the global free default', async () => {
       const result = await applyGuestModeOverrides(
-        { configResolver: resolverWith('z-ai/glm-4.7'), zaiFreeTierAdmission: admission(true) },
+        { configResolver: resolverWith(PREFIXED_ZAI), zaiFreeTierAdmission: admission(true) },
         PAID_PERSONALITY,
         'u1',
         'r1'
@@ -323,13 +347,13 @@ describe('applyGuestModeOverrides', () => {
     it('announces the prefix normalization on a personally-selected piggyback model', async () => {
       const result = await applyGuestModeOverrides(
         { zaiFreeTierAdmission: admission(true) },
-        { ...PAID_PERSONALITY, model: 'z-ai/glm-4.7' } as EffectivePersonality,
+        { ...PAID_PERSONALITY, model: PREFIXED_ZAI } as EffectivePersonality,
         'u1',
         'r1'
       );
 
       expect(result.quotaFallback).toEqual({
-        fromModel: 'z-ai/glm-4.7',
+        fromModel: PREFIXED_ZAI,
         toModel: ZAI_FREE_TIER_MODEL,
         category: 'guest_mode',
         mode: 'proactive',

@@ -268,8 +268,8 @@ async function handleGlobalConfigAutocomplete(
         }
         // If freeOnly, the model must be free-tier ELIGIBLE: a :free-suffixed
         // model, the openrouter/free router, or the z.ai piggyback model
-        // (glm-4.7 — served on the system coding plan when admitted,
-        // degrading to the free router otherwise; never billed as paid).
+        // (served on the system coding plan when admitted, degrading to the
+        // free router otherwise; never billed as paid).
         if (freeOnly && !isFreeTierEligibleModel(c.model)) {
           return false;
         }
