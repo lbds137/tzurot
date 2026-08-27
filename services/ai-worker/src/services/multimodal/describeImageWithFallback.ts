@@ -295,13 +295,19 @@ async function userHasOpenRouterKey(authOptions: ResolveVisionConfigOptions): Pr
  * selected, or a guest's chosen free vision model would be forced to the floor
  * purely because a tier was prepended in front of it.
  *
+ * Membership is tested with `isZaiFreeTierModel` rather than an exact-string
+ * match, so a `z-ai/`-prefixed tier counts as the piggyback already being in the
+ * chain. An exact match would miss the prefixed form and prepend a second flash
+ * tier, sending the walk through admission twice for one image.
+ *
  * `primaryTierIndex` is derived from whether a prepend actually HAPPENED, never
  * from what `tiers[0]` is. When the chain's own primary already IS the piggyback
- * id (an explicit `describeOptions.model` override), no prepend occurs and the
- * primary stays at index 0 — reading `tiers[0]` there would shift the index onto
- * the first stamped fallback, exempting a possibly-PAID model from the guest
- * free-forcing and resolving the system key for it. Pinned by the "bare-flash
- * primary: the paid stamped fallback stays a NON-primary guest tier" test.
+ * id in either form (an explicit `describeOptions.model` override), no prepend
+ * occurs and the primary stays at index 0 — reading `tiers[0]` there would shift
+ * the index onto the first stamped fallback, exempting a possibly-PAID model
+ * from the guest free-forcing and resolving the system key for it. Pinned by the
+ * "bare-flash primary: the paid stamped fallback stays a NON-primary guest tier"
+ * test.
  *
  * The prepend lands on `composeVisionTiers`'s FINISHED output, so the tail below
  * a piggyback tier is byte-identical to the chain a non-piggyback walk would use —
@@ -322,7 +328,7 @@ export function composeWalkTiers(
   const piggybackEligible =
     isGuestMode && authOptions.userId !== undefined && authOptions.requestId !== undefined;
   const base = composeVisionTiers(primaryModel, personality, isGuestMode);
-  const prepended = piggybackEligible && !base.includes(ZAI_FREE_TIER_MODEL);
+  const prepended = piggybackEligible && !base.some(isZaiFreeTierModel);
   return {
     tiers: prepended ? [ZAI_FREE_TIER_MODEL, ...base] : base,
     primaryTierIndex: prepended ? 1 : 0,

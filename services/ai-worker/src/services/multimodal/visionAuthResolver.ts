@@ -312,7 +312,8 @@ async function resolveZaiPiggybackVision(
  * computes the natural model then delegates here.
  *
  * Branch order:
- * 1. Same-provider fast path (PRIMARY tier only) — reuse the upstream main-model key.
+ * 1. Same-provider fast path (PRIMARY tier only, and never for the piggyback model)
+ *    — reuse the upstream main-model key.
  * 2. Guest (or unknown user) asking for the z.ai piggyback model — admission decides;
  *    admitted guests get the bare piggyback model on the system coding-plan key, every
  *    denial shape `failFast`s so the walk advances to the next tier. Resolved ahead of
@@ -359,11 +360,22 @@ export async function resolveVisionAuth(
   // reach `createChatModel` with no Authorization header and reproduce the exact
   // bug this resolver exists to prevent. Falling through to per-provider
   // resolution lets the user's actual keys (if any) be picked up instead.
+  // The piggyback model is EXCLUDED from the fast path in either form. Invariant:
+  // it must always reach either admission (quota + headroom + kill switch, via the
+  // guest branch below) or the authenticated arm's own wallet lookup — never a
+  // reuse of the upstream main key, which skips both. A guest whose TEXT slot was
+  // admitted onto the piggyback arrives here with `mainProvider: ZaiCoding` and a
+  // non-empty system `mainApiKey`, so without this exclusion the fast path would
+  // hand the shared coding-plan key to an unmetered vision call. An authenticated
+  // z.ai-BYOK user falls through to `tryResolveUserKey(userId, ZaiCoding)` instead,
+  // which returns their own key — same outcome, one extra cached lookup. Pinned by
+  // the "piggyback model is excluded from the same-provider fast path" tests.
   if (
     isPrimaryTier &&
     visionProvider === mainProvider &&
     mainApiKey !== undefined &&
-    mainApiKey.length > 0
+    mainApiKey.length > 0 &&
+    !isZaiFreeTierModel(targetModel)
   ) {
     logger.debug(
       { userId, visionProvider, isGuestMode },
