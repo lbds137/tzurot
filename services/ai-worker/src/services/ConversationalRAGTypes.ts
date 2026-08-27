@@ -79,10 +79,14 @@ export interface ConversationContext {
    * Correlation id of the job that produced this turn, threaded from the job
    * payload so renderer-level warnings (dropped paid enrichment, unkeyable
    * enrichment) name the producing request instead of forcing timestamp
-   * archaeology across the pipeline's logs. Never a semantic input to
-   * generation — nothing downstream may branch on it. Optional so tests and
-   * non-job callers need not supply one; absent means the warn simply carries
-   * no correlation id.
+   * archaeology across the pipeline's logs. Also the idempotency anchor for
+   * z.ai free-tier admission (vision auth consults `admit(userId, requestId)`,
+   * which is retry-idempotent per this pair) — so its presence can decide
+   * which vision tier serves a guest, but it must not otherwise influence
+   * generated content: never hashed into sampling, prompts, or model
+   * parameters. Optional so tests and non-job callers need not supply one;
+   * absent means the warn carries no correlation id and the guest piggyback
+   * vision tier is skipped.
    */
   requestId?: string;
   channelId?: string;
