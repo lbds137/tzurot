@@ -236,11 +236,12 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
     expect(
       children.map(c => c.data.sourceReferenceNumber).sort((a, b) => (a ?? 0) - (b ?? 0))
     ).toEqual([1, 2]);
-    expect(
-      imageDescriptionJobDataSchema.safeParse(
-        children.find(c => c.name === JobType.ImageDescription)?.data
-      ).success
-    ).toBe(true);
+    const refImageChild = children.find(c => c.name === JobType.ImageDescription);
+    expect(imageDescriptionJobDataSchema.safeParse(refImageChild?.data).success).toBe(true);
+    // The admission anchor is the BARE root request id, not the suffixed per-job id.
+    expect((refImageChild?.data as { parentRequestId?: string } | undefined)?.parentRequestId).toBe(
+      'fixture-req-envelope-refs'
+    );
     expect(
       audioTranscriptionJobDataSchema.safeParse(
         children.find(c => c.name === JobType.AudioTranscription)?.data
@@ -312,6 +313,10 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
     const imageChild = children.find(c => c.name === JobType.ImageDescription);
     expect(audioTranscriptionJobDataSchema.safeParse(audioChild?.data).success).toBe(true);
     expect(imageDescriptionJobDataSchema.safeParse(imageChild?.data).success).toBe(true);
+    // The admission anchor is the BARE root request id, not the suffixed per-job id.
+    expect((imageChild?.data as { parentRequestId?: string } | undefined)?.parentRequestId).toBe(
+      'fixture-req-envelope-direct'
+    );
 
     await expect(stableFixtureJson(flowCall)).toMatchFileSnapshot(
       contractFixtureFile('bullmq-job-chain/envelope-direct-attachments.json')

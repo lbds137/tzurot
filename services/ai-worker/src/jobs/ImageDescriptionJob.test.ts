@@ -869,6 +869,95 @@ describe('ImageDescriptionJob', () => {
       ]);
     });
 
+    it('anchors admission on parentRequestId (bare message id) when present', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'bare-req-123-image',
+        parentRequestId: 'bare-req-123',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'byok-user-456',
+          channelId: 'channel-789',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-789',
+        },
+      };
+
+      const job = {
+        id: 'image-bare-req-123',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
+      } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue('anchored description');
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ requestId: 'bare-req-123' }),
+        expect.anything()
+      );
+    });
+
+    it('falls back to requestId (suffixed) when parentRequestId is absent', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'bare-req-456-image',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'byok-user-456',
+          channelId: 'channel-789',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-789',
+        },
+      };
+
+      const job = {
+        id: 'image-bare-req-456',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
+      } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue('fallback-anchored description');
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ requestId: 'bare-req-456-image' }),
+        expect.anything()
+      );
+    });
+
     it('passes a z.ai-vision personality through to describeImageWithFallback untouched', async () => {
       // Phase-4: provider detection from the visionModel name moved into the loop's
       // per-tier resolveVisionAuth (covered by describeImageWithFallback.test.ts +

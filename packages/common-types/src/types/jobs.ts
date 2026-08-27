@@ -165,6 +165,14 @@ export interface ImageDescriptionJobData extends BaseJobData {
   context: Pick<JobContext, 'userId' | 'channelId'>;
   /** If from a referenced message, the reference number (1-indexed) */
   sourceReferenceNumber?: number;
+  /**
+   * Message-level request id — the anchor free-tier admission counts by, so every
+   * vision consult arising from one Discord message shares a single window slot.
+   * Distinct from `requestId`, which carries a per-job suffix that keeps BullMQ job
+   * ids unique. Optional: in-flight jobs enqueued without it fall back to `requestId`
+   * at the consumer.
+   */
+  parentRequestId?: string;
 }
 
 /**
@@ -453,6 +461,7 @@ export const imageDescriptionJobDataSchema = baseJobDataSchema.extend({
   personality: loadedPersonalitySchema,
   context: jobContextBaseSchema.pick({ userId: true, channelId: true }),
   sourceReferenceNumber: z.number().optional(),
+  parentRequestId: z.string().optional(),
 });
 
 /**

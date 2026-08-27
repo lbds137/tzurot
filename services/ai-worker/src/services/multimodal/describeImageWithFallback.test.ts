@@ -819,6 +819,23 @@ describe('z.ai piggyback vision tier (composeWalkTiers)', () => {
   const eligible = (personality: LoadedPersonality): ResolveVisionConfigOptions =>
     makeAuthOptions({ personality, isGuestMode: true, userId: 'guest-1', requestId: 'req-1' });
 
+  it('hoists a mid-chain stamped flash — the case the old membership test suppressed', () => {
+    // Runtime shape: primary is the free-floor model itself, and the DB has stamped
+    // flash as a TAIL fallback (below a non-flash paid fallback). The old "prepend on
+    // absence" logic saw flash already present anywhere in the chain and suppressed
+    // the piggyback entirely, so flash sat unreachable below the free-floor primary.
+    const personality = makePersonality({
+      visionFallbackModels: ['qwen/qwen3.7-plus', `z-ai/${ZAI_FREE_TIER_MODEL}`],
+    });
+
+    const walk = composeWalkTiers(FREE_ROUTER_MODEL, personality, eligible(personality));
+
+    expect(walk.tiers[0]).toBe(ZAI_FREE_TIER_MODEL);
+    expect(walk.tiers.filter(isZaiFreeTierModel)).toHaveLength(1);
+    expect(walk.tiers.slice(1)).toEqual([FREE_ROUTER_MODEL, 'qwen/qwen3.7-plus']);
+    expect(walk.primaryTierIndex).toBe(1);
+  });
+
   it('prepend never evicts the floor — tail is byte-identical to the no-piggyback chain', () => {
     // Only ONE stamped fallback, so the (primary, fallback, floor) triple fits
     // under the cap BEFORE the piggyback prepend — the floor survives in both.
@@ -834,7 +851,7 @@ describe('z.ai piggyback vision tier (composeWalkTiers)', () => {
     expect(withoutPiggyback).toEqual(['primary/model', 'tier-a', FREE_ROUTER_MODEL]);
   });
 
-  it('no prepend when the primary already IS the piggyback id — primary index stays 0', () => {
+  it('bare-flash primary keeps index 0 — hoisting an already-first tier is order-neutral', () => {
     const personality = makePersonality({ visionFallbackModels: ['paid/global-default'] });
 
     const walk = composeWalkTiers(ZAI_FREE_TIER_MODEL, personality, eligible(personality));
@@ -843,27 +860,34 @@ describe('z.ai piggyback vision tier (composeWalkTiers)', () => {
     expect(walk.primaryTierIndex).toBe(0);
   });
 
-  it('no prepend when a PREFIXED flash is the primary — primary index stays 0', () => {
+  it('prefixed-flash primary is normalized to the bare id — primary index stays 0', () => {
     const personality = makePersonality({ visionFallbackModels: ['paid/global-default'] });
     const prefixedFlash = `z-ai/${ZAI_FREE_TIER_MODEL}`;
 
     const walk = composeWalkTiers(prefixedFlash, personality, eligible(personality));
+    const base = composeVisionTiers(prefixedFlash, personality, true);
 
-    expect(walk.tiers).toEqual(composeVisionTiers(prefixedFlash, personality, true));
-    expect(walk.tiers[0]).toBe(prefixedFlash);
+    // Normalizing the prefixed form to the bare id matches how the resolver runs an
+    // admitted guest (the bare piggyback model on the system coding plan) and keeps
+    // admission to a single consult.
+    expect(walk.tiers[0]).toBe(ZAI_FREE_TIER_MODEL);
+    expect(walk.tiers.filter(isZaiFreeTierModel)).toHaveLength(1);
+    expect(walk.tiers.slice(1)).toEqual(base.filter(model => !isZaiFreeTierModel(model)));
     expect(walk.primaryTierIndex).toBe(0);
   });
 
-  it('no prepend when a PREFIXED flash is a stamped fallback — the walk consults admission once', () => {
+  it('prefixed flash as a stamped fallback is hoisted — the walk consults admission once', () => {
     const personality = makePersonality({
       visionFallbackModels: [`z-ai/${ZAI_FREE_TIER_MODEL}`],
     });
 
     const walk = composeWalkTiers('primary/model', personality, eligible(personality));
+    const base = composeVisionTiers('primary/model', personality, true);
 
-    expect(walk.tiers).toEqual(composeVisionTiers('primary/model', personality, true));
+    expect(walk.tiers[0]).toBe(ZAI_FREE_TIER_MODEL);
     expect(walk.tiers.filter(isZaiFreeTierModel)).toHaveLength(1);
-    expect(walk.primaryTierIndex).toBe(0);
+    expect(walk.primaryTierIndex).toBe(1);
+    expect(walk.tiers.slice(1)).toEqual(base.filter(model => !isZaiFreeTierModel(model)));
   });
 
   it('an ineligible walk is untouched — no prepend, primary index 0', () => {
@@ -873,6 +897,19 @@ describe('z.ai piggyback vision tier (composeWalkTiers)', () => {
     const walk = composeWalkTiers('primary/model', personality, notGuest);
 
     expect(walk.tiers).toEqual(composeVisionTiers('primary/model', personality, false));
+    expect(walk.primaryTierIndex).toBe(0);
+  });
+
+  it('an ineligible walk is untouched even when the base chain already contains flash', () => {
+    const personality = makePersonality({
+      visionFallbackModels: [`z-ai/${ZAI_FREE_TIER_MODEL}`],
+    });
+    const notGuest = makeAuthOptions({ personality, userId: 'user-1', requestId: 'req-1' });
+
+    const walk = composeWalkTiers('primary/model', personality, notGuest);
+
+    expect(walk.tiers).toEqual(composeVisionTiers('primary/model', personality, false));
+    expect(walk.tiers[0]).not.toBe(ZAI_FREE_TIER_MODEL);
     expect(walk.primaryTierIndex).toBe(0);
   });
 });
