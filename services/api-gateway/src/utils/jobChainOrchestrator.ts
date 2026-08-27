@@ -185,6 +185,10 @@ function createImageDescriptionJob(params: ImageJobParams): PreprocessingJobsRes
 
   const jobData: ImageDescriptionJobData = {
     requestId: imageRequestId,
+    // Bare message-level id: the free-tier admission anchor, so every vision consult
+    // arising from this message shares one window slot. `requestId` above stays
+    // per-job-unique (suffixed) for BullMQ job-id uniqueness.
+    parentRequestId: requestId,
     jobType: JobType.ImageDescription,
     attachments: imageAttachments,
     personality,

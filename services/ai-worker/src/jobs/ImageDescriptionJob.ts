@@ -122,12 +122,16 @@ async function resolveGuestMode(apiKeyResolver: ApiKeyResolver, userId: string):
  *   rather than a hardcoded value.
  * - No resolver (legacy test path): resolve once (always synthesizes a `resolved` config, never
  *   fail-fast) and expose the pre-resolved fields for the single-model describeImage.
+ *
+ * `admissionRequestId` is the free-tier admission anchor and is deliberately the
+ * MESSAGE-level id, not the per-job suffixed one — so every vision consult arising from
+ * one Discord message shares a single window slot instead of each image job opening its own.
  */
 function resolveImageJobAuth(
   apiKeyResolver: ApiKeyResolver | undefined,
   userId: string,
   personality: ImageDescriptionJobData['personality'],
-  requestId: string,
+  admissionRequestId: string,
   isGuestMode: boolean
 ): ImageJobAuth {
   const base: ImageJobAuth = {
@@ -149,7 +153,7 @@ function resolveImageJobAuth(
         // extended-context ones.
         isGuestMode,
         userId,
-        requestId,
+        requestId: admissionRequestId,
         apiKeyResolver,
       },
     };
@@ -301,7 +305,8 @@ export async function processImageDescriptionJob(
     throw new Error(`Image description job validation failed: ${validation.error.message}`);
   }
 
-  const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
+  const { requestId, attachments, personality, context, sourceReferenceNumber, parentRequestId } =
+    job.data;
 
   logger.info(
     { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
@@ -312,7 +317,13 @@ export async function processImageDescriptionJob(
     apiKeyResolver !== undefined ? await resolveGuestMode(apiKeyResolver, context.userId) : false;
 
   const { visionAuth, isGuestMode, userApiKey, visionProvider, visionModel, apiKeySource } =
-    resolveImageJobAuth(apiKeyResolver, context.userId, personality, requestId, resolvedGuestMode);
+    resolveImageJobAuth(
+      apiKeyResolver,
+      context.userId,
+      personality,
+      parentRequestId ?? requestId,
+      resolvedGuestMode
+    );
 
   const loggingContext = {
     userId: context.userId,

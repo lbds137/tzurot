@@ -266,6 +266,94 @@ describe('BullMQ Job Contract Tests', () => {
         );
       }
     });
+
+    it('should accept and preserve parentRequestId when present', () => {
+      const validJob = {
+        requestId: 'req-test-456-image',
+        jobType: JobType.ImageDescription,
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-123',
+        },
+        attachments: [
+          {
+            url: 'https://example.com/image.png',
+            contentType: 'image/png',
+            name: 'image.png',
+            size: 2048,
+          },
+        ],
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          ownerId: 'owner-uuid-test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-123',
+        },
+        parentRequestId: 'req-test-456',
+      } satisfies ImageDescriptionJobData;
+
+      const result = imageDescriptionJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.parentRequestId).toBe('req-test-456');
+      }
+    });
+
+    it('should validate without parentRequestId (optional field)', () => {
+      const validJob = {
+        requestId: 'req-test-456',
+        jobType: JobType.ImageDescription,
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-123',
+        },
+        attachments: [
+          {
+            url: 'https://example.com/image.png',
+            contentType: 'image/png',
+            name: 'image.png',
+            size: 2048,
+          },
+        ],
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          ownerId: 'owner-uuid-test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-123',
+        },
+      } satisfies ImageDescriptionJobData;
+
+      const result = imageDescriptionJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+    });
   });
 
   describe('Schema Validation - Audio Transcription Result', () => {
