@@ -104,6 +104,15 @@ describe('buildModelInfoUrl', () => {
       );
     });
 
+    it('should map glm-5.3-flash to its vlm-section docs page', () => {
+      // The page lives under guides/vlm/, not guides/llm/ — pinning the
+      // section, since a family-name-derived llm/ URL would be a redirect
+      // at best.
+      expect(buildModelInfoUrl('glm-5.3-flash', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/vlm/glm-5.3-flash'
+      );
+    });
+
     it('should map glm-4.7 to its dedicated docs page', () => {
       expect(buildModelInfoUrl('glm-4.7', 'zai-coding')).toBe(
         'https://docs.z.ai/guides/llm/glm-4.7'
@@ -405,7 +414,7 @@ describe('listZaiCodingPlanModels', () => {
     const byName = new Map(models.map(m => [m.model, m]));
     // The catalog lineup per docs.z.ai/devpack/overview.
     expect([...byName.keys()].sort()).toEqual(
-      ['glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3'].sort()
+      ['glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3', 'glm-5.3-flash'].sort()
     );
     expect(byName.get('glm-5.2')?.contextLength).toBe(1_000_000);
     // z.ai-only entries must carry `released` — it is the only `created`
@@ -428,21 +437,30 @@ describe('listZaiCodingPlanModels', () => {
 });
 
 describe('zaiCodingPlanModelCapabilities', () => {
-  it('returns a text-only capability shape for every current catalog model', () => {
-    // All z.ai coding-plan models are text-only today, so every flag is false
-    // and the vision gate fails closed for them.
+  it('mirrors each entry’s modality flags, failing closed on omissions', () => {
+    // An omitted flag must come back false — the vision gate fails closed
+    // for every model that never declared the capability.
     for (const entry of listZaiCodingPlanModels()) {
       const caps = zaiCodingPlanModelCapabilities(entry.model);
       expect(caps).not.toBeNull();
       expect(caps).toMatchObject({
-        supportsVision: false,
-        supportsImageGeneration: false,
-        supportsAudioInput: false,
-        supportsAudioOutput: false,
+        supportsVision: entry.supportsVision ?? false,
+        supportsImageGeneration: entry.supportsImageGeneration ?? false,
+        supportsAudioInput: entry.supportsAudioInput ?? false,
+        supportsAudioOutput: entry.supportsAudioOutput ?? false,
         contextLength: entry.contextLength,
         source: 'zai',
       });
     }
+  });
+
+  it('reports glm-5.3-flash vision-capable and its 5.3 sibling text-only', () => {
+    // The mirror test above cannot fail on a wrong catalog value (it reads
+    // the same entry it asserts against), so the two directions are pinned
+    // explicitly: the one vision member, and a text-only sibling.
+    expect(zaiCodingPlanModelCapabilities('glm-5.3-flash')?.supportsVision).toBe(true);
+    expect(zaiCodingPlanModelCapabilities('glm-5.3')?.supportsVision).toBe(false);
+    expect(zaiCodingPlanModelCapabilities('glm-5.3-flash')?.contextLength).toBe(1_000_000);
   });
 
   it('strips the z-ai/ prefix and case-normalizes before lookup', () => {

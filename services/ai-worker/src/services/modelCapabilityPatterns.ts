@@ -46,6 +46,11 @@ const VISION_MODEL_PATTERNS: ModelPattern[] = [
   { required: 'pixtral' },
   // InternVL models
   { required: 'internvl' },
+  // Z.AI GLM — mirrors the `supportsVision` flag on the z.ai coding-plan catalog
+  // entry, so degraded mode agrees with the catalog. The full `glm-5.3-flash`
+  // term is required: the GLM flash line is not uniformly multimodal, and a
+  // broader 'glm-5.3' or 'flash' term would over-claim its text-only siblings.
+  { required: 'glm-5.3-flash' },
 ];
 
 /**
