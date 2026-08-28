@@ -62,9 +62,9 @@ Also from this drain pass (tracker notes pushed, no code): TASK-653 is a **parti
 1. DM isolation (#2227) — ✅ PASS 2026-08-28 ~02:31Z, both directions via owner /inspect traces. Isolated (guilds-only): COLD's DM prompt had zero Weaver-authored messages, no DM history section, only guild-scoped cross-channel fill (deliberately shared). Restored (always): Weaver's prompt regained the full multi-persona DM history including the poke exchange hidden minutes earlier (historyTokens 0 → 14.9k → 4.2k tracked the toggle). Side finding: Share Memories (`shareLtmAcrossPersonalities`, flat boolean, ON in owner cascade) injects cross-personality memories in DMs regardless — working as configured; owner wants the parallel per-location enum → TASK-786 filed.
 2. /deny `everywhere` flow (#2233 / TASK-764) — ✅ PASS 2026-08-28 (add/remove via slash + browse-delete verified along the way). Owner verdict: dual-optional `user:`/`server:` on `everywhere` is confusing → TASK-787 (post-release).
 3. /deny `this-server` flow (#2233 / TASK-764) — ✅ PASS 2026-08-28. Raw all-caps enum text in browse/detail → TASK-788 (post-release). **TASK-764 CLOSED** (experiential acceptance met; naming feedback captured in the two tasks).
-4. (opt) invalidation delivery (#2230) — ⬜ pending (pass ⇒ TASK-612 closes)
-5. (opt) /models vision badge (#2235) — ⬜ pending
-6. (cond) BYOK vision on flash defaults — ⬜ pending on the owner's default-flip decision
+4. (opt) invalidation delivery (#2230) — ✅ PASS 2026-08-28, owner-verified. **TASK-612 CLOSED** (runtime clause was its last open bit).
+5. (opt) /models vision badge (#2235) — ✅ PASS 2026-08-28 (detail view checked too).
+6. (cond) BYOK vision on flash defaults — 🔴 ran 2026-08-28 02:44Z and caught a REAL BUG: paid-path vision sent the prefixed `z-ai/glm-5.3-flash` id to the z.ai API → 400 code 1214; fallback tier masked it (description succeeded, NOT flash output). → **TASK-789** (high). Flash-vs-qwen comparison deferred until it ships; owner should revert the dev global vision default to Qwen meanwhile; prod vision-default flip is OFF the at-cut action list.
 
 Guest vision (#2237/#2238) and the text swap (#2236) are runtime-VERIFIED 2026-08-27 21:45Z — excluded from the slate with log evidence in the checklist. Next after the cut: testing-epic slices delegated Opus-side (owner call 2026-08-27, Fable-budget lever); TASK-765 rides the next release.
 
