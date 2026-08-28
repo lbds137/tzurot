@@ -13,8 +13,8 @@ Night arc 2026-08-27→28: owner ran the full smoke slate (items 1–5 PASS; ite
 **Owner morning actions (in order):**
 
 1. **Dev retest of paid-path flash vision**: fresh never-sent image with the flash vision default — expect flash's own description, no 1214 in ai-worker logs. This is TASK-789's acceptance runtime half AND the start of the flash-vs-qwen comparison.
-2. **Prod free-default TEXT preset flip** to `z-ai/glm-5.3-flash` (#2236 deploy note) after confirming the prod deploy is up.
-3. Vision-default pointers (dev+prod): flip at leisure after #1's quality read.
+2. ~~Prod free-default TEXT preset flip~~ **DONE by owner 2026-08-28 03:44-45Z** — DB-verified: free text AND free vision both point at flash; paid (global) vision stays Qwen. The identical confirmation embeds prompted **TASK-790** (preset confirmations must name the slot).
+3. Paid vision-default pointers (dev+prod): flip at leisure after #1's quality read.
 
 **Watches carried from beta.208 (log/data-signal, no action):** `usage_logs` attribution (`telemetry:inference`/`telemetry:report` accumulating) · `model_not_found (rescued)` ⚠️ embeds (GLM now.md entry clears on first observation) · error-channel first prod posts · glm-5.2 maxTokens saturation + Qwen `data_inspection_failed` rate (owner levers recorded). New watch: TASK-782 (5.3-flash scaffolding shapes in prod logs post-flip).
 
