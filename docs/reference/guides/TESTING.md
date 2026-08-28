@@ -361,13 +361,16 @@ beforeAll(async () => {
 > under `tests/e2e/contracts/`. The suffix carries the tier (the `tests/e2e/`
 > directory name is legacy). True black-box **E2E** is effectively none today.
 
-> ⚠️ **Before adding a real-Postgres integration test:** the `component-integration-tests` CI
-> job runs `pnpm test:integration` but provisions **only Redis** — there are no
-> `*.integration.test.ts` files today (the tiers here use in-process PGLite or
-> static fixtures). The first real-Postgres integration test will be picked up by
-> the repo-wide glob and hit `ECONNREFUSED` in CI; add a Postgres service to the
-> `component-integration-tests` job (or a dedicated integration job) at the same time. Tracked
-> in `doc-13` (Phase 2).
+> ℹ️ **Real-Postgres integration tests:** the `component-integration-tests` CI job
+> provisions Redis **and** a `pgvector/pgvector:pg15` Postgres, and applies the real
+> migrations to it before running `pnpm test:integration` — the trigger functions
+> some of these tests exercise exist only in the migration files, which Prisma's
+> schema diffing cannot see. Locally the tier needs the containers up
+> (`podman start tzurot-redis tzurot-postgres`) plus a dedicated migrated
+> database with `DATABASE_URL` exported for the run — it is deliberately not
+> defaulted, since a default would have to carry credentials.
+> `vitest.integration.config.ts` carries the one-time provisioning commands.
+> Reference test: `tests/e2e/cacheInvalidationTriggers.integration.test.ts`.
 
 **Use when:**
 

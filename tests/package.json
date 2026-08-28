@@ -9,11 +9,14 @@
     "@tzurot/ai-worker": "workspace:*",
     "@tzurot/api-gateway": "workspace:*",
     "@tzurot/bot-client": "workspace:*",
+    "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
-    "@tzurot/test-utils": "workspace:*"
+    "@tzurot/test-utils": "workspace:*",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "@types/pg": "^8.23.1",
     "vitest": "^4.1.11"
   }
 }

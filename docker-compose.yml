@@ -22,10 +22,11 @@ services:
       retries: 5
 
   # PostgreSQL - for relational data, conversation history, and pgvector memory
-  # Note: pgvector extension is enabled via Prisma migration
-  # See: prisma/migrations/*_enable_pgvector/migration.sql
+  # Note: the image must ship pgvector — the first migration runs
+  # `CREATE EXTENSION IF NOT EXISTS vector`, which plain postgres cannot satisfy.
+  # See: prisma/migrations/20250131000000_init/migration.sql
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: tzurot-postgres
     ports:
       - '5432:5432'
