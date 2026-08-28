@@ -472,6 +472,21 @@ export const ZAI_MODEL_PREFIX = 'z-ai/';
 const ZAI_CODING_OVERVIEW_URL = 'https://docs.z.ai/devpack/overview';
 
 /**
+ * Case-normalize a model id and strip an optional `z-ai/` prefix, yielding the
+ * bare catalog form. Every z.ai catalog accessor here needs the same tolerance
+ * — preset configs are user-typed strings that may arrive in any case and in
+ * either the routable slug form (`z-ai/glm-5`) or the bare form (`glm-5`) —
+ * and the footer builder needs it to tell a route change from a model change.
+ *
+ * The prefix is stripped only from the FRONT, so a model whose bare name
+ * merely contains `z-ai/` is untouched.
+ */
+export function stripZaiPrefix(model: string): string {
+  const lower = model.toLowerCase();
+  return lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+}
+
+/**
  * Membership check for the z.ai coding-plan catalog. Case-normalizes the
  * input and strips an optional `z-ai/` prefix — preset configs are user-typed
  * strings that may use any case and either the routable slug (`z-ai/glm-5`)
@@ -479,8 +494,7 @@ const ZAI_CODING_OVERVIEW_URL = 'https://docs.z.ai/devpack/overview';
  * accessor in this file.
  */
 export function isZaiCodingPlanModel(model: string): boolean {
-  const lower = model.toLowerCase();
-  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  const bare = stripZaiPrefix(model);
   return bare in ZAI_MODEL_CATALOG;
 }
 
@@ -497,8 +511,7 @@ export function isZaiCodingPlanModel(model: string): boolean {
  * with no context-window clamp.
  */
 export function getZaiCodingPlanContextLength(model: string): number | null {
-  const lower = model.toLowerCase();
-  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  const bare = stripZaiPrefix(model);
   return ZAI_MODEL_CATALOG[bare]?.contextLength ?? null;
 }
 
@@ -539,8 +552,7 @@ export interface ZaiCodingPlanModelInfo {
  * routes z.ai-direct for any user holding a z.ai coding key.
  */
 export function zaiThinkingOffSupport(model: string): ZaiThinkingOffSupport | undefined {
-  const lower = model.toLowerCase();
-  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  const bare = stripZaiPrefix(model);
   return ZAI_MODEL_CATALOG[bare]?.thinkingOff;
 }
 
@@ -558,8 +570,7 @@ export function zaiThinkingOffSupport(model: string): ZaiThinkingOffSupport | un
  * config on that model passes.
  */
 export function zaiCodingPlanModelCapabilities(model: string): ModelCapabilities | null {
-  const lower = model.toLowerCase();
-  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  const bare = stripZaiPrefix(model);
   const entry = ZAI_MODEL_CATALOG[bare];
   if (entry === undefined) {
     return null;
@@ -614,8 +625,7 @@ export function buildModelInfoUrl(model: string, provider: string | undefined): 
     // (e.g. an auto-promotion fallback whose model retains the prefix). Mirrors
     // `getZaiCodingPlanContextLength`'s prefix tolerance so the docs link
     // resolves instead of falling back to the generic overview page.
-    const lower = model.toLowerCase();
-    const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+    const bare = stripZaiPrefix(model);
     return ZAI_MODEL_CATALOG[bare]?.docsUrl ?? ZAI_CODING_OVERVIEW_URL;
   }
   // OpenRouter (and any unknown provider — falls through to OpenRouter as
@@ -719,9 +729,7 @@ export const ZAI_FREE_TIER_MODEL = 'glm-5.3-flash';
 
 /** True for the piggyback model in bare or `z-ai/`-prefixed form. */
 export function isZaiFreeTierModel(modelId: string): boolean {
-  const lower = modelId.toLowerCase();
-  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
-  return bare === ZAI_FREE_TIER_MODEL;
+  return stripZaiPrefix(modelId) === ZAI_FREE_TIER_MODEL;
 }
 
 /**
