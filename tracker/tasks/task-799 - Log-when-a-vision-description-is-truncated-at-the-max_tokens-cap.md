@@ -22,5 +22,7 @@ Evidence the tail is real: 161 image descriptions stored in prod before any cap 
 
 What: in invokeVisionModel (services/ai-worker/src/services/multimodal/VisionProcessor.ts), read the finish/stop reason off the LangChain response and log a warn when it indicates a length stop, with modelName and the description length. Verify first what the finish reason is actually called on the response object for both the OpenRouter and the z.ai-direct route — do not assume a field name; the two routes may differ.
 
+Second reason this matters, from the same review: the 4000 cap was sized from a sample of NON-reasoning output. VisionTierParams deliberately carries no thinking param, but the vision fallback resolves to openrouter/auto in prod (verified in system_settings), and if auto ever routes a caption to a reasoning-capable model its thinking tokens would count against the same 4000 budget as the visible description. Whether auto does that is unknown and unprobed. This logging is the thing that would actually surface it, rather than another round of prod log archaeology.
+
 Acceptance: a captioning call that stops on length emits one warn line naming the model and length, with a test that pins the log fires for a length stop and does not fire for a normal stop.
 <!-- SECTION:DESCRIPTION:END -->
