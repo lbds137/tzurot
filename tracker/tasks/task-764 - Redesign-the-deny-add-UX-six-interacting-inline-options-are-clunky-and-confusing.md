@@ -3,10 +3,10 @@ id: TASK-764
 title: >-
   Redesign the /deny add UX - six interacting inline options are clunky and
   confusing
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 15:34'
-updated_date: '2026-08-27 00:28'
+updated_date: '2026-08-28 02:42'
 labels:
   - 'area:bot-client'
   - 'size:M'
