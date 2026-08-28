@@ -710,7 +710,7 @@ export default tseslint.config(
           selector:
             "CallExpression[callee.name='setTimeout'][arguments.1.type='Literal'][arguments.1.value>0]",
           message:
-            'Real setTimeout delay in a unit test causes flakes — use vi.useFakeTimers() + vi.advanceTimersByTimeAsync(). Real delays are allowed in *.component.test.ts.',
+            'Real setTimeout delay in a unit test causes flakes — use vi.useFakeTimers() + vi.advanceTimersByTimeAsync(). Real delays are allowed in *.component.test.ts. The ban DOES still apply to *.integration.test.ts, whose config disables fake timers entirely — wait with expect.poll there, not a literal delay.',
         },
       ],
     },
