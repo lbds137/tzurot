@@ -663,6 +663,27 @@ describe('VisionProcessor', () => {
         );
       });
 
+      it('should pass VISION_MAX_TOKENS to createChatModel when no params are stamped', async () => {
+        // An uncapped captioning request lets the provider reserve the routed
+        // model's whole output budget up front, which 402s on a key with modest
+        // headroom. The cap must reach createChatModel even when the personality
+        // carries no visionConfigParams at all.
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            maxTokens: AI_DEFAULTS.VISION_MAX_TOKENS,
+          })
+        );
+      });
+
       it('honors explicitly-set vision-config params for the resolved model (seam assertion)', async () => {
         // Gateway-stamped visionConfigParams must reach createChatModel — the
         // decorative-config bug this carrier exists to fix. Explicit temperature
@@ -688,7 +709,32 @@ describe('VisionProcessor', () => {
         );
       });
 
-      it('falls back to VISION_TEMPERATURE when the resolved model has no params entry', async () => {
+      it('resolves each vision default independently when a tier stamps only one', async () => {
+        // The two `??` fallbacks are separate expressions; a tier that sets
+        // temperature alone must still receive the maxTokens default (and vice
+        // versa). Pins that neither stamp suppresses the other's default.
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: 'custom-vision-model',
+          visionConfigParams: {
+            'custom-vision-model': { temperature: 0.7 },
+          },
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: 'custom-vision-model',
+            temperature: 0.7,
+            maxTokens: AI_DEFAULTS.VISION_MAX_TOKENS,
+          })
+        );
+      });
+
+      it('falls back to the vision defaults when the resolved model has no params entry', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
@@ -707,6 +753,7 @@ describe('VisionProcessor', () => {
           expect.objectContaining({
             modelName: 'custom-vision-model',
             temperature: AI_DEFAULTS.VISION_TEMPERATURE,
+            maxTokens: AI_DEFAULTS.VISION_MAX_TOKENS,
           })
         );
       });

@@ -52,6 +52,48 @@ export const AI_DEFAULTS = {
   } as const,
   /** Temperature for vision models (lower = more deterministic) */
   VISION_TEMPERATURE: 0.3,
+  /**
+   * Output cap for a vision captioning call.
+   *
+   * It exists because leaving `max_tokens` unset means we cannot say what
+   * budget the request asks for, and OpenRouter refuses a request whose
+   * asked-for budget exceeds the key's available balance ("requested up to N
+   * tokens, but can only afford M" — `apiErrorParser` classifies that shape
+   * as request-level, not account-level). Bounding the ask makes captioning
+   * trivially affordable regardless of which model `openrouter/auto` picks.
+   *
+   * WHERE N COMES FROM IS UNRESOLVED, and neither candidate survives its own
+   * evidence — recorded because a future reader will otherwise re-derive both:
+   *   - "the provider reserves the routed model's full output capacity."
+   *     Fits two DIFFERENT sizes (65536, 64000) inside one event, which no
+   *     single value of ours does. But it rested on the failing calls being
+   *     vision calls, and `fallbackTextModel` and `fallbackVisionModel` BOTH
+   *     resolve to `openrouter/auto` in prod, so the routed name alone
+   *     cannot tell a caption apart from a chat turn.
+   *   - "it was our own reasoning-scaled ask." 65536 is exactly
+   *     `REASONING_MODEL_MAX_TOKENS.max`. But that value is reachable only at
+   *     `thinking: 'max'`, and no prod `llm_config` is set above `high`
+   *     (32768); none carries an explicit `max_tokens` at all, and 64000
+   *     matches no constant here. Checked at the config level only — a
+   *     user-level override could still set it.
+   * Treat both as open. The cap is worth having either way: it is the one
+   * change that makes the ask small no matter which story is true.
+   *
+   * The value is sized off the real distribution rather than an estimate.
+   * Measured over 161 image descriptions written before any cap existed —
+   * so an uncensored sample of what the models actually produce: median
+   * ~1998 chars, p90 ~3540, p99 ~10302, longest 15803. Taking ~4 chars per
+   * token, 4000 truncates none of them, where 2000 would have cut the top
+   * ~1%. Sizing to the tail is the point: a truncated description is stored
+   * and reused silently (nothing downstream inspects the finish reason), so
+   * the failure is invisible rather than loud.
+   *
+   * 4000 is ~16x under the smallest refused ask seen in that event (64000)
+   * and below the smallest affordable figure the provider reported alongside
+   * it (5677), so sizing to the measured tail does not reopen the refusal
+   * this constant exists to prevent.
+   */
+  VISION_MAX_TOKENS: 4000,
   /** Default memory score threshold for retrieval (0.0-1.0, higher = stricter matching) */
   MEMORY_SCORE_THRESHOLD: 0.5,
   /** Default number of memories to retrieve */
