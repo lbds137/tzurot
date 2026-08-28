@@ -126,7 +126,13 @@ describe('PersonalityMessageHandler', () => {
 
       // The ORIGINAL error crosses the seam (the reporter hashes its stack) —
       // the synthetic in-character spec is only for the user-facing delivery.
-      expect(vi.mocked(reportDeliveryFailure)).toHaveBeenCalledWith(submitError, message.id);
+      // No job result exists on a submit-time throw, so the message id stands
+      // in as the correlation id; the personality name still reaches the card.
+      expect(vi.mocked(reportDeliveryFailure)).toHaveBeenCalledWith(
+        submitError,
+        { requestId: message.id },
+        'test-bot'
+      );
     });
 
     it('does not report to the error channel on a clean submit', async () => {
