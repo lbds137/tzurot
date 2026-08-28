@@ -10,17 +10,29 @@
 
 Night arc 2026-08-27→28: owner ran the full smoke slate (items 1–5 PASS; item 6 caught the paid-vision prefix 400) → owner gated the cut on TASK-789 ("I want flash vision to work") → fix built via nested dispatch, two clean review rounds, merged as #2240 → release merged 03:40Z under the recorded conditional approval → finalized → published. Prod auto-deploying at close.
 
-**Owner morning actions (in order):**
+**Owner morning actions — ALL CLOSED 2026-08-28 (superseded by the vision finding below).** Owner flipped ALL FOUR prod pointers to flash (DB-verified: free text, free vision, global text, global vision) and ruled the dev retest moot: "either it works or it doesn't."
 
-1. **Dev retest of paid-path flash vision**: fresh never-sent image with the flash vision default — expect flash's own description, no 1214 in ai-worker logs. This is TASK-789's acceptance runtime half AND the start of the flash-vs-qwen comparison.
-2. ~~Prod free-default TEXT preset flip~~ **DONE by owner 2026-08-28 03:44-45Z** — DB-verified: free text AND free vision both point at flash; paid (global) vision stays Qwen. The identical confirmation embeds prompted **TASK-790** (preset confirmations must name the slot).
-3. Paid vision-default pointers (dev+prod): flip at leisure after #1's quality read.
+**TASK-789 runtime clause CLOSED from prod logs, and the priority inverted.** The #2240 prefix fix is confirmed live: zero 1214 / model_not_found against flash across the whole beta.209 deployment window (04:18Z–13:30Z) with 36 flash vision invocations as positive control. But the same sweep found **21 vision fallback chains fully exhausted against 3 completed descriptions** — most prod images got no description at all. Tally from the negative-cache lines (they carry model + category as structured fields): `openrouter/auto` 20× empty_response + 1× quota_exceeded; `openrouter/free` 1× model_not_found; flash 14× rate_limit + 13× bad_request (z.ai content filter). **Owner call: the FALLBACK tiers are the defect, not flash** — auto serves paid, free serves guests, and Qwen censored images too, so flash is not a regression. Filed **TASK-791** (high) with two account-side leads, both labelled unverified: a 402 reading "requested up to 65536 tokens, but can only afford 5677" (OpenRouter key at its monthly limit — also a hypothesis for the 20 empty responses), and a 404 "No endpoints available matching your guardrail restrictions and data policy" pointing at the OpenRouter privacy settings.
 
 **Watches carried from beta.208 (log/data-signal, no action):** `usage_logs` attribution (`telemetry:inference`/`telemetry:report` accumulating) · `model_not_found (rescued)` ⚠️ embeds (GLM now.md entry clears on first observation) · error-channel first prod posts · glm-5.2 maxTokens saturation + Qwen `data_inspection_failed` rate (owner levers recorded). New watch: TASK-782 (5.3-flash scaffolding shapes in prod logs post-flip).
 
 **Mining posture: re-test DONE (2026-08-26 run, Fable-driven)** — delegation ratio moved 71/29 → 53/47 (Fable window) / 62/38 (Opus window); both #2214 hooks passed their first live window (details + dispositions in the machine-local mined-corpus README). Capacity figures ADOPTED on two agreeing readings: ~800M all-models / ~180M Fable per week (our weights) — the Fable bucket binds, and the remaining lever is Fable-window DURATION, not delegation ratio. Next mining delta starts after 2026-08-27 01:01Z.
 
 `ConversationHistoryEntry` (pipeline/types.ts) Pick/Omit fold still carried for whichever slice next touches the wire shape.
+
+## 🧪 beta.210 opened 2026-08-28 (Opus-driven) — two PRs IN FLIGHT at handoff
+
+**#2241 — real-Postgres integration tier (doc-13 Phases 2+3).** CI green through round 3, round 4 in flight at handoff. Single commit, message re-derived at autosquash. Adds a pgvector Postgres service + `migrate deploy` to `component-integration-tests`, and `tests/e2e/cacheInvalidationTriggers.integration.test.ts` covering all four trigger branches over real NOTIFY with a separate writer connection. doc-13 updated: **Phase 2 SHIPPED, Phase 3 PARTIAL** (concurrency + pg.Pool still open).
+
+**#2242 — board-commit-branch-gate bypass reachable.** CI green through round 3, final cycle in flight. The documented `TZUROT_ALLOW_BOARD_ON_FEATURE=1` escape hatch never worked (PreToolUse runs before the command, so the prefix cannot reach the hook's env). Now read from the quote-stripped command view, anchored through to the `git … commit` token, and requiring EVERY commit in the call to carry it.
+
+**Merge sequence still owed on both**: worktree/checkout checks → `--rebase --delete-branch` → verify each remote ref is actually gone (`ls-remote --exit-code`, read the status not its truthiness).
+
+**Filed today**: TASK-791 (vision fallbacks, high) · TASK-792 (`tests/` has no typecheck script, so `pnpm typecheck` skips the package entirely) · TASK-793 (`tests/` imports into service `src/` are invisible to depcruise) · TASK-746 gained a recorded design decision (unify commit-detection via the python block the hook already spawns, NOT by re-adding a grep evaluator the agreement test deliberately retired).
+
+**Local env note, pre-existing and NOT repo state**: five package-local `.bin/vitest` shims (clients, cache-invalidation, identity, config-resolver, conversation-history) are dated Aug 19 and point at vitest 4.1.10, which is no longer in the store — so `pnpm test` fails on those packages plus ai-worker for environment reasons. All six verified green standalone. `pnpm install --force` did not regenerate them; removing the five shim files and reinstalling should. **Owner permission needed** (deletion protocol).
+
+**Misses this session, all machinery-caught:** (1) claimed a verified failure path in the #2241 PR body from grep-filtered output that hid a real `TypeError` — the lossy-filter trap, inside a verification claim; (2) added a uniqueness assertion that could not fail (Postgres collapses duplicate identical (channel,payload) NOTIFYs in a transaction — probed) and only the canary caught it; (3) **twice** introduced a new hole while fixing a review finding on #2242 — a message-injection bypass, then an inert-trailing-token bypass that defeated the gate on an ordinary shell shape. That third one is another two data points for the board's open rule-shaped gap: every countermeasure fires at authoring time, none at correction time.
 
 ## 📋 Open items (near-term)
 
