@@ -101,7 +101,7 @@ async function deliverSlot(
     if (hasUsableContent(slot)) {
       // Owner-channel visibility for the quota-fallback rescue, mirroring
       // MessageHandler's success-path check.
-      reportQuotaFallbackRescue(slot.result?.metadata?.quotaFallback, slot.result?.requestId);
+      reportQuotaFallbackRescue(slot.result, slot.personality.name);
       await deps.slotDelivery.deliverSuccess(
         slot.result as LLMGenerationResult & { success: true },
         slotContext
@@ -165,7 +165,7 @@ async function deliverSlot(
     // erroring at a user via `&tag` never reaches the error channel (the
     // beta.207 smoke test caught exactly this). Skip-listed expected
     // categories are filtered inside reportJobError itself.
-    reportJobError(synthetic.errorInfo?.category, synthetic.requestId);
+    reportJobError(synthetic, slot.personality.name);
     await deps.slotDelivery.deliverError(buildErrorContent(synthetic), synthetic, slotContext);
     await deps.persistence.markSlotDelivered(slot.jobId);
   } catch (err) {
@@ -332,7 +332,7 @@ export async function deliverErroredOutcomes(
       // Submit-time failures are system errors too (the job never reached the
       // queue). Denied slots never enter erroredOutcomes, so expected
       // user-level outcomes stay out of the owner channel.
-      reportJobError(outcome.spec.errorInfo?.category, outcome.spec.requestId);
+      reportJobError(outcome.spec, outcome.personality.name);
       await deps.slotDelivery.deliverErrorNoPersist(
         buildErrorContent(outcome.spec),
         outcome.spec,

@@ -292,7 +292,7 @@ export class MessageHandler {
       return true;
     }
 
-    reportQuotaFallbackRescue(result.metadata?.quotaFallback, result.requestId);
+    reportQuotaFallbackRescue(result, personality.name);
 
     try {
       await this.responseSender.sendResponse({
@@ -313,7 +313,7 @@ export class MessageHandler {
       logger.error({ err, jobId }, 'Late recovery: follow-up send failed');
       // Send failure on an already-successful late result — the same
       // always-pageable class as the two delivery catches below.
-      reportDeliveryFailure(err, result.requestId);
+      reportDeliveryFailure(err, result, personality.name);
     }
     // finalize() runs even when the send threw. confirmDelivery is an idempotent
     // job_results status flip (PENDING_DELIVERY → DELIVERED), and nothing sweeps
@@ -343,7 +343,7 @@ export class MessageHandler {
         { jobId, error: result.error, errorInfo: result.errorInfo },
         'Job failed with error from ai-worker'
       );
-      reportJobError(result.errorInfo?.category, result.requestId);
+      reportJobError(result, jobContext.personality.name);
       await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
       return;
     }
@@ -366,12 +366,12 @@ export class MessageHandler {
       // A "successful" result that cannot be delivered is a bug, not an
       // expected outcome — same owner-visibility class as the success:false
       // branch above (category resolves to 'unknown' here, never deny-listed).
-      reportJobError(result.errorInfo?.category, result.requestId);
+      reportJobError(result, jobContext.personality.name);
       await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
       return;
     }
 
-    reportQuotaFallbackRescue(result.metadata?.quotaFallback, result.requestId);
+    reportQuotaFallbackRescue(result, jobContext.personality.name);
 
     try {
       const { chunkMessageIds } = await this.slotDelivery.deliverSuccess(
@@ -384,7 +384,7 @@ export class MessageHandler {
       );
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling job result');
-      reportDeliveryFailure(error, result.requestId);
+      reportDeliveryFailure(error, result, jobContext.personality.name);
       await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
     }
   }
@@ -411,7 +411,7 @@ export class MessageHandler {
         { jobId, error: result.error, errorInfo: result.errorInfo },
         'Slash job failed; surfacing error to channel'
       );
-      reportJobError(result.errorInfo?.category, result.requestId);
+      reportJobError(result, jobContext.personality.name);
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
     }
@@ -425,12 +425,12 @@ export class MessageHandler {
         'Slash job result missing or invalid content field'
       );
       // Same undeliverable-"success" class as the message path above.
-      reportJobError(result.errorInfo?.category, result.requestId);
+      reportJobError(result, jobContext.personality.name);
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
     }
 
-    reportQuotaFallbackRescue(result.metadata?.quotaFallback, result.requestId);
+    reportQuotaFallbackRescue(result, jobContext.personality.name);
 
     const {
       channel,
@@ -497,7 +497,7 @@ export class MessageHandler {
       );
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling slash job result');
-      reportDeliveryFailure(error, result.requestId);
+      reportDeliveryFailure(error, result, jobContext.personality.name);
       await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
     }
   }

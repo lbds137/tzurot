@@ -10,6 +10,7 @@ import {
   BOT_FOOTER_TEXT,
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
+  stripMarkdownDelimiters,
   DISCORD_PROVIDER_CHOICES,
 } from './discord.js';
 import { AIProvider } from './ai.js';
@@ -142,6 +143,34 @@ describe('Bot Footer Text Constants', () => {
       const legacyFooter = '-# 🔒 Focus Mode • LTM retrieval disabled';
       BOT_FOOTER_PATTERNS.LEGACY_FOCUS_MODE.lastIndex = 0;
       expect(BOT_FOOTER_PATTERNS.LEGACY_FOCUS_MODE.test(legacyFooter)).toBe(true);
+    });
+  });
+
+  describe('stripMarkdownDelimiters', () => {
+    it('removes the characters that build a masked link or an angle-bracket URL', () => {
+      expect(stripMarkdownDelimiters('[Free Nitro](http://evil.example)')).toBe(
+        'Free Nitrohttp://evil.example'
+      );
+      expect(stripMarkdownDelimiters('<@everyone>')).toBe('@everyone');
+    });
+
+    it('leaves an ordinary model id untouched', () => {
+      expect(stripMarkdownDelimiters('anthropic/claude-sonnet-4')).toBe(
+        'anthropic/claude-sonnet-4'
+      );
+      expect(stripMarkdownDelimiters('z-ai/glm-5.3-flash:free')).toBe('z-ai/glm-5.3-flash:free');
+    });
+
+    it('CAN return an empty string from a non-empty input — callers must handle it', () => {
+      // The schema behind these values (LlmConfigCreateSchema.model) is
+      // `.min(1).max(200)` with no character restriction, so an all-delimiter
+      // id passes validation and strips away to nothing. Any caller rendering
+      // the result into a Discord embed field must skip the field rather than
+      // emit an empty value, which throws at build time and takes the whole
+      // embed with it.
+      expect(stripMarkdownDelimiters('()')).toBe('');
+      expect(stripMarkdownDelimiters('[]')).toBe('');
+      expect(stripMarkdownDelimiters('<>')).toBe('');
     });
   });
 

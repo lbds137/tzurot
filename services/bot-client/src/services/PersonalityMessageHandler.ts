@@ -86,7 +86,9 @@ export class PersonalityMessageHandler {
       logger.error({ err: error }, 'Error handling personality message');
       // A submit-time throw is our failure (the job never reached the queue) —
       // same always-pageable class as MessageHandler's delivery catches.
-      reportDeliveryFailure(error, message.id);
+      // No job result exists — the submission threw before the job reached the
+      // queue — so the message id stands in as the correlation id.
+      reportDeliveryFailure(error, { requestId: message.id }, personality.name);
 
       // Deliver the error IN CHARACTER: the persona's own `errorMessage` (else
       // a generic fallback) via its webhook, never the raw `error.message`
