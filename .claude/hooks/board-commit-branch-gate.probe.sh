@@ -51,6 +51,31 @@ run() {
   fi
 }
 
+# assert_cmd <expected-exit> <command> <label> — the canonical BLOCKING fixture
+# (feature branch, board-only staged set) with a custom command string. Every
+# bypass-detection case shares that fixture on purpose: an existing case already
+# proves it exits 2, so each gate downstream of the bypass check is held
+# constant and the command text is the only variable.
+assert_cmd() {
+  local expected="$1" cmd="$2" label="$3" dir actual
+  dir=$(make_repo feat/x)
+  mkdir -p "$dir/tracker/tasks"
+  echo t > "$dir/tracker/tasks/task-1 - probe.md"
+  git -C "$dir" add tracker/
+  (
+    cd "$dir" || exit 99
+    jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+      | "$HOOK" >/dev/null 2>&1
+  )
+  actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
 # --- blocking shape: board-only staged set on a feature branch -------------
 DIR=$(make_repo feat/x)
 mkdir -p "$DIR/tracker/tasks"
@@ -97,6 +122,115 @@ mkdir -p "$DIR/tracker/tasks"
 echo t > "$DIR/tracker/tasks/task-1 - probe.md"
 git -C "$DIR" add tracker/
 run 0 "bypass env var passes" "$DIR" bypass
+
+# --- bypass detection ------------------------------------------------------
+# All of these share one fixture via assert_cmd (the canonical blocking shape),
+# so the command text is the only variable and each case is decided by the
+# bypass check rather than by some gate downstream of it.
+
+# THE DOCUMENTED FORM: an env-assignment prefix on the very command the hook
+# inspects. A PreToolUse hook runs before that command, so the prefix never
+# reaches the hook's own environment and has to be read out of the command text.
+assert_cmd 0 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m msg' \
+  'documented env-prefix bypass on the command line passes'
+
+# Prefix position is still honoured after a separator and behind another
+# assignment — both are real shell assignment syntax.
+assert_cmd 0 'cd . && FOO=1 TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m msg' \
+  'bypass after a separator and another assignment passes'
+
+# MESSAGE PLACEMENTS. The token mid-message sits PRECEDED BY A SPACE on purpose:
+# an anchor that accepted any whitespace boundary would match that spelling in
+# the raw command, so only quote-stripping can reject it — flush against the
+# opening quote the anchor alone would decide it and the raw-vs-FLAGS_VIEW
+# choice would go untested. The unquoted single-token form is the one message
+# shape strip_quoted cannot help with, since there is no quoted span to collapse.
+assert_cmd 2 'git commit -m "wip: TZUROT_ALLOW_BOARD_ON_FEATURE=1 handling on the gate"' \
+  'bypass token inside a commit message does not open a hole'
+assert_cmd 2 'git commit -m TZUROT_ALLOW_BOARD_ON_FEATURE=1' \
+  'unquoted single-token message is not a bypass'
+
+# A bare mention with no `=` is not an assignment: one character away from the
+# passing case above.
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE git commit -m msg' \
+  'bare token mention with no = is not a bypass'
+
+# DISCONNECTED PLACEMENTS. The token IS at a segment start in each, so a
+# prefix-position-only anchor accepts it — but in shell semantics it governs
+# nothing: the commit already ran, and a trailing `VAR=val` with no command
+# after it is inert. Appending one to a board-only commit is an ordinary idiom,
+# squarely inside the hook's stated threat model. The last of these also covers
+# grep anchoring `^` per LINE, which makes a lone token opening line 2 look like
+# a segment start too.
+for disconnected in \
+  'git add tracker/ && git commit -m msg; TZUROT_ALLOW_BOARD_ON_FEATURE=1' \
+  'git commit -m msg && TZUROT_ALLOW_BOARD_ON_FEATURE=1' \
+  'TZUROT_ALLOW_BOARD_ON_FEATURE=1 echo unrelated && git commit -m msg' \
+  "$(printf 'git commit -m msg\nTZUROT_ALLOW_BOARD_ON_FEATURE=1')"; do
+  assert_cmd 2 "$disconnected" "disconnected bypass token does not authorize: ${disconnected%%$'\n'*}"
+done
+
+# OVER-AUTHORIZATION. A match anywhere would exit the hook for the WHOLE tool
+# call, so one prefixed commit would waive the check for a bypass-free commit
+# beside it — the only shape that would fail toward GRANTING rather than
+# blocking. Both orderings, since the bypassed commit may come first or second.
+assert_cmd 2 'git commit -m unrelated && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m doc' \
+  'a bypass on one commit does not waive a bypass-free commit after it'
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m doc && git commit -m unrelated' \
+  'a bypass on one commit does not waive a bypass-free commit before it'
+
+# ...but a compound where EVERY commit carries the prefix is a legitimate bypass.
+assert_cmd 0 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m a && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m b' \
+  'a compound where every commit carries the prefix passes'
+
+# Three commits with the un-bypassed one in the MIDDLE. The count comparison
+# should generalize past N=2 by construction, but this logic has now carried two
+# separate bypass bugs, so the generalization gets pinned rather than inferred.
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m a && git commit -m b && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m c' \
+  'a bypass-free commit in the middle of a three-commit chain still blocks'
+assert_cmd 0 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m a && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m b && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m c' \
+  'three commits all carrying the prefix pass'
+
+# SEPARATOR-TERMINATED ASSIGNMENTS. `;`, `&` and `|` end a word with or without
+# surrounding space, so each of these is an unexported assignment followed by a
+# SEPARATE commit that never sees the variable. A value class excluding only
+# whitespace would swallow the separator and read the whole thing as one
+# prefixed invocation — a false GRANT, which is the direction this check must
+# never fail in.
+for sep in ';' '&' '|'; do
+  assert_cmd 2 "TZUROT_ALLOW_BOARD_ON_FEATURE=1${sep} git commit -m msg" \
+    "an assignment terminated by ${sep} does not carry into the commit"
+done
+
+# QUOTE-STRIPPING FAILURE must not disarm the gate. strip_quoted returns None on
+# an unterminated quote, and printing that emitted the literal "None" as
+# FLAGS_VIEW — matching no commit, so the pre-filter exited and the whole hook
+# went inert. Both shapes below land on that path: a bare unterminated quote,
+# and ANSI-C quoting whose escaped \' the scanner reads as a terminator.
+assert_cmd 2 'git commit -m "oops' \
+  'an unterminated quote does not disarm the gate'
+assert_cmd 2 "git commit -m \$'foo\\'s a word'" \
+  'ANSI-C quoting with an escaped quote does not disarm the gate'
+
+# ...and when the scan fails, the bypass must fail CLOSED. The fallback hands
+# the RAW command to detection, which is right for detection but would let a
+# commit MESSAGE spoof the bypass token — the one guarantee the whole
+# FLAGS_VIEW design rests on. Detection arms on raw text; the bypass does not
+# run at all. Both halves fail toward the harmless outcome for what they govern.
+# NOT probed, deliberately: spoofing the bypass from inside a message during a
+# scan failure. It has no failing fixture. The spoof needs the token in prefix
+# position in the RAW text, which requires a separator inside the message, and
+# the message itself must then contain a `git ... commit` for the pattern to
+# reach — giving two commit invocations against one bypassed, so the
+# all-commits-carry-it count blocks it before the scan-status guard is consulted.
+# The guard in the hook is belt-and-braces for the day that count rule changes;
+# a probe asserting it here would pass with the guard removed and measure nothing.
+
+# An EMPTY value is not a bypass, matching the process-env path, which requires
+# a non-empty value. The two paths are documented as equivalent; without the
+# non-empty requirement in the pattern they would disagree on this one spelling.
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE= git commit -m msg' \
+  'an empty assignment value is not a bypass'
 
 # -a auto-stage: board-only MODIFIED tracked file, nothing staged, -a as the
 # LAST token (the trailing-token shape) must still block
