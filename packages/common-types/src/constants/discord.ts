@@ -4,7 +4,7 @@
  * Discord API limits, colors, and text truncation limits.
  */
 
-import { isChatCapableProvider } from './ai.js';
+import { isChatCapableProvider, ZAI_MODEL_PREFIX } from './ai.js';
 import type { QuotaFallbackCategoryValue } from './error.js';
 
 /**
@@ -359,6 +359,12 @@ export interface ModelFooterOptions {
    * silent (an unexplained voice shift reads as a bug, and "why did I get
    * the free model" must be answerable from the reply itself). `modelUsed`
    * already IS the target model; this names where the request started.
+   *
+   * When `fromModel` and `modelUsed` name the SAME model (see
+   * {@link namesSameModel} — the `z-ai/`-prefixed and bare spellings of the
+   * piggyback are one model on two routes), the chain collapses to
+   * "Model: [<to>](<url>) (<reason>)": the reason still explains the
+   * substitution, but nothing pretends the model changed.
    */
   quotaFallback?: {
     fromModel: string;
@@ -383,6 +389,31 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
   content_policy: 'model refused',
   guest_mode: 'guest mode',
 };
+
+/**
+ * Do these two ids name the same model, allowing for the routing-prefix
+ * duality? The piggyback model is `z-ai/glm-5.3-flash` when routed through
+ * OpenRouter and bare `glm-5.3-flash` when served z.ai-direct, so a
+ * substitution between the two forms changes the ROUTE, not the model — and
+ * the route is already named by the ` • via <label>` attribution. Rendering
+ * `Model: z-ai/glm-5.3-flash → glm-5.3-flash` for it reads as a model swap
+ * that did not happen.
+ *
+ * Deliberately narrow: only the `z-ai/` prefix is stripped, because that is
+ * the one prefix this codebase writes and drops for the SAME model as it
+ * changes route (`ProviderRouter` bares the id for the z.ai-direct call).
+ * A general "strip any `<vendor>/`" rule would collapse genuinely different
+ * models whose ids happen to share a tail — `expensive/primary` → `primary`
+ * is a real swap, and the arrow has to survive it.
+ */
+function namesSameModel(a: string, b: string): boolean {
+  return bareZaiId(a) === bareZaiId(b);
+}
+
+function bareZaiId(modelId: string): string {
+  const lower = modelId.toLowerCase();
+  return lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+}
 
 /**
  * Build a model footer line for Discord messages.
@@ -411,7 +442,13 @@ export function buildModelFooterText(
   let text: string;
   if (quotaFallback !== undefined) {
     const sanitizedFrom = quotaFallback.fromModel.replace(/[[\]()<>]/g, '');
-    text = `Model: ${sanitizedFrom} → ${modelLink} (${QUOTA_FALLBACK_REASON[quotaFallback.category]})`;
+    const reason = QUOTA_FALLBACK_REASON[quotaFallback.category];
+    // A route-only swap keeps the reason — "(guest mode)" still explains why
+    // this model is serving — and drops the chain, which would otherwise name
+    // the same model twice with an arrow between the two spellings.
+    text = namesSameModel(quotaFallback.fromModel, modelUsed)
+      ? `Model: ${modelLink} (${reason})`
+      : `Model: ${sanitizedFrom} → ${modelLink} (${reason})`;
   } else {
     text = `Model: ${modelLink}`;
   }
