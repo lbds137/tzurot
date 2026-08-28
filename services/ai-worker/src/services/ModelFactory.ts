@@ -10,7 +10,12 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { AIProvider, AI_DEFAULTS, AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  AI_DEFAULTS,
+  AI_ENDPOINTS,
+  ZAI_MODEL_PREFIX,
+} from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
@@ -505,10 +510,22 @@ function buildZaiCodingModel(
     throw new Error('z.ai coding plan API key is required for this preset (no system fallback)');
   }
 
+  // z.ai's chat-completion API accepts only BARE model ids, while the
+  // OpenRouter-form `z-ai/`-prefixed slug is what stamped configs and
+  // OpenRouter-shaped ids carry — sending one prefixed 400s with
+  // `{"code":"1214","message":"modelCode: does not exist"}`. Normalizing here,
+  // at the client boundary, covers every ZaiCoding caller rather than one
+  // route at a time. Detection is case-insensitive; the slice comes off the
+  // ORIGINAL so a mixed-case id keeps its casing. Pinned by ModelFactory.test.ts
+  // "strips the OpenRouter z-ai/ prefix before constructing the z.ai client".
+  const bareModelName = modelName.toLowerCase().startsWith(ZAI_MODEL_PREFIX)
+    ? modelName.slice(ZAI_MODEL_PREFIX.length)
+    : modelName;
+
   logger.debug(
     {
       provider: AIProvider.ZaiCoding,
-      modelName,
+      modelName: bareModelName,
       temperature: shared.temperature,
       topP: shared.topP,
       maxTokens: shared.maxTokens,
@@ -522,7 +539,7 @@ function buildZaiCodingModel(
 
   return {
     model: new ChatOpenAI({
-      modelName,
+      modelName: bareModelName,
       apiKey,
       temperature: shared.temperature,
       topP: shared.topP,

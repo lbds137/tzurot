@@ -1098,6 +1098,50 @@ describe('ModelFactory', () => {
       expect(() => createChatModel(config)).toThrow(/z\.ai coding plan API key is required/);
     });
 
+    it('strips the OpenRouter z-ai/ prefix before constructing the z.ai client', () => {
+      // z.ai-direct takes bare model ids; a `z-ai/`-prefixed slug (the form a
+      // stamped config or an OpenRouter-shaped id carries) 400s upstream with
+      // code 1214 "modelCode: does not exist".
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-5.3-flash',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.modelName).toBe('glm-5.3-flash');
+    });
+
+    it('strips a mixed-case prefix and preserves the casing of the id tail', () => {
+      // Pins the "slice comes off the ORIGINAL" claim in buildZaiCodingModel's
+      // comment: detection is case-insensitive, the surviving tail is not.
+      const config: ModelConfig = {
+        modelName: 'Z-AI/GLM-5.3-Flash',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.modelName).toBe('GLM-5.3-Flash');
+    });
+
+    it('passes a bare z.ai model id through unchanged', () => {
+      const config: ModelConfig = {
+        modelName: 'glm-5.3-flash',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.modelName).toBe('glm-5.3-flash');
+    });
+
     it('should not include OpenRouter app-attribution headers on z.ai routes', () => {
       mockConfigData.OPENROUTER_APP_TITLE = 'TzurotBot';
       mockConfigData.OPENROUTER_APP_URL = 'https://tzurot.example.com';
