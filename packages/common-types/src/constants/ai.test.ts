@@ -13,6 +13,7 @@ import {
   GUEST_MODE,
   buildModelInfoUrl,
   isZaiCodingPlanModel,
+  stripZaiPrefix,
   getZaiCodingPlanContextLength,
   zaiCodingPlanModelCapabilities,
   zaiThinkingOffSupport,
@@ -320,6 +321,23 @@ describe('hasActiveChatCapableKey', () => {
 
   it('is false for an empty wallet', () => {
     expect(hasActiveChatCapableKey([])).toBe(false);
+  });
+});
+
+describe('stripZaiPrefix', () => {
+  it('lowercases and strips a leading z-ai/ prefix, leaving bare ids alone', () => {
+    expect(stripZaiPrefix('z-ai/glm-5.3-flash')).toBe('glm-5.3-flash');
+    expect(stripZaiPrefix('Z-AI/GLM-5.3-Flash')).toBe('glm-5.3-flash');
+    expect(stripZaiPrefix('glm-5.3-flash')).toBe('glm-5.3-flash');
+    expect(stripZaiPrefix('GLM-5.3-Flash')).toBe('glm-5.3-flash');
+  });
+
+  it('strips only from the front, and only this vendor', () => {
+    // The catalog accessors and the footer's same-model check both rely on
+    // this: a different vendor's id must survive intact, or an unrelated
+    // model would be looked up (or rendered) as a z.ai one.
+    expect(stripZaiPrefix('openai/gpt-4')).toBe('openai/gpt-4');
+    expect(stripZaiPrefix('vendor/z-ai/glm-5')).toBe('vendor/z-ai/glm-5');
   });
 });
 
