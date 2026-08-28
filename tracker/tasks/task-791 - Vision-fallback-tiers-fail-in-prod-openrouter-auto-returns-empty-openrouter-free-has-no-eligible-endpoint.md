@@ -22,11 +22,25 @@ Why: prod ai-worker logs for the beta.209 deployment (2026-08-28 04:18Z-13:30Z w
 
 Owner call 2026-08-28: the FALLBACK tiers are the defect, not the flash primary. openrouter/auto is meant to serve paid users and openrouter/free the guests; Qwen was also censoring images, so flash is not a regression and swapping it back would not touch the exhausted chains.
 
-Two account-side leads, both unverified as causes:
-1. The single quota_exceeded is a 402 whose text reads: requested up to 65536 tokens, but can only afford 5677. That is the OpenRouter key at or near its monthly limit. HYPOTHESIS, not runtime-confirmed: a key at its ceiling may also be what produces the 20 empty_response results from openrouter/auto.
-2. The openrouter/free 404 reads: No endpoints available matching your guardrail restrictions and data policy, and points at the OpenRouter account privacy settings. If the data policy excludes the providers hosting free models, the free floor has no eligible endpoint at all.
+### 2026-08-28 investigation — lead 1 was mis-stated; the 402 is OUR bug, not the account's
 
-Fix shape: first confirm or clear the two account-side leads, since neither is a code change. Then instrument whatever remains: VisionProcessor logs the requested modelName and the failure category but NOT which concrete model openrouter/auto actually routed to, so we cannot currently distinguish auto picking a non-vision model from auto being refused from auto returning a genuinely empty completion.
+Both original leads were filed as account-side. Lead 1 is now diagnosed and it is a CODE defect. Corrected here rather than annotated, because the original sentence read as "the owner needs to top up" and that is false.
 
-Acceptance: a fresh image in prod is described without exhausting the chain; the exhaustion rate (21 per 9 hours at filing) drops to near zero; if the cause turns out to be account-side, that finding is recorded so the next occurrence is diagnosable rather than re-investigated.
+Evidence: 5-deployment, 25005-line prod ai-worker sweep (deployments 3fdbfcfb, fa716f8f, 2fa68c16, a311533f, 93fcb786), grepped locally. Positive control 1193 requestId lines. Exactly 9 real HTTP-402 lines, all one event at 2026-08-28T07:24:34Z, all modelName="openrouter/auto":
+- requested up to 65536 tokens, can only afford 5677
+- requested up to 64000 tokens, can only afford 28389
+
+TWO different request sizes in ONE event is the tell — no config value of ours varies per-retry, but two routed models' output caps do. Confirmed by trace: the vision path sends NO max_tokens. maxTokens is optional in VisionTierParams (packages/common-types/src/types/schemas/personality.ts:37), defaults to undefined, and getEffectiveMaxTokens (services/ai-worker/src/services/ModelFactory.ts:333-359) applies no clamp — it only scales for reasoning models WITH a thinking param, and vision passes neither. So the value reaches OpenRouter unset and it reserves the routed model's full output capacity up front. INFERRED from the two differing numbers plus the code, NOT probed against the OpenRouter API.
+
+Consequence: we request a ~64k-token budget to caption one image. The key's monthly-limit headroom is a few thousand, so the reservation is refused. The account is NOT out of credit — the affordable figure was nonzero and different each retry.
+
+Ruled out, same sweep: zero credit-exhaustion cache writes (that cache is marked only on ACCOUNT-level 402s, so parseApiError itself classified these as request-level), and every cacheKeyId in 25005 lines is `system` — no `user:<snowflake>` bucket appears, so no BYOK user's key was involved. Attribution mechanism for any future occurrence: the Redis key is `nocredits:openrouter:system` vs `nocredits:openrouter:user:<discordId>` — but its TTL is 10 minutes (CreditExhaustionCache.ts:47), so a live read answers only "right now"; the logs are the historical instrument.
+
+Fix shape (owner-approved 2026-08-28): give the vision path a real maxTokens default of 2000. An image description runs a few hundred tokens; 2000 is generous and makes the reservation trivially affordable. No account change required. Raising the key's monthly limit would mask this without fixing the absurd reservation.
+
+2. STILL OPEN, and NOT a defect: the openrouter/free 404 reads "No endpoints available matching your guardrail restrictions and data policy". Owner call 2026-08-28: the OpenRouter privacy settings are deliberate Discord-ToS compliance — Discord's developer terms prohibit training on user data, which the owner reads as barring the bot from routing user content to providers that train. That is a defensible reading and the setting stays. The consequence is real (free-tier vision has no eligible endpoint) but it is a constraint to design around, not a bug to fix. Open sub-question: z.ai's own training policy is unknown, and the piggyback path sends guest traffic to z.ai DIRECTLY, outside OpenRouter's controls — so OpenRouter's data policy does not govern it in either direction.
+
+Still uninstrumented after this fix: VisionProcessor logs the requested modelName but NOT which concrete model openrouter/auto routed to, so an empty_response from auto still cannot be distinguished from auto picking a non-vision model. That gap explains the 20 empty_response results, which this fix does NOT address.
+
+Acceptance: a fresh image in prod is described without exhausting the chain; the exhaustion rate (21 per 9 hours at filing) drops to near zero. The 402 half is closed by the maxTokens cap; the empty_response half needs the routed-model instrumentation above.
 <!-- SECTION:DESCRIPTION:END -->
