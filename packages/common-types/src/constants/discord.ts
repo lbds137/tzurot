@@ -411,6 +411,27 @@ function namesSameModel(a: string, b: string): boolean {
 }
 
 /**
+ * Strip the delimiters that build a markdown link or an angle-bracket URL.
+ *
+ * Model and provider ids look catalog-derived but are NOT: both are free-text
+ * modal inputs on the `/preset` dashboard (`model` maxLength 255, `provider`
+ * 50), validated for length only. So any surface that renders one into
+ * Discord-parsed text must strip these first, or a user-chosen id like
+ * `[Free Nitro](http://evil.example)` renders as a live masked link.
+ *
+ * CAN return '' from a non-empty input (`'()'` strips to nothing), and an
+ * empty Discord embed field value throws at build time — so a caller
+ * rendering this into a field must skip the field rather than emit the empty
+ * result. Pinned by a case in `discord.test.ts`.
+ *
+ * Exported because the same values reach more than one rendered surface — the
+ * response footer here, and bot-client's owner-channel alert embeds.
+ */
+export function stripMarkdownDelimiters(value: string): string {
+  return value.replace(/[[\]()<>]/g, '');
+}
+
+/**
  * Build a model footer line for Discord messages.
  *
  * @param modelUsed - Model name to display
@@ -424,9 +445,7 @@ export function buildModelFooterText(
   options: ModelFooterOptions = {}
 ): string {
   const { provider, fallbackProviderAttempted, withAutoBadge = false, quotaFallback } = options;
-  // Defensive: sanitize model name to prevent markdown injection
-  // (brackets and angle brackets could break link syntax)
-  const sanitizedModel = modelUsed.replace(/[[\]()<>]/g, '');
+  const sanitizedModel = stripMarkdownDelimiters(modelUsed);
   // The link rides the RESOLVED model wherever it ends up, so that model is
   // named exactly once. On a swap it is the arrow's target — the chain reads
   // `<from> → <to> (<reason>)` and the old leading mention is gone; the swap
@@ -436,7 +455,7 @@ export function buildModelFooterText(
   const modelLink = `[${sanitizedModel}](<${modelUrl}>)`;
   let text: string;
   if (quotaFallback !== undefined) {
-    const sanitizedFrom = quotaFallback.fromModel.replace(/[[\]()<>]/g, '');
+    const sanitizedFrom = stripMarkdownDelimiters(quotaFallback.fromModel);
     const reason = QUOTA_FALLBACK_REASON[quotaFallback.category];
     // A route-only swap keeps the reason — "(guest mode)" still explains why
     // this model is serving — and drops the chain, which would otherwise name

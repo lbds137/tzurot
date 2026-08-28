@@ -38,23 +38,21 @@ const mockReportDeliveryFailure = vi.fn();
 vi.mock('../observability/ErrorChannelReporter.js', () => ({
   reportJobError: (...args: unknown[]) => mockReportJobError(...args),
   reportDeliveryFailure: (...args: unknown[]) => mockReportDeliveryFailure(...args),
-  // Mirrors the real implementation's no-op-when-absent + delegate-to-
-  // reportJobError(category, requestId, { rescued: true }) shape, so existing
+  // Mirrors the real implementation's no-op-when-absent shape, so existing
   // mockReportJobError assertions keep working unchanged for the
   // success-path quota-fallback seam.
   // KEPT IN SYNC BY HAND with reportQuotaFallbackRescue in
   // ErrorChannelReporter.ts — a behavior change there (deny-list routing,
-  // no-op condition, the rescued opts flag) is NOT caught by this file's
-  // wiring tests, only by ErrorChannelReporter.test.ts's direct tests.
-  // Exercising the real chain here would need the reporter's module-level
-  // client + dedup caches reset per test, which is more fragile than this
-  // hand-mirror.
+  // rescue-category resolution) is NOT caught by this file's wiring tests,
+  // only by ErrorChannelReporter.test.ts's direct tests. Exercising the real
+  // chain here would need the reporter's module-level client + dedup caches
+  // reset per test, which is more fragile than this hand-mirror.
   reportQuotaFallbackRescue: (
-    quotaFallback: { category: string } | undefined,
-    requestId: string | undefined
+    result: { metadata?: { quotaFallback?: unknown } } | undefined,
+    personalityName: string | undefined
   ) => {
-    if (quotaFallback !== undefined) {
-      mockReportJobError(quotaFallback.category, requestId, { rescued: true });
+    if (result?.metadata?.quotaFallback !== undefined) {
+      mockReportJobError(result, personalityName);
     }
   },
 }));
@@ -568,6 +566,7 @@ describe('MessageHandler', () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
       mockPersonalityService.loadPersonality.mockResolvedValue({
         id: 'p-lila',
+        name: 'lila',
         slug: 'lila',
         displayName: 'Lila',
       });
@@ -621,6 +620,7 @@ describe('MessageHandler', () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
       mockPersonalityService.loadPersonality.mockResolvedValue({
         id: 'p-lila',
+        name: 'lila',
         slug: 'lila',
         displayName: 'Lila',
       });
@@ -647,6 +647,7 @@ describe('MessageHandler', () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
       mockPersonalityService.loadPersonality.mockResolvedValue({
         id: 'p-lila',
+        name: 'lila',
         slug: 'lila',
         displayName: 'Lila',
       });
@@ -669,7 +670,8 @@ describe('MessageHandler', () => {
       // the ORIGINAL error crosses the reporter seam so its stack can be hashed.
       expect(mockReportDeliveryFailure).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'rate limited' }),
-        'req-late'
+        expect.objectContaining({ requestId: 'req-late' }),
+        'lila'
       );
     });
 
@@ -681,6 +683,7 @@ describe('MessageHandler', () => {
         .mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue({
         id: 'p-lila',
+        name: 'lila',
         slug: 'lila',
         displayName: 'Lila',
       });
@@ -705,6 +708,7 @@ describe('MessageHandler', () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
       mockPersonalityService.loadPersonality.mockResolvedValue({
         id: 'p-lila',
+        name: 'lila',
         slug: 'lila',
         displayName: 'Lila',
       });
@@ -719,18 +723,22 @@ describe('MessageHandler', () => {
         ...lateResult,
         metadata: {
           ...lateResult.metadata,
-          quotaFallback: { category: 'model_not_found' },
+          quotaFallback: {
+            fromModel: 'delisted/model',
+            toModel: 'admin/default',
+            category: 'model_not_found',
+            mode: 'reactive',
+          },
         },
       } as LLMGenerationResult;
 
       await messageHandler.handleJobResult('job-late', lateResultWithRescue);
 
       // The mocked reportQuotaFallbackRescue delegates to reportJobError with
-      // the rescue's category — asserting this crosses the mocked seam rather
-      // than only checking the delivery succeeded.
-      expect(mockReportJobError).toHaveBeenCalledWith('model_not_found', 'req-late', {
-        rescued: true,
-      });
+      // the whole result — asserting this crosses the mocked seam rather than
+      // only checking the delivery succeeded. `name` is required on
+      // LoadedPersonality, so the recovered personality always supplies one.
+      expect(mockReportJobError).toHaveBeenCalledWith(lateResultWithRescue, 'lila');
     });
   });
 
@@ -923,7 +931,8 @@ describe('MessageHandler', () => {
 
       expect(mockReportDeliveryFailure).toHaveBeenCalledWith(
         expect.any(TypeError),
-        'req-delivery-fail'
+        expect.objectContaining({ requestId: 'req-delivery-fail' }),
+        'GoodBot'
       );
       // The user-facing error fallback still runs after the report.
       expect(mockSlotDelivery.deliverError).toHaveBeenCalled();
@@ -959,7 +968,7 @@ describe('MessageHandler', () => {
 
       await messageHandler.handleJobResult(jobId, result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith('rate_limit', 'req-failed-skip');
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'ErrorBot');
     });
 
     it('forwards a non-deny-listed category (server_error) to reportJobError', async () => {
@@ -992,7 +1001,7 @@ describe('MessageHandler', () => {
 
       await messageHandler.handleJobResult(jobId, result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith('server_error', 'req-failed-report');
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'ErrorBot');
     });
 
     it('reports a successful quota-fallback rescue carrying a non-deny-listed category (model_not_found)', async () => {
@@ -1031,11 +1040,7 @@ describe('MessageHandler', () => {
 
       await messageHandler.handleJobResult(jobId, result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith(
-        'model_not_found',
-        'req-success-rescue-report',
-        { rescued: true }
-      );
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'RescueBot');
     });
 
     it('forwards a deny-listed quota-fallback category (rate_limit) on the success path', async () => {
@@ -1069,9 +1074,7 @@ describe('MessageHandler', () => {
 
       await messageHandler.handleJobResult(jobId, result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith('rate_limit', 'req-success-rescue-skip', {
-        rescued: true,
-      });
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'RescueBot');
     });
 
     it('does not call reportJobError on an ordinary success with no quotaFallback metadata', async () => {
@@ -1236,9 +1239,10 @@ describe('MessageHandler', () => {
 
       // An undeliverable "success" is a bug, not an expected outcome — it must
       // reach the error channel like the success:false branch does. No
-      // errorInfo exists on this shape, so the category crosses as undefined
-      // (reportJobError resolves it to 'unknown' internally).
-      expect(mockReportJobError).toHaveBeenCalledWith(undefined, 'req-invalid-meta');
+      // errorInfo exists on this shape, so the category resolves to 'unknown'
+      // inside reportJobError itself — this seam only pins that the result
+      // and personality name cross the mock.
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'InvalidMetaBot');
 
       // Empty content → routes to deliverError; metadata still flows through
       // the result so the error response can render footer fields.
@@ -1552,14 +1556,15 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-2'] });
 
-      await messageHandler.handleJobResult('job-fail-skip', {
+      const result = {
         requestId: 'req-slash-skip',
         success: false,
         error: 'rate limited',
         errorInfo: { category: 'rate_limit', referenceId: 'ref-2' },
-      } as unknown as LLMGenerationResult);
+      } as unknown as LLMGenerationResult;
+      await messageHandler.handleJobResult('job-fail-skip', result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith('rate_limit', 'req-slash-skip');
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
     it('forwards a non-deny-listed category to reportJobError from the slash path', async () => {
@@ -1567,14 +1572,15 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-3'] });
 
-      await messageHandler.handleJobResult('job-fail-report', {
+      const result = {
         requestId: 'req-slash-report',
         success: false,
         error: 'model not found',
         errorInfo: { category: 'model_not_found', referenceId: 'ref-3' },
-      } as unknown as LLMGenerationResult);
+      } as unknown as LLMGenerationResult;
+      await messageHandler.handleJobResult('job-fail-report', result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith('model_not_found', 'req-slash-report');
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
     it('reports a successful quota-fallback rescue on the slash path (model_not_found)', async () => {
@@ -1582,7 +1588,7 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-rescue'] });
 
-      await messageHandler.handleJobResult('job-slash-rescue-report', {
+      const result = {
         requestId: 'req-slash-rescue-report',
         success: true,
         content: 'Rescued slash response',
@@ -1594,13 +1600,10 @@ describe('MessageHandler', () => {
             mode: 'reactive',
           },
         },
-      } as unknown as LLMGenerationResult);
+      } as unknown as LLMGenerationResult;
+      await messageHandler.handleJobResult('job-slash-rescue-report', result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith(
-        'model_not_found',
-        'req-slash-rescue-report',
-        { rescued: true }
-      );
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
     it('does not call reportJobError on an ordinary slash success with no quotaFallback metadata', async () => {
@@ -1622,13 +1625,14 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-4'] });
 
-      await messageHandler.handleJobResult('job-empty-slash', {
+      const result = {
         requestId: 'req-empty-slash',
         success: true,
         content: '',
-      } as unknown as LLMGenerationResult);
+      } as unknown as LLMGenerationResult;
+      await messageHandler.handleJobResult('job-empty-slash', result);
 
-      expect(mockReportJobError).toHaveBeenCalledWith(undefined, 'req-empty-slash');
+      expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
     it('falls back to channel.send when responseSender throws on the error path', async () => {

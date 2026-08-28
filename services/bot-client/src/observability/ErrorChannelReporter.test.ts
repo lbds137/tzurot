@@ -21,6 +21,7 @@ import {
   reportQuotaFallbackRescue,
 } from './ErrorChannelReporter.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { EMBED_CAPS } from '../utils/embedLimits.js';
 
 function makeReport(overrides: Partial<ErrorReport> = {}): ErrorReport {
   return {
@@ -112,7 +113,7 @@ describe('ErrorChannelReporter', () => {
       __resetErrorChannelReporterForTests();
       initErrorChannelReporter(fakeClient());
 
-      reportDeliveryFailure(new TypeError('send failed'), 'req-1');
+      reportDeliveryFailure(new TypeError('send failed'), { requestId: 'req-1' }, undefined);
 
       expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
       const embed = mockPostOwnerChannelEmbed.mock.calls[0][1] as {
@@ -121,6 +122,42 @@ describe('ErrorChannelReporter', () => {
       const json = embed.toJSON();
       expect(json.title).toContain('TypeError');
       expect(json.fields?.some(f => f.name === 'Request ID' && f.value === 'req-1')).toBe(true);
+    });
+
+    it('carries the same diagnostic fields the job-error path does', () => {
+      // A delivery failure is a genuine failure, so the Model field is
+      // metadata.modelUsed — never a fromModel → toModel swap chain, which
+      // only a rescue report renders.
+      __resetErrorChannelReporterForTests();
+      initErrorChannelReporter(fakeClient());
+
+      reportDeliveryFailure(
+        new TypeError('send failed'),
+        {
+          requestId: 'req-2',
+          metadata: {
+            modelUsed: 'anthropic/claude-sonnet-4',
+            providerUsed: 'openrouter',
+            processingTimeMs: 1234,
+            quotaFallback: {
+              fromModel: 'should-not-appear/from',
+              toModel: 'should-not-appear/to',
+              category: 'model_not_found',
+              mode: 'reactive',
+            },
+          },
+        },
+        'Lila'
+      );
+
+      const embed = mockPostOwnerChannelEmbed.mock.calls[0][1] as {
+        toJSON: () => { fields?: { name: string; value: string }[] };
+      };
+      const fields = embed.toJSON().fields ?? [];
+      expect(fields.find(f => f.name === 'Personality')?.value).toBe('Lila');
+      expect(fields.find(f => f.name === 'Model')?.value).toBe('anthropic/claude-sonnet-4');
+      expect(fields.find(f => f.name === 'Provider')?.value).toBe('openrouter');
+      expect(fields.find(f => f.name === 'Duration')?.value).toBe('1234ms');
     });
   });
 
@@ -198,25 +235,25 @@ describe('ErrorChannelReporter', () => {
   describe('job-error skip set', () => {
     it('does not report a deny-listed category', () => {
       initErrorChannelReporter(fakeClient());
-      reportJobError('rate_limit');
+      reportJobError({ errorInfo: { category: 'rate_limit' } }, undefined);
       expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
     });
 
     it('does not report the guest-mode admission-time substitution — a proactive, expected swap', () => {
       initErrorChannelReporter(fakeClient());
-      reportJobError('guest_mode');
+      reportJobError({ errorInfo: { category: 'guest_mode' } }, undefined);
       expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
     });
 
     it('reports a non-deny-listed category', () => {
       initErrorChannelReporter(fakeClient());
-      reportJobError('server_error');
+      reportJobError({ errorInfo: { category: 'server_error' } }, undefined);
       expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
     });
 
     it('reports an unrecognized category (report-by-default)', () => {
       initErrorChannelReporter(fakeClient());
-      reportJobError('some_future_category');
+      reportJobError({ errorInfo: { category: 'some_future_category' } }, undefined);
       expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
     });
 
@@ -327,6 +364,35 @@ describe('ErrorChannelReporter', () => {
   });
 
   describe('rescue vs. failure rendering', () => {
+    /** A minimal rescue-shaped result carrying just the fields the rescue
+     *  path reads: requestId and a quotaFallback with the given category. */
+    function makeRescueResult(
+      requestId: string,
+      category: string
+    ): {
+      requestId: string;
+      metadata: {
+        quotaFallback: {
+          fromModel: string;
+          toModel: string;
+          category: string;
+          mode: 'proactive' | 'reactive';
+        };
+      };
+    } {
+      return {
+        requestId,
+        metadata: {
+          quotaFallback: {
+            fromModel: 'delisted/model',
+            toModel: 'admin/default',
+            category,
+            mode: 'reactive',
+          },
+        },
+      };
+    }
+
     function lastEmbedJson(): {
       title?: string;
       color?: number;
@@ -345,7 +411,10 @@ describe('ErrorChannelReporter', () => {
 
     it('renders a rescued report with the warning title, warning color, and Outcome field', () => {
       initErrorChannelReporter(fakeClient());
-      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-rescue-render');
+      reportQuotaFallbackRescue(
+        makeRescueResult('req-rescue-render', 'model_not_found'),
+        undefined
+      );
 
       const json = lastEmbedJson();
       expect(json.title).toContain('⚠️');
@@ -358,7 +427,10 @@ describe('ErrorChannelReporter', () => {
 
     it('renders a failure report of the same category unchanged: 🚨 title, ERROR color, no Outcome field', () => {
       initErrorChannelReporter(fakeClient());
-      reportJobError('model_not_found', 'req-failure-render');
+      reportJobError(
+        { requestId: 'req-failure-render', errorInfo: { category: 'model_not_found' } },
+        undefined
+      );
 
       const json = lastEmbedJson();
       expect(json.title).toContain('🚨');
@@ -369,16 +441,19 @@ describe('ErrorChannelReporter', () => {
 
     it('dedup separation: a rescue and a failure of the SAME category both post within one window', () => {
       initErrorChannelReporter(fakeClient());
-      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-both-1');
-      reportJobError('model_not_found', 'req-both-2');
+      reportQuotaFallbackRescue(makeRescueResult('req-both-1', 'model_not_found'), undefined);
+      reportJobError(
+        { requestId: 'req-both-2', errorInfo: { category: 'model_not_found' } },
+        undefined
+      );
 
       expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(2);
     });
 
     it('two rescues of the same category still dedup as before (second is suppressed)', () => {
       initErrorChannelReporter(fakeClient());
-      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-rescue-dup-1');
-      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-rescue-dup-2');
+      reportQuotaFallbackRescue(makeRescueResult('req-rescue-dup-1', 'model_not_found'), undefined);
+      reportQuotaFallbackRescue(makeRescueResult('req-rescue-dup-2', 'model_not_found'), undefined);
 
       expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
     });
@@ -390,10 +465,327 @@ describe('ErrorChannelReporter', () => {
       // rendering tests above red. See the PR report for the actual red-tail
       // capture from temporarily reverting the branch.
       initErrorChannelReporter(fakeClient());
-      reportQuotaFallbackRescue({ category: 'model_not_found' }, 'req-canary');
+      reportQuotaFallbackRescue(makeRescueResult('req-canary', 'model_not_found'), undefined);
 
       const json = lastEmbedJson();
       expect(json.color).not.toBe(DISCORD_COLORS.ERROR);
+    });
+  });
+
+  describe('diagnostic fields (Personality / Model / Provider / Duration)', () => {
+    function lastFields(): { name: string; value: string }[] {
+      const call = mockPostOwnerChannelEmbed.mock.calls.at(-1) as [
+        unknown,
+        { toJSON: () => { fields?: { name: string; value: string }[] } },
+      ];
+      return call[1].toJSON().fields ?? [];
+    }
+
+    it('renders Personality/Model/Provider/Duration on a job-error report when present', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        {
+          requestId: 'req-diag-1',
+          errorInfo: { category: 'server_error' },
+          metadata: {
+            modelUsed: 'anthropic/claude-sonnet-4',
+            providerUsed: 'openrouter',
+            processingTimeMs: 4200,
+          },
+        },
+        'Lila'
+      );
+
+      const fields = lastFields();
+      expect(fields.find(f => f.name === 'Personality')?.value).toBe('Lila');
+      expect(fields.find(f => f.name === 'Model')?.value).toBe('anthropic/claude-sonnet-4');
+      expect(fields.find(f => f.name === 'Provider')?.value).toBe('openrouter');
+      expect(fields.find(f => f.name === 'Duration')?.value).toBe('4200ms');
+    });
+
+    it('caps a wire-sourced field value at the embed limit so an over-long one cannot drop the report', () => {
+      // discord.js validates at BUILD time, so an over-cap field throws rather
+      // than truncating — and that throw lands in reportError's own catch,
+      // silently dropping the report. Losing a report is the worst failure this
+      // module has, since it is how a failure becomes visible at all.
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        {
+          requestId: 'req-diag-long',
+          errorInfo: { category: 'server_error' },
+          metadata: { modelUsed: 'm'.repeat(5000), providerUsed: 'p'.repeat(5000) },
+        },
+        undefined
+      );
+
+      const fields = lastFields();
+      const model = fields.find(f => f.name === 'Model')?.value;
+      const provider = fields.find(f => f.name === 'Provider')?.value;
+      expect(model).toHaveLength(EMBED_CAPS.fieldValue);
+      expect(provider).toHaveLength(EMBED_CAPS.fieldValue);
+      // The ellipsis pins that the SHARED clamp ran, not an ad-hoc slice.
+      expect(model?.endsWith('…')).toBe(true);
+    });
+
+    it('escapes markdown in the persona name — the one user-authored value on the card', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        { requestId: 'req-md', errorInfo: { category: 'server_error' } },
+        '**bold** `code`'
+      );
+
+      expect(lastFields().find(f => f.name === 'Personality')?.value).toBe(
+        '\\*\\*bold\\*\\* \\`code\\`'
+      );
+    });
+
+    it('neutralizes a masked link in the persona name while keeping legitimate parens', () => {
+      // Probed: bare `escapeMarkdown` does NOT touch `[](…)`, so the name would
+      // otherwise render as a live link in the owner's channel. `maskedLink`
+      // escapes the opening bracket instead of stripping, so a real name like
+      // `Lilith (v2)` is unharmed.
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        { requestId: 'req-mask', errorInfo: { category: 'server_error' } },
+        '[Free Nitro](http://evil.example)'
+      );
+      expect(lastFields().find(f => f.name === 'Personality')?.value).toBe(
+        '\\[Free Nitro](http://evil.example)'
+      );
+
+      __resetErrorChannelReporterForTests();
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        { requestId: 'req-parens', errorInfo: { category: 'server_error' } },
+        'Lilith (v2)'
+      );
+      expect(lastFields().find(f => f.name === 'Personality')?.value).toBe('Lilith (v2)');
+    });
+
+    it('strips markdown link delimiters from Model and Provider (free-text preset inputs)', () => {
+      // Both are `/preset` modal fields validated for length only, so a chosen
+      // id like `[Free Nitro](http://evil)` would render as a live masked link
+      // in the owner's alert channel. Same strip buildModelFooterText applies.
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        {
+          requestId: 'req-inject',
+          errorInfo: { category: 'model_not_found' },
+          metadata: {
+            modelUsed: '[Free Nitro](http://evil.example)',
+            providerUsed: '<@everyone>',
+          },
+        },
+        undefined
+      );
+
+      const fields = lastFields();
+      expect(fields.find(f => f.name === 'Model')?.value).toBe('Free Nitrohttp://evil.example');
+      expect(fields.find(f => f.name === 'Provider')?.value).toBe('@everyone');
+    });
+
+    it('omits Model when the id sanitizes away to nothing rather than dropping the report', () => {
+      // `LlmConfigCreateSchema.model` is `.min(1).max(200)` with no character
+      // restriction, so an all-delimiter id like `()` passes validation and
+      // strips to ''. An empty field value throws at build time and the whole
+      // alert vanishes into reportError's fail-open catch.
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        {
+          requestId: 'req-strips-empty',
+          errorInfo: { category: 'model_not_found' },
+          metadata: { modelUsed: '()', providerUsed: '<>' },
+        },
+        undefined
+      );
+
+      expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+      const fields = lastFields();
+      expect(fields.some(f => f.name === 'Model')).toBe(false);
+      expect(fields.some(f => f.name === 'Provider')).toBe(false);
+    });
+
+    it('omits the Personality field on an EMPTY name rather than dropping the whole report', () => {
+      // Discord rejects an empty field value at build time; that throw lands in
+      // reportError's own fail-open catch, so the alert would vanish entirely.
+      // LoadedPersonality.name is z.string() with no .min(1), so nothing
+      // upstream rules an empty name out.
+      initErrorChannelReporter(fakeClient());
+      reportJobError({ requestId: 'req-empty', errorInfo: { category: 'server_error' } }, '');
+
+      expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+      expect(lastFields().some(f => f.name === 'Personality')).toBe(false);
+    });
+
+    it('omits Personality/Model/Provider/Duration entirely when the result carries none of them', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        { requestId: 'req-diag-2', errorInfo: { category: 'server_error' } },
+        undefined
+      );
+
+      const fields = lastFields();
+      expect(fields.some(f => f.name === 'Personality')).toBe(false);
+      expect(fields.some(f => f.name === 'Model')).toBe(false);
+      expect(fields.some(f => f.name === 'Provider')).toBe(false);
+      expect(fields.some(f => f.name === 'Duration')).toBe(false);
+    });
+
+    it('renders a rescue report Model field as `fromModel → toModel`, preferring the fallback over metadata.modelUsed', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue(
+        {
+          requestId: 'req-diag-rescue',
+          metadata: {
+            // Deliberately different from quotaFallback.toModel — the rescue
+            // path must prefer the fallback's toModel, not this field.
+            modelUsed: 'should-not-appear/model',
+            quotaFallback: {
+              fromModel: 'delisted/model',
+              toModel: 'admin/default',
+              category: 'model_not_found',
+              mode: 'reactive',
+            },
+          },
+        },
+        'Lila'
+      );
+
+      const fields = lastFields();
+      expect(fields.find(f => f.name === 'Model')?.value).toBe('delisted/model → admin/default');
+    });
+
+    it('canary: the rescue Model-swap rendering is load-bearing (mutate deriveDiagnosticFields mentally: using metadata.modelUsed unconditionally would show should-not-appear/model)', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue(
+        {
+          requestId: 'req-diag-rescue-canary',
+          metadata: {
+            modelUsed: 'should-not-appear/model',
+            quotaFallback: {
+              fromModel: 'delisted/model',
+              toModel: 'admin/default',
+              category: 'model_not_found',
+              mode: 'reactive',
+            },
+          },
+        },
+        undefined
+      );
+
+      const fields = lastFields();
+      expect(fields.find(f => f.name === 'Model')?.value).not.toBe('should-not-appear/model');
+    });
+  });
+
+  describe('occurrence counter (24h horizon)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renders "#1, first seen 0m ago" on the very first occurrence', () => {
+      initErrorChannelReporter(fakeClient());
+      reportError(makeReport({ error: new Error('boom-occ-1') }));
+
+      const embed = mockPostOwnerChannelEmbed.mock.calls[0][1] as {
+        toJSON: () => { fields?: { name: string; value: string }[] };
+      };
+      const fields = embed.toJSON().fields ?? [];
+      expect(fields.find(f => f.name === 'Occurrence')?.value).toBe('#1, first seen 0m ago');
+    });
+
+    it('counts a suppressed (deduped) repeat as an occurrence, surfacing it on the next post', () => {
+      // The bug this fixes: HISTORY_TTL_MS (2h) had already rolled off by the
+      // owner's observed 7h gap, so the count was lost. Advance PAST the 1h
+      // dedup window (so a new window opens and posts) but stay well inside
+      // the 24h occurrence horizon, and confirm the suppressed occurrence in
+      // between is reflected in the count.
+      __resetErrorChannelReporterForTests(() => Date.now());
+      initErrorChannelReporter(fakeClient());
+      const report = makeReport({ error: new Error('boom-occ-2') });
+
+      reportError(report); // occurrence #1, posts
+      reportError(report); // occurrence #2, suppressed (same window)
+      vi.advanceTimersByTime(60 * 60 * 1000 + 1); // roll the 1h dedup window
+      reportError(report); // occurrence #3, posts (new window)
+
+      expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(2);
+      const secondEmbed = mockPostOwnerChannelEmbed.mock.calls[1][1] as {
+        toJSON: () => { fields?: { name: string; value: string }[] };
+      };
+      const fields = secondEmbed.toJSON().fields ?? [];
+      // 60 minutes rounds up to the hour bucket (formatRelativeAge switches
+      // at exactly 60 minutes).
+      expect(fields.find(f => f.name === 'Occurrence')?.value).toBe('#3, first seen 1h ago');
+    });
+
+    it('starts a fresh occurrence count once the 24h horizon has passed', () => {
+      __resetErrorChannelReporterForTests(() => Date.now());
+      initErrorChannelReporter(fakeClient());
+      const report = makeReport({ error: new Error('boom-occ-3') });
+
+      reportError(report); // occurrence #1, posts
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1); // past the 24h horizon
+      reportError(report); // horizon has aged out: fresh #1
+
+      expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(2);
+      const secondEmbed = mockPostOwnerChannelEmbed.mock.calls[1][1] as {
+        toJSON: () => { fields?: { name: string; value: string }[] };
+      };
+      const fields = secondEmbed.toJSON().fields ?? [];
+      expect(fields.find(f => f.name === 'Occurrence')?.value).toBe('#1, first seen 0m ago');
+    });
+
+    it('resets firstSeen on a SUSTAINED recurrence once the 24h horizon passes, even though the cache entry itself never expires (repeats every 10h < the 24h TTL)', () => {
+      // Mirrors the windowCache sustained-loop test: TTLCache.set re-stamps
+      // the entry TTL on every write, so a hash recurring more often than
+      // once per 24h would never expire via cache eviction alone — the
+      // rollover must come from the explicit firstSeen comparison instead.
+      __resetErrorChannelReporterForTests(() => Date.now());
+      initErrorChannelReporter(fakeClient());
+      const report = makeReport({ error: new Error('boom-occ-sustained') });
+
+      reportError(report); // t=0: occurrence #1, firstSeen=0
+      vi.advanceTimersByTime(10 * 60 * 60 * 1000); // t=10h
+      reportError(report); // occurrence #2, firstSeen still 0 (10h < 24h)
+      vi.advanceTimersByTime(10 * 60 * 60 * 1000); // t=20h
+      reportError(report); // occurrence #3, firstSeen still 0 (20h < 24h)
+      vi.advanceTimersByTime(10 * 60 * 60 * 1000); // t=30h — past the 24h horizon
+      reportError(report); // firstSeen resets: fresh #1
+
+      const lastCall = mockPostOwnerChannelEmbed.mock.calls.at(-1) as [
+        unknown,
+        { toJSON: () => { fields?: { name: string; value: string }[] } },
+      ];
+      const fields = lastCall[1].toJSON().fields ?? [];
+      expect(fields.find(f => f.name === 'Occurrence')?.value).toBe('#1, first seen 0m ago');
+    });
+
+    it('canary: the occurrence counter is load-bearing (a suppressed repeat that does NOT bump the count would show #2 instead of #3 above)', () => {
+      // This test documents the canary result inline rather than re-deriving
+      // it: removing the unconditional `bumpOccurrence` call (or moving it
+      // inside the dedup early-return's guard) makes the prior test's
+      // suppressed-repeat count stop incrementing, so its assertion
+      // ('#3, first seen 1h ago') would read '#2' instead. Asserted here as
+      // a standalone reddening check on a simpler fixture.
+      __resetErrorChannelReporterForTests(() => Date.now());
+      initErrorChannelReporter(fakeClient());
+      const report = makeReport({ error: new Error('boom-occ-canary') });
+
+      reportError(report); // #1, posts
+      reportError(report); // suppressed repeat — must still count
+      vi.advanceTimersByTime(60 * 60 * 1000 + 1);
+      reportError(report); // #3, posts
+
+      const embed = mockPostOwnerChannelEmbed.mock.calls[1][1] as {
+        toJSON: () => { fields?: { name: string; value: string }[] };
+      };
+      const fields = embed.toJSON().fields ?? [];
+      expect(fields.find(f => f.name === 'Occurrence')?.value).not.toBe('#2, first seen 1h ago');
     });
   });
 });
