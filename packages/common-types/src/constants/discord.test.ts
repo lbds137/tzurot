@@ -236,6 +236,52 @@ describe('Bot Footer Text Constants', () => {
       );
     });
 
+    it('drops the chain when the swap only changed the ROUTE, keeping the reason', () => {
+      // The observed footer: a guest whose paid default IS the piggyback model
+      // gets it served z.ai-direct under its bare id, and the chain rendered
+      // "z-ai/glm-5.3-flash → glm-5.3-flash" — one model, two spellings, an
+      // arrow implying a swap that never happened. The route change is real and
+      // is already named by "• via Z.AI Coding Plan"; the reason stays because
+      // "(guest mode)" still explains why this model is serving.
+      const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'guest_mode' },
+        provider: 'zai-coding',
+        withAutoBadge: true,
+      });
+      expect(result).toBe(
+        'Model: [glm-5.3-flash](<https://example.com/m>) (guest mode) • via Z.AI Coding Plan • 📍 auto'
+      );
+      expect(result).not.toContain('→');
+    });
+
+    it('drops the chain on an exact from/to match, and on a case-only difference', () => {
+      expect(
+        buildModelFooterText('some/model', 'https://example.com/m', {
+          quotaFallback: { fromModel: 'some/model', category: 'rate_limit' },
+        })
+      ).toBe('Model: [some/model](<https://example.com/m>) (rate limited)');
+
+      expect(
+        buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
+          quotaFallback: { fromModel: 'Z-AI/GLM-5.3-Flash', category: 'guest_mode' },
+        })
+      ).toBe('Model: [glm-5.3-flash](<https://example.com/m>) (guest mode)');
+    });
+
+    it('keeps the chain for a non-z.ai prefix sharing a tail with the target', () => {
+      // The collapse strips ONLY `z-ai/`, the one prefix the codebase adds and
+      // drops for the same model across routes. Any other `<vendor>/<name>` vs
+      // `<name>` pairing is a genuine swap between two different models, and
+      // suppressing the arrow there would hide it. (The `user/free-default →
+      // free-default` case above is the same invariant, from the live suite.)
+      const result = buildModelFooterText('primary', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/primary', category: 'quota_exceeded' },
+      });
+      expect(result).toBe(
+        'Model: expensive/primary → [primary](<https://example.com/m>) (rate limited)'
+      );
+    });
+
     it('sanitizes markdown-hostile characters in the quota-fallback source model', () => {
       const result = buildModelFooterText('free-model', 'https://example.com/m', {
         quotaFallback: { fromModel: 'bad[model](x)', category: 'quota_exceeded' },
@@ -373,6 +419,14 @@ describe('Bot Footer Text Constants', () => {
           quotaFallback: { fromModel: 'expensive/primary', category: 'server_error' },
           provider: 'zai-coding',
           fallbackProviderAttempted: 'openrouter',
+          withAutoBadge: true,
+        }),
+        // The route-only collapse: a reason with NO preceding arrow. The two
+        // optional groups in the regex are independent, but only the
+        // arrow-bearing combination was ever exercised here.
+        buildModelFooterText('glm-5.3-flash', 'https://example.com/model', {
+          quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'guest_mode' },
+          provider: 'zai-coding',
           withAutoBadge: true,
         }),
       ];
