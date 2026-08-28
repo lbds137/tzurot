@@ -233,14 +233,18 @@ async function invokeVisionModel(
 
   // Explicitly-set vision-config params win; the low factual-captioning
   // temperature stays the default for anything unset (descriptions feed
-  // memory + search, where creative sampling harms). createChatModel's
-  // per-model filtering sanitizes any param the model can't take.
+  // memory + search, where creative sampling harms). maxTokens is defaulted
+  // for a different reason — an uncapped captioning request lets the provider
+  // reserve the routed model's whole output budget; see VISION_MAX_TOKENS.
+  // createChatModel's per-model filtering sanitizes any param the model
+  // can't take.
   const { model } = createChatModel({
     modelName,
     apiKey: userApiKey,
     provider,
     ...visionParams,
     temperature: visionParams?.temperature ?? AI_DEFAULTS.VISION_TEMPERATURE,
+    maxTokens: visionParams?.maxTokens ?? AI_DEFAULTS.VISION_MAX_TOKENS,
   });
 
   const messages = [];
