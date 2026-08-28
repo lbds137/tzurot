@@ -1,9 +1,10 @@
 ---
 id: TASK-612
 title: bot-client and ai-worker cacheRedis clients still bypass createIORedisClient
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 18:32'
+updated_date: '2026-08-28 02:55'
 labels:
   - 'area:bot-client'
   - 'area:ai-worker'
