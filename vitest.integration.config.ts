@@ -8,6 +8,17 @@ process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 // Real-Redis integration tests (vision fallback loop) import service modules whose
 // module-level singletons connect at load time — point them at the local container.
 process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
+// DATABASE_URL is deliberately NOT defaulted here. Real-Postgres integration
+// tests seed and mutate rows, so a default would have to carry credentials —
+// which secretlint rejects in tracked source, and which would silently aim at
+// whatever database the URL happened to name. The caller supplies it; tests
+// that need it fail fast with the provisioning command in the message. CI sets
+// it to the job's Postgres service. Locally, build the URL from the postgres
+// service in docker-compose.yml with the database name swapped to
+// tzurot_integration_test, then once:
+//   podman exec tzurot-postgres createdb -U tzurot tzurot_integration_test
+//   DATABASE_URL=<that URL> npx prisma migrate deploy
+// and export the same value when running the tier.
 
 /**
  * Vitest configuration for the real-dependency tiers run from tests/:
@@ -21,10 +32,12 @@ process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
  * - Coverage disabled — these tiers verify cross-service behavior / contracts,
  *   not in-service line coverage (the component + unit tiers carry coverage)
  *
- * CI note: the `component-integration-tests` job runs this config but provisions ONLY Redis
- * (no Postgres) — every current test here uses in-process PGLite or static
- * fixtures. A real-Postgres `*.integration.test.ts` would hit ECONNREFUSED and
- * needs a Postgres service added to that job (or its own job) first.
+ * CI note: the `component-integration-tests` job provisions BOTH Redis and a
+ * pgvector Postgres service, and applies the real migrations to it before this
+ * config runs — the trigger functions exist only in the migration files, so a
+ * schema dump would not carry them. A real-Postgres `*.integration.test.ts`
+ * therefore works in CI; locally it needs the containers up, the dedicated test
+ * database provisioned, and DATABASE_URL exported (see the note above).
  */
 export default defineConfig({
   resolve: {

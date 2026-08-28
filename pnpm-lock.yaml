@@ -690,16 +690,25 @@ importers:
       '@tzurot/bot-client':
         specifier: workspace:*
         version: link:../services/bot-client
+      '@tzurot/cache-invalidation':
+        specifier: workspace:*
+        version: link:../packages/cache-invalidation
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../packages/common-types
       '@tzurot/test-utils':
         specifier: workspace:*
         version: link:../packages/test-utils
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
     devDependencies:
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))

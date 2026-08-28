@@ -443,8 +443,10 @@ jobs:
         run: pnpm ops mutation:check --summary
 
   # Component tier (PGLite, in-process) + the real-dependency tiers (integration
-  # + contract). Only Redis is a real external dependency here — every DB-backed
-  # test uses in-process PGLite, so no Postgres service is provisioned.
+  # + contract). Component tests run against in-process PGLite; the integration
+  # tier gets two real external dependencies — Redis, and a pgvector Postgres
+  # that the real migrations are applied to (the cache-invalidation trigger
+  # functions live only in the migration files).
   component-integration-tests:
     runs-on: ubuntu-latest
     services:
@@ -457,6 +459,21 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      postgres:
+        # pgvector, not plain postgres: migration 20250131000000_init runs
+        # `CREATE EXTENSION IF NOT EXISTS vector` on its second line.
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_DB: tzurot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_ci_password
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
       - uses: actions/checkout@v7
@@ -482,11 +499,22 @@ jobs:
       - name: Run component tests with coverage
         run: pnpm test:component -- --coverage
         env:
-          # Dummy URL: DB-backed tests use in-process PGLite; this only satisfies
-          # the config layer's non-empty DATABASE_URL check (no Postgres is provisioned).
+          # Component tests use in-process PGLite and never dial out; this only
+          # satisfies the config layer's non-empty DATABASE_URL check. It happens
+          # to name the job's Postgres service, but nothing here connects to it.
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
           REDIS_URL: redis://localhost:6379
           CI: true
+
+      # The integration tier needs a REAL schema, and the cache-invalidation
+      # trigger functions exist only in the migration files — Prisma's schema
+      # diffing cannot see functions or triggers at all, so the migrations must
+      # actually run rather than a dumped schema being loaded.
+      - name: Provision integration-tier schema
+        if: ${{ !cancelled() }}
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
 
       # Real-dependency tiers: contract (*.contract.test.ts — the golden-fixture
       # envelope consumer + the BullMQ pair) + integration (*.integration.test.ts,
