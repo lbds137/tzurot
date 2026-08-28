@@ -4,7 +4,7 @@
  * Discord API limits, colors, and text truncation limits.
  */
 
-import { isChatCapableProvider, ZAI_MODEL_PREFIX } from './ai.js';
+import { isChatCapableProvider, stripZaiPrefix } from './ai.js';
 import type { QuotaFallbackCategoryValue } from './error.js';
 
 /**
@@ -407,12 +407,7 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
  * is a real swap, and the arrow has to survive it.
  */
 function namesSameModel(a: string, b: string): boolean {
-  return bareZaiId(a) === bareZaiId(b);
-}
-
-function bareZaiId(modelId: string): string {
-  const lower = modelId.toLowerCase();
-  return lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  return stripZaiPrefix(a) === stripZaiPrefix(b);
 }
 
 /**
