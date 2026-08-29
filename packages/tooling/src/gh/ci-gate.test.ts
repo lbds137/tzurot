@@ -411,12 +411,15 @@ describe('countReviewCycles', () => {
     return { result, error, calls };
   }
 
+  /** The `gh pr view` half's real shape: head ref and creation stamp, tab-separated. */
+  const PR_VIEW = 'my-branch\t2026-08-29T16:30:33Z\n';
+
   it('counts review WORKFLOW runs for the head branch, not claude[bot] comments', async () => {
     // The same login also posts from the @claude mention workflow, so a
     // comment-based count inflates on chatty threads — the workflow-run count
     // is the review-cycle signal.
     const { result, calls } = await withGh(
-      args => (args[1] === 'view' ? 'my-branch\n' : '7'),
+      args => (args[1] === 'view' ? PR_VIEW : '7'),
       mod => mod.countReviewCycles(2124)
     );
     expect(result).toBe(7);
@@ -424,6 +427,18 @@ describe('countReviewCycles', () => {
     expect(calls[1][1]).toContain(
       '/actions/workflows/claude-code-review.yml/runs?branch=my-branch'
     );
+  });
+
+  it('floors the run query at the PR creation time so a REUSED branch name cannot inflate it', async () => {
+    // The observed failure: a release PR's head ref is `develop`, reused by
+    // every release, so an unfloored count returned 594 against 1 real cycle
+    // and tripped the cap warning on every single release.
+    const { calls } = await withGh(
+      args => (args[1] === 'view' ? 'develop\t2026-08-29T16:30:33Z\n' : '1'),
+      mod => mod.countReviewCycles(2251)
+    );
+    expect(calls[0]).toContain('headRefName,createdAt');
+    expect(calls[1][1]).toContain('&created=%3E%3D2026-08-29T16:30:33Z');
   });
 
   it('an empty head-branch answer throws rather than counting the wrong branch', async () => {
@@ -434,11 +449,32 @@ describe('countReviewCycles', () => {
     expect(String(error)).toContain('no head branch name');
   });
 
+  it('a malformed creation stamp throws rather than querying an unfloored range', async () => {
+    // Falling back to an unfloored query on a bad timestamp would silently
+    // restore the 594-cycle bug — the loud failure is the safer default, and
+    // reportReviewRounds already fails open on a throw.
+    const { error } = await withGh(
+      args => (args[1] === 'view' ? 'b\tnot-a-timestamp\n' : '3'),
+      mod => mod.countReviewCycles(2124)
+    );
+    expect(String(error)).toContain('no usable creation timestamp');
+  });
+
+  it('a head ref with no creation stamp at all throws', async () => {
+    // `@tsv` emits a lone field when createdAt is absent, so the split yields
+    // undefined rather than an empty string — both must reach the same throw.
+    const { error } = await withGh(
+      args => (args[1] === 'view' ? 'b\n' : '3'),
+      mod => mod.countReviewCycles(2124)
+    );
+    expect(String(error)).toContain('no usable creation timestamp');
+  });
+
   it('an EMPTY run-count response throws instead of coercing to zero', async () => {
     // Number('') is 0 — uncaught, an empty stdout would read as "checked,
     // zero rounds" and skip the warning silently.
     const { error } = await withGh(
-      args => (args[1] === 'view' ? 'b\n' : ''),
+      args => (args[1] === 'view' ? PR_VIEW : ''),
       mod => mod.countReviewCycles(2124)
     );
     expect(String(error)).toContain('unparseable review-cycle count');
@@ -446,7 +482,7 @@ describe('countReviewCycles', () => {
 
   it('an unparseable run count throws with the payload named', async () => {
     const { error } = await withGh(
-      args => (args[1] === 'view' ? 'b\n' : 'not-a-number'),
+      args => (args[1] === 'view' ? PR_VIEW : 'not-a-number'),
       mod => mod.countReviewCycles(2124)
     );
     expect(String(error)).toContain('unparseable review-cycle count');
@@ -701,7 +737,10 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
         // `pulls/N` returns the PR head, which must MATCH or the gate refuses
         // to arm; the runs query returns a releasable state; `gh pr checks`
         // returns its report.
-        if (args[0] === 'pr' && args[1] === 'view') return 'feat-branch\n';
+        // Tab-separated head ref + creation stamp — the `@tsv` shape the real
+        // `gh pr view` emits; a bare branch name here would fail the timestamp
+        // guard and silently skip the round-cap call this test asserts on.
+        if (args[0] === 'pr' && args[1] === 'view') return 'feat-branch\t2026-08-29T16:30:33Z\n';
         if (args[0] !== 'api') return '';
         if (args[1].includes('/pulls/')) return 'A'.repeat(40);
         // The review-cycle count: at the cap, so the REAL warning path runs.
@@ -732,7 +771,8 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
     expect(argvs[3]).toContain('--watch');
     expect(argvs[4]).toContain('view'); // round-cap: resolve the head branch after the sentinel
     expect(argvs[5][1]).toContain(
-      '/actions/workflows/claude-code-review.yml/runs?branch=feat-branch'
+      '/actions/workflows/claude-code-review.yml/runs?branch=feat-branch' +
+        '&created=%3E%3D2026-08-29T16:30:33Z'
     );
     expect(argvs[6]).not.toContain('--watch');
     expect(logs).toContain(mod.SENTINELS.releasable);
