@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { scanJsonEntries } from '../utils/scanJsonEntries.js';
 import type { SlotSource } from './SlotResolver.js';
 
 const logger = createLogger('MultiTagPersistence');
@@ -249,32 +250,12 @@ export class MultiTagPersistence {
    * (non-blocking) rather than KEYS — safe on large datasets.
    */
   async scanAllEntries(): Promise<CoordinatorEntrySnapshot[]> {
-    const matchPattern = `${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}*`;
-    const found: CoordinatorEntrySnapshot[] = [];
-    let cursor = '0';
-
-    do {
-      const [next, keys] = await this.redis.scan(
-        cursor,
-        'MATCH',
-        matchPattern,
-        'COUNT',
-        SCAN_COUNT
-      );
-      cursor = next;
-      if (keys.length === 0) {
-        continue;
-      }
-      const values = await this.redis.mget(...keys);
-      for (let i = 0; i < values.length; i++) {
-        const parsed = parseSnapshotOrLog(keys[i], values[i]);
-        if (parsed !== null) {
-          found.push(parsed);
-        }
-      }
-    } while (cursor !== '0');
-
-    return found;
+    return scanJsonEntries(
+      this.redis,
+      REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY,
+      parseSnapshotOrLog,
+      SCAN_COUNT
+    );
   }
 
   /**

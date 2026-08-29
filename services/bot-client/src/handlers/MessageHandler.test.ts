@@ -436,12 +436,13 @@ describe('MessageHandler', () => {
       mockCoordinatorState.staleCheckNeeded = false;
       mockJobTracker.getContext.mockReturnValue(null); // unknown job — bail before delivery
 
-      await messageHandler.handleJobResult('job-fast-path', {
+      const disposition = await messageHandler.handleJobResult('job-fast-path', {
         requestId: 'r1',
         success: true,
         content: 'whatever',
       });
 
+      expect(disposition).toBe('dropped');
       expect(mockCoordinator.isStale).not.toHaveBeenCalled();
     });
 
@@ -449,13 +450,67 @@ describe('MessageHandler', () => {
       mockCoordinatorState.staleCheckNeeded = true;
       mockJobTracker.getContext.mockReturnValue(null);
 
-      await messageHandler.handleJobResult('job-with-check', {
+      const disposition = await messageHandler.handleJobResult('job-with-check', {
         requestId: 'r1',
         success: true,
         content: 'whatever',
       });
 
+      expect(disposition).toBe('dropped');
       expect(mockCoordinator.isStale).toHaveBeenCalledWith('job-with-check');
+    });
+  });
+
+  describe('handleJobResult - coordinator-owned and stale branches', () => {
+    it('multi-tag ownsJob fast-path reports `delivered`', async () => {
+      // The coordinator delivers the group's reply and owns its own
+      // confirmation, so the caller must not record this as a loss.
+      // `mockReturnValueOnce` (not `mockReturnValue`) — `vi.clearAllMocks()`
+      // in `beforeEach` clears call history but NOT a persistent
+      // implementation, and nothing else in this suite resets `ownsJob`
+      // back to false, so a persistent `true` here would leak into every
+      // later test.
+      mockCoordinator.ownsJob.mockReturnValueOnce(true);
+
+      const disposition = await messageHandler.handleJobResult('job-multitag', {
+        requestId: 'req-multitag',
+        success: true,
+        content: 'group slot content',
+      } as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(mockCoordinator.handleJobResult).toHaveBeenCalledWith(
+        'job-multitag',
+        expect.objectContaining({ requestId: 'req-multitag' })
+      );
+      // The fast path must not fall through to the single-personality lookup.
+      expect(mockJobTracker.getContext).not.toHaveBeenCalled();
+    });
+
+    it('stale-discard path reports `delivered`', async () => {
+      // The system consciously gave this job up during a prior shutdown and
+      // the row must be reclaimable — it is a deliberate policy resolution,
+      // not a silent loss.
+      mockCoordinatorState.staleCheckNeeded = true;
+      // Once-variants for the same leak reason as the sibling test above —
+      // a persistent `true` on `isStale` would route every later test
+      // through the stale-discard branch instead of its intended path.
+      mockCoordinator.ownsJob.mockReturnValueOnce(false);
+      mockCoordinator.isStale.mockResolvedValueOnce(true);
+
+      const disposition = await messageHandler.handleJobResult('job-stale', {
+        requestId: 'req-stale',
+        success: true,
+        content: 'result for a pre-restart job',
+      } as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+
+      // Both side effects are fire-and-forget.
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-stale');
+      expect(mockCoordinator.clearStale).toHaveBeenCalledWith('job-stale');
     });
   });
 
@@ -495,7 +550,9 @@ describe('MessageHandler', () => {
         chunkMessageIds: ['discord-1', 'discord-2'],
       });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
+
+      expect(disposition).toBe('delivered');
 
       // Should get job context
       expect(mockJobTracker.getContext).toHaveBeenCalledWith(jobId);
@@ -533,12 +590,64 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(null);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
+
+      expect(disposition).toBe('dropped');
 
       // Should not call any other methods
       expect(mockJobTracker.completeJob).not.toHaveBeenCalled();
       expect(mockSlotDelivery.deliverSuccess).not.toHaveBeenCalled();
       expect(mockSlotDelivery.deliverError).not.toHaveBeenCalled();
+    });
+
+    it('reports a dropped result as `dropped` and never confirms its delivery', async () => {
+      // The gap that let TASK-821 ship: the test above proved nothing was
+      // DELIVERED but said nothing about what was RECORDED, so the caller was
+      // free to mark a silently-dropped reply as delivered.
+      const jobId = 'unknown-job-disposition';
+      const result = {
+        requestId: 'req-unknown-disposition',
+        success: true,
+        content: 'A reply nobody will ever see',
+      } as LLMGenerationResult;
+
+      mockJobTracker.getContext.mockReturnValue(null);
+      // No synthetic-timeout marker — this is a genuinely unknown job.
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(null);
+
+      const disposition = await messageHandler.handleJobResult(jobId, result);
+
+      expect(disposition).toBe('dropped');
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
+    });
+
+    it('reports a delivered message result as `delivered`', async () => {
+      // The other half of the contract: the caller confirms on this value, so
+      // a wrong `dropped` here would strand every healthy job's gateway row.
+      const jobId = 'known-job-disposition';
+      const result = {
+        requestId: 'req-known-disposition',
+        success: true,
+        content: 'Delivered content',
+      } as LLMGenerationResult;
+
+      // Self-contained per Core Principle 6 — this block builds its own context.
+      mockJobTracker.getContext.mockReturnValue({
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: {} as Message,
+        personality: { id: 'personality-123', name: 'TestBot' },
+        personaId: 'persona-456',
+        userMessageContent: 'User message',
+        userMessageTime: new Date('2025-11-14T12:00:00Z'),
+      });
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['discord-1'] });
+
+      const disposition = await messageHandler.handleJobResult(jobId, result);
+
+      expect(disposition).toBe('delivered');
     });
   });
 
@@ -578,8 +687,9 @@ describe('MessageHandler', () => {
       });
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
 
-      await messageHandler.handleJobResult('job-late', lateResult);
+      const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
       const opts = mockResponseSender.sendResponse.mock.calls[0][0];
       expect(opts.content).toContain('took longer than expected');
@@ -597,8 +707,9 @@ describe('MessageHandler', () => {
         error: 'boom',
       } as LLMGenerationResult;
 
-      await messageHandler.handleJobResult('job-late', failedLate);
+      const disposition = await messageHandler.handleJobResult('job-late', failedLate);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
       expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
@@ -609,8 +720,9 @@ describe('MessageHandler', () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
-      await messageHandler.handleJobResult('job-late', lateResult);
+      const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
@@ -626,8 +738,9 @@ describe('MessageHandler', () => {
       });
       mockClient.channels.fetch.mockResolvedValue(null); // channel deleted/inaccessible
 
-      await messageHandler.handleJobResult('job-late', lateResult);
+      const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
@@ -636,8 +749,9 @@ describe('MessageHandler', () => {
     it('drops normally (no recovery) when there is no marker', async () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(null);
 
-      await messageHandler.handleJobResult('job-late', lateResult);
+      const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
+      expect(disposition).toBe('dropped');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
       expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
       expect(mockCoordinator.clearSyntheticTimeout).not.toHaveBeenCalled();
@@ -659,8 +773,9 @@ describe('MessageHandler', () => {
       });
       mockResponseSender.sendResponse.mockRejectedValue(new Error('rate limited'));
 
-      await messageHandler.handleJobResult('job-late', lateResult);
+      const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
+      expect(disposition).toBe('delivered');
       // Send threw, but finalize() runs anyway: confirmDelivery is an idempotent
       // status flip with no retry consumer, and the marker must not linger.
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
@@ -695,9 +810,11 @@ describe('MessageHandler', () => {
       });
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
 
-      await messageHandler.handleJobResult('job-late', lateResult);
-      await messageHandler.handleJobResult('job-late', lateResult);
+      const first = await messageHandler.handleJobResult('job-late', lateResult);
+      const second = await messageHandler.handleJobResult('job-late', lateResult);
 
+      expect(first).toBe('delivered');
+      expect(second).toBe('dropped');
       // Delivered exactly once; the duplicate produced no second follow-up.
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
@@ -732,8 +849,9 @@ describe('MessageHandler', () => {
         },
       } as LLMGenerationResult;
 
-      await messageHandler.handleJobResult('job-late', lateResultWithRescue);
+      const disposition = await messageHandler.handleJobResult('job-late', lateResultWithRescue);
 
+      expect(disposition).toBe('delivered');
       // The mocked reportQuotaFallbackRescue delegates to reportJobError with
       // the whole result — asserting this crosses the mocked seam rather than
       // only checking the delivery succeeded. `name` is required on
@@ -766,8 +884,9 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(mockContext);
       mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-1'] });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // Should hand off the bare result (no metadata) to slotDelivery
       expect(mockSlotDelivery.deliverSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -808,8 +927,12 @@ describe('MessageHandler', () => {
       // Simulate the inner SlotDeliveryService throwing during persistence.
       mockSlotDelivery.deliverSuccess.mockRejectedValue(new Error('Database error'));
 
-      // Should NOT throw - handle error gracefully
-      await expect(messageHandler.handleJobResult(jobId, result)).resolves.toBeUndefined();
+      // Should NOT throw - handle error gracefully. `handleJobResult` now
+      // reports a disposition instead of returning void, so "did not throw"
+      // is expressed as the delivered verdict: the deliverError fallback
+      // below still puts a message in front of the user, which is exactly
+      // what must NOT be recorded as a drop.
+      await expect(messageHandler.handleJobResult(jobId, result)).resolves.toBe('delivered');
 
       // Should still complete the job
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
@@ -851,8 +974,9 @@ describe('MessageHandler', () => {
         chunkMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
       });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // Chunking is internal to SlotDeliveryService (covered by its own
       // tests). At this layer we only need to confirm the long content
       // was handed off cleanly.
@@ -894,8 +1018,9 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // Should hand the failed result to deliverError. The error-content
       // formatting (and stripErrorSpoiler before persistence) is internal
       // to SlotDeliveryService — covered by SlotDeliveryService.test.ts.
@@ -927,8 +1052,9 @@ describe('MessageHandler', () => {
       });
       mockSlotDelivery.deliverSuccess.mockRejectedValueOnce(new TypeError('discord send failed'));
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportDeliveryFailure).toHaveBeenCalledWith(
         expect.any(TypeError),
         expect.objectContaining({ requestId: 'req-delivery-fail' }),
@@ -966,8 +1092,9 @@ describe('MessageHandler', () => {
         userMessageTime: new Date(),
       });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'ErrorBot');
     });
 
@@ -999,8 +1126,9 @@ describe('MessageHandler', () => {
         userMessageTime: new Date(),
       });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'ErrorBot');
     });
 
@@ -1038,8 +1166,9 @@ describe('MessageHandler', () => {
       });
       mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-rescue'] });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'RescueBot');
     });
 
@@ -1072,8 +1201,9 @@ describe('MessageHandler', () => {
       });
       mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-rescue'] });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'RescueBot');
     });
 
@@ -1098,8 +1228,9 @@ describe('MessageHandler', () => {
       });
       mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-1'] });
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).not.toHaveBeenCalled();
     });
 
@@ -1140,8 +1271,9 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // Metadata flows through the result to deliverError (which then
       // forwards relevant fields to sendResponse internally — covered by
       // SlotDeliveryService.test.ts).
@@ -1191,8 +1323,9 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // No metadata on the result → deliverError still called cleanly
       // with the failed result + the slot context (which retains
       // isAutoResponse from the job context).
@@ -1235,8 +1368,9 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // An undeliverable "success" is a bug, not an expected outcome — it must
       // reach the error channel like the success:false branch does. No
       // errorInfo exists on this shape, so the category resolves to 'unknown'
@@ -1290,8 +1424,9 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // Should call deliverError with an error-content string that
       // doesn't render "undefined" or reference-footer when referenceId
       // is missing. (Detailed buildErrorContent shape is unit-tested
@@ -1327,8 +1462,9 @@ describe('MessageHandler', () => {
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
 
-      await messageHandler.handleJobResult(jobId, result);
+      const disposition = await messageHandler.handleJobResult(jobId, result);
 
+      expect(disposition).toBe('delivered');
       // Empty content routes to deliverError. The "strip error spoiler
       // before persistence" detail is internal to SlotDeliveryService
       // and covered there directly.
@@ -1372,8 +1508,9 @@ describe('MessageHandler', () => {
         },
       } as unknown as LLMGenerationResult;
 
-      await messageHandler.handleJobResult('job-slash-1', result);
+      const disposition = await messageHandler.handleJobResult('job-slash-1', result);
 
+      expect(disposition).toBe('delivered');
       // Slash branch dispatches with channel/guildId/clientId from context
       // (no `message` field — that's the parity-gain compared to the old polling sender).
       // recipientUserId must be explicit on this path — SlashJobContext has no
@@ -1412,8 +1549,9 @@ describe('MessageHandler', () => {
         },
       } as unknown as LLMGenerationResult;
 
-      await messageHandler.handleJobResult('job-slash-notices', result);
+      const disposition = await messageHandler.handleJobResult('job-slash-notices', result);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           recipientUserId: 'user-slash',
@@ -1430,13 +1568,14 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
 
-      await messageHandler.handleJobResult('job-slash-trace', {
+      const disposition = await messageHandler.handleJobResult('job-slash-trace', {
         requestId: 'req-slash',
         success: true,
         content: 'Hi',
         metadata: { thinkingContent: 'SLASH-PATH-TRACE-SENTINEL' },
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
         expect.objectContaining({ thinkingContent: 'SLASH-PATH-TRACE-SENTINEL' })
       );
@@ -1447,12 +1586,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
 
-      await messageHandler.handleJobResult('job-slash-2', {
+      const disposition = await messageHandler.handleJobResult('job-slash-2', {
         requestId: 'req-slash',
         success: true,
         content: 'Hi',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
         expect.objectContaining({
           channelId: 'channel-slash',
@@ -1476,12 +1616,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
 
-      await messageHandler.handleJobResult('job-weighin', {
+      const disposition = await messageHandler.handleJobResult('job-weighin', {
         requestId: 'req-slash',
         success: true,
         content: 'Weighing in',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
         expect.objectContaining({ content: 'Weighing in', chunkMessageIds: ['m-1'] })
       );
@@ -1498,12 +1639,13 @@ describe('MessageHandler', () => {
         new Error('gateway down after retries')
       );
 
-      await messageHandler.handleJobResult('job-slash-persist-fail', {
+      const disposition = await messageHandler.handleJobResult('job-slash-persist-fail', {
         requestId: 'req-slash',
         success: true,
         content: 'Hi',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
     });
 
@@ -1512,12 +1654,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1', 'm-2'] });
 
-      await messageHandler.handleJobResult('job-diag', {
+      const disposition = await messageHandler.handleJobResult('job-diag', {
         requestId: 'req-slash',
         success: true,
         content: 'Hi',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       // Wait a tick for the fire-and-forget update
       await new Promise(resolve => setImmediate(resolve));
 
@@ -1532,13 +1675,14 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
 
-      await messageHandler.handleJobResult('job-fail', {
+      const disposition = await messageHandler.handleJobResult('job-fail', {
         requestId: 'req-slash',
         success: false,
         error: 'rate limited',
         errorInfo: { category: 'rate_limit', referenceId: 'ref-1' },
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       // sendResponse called with error content (not 'Hi')
       expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1562,8 +1706,9 @@ describe('MessageHandler', () => {
         error: 'rate limited',
         errorInfo: { category: 'rate_limit', referenceId: 'ref-2' },
       } as unknown as LLMGenerationResult;
-      await messageHandler.handleJobResult('job-fail-skip', result);
+      const disposition = await messageHandler.handleJobResult('job-fail-skip', result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
@@ -1578,8 +1723,9 @@ describe('MessageHandler', () => {
         error: 'model not found',
         errorInfo: { category: 'model_not_found', referenceId: 'ref-3' },
       } as unknown as LLMGenerationResult;
-      await messageHandler.handleJobResult('job-fail-report', result);
+      const disposition = await messageHandler.handleJobResult('job-fail-report', result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
@@ -1601,8 +1747,9 @@ describe('MessageHandler', () => {
           },
         },
       } as unknown as LLMGenerationResult;
-      await messageHandler.handleJobResult('job-slash-rescue-report', result);
+      const disposition = await messageHandler.handleJobResult('job-slash-rescue-report', result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
@@ -1611,12 +1758,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-ordinary'] });
 
-      await messageHandler.handleJobResult('job-slash-no-rescue', {
+      const disposition = await messageHandler.handleJobResult('job-slash-no-rescue', {
         requestId: 'req-slash-no-rescue',
         success: true,
         content: 'Ordinary slash response',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).not.toHaveBeenCalled();
     });
 
@@ -1630,8 +1778,9 @@ describe('MessageHandler', () => {
         success: true,
         content: '',
       } as unknown as LLMGenerationResult;
-      await messageHandler.handleJobResult('job-empty-slash', result);
+      const disposition = await messageHandler.handleJobResult('job-empty-slash', result);
 
+      expect(disposition).toBe('delivered');
       expect(mockReportJobError).toHaveBeenCalledWith(result, 'SlashBot');
     });
 
@@ -1643,13 +1792,14 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockRejectedValueOnce(new Error('webhook down'));
 
-      await messageHandler.handleJobResult('job-fb', {
+      const disposition = await messageHandler.handleJobResult('job-fb', {
         requestId: 'req-slash',
         success: false,
         error: 'something',
         errorInfo: { category: 'unknown_error' },
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(channelSend).toHaveBeenCalled();
     });
 
@@ -1658,12 +1808,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
 
-      await messageHandler.handleJobResult('job-complete', {
+      const disposition = await messageHandler.handleJobResult('job-complete', {
         requestId: 'req-slash',
         success: true,
         content: 'Hi',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith('job-complete');
     });
 
@@ -1676,12 +1827,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-empty-1'] });
 
-      await messageHandler.handleJobResult('job-empty', {
+      const disposition = await messageHandler.handleJobResult('job-empty', {
         requestId: 'req-slash',
         success: true,
         content: '',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       // sendResponse called with a non-empty error message (not the empty content).
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
       const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
@@ -1700,12 +1852,13 @@ describe('MessageHandler', () => {
         new Error('gateway down after retries')
       );
 
-      await messageHandler.handleJobResult('job-slash-err-persist', {
+      const disposition = await messageHandler.handleJobResult('job-slash-err-persist', {
         requestId: 'req-slash',
         success: false,
         error: 'model exploded',
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
       expect(ctx.channel.send).not.toHaveBeenCalled();
     });
@@ -1717,12 +1870,13 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-null-1'] });
 
-      await messageHandler.handleJobResult('job-null', {
+      const disposition = await messageHandler.handleJobResult('job-null', {
         requestId: 'req-slash',
         success: true,
         content: null,
       } as unknown as LLMGenerationResult);
 
+      expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
       const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
       expect(typeof sentContent).toBe('string');
