@@ -124,6 +124,13 @@ case "$*" in
     printf '%s\n' "$*" >>"${SHIM_API_LOG:-/dev/null}"
     printf '%s' "${SHIM_REVIEW_JSON:-}"
     ;;
+  "pr diff "*)
+    # The added-comment claim scan's input. SHIM_DIFF_EXIT non-zero with no
+    # output is the fail-open case: the hook must degrade to "no scan", never
+    # to a warning or a block.
+    [ "${SHIM_DIFF_EXIT:-0}" = "0" ] || exit "${SHIM_DIFF_EXIT}"
+    printf '%s' "${SHIM_PR_DIFF:-}"
+    ;;
   *)
     echo "gh shim: unexpected invocation: $*" >&2
     exit 64
@@ -197,6 +204,8 @@ SHIM_CURRENT_TREE='/repo'
 SHIM_WORKTREES=''
 SHIM_GIT_EXIT=0
 SHIM_WORKTREE_EXIT=0
+SHIM_PR_DIFF=''
+SHIM_DIFF_EXIT=0
 
 # new_case — a fresh ack file, api log, and output captures. The ack file is
 # the hook's only cross-invocation state, so a stale one leaking between groups
@@ -228,6 +237,8 @@ invoke() {
     SHIM_WORKTREES="$SHIM_WORKTREES" \
     SHIM_GIT_EXIT="$SHIM_GIT_EXIT" \
     SHIM_WORKTREE_EXIT="$SHIM_WORKTREE_EXIT" \
+    SHIM_PR_DIFF="$SHIM_PR_DIFF" \
+    SHIM_DIFF_EXIT="$SHIM_DIFF_EXIT" \
     bash "$HOOK" >"$STDOUT_FILE" 2>"$STDERR_FILE"
   LAST_EXIT=$?
 }
@@ -250,6 +261,8 @@ invoke_in() {
       SHIM_WORKTREES="$SHIM_WORKTREES" \
       SHIM_GIT_EXIT="$SHIM_GIT_EXIT" \
       SHIM_WORKTREE_EXIT="$SHIM_WORKTREE_EXIT" \
+      SHIM_PR_DIFF="$SHIM_PR_DIFF" \
+      SHIM_DIFF_EXIT="$SHIM_DIFF_EXIT" \
       bash "$HOOK"
   ) >"$STDOUT_FILE" 2>"$STDERR_FILE"
   LAST_EXIT=$?
@@ -892,6 +905,82 @@ assert_stderr_has "origin count is per-line" 'DETECTED (2 matching line(s))'
 new_case; SHIM_REVIEW_JSON=$(review_json 777 'Two real findings, both introduced here.')
 invoke 'gh pr merge 2002 --rebase'
 assert_stderr_lacks "clean review: no origin warning" 'ORIGIN-LANGUAGE DETECTED'
+
+# ===========================================================================
+# 6a. Added-comment claim scan
+#
+# The scan reads the PR DIFF, not the review, so its fixtures are independent
+# of SHIM_REVIEW_JSON — but the review still has to be present, because the
+# paragraph rides the review-gate block and never prints on its own. Every
+# upstream gate is held inert: base `develop` (no release reminder) and no
+# `--delete-branch` (no worktree guard), so a failure here is the scan's.
+# ===========================================================================
+printf '\n--- added-comment claim scan ---\n'
+
+SHIM_PR_BASE='develop'
+SHIM_REVIEW_JSON="$LGTM"
+
+# One added comment carrying two of the three vocabulary classes (certainty
+# and provenance), beside an added code line that must not itself match.
+DIFF_CLAIM=$(printf 'diff --git a/src/x.ts b/src/x.ts\n--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1,2 +1,4 @@\n const a = 1;\n+  // this value always comes from the catalog\n+const b = resolve(a);\n')
+
+# The negative fixture. A STANDALONE `always` token sits in a CODE line — it
+# must be standalone, not `alwaysOn`, because the `\b`-anchored vocabulary
+# cannot match inside a longer identifier and the fixture would then pass
+# vacuously. As written, a regression that dropped the comment-shape filter
+# lights this case up: the code line matches the vocabulary and only the
+# shape filter keeps it out of the banner.
+DIFF_CLEAN=$(printf 'diff --git a/src/y.ts b/src/y.ts\n--- a/src/y.ts\n+++ b/src/y.ts\n@@ -1,2 +1,4 @@\n+// helper for the parser\n+if (always) { return; }\n+const parsed = parse(input);\n')
+
+# The substring fixture: an added COMMENT line whose only claim vocabulary is
+# buried inside longer words — "whenever" carries `never`, "spread from" carries
+# `read from`. This is the case the `\b` anchors exist for, and it goes red the
+# moment any of them is dropped.
+DIFF_SUBSTRING=$(printf 'diff --git a/src/z.ts b/src/z.ts\n--- a/src/z.ts\n+++ b/src/z.ts\n@@ -1,2 +1,3 @@\n+// call this whenever the flag changes; values spread from config\n+const z = 1;\n')
+
+# Thirteen claim-shaped comment lines — one past the 12-line display cap, so the
+# banner has to say it is truncating rather than report the cap as the total.
+DIFF_MANY=$(printf 'diff --git a/src/m.ts b/src/m.ts\n--- a/src/m.ts\n+++ b/src/m.ts\n@@ -1,2 +1,15 @@\n')
+for claim_i in $(seq 1 13); do
+  DIFF_MANY="${DIFF_MANY}"$'\n'"+// claim ${claim_i}: this can never be null"
+done
+
+new_case; SHIM_PR_DIFF="$DIFF_CLAIM"
+invoke 'gh pr merge 2002 --rebase'
+assert_exit "claim-shaped comment: still blocks to surface the review" 2
+assert_stderr_has "…and the review is still injected" 'LGTM. No actionable findings.'
+assert_stderr_has "claim scan fires" 'CLAIM-SHAPED ADDED COMMENTS'
+assert_stderr_has "…and quotes the matched line" 'this value always comes from the catalog'
+assert_stderr_has "…and says what to do about it" 'hedge it'
+
+new_case; SHIM_PR_DIFF="$DIFF_CLEAN"
+invoke 'gh pr merge 2002 --rebase'
+assert_exit "no claim-shaped comment: still blocks to surface the review" 2
+assert_stderr_lacks "neutral diff: no claim paragraph" 'CLAIM-SHAPED'
+
+new_case; SHIM_PR_DIFF="$DIFF_SUBSTRING"
+invoke 'gh pr merge 2002 --rebase'
+assert_exit "substring-only comment: still blocks to surface the review" 2
+assert_stderr_has "…review still injected" 'LGTM. No actionable findings.'
+assert_stderr_lacks "…and 'whenever'/'spread from' do not light the banner" 'CLAIM-SHAPED'
+
+new_case; SHIM_PR_DIFF="$DIFF_MANY"
+invoke 'gh pr merge 2002 --rebase'
+assert_exit "13 claim lines: still blocks to surface the review" 2
+assert_stderr_has "…and the banner names the truncation" 'showing first 12 of 13'
+assert_stderr_lacks "…rather than reporting the cap as the total" 'ADDED COMMENTS (12 line(s))'
+assert_stderr_has "…the 12th line is shown" 'claim 12:'
+assert_stderr_lacks "…and the 13th is the one held back" 'claim 13:'
+
+# Fail-open. A diff fetch that cannot run must leave the gate exactly as it was
+# — no paragraph, no warning about the fetch, and the review still surfaced.
+new_case; SHIM_PR_DIFF="$DIFF_CLAIM"; SHIM_DIFF_EXIT=1
+invoke 'gh pr merge 2002 --rebase'
+assert_exit "diff fetch fails: gate unchanged, still blocks on the review" 2
+assert_stderr_has "…review still injected" 'LGTM. No actionable findings.'
+assert_stderr_lacks "…and no claim paragraph" 'CLAIM-SHAPED'
+SHIM_DIFF_EXIT=0
+SHIM_PR_DIFF=''
 
 # ===========================================================================
 # 7. Body fidelity — the printf-not-heredoc decision
