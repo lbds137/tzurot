@@ -154,6 +154,16 @@ export const REDIS_KEY_PREFIXES = {
    */
   MULTI_TAG_SYNTHETIC_TIMEOUT: 'multitag:synthetic-timeout:',
   /**
+   * Prefix for the single-personality job delivery context, keyed by jobId.
+   * Value is JSON identifiers (channel, source message, personality, persona)
+   * sufficient to rebuild a `PendingJobContext` after a restart — the live
+   * Discord objects and the typing-indicator timer are re-created at recovery.
+   * Multi-tag slots are deliberately NOT written here; `MULTI_TAG_ENTRY` owns
+   * their recovery state and a second entry would let both recovery paths
+   * adopt the same job.
+   */
+  SINGLE_JOB_CONTEXT: 'singlejob:context:',
+  /**
    * Prefix for batch-delete preview tokens. Key: `memory:preview:{userId}:{token}`.
    * Value: JSON-encoded filter that produced the preview. TTL: 5 min.
    * Consumer: `api-gateway/ActionTokenService`.

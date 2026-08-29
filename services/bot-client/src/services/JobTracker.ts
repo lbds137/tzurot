@@ -85,12 +85,27 @@ const TAKING_LONGER_NOTIFY_MS = 5 * 60 * 1000; // 5 minutes
 // Discord typing lasts ~10s, refresh every 8s
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
 
-// How long past TYPING_INDICATOR_TIMEOUT_MS to wait before force-releasing
-// the tracker slot if no result has arrived. Generous by design: legitimate
-// late results should still land, but a genuine orphan (worker crashed,
-// Redis partition never recovered, BullMQ lost the job) shouldn't sit in
-// memory forever. Total ceiling: 10 min typing + 30 min grace = 40 min.
+// How much slot lifetime past TYPING_INDICATOR_TIMEOUT_MS a job gets before
+// being force-released if no result has arrived. Generous by design:
+// legitimate late results should still land, but a genuine orphan (worker
+// crashed, Redis partition never recovered, BullMQ lost the job) shouldn't
+// sit in memory forever. This is a term of the ceiling below, not a flat
+// wait from the moment the sweep is armed — `scheduleOrphanSweep` measures
+// the delay from the job's startTime so a restart cannot extend the total.
+// Total ceiling: 10 min typing + 30 min grace = 40 min.
 const ORPHAN_SWEEP_GRACE_MS = 30 * 60 * 1000;
+
+/**
+ * The longest a job can occupy a tracker slot: the typing-indicator cutoff
+ * plus the orphan-sweep grace period. Past this age the sweep releases the
+ * slot regardless of whether a result ever arrived.
+ *
+ * Exported because the persisted mirror of a tracker slot must expire on the
+ * same schedule — see `SINGLE_JOB_CONTEXT_TTL_SEC`. Deriving that TTL from
+ * this sum keeps the two bounds from drifting apart if either constant above
+ * is retuned.
+ */
+export const TRACKED_JOB_MAX_LIFETIME_MS = TYPING_INDICATOR_TIMEOUT_MS + ORPHAN_SWEEP_GRACE_MS;
 
 /**
  * Context needed to handle async job results.
@@ -98,6 +113,22 @@ const ORPHAN_SWEEP_GRACE_MS = 30 * 60 * 1000;
  * protocol surface (Message-shaped vs slash-shaped) the job came from.
  */
 export type PendingJobContext = MessageJobContext | SlashJobContext;
+
+/**
+ * Port for mirroring tracker slots to durable storage so a job in flight
+ * across a restart can be re-adopted.
+ *
+ * Both methods are synchronous and must not throw: `record` runs on the
+ * per-request submission path and `forget` immediately before a Discord send,
+ * so neither may add latency or a failure mode to those paths. The
+ * implementation (`SingleJobContextRecorder`) fires the Redis write without
+ * awaiting it. Declared here rather than imported so the dependency points
+ * one way — persistence knows about the tracker, never the reverse.
+ */
+export interface TrackedJobRecorder {
+  record(jobId: string, context: PendingJobContext, startTime: number): void;
+  forget(jobId: string): void;
+}
 
 interface TrackedJob {
   jobId: string;
@@ -121,13 +152,17 @@ interface TrackedJob {
 export class JobTracker {
   private activeJobs = new Map<string, TrackedJob>();
   private orderingService?: ResponseOrderingService;
+  private recorder?: TrackedJobRecorder;
 
   /**
    * Create a new JobTracker
    * @param orderingService - Optional service to ensure responses are delivered in order
+   * @param recorder - Optional durable mirror of the in-memory slots, enabling
+   *   restart recovery. Omitted in tests that don't exercise persistence.
    */
-  constructor(orderingService?: ResponseOrderingService) {
+  constructor(orderingService?: ResponseOrderingService, recorder?: TrackedJobRecorder) {
     this.orderingService = orderingService;
+    this.recorder = recorder;
   }
 
   /**
@@ -141,11 +176,25 @@ export class JobTracker {
    * group of jobs. The slot's individual job context still lives here for
    * typing-indicator refresh and result-routing lookup; only the
    * cross-message ordering hookup is skipped.
+   *
+   * Pass `options.skipRecoveryPersistence` when another component already owns
+   * this job's durable recovery state (MultiTagCoordinator, whose slots are
+   * persisted by `MultiTagPersistence`). Writing a second entry would let both
+   * recovery paths adopt the same job on the next boot, delivering it twice.
+   *
+   * Pass `options.startTime` to preserve a job's ORIGINAL clock when
+   * re-adopting it after a restart. Without it a recovered job would get a
+   * fresh typing-indicator window and orphan-sweep budget on every deploy,
+   * so a wedged job could hold a tracker slot indefinitely across restarts.
    */
   trackJob(
     jobId: string,
     context: PendingJobContext,
-    options: { skipOrderingRegistration?: boolean } = {}
+    options: {
+      skipOrderingRegistration?: boolean;
+      skipRecoveryPersistence?: boolean;
+      startTime?: number;
+    } = {}
   ): void {
     const channel = context.channel;
     // Clear any existing tracking for this jobId (shouldn't happen, but be safe)
@@ -154,7 +203,7 @@ export class JobTracker {
       this.completeJob(jobId);
     }
 
-    const startTime = Date.now();
+    const startTime = options.startTime ?? Date.now();
 
     // Start typing indicator loop
     // Wrap async function to explicitly handle promise (setInterval expects void return)
@@ -252,6 +301,13 @@ export class JobTracker {
       this.orderingService.registerJob(channel.id, jobId, context.userMessageTime);
     }
 
+    // Mirror the slot to durable storage so a restart can re-adopt it. Skipped
+    // for multi-tag slots (see the options doc above) and when no recorder is
+    // wired. Synchronous by contract — the write itself is fire-and-forget.
+    if (this.recorder && options.skipRecoveryPersistence !== true) {
+      this.recorder.record(jobId, context, startTime);
+    }
+
     logger.info({ jobId, channelId: channel.id }, 'Started tracking job with context');
   }
 
@@ -294,6 +350,14 @@ export class JobTracker {
     );
 
     this.activeJobs.delete(jobId);
+
+    // Drop the durable mirror too. Unconditional: a multi-tag slot never had
+    // one written (so the delete is a harmless no-op key miss), and leaving a
+    // stale entry would have the next boot re-adopt a job that is already
+    // done. Deliberately NOT done in `cleanup()` — a shutdown must LEAVE the
+    // entries behind, since re-adopting them is the whole point.
+    this.recorder?.forget(jobId);
+
     return tracked.channel;
   }
 
@@ -353,10 +417,11 @@ export class JobTracker {
   }
 
   /**
-   * Schedule a grace-period sweep that force-completes the job if the result
-   * never arrives. Called when the typing indicator cutoff fires. The sweep
-   * checks `activeJobs.has(jobId)` at fire time — if the real result landed
-   * first, the entry is already gone and the sweep is a no-op.
+   * Schedule the sweep that force-completes the job if the result never
+   * arrives, at `startTime + TRACKED_JOB_MAX_LIFETIME_MS`. Called when the
+   * typing indicator cutoff fires. The sweep checks `activeJobs.has(jobId)`
+   * at fire time — if the real result landed first, the entry is already
+   * gone and the sweep is a no-op.
    */
   private scheduleOrphanSweep(jobId: string): void {
     const tracked = this.activeJobs.get(jobId);
@@ -371,6 +436,20 @@ export class JobTracker {
       return;
     }
     const { startTime } = tracked;
+    // Derive the delay from the job's ORIGINAL clock rather than waiting a
+    // flat grace period from here, so total slot lifetime stays bounded by
+    // TRACKED_JOB_MAX_LIFETIME_MS no matter WHEN the sweep is armed. A
+    // freshly-submitted job reaches this line ~TYPING_INDICATOR_TIMEOUT_MS
+    // after startTime, so the two forms agree; a job re-adopted after a
+    // restart is already past the typing cutoff and takes the cutoff branch
+    // on its first interval tick, where a flat grace period would restart
+    // the clock and let the slot outlive the ceiling. Floored at 0 so an
+    // already-past-ceiling job sweeps on the next timer turn instead of
+    // being handed a negative delay. Same shape as
+    // MultiTagRecovery.armSafetyTimer, which preserves a group's original
+    // deadline for the same reason. Pinned by the recovered-job case in
+    // JobTracker.test.ts's orphan-sweep suite.
+    const sweepDelayMs = Math.max(0, startTime + TRACKED_JOB_MAX_LIFETIME_MS - Date.now());
     tracked.orphanSweep = setTimeout(() => {
       if (this.activeJobs.has(jobId)) {
         logger.warn(
@@ -379,6 +458,6 @@ export class JobTracker {
         );
         this.completeJob(jobId);
       }
-    }, ORPHAN_SWEEP_GRACE_MS);
+    }, sweepDelayMs);
   }
 }

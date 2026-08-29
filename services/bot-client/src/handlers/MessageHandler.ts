@@ -41,6 +41,17 @@ const LATE_RECOVERY_NOTICE = '-# ⏰ This reply took longer than expected to gen
 const logger = createLogger('MessageHandler');
 
 /**
+ * What became of a job result handed to `handleJobResult`.
+ *
+ * `'delivered'` means the result reached a path that produced a user-visible
+ * outcome, or one that owns its own delivery confirmation. `'dropped'` means
+ * it was discarded with nothing shown to the user — the caller MUST NOT
+ * confirm delivery for it, because a confirmed row records a reply the user
+ * never received and nothing ever revisits `PENDING_DELIVERY` rows to notice.
+ */
+export type JobResultDisposition = 'delivered' | 'dropped';
+
+/**
  * Message Handler - routes Discord messages using Chain of Responsibility
  */
 export interface MessageHandlerDeps {
@@ -148,7 +159,7 @@ export class MessageHandler {
    * This is called from index.ts result handler
    */
 
-  async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<void> {
+  async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<JobResultDisposition> {
     // Multi-tag interception: in-memory map lookup (O(1)). Checked first so
     // the common single-personality path doesn't pay the Redis round-trip
     // of the stale check below. A currently-owned jobId can't also be
@@ -156,13 +167,15 @@ export class MessageHandler {
     // semantically equivalent.
     if (this.coordinator.ownsJob(jobId)) {
       await this.coordinator.handleJobResult(jobId, result);
-      return;
+      return 'delivered';
     }
 
     // Pre-restart stale check: if the jobId was marked stale during a prior
     // shutdown (because its result hadn't arrived yet), discard the result
-    // silently. Recovery already submitted a fresh job; the new jobId will
-    // arrive separately. confirmDelivery clears the Redis stream entry.
+    // silently. Recovery already resolved this job's group; the confirm below
+    // is a deliberate policy resolution of a job the system consciously gave
+    // up on, not an accidental drop — it also lets the ai-worker's
+    // `DELIVERED`-only cleanup reclaim the row, which nothing else would.
     //
     // Fast-path short-circuit: in normal operation (no recent shutdown, no
     // recovery pending), the stale-jobs SET is empty and the Redis
@@ -173,7 +186,7 @@ export class MessageHandler {
     // personality result.
     if (this.coordinator.staleCheckNeeded && (await this.coordinator.isStale(jobId))) {
       logger.info({ jobId }, 'Discarding result for pre-restart (stale) jobId');
-      // Confirm delivery so the Redis stream entry clears, and remove the
+      // Confirm delivery so the gateway row can be reclaimed, and remove the
       // jobId from the stale SET so it doesn't accumulate across the bot's
       // lifetime (each graceful shutdown adds N entries; without cleanup the
       // SET grows monotonically).
@@ -191,7 +204,7 @@ export class MessageHandler {
             'stale-discard: clearStale failed — stale entry will expire via TTL'
           )
         );
-      return;
+      return 'delivered';
     }
 
     // Single-personality path: JobTracker has the context.
@@ -201,10 +214,16 @@ export class MessageHandler {
       // have a recovery marker. If so, deliver the real result as a late
       // follow-up rather than silently dropping it.
       if (await this.tryRecoverLateResult(jobId, result)) {
-        return;
+        return 'delivered';
       }
-      logger.warn({ jobId }, 'Received result for unknown job - ignoring');
-      return;
+      // Genuine loss: the reply was generated and paid for, and nobody will
+      // ever see it. Reported as `'dropped'` so the caller leaves the gateway
+      // row `PENDING_DELIVERY` — marking it delivered would file a success
+      // record over a silent data loss. `SingleJobRecovery` exists to keep
+      // restarts out of this branch; reaching it now means the context could
+      // not be rebuilt at all.
+      logger.error({ jobId }, 'Received result for unknown job - dropping, NOT confirming');
+      return 'dropped';
     }
 
     // Complete the job (clears typing indicator and removes from tracker)
@@ -212,10 +231,11 @@ export class MessageHandler {
 
     if (jobContext.kind === 'slash') {
       await this.handleSlashJobResult(jobId, result, jobContext);
-      return;
+      return 'delivered';
     }
 
     await this.handleMessageJobResult(jobId, result, jobContext);
+    return 'delivered';
   }
 
   /**
@@ -225,7 +245,7 @@ export class MessageHandler {
    * unknown job that should drop as before.
    *
    * On a marker hit we always confirm delivery + clear the marker so the
-   * Redis stream entry clears and the marker doesn't linger. A successful
+   * gateway row can be reclaimed and the marker doesn't linger. A successful
    * result is re-sent as a personality follow-up (prefixed with a "took
    * longer than expected" notice); a failed/empty late result is dropped
    * silently since the user already received the synthetic timeout message.
@@ -242,10 +262,12 @@ export class MessageHandler {
     }
 
     // From here we own the outcome. Always confirm + clear (best-effort) so
-    // the stream entry clears and the marker doesn't outlive its usefulness.
+    // the gateway row is reclaimable and the marker doesn't outlive its
+    // usefulness. The user already received the synthetic timeout message for
+    // this job, so no branch below leaves them with nothing.
     const finalize = async (): Promise<void> => {
-      // confirmDelivery is fire-and-forget: stream-entry cleanup is best-effort,
-      // and the gateway entry expires on its own TTL if this call never lands.
+      // confirmDelivery is fire-and-forget: the row flip is best-effort and
+      // costs only an unreclaimed row if this call never lands.
       // clearSyntheticTimeout is awaited so the recovery marker doesn't linger
       // if we crash right after the follow-up send but before its TTL elapses.
       void confirmDelivery(jobId).catch(err =>
@@ -316,10 +338,14 @@ export class MessageHandler {
       reportDeliveryFailure(err, result, personality.name);
     }
     // finalize() runs even when the send threw. confirmDelivery is an idempotent
-    // job_results status flip (PENDING_DELIVERY → DELIVERED), and nothing sweeps
-    // PENDING_DELIVERY rows for retry — so confirming after a failed send is
-    // cosmetically imprecise but functionally inert. We still finalize so the
-    // recovery marker clears rather than lingering until its TTL.
+    // job_results status flip (PENDING_DELIVERY → DELIVERED); nothing retries a
+    // PENDING_DELIVERY row, and the ai-worker's cleanup reclaims only DELIVERED
+    // ones, so leaving it unconfirmed would strand the row rather than recover
+    // anything. Unlike the unknown-job branch in handleJobResult — which leaves
+    // the row unconfirmed precisely because the user got NOTHING — every path
+    // through here already delivered the synthetic timeout message for this job,
+    // so the confirm is not recording a loss as a success. We still finalize so
+    // the recovery marker clears rather than lingering until its TTL.
     await finalize();
     return true;
   }

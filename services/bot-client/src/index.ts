@@ -34,7 +34,8 @@ import { armBootWatchdog } from './utils/bootWatchdog.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
 import { ResultsListener } from './services/ResultsListener.js';
-import { JobTracker } from './services/JobTracker.js';
+import { deliverJobResult, type JobResultDeliveryDeps } from './services/deliverJobResult.js';
+import type { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
 import { registerGuildMemberInfoReporter } from './services/GuildMemberInfoReporter.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
@@ -52,6 +53,8 @@ import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { type MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import type { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import type { MultiTagRecovery } from './services/MultiTagRecovery.js';
+import type { SingleJobRecovery } from './services/SingleJobRecovery.js';
+import { runBootRecovery } from './services/bootRecovery.js';
 import { HttpPersonalityLoader } from './services/HttpPersonalityLoader.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
@@ -63,6 +66,7 @@ import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.j
 import {
   buildPersonalityChatPipeline,
   buildMultiTagStack,
+  buildJobTrackingStack,
   buildMessageHandler,
 } from './composition.js';
 import {
@@ -174,6 +178,12 @@ interface Services {
   multiTagPersistence: MultiTagPersistence;
   multiTagRecovery: MultiTagRecovery;
   /**
+   * Boot-time re-adoption of single-personality jobs left in flight by the
+   * previous process. The single-tag counterpart to `multiTagRecovery`; both
+   * must run before the results listener attaches.
+   */
+  singleJobRecovery: SingleJobRecovery;
+  /**
    * BullMQ Queue handle for polling authoritative job state: used by
    * MultiTagRecovery (jobs in flight at the previous process's shutdown)
    * and by MultiTagCoordinator's safety-timeout last-chance re-poll.
@@ -282,6 +292,44 @@ function buildContextBuilder(
   );
 }
 
+/**
+ * The two pub/sub cache-invalidation subscribers built over the cache Redis
+ * client: personality-tier invalidation (which drives the HTTP loader's
+ * positive/negative caches) and channel-activation invalidation (needed for
+ * horizontal scaling). Grouped for the same reason `createDenylistServices`
+ * is — one client, one concern, one line at the call site.
+ */
+function buildInvalidationServices(
+  cacheRedis: Redis,
+  routingPersonalityLoader: HttpPersonalityLoader
+): {
+  cacheInvalidationService: CacheInvalidationService;
+  channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
+} {
+  return {
+    cacheInvalidationService: new CacheInvalidationService(cacheRedis, routingPersonalityLoader),
+    channelActivationCacheInvalidationService: new ChannelActivationCacheInvalidationService(
+      cacheRedis
+    ),
+  };
+}
+
+/**
+ * BullMQ Queue handle for authoritative job-state polling — boot-time
+ * rehydration (MultiTagRecovery) and the coordinator's safety-timeout
+ * last-chance re-poll. Its lifecycle is owned by the composition root and it
+ * is closed in the shutdown sequence. Mirrors the existing BullMQ-config
+ * pattern in JobFailureListener — same QUEUE_NAME + same ioredis connection
+ * config derived from REDIS_URL. Extracted alongside `buildCacheRedis` so its
+ * non-null-assertion suppression doesn't bloat the main wiring body.
+ */
+function buildStateQueue(): Queue {
+  return new Queue(envConfig.QUEUE_NAME, {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL validated by validateRedisUrl() in buildCacheRedis() above
+    connection: createBullMQRedisConfig(parseRedisUrl(envConfig.REDIS_URL!)),
+  });
+}
+
 function createServices(): Services {
   // Composition Root. bot-client never touches Prisma — all DB-backed work
   // goes through the gateway's internal endpoints (HTTP), so there is no
@@ -293,7 +341,6 @@ function createServices(): Services {
   // Core infrastructure
   const webhookManager = new WebhookManager(client);
   const responseOrderingService = new ResponseOrderingService();
-  const jobTracker = new JobTracker(responseOrderingService);
   const resultsListener = new ResultsListener();
   // jobFailureListener is constructed AFTER the multi-tag coordinator below
   // — it needs the coordinator to route live multi-tag slot failures
@@ -306,16 +353,20 @@ function createServices(): Services {
   // instead of direct Prisma.
   const routingPersonalityLoader = new HttpPersonalityLoader();
 
-  // Pub/sub invalidation drives the HTTP loader's cache tiers for routing.
-  const cacheInvalidationService = new CacheInvalidationService(
-    cacheRedis,
-    routingPersonalityLoader
-  );
+  // Job tracking + its restart-recovery stack. The tracker's slots are
+  // in-memory, so without the Redis mirror wired in here a restart erases
+  // every in-flight single-personality job's delivery target and its result
+  // is dropped on arrival (TASK-821). `botRedis` (not `cacheRedis`): durable
+  // bot state, the same client MultiTagPersistence uses.
+  const { jobTracker, singleJobRecovery } = buildJobTrackingStack({
+    redis: botRedis,
+    orderingService: responseOrderingService,
+    personalityService: routingPersonalityLoader,
+    discordClient: client,
+  });
 
-  // Channel activation cache invalidation for horizontal scaling
-  const channelActivationCacheInvalidationService = new ChannelActivationCacheInvalidationService(
-    cacheRedis
-  );
+  const { cacheInvalidationService, channelActivationCacheInvalidationService } =
+    buildInvalidationServices(cacheRedis, routingPersonalityLoader);
 
   const { denylistCache, denylistCacheInvalidationService } = createDenylistServices(cacheRedis);
 
@@ -352,16 +403,7 @@ function createServices(): Services {
     slotDelivery,
   });
 
-  // BullMQ Queue handle for authoritative job-state polling — boot-time
-  // rehydration (MultiTagRecovery) and the coordinator's safety-timeout
-  // last-chance re-poll. Constructed here so its lifecycle is visible to
-  // the shutdown sequence below. Mirrors the existing BullMQ-config
-  // pattern in JobFailureListener — same QUEUE_NAME + same ioredis
-  // connection config derived from REDIS_URL.
-  const multiTagStateQueue = new Queue(envConfig.QUEUE_NAME, {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL validated by validateRedisUrl() in buildCacheRedis() above
-    connection: createBullMQRedisConfig(parseRedisUrl(envConfig.REDIS_URL!)),
-  });
+  const multiTagStateQueue = buildStateQueue();
 
   const { releaseDmWorker, retentionNotifyWorker } = createDmWorkers();
 
@@ -439,6 +481,7 @@ function createServices(): Services {
     multiTagCoordinator,
     multiTagPersistence,
     multiTagRecovery,
+    singleJobRecovery,
     multiTagStateQueue,
     releaseDmWorker,
     retentionNotifyWorker,
@@ -712,16 +755,27 @@ registerProcessLifecycle({
  */
 async function startResultsListener(): Promise<void> {
   logger.info('Starting results listener...');
+  // The disposition gate itself lives in `deliverJobResult` (with its own
+  // tests): only a `'delivered'` verdict may confirm the gateway row, because
+  // confirming a dropped result files a success record over a silent loss.
+  // The arrow keeps `handleJobResult` bound to its MessageHandler instance;
+  // passing the method reference unbound would lose `this`.
+  const delivery: JobResultDeliveryDeps = {
+    handleJobResult: (jId, res) => services.messageHandler.handleJobResult(jId, res),
+    confirmDelivery,
+  };
+
   await services.resultsListener.start(async (jobId, result) => {
     try {
       // Get context to know channel and timing
       const context = services.jobTracker.getContext(jobId);
 
       if (!context) {
-        // Job not tracked (shouldn't happen in normal flow)
+        // Job not tracked here — it may still be owned by the multi-tag
+        // coordinator or covered by a late-result recovery marker, so hand it
+        // to the handler and let IT report what happened.
         logger.warn({ jobId }, 'Result for unknown job - delivering immediately');
-        await services.messageHandler.handleJobResult(jobId, result);
-        await confirmDelivery(jobId);
+        await deliverJobResult(delivery, jobId, result);
         return;
       }
 
@@ -732,8 +786,7 @@ async function startResultsListener(): Promise<void> {
         result,
         context.userMessageTime,
         async (jId, res) => {
-          await services.messageHandler.handleJobResult(jId, res);
-          await confirmDelivery(jId);
+          await deliverJobResult(delivery, jId, res);
         }
       );
     } catch (error) {
@@ -874,48 +927,40 @@ async function start(): Promise<void> {
     logger.info('Successfully logged in to Discord');
     bootWatchdog.notePhase('logged-in');
 
-    // Recover any multi-tag fan-outs left in-flight by the previous bot
-    // shutdown. Marks old jobIds stale, resubmits fresh jobs, and
-    // rehydrates the coordinator's in-memory state. MUST run BEFORE
-    // startResultsListener — the stale-set filter has to be in place
-    // before any pre-restart result can arrive.
-    //
-    // **Defense in depth — overall timeout**: recovery makes Discord API
-    // calls (channels.fetch / messages.fetch) per entry. If Discord's API
-    // is degraded during a restart, those calls have no per-call timeout
-    // and could hang indefinitely. Without an overall cap, startup would
-    // stall and `startResultsListener` would never run — the bot would
-    // accept Discord events but couldn't process AI results. 30s gives
-    // recovery plenty of time even with 20+ entries under normal Discord
-    // latency, and bounds the worst case under degraded conditions.
-    const RECOVERY_TIMEOUT_MS = 30_000;
-    try {
-      const recoveryStats = await Promise.race([
-        services.multiTagRecovery.run(),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`Multi-tag recovery exceeded ${RECOVERY_TIMEOUT_MS}ms`)),
-            RECOVERY_TIMEOUT_MS
-          )
-        ),
-      ]);
-      logger.info({ ...recoveryStats }, 'Multi-tag recovery finished');
-    } catch (err) {
+    // Recover work left in-flight by the previous bot shutdown. BOTH passes
+    // MUST run BEFORE startResultsListener: multi-tag needs its stale-set
+    // filter in place before any pre-restart result arrives, and single-job
+    // needs the tracker context to exist before one does — a result landing
+    // in that gap is dropped as an unknown job, which is the failure the
+    // single-job pass exists to prevent. `runBootRecovery` owns the shared
+    // timeout rationale.
+    const multiTagStats = await runBootRecovery('Multi-tag recovery', () =>
+      services.multiTagRecovery.run()
+    );
+    if (multiTagStats === null) {
       // Conservatively enable the stale-check fast-path even on timeout.
-      // If `recovery.run()` was mid-flight when the 30s deadline fired, it
-      // keeps running in the background — its `noteRecoveryMarkedStale()`
-      // call only happens at the end, AFTER the loop. Without this line,
-      // `MessageHandler` would skip the isStale Redis check for every
-      // result that arrives between now and whenever the background
-      // recovery actually finishes, letting old-jobId results bypass the
-      // stale filter. Worst case if there's nothing to filter: a few
-      // wasted SISMEMBER calls against an empty SET. Cheap.
+      // If `recovery.run()` was mid-flight when the deadline fired, it keeps
+      // running in the background — its `noteRecoveryMarkedStale()` call only
+      // happens at the end, AFTER the loop. Without this line,
+      // `MessageHandler` would skip the isStale Redis check for every result
+      // that arrives between now and whenever the background recovery
+      // actually finishes, letting old-jobId results bypass the stale filter.
+      // Worst case if there's nothing to filter: a few wasted SISMEMBER calls
+      // against an empty SET. Cheap.
       services.multiTagCoordinator.noteRecoveryMarkedStale();
-      logger.error(
-        { err },
-        'Multi-tag recovery failed — continuing startup; entries will retry next restart'
-      );
     }
+
+    // The single-job pass needs no such compensation: unrecovered entries
+    // keep their Redis context and TTL, so the next restart retries them.
+    //
+    // The two passes run in SERIES deliberately, not to save a `Promise.all`.
+    // Each is already sequential internally because every entry costs up to
+    // two Discord API calls and a boot after a heavy-traffic shutdown could
+    // otherwise burst into a rate limit; overlapping the passes doubles that
+    // peak pressure at exactly the moment the concern is sharpest. The
+    // latency it would buy is headroom we do not need — roughly 60s worst
+    // case against `BOOT_DEADLINE_MS`.
+    await runBootRecovery('Single-job recovery', () => services.singleJobRecovery.run());
 
     // Start listening for job results (async delivery pattern)
     await startResultsListener();
