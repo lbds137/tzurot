@@ -1,9 +1,10 @@
 ---
 id: TASK-768
 title: ci-gate REVIEW_ROUND_CAP counter printed an implausible 588 cycles on PR 2213
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 20:45'
+updated_date: '2026-08-29 21:07'
 labels:
   - 'area:tooling'
   - 'size:S'
