@@ -51,6 +51,7 @@ export interface ParsedResponseMetadata {
       apiMessageKeys?: string[];
       apiReasoningLength?: number;
       cacheDiscount?: number;
+      model?: string;
     };
   };
   additionalKwargs?: {
@@ -288,6 +289,7 @@ export function recordLlmResponseDiagnostic(
     cachedPromptTokens: metadata.usageMetadata?.input_token_details?.cache_read,
     cacheDiscount: metadata.responseMetadata?.openrouter?.cacheDiscount,
     modelUsed: modelName,
+    routedModel: metadata.responseMetadata?.openrouter?.model,
     reasoningDebug: buildReasoningDebug(rawContent, metadata),
   });
 }

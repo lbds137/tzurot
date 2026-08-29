@@ -121,6 +121,15 @@ export interface LlmResponseData {
    */
   cacheDiscount?: number;
   modelUsed: string;
+  /**
+   * Model id the provider reported having served, captured from the raw
+   * payload's top-level `model` field by extractAndPopulateOpenRouterReasoning.
+   * Distinct from `modelUsed`, which is the model we REQUESTED: for a router
+   * alias such as `openrouter/auto` the two differ, and only this one names the
+   * model that actually answered. Undefined when the response carried no such
+   * field (a non-OpenRouter provider, or a failure before any response).
+   */
+  routedModel?: string;
   /** Debug info for reasoning extraction troubleshooting */
   reasoningDebug?: {
     additionalKwargsKeys: string[];

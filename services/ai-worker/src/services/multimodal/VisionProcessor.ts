@@ -29,6 +29,7 @@ import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js'
 import { enterSingleFlight, exitSingleFlight } from './visionSingleFlight.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
 import { resolveVisionImageUrl } from './visionImageResolver.js';
+import { readRoutedModel } from './readRoutedModel.js';
 import { getDescriptionPrompt } from '../DescriptionPromptService.js';
 import {
   VISION_PLACEHOLDER_PREFIX,
@@ -47,13 +48,24 @@ const logger = createLogger('VisionProcessor');
  * `[Image unavailable: …]` placeholder (on a terminate category, or once all tiers exhaust).
  */
 export class VisionModelError extends Error {
+  /**
+   * Model id the provider reported having served for the failed attempt, when
+   * the response carried one (see `readRoutedModel`). Undefined whenever the
+   * failure happened before a response existed — a transport error, or the
+   * zero-choices guard in `invokeModelGuarded`, which throws without returning
+   * a message. Carried so the fallback loop's exhausted-chain log can name the
+   * model behind the last failure rather than only the requested alias.
+   */
+  readonly routedModel?: string;
+
   constructor(
     readonly category: ApiErrorCategory,
     message: string,
-    options?: { cause?: unknown }
+    options?: { cause?: unknown; routedModel?: string }
   ) {
     super(message, options);
     this.name = 'VisionModelError';
+    this.routedModel = options?.routedModel;
   }
 }
 
@@ -311,8 +323,14 @@ async function invokeVisionModel(
     })
   );
 
+  // Hoisted so the catch below can name it too: an empty-content response is
+  // the prod failure shape this is here to attribute, and it throws from inside
+  // the try after the metadata is already in hand.
+  let routedModel: string | undefined;
+
   try {
     const response = await invokeModelGuarded(model, messages, { timeout: TIMEOUTS.VISION_MODEL });
+    routedModel = readRoutedModel(response.response_metadata);
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
 
@@ -334,6 +352,8 @@ async function invokeVisionModel(
       );
     }
 
+    logger.info({ modelName, routedModel, attachmentId: attachment.id }, 'Vision model responded');
+
     return content;
   } catch (error) {
     const errorInfo = parseApiError(error);
@@ -341,6 +361,7 @@ async function invokeVisionModel(
       {
         err: error,
         modelName,
+        routedModel,
         errorCategory: errorInfo.category,
         errorType: errorInfo.type,
         statusCode: errorInfo.statusCode,
@@ -369,6 +390,7 @@ async function invokeVisionModel(
     // on the category without re-parsing. `cause` preserves the original for logging.
     throw new VisionModelError(errorInfo.category, errorInfo.technicalMessage ?? String(error), {
       cause: error,
+      routedModel,
     });
   }
 }

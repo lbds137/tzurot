@@ -63,18 +63,19 @@ beforeAll(() => {
 
 afterAll(() => resetSystemSettingsRegistration());
 
+// One shared logger object rather than a fresh one per createLogger call: the
+// exhausted-chain warn is the only place the last attempt's routed model
+// surfaces, so its spy has to be reachable from the tests below.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -397,6 +398,33 @@ describe('describeImageWithFallback', () => {
     });
 
     expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+  });
+
+  it('names the last attempt routed model on the exhausted-chain log', async () => {
+    // The whole point of the instrumentation: every tier fails, and the chain log
+    // has to name the model that actually served the LAST failure — for a router
+    // alias the tier string is the alias, not the id that answered.
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL],
+    });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockRejectedValue(
+        new VisionModelError(ApiErrorCategory.EMPTY_RESPONSE, 'empty response', {
+          routedModel: 'qwen/qwen-2.5-vl-72b-instruct',
+        })
+      );
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'openrouter/auto',
+    });
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastAttempt: expect.objectContaining({ routedModel: 'qwen/qwen-2.5-vl-72b-instruct' }),
+      }),
+      'Vision fallback chain exhausted — all tiers failed'
+    );
   });
 
   it('promotes a non-OpenRouter paid tier on OpenRouter-key evidence (accepted slop, pinned)', async () => {

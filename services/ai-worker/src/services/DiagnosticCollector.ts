@@ -325,6 +325,7 @@ export class DiagnosticCollector {
       cachedPromptTokens: data.cachedPromptTokens,
       cacheDiscount: data.cacheDiscount,
       modelUsed: data.modelUsed,
+      routedModel: data.routedModel,
       reasoningDebug: data.reasoningDebug,
     };
   }
@@ -349,6 +350,7 @@ export class DiagnosticCollector {
       cachedPromptTokens: data.cachedPromptTokens,
       cacheDiscount: data.cacheDiscount,
       modelUsed: data.modelUsed ?? 'unknown',
+      routedModel: data.routedModel,
       reasoningDebug: data.reasoningDebug,
     };
   }
