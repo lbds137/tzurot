@@ -3,9 +3,10 @@ id: TASK-800
 title: >-
   Sanitize model/provider in the /inspect diagnostic embed (markdown-injection
   class)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 22:19'
+updated_date: '2026-08-29 22:26'
 labels:
   - 'area:bot-client'
   - 'size:S'
