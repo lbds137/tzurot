@@ -112,6 +112,17 @@ describe('invokeSystemModel provider seam', () => {
     });
   });
 
+  it('z.ai route: strips a mixed-case z-ai/ prefix (widening — case-sensitive startsWith used to leave this unstripped and 400)', async () => {
+    setExtractionSettings({ provider: 'zai-coding', model: 'Z-AI/glm-5' });
+    getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
+
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+
+    expect(createChatModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ modelName: 'glm-5' })
+    );
+  });
+
   it('default route: OpenRouter keeps the prefixed model id and attaches no key', async () => {
     setExtractionSettings({});
     getConfigMock.mockReturnValue(baseConfig);

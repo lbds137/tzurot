@@ -341,9 +341,12 @@ export class ProviderRouter {
  * chosen the model; we honor that choice.
  *
  * Detection rules (evaluated in order):
- * 1. `z-ai/<model>` → ZaiCoding (the auto-promote namespace)
- * 2. `glm-*` bare name → ZaiCoding (z.ai's direct format, e.g. `glm-5.1`, `glm-4.7`)
- * 3. Anything else → OpenRouter (the catch-all — `vendor/model` slash form,
+ * 1. `<model>:free` → OpenRouter (OpenRouter's free-variant suffix; a
+ *    `z-ai/…:free` id names an OpenRouter-hosted model living in z.ai's
+ *    namespace)
+ * 2. `z-ai/<model>` → ZaiCoding (the auto-promote namespace)
+ * 3. `glm-*` bare name → ZaiCoding (z.ai's direct format, e.g. `glm-5.1`, `glm-4.7`)
+ * 4. Anything else → OpenRouter (the catch-all — `vendor/model` slash form,
  *    bare legacy names like `gpt-4-vision-preview`, future provider formats)
  *
  * The OpenRouter default reflects reality: OpenRouter is the broadest catalog,

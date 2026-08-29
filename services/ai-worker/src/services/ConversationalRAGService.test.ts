@@ -1724,6 +1724,11 @@ describe('ConversationalRAGService', () => {
         cacheKeyId: 'system',
         imageCount: 2,
         audioCount: 1,
+        // Forwarded from getModel's ChatModelResult; the mock's default model
+        // is OpenRouter-shaped. Listed rather than relaxing the matcher to
+        // objectContaining — the exactness above is load-bearing, so a new
+        // field crossing this seam should have to be acknowledged here.
+        expectsRawResponse: true,
       });
     });
 

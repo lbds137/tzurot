@@ -110,7 +110,8 @@ function extractProviderErrorObject(
  */
 function validateAndExtractRawMessage(
   kwargs: Record<string, unknown>,
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
+  expectsRawResponse: boolean
 ): { raw: Record<string, unknown>; rawMessage: Record<string, unknown> } | null {
   const rawResponse = kwargs.__raw_response;
 
@@ -120,14 +121,19 @@ function validateAndExtractRawMessage(
       return null;
     }
     // Completed message but no raw response: __includeRawResponse may not be set,
-    // or LangChain may have changed the field name. Log loudly.
-    logger.warn(
-      {
-        additionalKwargsKeys: Object.keys(kwargs),
-        responseMetadataKeys: Object.keys(metadata),
-      },
-      '[OpenRouterReasoning] Expected __raw_response in additional_kwargs but found none — verify ChatOpenAI __includeRawResponse setting and @langchain/openai version'
-    );
+    // or LangChain may have changed the field name. Log loudly — unless the
+    // caller declared the model does not produce a raw response at all
+    // (e.g. z.ai-direct, which never sets __includeRawResponse), in which
+    // case this is the expected shape and warning would just be noise.
+    if (expectsRawResponse) {
+      logger.warn(
+        {
+          additionalKwargsKeys: Object.keys(kwargs),
+          responseMetadataKeys: Object.keys(metadata),
+        },
+        '[OpenRouterReasoning] Expected __raw_response in additional_kwargs but found none — verify ChatOpenAI __includeRawResponse setting and @langchain/openai version'
+      );
+    }
     return null;
   }
 
@@ -251,12 +257,17 @@ function populateReasoningFields(
  * - Stream-safety: when `__raw_response` AND `finish_reason` are both absent,
  *   returns unchanged (likely a partial streaming chunk).
  * - Loud regression detection: when `finish_reason` is present but
- *   `__raw_response` is absent, logs a warning. This catches the case where a
- *   future LangChain version bump removes/renames `__includeRawResponse`.
+ *   `__raw_response` is absent, logs a warning — suppressed when the caller
+ *   declares (via `expectsRawResponse: false`) that this model does not
+ *   produce a raw response. Otherwise this catches the case where a future
+ *   LangChain version bump removes/renames `__includeRawResponse`.
  * - Defensive on malformed `__raw_response`: logs warn, cleans up the field,
  *   returns unchanged.
  */
-export function extractAndPopulateOpenRouterReasoning(message: BaseMessage): BaseMessage {
+export function extractAndPopulateOpenRouterReasoning(
+  message: BaseMessage,
+  expectsRawResponse = true
+): BaseMessage {
   // Defensive guards: real LangChain BaseMessages always have `{}` for both fields,
   // but test mocks routinely omit them and we should not crash retry/error paths.
   if (message === null || message === undefined) {
@@ -268,7 +279,7 @@ export function extractAndPopulateOpenRouterReasoning(message: BaseMessage): Bas
     return message;
   }
 
-  const validated = validateAndExtractRawMessage(kwargs, metadata);
+  const validated = validateAndExtractRawMessage(kwargs, metadata, expectsRawResponse);
   if (validated === null) {
     return message;
   }
