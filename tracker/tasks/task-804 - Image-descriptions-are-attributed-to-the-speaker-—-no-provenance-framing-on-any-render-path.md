@@ -3,9 +3,10 @@ id: TASK-804
 title: >-
   Image descriptions are attributed to the speaker — no provenance framing on
   any render path
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 23:59'
+updated_date: '2026-08-29 14:24'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -34,5 +35,9 @@ SHIPPED (constraint half): one provenance constraint in OUTPUT_CONSTRAINTS namin
 
 RETIRED (wrap half) — do NOT re-derive it: wrapping the trigger path in <image_descriptions> cannot work. Both image_descriptions and image are in PROTECTED_TAGS (packages/common-types/src/utils/promptSanitizer.ts:79-80), so a wrapper applied on the trigger path is escaped away by escapeXmlContent at PromptBuilder.ts:203 - the inverse of why voice_transcripts/transcript were deliberately left OUT of PROTECTED_TAGS so their wrapper survives. Reviving it requires either de-protecting tags that guard the history render containment, or a parallel unprotected image vocabulary; both were rejected. The asymmetry is pinned in both directions in packages/common-types/src/utils/promptSanitizer.test.ts.
 
-REMAINING (why this task stays open): (a) runtime smoke - a character receiving an image on each of upload / embed / quoted ref, confirming it no longer credits the sharer with the description's analysis. Prompt-level intervention, so model compliance is unverified by construction. (b) If prod after the constraint ships still shows mis-attribution, design the wrap slice with the escape ordering resolved first.
+REMAINING (why this task stayed open): (a) runtime smoke - a character receiving an image on each of upload / embed / quoted ref, confirming it no longer credits the sharer with the description's analysis. Prompt-level intervention, so model compliance is unverified by construction. (b) If prod after the constraint ships still shows mis-attribution, design the wrap slice with the escape ordering resolved first.
+
+CLOSED 2026-08-29 — clause (a) WAIVED by owner, verbatim: "if we changed the prompt construction that's good enough for me tbh." The smoke was never going to be a proof (a prompt constraint cannot be shown compliant by three samples), and the owner accepts the constraint landing as sufficient. Recording the waiver rather than silently dropping it: what is being accepted is that model compliance stays UNVERIFIED, not that it was verified.
+
+Clause (b) survives as a WATCH, not as open work: the trigger is a prod sighting of a character still crediting a sharer with description prose. The original report cites request 623bb16a-f235-4dae-907a-81f9b69a954b as the pre-fix specimen; a post-beta.210 recurrence is what would reopen the wrap slice, and the retired-wrap analysis above is the starting point for it.
 <!-- SECTION:DESCRIPTION:END -->
