@@ -66,6 +66,14 @@ export const GATE_DEFAULTS = {
    * "correct" this to > 6.
    */
   REVIEW_ROUND_WARN_THRESHOLD: 6,
+  /**
+   * Review-cycle count at and above which the dispatch-posture reminder
+   * prints. One completed cycle is already a round of findings to apply, and
+   * `/tzurot-review-response` § 3a routes review-round fixes through a worker
+   * dispatch regardless of driver — so the reminder fires on the first cycle
+   * rather than waiting for the round-cap threshold above.
+   */
+  REVIEW_ROUND_DISPATCH_REMINDER_THRESHOLD: 1,
 } as const;
 
 export interface WorkflowRun {
@@ -433,11 +441,14 @@ export function countReviewCycles(prNumber: number): number {
 
 /**
  * Print the § 5a hand-off warning when the PR's review-cycle count has
- * reached the cap. Advisory and fail-open BY DESIGN: the gate's job is CI
- * state, and a count hiccup must not turn a green gate red — but the
- * unavailability is still printed, because a silent skip would read as
- * "under the cap" (the same silence-looks-like-success shape the sentinels
- * exist to remove).
+ * reached the cap, and — at any successfully-read count of at least one
+ * cycle — the dispatch-posture reminder ahead of it. Both are advisory and
+ * fail-open BY DESIGN: the gate's job is CI state, and a count hiccup must
+ * not turn a green gate red — but the unavailability is still printed on its
+ * own line, because a silent skip would read as "under the cap" (the same
+ * silence-looks-like-success shape the sentinels exist to remove). Nothing
+ * beyond that unavailability line prints when the count could not be read:
+ * there is no count to compare against either threshold.
  */
 export function reportReviewRounds(
   prNumber: number,
@@ -451,6 +462,13 @@ export function reportReviewRounds(
     const detail = error instanceof Error ? error.message : String(error);
     log(`⚠️  review-cycle count unavailable (${detail}) — the round-cap check did not run.`);
     return;
+  }
+  if (cycles >= GATE_DEFAULTS.REVIEW_ROUND_DISPATCH_REMINDER_THRESHOLD) {
+    log(
+      "📋 REVIEW ROUNDS ARE DISPATCH WORK: batch this round's findings into ONE " +
+        'worker dispatch (/tzurot-review-response § 3a); inline application is the ' +
+        'exception, not the default.'
+    );
   }
   if (cycles >= GATE_DEFAULTS.REVIEW_ROUND_WARN_THRESHOLD) {
     log(

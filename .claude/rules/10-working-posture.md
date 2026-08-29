@@ -244,6 +244,13 @@ day each killed an undelivered close-out this way, reading to the owner as a
 stall. The recovery rule (deliver first post-compaction) already exists; this
 is the ordering that stops the report needing recovery at all.
 
+These are two distinct utterances, and the turn needs both: **the report
+leads, a short confirmation closes.** So a unit-completing turn never ENDS on
+a tool call either — when bookkeeping writes follow the report, the last thing
+in the turn is text saying they landed, never the tool result itself. Both
+observed failure shapes are ordering: the report queued behind the writes and
+killed by compaction, and the turn ending silently on a successful write.
+
 ## A comment naming an artifact is a pointer — resolve it before acting
 
 Trigger: a comment, docstring, or task note names a concrete artifact — "the
