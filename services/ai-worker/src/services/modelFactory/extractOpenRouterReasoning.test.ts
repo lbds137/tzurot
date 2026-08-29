@@ -165,6 +165,48 @@ describe('extractAndPopulateOpenRouterReasoning', () => {
       expect(openrouter.cacheDiscount).toBeUndefined();
     });
 
+    it('captures the routed model from the raw payload top-level model field', () => {
+      // An `openrouter/auto` request: the model we asked for is the router
+      // alias, and the payload reports which model actually served it.
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+        rawResponse: {
+          id: 'gen-routed',
+          object: 'chat.completion',
+          model: 'google/gemini-2.5-flash',
+          provider: 'Google',
+          choices: [{ message: { role: 'assistant', content: 'response' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18 },
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      const openrouter = (message.response_metadata as Record<string, unknown>).openrouter as {
+        model?: string;
+      };
+      expect(openrouter.model).toBe('google/gemini-2.5-flash');
+    });
+
+    it('omits the routed model when the raw payload carries no model field', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+        rawResponse: {
+          provider: 'Chutes',
+          choices: [{ message: { role: 'assistant', content: 'response' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      const openrouter = (message.response_metadata as Record<string, unknown>).openrouter as {
+        model?: string;
+      };
+      expect(openrouter.model).toBeUndefined();
+    });
+
     it('captures apiMessageKeys (distinguishes structured-reasoning vs content-only responses)', () => {
       const message = buildMessage({
         content: 'response',

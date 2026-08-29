@@ -128,6 +128,22 @@ vi.mock('../../utils/imageToDataUrl.js', () => ({
   downloadImageToDataUrl: (url: string, opts: unknown) => mockDownloadImageToDataUrl(url, opts),
 }));
 
+// A single shared logger object (vi.hoisted, so it exists before the module under
+// test calls createLogger at import time) — the routed-model instrumentation is
+// observable only on the log record, so the spies have to be reachable here.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
+
 describe('VisionProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1526,6 +1542,80 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
         expect(result).toBe('A cat.');
+      });
+    });
+
+    describe('routed-model instrumentation', () => {
+      // The prod failure being diagnosed: openrouter/auto answers 200 with empty
+      // content, so only the routed model identifies which model actually failed.
+      const routedResponseMetadata = { model_name: 'qwen/qwen-2.5-vl-72b-instruct' };
+
+      it('carries the routed model on the failure log when the content came back empty', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({
+          content: '',
+          response_metadata: routedResponseMetadata,
+        });
+
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(
+          ERROR_MESSAGES.EMPTY_RESPONSE
+        );
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ routedModel: 'qwen/qwen-2.5-vl-72b-instruct' }),
+          'Vision model invocation failed'
+        );
+      });
+
+      it('carries the routed model on the thrown VisionModelError for the fallback loop', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({
+          content: '',
+          response_metadata: routedResponseMetadata,
+        });
+
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+
+        await expect(
+          describeImage(mockAttachment, personality, false, undefined, { throwOnFailure: true })
+        ).rejects.toMatchObject({
+          name: 'VisionModelError',
+          routedModel: 'qwen/qwen-2.5-vl-72b-instruct',
+        });
+      });
+
+      it('logs the routed model on the success path', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({
+          content: 'A detailed description of the image.',
+          response_metadata: routedResponseMetadata,
+        });
+
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ routedModel: 'qwen/qwen-2.5-vl-72b-instruct' }),
+          'Vision model responded'
+        );
+      });
+
+      it('omits the routed model rather than substituting a placeholder when absent', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        // No response_metadata at all — a provider whose response carries no model id.
+        mockModelInvoke.mockResolvedValue({ content: 'A detailed description of the image.' });
+
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ routedModel: undefined }),
+          'Vision model responded'
+        );
       });
     });
 
