@@ -521,6 +521,22 @@ describe('buildDiagnosticEmbed', () => {
     expect(routedIdx).toBeGreaterThan(servedIdx);
   });
 
+  it('renders no Routed line when modelUsed is empty — nothing to have routed FROM', () => {
+    // The sibling `substituted` check already guards on served.length, so the
+    // diagnostic path can produce an empty modelUsed. isSameModel(x, '') is
+    // false for every non-empty x, so without the same guard here a payload
+    // missing modelUsed would claim a routing resolution it cannot know about.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'openrouter/auto';
+    payload.llmResponse.modelUsed = '';
+    payload.llmResponse.routedModel = 'anthropic/claude-x-sonnet';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).not.toContain('Routed');
+    expect(modelField?.value).not.toContain('🔀');
+  });
+
   it('renders no Routed line when routedModel is an empty string', () => {
     const payload = createMockPayload();
     payload.llmConfig.model = 'openrouter/auto';
@@ -560,6 +576,83 @@ describe('buildDiagnosticEmbed', () => {
     expect(familyIdx).toBeGreaterThan(routedIdx);
     expect(upstreamIdx).toBeGreaterThan(familyIdx);
     expect(tempIdx).toBeGreaterThan(upstreamIdx);
+  });
+
+  it('renders a masked-link model id inert rather than as a live link', () => {
+    // `model` and `provider` are free-text /preset modal inputs validated for
+    // length only, so a user can name a model `[Free Nitro](http://evil...)`.
+    // Discord renders masked links inside an embed field VALUE, and these
+    // lines carry no surrounding backticks to neutralize them.
+    const payload = createMockPayload();
+    payload.llmConfig.model = '[Free Nitro](http://evil.example)';
+    payload.llmConfig.provider = '[click](http://evil.example)';
+    payload.llmResponse.modelUsed = '[Free Nitro](http://evil.example)';
+    payload.llmResponse.routedModel = '[routed](http://evil.example)';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const value = embed.toJSON().fields?.find(f => f.name.includes('Model'))?.value ?? '';
+    // The delimiters that BUILD a markdown link are what must be gone; the
+    // inner text surviving as plain prose is the intended, inert outcome.
+    expect(value).not.toContain('](');
+    expect(value).not.toContain('[Free Nitro]');
+    expect(value).not.toContain('(http://evil.example)');
+    expect(value).toContain('Free Nitro');
+  });
+
+  it('sanitizes the Upstream provider line too', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.reasoningDebug = {
+      additionalKwargsKeys: [],
+      hasReasoningInKwargs: false,
+      reasoningKwargsLength: 0,
+      responseMetadataKeys: [],
+      hasReasoningDetails: false,
+      hasReasoningTagsInContent: false,
+      rawContentPreview: '',
+      upstreamProvider: '[Upstream](http://evil.example)',
+    };
+
+    const embed = buildDiagnosticEmbed(payload);
+    const value = embed.toJSON().fields?.find(f => f.name.includes('Model'))?.value ?? '';
+    expect(value).not.toContain('](');
+    expect(value).toContain('Upstream');
+  });
+
+  it('renders a masked-link character name inert in the Request field', () => {
+    // Character names are user-created and render without backticks, so they
+    // are the same class as the model ids — TASK-800 named only the Model
+    // field, but the defect is the file's, not that one function's.
+    const payload = createMockPayload();
+    payload.meta.personalityName = '[Verified](http://evil.example)';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const value = embed.toJSON().fields?.find(f => f.name.includes('Request'))?.value ?? '';
+    expect(value).not.toContain('](');
+    expect(value).toContain('Verified');
+  });
+
+  it('sanitizes Upstream in the Reasoning field, not just the Model field', () => {
+    // Two different functions render the same upstreamProvider value. A fix
+    // applied to one leaves the other live, and only a test that reaches the
+    // Reasoning field (which requires a `thinking` param) can tell them apart.
+    const payload = createMockPayload();
+    payload.llmConfig.allParams = { ...payload.llmConfig.allParams, thinking: 'high' };
+    payload.llmResponse.reasoningDebug = {
+      additionalKwargsKeys: [],
+      hasReasoningInKwargs: false,
+      reasoningKwargsLength: 0,
+      responseMetadataKeys: [],
+      hasReasoningDetails: false,
+      hasReasoningTagsInContent: false,
+      rawContentPreview: '',
+      upstreamProvider: '[Upstream](http://evil.example)',
+    };
+
+    const embed = buildDiagnosticEmbed(payload);
+    const value = embed.toJSON().fields?.find(f => f.name.includes('Reasoning'))?.value ?? '';
+    expect(value).toContain('thinking=high');
+    expect(value).not.toContain('](');
+    expect(value).toContain('Upstream');
   });
 
   it('shows finish reason with emoji decoration in Response field', () => {
