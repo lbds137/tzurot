@@ -3,7 +3,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { DISCORD_COLORS, stripMarkdownDelimiters } from '@tzurot/common-types/constants/discord';
 import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 
@@ -122,7 +122,9 @@ export function buildReasoningField(
   const lines: string[] = [`**Config:** thinking=${thinking}`];
 
   if (reasoningDebug?.upstreamProvider !== undefined) {
-    lines.push(`**Upstream:** ${reasoningDebug.upstreamProvider}`);
+    // The SAME value the Model field renders — sanitized in both places, or
+    // the fix covers one of the two lines that display it.
+    lines.push(`**Upstream:** ${stripMarkdownDelimiters(reasoningDebug.upstreamProvider)}`);
   }
 
   const extractionStatus = formatExtractionStatus(reasoningDebug);
@@ -147,7 +149,14 @@ function bareModel(id: string): string {
  * Only `-<digits>` counts as a stamp (`claude-3-5-sonnet-20241022`) — dotted
  * or named suffixes (`-4.5`, `-turbo`, `-air`, `:free`) are DIFFERENT models
  * and must flag. A false "Served" line is honest info; a false negative
- * hides exactly the substitution this field exists to surface. */
+ * hides exactly the substitution this field exists to surface.
+ *
+ * NOT interchangeable with `namesSameModel` in common-types' discord.ts,
+ * despite the near-identical name. That one strips ONLY the `z-ai/` prefix,
+ * deliberately, because the footer must keep the arrow for a genuine swap
+ * between two vendors sharing a model tail. This one strips ANY vendor
+ * prefix, which is right for a diagnostic view and wrong for the footer.
+ * Swapping one for the other silently changes which swaps are reported. */
 function isSameModel(requested: string, served: string): boolean {
   const a = bareModel(requested);
   const b = bareModel(served);
@@ -186,22 +195,41 @@ function buildModelField(
   // fallback retargets), show BOTH prominently. Normalized comparison:
   // provider prefixes ('z-ai/…' → bare) and version-suffixed variants
   // ('…-sonnet' served as '…-sonnet-20241022') are the SAME model.
+  // Every id below is rendered through stripMarkdownDelimiters. `model` and
+  // `provider` are free-text `/preset` modal inputs validated for LENGTH
+  // only, so an id like `[Free Nitro](http://evil.example)` would otherwise
+  // render as a live masked link inside the embed value. The provider-
+  // supplied ids get the same treatment as defence in depth. Sanitize at
+  // RENDER only, never before a comparison: stripping would change what
+  // isSameModel considers equal.
   const served = llmResponse.modelUsed;
   const substituted = served.length > 0 && !isSameModel(llmConfig.model, served);
   const lines: string[] = substituted
-    ? [`**Requested:** ${llmConfig.model}`, `⚠️ **Served:** ${served}`]
-    : [`**Model:** ${llmConfig.model}`];
+    ? [
+        `**Requested:** ${stripMarkdownDelimiters(llmConfig.model)}`,
+        `⚠️ **Served:** ${stripMarkdownDelimiters(served)}`,
+      ]
+    : [`**Model:** ${stripMarkdownDelimiters(llmConfig.model)}`];
   // A router alias (e.g. openrouter/auto) resolves to a concrete model at
   // the provider; name what actually ran, independent of any requested/
   // served substitution above.
+  // `served.length > 0` matches the `substituted` guard above: with no served
+  // id there is nothing to compare against, and isSameModel(x, '') is false
+  // for every non-empty x — so without it a payload missing modelUsed would
+  // claim a routing resolution it cannot actually know happened.
   const routedModel = llmResponse.routedModel;
-  if (routedModel !== undefined && routedModel.length > 0 && !isSameModel(routedModel, served)) {
-    lines.push(`🔀 **Routed:** ${routedModel}`);
+  if (
+    routedModel !== undefined &&
+    routedModel.length > 0 &&
+    served.length > 0 &&
+    !isSameModel(routedModel, served)
+  ) {
+    lines.push(`🔀 **Routed:** ${stripMarkdownDelimiters(routedModel)}`);
   }
-  lines.push(`**Family:** ${llmConfig.provider}`);
+  lines.push(`**Family:** ${stripMarkdownDelimiters(llmConfig.provider)}`);
   const upstreamProvider = llmResponse.reasoningDebug?.upstreamProvider;
   if (upstreamProvider !== undefined) {
-    lines.push(`**Upstream:** ${upstreamProvider}`);
+    lines.push(`**Upstream:** ${stripMarkdownDelimiters(upstreamProvider)}`);
   }
   lines.push(`**Temperature:** ${llmConfig.temperature ?? 'default'}`);
   return { name: '🤖 Model', value: lines.join('\n'), inline: true };
@@ -263,7 +291,9 @@ export function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
         name: '📝 Request',
         value: [
           `**ID:** \`${meta.requestId}\``,
-          `**Character:** ${meta.personalityName}`,
+          // User-created name, rendered without backticks — same masked-link
+          // class as the model ids in buildModelField.
+          `**Character:** ${stripMarkdownDelimiters(meta.personalityName)}`,
           `**User:** <@${meta.userId}>`,
           `**Channel:** <#${meta.channelId}>`,
         ].join('\n'),
