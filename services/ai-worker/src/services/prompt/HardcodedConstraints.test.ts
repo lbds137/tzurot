@@ -62,10 +62,49 @@ describe('HardcodedConstraints', () => {
       expect(OUTPUT_CONSTRAINTS).toContain('<user>');
       expect(OUTPUT_CONSTRAINTS).toContain('<message>');
       // <quote> and <contextual_references> are prompt-structure tags the model
-      // must never reproduce in its output — same class as <from_id>/<user>/<message>.
+      // must never reproduce. Their provenance differs from the trio above and
+      // is deliberately not asserted to be the same: they were added alongside a
+      // quoted-reference change rather than mined from an observed leak, so
+      // neither carries a cited request the way <from_id>/<user>/<message> do.
+      // <contextual_references> has since gained that evidence independently —
+      // it is a member of PROMPT_TEMPLATE_ORPHAN_TAGS in responseArtifacts.ts.
       expect(OUTPUT_CONSTRAINTS).toContain('<quote>');
       expect(OUTPUT_CONSTRAINTS).toContain('<contextual_references>');
       expect(OUTPUT_CONSTRAINTS).toContain('assembly artifacts');
+    });
+
+    // Pins the scaffolding-ban audit's OUTCOME, not just its text: these two
+    // tags were considered and deliberately excluded. The criterion itself
+    // lives on OUTPUT_CONSTRAINTS and is deliberately NOT restated here — one
+    // home, so revising it cannot leave two copies disagreeing.
+    //
+    // What belongs here is the evidence for these two specifically: both are
+    // emitted by the prompt, yet neither appears in ARTIFACT_TAG_NAMES or
+    // KNOWN_THINKING_TAGS, whose entries cite the requests a model was seen
+    // echoing them in. That absence is narrower than proof — it establishes
+    // that no strip was ever built for these two, not that no echo has ever
+    // occurred — so a future sighting is what reopens the decision. Adding
+    // either tag reddens this test, which is the point: the next addition
+    // should be a decision, not a drift.
+    //
+    // Scoped to the ban line rather than the whole block: <image_descriptions>
+    // legitimately appears elsewhere in OUTPUT_CONSTRAINTS (the media-provenance
+    // constraint names it), so a block-wide not.toContain would be false, and a
+    // punctuation-anchored one would pass vacuously if the tag were appended
+    // last in the enumeration.
+    it('excludes prompt-structure tags with no observed-emission evidence', () => {
+      const banLine = OUTPUT_CONSTRAINTS.split('\n').find(line =>
+        line.includes('Never emit input-format scaffolding')
+      );
+      expect(banLine).toBeDefined();
+      // The line-scoping above is only sound while the constraint is single-line:
+      // if one were ever reformatted to wrap, `find` would match the lead fragment
+      // and a tag on a continuation line would escape both assertions silently.
+      // Pinning the closing tag on the same line makes that reformatting fail here
+      // rather than quietly hollow the test out.
+      expect(banLine).toContain('</constraint>');
+      expect(banLine).not.toContain('<image_descriptions>');
+      expect(banLine).not.toContain('<instruction>');
     });
 
     it('should anchor the model to the user’s current message, not continuing its own prior text', () => {

@@ -68,6 +68,42 @@ export function buildIdentityConstraints(
  * Output constraints - technical requirements for clean output.
  * Rendered as the second S0 block, at the start of the system message, so the
  * whole constraint prefix stays byte-stable and cacheable.
+ *
+ * ## What belongs in the scaffolding-ban constraint
+ *
+ * That constraint names a deliberate SUBSET, not every tag the prompt emits —
+ * the assembled prompt exposes dozens, which `pnpm ops guard:prompt-tags`
+ * enumerates. Membership is not free (permanent S0 tokens on every request), so
+ * it needs a reason beyond "the prompt emits it":
+ *
+ * - **Post-processing is the guarantee, not this list.** `wrapperTagUnwrap` is
+ *   vocabulary-agnostic — it unwraps by tag SHAPE, excluding only the strip
+ *   vocabularies it imports — and `responseArtifacts` deletes a mined tag
+ *   family. An unbanned tag is therefore not an unhandled tag.
+ * - **Prefer banning what post-processing cannot clean up.** `responseArtifacts`
+ *   deliberately omits `context` from its orphan-closer list as too
+ *   collision-prone against ordinary prose; a tag in that position has no lever
+ *   other than this one.
+ * - **Evidence that a model actually emits a tag** lives in the strip
+ *   vocabularies (`ARTIFACT_TAG_NAMES` in `responseArtifacts.ts`,
+ *   `KNOWN_THINKING_TAGS` in `thinkingExtraction.ts`), whose entries cite the
+ *   requests they were mined from. This list carries no such citations.
+ *
+ * The current membership predates the criterion and does not satisfy it in
+ * either direction: tags with mined-echo evidence (`chat_log`, `participants`,
+ * `protocol`, `memory_archive`, `facts`) go unnamed, while `<user>` and the
+ * ELEMENT form of `<from_id>` are named although prompt assembly emits neither
+ * (`from_id` ships as an attribute; `<user>` appears only inside this
+ * constraint's own text). The instrument behind that second, negative half is
+ * `guard:prompt-tags` rather than a grep: it is bidirectional, so an emitted
+ * `<user>` element could not sit unclassified in its registry — which records
+ * `user` as constraint-text-only. That they are a model's own invention rather
+ * than an echo of ours is not inferred from that absence — it is the recorded
+ * observation behind the pair: `thinkingExtraction.ts`'s GLM-4.5-Air
+ * fake-user-message-echo entry cites a production request in which the model
+ * improvised a reasoning channel using tags that mimic our prompt-assembly
+ * format. Re-deriving the list would change every response, so it is an owner
+ * call, not a cleanup.
  */
 export const OUTPUT_CONSTRAINTS = `<output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
