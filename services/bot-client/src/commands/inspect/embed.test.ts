@@ -463,6 +463,105 @@ describe('buildDiagnosticEmbed', () => {
     expect(modelField?.value).not.toContain('Served');
   });
 
+  it('renders no Routed line when routedModel is absent (regression pin)', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'claude-3-5-sonnet';
+    payload.llmResponse.modelUsed = 'claude-3-5-sonnet-20241022';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).not.toContain('Routed');
+    expect(modelField?.value).not.toContain('🔀');
+  });
+
+  it('omits the Routed line when routedModel names the same model as modelUsed (normalized)', () => {
+    // Exercised through isSameModel's normalizer, not a bare ===: a
+    // version-stamp suffix on modelUsed still counts as the same model.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'anthropic/claude-x-sonnet';
+    payload.llmResponse.modelUsed = 'anthropic/claude-x-sonnet';
+    payload.llmResponse.routedModel = 'claude-x-sonnet';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).not.toContain('Routed');
+    expect(modelField?.value).not.toContain('🔀');
+  });
+
+  it('shows the Routed line for a router alias with no requested/served substitution', () => {
+    // The openrouter/auto case: what was requested equals what was asked
+    // for, but the provider resolved the alias to a concrete model.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'openrouter/auto';
+    payload.llmResponse.modelUsed = 'openrouter/auto';
+    payload.llmResponse.routedModel = 'anthropic/claude-x-sonnet';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('**Model:** openrouter/auto');
+    expect(modelField?.value).not.toContain('Requested');
+    expect(modelField?.value).not.toContain('Served');
+    expect(modelField?.value).toContain('🔀 **Routed:** anthropic/claude-x-sonnet');
+  });
+
+  it('shows Requested, Served, AND Routed together when both fire', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'z-ai/glm-4.5-air';
+    payload.llmResponse.modelUsed = 'openrouter/auto';
+    payload.llmResponse.routedModel = 'anthropic/claude-x-sonnet';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    const value = modelField?.value ?? '';
+    const requestedIdx = value.indexOf('Requested');
+    const servedIdx = value.indexOf('Served');
+    const routedIdx = value.indexOf('Routed');
+    expect(requestedIdx).toBeGreaterThanOrEqual(0);
+    expect(servedIdx).toBeGreaterThan(requestedIdx);
+    expect(routedIdx).toBeGreaterThan(servedIdx);
+  });
+
+  it('renders no Routed line when routedModel is an empty string', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'openrouter/auto';
+    payload.llmResponse.modelUsed = 'openrouter/auto';
+    payload.llmResponse.routedModel = '';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).not.toContain('Routed');
+  });
+
+  it('keeps Family, Upstream, and Temperature in order after the new Routed line', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'openrouter/auto';
+    payload.llmConfig.provider = 'openrouter';
+    payload.llmResponse.modelUsed = 'openrouter/auto';
+    payload.llmResponse.routedModel = 'anthropic/claude-x-sonnet';
+    payload.llmResponse.reasoningDebug = {
+      additionalKwargsKeys: [],
+      hasReasoningInKwargs: false,
+      reasoningKwargsLength: 0,
+      responseMetadataKeys: [],
+      hasReasoningDetails: false,
+      hasReasoningTagsInContent: false,
+      rawContentPreview: '',
+      upstreamProvider: 'DekaLLM',
+    };
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    const value = modelField?.value ?? '';
+    const routedIdx = value.indexOf('Routed');
+    const familyIdx = value.indexOf('Family');
+    const upstreamIdx = value.indexOf('Upstream');
+    const tempIdx = value.indexOf('Temperature');
+    expect(routedIdx).toBeGreaterThanOrEqual(0);
+    expect(familyIdx).toBeGreaterThan(routedIdx);
+    expect(upstreamIdx).toBeGreaterThan(familyIdx);
+    expect(tempIdx).toBeGreaterThan(upstreamIdx);
+  });
+
   it('shows finish reason with emoji decoration in Response field', () => {
     const payload = createMockPayload();
     payload.llmResponse.finishReason = 'length';
