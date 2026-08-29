@@ -18,6 +18,8 @@
  */
 
 import { vi } from 'vitest';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { ChatModelResult } from '../../services/modelFactory/types.js';
 
 /**
  * Type definition for the LLMInvoker mock instance
@@ -34,19 +36,29 @@ let mockInstance: MockLLMInvokerInstance | null = null;
  * Create fresh mock functions with default implementations
  *
  * **Default Behaviors:**
- * - `getModel()` → Returns `{ model: { invoke: fn }, modelName: 'test-model' }`
+ * - `getModel()` → Returns
+ *   `{ model: { invoke: fn }, modelName: 'test-model', expectsRawResponse: true }`
  * - `invokeWithRetry()` → Resolves to `{ content: 'AI response' }`
  *
  * Override in tests: `getLLMInvokerMock().invokeWithRetry.mockResolvedValue({ content: 'Custom' })`
  */
 function createMockFunctions(): MockLLMInvokerInstance {
+  // Typed rather than a bare literal so a new required field on
+  // ChatModelResult breaks this fixture at compile time instead of drifting
+  // silently (02-code-standards § Testing Standards, "new fixtures should be
+  // typed"). The `model` stub needs the cast because a real BaseChatModel has
+  // ~65 members no mock reproduces; the cast is scoped to that one field so
+  // every OTHER field stays compiler-checked, which is where the drift the
+  // rule cares about actually happens.
+  const modelResult: ChatModelResult = {
+    model: {
+      invoke: vi.fn().mockResolvedValue({ content: 'AI response' }),
+    } as unknown as BaseChatModel,
+    modelName: 'test-model',
+    expectsRawResponse: true,
+  };
   return {
-    getModel: vi.fn().mockReturnValue({
-      model: {
-        invoke: vi.fn().mockResolvedValue({ content: 'AI response' }),
-      },
-      modelName: 'test-model',
-    }),
+    getModel: vi.fn().mockReturnValue(modelResult),
     invokeWithRetry: vi.fn().mockResolvedValue({
       content: 'AI response',
     }),

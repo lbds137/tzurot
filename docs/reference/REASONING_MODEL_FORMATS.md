@@ -77,6 +77,17 @@ Some providers return reasoning in a dedicated field separate from the main cont
 
 **z.ai is deliberately NOT bridged:** z.ai uses its own `reasoning_content` protocol, which `ResponsePostProcessor.extractApiReasoning()` reads directly, so `__includeRawResponse` is intentionally not set on the z.ai client.
 
+Because the extractor still runs on that path, each builder declares
+`ChatModelResult.expectsRawResponse` alongside its `__includeRawResponse`
+decision (OpenRouter `true`, z.ai `false`). `LLMInvoker` threads the flag to
+`extractAndPopulateOpenRouterReasoning()`, which uses it to suppress the
+"Expected `__raw_response` … but found none" regression warning on the z.ai
+branch — where a missing raw response is the expected shape, not a regression.
+The flag is set where `__includeRawResponse` is decided and is never derived
+from the model id: a `z-ai/` prefix names the MODEL, not the endpoint, and a
+`z-ai/`-prefixed model can route to OpenRouter (and the z.ai client strips the
+prefix before sending), so the name cannot stand in for the route.
+
 **Relevant code:**
 
 - `services/ai-worker/src/services/modelFactory/extractOpenRouterReasoning.ts` - `extractAndPopulateOpenRouterReasoning()`

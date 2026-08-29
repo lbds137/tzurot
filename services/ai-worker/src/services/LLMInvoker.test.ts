@@ -9,6 +9,7 @@ import { parseApiError } from '../utils/apiErrorParser.js';
 import { classifyQuotaFailure } from './quotaFallback.js';
 import { type BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { type BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { ChatModelResult } from './modelFactory/types.js';
 import {
   ApiErrorType,
   ApiErrorCategory,
@@ -60,7 +61,13 @@ vi.mock('./ModelFactory.js', () => ({
         })),
       } as any,
       modelName: modelName || 'openrouter/anthropic/claude-sonnet-4.5',
-    };
+      // Mirrors the OpenRouter builder, which is what this stub stands in for.
+      // `satisfies` rather than a bare literal so the next ChatModelResult
+      // field breaks this fixture at compile time — the `as any` above is what
+      // lets it compile at all, since the model stub is not a real
+      // BaseChatModel. Type-only reference, so the vi.mock hoist is unaffected.
+      expectsRawResponse: true,
+    } satisfies ChatModelResult;
   }),
   getModelCacheKey: vi.fn(({ modelName, apiKey, temperature }) => {
     return `${modelName || 'default'}_${apiKey || 'default'}_${temperature ?? 'none'}`;
@@ -85,9 +92,10 @@ vi.mock('../utils/retry.js', async importOriginal => {
 // refactor that reorders or removes the call would silently break upstream
 // provider capture in /inspect with no CI signal (the helper's own unit tests
 // cover its behavior, not its invocation point).
-const mockExtractReasoning = vi.fn(<T>(message: T) => message);
+const mockExtractReasoning = vi.fn((message: unknown, _expectsRawResponse?: boolean) => message);
 vi.mock('./modelFactory/extractOpenRouterReasoning.js', () => ({
-  extractAndPopulateOpenRouterReasoning: (msg: unknown) => mockExtractReasoning(msg),
+  extractAndPopulateOpenRouterReasoning: (msg: unknown, expectsRawResponse?: boolean) =>
+    mockExtractReasoning(msg, expectsRawResponse),
 }));
 
 // Mock the rate-limit cache singleton so tests can assert cache-read/cache-write
@@ -123,7 +131,7 @@ describe('LLMInvoker', () => {
     // mockImplementation explicitly so call-order test setup doesn't
     // leak into subsequent tests.
     mockExtractReasoning.mockReset();
-    mockExtractReasoning.mockImplementation(<T>(msg: T) => msg);
+    mockExtractReasoning.mockImplementation((msg: unknown) => msg);
     // Same pattern for the rate-limit cache mocks: clearAllMocks +
     // restoreAllMocks erase the resolved-value defaults set at module
     // scope, so re-establish them between tests.
@@ -224,7 +232,7 @@ describe('LLMInvoker', () => {
       });
 
       expect(mockExtractReasoning).toHaveBeenCalledTimes(1);
-      expect(mockExtractReasoning).toHaveBeenCalledWith(responseMessage);
+      expect(mockExtractReasoning).toHaveBeenCalledWith(responseMessage, true);
     });
 
     it('should call extractAndPopulateOpenRouterReasoning AFTER model.invoke() (correct ordering)', async () => {
@@ -241,7 +249,7 @@ describe('LLMInvoker', () => {
           return responseMessage;
         })
       );
-      mockExtractReasoning.mockImplementation(<T>(msg: T) => {
+      mockExtractReasoning.mockImplementation((msg: unknown) => {
         callOrder.push('extractor');
         return msg;
       });
@@ -253,6 +261,84 @@ describe('LLMInvoker', () => {
       });
 
       expect(callOrder).toEqual(['model.invoke', 'extractor']);
+    });
+
+    describe('expectsRawResponse threading (discriminated by the flag, not the model name)', () => {
+      // These three tests wire mockExtractReasoning to the REAL extractor
+      // implementation (not the identity stub the rest of the file uses) so
+      // the real `logger.warn` gate in extractOpenRouterReasoning.ts actually
+      // runs — a name-keyed regression in either LLMInvoker or the extractor
+      // itself will surface here as a wrong warn/no-warn outcome.
+      async function useRealExtractor(): Promise<void> {
+        const actual = await vi.importActual<
+          typeof import('./modelFactory/extractOpenRouterReasoning.js')
+        >('./modelFactory/extractOpenRouterReasoning.js');
+        mockExtractReasoning.mockImplementation((msg: unknown, expectsRawResponse?: boolean) =>
+          actual.extractAndPopulateOpenRouterReasoning(msg as BaseMessage, expectsRawResponse)
+        );
+      }
+
+      function noRawResponseMessage(): {
+        content: string;
+        additional_kwargs: object;
+        response_metadata: object;
+      } {
+        return {
+          content: 'some content',
+          additional_kwargs: {},
+          response_metadata: { finish_reason: 'stop' },
+        };
+      }
+
+      it('warns when expectsRawResponse is true for a z-ai/-prefixed model (not gated on model name)', async () => {
+        await useRealExtractor();
+        const mockModel = mockChatModel(vi.fn().mockResolvedValue(noRawResponseMessage()));
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'z-ai/glm-5',
+          expectsRawResponse: true,
+        });
+
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Expected __raw_response')
+        );
+      });
+
+      it('does not warn when expectsRawResponse is false for a bare (non z-ai/) model name', async () => {
+        await useRealExtractor();
+        const mockModel = mockChatModel(vi.fn().mockResolvedValue(noRawResponseMessage()));
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'glm-5',
+          expectsRawResponse: false,
+        });
+
+        expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Expected __raw_response')
+        );
+      });
+
+      it('defaults expectsRawResponse to true when omitted from options', async () => {
+        await useRealExtractor();
+        const mockModel = mockChatModel(vi.fn().mockResolvedValue(noRawResponseMessage()));
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'test-model',
+        });
+
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Expected __raw_response')
+        );
+      });
     });
 
     it('should pass getErrorLogContext as getErrorContext to withRetry', async () => {

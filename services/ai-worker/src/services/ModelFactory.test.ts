@@ -175,6 +175,12 @@ describe('ModelFactory', () => {
       );
     });
 
+    it('returns expectsRawResponse: true for the OpenRouter route (mirrors __includeRawResponse)', () => {
+      const result = createChatModel({ modelName: 'test-model', apiKey: 'test-api-key' });
+
+      expect(result.expectsRawResponse).toBe(true);
+    });
+
     it('should pass topP to ChatOpenAI', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
@@ -1157,6 +1163,39 @@ describe('ModelFactory', () => {
       const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
       const configuration = callArgs.configuration as Record<string, unknown>;
       expect(configuration.defaultHeaders).toBeUndefined();
+    });
+
+    it('returns expectsRawResponse: false for the ZaiCoding route (suppresses the OpenRouter raw-response warning)', () => {
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      const result = createChatModel(config);
+
+      expect(result.expectsRawResponse).toBe(false);
+    });
+
+    it('does NOT set __includeRawResponse on the ZaiCoding client, so expectsRawResponse: false is not a lie', () => {
+      // The two assertions here are the pair that must stay in sync: the flag
+      // above claims this builder never asks for a raw response, and several
+      // comments (on ChatModelResult and in the extractor) repeat that claim.
+      // Nothing else pins the absence — adding __includeRawResponse here
+      // without flipping the flag would leave every one of those comments
+      // false while the suite stayed green. The OpenRouter arm has the mirror
+      // assertion above.
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      const result = createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.__includeRawResponse).toBeUndefined();
+      expect(result.expectsRawResponse).toBe(false);
     });
   });
 

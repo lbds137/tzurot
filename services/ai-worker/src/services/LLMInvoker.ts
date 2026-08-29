@@ -118,6 +118,20 @@ interface InvokeWithRetryOptions {
    * passthrough) is the intended recovery path rather than in-place retry.
    */
   maxAttempts?: number;
+  /**
+   * Whether the model this invocation targets was built with
+   * `__includeRawResponse` set (see `ChatModelResult.expectsRawResponse`).
+   * Gates the OpenRouter raw-response regression warning in
+   * `extractAndPopulateOpenRouterReasoning`.
+   *
+   * OPTIONAL, defaulting to `true`, for two reasons: (a) ~70 existing call
+   * sites in the colocated test file would otherwise need mechanical edits
+   * for zero signal; (b) `true` is the fail-loud direction — a caller that
+   * forgets to thread this through keeps today's warning, losing
+   * noise-reduction but never signal. Absence genuinely means "assume
+   * OpenRouter-like, warn".
+   */
+  expectsRawResponse?: boolean;
 }
 
 export class LLMInvoker {
@@ -162,6 +176,7 @@ export class LLMInvoker {
       imageCount = 0,
       audioCount = 0,
       maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS,
+      expectsRawResponse = true,
     } = options;
 
     if (cacheKeyId.length === 0) {
@@ -220,21 +235,24 @@ export class LLMInvoker {
     // Fast-fail on permanent errors (auth, quota, content policy, etc.)
     let result;
     try {
-      result = await withRetry(() => this.invokeSingleAttempt(model, messages, modelName), {
-        maxAttempts,
-        globalTimeoutMs,
-        logger,
-        operationName: `LLM invocation (${modelName})`,
-        shouldRetry: shouldRetryError,
-        getErrorContext: getErrorLogContext,
-        // A cause-class attempt error (429/quota/credit/404-model) must
-        // survive as the terminal `lastError` even when a LATER attempt dies
-        // of the per-attempt abort (TIMEOUT) — during a 429 storm the abort
-        // is the symptom, the rate limit is the cause. NOT the wide
-        // retargetable set: withRetry keeps the LAST preferred error, so a
-        // wide predicate would let the trailing symptom overwrite the cause.
-        preferTerminalError: isCausePrecedenceFailure,
-      });
+      result = await withRetry(
+        () => this.invokeSingleAttempt(model, messages, modelName, expectsRawResponse),
+        {
+          maxAttempts,
+          globalTimeoutMs,
+          logger,
+          operationName: `LLM invocation (${modelName})`,
+          shouldRetry: shouldRetryError,
+          getErrorContext: getErrorLogContext,
+          // A cause-class attempt error (429/quota/credit/404-model) must
+          // survive as the terminal `lastError` even when a LATER attempt dies
+          // of the per-attempt abort (TIMEOUT) — during a 429 storm the abort
+          // is the symptom, the rate limit is the cause. NOT the wide
+          // retargetable set: withRetry keeps the LAST preferred error, so a
+          // wide predicate would let the trailing symptom overwrite the cause.
+          preferTerminalError: isCausePrecedenceFailure,
+        }
+      );
     } catch (err) {
       // Cache rate-limit state on 429 with a usable reset header so the next
       // call in the same window short-circuits at the top of this function.
@@ -455,13 +473,17 @@ export class LLMInvoker {
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
    * @param modelName - Model name for logging
+   * @param expectsRawResponse - Whether the model was built with
+   *   `__includeRawResponse` set; forwarded to the OpenRouter reasoning
+   *   extractor to gate its regression warning.
    * @throws Error on timeout, network errors, empty responses, or censored responses
    * @private
    */
   private async invokeSingleAttempt(
     model: BaseChatModel,
     messages: BaseMessage[],
-    modelName: string
+    modelName: string,
+    expectsRawResponse: boolean
   ): Promise<BaseMessage> {
     const invokeOptions: { timeout: number } = {
       timeout: TIMEOUTS.LLM_PER_ATTEMPT,
@@ -475,7 +497,7 @@ export class LLMInvoker {
     // in place — the return value is intentionally discarded; the in-place
     // mutation IS the contract that ResponsePostProcessor / DiagnosticRecorders
     // observe. See extractOpenRouterReasoning.ts header for full rationale.
-    extractAndPopulateOpenRouterReasoning(response);
+    extractAndPopulateOpenRouterReasoning(response, expectsRawResponse);
 
     // Log finish_reason for completion quality diagnostics
     // This helps identify models that fail to emit stop tokens (hallucinated turn bug)

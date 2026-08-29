@@ -16,7 +16,11 @@
 import { type Request, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { isFreeModel, isZaiCodingPlanModel } from '@tzurot/common-types/constants/ai';
+import {
+  isFreeModel,
+  isZaiCodingPlanModel,
+  ZAI_MODEL_PREFIX,
+} from '@tzurot/common-types/constants/ai';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
   SYSTEM_SETTINGS_REGISTRY,
@@ -115,7 +119,7 @@ async function validateModelValue(
   // "OpenRouter catalog is authoritative" stance: z.ai coding-plan membership
   // is a fixed plan contract, not a live catalog — don't "fix" this into the
   // dynamic lookup.
-  if (value.toLowerCase().startsWith('z-ai/') && !isZaiCodingPlanModel(value)) {
+  if (value.toLowerCase().startsWith(ZAI_MODEL_PREFIX) && !isZaiCodingPlanModel(value)) {
     return { ok: false, message: `${meta.key}: '${value}' is not in the z.ai coding-plan catalog` };
   }
 

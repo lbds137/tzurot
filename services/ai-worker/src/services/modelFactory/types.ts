@@ -44,5 +44,19 @@ export interface ModelConfig extends ConvertedLlmParams {
  */
 export interface ChatModelResult {
   model: BaseChatModel;
+  /**
+   * On the ZaiCoding branch this is the ORIGINAL (possibly `z-ai/`-prefixed)
+   * id passed into `createChatModel`, NOT necessarily the id sent on the
+   * wire — `buildZaiCodingModel` strips the prefix for the client but
+   * returns the original here.
+   */
   modelName: string;
+  /**
+   * Mirrors whether the builder set ChatOpenAI's `__includeRawResponse` for
+   * this model. Lets the reasoning extractor tell whether a missing
+   * `__raw_response` on the completed response is a real regression (the
+   * builder expected one) or an expected shape (the builder never asked for
+   * one, e.g. z.ai-direct).
+   */
+  expectsRawResponse: boolean;
 }
