@@ -97,7 +97,7 @@ export async function invokeModelAndClean(
       : undefined;
 
   // Get model with all LLM sampling parameters (retry config overrides for duplicate detection)
-  const { model, modelName } = deps.llmInvoker.getModel(
+  const { model, modelName, expectsRawResponse } = deps.llmInvoker.getModel(
     buildModelSamplingConfig({ personality, userApiKey, retryConfig, supportsReasoning })
   );
 
@@ -132,6 +132,7 @@ export async function invokeModelAndClean(
     imageCount,
     audioCount,
     maxAttempts: maxLlmAttempts,
+    expectsRawResponse,
   });
 
   // Non-text parts (thinking blocks, images) are intentionally excluded —

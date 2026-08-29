@@ -14,6 +14,7 @@ import {
   buildModelInfoUrl,
   isZaiCodingPlanModel,
   stripZaiPrefix,
+  toZaiWireModelId,
   getZaiCodingPlanContextLength,
   zaiCodingPlanModelCapabilities,
   zaiThinkingOffSupport,
@@ -338,6 +339,32 @@ describe('stripZaiPrefix', () => {
     // model would be looked up (or rendered) as a z.ai one.
     expect(stripZaiPrefix('openai/gpt-4')).toBe('openai/gpt-4');
     expect(stripZaiPrefix('vendor/z-ai/glm-5')).toBe('vendor/z-ai/glm-5');
+  });
+});
+
+describe('toZaiWireModelId', () => {
+  it('strips a leading z-ai/ prefix while PRESERVING the case of the tail', () => {
+    expect(toZaiWireModelId('z-ai/glm-5.3-Flash')).toBe('glm-5.3-Flash');
+  });
+
+  it('detects the prefix case-insensitively while preserving the tail case', () => {
+    expect(toZaiWireModelId('Z-AI/GLM-5')).toBe('GLM-5');
+  });
+
+  it('leaves a bare id unchanged, in either case', () => {
+    expect(toZaiWireModelId('glm-5')).toBe('glm-5');
+    expect(toZaiWireModelId('GLM-5')).toBe('GLM-5');
+  });
+
+  it('strips only from the front, and only this vendor', () => {
+    expect(toZaiWireModelId('openai/gpt-4')).toBe('openai/gpt-4');
+    expect(toZaiWireModelId('vendor/z-ai/glm-5')).toBe('vendor/z-ai/glm-5');
+  });
+
+  it('differs from stripZaiPrefix on mixed-case input: case-preserving vs. lowercasing', () => {
+    const mixedCase = 'Z-AI/GLM-5.3-Flash';
+    expect(toZaiWireModelId(mixedCase)).toBe('GLM-5.3-Flash');
+    expect(stripZaiPrefix(mixedCase)).toBe('glm-5.3-flash');
   });
 });
 

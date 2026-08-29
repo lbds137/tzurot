@@ -529,6 +529,29 @@ export function stripZaiPrefix(model: string): string {
 }
 
 /**
+ * Strip an optional `z-ai/` prefix for the id sent ON THE WIRE to z.ai's
+ * chat-completion API. Detection is case-insensitive, but unlike
+ * `stripZaiPrefix` the output is CASE-PRESERVING — the slice comes off the
+ * ORIGINAL string, not a lowercased copy. `stripZaiPrefix` normalizes to
+ * lowercase for catalog-key lookup (`ZAI_MODEL_CATALOG` keys are all
+ * lowercase); reusing it here would change the case of the id actually sent
+ * to z.ai.
+ *
+ * Whether z.ai's model codes are case-sensitive is UNVERIFIED — no probe has
+ * been run against the live API. Preserving case is the conservative choice:
+ * a wrong wire-sent id is exactly the 400
+ * `{"code":"1214","message":"modelCode: does not exist"}` this exists to
+ * avoid, and lowercasing an id z.ai actually expects mixed-case for would
+ * reproduce that failure. This function does not assert z.ai's
+ * case-sensitivity either way.
+ */
+export function toZaiWireModelId(model: string): string {
+  return model.toLowerCase().startsWith(ZAI_MODEL_PREFIX)
+    ? model.slice(ZAI_MODEL_PREFIX.length)
+    : model;
+}
+
+/**
  * Membership check for the z.ai coding-plan catalog. Case-normalizes the
  * input and strips an optional `z-ai/` prefix — preset configs are user-typed
  * strings that may use any case and either the routable slug (`z-ai/glm-5`)

@@ -82,7 +82,13 @@ describe('invokeModelAndClean', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockGetModel = vi.fn().mockReturnValue({ model: { fakeModel: true }, modelName: 'gpt-4' });
+    mockGetModel = vi
+      .fn()
+      .mockReturnValue({
+        model: { fakeModel: true },
+        modelName: 'gpt-4',
+        expectsRawResponse: true,
+      });
     mockInvokeWithRetry = vi.fn().mockResolvedValue(new AIMessage('raw model output'));
     mockCountTokens = vi.fn().mockReturnValue(10);
     mockProcessResponse = vi.fn().mockReturnValue({
@@ -128,6 +134,19 @@ describe('invokeModelAndClean', () => {
       ...(baseOpts.historyMessages ?? []),
       baseOpts.currentMessage,
     ]);
+  });
+
+  it('forwards expectsRawResponse from getModel to invokeWithRetry', async () => {
+    mockGetModel.mockReturnValue({
+      model: { fakeModel: true },
+      modelName: 'z-ai/glm-5',
+      expectsRawResponse: false,
+    });
+
+    await invokeModelAndClean(deps, baseOpts);
+
+    const call = mockInvokeWithRetry.mock.calls[0]?.[0] as { expectsRawResponse: boolean };
+    expect(call.expectsRawResponse).toBe(false);
   });
 
   it('returns the post-processor cleaned content and model metadata', async () => {

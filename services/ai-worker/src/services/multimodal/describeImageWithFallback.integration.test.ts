@@ -74,6 +74,12 @@ function scriptModelInvocations(
       ({
         model: { generate },
         modelName: modelConfig?.modelName ?? 'stub-model',
+        // Third member of the same fixture class as the two in LLMInvoker's
+        // tests. The cast below means nothing enforces this field here, which
+        // is precisely why it is easy to leave out — stated rather than
+        // relied on. The vision path never reaches the reasoning extractor,
+        // so the value is inert; the shape being honest is the point.
+        expectsRawResponse: true,
       }) as unknown as ReturnType<typeof createChatModel>
   );
   return generate;

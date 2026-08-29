@@ -14,7 +14,7 @@ import {
   AIProvider,
   AI_DEFAULTS,
   AI_ENDPOINTS,
-  ZAI_MODEL_PREFIX,
+  toZaiWireModelId,
 } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
@@ -493,6 +493,8 @@ function buildOpenRouterModel(
       __includeRawResponse: true,
     }),
     modelName,
+    // __includeRawResponse is set above — the extractor should expect one.
+    expectsRawResponse: true,
   };
 }
 
@@ -515,12 +517,9 @@ function buildZaiCodingModel(
   // OpenRouter-shaped ids carry — sending one prefixed 400s with
   // `{"code":"1214","message":"modelCode: does not exist"}`. Normalizing here,
   // at the client boundary, covers every ZaiCoding caller rather than one
-  // route at a time. Detection is case-insensitive; the slice comes off the
-  // ORIGINAL so a mixed-case id keeps its casing. Pinned by ModelFactory.test.ts
-  // "strips the OpenRouter z-ai/ prefix before constructing the z.ai client".
-  const bareModelName = modelName.toLowerCase().startsWith(ZAI_MODEL_PREFIX)
-    ? modelName.slice(ZAI_MODEL_PREFIX.length)
-    : modelName;
+  // route at a time. Pinned by ModelFactory.test.ts "strips the OpenRouter
+  // z-ai/ prefix before constructing the z.ai client".
+  const bareModelName = toZaiWireModelId(modelName);
 
   logger.debug(
     {
@@ -565,6 +564,9 @@ function buildZaiCodingModel(
       // z.ai responses without the corresponding extractor wired up.
     }),
     modelName,
+    // Suppresses the OpenRouter raw-response regression warning for this
+    // branch — __includeRawResponse is deliberately not set above.
+    expectsRawResponse: false,
   };
 }
 

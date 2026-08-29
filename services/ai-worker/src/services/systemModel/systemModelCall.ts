@@ -17,7 +17,7 @@
 
 import { HumanMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { AIProvider, ZAI_MODEL_PREFIX } from '@tzurot/common-types/constants/ai';
+import { AIProvider, toZaiWireModelId } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createChatModel } from '../ModelFactory.js';
 import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
@@ -82,11 +82,11 @@ export async function invokeSystemModel(
   const systemModel = getSystemSetting('extractionModel');
   const route = resolveSystemModelRoute();
   // z.ai-direct takes the bare model id ('z-ai/glm-5.2' → 'glm-5.2'), same
-  // mapping ProviderRouter applies to promoted completions.
+  // mapping ProviderRouter applies to promoted completions. Detection is
+  // case-insensitive (toZaiWireModelId), so a `Z-AI/glm-5` setting strips
+  // correctly instead of reaching z.ai unstripped and 400ing.
   const modelName =
-    route.provider === AIProvider.ZaiCoding && systemModel.startsWith(ZAI_MODEL_PREFIX)
-      ? systemModel.slice(ZAI_MODEL_PREFIX.length)
-      : systemModel;
+    route.provider === AIProvider.ZaiCoding ? toZaiWireModelId(systemModel) : systemModel;
   const { model } = createChatModel({
     modelName,
     temperature: 0,

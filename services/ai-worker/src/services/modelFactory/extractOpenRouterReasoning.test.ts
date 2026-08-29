@@ -436,6 +436,93 @@ describe('extractAndPopulateOpenRouterReasoning', () => {
       expect(() => extractAndPopulateOpenRouterReasoning(message)).not.toThrow();
       expect(message.content).toBe('response');
     });
+
+    it('does NOT warn when expectsRawResponse is false and __raw_response is missing on a completed message', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+        // No rawResponse — the caller declared this model never sends one.
+      });
+
+      extractAndPopulateOpenRouterReasoning(message, false);
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+      expect(message.content).toBe('response');
+    });
+
+    it('warns when expectsRawResponse is true (explicit) and __raw_response is missing', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+      });
+
+      extractAndPopulateOpenRouterReasoning(message, true);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          additionalKwargsKeys: expect.any(Array),
+          responseMetadataKeys: expect.arrayContaining(['finish_reason']),
+        }),
+        expect.stringContaining('Expected __raw_response')
+      );
+    });
+
+    it('warns when expectsRawResponse is omitted (pins the default to true)', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          additionalKwargsKeys: expect.any(Array),
+          responseMetadataKeys: expect.arrayContaining(['finish_reason']),
+        }),
+        expect.stringContaining('Expected __raw_response')
+      );
+    });
+
+    it('with expectsRawResponse: false, a message carrying a valid __raw_response still extracts normally', () => {
+      const message = buildMessage({
+        content: 'The answer is 42.',
+        finishReason: 'stop',
+        rawResponse: {
+          provider: 'Parasail',
+          choices: [
+            {
+              message: {
+                content: 'The answer is 42.',
+                reasoning: 'Computing 6 * 7 = 42 step by step',
+              },
+            },
+          ],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message, false);
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+      expect(message.additional_kwargs.reasoning).toBe('Computing 6 * 7 = 42 step by step');
+      expect(message.additional_kwargs.__raw_response).toBeUndefined();
+    });
+
+    it('with expectsRawResponse: false, the non-object __raw_response warn still fires (only the missing-response warn is gated)', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+        rawResponse: 'this is a string, not an object',
+      });
+
+      extractAndPopulateOpenRouterReasoning(message, false);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ rawResponseType: 'string' }),
+        expect.stringContaining('not an object')
+      );
+      expect(message.additional_kwargs.__raw_response).toBeUndefined();
+    });
   });
 
   describe('malformed __raw_response', () => {
