@@ -3,9 +3,10 @@ id: TASK-703
 title: >-
   detectVisionProvider routes non-catalog z-ai ids to the coding plan - decide
   catalog-gating
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 16:17'
+updated_date: '2026-08-29 15:16'
 labels:
   - 'area:ai-worker'
   - 'size:S'

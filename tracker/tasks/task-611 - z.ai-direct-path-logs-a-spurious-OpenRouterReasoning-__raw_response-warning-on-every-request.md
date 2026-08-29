@@ -3,9 +3,10 @@ id: TASK-611
 title: >-
   z.ai-direct path logs a spurious OpenRouterReasoning __raw_response warning on
   every request
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 18:27'
+updated_date: '2026-08-29 15:16'
 labels:
   - 'area:ai-worker'
   - 'size:S'
