@@ -20,7 +20,7 @@ Why: the TASK-160 audit established a criterion for ban-list membership (recorde
 
 Unnamed but evidence-backed: chat_log, participants, protocol, memory_archive, facts are all members of PROMPT_TEMPLATE_ORPHAN_TAGS in services/ai-worker/src/utils/responseArtifacts.ts, i.e. the model has been observed echoing their closing forms and we strip them post-hoc.
 
-Named but never emitted by our prompt: <user> appears nowhere in prompt assembly except inside the ban constraint text itself, and from_id ships as an ATTRIBUTE (services/ai-worker/src/jobs/utils/conversationUtils.ts:102), never as an element. GLM-4.5-Air invented those element shapes while mimicking our format, so the constraint sentence calling them assembly artifacts from the conversation context misdescribes them.
+Named but never emitted by our prompt: <user> appears nowhere in prompt assembly except inside the ban constraint text itself, and from_id ships as an ATTRIBUTE (services/ai-worker/src/jobs/utils/conversationUtils.ts:102), never as an element. That these element shapes are a model invention rather than an echo of ours is not inferred from that absence — it is the recorded observation behind the pair: the GLM-4.5-Air fake-user-message-echo entry in services/ai-worker/src/utils/thinkingExtraction.ts:72-79 cites a production request in which the model improvised a reasoning channel using tags that mimic our prompt-assembly format. So the constraint sentence calling them assembly artifacts from the conversation context misdescribes them.
 
 Third candidate: context is deliberately excluded from the responseArtifacts orphan-closer list as too collision-prone against ordinary prose, which makes prompt-side prevention the ONLY lever for it. It is currently in neither the ban list nor the strip list.
 
@@ -30,5 +30,5 @@ Options: (a) leave as-is, treating the strip layer as the guarantee and the ban 
 
 Recommendation: (c). It closes the only genuine coverage gap, costs a handful of S0 tokens, and avoids churning prompt text whose efficacy we cannot measure.
 
-Acceptance: an owner decision recorded on this task, and if a or b, the constraint text plus the HardcodedConstraints.test.ts assertions updated together so the pins do not contradict the code.
+Acceptance: an owner decision recorded on this task, and if a or b, the constraint text plus the HardcodedConstraints.test.ts assertions updated together so the pins do not contradict the code — AND the illustrative membership paragraph in the OUTPUT_CONSTRAINTS doc comment updated in the same change. That paragraph enumerates the CURRENT list's failures (which tags are unnamed-but-evidence-backed, which are named-but-unemitted); acting on this task falsifies exactly that enumeration while leaving the reusable criterion above it correct, and nothing structural forces the revisit. Surfaced by review on PR 2249, which added the paragraph.
 <!-- SECTION:DESCRIPTION:END -->
