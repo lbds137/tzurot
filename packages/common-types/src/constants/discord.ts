@@ -5,7 +5,7 @@
  */
 
 import { isChatCapableProvider, stripZaiPrefix } from './ai.js';
-import type { QuotaFallbackCategoryValue } from './error.js';
+import { GUEST_MODE_CATEGORY, type QuotaFallbackCategoryValue } from './error.js';
 
 /**
  * Text truncation and preview limits
@@ -353,18 +353,27 @@ export interface ModelFooterOptions {
   /** Include the auto-response badge on the same line. */
   withAutoBadge?: boolean;
   /**
-   * Tier-aware quota fallback that fired for this turn. Renders the swap as
+   * Tier-aware quota fallback that fired for this turn. For every category
+   * EXCEPT the guest-mode admission-time substitution, renders the swap as
    * the model line itself — "Model: <from> → [<to>](<url>) (<per-category
-   * reason>)" — see QUOTA_FALLBACK_REASON; a model swap is never
-   * silent (an unexplained voice shift reads as a bug, and "why did I get
-   * the free model" must be answerable from the reply itself). `modelUsed`
-   * already IS the target model; this names where the request started.
+   * reason>)" — see QUOTA_FALLBACK_REASON; a model swap for a genuine
+   * failure is never silent (an unexplained voice shift reads as a bug, and
+   * "why did I get the free model" must be answerable from the reply
+   * itself). `modelUsed` already IS the target model; this names where the
+   * request started.
    *
    * When `fromModel` and `modelUsed` name the SAME model (see
    * {@link namesSameModel} — the `z-ai/`-prefixed and bare spellings of the
    * piggyback are one model on two routes), the chain collapses to
    * "Model: [<to>](<url>) (<reason>)": the reason still explains the
    * substitution, but nothing pretends the model changed.
+   *
+   * The guest-mode category (`GUEST_MODE_CATEGORY`) is a carve-out from
+   * both of the above: it renders bare — "Model: [<to>](<url>)" — with no
+   * arrow and no parenthetical, as if `quotaFallback` were absent. A free
+   * user's configured paid model was never going to be served; the
+   * substitution happens every turn and is not news the way a genuine
+   * failure-driven swap is.
    */
   quotaFallback?: {
     fromModel: string;
@@ -405,6 +414,12 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
  * A general "strip any `<vendor>/`" rule would collapse genuinely different
  * models whose ids happen to share a tail — `expensive/primary` → `primary`
  * is a real swap, and the arrow has to survive it.
+ *
+ * bot-client's `isSameModel` (commands/inspect/embed.ts) is the
+ * near-identically-named counterpart and is NOT interchangeable: it strips
+ * ANY vendor prefix and also ignores a `-<digits>` version stamp. That suits
+ * a diagnostic view, and would collapse exactly the swaps this function has
+ * to keep reporting.
  */
 function namesSameModel(a: string, b: string): boolean {
   return stripZaiPrefix(a) === stripZaiPrefix(b);
@@ -454,16 +469,18 @@ export function buildModelFooterText(
   // line is byte-identical to what it always was.
   const modelLink = `[${sanitizedModel}](<${modelUrl}>)`;
   let text: string;
-  if (quotaFallback !== undefined) {
+  if (quotaFallback !== undefined && quotaFallback.category !== GUEST_MODE_CATEGORY) {
     const sanitizedFrom = stripMarkdownDelimiters(quotaFallback.fromModel);
     const reason = QUOTA_FALLBACK_REASON[quotaFallback.category];
-    // A route-only swap keeps the reason — "(guest mode)" still explains why
-    // this model is serving — and drops the chain, which would otherwise name
-    // the same model twice with an arrow between the two spellings.
+    // A route-only swap keeps the reason — it still explains why this model
+    // is serving — and drops the chain, which would otherwise name the same
+    // model twice with an arrow between the two spellings.
     text = namesSameModel(quotaFallback.fromModel, modelUsed)
       ? `Model: ${modelLink} (${reason})`
       : `Model: ${sanitizedFrom} → ${modelLink} (${reason})`;
   } else {
+    // No quota fallback, OR a guest-mode substitution: guest mode renders
+    // bare, exactly as if quotaFallback were absent — see the JSDoc above.
     text = `Model: ${modelLink}`;
   }
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
