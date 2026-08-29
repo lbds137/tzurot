@@ -4,10 +4,11 @@ title: Re-derive the OUTPUT_CONSTRAINTS scaffolding-ban list from mined-echo evi
 status: To Do
 assignee: []
 created_date: '2026-08-29 11:16'
+updated_date: '2026-08-29 14:35'
 labels:
   - 'area:ai-worker'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 814000
@@ -30,5 +31,9 @@ Options: (a) leave as-is, treating the strip layer as the guarantee and the ban 
 
 Recommendation: (c). It closes the only genuine coverage gap, costs a handful of S0 tokens, and avoids churning prompt text whose efficacy we cannot measure.
 
-Acceptance: an owner decision recorded on this task, and if a or b, the constraint text plus the HardcodedConstraints.test.ts assertions updated together so the pins do not contradict the code — AND the illustrative membership paragraph in the OUTPUT_CONSTRAINTS doc comment updated in the same change. That paragraph enumerates the CURRENT list's failures (which tags are unnamed-but-evidence-backed, which are named-but-unemitted); acting on this task falsifies exactly that enumeration while leaving the reusable criterion above it correct, and nothing structural forces the revisit. Surfaced by review on PR 2249, which added the paragraph.
+OWNER DECISION 2026-08-29: **(c) APPROVED** — "for the decision points you refreshed me on, I'm on board with your recommendations", answering a refresher that named (c) add `context` only as the recommendation. So this is no longer an owner-blocked question; it is buildable work. Relabelled state:owner → state:ready.
+
+Scope, restated now that it is a build: add `context` to the scaffolding-ban constraint and NOTHING else — do not add the five evidence-backed tags and do not drop or reword `quote`/`user`. The argument for the narrow change is that `context` is the one tag with no post-processing lever (responseArtifacts deliberately omits it from the orphan-closer list as too collision-prone against ordinary prose), while the other five are already handled by the strip layer. Efficacy of the prompt-side ban remains unmeasurable locally, and the unverified counter-consideration stands that naming a tag may prime a model to emit it — which is the reason to add ONE tag rather than five, not a reason to add none.
+
+Acceptance: an owner decision recorded on this task — DONE, see above — and, since (c) was chosen, the constraint text plus the HardcodedConstraints.test.ts assertions updated together so the pins do not contradict the code — AND the illustrative membership paragraph in the OUTPUT_CONSTRAINTS doc comment updated in the same change. That paragraph enumerates the CURRENT list's failures (which tags are unnamed-but-evidence-backed, which are named-but-unemitted); acting on this task falsifies exactly that enumeration while leaving the reusable criterion above it correct, and nothing structural forces the revisit. Surfaced by review on PR 2249, which added the paragraph.
 <!-- SECTION:DESCRIPTION:END -->
