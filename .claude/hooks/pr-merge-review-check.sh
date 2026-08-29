@@ -1017,6 +1017,58 @@ if [ -f "$ACK_FILE" ] && grep -qxF "$ACK_KEY" "$ACK_FILE" 2>/dev/null; then
         "The review for this PR was surfaced and acknowledged on an earlier call."
 fi
 
+# Added-comment claim scan. Placed AFTER the acked-retry return on purpose:
+# this is the only path that adds a second network call, and the retry path
+# must stay at the one round trip it already pays.
+#
+# `gh pr diff <number>` writes the unified diff to stdout, and `--color`
+# defaults to `auto` — so a captured, non-TTY stdout carries no ANSI escapes
+# and the added-line prefix is a plain `+` (probed: `gh pr diff --help`).
+# Anything else — no such PR, no network, an old gh without the subcommand —
+# leaves PR_DIFF empty and the scan silently produces nothing. A diff fetch
+# that fails must never block a merge nor warn about itself; the gate's
+# subject is the review, not the diff.
+PR_DIFF=$(gh pr diff "$PR_NUM" 2>/dev/null || echo "")
+
+# The comment lines this diff ADDS, filtered to claim vocabulary in three
+# classes: certainty, provenance, and counted nouns. This is the surface the
+# RE-DERIVE reminder below structurally cannot reach — that one re-runs the
+# numbers in the PR body and commit message, both of which are read again at
+# review time, while a claim committed into a permanent code comment is not.
+# `^\+[^+]` keeps the `+++ b/path` file header out. False positives cost one
+# paragraph, never a block — the same trade the origin scan above accepts.
+#
+# Every vocabulary alternative is `\b`-anchored. Unanchored, the words match as
+# substrings — `never` inside "whenever", `read from` inside "spread from" — so
+# ordinary prose lights the banner. GNU grep -E honours `\b` in an ERE (probed
+# on this machine: `echo whenever | grep -icE '\bnever\b'` prints 0 while
+# `echo 'is never null' | ...` prints 1). At the digit-to-space juncture in the
+# counted-noun alternatives, no `\b` is added — a digit-to-space transition is
+# already a boundary. So the first counted-noun alternative ends at its bare
+# space, while the second continues past that juncture to a `\b`-closed noun.
+#
+# The comment-shape detector accepts three gaps by design rather than
+# pretending to parse: a docstring or block-comment CONTINUATION line is not
+# detected (line-greping a diff cannot track comment state, so only the
+# `"""`/`'''`/`/*` OPENING line is seen); a TRAILING end-of-line comment
+# (`code(); // claim`) is not detected, since the marker must be the line's
+# first non-whitespace content; and the `*` branch also matches a Markdown
+# bullet. Each costs or saves one banner paragraph, never a block.
+CLAIM_ALL=$(grep -E '^\+[^+]' <<<"$PR_DIFF" |
+    grep -E "^\+[[:space:]]*(//|\*|/\*|#|\"\"\"|''')" |
+    grep -iE '\balways\b|\bnever\b|\bcannot\b|\bguaranteed\b|\bonly (place|path|caller|writer|reader)\b|\bcomes? from\b|\bderived from\b|\bpopulated (by|from)\b|\bread from\b|\bwritten (only )?by\b|\b(both|all|the) [0-9]+ |\b[0-9]+ (call sites?|tests?|files?|instances?|copies|callers?|places)\b' || true)
+
+# Count the FULL match set, THEN cap what gets displayed. Counting after the cap
+# would make every total above the cap report AS the cap — a silent truncation.
+# The banner below names the truncation instead; the probe pins both headers.
+CLAIM_DISPLAY_CAP=12
+CLAIM_HITS=0
+CLAIM_LINES=""
+if [ -n "$CLAIM_ALL" ]; then
+    CLAIM_HITS=$(grep -c '' <<<"$CLAIM_ALL" || true)
+    CLAIM_LINES=$(head -n "$CLAIM_DISPLAY_CAP" <<<"$CLAIM_ALL")
+fi
+
 # First-call path: inject the review into stderr FIRST, then ack and exit 2.
 #
 # Inject-before-ack ordering matters: if anything interrupts between the two
@@ -1051,6 +1103,23 @@ if release_reminder_due; then RELEASE_DUE=1; fi
     printf 'fix what moved — self-reported numbers are written once at peak confidence\n'
     printf 'and never re-read, and reviewers have caught stale ones on most PRs that\n'
     printf 'carried them (/tzurot-git-workflow, closing-reference procedure).\n\n'
+    if [ "${CLAIM_HITS:-0}" -gt 0 ] 2>/dev/null; then
+        if [ "$CLAIM_HITS" -gt "$CLAIM_DISPLAY_CAP" ]; then
+            printf '⚠ CLAIM-SHAPED ADDED COMMENTS (showing first %s of %s).\n' \
+                "$CLAIM_DISPLAY_CAP" "$CLAIM_HITS"
+        else
+            printf '⚠ CLAIM-SHAPED ADDED COMMENTS (%s line(s)).\n' "$CLAIM_HITS"
+        fi
+        printf '%s\n\n' "$CLAIM_LINES"
+        printf 'Added comments asserting certainty, provenance, or counts are claims the\n'
+        printf 're-derive step above cannot reach: it re-runs the numbers in the PR body\n'
+        printf 'and commit message, not prose committed beside the code, which nothing\n'
+        printf 'reads again. Before retrying the merge, verify each line above against\n'
+        printf 'the code it describes — grep the assignment or call sites — or hedge it\n'
+        printf 'in the comment itself. A permanent comment that a later reader falsifies\n'
+        printf 'is the defect class this scan exists for (.claude/rules/02-code-standards.md,\n'
+        printf '"A Comment That Asserts Behavior Is a Claim").\n\n'
+    fi
     if [ "${ORIGIN_HITS:-0}" -gt 0 ] 2>/dev/null; then
         printf '⚠ ORIGIN-LANGUAGE DETECTED (%s matching line(s)). This review scopes at\n' "$ORIGIN_HITS"
         printf 'least one finding as pre-existing / not-a-regression. Origin is NOT a\n'
