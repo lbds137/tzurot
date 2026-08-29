@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-08-24'
+lastUpdated: '2026-08-28'
 ---
 
 # Review-Response Iteration
@@ -138,19 +138,22 @@ Do not conflate "rebase-only merge strategy" (the project's convention — no me
 
 For items escalated to ASK: do not apply. Skip to rule 4.
 
-### 3a. Fable driver: dispatch the round's fixes, don't apply them inline
+### 3a. Review-round fixes are a dispatch, under any driver
 
-When Fable drives the main loop, a review round's fixes are a DISPATCH by
-default, not N inline edits: batch the round's findings into one worker
-dispatch, preferring a `SendMessage` resume of the unit's own nested
-orchestrator (context intact, cache-riding; a fresh spawn re-pays the whole
-spec). The worker applies the fixes and runs the gates; the main loop reads
-the diff and the verdict only. Inline application is reserved for
-one-line/comment-only edits. This exists because the inline carve-out
-compounds at multi-round scale — 13 inline rounds across 3 PRs in one
-night was the measured leak (owner call, 2026-08-24). Step-in stays with
-the main loop on: semantic disagreement with the reviewer, >~4 rounds, or
-orchestrator uncertainty.
+A review round's fixes are a DISPATCH by default, whoever drives the main
+loop: batch the round's findings into ONE worker dispatch. Under Fable,
+prefer a `SendMessage` resume of the unit's own nested orchestrator (context
+intact, cache-riding; a fresh spawn re-pays the whole spec). Under Opus or
+any other single-hop driver, dispatch a fresh worker (`model: sonnet` for
+mechanical-shape fixes) with the round's findings as the spec. The worker
+applies the fixes and runs the gates; the main loop reads the diff and the
+verdict only. The reason is defect generation, not budget: the context that
+wrote an edit cannot independently review it, and inline round-fixes have
+produced self-fed loops — round N repairing round N-1's own fix — that a
+fresh reader catches before push. Inline application is reserved for
+one-line or comment-only edits. Step-in stays with the main loop on:
+semantic disagreement with the reviewer, or orchestrator uncertainty about
+the unit's design.
 
 ### 4. Batch-present at end of round
 
