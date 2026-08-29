@@ -30,6 +30,25 @@ describe('promptSanitizer', () => {
       );
     });
 
+    it('the image tags are protected, so a pre-escape wrapper cannot survive — the voice tags are not, which is why the voice wrap does', () => {
+      // image_descriptions/image are trust-boundary tags: a wrapper placed around
+      // an image description before this pass runs would itself be entity-escaped
+      // here, destroying it. voice_transcripts/transcript are deliberately absent
+      // from PROTECTED_TAGS for the opposite reason, so a wrapper built from them
+      // survives this same pass unchanged. This asymmetry is why the image path
+      // relies on a prompt constraint for provenance instead of a wrapper.
+      expect(escapeXmlContent('<image_descriptions>x</image_descriptions>')).toBe(
+        '&lt;image_descriptions&gt;x&lt;/image_descriptions&gt;'
+      );
+      expect(escapeXmlContent('<image filename="pic.png">')).toBe(
+        '&lt;image filename="pic.png"&gt;'
+      );
+      expect(escapeXmlContent('</image>')).toBe('&lt;/image&gt;');
+
+      const voiceWrapper = '<voice_transcripts><transcript>x</transcript></voice_transcripts>';
+      expect(escapeXmlContent(voiceWrapper)).toBe(voiceWrapper);
+    });
+
     it('should return empty string for empty input', () => {
       expect(escapeXmlContent('')).toBe('');
     });
