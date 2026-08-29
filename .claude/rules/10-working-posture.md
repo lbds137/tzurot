@@ -20,7 +20,12 @@ or a read fan-out is about to start. When Fable drives, nested dispatch is
 the default for EVERY unit — size:S included — and for review-round fixes:
 batch the round's findings into ONE dispatch; the worker runs the gates;
 the main loop reads the diff and the verdict (`/tzurot-orchestration` has
-the mechanics). Inline is a narrow exception: a ≤~5-line mechanical edit in
+the mechanics). Under an Opus driver the same shape applies to SUBSTANTIVE
+units (nested dispatch — the orchestration skill's mode table carries the
+full Opus statement), and review-round fixes are dispatch work under ANY
+driver — the missing fresh reader, not the budget, is the reason
+(`/tzurot-review-response` § 3a). Inline is a narrow exception: a ≤~5-line
+mechanical edit in
 a file already in context, or work where the spec would genuinely cost more
 than the edit. Read fan-outs of ~4+ files go to Explore (`model: haiku`);
 file mutations use the Edit tool, never interpreter rewrite-scripts in
@@ -50,7 +55,9 @@ threshold, a default — search for a prior DECISION about it, not just the
 code that reads it. The tracker first (`pnpm tracker doc search <term>` AND
 `pnpm tracker task list --search <term> --plain`), then the narrative
 surfaces the tracker does not index: `docs/incidents/`,
-`docs/reference/architecture/`, `backlog/references.md`. A clean tracker
+`docs/reference/architecture/`, `backlog/references.md`, and `docs/local/`
+(gitignored — owner risk-accepts and policy decisions live there, and only a
+local read can find them). A clean tracker
 search alone is a negative existence claim, and `00-critical.md` governs
 those. Code and docs give the current value; the decision record is what
 says whether someone already weighed this exact change, closed it, and with
@@ -76,7 +83,9 @@ survivors before writing tests, project from existing data points before
 running a 40-minute experiment, count before sweeping. State every decision
 with its data ("~0.35 mutants/line across five packages → services project to
 30-70min → not per-PR viable"), so the decision is re-checkable when the data
-changes.
+changes. An owner-supplied value delivered hedged — "probably X", "I'd be
+surprised if it exceeds X" — is a measurement order, not a spec: run the cheap
+measurement BEFORE building X in; the hedge names exactly what to measure.
 
 ## Everything not-done gets a disposition, at the moment of decision
 
