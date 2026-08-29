@@ -14,6 +14,7 @@ import {
   DISCORD_PROVIDER_CHOICES,
 } from './discord.js';
 import { AIProvider } from './ai.js';
+import { GUEST_MODE_CATEGORY } from './error.js';
 
 describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
@@ -253,32 +254,75 @@ describe('Bot Footer Text Constants', () => {
       }
     });
 
-    it('announces the guest-mode substitution with its own wording', () => {
-      // Not a failure: the guest ladder swapped a paid preset for a free
-      // model before dispatch, and the footer must say so rather than
-      // leaving the swap unexplained.
-      const result = buildModelFooterText('openrouter/free', 'https://example.com/m', {
-        quotaFallback: { fromModel: 'expensive/primary', category: 'guest_mode' },
+    it('renders the guest-mode substitution bare — no arrow, no parenthetical', () => {
+      // The guest ladder swap is structural, not news: it happens every turn
+      // for a free user, so it must render exactly as if quotaFallback were
+      // absent — no arrow, no "(guest mode)" reason.
+      const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/paid-model', category: GUEST_MODE_CATEGORY },
       });
-      expect(result).toBe(
-        'Model: expensive/primary → [openrouter/free](<https://example.com/m>) (guest mode)'
-      );
+      expect(result).toBe('Model: [glm-5.3-flash](<https://example.com/m>)');
+      expect(result).not.toContain('→');
+      expect(result).not.toContain('guest mode');
     });
 
-    it('drops the chain when the swap only changed the ROUTE, keeping the reason', () => {
-      // The observed footer: a guest whose paid default IS the piggyback model
-      // gets it served z.ai-direct under its bare id, and the chain rendered
-      // "z-ai/glm-5.3-flash → glm-5.3-flash" — one model, two spellings, an
-      // arrow implying a swap that never happened. The route change is real and
-      // is already named by "• via Z.AI Coding Plan"; the reason stays because
-      // "(guest mode)" still explains why this model is serving.
+    it('renders bare for guest-mode even when from/to name the same model', () => {
+      // The same-name collapse path and the guest-mode carve-out must not
+      // interact badly — both land on the same bare output.
       const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
-        quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'guest_mode' },
+        quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: GUEST_MODE_CATEGORY },
+      });
+      expect(result).toBe('Model: [glm-5.3-flash](<https://example.com/m>)');
+      expect(result).not.toContain('→');
+      expect(result).not.toContain('guest mode');
+    });
+
+    it('composes the guest-mode carve-out with provider attribution and the auto badge', () => {
+      // The carve-out only suppresses the swap chain — the rest of the line
+      // (provider attribution, auto badge) must still render.
+      const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/paid-model', category: GUEST_MODE_CATEGORY },
         provider: 'zai-coding',
         withAutoBadge: true,
       });
       expect(result).toBe(
-        'Model: [glm-5.3-flash](<https://example.com/m>) (guest mode) • via Z.AI Coding Plan • 📍 auto'
+        'Model: [glm-5.3-flash](<https://example.com/m>) • via Z.AI Coding Plan • 📍 auto'
+      );
+      expect(result).not.toContain('→');
+      expect(result).not.toContain('guest mode');
+    });
+
+    it('leaves a non-guest category rendering the swap chain, unchanged (regression pin)', () => {
+      const result = buildModelFooterText('paid-default', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/primary', category: 'rate_limit' },
+      });
+      expect(result).toBe(
+        'Model: expensive/primary → [paid-default](<https://example.com/m>) (rate limited)'
+      );
+    });
+
+    it('keeps the namesSameModel collapse for a non-guest category', () => {
+      const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'rate_limit' },
+      });
+      expect(result).toBe('Model: [glm-5.3-flash](<https://example.com/m>) (rate limited)');
+      expect(result).not.toContain('→');
+    });
+
+    it('drops the chain when the swap only changed the ROUTE, keeping the reason', () => {
+      // The observed footer: a user whose paid default IS the piggyback model
+      // gets it served z.ai-direct under its bare id, and the chain rendered
+      // "z-ai/glm-5.3-flash → glm-5.3-flash" — one model, two spellings, an
+      // arrow implying a swap that never happened. The route change is real and
+      // is already named by "• via Z.AI Coding Plan"; the reason stays because
+      // it still explains why this model is serving.
+      const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'credit_exhaustion' },
+        provider: 'zai-coding',
+        withAutoBadge: true,
+      });
+      expect(result).toBe(
+        'Model: [glm-5.3-flash](<https://example.com/m>) (out of credit) • via Z.AI Coding Plan • 📍 auto'
       );
       expect(result).not.toContain('→');
     });
@@ -292,9 +336,9 @@ describe('Bot Footer Text Constants', () => {
 
       expect(
         buildModelFooterText('glm-5.3-flash', 'https://example.com/m', {
-          quotaFallback: { fromModel: 'Z-AI/GLM-5.3-Flash', category: 'guest_mode' },
+          quotaFallback: { fromModel: 'Z-AI/GLM-5.3-Flash', category: 'server_error' },
         })
-      ).toBe('Model: [glm-5.3-flash](<https://example.com/m>) (guest mode)');
+      ).toBe('Model: [glm-5.3-flash](<https://example.com/m>) (provider error)');
     });
 
     it('keeps the chain for a non-z.ai prefix sharing a tail with the target', () => {
@@ -319,9 +363,9 @@ describe('Bot Footer Text Constants', () => {
     });
 
     it('names the resolved model exactly once on a swap', () => {
-      // The point of the shape: before this, the target appeared twice — once
-      // as the leading link and again after the arrow — which is what made the
-      // guest-mode footer visibly long.
+      // The point of the shape: the target must appear once, not twice — once
+      // as a leading link and again after the arrow — which is what made the
+      // swap footer visibly long.
       //
       // The count below proves "named once" only for a URL that does not
       // itself contain the model slug, which this stub deliberately does not.
@@ -331,13 +375,13 @@ describe('Bot Footer Text Constants', () => {
       // the one READABLE mention sits right of the arrow, which the `toContain`
       // and the exact-string assertion pin directly.
       const result = buildModelFooterText('glm-4.5-air', 'https://example.com/m', {
-        quotaFallback: { fromModel: 'z-ai/glm-5', category: 'guest_mode' },
+        quotaFallback: { fromModel: 'z-ai/glm-5', category: 'quota_exceeded' },
         provider: 'zai-coding',
       });
       expect(result).toContain('→ [glm-4.5-air]');
       expect(result.split('glm-4.5-air')).toHaveLength(2); // one occurrence, given a slug-free stub URL
       expect(result).toBe(
-        'Model: z-ai/glm-5 → [glm-4.5-air](<https://example.com/m>) (guest mode) • via Z.AI Coding Plan'
+        'Model: z-ai/glm-5 → [glm-4.5-air](<https://example.com/m>) (rate limited) • via Z.AI Coding Plan'
       );
     });
 
@@ -431,7 +475,7 @@ describe('Bot Footer Text Constants', () => {
         // after "Model: " — so the one shape that could break the strip was
         // the one shape the round-trip never covered.
         buildModelFooterText('test/model', 'https://example.com/model', {
-          quotaFallback: { fromModel: 'expensive/primary', category: 'guest_mode' },
+          quotaFallback: { fromModel: 'expensive/primary', category: 'model_not_found' },
         }),
         buildModelFooterText('test/model', 'https://example.com/model', {
           quotaFallback: { fromModel: 'expensive/primary', category: 'quota_exceeded' },
@@ -454,7 +498,16 @@ describe('Bot Footer Text Constants', () => {
         // optional groups in the regex are independent, but only the
         // arrow-bearing combination was ever exercised here.
         buildModelFooterText('glm-5.3-flash', 'https://example.com/model', {
-          quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'guest_mode' },
+          quotaFallback: { fromModel: 'z-ai/glm-5.3-flash', category: 'timeout' },
+          provider: 'zai-coding',
+          withAutoBadge: true,
+        }),
+        // The guest-mode carve-out: a quotaFallback that renders BARE, with
+        // neither arrow nor reason. It reaches the strip regex as the plain
+        // no-fallback shape, and is listed so the carve-out stays covered
+        // here rather than silently degrading one of the shapes above.
+        buildModelFooterText('glm-5.3-flash', 'https://example.com/model', {
+          quotaFallback: { fromModel: 'expensive/primary', category: GUEST_MODE_CATEGORY },
           provider: 'zai-coding',
           withAutoBadge: true,
         }),
