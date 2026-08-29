@@ -520,9 +520,12 @@ export class MultiTagCoordinator {
       }
       // Register with JobTracker for typing-indicator refresh + context
       // storage, but skip ordering-service registration (the coordinator
-      // owns the group-level entry).
+      // owns the group-level entry) and skip the single-job recovery mirror
+      // (MultiTagPersistence owns this slot's durable state; a second entry
+      // would let both recovery paths adopt the job and deliver it twice).
       this.deps.jobTracker.trackJob(result.jobId, result.trackingContext, {
         skipOrderingRegistration: true,
+        skipRecoveryPersistence: true,
       });
       return {
         kind: 'submitted',

@@ -30,7 +30,9 @@ import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.
 import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
 import { type MessageContextBuilder } from './services/MessageContextBuilder.js';
 import { type ConversationPersistence } from './services/ConversationPersistence.js';
-import { type JobTracker } from './services/JobTracker.js';
+import { JobTracker } from './services/JobTracker.js';
+import { SingleJobContextRecorder, SingleJobPersistence } from './services/SingleJobPersistence.js';
+import { SingleJobRecovery } from './services/SingleJobRecovery.js';
 import { type ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { type SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
@@ -119,6 +121,41 @@ export function buildMultiTagRecovery(deps: {
     discordClient: deps.discordClient,
     queue: deps.queue,
   });
+}
+
+/**
+ * Bundle job tracking with its restart-recovery stack.
+ *
+ * These four objects have to be built together because their construction is
+ * strictly ordered: the Redis mirror comes first, the recorder wraps it, the
+ * tracker is constructed WITH that recorder, and recovery needs the finished
+ * tracker to re-adopt into. Splitting them across call sites invites someone
+ * to build a tracker without its mirror, which silently reintroduces the
+ * dropped-result-on-restart bug.
+ *
+ * `recovery.run()` is invoked later, in `start()` — it re-fetches Discord
+ * channels and messages, so it needs a logged-in client.
+ */
+export function buildJobTrackingStack(deps: {
+  redis: Redis;
+  orderingService: ResponseOrderingService;
+  personalityService: IPersonalityLoader;
+  discordClient: Client;
+}): { jobTracker: JobTracker; singleJobRecovery: SingleJobRecovery } {
+  const persistence = new SingleJobPersistence(deps.redis);
+  const jobTracker = new JobTracker(
+    deps.orderingService,
+    new SingleJobContextRecorder(persistence)
+  );
+  return {
+    jobTracker,
+    singleJobRecovery: new SingleJobRecovery({
+      persistence,
+      jobTracker,
+      personalityService: deps.personalityService,
+      discordClient: deps.discordClient,
+    }),
+  };
 }
 
 /**

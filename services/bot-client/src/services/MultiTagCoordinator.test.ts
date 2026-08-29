@@ -203,9 +203,14 @@ describe('MultiTagCoordinator', () => {
 
       expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
       expect(jobTracker.trackJob).toHaveBeenCalledTimes(2);
-      // Both slot registrations skip ordering — coordinator owns the group entry
+      // Both slot registrations skip ordering — coordinator owns the group
+      // entry — AND skip the single-job recovery mirror, because
+      // MultiTagPersistence already owns these slots' durable state. A second
+      // entry would let both recovery paths adopt the same job on the next
+      // boot and deliver the reply twice.
       expect(jobTracker.trackJob).toHaveBeenCalledWith(expect.any(String), expect.any(Object), {
         skipOrderingRegistration: true,
+        skipRecoveryPersistence: true,
       });
       expect(persistence.putEntry).toHaveBeenCalledOnce();
       // Group entry registered with ordering using groupId as the ordering token

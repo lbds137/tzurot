@@ -2,9 +2,9 @@
  * JobTracker Unit Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
-import { JobTracker, type PendingJobContext } from './JobTracker.js';
+import { JobTracker, type PendingJobContext, type TrackedJobRecorder } from './JobTracker.js';
 
 // Helper to create mock context. `trackJob` reads the channel from
 // `context.channel`, so tests passing a channel mock with `sendTyping` need
@@ -21,6 +21,13 @@ function createMockContext(channel?: TypingChannel): PendingJobContext {
     personaId: 'persona-123',
     userMessageContent: 'test message',
   };
+}
+
+// Minimal channel that satisfies the typing-indicator loop `trackJob` arms.
+// Tests that don't assert on typing still need it, since `trackJob` sends an
+// initial indicator synchronously.
+function createTypingChannel(id = 'channel-123'): TypingChannel {
+  return { id, sendTyping: vi.fn().mockResolvedValue(undefined) } as unknown as TypingChannel;
 }
 
 describe('JobTracker', () => {
@@ -383,6 +390,42 @@ describe('JobTracker', () => {
       expect(jobTracker.isTracking('job-123')).toBe(false);
     });
 
+    it('bounds a recovered job by its ORIGINAL clock, not a fresh grace period', async () => {
+      // A job re-adopted after a restart is already past the typing cutoff,
+      // so the cutoff branch runs on its FIRST interval tick and arms the
+      // sweep there. A flat 30-min grace period measured from that moment
+      // would give a 35-min-old job a ~65-min total slot lifetime, past the
+      // 40-min ceiling (TRACKED_JOB_MAX_LIFETIME_MS) the tracker documents.
+      // The sweep must instead fire at startTime + 40 min — 5 min from here.
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi
+          .fn()
+          .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
+      } as any;
+
+      jobTracker.trackJob('job-recovered', createMockContext(mockChannel), {
+        startTime: Date.now() - 35 * 60 * 1000,
+      });
+
+      // One typing-interval tick: age (35 min) already exceeds the 10-min
+      // typing cutoff, so this tick arms the sweep.
+      await vi.advanceTimersByTimeAsync(8000);
+      await vi.advanceTimersByTimeAsync(0); // flush the notification send's microtasks
+      expect(jobTracker.isTracking('job-recovered')).toBe(true);
+
+      // Stop just short of the original-clock ceiling — still tracked.
+      await vi.advanceTimersByTimeAsync(4 * 60 * 1000 + 30 * 1000);
+      expect(jobTracker.isTracking('job-recovered')).toBe(true);
+
+      // Cross it. Under a flat grace period the job would remain tracked
+      // here (and for another ~25 min), so this assertion is what pins the
+      // delay to the original clock.
+      await vi.advanceTimersByTimeAsync(60 * 1000);
+      expect(jobTracker.isTracking('job-recovered')).toBe(false);
+    });
+
     it('should clear pending orphan sweeps on cleanup()', async () => {
       const mockChannel = {
         id: 'channel-123',
@@ -657,6 +700,97 @@ describe('JobTracker', () => {
       // Stats should reflect this
       const stats = jobTracker.getStats();
       expect(stats.activeJobs).toBe(2);
+    });
+  });
+
+  describe('Recovery mirror (TrackedJobRecorder seam)', () => {
+    // Core Principle 7: the recorder is a mocked collaborator, so these
+    // assert the ARGUMENTS crossing the seam, not just that tracking worked.
+    // A tracker that recorded the wrong jobId or startTime would satisfy any
+    // return-value-only assertion while making recovery re-adopt nothing.
+    // Typed against the real port so a signature change breaks these tests at
+    // compile time rather than leaving them asserting a stale shape.
+    function createRecorder(): {
+      record: Mock<TrackedJobRecorder['record']>;
+      forget: Mock<TrackedJobRecorder['forget']>;
+    } {
+      return {
+        record: vi.fn<TrackedJobRecorder['record']>(),
+        forget: vi.fn<TrackedJobRecorder['forget']>(),
+      };
+    }
+
+    it('records the jobId, context and startTime when a job is tracked', () => {
+      const recorder = createRecorder();
+      const tracker = new JobTracker(undefined, recorder);
+      const context = createMockContext(createTypingChannel());
+
+      tracker.trackJob('job-persist', context);
+
+      expect(recorder.record).toHaveBeenCalledTimes(1);
+      expect(recorder.record).toHaveBeenCalledWith('job-persist', context, expect.any(Number));
+      tracker.cleanup();
+    });
+
+    it('forgets the mirror when a job completes', () => {
+      const recorder = createRecorder();
+      const tracker = new JobTracker(undefined, recorder);
+
+      tracker.trackJob('job-done', createMockContext(createTypingChannel()));
+      tracker.completeJob('job-done');
+
+      expect(recorder.forget).toHaveBeenCalledWith('job-done');
+      tracker.cleanup();
+    });
+
+    it('does NOT record a job whose recovery state another component owns', () => {
+      // Multi-tag slots are persisted by MultiTagPersistence. A second entry
+      // here would let both recovery paths adopt the same job on the next
+      // boot and deliver the reply twice.
+      const recorder = createRecorder();
+      const tracker = new JobTracker(undefined, recorder);
+
+      tracker.trackJob('job-multitag', createMockContext(createTypingChannel()), {
+        skipRecoveryPersistence: true,
+      });
+
+      expect(recorder.record).not.toHaveBeenCalled();
+      tracker.cleanup();
+    });
+
+    it('preserves an explicit startTime so a recovered job keeps its original budget', () => {
+      // Without this, every restart would hand a wedged job a fresh
+      // typing-indicator window and orphan-sweep grace period.
+      const recorder = createRecorder();
+      const tracker = new JobTracker(undefined, recorder);
+      const originalStart = Date.now() - 5 * 60 * 1000;
+
+      tracker.trackJob('job-recovered', createMockContext(createTypingChannel()), {
+        startTime: originalStart,
+      });
+
+      expect(recorder.record).toHaveBeenCalledWith(
+        'job-recovered',
+        expect.anything(),
+        originalStart
+      );
+      // The tracker's own age accounting must agree — a startTime that only
+      // reached the recorder would leave the in-memory sweep on a fresh clock.
+      const stats = tracker.getStats();
+      expect(stats.oldestJobAge).toBeGreaterThanOrEqual(5 * 60 * 1000);
+      tracker.cleanup();
+    });
+
+    it('leaves the mirror intact on shutdown cleanup so recovery can re-adopt', () => {
+      // The inverse of completeJob: `cleanup()` runs at shutdown, and the
+      // whole point of the mirror is that those entries SURVIVE it.
+      const recorder = createRecorder();
+      const tracker = new JobTracker(undefined, recorder);
+
+      tracker.trackJob('job-shutdown', createMockContext(createTypingChannel()));
+      tracker.cleanup();
+
+      expect(recorder.forget).not.toHaveBeenCalled();
     });
   });
 });

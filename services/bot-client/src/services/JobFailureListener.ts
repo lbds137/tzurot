@@ -168,7 +168,12 @@ export class JobFailureListener {
         jobId,
         syntheticFailure,
         context.userMessageTime,
-        (jId, res) => this.messageHandler.handleJobResult(jId, res)
+        // The returned disposition is deliberately discarded: as the comment
+        // above records, a hard-failed job never produced a `jobResult` row,
+        // so there is nothing here to confirm either way.
+        async (jId, res) => {
+          await this.messageHandler.handleJobResult(jId, res);
+        }
       );
     } catch (err) {
       logger.error({ err, jobId, reason, failedReason }, 'Failed to handle AI job terminal event');
