@@ -394,12 +394,14 @@ export const REVIEW_WORKFLOW_FILE = 'claude-code-review.yml';
  * `@claude` mention workflow also posts from the same login, so a chatty
  * review thread would inflate a comment-based count past the cap. A rerun
  * bumps a run's attempt counter rather than creating a run, so reruns don't
- * inflate this either. Known, accepted gap: the runs query is scoped by
- * BRANCH NAME, not PR — a reused branch name (a prior same-name PR closed
- * without deleting its branch) would inflate the count with the old PR's
- * runs. Rare under the delete-on-merge convention, and the warning is
- * advisory, so the cheap query wins over per-PR run attribution. Second
- * accepted gap, the more common one on an actively-steered PR: the count
+ * inflate this either. The runs query is scoped by BRANCH NAME, not PR, so it
+ * is ALSO floored at the PR's creation time: without that floor a reused
+ * branch name carries every prior same-name PR's runs into the count. That is
+ * not the rare case it reads as — a release PR's head ref is `develop`, which
+ * every release reuses by design, so an unfloored count returns the repo's
+ * entire release-review history (hundreds of cycles against a real count of
+ * one) and trips the cap warning on every release. Accepted gap that remains,
+ * the more common one on an actively-steered PR: the count
  * cannot see OWNER INTERVENTIONS, which reset the skill's own round cap —
  * six pushes with the owner actively directing throughout still counts as
  * six. The warning text says "counts reviewed pushes" for exactly that
@@ -411,19 +413,42 @@ export const REVIEW_WORKFLOW_FILE = 'claude-code-review.yml';
  * should be.
  */
 export function countReviewCycles(prNumber: number): number {
-  const headRef = ghCall(
-    ['pr', 'view', String(prNumber), '--json', 'headRefName', '--jq', '.headRefName'],
+  const [headRef = '', createdAt = ''] = ghCall(
+    [
+      'pr',
+      'view',
+      String(prNumber),
+      '--json',
+      'headRefName,createdAt',
+      '--jq',
+      '[.headRefName, .createdAt] | @tsv',
+    ],
     REVIEW_COUNT_TIMEOUT_MS
-  ).trim();
+  )
+    .trim()
+    .split('\t');
   if (headRef === '') {
     throw new GhApiError(`PR #${prNumber} has no head branch name`);
+  }
+  // Shape-checked rather than merely non-empty because it is interpolated raw
+  // below: `encodeURIComponent` would percent-encode the colons, and only the
+  // unencoded form was probed against the live API. The absence of fractional
+  // seconds is an EXTERNAL-FORMAT assumption about `gh pr view --json
+  // createdAt` — probed against live PRs, not read off a doc — so a GitHub
+  // change here would start failing this check. That degrades safely: the
+  // throw reaches reportReviewRounds, which fails open to its "unavailable"
+  // line rather than silently reinstating an unfloored count.
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(createdAt)) {
+    throw new GhApiError(`PR #${prNumber} has no usable creation timestamp: '${createdAt}'`);
   }
   const raw = ghCall(
     [
       'api',
       // `.total_count` is the API's own full count, so pagination cannot
       // silently truncate it the way an array-length count would past page 1.
-      `repos/${REPO}/actions/workflows/${REVIEW_WORKFLOW_FILE}/runs?branch=${encodeURIComponent(headRef)}&per_page=1`,
+      // `%3E%3D` is `>=`, the API's own range-filter syntax.
+      `repos/${REPO}/actions/workflows/${REVIEW_WORKFLOW_FILE}/runs` +
+        `?branch=${encodeURIComponent(headRef)}&created=%3E%3D${createdAt}&per_page=1`,
       '--jq',
       '.total_count',
     ],
