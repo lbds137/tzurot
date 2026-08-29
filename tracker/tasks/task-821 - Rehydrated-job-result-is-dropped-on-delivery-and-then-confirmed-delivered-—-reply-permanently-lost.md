@@ -3,9 +3,10 @@ id: TASK-821
 title: >-
   Rehydrated job result is dropped on delivery and then confirmed-delivered —
   reply permanently lost
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 17:08'
+updated_date: '2026-08-29 20:10'
 labels:
   - 'area:bot-client'
   - 'size:M'

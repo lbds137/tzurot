@@ -3,9 +3,10 @@ id: TASK-820
 title: >-
   Rehydrated job pickup shows no typing indicator — zero user feedback until the
   reply drops
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 16:48'
+updated_date: '2026-08-29 20:10'
 labels:
   - 'area:bot-client'
   - 'size:M'
