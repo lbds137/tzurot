@@ -77,6 +77,27 @@ describe('HardcodedConstraints', () => {
     it('should prohibit parroting', () => {
       expect(OUTPUT_CONSTRAINTS).toContain('Never repeat or parrot back');
     });
+
+    it('should attribute media descriptions to the platform, not the sharing participant', () => {
+      // Prevents the vision-model description of a shared file being read as
+      // text the participant themselves typed.
+      expect(OUTPUT_CONSTRAINTS).toContain('automated platform-generated descriptions');
+      expect(OUTPUT_CONSTRAINTS).toContain('Never attribute the description');
+    });
+
+    it('names all three media-description surface forms: the XML tag, the attachments wrapper, and the bracket header', () => {
+      expect(OUTPUT_CONSTRAINTS).toContain('<image_descriptions>');
+      expect(OUTPUT_CONSTRAINTS).toContain('text inside <image> elements under <attachments>');
+      expect(OUTPUT_CONSTRAINTS).toContain('[Image: name]');
+    });
+
+    // An STT transcript's wording genuinely belongs to the speaker, so
+    // disclaiming it would suppress the model's ability to treat a spoken
+    // question as the user's own statement.
+    it("excludes voice transcripts — a transcript is the participant's own words, not a platform description of their media", () => {
+      expect(OUTPUT_CONSTRAINTS).not.toContain('[Voice message');
+      expect(OUTPUT_CONSTRAINTS).not.toContain('<voice>');
+    });
   });
 
   describe('buildOutputConstraints (PR 2.3 realMessagesEnabled gate)', () => {
@@ -123,6 +144,18 @@ describe('HardcodedConstraints', () => {
       expect(buildOutputConstraints(false)).not.toContain(
         'only at the very start of a conversation turn'
       );
+    });
+
+    it('carries the media-description attribution constraint when the flag is off', () => {
+      const off = buildOutputConstraints(false);
+      expect(off).toContain('automated platform-generated descriptions');
+      expect(off).toContain('Never attribute the description');
+    });
+
+    it('carries the media-description attribution constraint when the flag is on', () => {
+      const on = buildOutputConstraints(true);
+      expect(on).toContain('automated platform-generated descriptions');
+      expect(on).toContain('Never attribute the description');
     });
   });
 

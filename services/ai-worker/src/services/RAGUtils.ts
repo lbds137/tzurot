@@ -78,9 +78,14 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
  * the user might have spoken, so injection inside the transcript can't break
  * out of the wrapper.
  *
- * Image descriptions stay under their `[Image: filename]` header without
- * wrapping — image content isn't user-typed text, so the ambiguity that
- * motivates the voice wrapping doesn't apply.
+ * Image descriptions stay under their `[Image: filename]` header with no XML
+ * wrapper. `image_descriptions` and `image` are both in `PROTECTED_TAGS`, so
+ * a wrapper applied here — before `escapeXmlContent` runs at the
+ * PromptBuilder seam — would itself be escaped away, the inverse of why
+ * voice's unprotected wrapper tags survive that pass; this asymmetry is
+ * pinned by the escaping test in `promptSanitizer.test.ts`. Provenance is
+ * instead carried by the media-description constraint in
+ * `OUTPUT_CONSTRAINTS`, pinned by the tests in `HardcodedConstraints.test.ts`.
  */
 export function buildAttachmentDescriptions(
   processedAttachments: ProcessedAttachment[]
