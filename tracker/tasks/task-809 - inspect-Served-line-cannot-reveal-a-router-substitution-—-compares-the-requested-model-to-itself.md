@@ -3,10 +3,10 @@ id: TASK-809
 title: >-
   /inspect Served line cannot reveal a router substitution — compares the
   requested model to itself
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 01:34'
-updated_date: '2026-08-29 14:36'
+updated_date: '2026-08-29 22:26'
 labels:
   - 'area:bot-client'
   - 'size:S'
