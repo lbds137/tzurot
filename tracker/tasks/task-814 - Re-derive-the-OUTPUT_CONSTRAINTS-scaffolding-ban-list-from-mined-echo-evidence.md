@@ -1,0 +1,34 @@
+---
+id: TASK-814
+title: Re-derive the OUTPUT_CONSTRAINTS scaffolding-ban list from mined-echo evidence
+status: To Do
+assignee: []
+created_date: '2026-08-29 11:16'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
+  - 'state:owner'
+dependencies: []
+priority: low
+ordinal: 814000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Why: the TASK-160 audit established a criterion for ban-list membership (recorded as a doc comment on OUTPUT_CONSTRAINTS in services/ai-worker/src/services/prompt/HardcodedConstraints.ts) and found the current list fails it in BOTH directions.
+
+Unnamed but evidence-backed: chat_log, participants, protocol, memory_archive, facts are all members of PROMPT_TEMPLATE_ORPHAN_TAGS in services/ai-worker/src/utils/responseArtifacts.ts, i.e. the model has been observed echoing their closing forms and we strip them post-hoc.
+
+Named but never emitted by our prompt: <user> appears nowhere in prompt assembly except inside the ban constraint text itself, and from_id ships as an ATTRIBUTE (services/ai-worker/src/jobs/utils/conversationUtils.ts:102), never as an element. GLM-4.5-Air invented those element shapes while mimicking our format, so the constraint sentence calling them assembly artifacts from the conversation context misdescribes them.
+
+Third candidate: context is deliberately excluded from the responseArtifacts orphan-closer list as too collision-prone against ordinary prose, which makes prompt-side prevention the ONLY lever for it. It is currently in neither the ban list nor the strip list.
+
+Why this is an owner call and was not done in the audit: OUTPUT_CONSTRAINTS is S0-cacheable prompt text on every single request, so any edit changes every response. Efficacy is unmeasurable locally and there is an unverified counter-consideration that naming a tag may itself prime the model to emit it, which argues for a minimal evidence-only list rather than an exhaustive one.
+
+Options: (a) leave as-is, treating the strip layer as the guarantee and the ban list as legacy best-effort; (b) re-derive strictly from mined-echo evidence, adding the five and dropping or rewording quote/user; (c) minimal change, add context only, since it is the one tag with no post-processing lever.
+
+Recommendation: (c). It closes the only genuine coverage gap, costs a handful of S0 tokens, and avoids churning prompt text whose efficacy we cannot measure.
+
+Acceptance: an owner decision recorded on this task, and if a or b, the constraint text plus the HardcodedConstraints.test.ts assertions updated together so the pins do not contradict the code.
+<!-- SECTION:DESCRIPTION:END -->
