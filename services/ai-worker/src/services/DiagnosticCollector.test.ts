@@ -529,12 +529,30 @@ describe('DiagnosticCollector', () => {
         cachedPromptTokens: 6272,
         cacheDiscount: -0.0123,
         modelUsed: 'glm-4.7',
+        routedModel: 'z-ai/glm-4.7',
       });
 
       const payload = collector.finalize();
 
       expect(payload.llmResponse.cachedPromptTokens).toBe(6272);
       expect(payload.llmResponse.cacheDiscount).toBe(-0.0123);
+      expect(payload.llmResponse.routedModel).toBe('z-ai/glm-4.7');
+    });
+
+    it('should carry the routed model through the partial (failure-path) record too', () => {
+      // recordPartialLlmResponse keeps its OWN copy of the hand-maintained list,
+      // so the success-path assertion above cannot speak for it — and the failure
+      // path is where an empty-response diagnosis actually needs the field.
+      collector.recordPartialLlmResponse({
+        finishReason: 'error',
+        modelUsed: 'openrouter/auto',
+        routedModel: 'qwen/qwen-2.5-vl-72b-instruct',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmResponse.modelUsed).toBe('openrouter/auto');
+      expect(payload.llmResponse.routedModel).toBe('qwen/qwen-2.5-vl-72b-instruct');
     });
 
     it('should record reasoning debug info when provided', () => {

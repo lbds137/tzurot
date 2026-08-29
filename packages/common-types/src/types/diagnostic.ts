@@ -286,8 +286,19 @@ export interface DiagnosticLlmResponse {
   cachedPromptTokens?: number;
   /** OpenRouter's `usage.cache_discount` billing adjustment (negative = savings) */
   cacheDiscount?: number;
-  /** Model actually used (may differ from requested) */
+  /**
+   * The model the request ASKED for. For a router alias such as
+   * `openrouter/auto` this is the alias itself, not whatever served the call —
+   * see `routedModel` for that.
+   */
   modelUsed: string;
+  /**
+   * The model the provider reported having served, from the raw payload's
+   * top-level `model` field. Differs from `modelUsed` exactly when a router
+   * alias was requested, which is the case this field exists to make
+   * attributable. Undefined when the response carried no such field.
+   */
+  routedModel?: string;
   /** Debug info for reasoning extraction troubleshooting */
   reasoningDebug?: {
     /** Keys present in additional_kwargs from LangChain response */

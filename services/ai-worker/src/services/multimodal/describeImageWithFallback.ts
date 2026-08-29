@@ -60,7 +60,8 @@ const MAX_VISION_FALLBACK_TIERS = 3;
  * - `advance` — this tier failed on a retryable category; try the next one.
  */
 type TierOutcome =
-  { kind: 'resolved'; description: string } | { kind: 'advance'; category: ApiErrorCategory };
+  | { kind: 'resolved'; description: string }
+  | { kind: 'advance'; category: ApiErrorCategory; routedModel?: string };
 
 /**
  * Run one already-resolved tier: describe, or classify its failure into terminate-vs-advance.
@@ -125,7 +126,7 @@ async function runVisionTier(
       { attachmentId: attachment.id, model: config.model, category: error.category },
       'Vision tier failed on a retryable category — advancing to the next fallback model'
     );
-    return { kind: 'advance', category: error.category };
+    return { kind: 'advance', category: error.category, routedModel: error.routedModel };
   }
 }
 
@@ -361,7 +362,12 @@ function isPiggybackTierConfig(config: VisionConfig): boolean {
 type TierAttempt =
   | { kind: 'skip' }
   | { kind: 'resolved'; description: string }
-  | { kind: 'advance'; category: ApiErrorCategory; source: 'user' | 'system' };
+  | {
+      kind: 'advance';
+      category: ApiErrorCategory;
+      source: 'user' | 'system';
+      routedModel?: string;
+    };
 
 /** Inputs for {@link attemptTier}, bundled to stay under the parameter-count limit. */
 interface AttemptTierOptions {
@@ -422,7 +428,12 @@ async function attemptTier(options: AttemptTierOptions): Promise<TierAttempt> {
   if (outcome.kind === 'resolved') {
     return { kind: 'resolved', description: outcome.description };
   }
-  return { kind: 'advance', category: outcome.category, source: auth.config.source };
+  return {
+    kind: 'advance',
+    category: outcome.category,
+    source: auth.config.source,
+    routedModel: outcome.routedModel,
+  };
 }
 
 async function walkFallbackChain(
@@ -448,7 +459,12 @@ async function walkFallbackChain(
   // Track the last tier that was actually ATTEMPTED (a key resolved + describeImage ran) —
   // its category AND key source. A failFast (no key for the tier) is NOT an attempt, so it
   // never contributes here; that keeps a downstream failFast from clobbering a real failure.
-  let lastAttempt: { category: ApiErrorCategory; source: 'user' | 'system' } | undefined;
+  // `routedModel` rides along so the exhausted-chain log names the model that
+  // actually served the last failure — for a router alias the tier's model
+  // string is the alias, not the id that answered. Undefined when the attempt
+  // failed before any response existed.
+  let lastAttempt:
+    { category: ApiErrorCategory; source: 'user' | 'system'; routedModel?: string } | undefined;
 
   for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
     if (tierIndex === primaryTierIndex + 1) {
@@ -476,7 +492,11 @@ async function walkFallbackChain(
     if (attempt.kind === 'resolved') {
       return attempt.description;
     }
-    lastAttempt = { category: attempt.category, source: attempt.source };
+    lastAttempt = {
+      category: attempt.category,
+      source: attempt.source,
+      routedModel: attempt.routedModel,
+    };
   }
 
   logger.warn(

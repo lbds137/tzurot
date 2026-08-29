@@ -148,5 +148,17 @@ describe('Canary: __includeRawResponse contract with @langchain/openai', () => {
     // 5. Top-level provider field is preserved (this is OpenRouter's, NOT LangChain's
     // hardcoded model_provider="openai" in response_metadata).
     expect(raw.provider).toBe('StubProvider');
+
+    // 6. The converter populates response_metadata.model_name from the raw
+    // payload's top-level `model` field. readRoutedModel (vision path) reads
+    // this instead of openrouter.model, because the vision path never runs the
+    // extractor — if a @langchain/openai bump renames or stops populating it,
+    // every vision routedModel silently becomes undefined, which is exactly the
+    // attribution loss this instrumentation exists to prevent.
+    expect(
+      (result.response_metadata as Record<string, unknown>).model_name,
+      'LangChain stopped populating response_metadata.model_name from the raw payload model ' +
+        'field — readRoutedModel (vision routed-model attribution) reads it. See file header.'
+    ).toBe('z-ai/glm-4.7');
   });
 });

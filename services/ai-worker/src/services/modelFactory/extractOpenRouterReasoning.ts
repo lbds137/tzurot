@@ -44,6 +44,14 @@ const logger = createLogger('ModelFactory');
 export interface OpenRouterMessageMetadata {
   /** Upstream provider name (e.g. "Parasail", "Chutes") — NOT LangChain's hardcoded "openai" */
   provider?: string;
+  /**
+   * The model id the raw payload reports having served, read from its top-level
+   * `model` field when that field is present and a string. This matters for
+   * router aliases: a request for `openrouter/auto` records the alias as the
+   * REQUESTED model, so this is the only field carrying the id that actually
+   * answered. Absent when the payload omits the field.
+   */
+  model?: string;
   /** Keys present on raw response `choices[0].message`. Distinguishes "model returned structured reasoning" from "model embedded planning into content" */
   apiMessageKeys: string[];
   /** Length of `message.reasoning` from raw API response. Zero = model did not emit structured reasoning */
@@ -160,6 +168,9 @@ function buildOpenrouterMetadata(
   };
   if (typeof raw.provider === 'string') {
     result.provider = raw.provider;
+  }
+  if (typeof raw.model === 'string') {
+    result.model = raw.model;
   }
   const providerError = extractProviderErrorObject(raw);
   if (providerError !== undefined) {

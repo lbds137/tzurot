@@ -981,6 +981,103 @@ describe('LLMInvoker', () => {
       });
     });
 
+    describe('routed model attribution on the retryable-throw warns', () => {
+      // Both warns throw plain Errors, so the log payload is the ONLY place the
+      // routed model survives. For a router alias (openrouter/auto) modelName is
+      // the alias, so without routedModel a prod empty_response cannot name the
+      // model that actually failed. extractAndPopulateOpenRouterReasoning is
+      // mocked to a pass-through here, so these fixtures carry the
+      // post-extraction state the helper would have written.
+      it('carries routedModel on the empty-response warn', async () => {
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
+            content: '',
+            response_metadata: {
+              finish_reason: 'stop',
+              openrouter: { model: 'deepseek/deepseek-v3.2' },
+            },
+          })
+        );
+
+        await expect(
+          invoker.invokeWithRetry({
+            model: mockModel,
+            messages: [new HumanMessage('Hello')],
+            modelName: 'openrouter/auto',
+            maxAttempts: 1,
+          })
+        ).rejects.toThrow();
+
+        const emptyLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('Empty response')
+        );
+        expect(emptyLog?.[0]).toMatchObject({
+          modelName: 'openrouter/auto',
+          routedModel: 'deepseek/deepseek-v3.2',
+        });
+      });
+
+      it('carries routedModel on the provider-error finish warn', async () => {
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
+            content: '.',
+            response_metadata: {
+              finish_reason: 'error',
+              openrouter: {
+                model: 'deepseek/deepseek-v3.2',
+                providerError: { message: 'Upstream provider dropped the stream', code: 502 },
+              },
+            },
+          })
+        );
+
+        await expect(
+          invoker.invokeWithRetry({
+            model: mockModel,
+            messages: [new HumanMessage('Hello')],
+            modelName: 'openrouter/auto',
+            maxAttempts: 1,
+          })
+        ).rejects.toThrow();
+
+        const providerErrorLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('error finish_reason')
+        );
+        expect(providerErrorLog?.[0]).toMatchObject({
+          modelName: 'openrouter/auto',
+          routedModel: 'deepseek/deepseek-v3.2',
+          providerErrorDetail: 'code 502: Upstream provider dropped the stream',
+        });
+      });
+
+      it('omits routedModel when the payload carried no model field', async () => {
+        // Non-OpenRouter routes never populate response_metadata.openrouter at
+        // all. The field goes out undefined rather than a placeholder string, so
+        // nothing downstream mistakes "unknown" for a real model id.
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
+            content: '',
+            response_metadata: { finish_reason: 'stop' },
+          })
+        );
+
+        await expect(
+          invoker.invokeWithRetry({
+            model: mockModel,
+            messages: [new HumanMessage('Hello')],
+            modelName: 'google/gemini-pro',
+            maxAttempts: 1,
+          })
+        ).rejects.toThrow();
+
+        const emptyLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('Empty response')
+        );
+        expect(emptyLog?.[0]).toBeDefined();
+        expect((emptyLog?.[0] as Record<string, unknown>).routedModel).toBeUndefined();
+      });
+    });
+
     describe('reasoning model support', () => {
       it('should pass messages through unchanged for the deprecated o-series (transform deleted)', async () => {
         const mockModel = mockChatModel(

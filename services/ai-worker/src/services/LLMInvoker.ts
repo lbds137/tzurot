@@ -633,7 +633,8 @@ export class LLMInvoker {
   /**
    * Extract diagnostic metadata from a response for enriched error logging.
    * Pulls finish_reason and key inventories from LangChain's response_metadata
-   * and additional_kwargs, and token usage from the normalized usage_metadata.
+   * and additional_kwargs, token usage from the normalized usage_metadata, and
+   * the routed model id the OpenRouter extractor captured.
    */
   private extractResponseDiagnostics(response: BaseMessage): Record<string, unknown> {
     const metadata = (response as { response_metadata?: Record<string, unknown> })
@@ -645,11 +646,22 @@ export class LLMInvoker {
     const usage = (
       response as { usage_metadata?: { input_tokens?: number; output_tokens?: number } }
     ).usage_metadata;
+    // The id the raw payload reported having served, captured into
+    // response_metadata.openrouter by extractAndPopulateOpenRouterReasoning
+    // (which invokeSingleAttempt runs before either warn site reaches here).
+    // For a router alias such as openrouter/auto the requested modelName is the
+    // alias, so this is the only field on these warns naming the model that
+    // actually produced the failing response. Typed as unknown and guarded by
+    // typeof because `metadata` is untyped: undefined when the payload omitted
+    // the field, the same absent-not-placeholder shape as the token fields.
+    const openrouter = metadata?.openrouter as { model?: unknown } | undefined;
+    const routedModel = typeof openrouter?.model === 'string' ? openrouter.model : undefined;
 
     return {
       responseType: Array.isArray(response.content) ? 'array' : typeof response.content,
       contentLength: Array.isArray(response.content) ? response.content.length : 0,
       finishReason,
+      routedModel,
       promptTokens: usage?.input_tokens,
       completionTokens: usage?.output_tokens,
       refusal:

@@ -357,6 +357,44 @@ describe('DiagnosticRecorders', () => {
       expect(call.cacheDiscount).toBeUndefined();
     });
 
+    it('should thread the routed model alongside the requested model', () => {
+      // modelUsed is what we ASKED for; routedModel is what the payload said
+      // answered. For a router alias the two differ, which is the entire point
+      // of the field — assert both reach the collector, distinctly.
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        responseMetadata: {
+          finish_reason: 'stop',
+          openrouter: {
+            apiMessageKeys: [],
+            apiReasoningLength: 0,
+            model: 'google/gemini-2.5-flash',
+          },
+        },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'openrouter/auto', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.modelUsed).toBe('openrouter/auto');
+      expect(call.routedModel).toBe('google/gemini-2.5-flash');
+    });
+
+    it('should leave the routed model undefined when the response carried none', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        responseMetadata: {
+          finish_reason: 'stop',
+          openrouter: { apiMessageKeys: [], apiReasoningLength: 0 },
+        },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.routedModel).toBeUndefined();
+    });
+
     it('should resolve finish_reason from various field names', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
 
