@@ -164,6 +164,18 @@ function isSameModel(requested: string, served: string): boolean {
  * provider that handled the request. The real upstream lives in
  * reasoningDebug.upstreamProvider and is shown as a separate "Upstream" line
  * when available.
+ *
+ * Three distinct model ids compose independently here:
+ * - `llmConfig.model` — what the user configured.
+ * - `llmResponse.modelUsed` — what we asked the provider for. May already
+ *   differ from `llmConfig.model` after a guest override or quota retarget.
+ * - `llmResponse.routedModel` — what the provider reported actually running.
+ *   Differs from `modelUsed` exactly when a router alias (e.g.
+ *   `openrouter/auto`) was requested.
+ *
+ * A requested/served substitution and an alias-routing resolution are
+ * orthogonal facts and can both fire on the same response (a retarget whose
+ * target was itself a router alias).
  */
 function buildModelField(
   llmConfig: DiagnosticPayload['llmConfig'],
@@ -179,6 +191,13 @@ function buildModelField(
   const lines: string[] = substituted
     ? [`**Requested:** ${llmConfig.model}`, `⚠️ **Served:** ${served}`]
     : [`**Model:** ${llmConfig.model}`];
+  // A router alias (e.g. openrouter/auto) resolves to a concrete model at
+  // the provider; name what actually ran, independent of any requested/
+  // served substitution above.
+  const routedModel = llmResponse.routedModel;
+  if (routedModel !== undefined && routedModel.length > 0 && !isSameModel(routedModel, served)) {
+    lines.push(`🔀 **Routed:** ${routedModel}`);
+  }
   lines.push(`**Family:** ${llmConfig.provider}`);
   const upstreamProvider = llmResponse.reasoningDebug?.upstreamProvider;
   if (upstreamProvider !== undefined) {
