@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-28'
+lastUpdated: '2026-08-29'
 ---
 
 # Orchestrator Mode
@@ -207,6 +207,11 @@ largest, which is backwards.
    `typecheck:spec` where the package defines it (separate tsconfig — plain
    `typecheck` misses test-file errors). Sequential, long timeouts, never in
    parallel (`05-tooling.md` § Resource Constraints).
+   **Default the gate list to the touched packages' WHOLE-package commands**
+   (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
+   A file-scoped test list is systematically narrower than CI and has cost
+   two full failed transfers in one epoch — a format-check miss and a
+   package-suite miss. Name individual files only IN ADDITION, as a canary.
 8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this

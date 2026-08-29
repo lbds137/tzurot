@@ -454,29 +454,55 @@ describe('countReviewCycles', () => {
 });
 
 describe('reportReviewRounds', () => {
-  it('warns with the count and the hand-off pointer at the threshold', () => {
+  it('warns with the count and the hand-off pointer at the round-cap threshold, alongside the dispatch reminder', () => {
     const lines: string[] = [];
     reportReviewRounds(
       2124,
       m => lines.push(m),
       () => 6
     );
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain('REVIEW_ROUND_CAP: 6 claude-review cycles on PR #2124');
-    expect(lines[0]).toContain('/tzurot-review-response § 5a');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('REVIEW ROUNDS ARE DISPATCH WORK');
+    expect(lines[1]).toContain('REVIEW_ROUND_CAP: 6 claude-review cycles on PR #2124');
+    expect(lines[1]).toContain('/tzurot-review-response § 5a');
   });
 
-  it('stays silent below the threshold', () => {
+  it('stays silent on the round-cap warning below its threshold, but still prints the dispatch reminder', () => {
     const lines: string[] = [];
     reportReviewRounds(
       2124,
       m => lines.push(m),
       () => 5
     );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('REVIEW ROUNDS ARE DISPATCH WORK');
+    expect(lines.some(l => l.includes('REVIEW_ROUND_CAP'))).toBe(false);
+  });
+
+  it('prints the dispatch reminder at exactly one cycle — the boundary of the reminder threshold', () => {
+    const lines: string[] = [];
+    reportReviewRounds(
+      2124,
+      m => lines.push(m),
+      () => 1
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('REVIEW ROUNDS ARE DISPATCH WORK');
+    expect(lines[0]).toContain('dispatch');
+    expect(lines[0]).toContain('§ 3a');
+  });
+
+  it('stays silent entirely at zero cycles', () => {
+    const lines: string[] = [];
+    reportReviewRounds(
+      2124,
+      m => lines.push(m),
+      () => 0
+    );
     expect(lines).toHaveLength(0);
   });
 
-  it('a count failure prints the unavailability instead of failing the gate', () => {
+  it('a count failure prints only the unavailability line — no dispatch reminder, no cap warning', () => {
     // Fail-open is deliberate, but SILENT fail-open would read as under-cap —
     // the line is the difference between "checked, fine" and "did not check".
     const lines: string[] = [];

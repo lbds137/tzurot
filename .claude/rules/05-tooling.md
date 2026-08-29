@@ -286,7 +286,11 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 | _none of them_            | the Monitor's own 30-min `timeout_ms` killed the process            | re-arm                               |
 
 **After the sentinel, the gate also counts claude-review cycles on the PR** and
-prints `⚠️ REVIEW_ROUND_CAP` at ≥6 — that line is the mechanical trigger for
+prints two things off that count. From ≥1 cycle — so on nearly every monitored
+PR — it prints `📋 REVIEW ROUNDS ARE DISPATCH WORK`, the mechanical trigger for
+`/tzurot-review-response` § 3a: batch the round's findings into ONE worker
+dispatch rather than applying them inline. Then at ≥6 it also
+prints `⚠️ REVIEW_ROUND_CAP` — that line is the mechanical trigger for
 `/tzurot-review-response` § 5a: stop iterating in this context and hand the open
 findings to a fresh-context implementer or the owner. The count is advisory and
 fail-open; an `unavailable` line means the check did not run, not that the PR is
