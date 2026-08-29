@@ -1,10 +1,20 @@
 # Current
 
-> **Version**: v3.0.0-beta.209 — "DM isolation + scope-first /deny + guest vision on flash" (14 PRs / 11 runtime / 193 files, no migrations, merged 2026-08-28 03:40Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.210 — "vision follow-through + z.ai plumbing + integration-tier opening" (10 PRs / 8 runtime / 103 range files, no migrations, merged 2026-08-29 16:39Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.208 — "telemetry consumers + carried fixes" (10 PRs / 8 runtime / 137 files, 2026-08-26).
+> **Previous**: v3.0.0-beta.209 — "DM isolation + scope-first /deny + guest vision on flash" (14 PRs / 11 runtime / 193 files, 2026-08-28).
 
 ---
+
+## ☀️ 2026-08-29 day — Fable verification pass + mining tail3 + beta.210 cut
+
+**Opus-window verification (owner ask: "mine / verify the Opus work").** Fresh Fable read of all three Opus-window merged diffs (#2248/#2249/#2250): zero findings — shipped logic held everywhere, hedges honest, pins correct (incl. #2248's voice exclusion and #2250's `:free`-first rule-order claim, both re-verified against code). Release preflight clean (0 advisories, repo-settings green, no dependabot, no migrations).
+
+**Mining run (delta 08-28 23:41Z → 08-29 16:09Z; report 08a1ee8b-tail3 in the machine-local corpus).** Headline: every spec defect in the window was the ORCHESTRATOR's, never the worker's ("the one seat no fresh reader occupies"); § 3a round-dispatch decayed within one Opus window (honored #2246/#2247/#2248, abandoned #2249/#2250 — the two longest PRs, both producing the sample-not-inventory loop); claim scan verdict "not crying wolf" (≥5 fires, real catches); count-rot 5/5 gate-caught 0 self-caught; undelivered-close-out crossed its threshold (one occurrence per driver → no longer Fable-specific). Owner approved all four operationalization sets same day: process micro-PR (turn-ends-on-confirmation rule + package-default gate lists + ci-gate § 3a reminder) · owner-decision digest section · PR-body claim scan · small filings (cwd-drift-guard worktree FP task; worktree-stale-base logged upstream). Building next; README dispositions finalize with PR numbers.
+
+**beta.210 CUT + MERGED + PUBLISHED (PR #2251, owner-approved merge).** All checks green, release review read (no blocking findings; its 103-vs-119 file flag resolved by comm — the 16 extras are bump package.jsons); finalize aligned develop to main; beta.209 demoted. **The routed-model instrumentation is now IN PROD — TASK-791's fix half unblocks on the next `empty_response` window.**
+
+**Honest ledger today:** my miner briefing mis-attributed the owner-decision batch to the Fable window (it was Opus — miner corrected from the JSONL); I wrote "12 review rounds across the range" in the release PR body when 12 covers only the newest three PRs — caught on my own re-read before anyone else saw it (first self-catch of the class in two windows), fixed with the scoped number. The REVIEW_ROUND_CAP counter printed "594" on #2251 — TASK-768's implausible-count bug, fourth sighting.
 
 ## 🌙 2026-08-28/29 night — mining run + operationalizations + TASK-791 instrumentation (Fable-driven)
 
@@ -29,9 +39,9 @@
 
 ## 📋 Open items (near-term)
 
-- **TASK-791 (high)** — instrumentation live in dev on this deploy, prod at the beta.210 cut. Fix half = read the routed-model data from the next prod `empty_response` window, then design the tier fix. Prior root-cause candidates BOTH recorded open on the task (neither survived review).
+- **TASK-791 (high)** — instrumentation LIVE IN PROD as of the beta.210 merge (2026-08-29). Fix half = read the routed-model data from the next prod `empty_response` window, then design the tier fix. Prior root-cause candidates BOTH recorded open on the task (neither survived review).
 - **beta.209 open clauses (constituent detail in git/notes):** TASK-598 open on its worktree-push clause (close after a quiet stretch) · TASK-764 open on the experiential /deny clause (owner-verifiable only) · TASK-612 open on its runtime invalidation clause · TASK-782 watch (5.3-flash scaffolding shapes in prod logs) · TASK-795 (#2242 coverage nits) · TASK-775 (#2228 coverage nit).
-- **Watches carried:** `usage_logs` attribution · `model_not_found (rescued)` ⚠️ embeds (GLM now.md entry clears on first sighting) · error-channel first prod posts · glm-5.2 maxTokens saturation + Qwen censoring rates · trailing-confirmation compaction residual (mining watch — third occurrence → mechanical carrier proposal).
+- **Watches carried:** `usage_logs` attribution · `model_not_found (rescued)` ⚠️ embeds (GLM now.md entry clears on first sighting) · error-channel first prod posts · glm-5.2 maxTokens saturation + Qwen censoring rates. (The trailing-confirmation watch CLOSED 2026-08-29: threshold crossed, one occurrence per driver — the turn-ends-on-confirmation rule amendment is in the approved process micro-PR.)
 - **Usage posture:** ≤10% weekly Fable per day through the Sun 02:00 ET reset (owner directive 2026-08-27); tonight honored via nested dispatch + § 3a. Owner flagged Fable LOW at week tail — Opus windows intended next, new posture live.
 - **Housekeeping (CLEARED 2026-08-29, owner okay given):** the mined `015f3cbc`/`0059bca0` JSONLs were already gone from disk — only the active session (`08a1ee8b`, 67MB) and one 0.1MB stub remain, so nothing needed deleting. All four `worktree-agent-*` local branches deleted; two required `-D` because their work transferred by PATCH (different SHAs), and their content was verified superseded first — they held a BROADER draft of the media-provenance constraint covering `<voice>`/`[Voice message: …]`, which develop deliberately narrowed out and test-pins as excluded. Parked branches (`memory-hybrid-retrieval`, `reply-ping-gate`, `task-563`) untouched. Active session mined through 2026-08-28 23:41Z; next delta starts there.
 - `ConversationHistoryEntry` (pipeline/types.ts) Pick/Omit fold still carried for whichever slice next touches the wire shape.

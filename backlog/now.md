@@ -28,19 +28,20 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 ---
 
-### 🚢 Next Release — beta.210 (theme: testing-epic opening + follow-through batch)
+### 🚢 Next Release — beta.211 (theme: approved owner-call batch + deny UX tail)
 
-_beta.209 CUT 2026-08-28 03:40Z (14 PRs / 11 runtime / 193 files; tag `latest`; finalize done). Its shipped list lives in the release notes — not re-enumerated here._
+_beta.210 CUT 2026-08-29 16:39Z (10 PRs / 8 runtime; tag `latest`; finalize done). Its shipped list lives in the release notes — not re-enumerated here._
 
-- **Theme**: testing-epic opening slices, **Opus-delegated** (owner call 2026-08-27, Fable-budget lever). First candidates: tier-coverage ratchet / integration-tier growth (the pyramid's measured thin layer — 1 integration file vs 1216 unit). **Routing (owner call 2026-08-28)**: Opus-window units stay on mechanical/well-specified ground (drains, test tiers, sweeps); judgment-dense surfaces (sanitization, security-adjacent) get Fable windows or tight dispatch specs.
-- **Riding**: **TASK-791 (vision fallback tiers — routed-model instrumentation shipped #2247; the FIX half waits on the prod data this cut delivers)** · ~~TASK-804~~ (**DONE** #2248 + owner waived the smoke) · **TASK-790 (preset confirmation names the slot — owner UX ask, still open)** · TASK-765 (thread-only denials — sequenced after scope-first landed in #2233) · TASK-787/788 (deny UX from the smoke round: split the `server:` target out of `everywhere`; humanize raw enum text in browse/detail) · TASK-786 (LTM per-location mode enum — owner call, parallel to `shareHistoryAcrossPersonalities`) · ~~TASK-789 strip-helper DRY pass~~ (**DONE** #2250; only the retry-classification rider remains, and it now has its second specimen) · TASK-783/785 (vision follow-ups). **Also landed #2250: TASK-611 + TASK-703 (both Done).**
-- **Filler between PRs**: drain-batch slices (doc-7), **bundled 3–5 same-area size:S tasks per PR** (owner call 2026-08-28 — tasks-per-CI-cycle is the throughput number). **TASK-768 first** — the ci-gate REVIEW_ROUND_CAP implausible count fired AGAIN on the release PR ("593" on #2239, third sighting after "588"/"566").
+- **Theme**: the approved owner-call batch — **TASK-817** (footer routing/fallback display semantics: no paid→free arrow for free users; "routed" shorthand) + **TASK-809** (`/inspect` Served line — MUST share vocabulary with 817) + **TASK-814** (scaffolding-ban option c) + **TASK-816** (ratchet floors: bank improvement on quality-floor ratchets, budgets stay budgets) — plus the deny UX tail (TASK-787/788 · TASK-765) and TASK-790 (preset confirmation names the slot).
+- **Riding**: TASK-791 fix half (`state:observable` — wakes on the first prod `empty_response` window now that routed-model instrumentation is live in prod) · TASK-786 (LTM per-location mode enum) · TASK-783/785 (vision follow-ups) · the vision-default pointer flip to flash (dev+prod, mechanical — owner decision recorded 2026-08-29).
+- **Process PRs (non-runtime, land at convenience)**: the four approved 08-29 mining operationalizations — process micro-PR (turn-ends-on-confirmation rule + package-default spec gate lists + ci-gate § 3a reminder) · owner-decision digest section · PR-body claim scan · small filings.
+- **Filler between PRs**: drain-batch slices (doc-7), bundled 3–5 same-area size:S per PR. **TASK-768 first** — REVIEW_ROUND_CAP printed "594" on #2251, FOURTH sighting ("566"/"588"/"593" prior).
 - **In already**: (empty at cut)
-- **Waiting on**: _(empty)_ — the paid-path flash-vision retest CLOSED 2026-08-29 from prod logs (beta.209 deployment `3fdbfcfb`): a non-guest z.ai-direct job described images on `z-ai/glm-5.3-flash` end-to-end with zero 1214s. Evidence + the system-key scope caveat are on TASK-789. The vision-default flip is now unblocked on evidence and waits only on the owner's flash-vs-qwen quality call.
+- **Waiting on**: _(empty — nothing gates the theme's start)_
 - **Explicitly NOT in**: memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · council-queue docs (design-heavy).
-- **Deploy notes (carried owner actions)**: _(both cleared 2026-08-29)_ — the prod free-default TEXT preset flip to `z-ai/glm-5.3-flash` (#2236) is **DONE**, owner-reported and log-corroborated (46 guest substitutions land on `glm-5.3-flash` in deployment `3fdbfcfb`). The **vision-default decision is flash** (owner, 2026-08-29): both models are judged adequate and both censor, so the deciding axis is that flash is offerable to free users on the coding plan and Qwen is not — the blind comparison is ruled out on merit (TASK-805, archived). The dev+prod vision-default pointers are the remaining mechanical flip.
-- **Cut when**: **CUT AFTER THE z.ai BUNDLE LANDS — owner call 2026-08-29**, superseding the criteria below for this release. Rationale on the record: #2247's routed-model instrumentation only reaches prod at this cut, and TASK-791's fix half is blocked on the prod data it produces, so cutting is what unblocks the highest-priority open item. (Standing criteria, for the next plan: the theme's slices land, or the backstops fire — ~10 runtime PRs / ~250 files, `pnpm ops release:range` for live values.)
-- **vNext+1 sketch**: deny polish tail + whatever the testing epic's second tranche surfaces.
+- **Deploy notes (carried owner actions)**: _(none)_ — the vision-default flip rides as a task, not a deploy note.
+- **Cut when**: the owner-call theme lands, or the standing backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
+- **vNext+1 sketch**: testing-epic second tranche + whatever TASK-791's prod routed-model data dictates.
 
 ### 🎯 Current Focus (max 3)
 
