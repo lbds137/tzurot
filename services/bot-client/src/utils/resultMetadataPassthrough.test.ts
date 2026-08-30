@@ -10,6 +10,7 @@ describe('buildResultMetadataPassthrough', () => {
       content: 'hello',
       metadata: {
         modelUsed: 'free/model',
+        routedModel: 'anthropic/claude-x',
         providerUsed: 'openrouter',
         fallbackProviderAttempted: 'zai-coding',
         quotaFallback: {
@@ -32,6 +33,7 @@ describe('buildResultMetadataPassthrough', () => {
     const passthrough = buildResultMetadataPassthrough(result);
 
     expect(passthrough.modelUsed).toBe('free/model');
+    expect(passthrough.routedModel).toBe('anthropic/claude-x');
     expect(passthrough.quotaFallback?.fromModel).toBe('expensive/primary');
     expect(passthrough.quotaFallback?.category).toBe('credit_exhaustion');
     expect(passthrough.ttsNotices).toEqual(['notice']);

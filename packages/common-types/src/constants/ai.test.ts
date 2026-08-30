@@ -10,6 +10,7 @@ import {
   isChatCapableProvider,
   isFreeModel,
   isFreeModelForUser,
+  isRouterAliasModel,
   GUEST_MODE,
   buildModelInfoUrl,
   isZaiCodingPlanModel,
@@ -560,5 +561,24 @@ describe('zaiThinkingOffSupport', () => {
     // warnings must stay silent on an unknown model rather than guess.
     expect(zaiThinkingOffSupport('anthropic/claude-sonnet-4')).toBeUndefined();
     expect(zaiThinkingOffSupport('')).toBeUndefined();
+  });
+});
+
+describe('isRouterAliasModel', () => {
+  it('recognizes both router alias ids', () => {
+    expect(isRouterAliasModel('openrouter/auto')).toBe(true);
+    expect(isRouterAliasModel('openrouter/free')).toBe(true);
+  });
+
+  it('rejects a concrete model id', () => {
+    expect(isRouterAliasModel('anthropic/claude-haiku-4.5')).toBe(false);
+  });
+
+  it('rejects an empty string', () => {
+    expect(isRouterAliasModel('')).toBe(false);
+  });
+
+  it('rejects a near-miss id that is not an exact match', () => {
+    expect(isRouterAliasModel('openrouter/auto-v2')).toBe(false);
   });
 });

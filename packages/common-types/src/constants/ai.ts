@@ -237,6 +237,36 @@ export const FREE_ROUTER_MODEL = 'openrouter/free';
 export const AUTO_ROUTER_MODEL = 'openrouter/auto';
 
 /**
+ * The full set of router-alias model ids this codebase requests:
+ * {@link AUTO_ROUTER_MODEL} and {@link FREE_ROUTER_MODEL}.
+ */
+export const ROUTER_ALIAS_MODELS = [AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL] as const;
+
+/**
+ * Is the given (requested) model id one of the router aliases this codebase
+ * knows how to request?
+ *
+ * A consumer that wants to know whether a response was genuinely routed
+ * cannot rely on "requested id !== served id" alone: the provider-reported
+ * served id is populated on essentially every response, not only routed
+ * ones, so a directly-requested concrete model that comes back under a
+ * cosmetically different spelling (a dropped vendor prefix, a version
+ * suffix) would satisfy an inequality check with no routing having
+ * happened. The requested model being one of these aliases is what actually
+ * means routing occurred.
+ *
+ * Intentionally an exact-id membership test over the ids this codebase
+ * requests, not a heuristic over arbitrary model-id shapes. The match is
+ * case-sensitive, and deliberately so even though callers may pass a
+ * free-text configured id: a case variant is not a spelling of these
+ * aliases that any provider would route, so treating it as one would
+ * announce routing for a request that could not have been routed.
+ */
+export function isRouterAliasModel(model: string): boolean {
+  return (ROUTER_ALIAS_MODELS as readonly string[]).includes(model);
+}
+
+/**
  * Centralized Model Configuration
  *
  * Single source of truth for all AI model defaults.

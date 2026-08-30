@@ -85,6 +85,15 @@ interface SendResponseOptions {
     fromModel: string;
     category: QuotaFallbackCategoryValue;
   };
+  /**
+   * The model id the provider reported serving. Populated on essentially
+   * every response, not only routed ones — it differs from the requested
+   * model both when a router alias genuinely resolved and when the provider
+   * echoes a cosmetically different spelling of the same directly-requested
+   * model, so mere inequality is not evidence of routing. Absent only when
+   * the response carried no reported model id at all.
+   */
+  routedModel?: string;
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;
   /** Whether this is an auto-response from channel activation (not @mention) */
@@ -264,6 +273,7 @@ export class DiscordResponseSender {
       providerUsed,
       fallbackProviderAttempted,
       quotaFallback,
+      routedModel,
       isGuestMode,
       isAutoResponse,
       freshModeEnabled,
@@ -278,6 +288,11 @@ export class DiscordResponseSender {
         fallbackProviderAttempted,
         quotaFallback,
         withAutoBadge: isAutoResponse === true,
+        routedModel,
+        routedModelUrl:
+          routedModel !== undefined && routedModel.length > 0
+            ? buildModelInfoUrl(routedModel, providerUsed)
+            : undefined,
       })}`;
     } else if (isAutoResponse === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;

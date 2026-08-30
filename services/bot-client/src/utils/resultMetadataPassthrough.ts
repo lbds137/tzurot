@@ -12,6 +12,7 @@ import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/gen
 
 export interface ResultMetadataPassthrough {
   modelUsed?: string;
+  routedModel?: string;
   providerUsed?: string;
   fallbackProviderAttempted?: string;
   quotaFallback?: {
@@ -32,6 +33,7 @@ export function buildResultMetadataPassthrough(
 ): ResultMetadataPassthrough {
   return {
     modelUsed: result.metadata?.modelUsed,
+    routedModel: result.metadata?.routedModel,
     providerUsed: result.metadata?.providerUsed,
     fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
     quotaFallback: result.metadata?.quotaFallback,

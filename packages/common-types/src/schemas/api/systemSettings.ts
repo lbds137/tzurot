@@ -18,6 +18,7 @@ import {
   AUTO_ROUTER_MODEL,
   FREE_ROUTER_MODEL,
   MODEL_DEFAULTS,
+  ROUTER_ALIAS_MODELS,
   ZAI_FREE_TIER_MODEL,
   type ModelSlot,
 } from '../../constants/ai.js';
@@ -402,7 +403,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     seedSource: 'DEFAULT_AI_MODEL',
     model: {
       slot: 'text',
-      aliasAllowlist: [AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL],
+      aliasAllowlist: ROUTER_ALIAS_MODELS,
       freeRouteOnly: false,
       catalogFailMode: 'closed',
     },
@@ -418,7 +419,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     seedSource: 'VISION_FALLBACK_MODEL',
     model: {
       slot: 'vision',
-      aliasAllowlist: [AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL],
+      aliasAllowlist: ROUTER_ALIAS_MODELS,
       freeRouteOnly: false,
       catalogFailMode: 'closed',
     },
