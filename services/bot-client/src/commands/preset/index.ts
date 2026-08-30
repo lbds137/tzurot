@@ -27,7 +27,10 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
-import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
+import {
+  CONFIG_SLOT_OPTION_CHOICES,
+  CONFIG_SLOT_OPTION_DESCRIPTION,
+} from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { handleModalRetry, isModalRetryInteraction } from '../../utils/modal/retry.js';
 import { defineCommand } from '../../utils/defineCommand.js';
@@ -357,7 +360,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
             )
         )
         .addSubcommand(subcommand =>
@@ -369,7 +372,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
             )
         )
     )
@@ -393,7 +396,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
             )
         )
         .addSubcommand(subcommand =>
@@ -412,7 +415,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
             )
         )
     )
@@ -448,7 +451,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
             )
         )
         .addSubcommand(subcommand =>
@@ -467,7 +470,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
             )
         )
     ),

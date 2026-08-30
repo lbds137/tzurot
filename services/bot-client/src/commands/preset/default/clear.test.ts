@@ -81,6 +81,21 @@ describe('handleDefaultClear', () => {
     });
   });
 
+  it('names the cleared slot for a single-slot clear (text vs vision differ)', async () => {
+    stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
+
+    await handleDefaultClear(createMockContext('text'));
+    const textDescription = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    expect(textDescription).toContain('Your default Chat preset has been removed.');
+
+    mockEditReply.mockClear();
+    await handleDefaultClear(createMockContext('vision'));
+    const visionDescription = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    expect(visionDescription).toContain('Your default Vision preset has been removed.');
+
+    expect(textDescription).not.toBe(visionDescription);
+  });
+
   it('should show success embed when config cleared', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 

@@ -90,9 +90,11 @@ describe('Preset Global Set Free Default Handler', () => {
       expect(embedData.title).toBe('Free Tier Default Preset Updated');
       expect(embedData.description).toContain('Gemini Flash Free');
       expect(embedData.description).toContain('Guest users');
+      // Omitted slot defaults to text — named as Chat in the confirmation.
+      expect(embedData.description).toContain('free tier default Chat preset');
     });
 
-    it('should pass slot=vision through to the promote call', async () => {
+    it('should pass slot=vision through to the promote call and name it in the confirmation', async () => {
       const context = createMockContext('vision-config', 'vision');
       stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
         makeOk({ success: true, configName: 'Gemini Vision Free' })
@@ -103,6 +105,27 @@ describe('Preset Global Set Free Default Handler', () => {
       expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('vision-config', {
         slot: 'vision',
       });
+
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
+      // Must differ from the omitted-slot (Chat) confirmation string.
+      expect(embedData.description).toContain('free tier default Vision preset');
+    });
+
+    it('names the Chat label when slot:text is chosen explicitly', async () => {
+      const context = createMockContext('text-config', 'text');
+      stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'Text Explicit' })
+      );
+
+      await handleGlobalSetFreeDefault(context);
+
+      expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('text-config', {
+        slot: 'text',
+      });
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
+      expect(embedData.description).toContain('free tier default Chat preset');
     });
 
     it('should handle API error response', async () => {

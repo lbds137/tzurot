@@ -115,7 +115,7 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.description).toContain('Test Bot');
       expect(embedData.description).toContain('Fast Claude');
       // Default (text) slot is named in the confirmation.
-      expect(embedData.description).toContain('for chat messages');
+      expect(embedData.description).toContain('for Chat messages');
 
       // Paid path: wallet check short-circuits, configs not fetched
       expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
@@ -149,7 +149,35 @@ describe('Me Preset Set Handler', () => {
       const embedData = (
         mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] }
       ).embeds[0].toJSON();
-      expect(embedData.description).toContain('for vision (image) messages');
+      expect(embedData.description).toContain('for Vision messages');
+    });
+
+    it('names the Chat label when slot:text is chosen explicitly', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk({
+          override: {
+            personalityId: 'personality-1',
+            personalityName: 'Test Bot',
+            configId: 'text-config',
+            configName: 'Text Explicit',
+          },
+        })
+      );
+
+      await handleSet(createMockContext('personality-1', 'text-config', 'text'));
+
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: 'personality-1', configId: 'text-config' },
+        { slot: 'text' }
+      );
+      const embedData = (
+        mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] }
+      ).embeds[0].toJSON();
+      // Must differ from the slot:vision confirmation string.
+      expect(embedData.description).toContain('for Chat messages');
     });
 
     it('should block guest mode users from using premium models', async () => {
