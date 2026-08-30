@@ -294,9 +294,12 @@ export interface DiagnosticLlmResponse {
   modelUsed: string;
   /**
    * The model the provider reported having served, from the raw payload's
-   * top-level `model` field. Differs from `modelUsed` exactly when a router
-   * alias was requested, which is the case this field exists to make
-   * attributable. Undefined when the response carried no such field.
+   * top-level `model` field — populated on essentially every response, not
+   * only routed ones. It differs from `modelUsed` both when a router alias
+   * genuinely resolved and when the provider echoes a cosmetically
+   * different spelling of the same directly-requested model, so mere
+   * inequality is not by itself evidence of routing. Undefined when the
+   * response carried no such field.
    */
   routedModel?: string;
   /** Debug info for reasoning extraction troubleshooting */
