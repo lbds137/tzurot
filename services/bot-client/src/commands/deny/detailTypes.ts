@@ -16,17 +16,10 @@ import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
+import { TYPE_LABELS, MODE_LABELS, formatScopeWithId } from './denyLabels.js';
 
 /** Entity type key for Redis session storage */
 export const ENTITY_TYPE = 'deny';
-
-/** Valid scope values; `satisfies` makes sync with schema's DenylistScope compiler-enforced. */
-export const VALID_SCOPES = [
-  'BOT',
-  'GUILD',
-  'CHANNEL',
-  'PERSONALITY',
-] as const satisfies readonly DenylistScope[];
 
 /** Session data stored in Redis */
 export interface DenyDetailSession {
@@ -56,10 +49,10 @@ export function buildDetailEmbed(
   const target =
     entry.type === 'USER'
       ? `<@${entry.discordId}> (\`${entry.discordId}\`)`
-      : `\`${entry.discordId}\` (Guild)`;
+      : `\`${entry.discordId}\` (${TYPE_LABELS[entry.type]})`;
 
   const modeIcon = entry.mode === 'BLOCK' ? '\u{1F6AB}' : '\u{1F507}';
-  const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}: \`${entry.scopeId}\``;
+  const scopeInfo = formatScopeWithId(entry.scope, entry.scopeId, { monospaceId: true });
 
   return buildEntityDetailCard({
     title: `${modeIcon} Denylist Entry`,
@@ -68,9 +61,9 @@ export function buildDetailEmbed(
     // vertically in Discord's 3-column field grid.
     fields: [
       { name: 'Target', value: target, inline: true },
-      { name: 'Type', value: entry.type, inline: true },
+      { name: 'Type', value: TYPE_LABELS[entry.type], inline: true },
       'spacer',
-      { name: 'Mode', value: `${modeIcon} ${entry.mode}`, inline: true },
+      { name: 'Mode', value: `${modeIcon} ${MODE_LABELS[entry.mode]}`, inline: true },
       { name: 'Scope', value: scopeInfo, inline: true },
       'spacer',
       entry.reason !== null && { name: 'Reason', value: entry.reason, inline: false },

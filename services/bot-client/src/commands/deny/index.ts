@@ -194,7 +194,14 @@ function buildChannel(
         .setName('channel')
         .setDescription('The channel the denial applies to')
         .setRequired(true)
-        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
+        .addChannelTypes(
+          ChannelType.GuildText,
+          ChannelType.GuildVoice,
+          ChannelType.GuildForum,
+          ChannelType.PublicThread,
+          ChannelType.PrivateThread,
+          ChannelType.AnnouncementThread
+        )
     );
   return withAddOnlyOptions(sub, isAdd);
 }

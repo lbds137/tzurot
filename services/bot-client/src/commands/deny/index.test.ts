@@ -1,12 +1,15 @@
 /**
  * Deny Command Router
  *
- * Covers only the group-dispatch seam in `execute()`: group `add`/`remove`
- * must route to their scope-group handlers, and everything else must fall
- * through to the flat subcommand router (`browse`/`view`).
+ * Covers the group-dispatch seam in `execute()` — group `add`/`remove` must
+ * route to their scope-group handlers, and everything else must fall through
+ * to the flat subcommand router (`browse`/`view`) — plus structural
+ * assertions on the channel option that `buildChannel` shares between the
+ * `add` and `remove` groups.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ChannelType } from 'discord.js';
 import type { SafeCommandContext } from '../../utils/defineCommand.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -103,5 +106,50 @@ describe('deny execute() group dispatch', () => {
     expect(mockHandleAdd).not.toHaveBeenCalled();
     expect(mockHandleRemove).not.toHaveBeenCalled();
     expect(mockHandleBrowse).toHaveBeenCalledWith(context);
+  });
+});
+
+describe('deny add/remove channel command structure', () => {
+  function findChannelTypes(groupName: string): number[] | undefined {
+    const json = denyCommand.data.toJSON() as {
+      options: {
+        name: string;
+        options: {
+          name: string;
+          options?: { name: string; channel_types?: number[] }[];
+        }[];
+      }[];
+    };
+
+    const group = json.options.find(opt => opt.name === groupName);
+    const channelSub = group?.options.find(opt => opt.name === 'channel');
+    const channelOption = channelSub?.options?.find(opt => opt.name === 'channel');
+    return channelOption?.channel_types;
+  }
+
+  it('includes thread channel types on the add group channel option', () => {
+    expect(findChannelTypes('add')).toEqual(
+      expect.arrayContaining([
+        ChannelType.GuildText,
+        ChannelType.GuildVoice,
+        ChannelType.GuildForum,
+        ChannelType.PublicThread,
+        ChannelType.PrivateThread,
+        ChannelType.AnnouncementThread,
+      ])
+    );
+  });
+
+  it('includes thread channel types on the remove group channel option', () => {
+    expect(findChannelTypes('remove')).toEqual(
+      expect.arrayContaining([
+        ChannelType.GuildText,
+        ChannelType.GuildVoice,
+        ChannelType.GuildForum,
+        ChannelType.PublicThread,
+        ChannelType.PrivateThread,
+        ChannelType.AnnouncementThread,
+      ])
+    );
   });
 });

@@ -844,7 +844,10 @@
                     "channel_types": [
                       0,
                       2,
-                      15
+                      15,
+                      11,
+                      12,
+                      10
                     ],
                     "name": "channel",
                     "description": "The channel the denial applies to",
@@ -971,7 +974,10 @@
                     "channel_types": [
                       0,
                       2,
-                      15
+                      15,
+                      11,
+                      12,
+                      10
                     ],
                     "name": "channel",
                     "description": "The channel the denial applies to",

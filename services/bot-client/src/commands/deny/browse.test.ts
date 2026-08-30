@@ -158,6 +158,7 @@ vi.mock('./detail.js', () => ({
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { showDetailView } from './detail.js';
+import { buildBrowseSelectMenu } from '../../utils/browse/index.js';
 
 interface OwnerStub {
   listDenylistEntries: ReturnType<typeof vi.fn>;
@@ -345,7 +346,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { footer: { text: string } } }[];
     };
-    expect(call.embeds[0].data.footer.text).toContain('filtered by: Guilds');
+    expect(call.embeds[0].data.footer.text).toContain('filtered by: Servers');
   });
 
   it('should default to all filter', async () => {
@@ -427,7 +428,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { description: string } }[];
     };
-    expect(call.embeds[0].data.description).toContain('CHANNEL:123456789');
+    expect(call.embeds[0].data.description).toContain('Channel: 123456789');
   });
 
   it('should include select menu in components when entries exist', async () => {
@@ -456,6 +457,28 @@ describe('handleBrowse', () => {
     // The button row always renders (filter toggle stays reachable); only
     // the select menu drops on an empty list.
     expect(call.components.length).toBe(1);
+  });
+
+  it('should append the mode indicator to a MUTE entry select-menu label', async () => {
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
+    const context = createMockContext();
+
+    await handleBrowse(context);
+
+    const formatItem = vi.mocked(buildBrowseSelectMenu).mock.calls[0][0].formatItem;
+    const muteEntry = sampleEntries[2];
+    expect(formatItem(muteEntry, 1).label).toContain('[Mute]');
+  });
+
+  it('should omit any mode indicator from a BLOCK entry select-menu label', async () => {
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
+    const context = createMockContext();
+
+    await handleBrowse(context);
+
+    const formatItem = vi.mocked(buildBrowseSelectMenu).mock.calls[0][0].formatItem;
+    const blockEntry = sampleEntries[0];
+    expect(formatItem(blockEntry, 1).label).not.toContain('[');
   });
 });
 

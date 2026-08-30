@@ -661,6 +661,97 @@ describe('DenylistCache', () => {
     });
   });
 
+  describe('thread-scoped denial', () => {
+    it('blocks in an explicitly thread-scoped CHANNEL entry', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'CHANNEL',
+          scopeId: 'thread-abc',
+          mode: 'BLOCK',
+        },
+      });
+
+      expect(cache.isBlocked('user1', undefined, 'thread-abc', undefined, 'parent-abc')).toBe(true);
+    });
+
+    it('does NOT block in a different channel — the entry is thread-only', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'CHANNEL',
+          scopeId: 'thread-abc',
+          mode: 'BLOCK',
+        },
+      });
+
+      expect(cache.isBlocked('user1', undefined, 'other-channel', undefined, undefined)).toBe(
+        false
+      );
+    });
+
+    it('isChannelDenied returns true for the thread id directly', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'CHANNEL',
+          scopeId: 'thread-abc',
+          mode: 'BLOCK',
+        },
+      });
+
+      expect(cache.isChannelDenied('user1', 'thread-abc')).toBe(true);
+    });
+
+    it('preserves parent-inheritance: a parent-scoped BLOCK with no thread entry still blocks the thread', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'CHANNEL',
+          scopeId: 'parent-abc',
+          mode: 'BLOCK',
+        },
+      });
+
+      expect(cache.isBlocked('user1', undefined, 'thread-abc', undefined, 'parent-abc')).toBe(true);
+    });
+
+    it('an explicit thread MUTE entry wins over a parent BLOCK entry', () => {
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'CHANNEL',
+          scopeId: 'parent-abc',
+          mode: 'BLOCK',
+        },
+      });
+      cache.handleEvent({
+        type: 'add',
+        entry: {
+          type: 'USER',
+          discordId: 'user1',
+          scope: 'CHANNEL',
+          scopeId: 'thread-abc',
+          mode: 'MUTE',
+        },
+      });
+
+      expect(cache.isBlocked('user1', undefined, 'thread-abc', undefined, 'parent-abc')).toBe(
+        false
+      );
+    });
+  });
+
   describe('getDeniedGuildIds', () => {
     it('should return denied guild IDs', () => {
       cache.handleEvent({
