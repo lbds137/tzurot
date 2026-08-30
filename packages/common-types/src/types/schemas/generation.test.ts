@@ -149,6 +149,24 @@ describe('llmGenerationResultSchema.metadata', () => {
     });
   });
 
+  describe('routedModel', () => {
+    it('survives the parse and keeps the exact value declared on the metadata object', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { routedModel: '<sentinel-routed-model>' },
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.metadata?.routedModel).toBe('<sentinel-routed-model>');
+      }
+    });
+
+    it('is optional (absent on a non-routed turn)', () => {
+      const parsed = llmGenerationResultSchema.safeParse({ ...baseValid, metadata: {} });
+      expect(parsed.success).toBe(true);
+    });
+  });
+
   describe('ttsProviderUsed enum', () => {
     it('accepts each TTS_PROVIDER_IDS value', () => {
       // Iterate the shared constant rather than hardcoding the list, so a

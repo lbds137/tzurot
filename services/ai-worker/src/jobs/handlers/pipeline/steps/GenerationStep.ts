@@ -307,6 +307,7 @@ export class GenerationStep implements IPipelineStep {
             tokensOut: response.tokensOut,
             processingTimeMs,
             modelUsed: response.modelUsed,
+            routedModel: response.routedModel,
             // Effective provider after any auto-promotion fallback swap (OpenRouter
             // when the promoted z.ai call failed), so the footer links correctly.
             providerUsed: effectiveProviderUsed ?? provider,

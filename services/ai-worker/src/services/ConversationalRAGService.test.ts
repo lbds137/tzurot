@@ -509,6 +509,21 @@ describe('ConversationalRAGService', () => {
 
       expect(result.modelUsed).toBe('test-model');
     });
+
+    it('carries routedModel from the model invocation through to the RAG response', async () => {
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'AI response',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        response_metadata: { model_name: 'anthropic/claude-x' },
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context);
+
+      expect(result.routedModel).toBe('anthropic/claude-x');
+    });
   });
 
   describe('real messages (PR 2.3) — the invokeModelAndClean seam', () => {

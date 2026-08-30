@@ -82,13 +82,11 @@ describe('invokeModelAndClean', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockGetModel = vi
-      .fn()
-      .mockReturnValue({
-        model: { fakeModel: true },
-        modelName: 'gpt-4',
-        expectsRawResponse: true,
-      });
+    mockGetModel = vi.fn().mockReturnValue({
+      model: { fakeModel: true },
+      modelName: 'gpt-4',
+      expectsRawResponse: true,
+    });
     mockInvokeWithRetry = vi.fn().mockResolvedValue(new AIMessage('raw model output'));
     mockCountTokens = vi.fn().mockReturnValue(10);
     mockProcessResponse = vi.fn().mockReturnValue({
@@ -156,6 +154,60 @@ describe('invokeModelAndClean', () => {
     expect(result.cleanedContent).toBe('cleaned output');
     expect(result.modelName).toBe('gpt-4');
     expect(result.onlyThinkingProduced).toBe(false);
+  });
+
+  it('returns routedModel when the invoke response carries response_metadata.model_name', async () => {
+    mockInvokeWithRetry.mockResolvedValue(
+      new AIMessage({
+        content: 'raw model output',
+        response_metadata: { model_name: 'anthropic/claude-x' },
+      })
+    );
+
+    const result = await invokeModelAndClean(deps, baseOpts);
+
+    expect(result.routedModel).toBe('anthropic/claude-x');
+  });
+
+  it('returns undefined routedModel when response_metadata carries no model_name', async () => {
+    mockInvokeWithRetry.mockResolvedValue(
+      new AIMessage({ content: 'raw model output', response_metadata: {} })
+    );
+
+    const result = await invokeModelAndClean(deps, baseOpts);
+
+    expect(result.routedModel).toBeUndefined();
+  });
+
+  it('records the same routedModel on the diagnostic collector that it returns on the result', async () => {
+    // Anti-divergence pin: the diagnostic surface (`/inspect`) and the
+    // invocation result (the Discord footer) must extract routedModel from
+    // the SAME source. `openrouter.model` is deliberately absent here — that
+    // is the exact condition under which a recorder reading it independently
+    // would diverge from the value the result carries.
+    mockInvokeWithRetry.mockResolvedValue(
+      new AIMessage({
+        content: 'raw model output',
+        response_metadata: { model_name: 'anthropic/claude-x' },
+      })
+    );
+    const mockDiagnosticCollector = {
+      recordAssembledPrompt: vi.fn(),
+      recordLlmConfig: vi.fn(),
+      markLlmInvocationStart: vi.fn(),
+      recordLlmResponse: vi.fn(),
+      recordPostProcessing: vi.fn(),
+    };
+
+    const result = await invokeModelAndClean(deps, {
+      ...baseOpts,
+      diagnosticCollector: mockDiagnosticCollector as never,
+    });
+
+    expect(result.routedModel).toBe('anthropic/claude-x');
+    expect(mockDiagnosticCollector.recordLlmResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ routedModel: 'anthropic/claude-x' })
+    );
   });
 
   it('threads realMessagesEnabled and telemetry into the post-processor context', async () => {
