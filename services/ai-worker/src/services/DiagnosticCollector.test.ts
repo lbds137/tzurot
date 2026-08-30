@@ -17,6 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { DiagnosticCollector, type DiagnosticCollectorOptions } from './DiagnosticCollector.js';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 
 // Mock logger
@@ -884,7 +885,7 @@ describe('DiagnosticCollector', () => {
     it('should record error data in the finalized payload', () => {
       collector.recordError({
         message: 'API rate limit exceeded',
-        category: 'rate_limit',
+        category: ApiErrorCategory.RATE_LIMIT,
         referenceId: 'ref-abc123',
         rawError: { status: 429, provider: 'openrouter' },
         failedAtStage: 'GenerationStep',
@@ -895,7 +896,7 @@ describe('DiagnosticCollector', () => {
       expect(payload.error).toBeDefined();
       expect(payload.error).toEqual({
         message: 'API rate limit exceeded',
-        category: 'rate_limit',
+        category: ApiErrorCategory.RATE_LIMIT,
         referenceId: 'ref-abc123',
         rawError: { status: 429, provider: 'openrouter' },
         failedAtStage: 'GenerationStep',
@@ -918,7 +919,7 @@ describe('DiagnosticCollector', () => {
       // Then error occurs
       collector.recordError({
         message: 'Provider returned error',
-        category: 'provider_error',
+        category: ApiErrorCategory.SERVER_ERROR,
         failedAtStage: 'GenerationStep',
       });
 
@@ -930,7 +931,7 @@ describe('DiagnosticCollector', () => {
 
       // Should also have error
       expect(payload.error).toBeDefined();
-      expect(payload.error?.category).toBe('provider_error');
+      expect(payload.error?.category).toBe(ApiErrorCategory.SERVER_ERROR);
 
       // Should have defaults for stages that never ran
       expect(payload.llmResponse.rawContent).toBe('[not recorded]');
@@ -951,7 +952,7 @@ describe('DiagnosticCollector', () => {
     it('should handle error without optional fields', () => {
       collector.recordError({
         message: 'Unknown error',
-        category: 'unknown',
+        category: ApiErrorCategory.UNKNOWN,
         failedAtStage: 'GenerationStep',
       });
 
@@ -959,7 +960,7 @@ describe('DiagnosticCollector', () => {
 
       expect(payload.error).toEqual({
         message: 'Unknown error',
-        category: 'unknown',
+        category: ApiErrorCategory.UNKNOWN,
         referenceId: undefined,
         rawError: undefined,
         failedAtStage: 'GenerationStep',
@@ -973,7 +974,7 @@ describe('DiagnosticCollector', () => {
 
       collector.recordError({
         message: 'Large error',
-        category: 'provider_error',
+        category: ApiErrorCategory.SERVER_ERROR,
         referenceId: 'ref-large',
         rawError: largeError,
         failedAtStage: 'GenerationStep',
@@ -998,7 +999,7 @@ describe('DiagnosticCollector', () => {
 
       collector.recordError({
         message: 'Small error',
-        category: 'network_error',
+        category: ApiErrorCategory.NETWORK,
         rawError: smallError,
         failedAtStage: 'GenerationStep',
       });

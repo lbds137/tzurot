@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import {
   getEmbedColor,
@@ -83,7 +84,7 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
 describe('getEmbedColor', () => {
   it('should return ERROR color for errors', () => {
     const payload = createMockPayload({
-      error: { message: 'fail', category: 'API', failedAtStage: 'llm' },
+      error: { message: 'fail', category: ApiErrorCategory.UNKNOWN, failedAtStage: 'llm' },
     });
     expect(getEmbedColor(payload)).toBe(DISCORD_COLORS.ERROR);
   });
@@ -330,10 +331,113 @@ describe('buildDiagnosticEmbed', () => {
 
   it('should show FAILED title for error payloads', () => {
     const payload = createMockPayload({
-      error: { message: 'timeout', category: 'API', failedAtStage: 'llm' },
+      error: { message: 'timeout', category: ApiErrorCategory.UNKNOWN, failedAtStage: 'llm' },
     });
     const embed = buildDiagnosticEmbed(payload);
     expect(embed.toJSON().title).toContain('FAILED');
+  });
+
+  describe('error message rendering', () => {
+    it('renders a masked link in the provider error message inert', () => {
+      const payload = createMockPayload({
+        error: {
+          message: 'upstream said [Free Nitro](http://evil.example)',
+          category: ApiErrorCategory.UNKNOWN,
+          failedAtStage: 'llm',
+        },
+      });
+      const embed = buildDiagnosticEmbed(payload);
+      const fields = embed.toJSON().fields ?? [];
+      const errorField = fields.find(f => f.name.includes('Error'));
+      expect(errorField?.value).toContain('`upstream said [Free Nitro](http://evil.example)`');
+    });
+
+    it('keeps a masked link inside the span when the message carries a newline', () => {
+      // An inline code span dies at a newline, so an un-collapsed newline would
+      // close the span early and render the masked link live.
+      const payload = createMockPayload({
+        error: {
+          message: 'boom\n[Free Nitro](http://evil.example)',
+          category: ApiErrorCategory.UNKNOWN,
+          failedAtStage: 'llm',
+        },
+      });
+      const embed = buildDiagnosticEmbed(payload);
+      const fields = embed.toJSON().fields ?? [];
+      const errorField = fields.find(f => f.name.includes('Error'));
+      expect(errorField?.value).toContain('`boom [Free Nitro](http://evil.example)`');
+    });
+
+    it('leaves ordinary diagnostic parentheses unchanged', () => {
+      const payload = createMockPayload({
+        error: {
+          message: 'expected (a), got (b)',
+          category: ApiErrorCategory.UNKNOWN,
+          failedAtStage: 'llm',
+        },
+      });
+      const embed = buildDiagnosticEmbed(payload);
+      const fields = embed.toJSON().fields ?? [];
+      const errorField = fields.find(f => f.name.includes('Error'));
+      expect(errorField?.value).toContain('`expected (a), got (b)`');
+    });
+
+    it('cannot let a backtick in the message break out of the code span', () => {
+      const payload = createMockPayload({
+        error: {
+          message: 'bad `token` here',
+          category: ApiErrorCategory.UNKNOWN,
+          failedAtStage: 'llm',
+        },
+      });
+      const embed = buildDiagnosticEmbed(payload);
+      const fields = embed.toJSON().fields ?? [];
+      const errorField = fields.find(f => f.name.includes('Error'));
+      const messageLine = (errorField?.value ?? '')
+        .split('\n')
+        .find(line => line.startsWith('**Message:**'));
+      expect(messageLine).toBeDefined();
+      const backtickCount = (messageLine ?? '').split('`').length - 1;
+      expect(backtickCount).toBe(2);
+      expect(messageLine).not.toContain('`token`');
+    });
+
+    // Pins truncate-then-wrap ordering: wrapping before truncating would let
+    // the 200-char cut remove the closing backtick.
+    it('keeps the code span closed at exactly the 200-char truncation boundary', () => {
+      const payload = createMockPayload({
+        error: {
+          message: 'x'.repeat(200),
+          category: ApiErrorCategory.UNKNOWN,
+          failedAtStage: 'llm',
+        },
+      });
+      const embed = buildDiagnosticEmbed(payload);
+      const fields = embed.toJSON().fields ?? [];
+      const errorField = fields.find(f => f.name.includes('Error'));
+      const messageLine = (errorField?.value ?? '')
+        .split('\n')
+        .find(line => line.startsWith('**Message:**'));
+      expect(messageLine).toBe(`**Message:** \`${'x'.repeat(200)}\``);
+      expect(messageLine).not.toContain('...');
+    });
+
+    it('closes the span before appending the ellipsis when the message exceeds 200 chars', () => {
+      const payload = createMockPayload({
+        error: {
+          message: 'y'.repeat(201),
+          category: ApiErrorCategory.UNKNOWN,
+          failedAtStage: 'llm',
+        },
+      });
+      const embed = buildDiagnosticEmbed(payload);
+      const fields = embed.toJSON().fields ?? [];
+      const errorField = fields.find(f => f.name.includes('Error'));
+      const messageLine = (errorField?.value ?? '')
+        .split('\n')
+        .find(line => line.startsWith('**Message:**'));
+      expect(messageLine).toBe(`**Message:** \`${'y'.repeat(200)}\`...`);
+    });
   });
 
   it('should include sycophancy warning when history > 70%', () => {
