@@ -1999,7 +1999,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
+                    "description": "Which slot to target: Chat (default) or Vision (image)",
                     "required": false
                   }
                 ]
@@ -2022,7 +2022,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
+                    "description": "Which slot to target: Chat (default) or Vision (image)",
                     "required": false
                   }
                 ]
@@ -2059,7 +2059,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
+                    "description": "Which slot to target: Chat (default) or Vision (image)",
                     "required": false
                   }
                 ]
@@ -2089,7 +2089,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
+                    "description": "Which slot to target: Chat (default) or Vision (image)",
                     "required": false
                   }
                 ]
@@ -2139,7 +2139,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
+                    "description": "Which slot to target: Chat (default) or Vision (image)",
                     "required": false
                   }
                 ]
@@ -2169,7 +2169,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
+                    "description": "Which slot to target: Chat (default) or Vision (image)",
                     "required": false
                   }
                 ]

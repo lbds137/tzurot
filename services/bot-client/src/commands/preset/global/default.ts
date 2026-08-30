@@ -4,7 +4,11 @@
  * Sets a global config as the system default (owner only)
  */
 
-import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
+import {
+  DEFAULT_MODEL_SLOT,
+  toModelSlot,
+  MODEL_SLOT_LABELS,
+} from '@tzurot/common-types/constants/ai';
 import { presetGlobalDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
@@ -23,7 +27,7 @@ export async function handleGlobalSetDefault(context: DeferredCommandContext): P
     promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id, { slot }),
     embedTitle: 'System Default Preset Updated',
     embedDescription: (configName: string) =>
-      `**${configName}** is now the system default preset.\n\n` +
+      `**${configName}** is now the system default ${MODEL_SLOT_LABELS[slot]} preset.\n\n` +
       'Characters without a specific config will use this default.',
     logMessage: '[Preset/Global] Set system default preset',
     errorLogMessage: '[Preset/Global] Error setting default',

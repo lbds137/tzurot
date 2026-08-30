@@ -3,7 +3,7 @@
  * Handles /preset override clear subcommand
  */
 
-import { toModelSlot } from '@tzurot/common-types/constants/ai';
+import { toModelSlot, MODEL_SLOT_LABELS } from '@tzurot/common-types/constants/ai';
 import { presetOverrideClearOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -53,14 +53,16 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     // Check if there was actually an override to remove
     const wasSet = result.data.wasSet !== false;
 
+    const slotPhrase = slot === 'all' ? 'all slots' : `${MODEL_SLOT_LABELS[slot]} messages`;
+
     const embed = wasSet
       ? createSuccessEmbed(
           '🔄 Preset Override Removed',
-          'The character will now use its default preset.'
+          `The character will now use its default preset for ${slotPhrase}.`
         )
       : createInfoEmbed(
           'ℹ️ No Override Set',
-          'This character was already using its default preset.'
+          `This character was already using its default preset for ${slotPhrase}.`
         );
 
     await context.editReply({ embeds: [embed] });
