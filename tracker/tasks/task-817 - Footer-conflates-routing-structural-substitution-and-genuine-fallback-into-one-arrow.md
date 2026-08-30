@@ -3,9 +3,10 @@ id: TASK-817
 title: >-
   Footer conflates routing, structural substitution, and genuine fallback into
   one arrow
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 14:34'
+updated_date: '2026-08-30 04:22'
 labels:
   - 'area:bot-client'
   - 'size:M'
