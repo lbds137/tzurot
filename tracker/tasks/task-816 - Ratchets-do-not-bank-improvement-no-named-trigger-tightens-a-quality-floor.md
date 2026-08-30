@@ -30,4 +30,27 @@ THE TRAP, and why "slide the floor to the last observed score" is the wrong buil
 Fix shape (design, not settled): (a) classify every registered ratchet as BUDGET or QUALITY FLOOR, and record the classification where the ratchet is defined, so the question is answered once per ratchet rather than per audit; (b) give the quality-floor class a NAMED trigger — the release preflight and/or the Saturday audit are the two existing recurring moments — at which the tracked set is actually measured; (c) tighten with hysteresis rather than to the last value: raise the baseline only when observed minus graceMargin exceeds the current baseline across N consecutive measurements, or take the MINIMUM of the last N runs rather than the latest; (d) cheapest high-value piece, worth doing even if the rest is deferred: make the audit report UNBANKED IMPROVEMENT explicitly. Today it prints "baseline only - no live run", which hides whether we are at the floor or well above it, so the slack is invisible and nobody knows there is anything to bank.
 
 Acceptance: each registered ratchet carries a BUDGET/QUALITY-FLOOR classification; the quality-floor class has a named recurring trigger at which tightening is considered, recorded in the rule or skill that owns that moment; tightening uses hysteresis and the reason is documented at the mechanism; and the audit distinguishes "at the floor" from "above the floor by N" instead of reporting the baseline alone. Deliberately NOT in scope: making mutation run per-PR (measured non-viable, do not re-attempt without new data).
+
+MEASURED 2026-08-30 — read this before designing anything, it moves two premises.
+
+All five tracked packages were run locally, one at a time, on an otherwise idle machine. Per-package wall clock and score vs. the committed baseline:
+
+  package              measured  baseline  delta    seconds
+  identity                78.97     78.83  +0.14        147
+  config-resolver         86.89     86.89   0.00         85
+  cache-invalidation      89.44     89.44   0.00         58
+  conversation-history    85.64     86.34  -0.70         89
+  clients                 96.44     96.44   0.00         47
+
+PREMISE 1 MOVED — cost. The whole tracked set runs in 426 seconds, about 7 minutes. The 30-70min non-viability figure in this task is about SERVICES and does not transfer to these five. Cost is therefore not what blocks a recurring trigger, and clause (b) can pick a moment freely; the Saturday audit already runs weekly and 7 minutes fits inside it.
+
+PREMISE 2 MOVED, AND THIS IS THE IMPORTANT ONE — there is no improvement to bank. Three of five sit EXACTLY at baseline (delta 0.00), which means the baseline was written from these same runs and nothing has moved since. identity is +0.14, which is inside the noise the 1.0 graceMargin exists to absorb. So the owner framing this task was filed on — "if we are doing better than the floor, slide the floor up" — does not describe the current state of the mutation ratchet. We are AT the floor, not above it.
+
+conversation-history is the sharp one: -0.70, i.e. it has DECAYED below its baseline. It stays green only because 85.64 is still above the 85.34 floor. That is the graceMargin doing exactly its job, and it is also a direct argument against the naive version of clause (c): a baseline tightened to last-observed at any earlier point would have this package failing CI today for ordinary drift.
+
+WHAT THIS MEANS FOR THE DESIGN. Clause (d) as filed — "report unbanked improvement" — would, on today's data, report approximately zero on every package. That is still worth building (a number that reads 0.00 is informative and would have prevented this task being filed on the wrong premise), but it is not the high-value piece the task calls it. The live question becomes whether these floors should be RAISED DELIBERATELY as a quality target — a decision about how much test rigor we want to buy — rather than ratcheted opportunistically as slack appears. That is an owner call about investment, not an engineering call about mechanism, and it should be put to the owner before clauses (a)-(c) are built against the banking premise.
+
+CAVEAT ON THESE NUMBERS: one run per package. Stryker is nondeterministic (per-mutant timeouts make a loaded machine kill a different mutant set), so a single run cannot distinguish a real -0.70 decay from an unlucky sample. Re-run conversation-history before treating its decay as real.
+
+RELATED: doc-63 "Ratchet Bidirectionality (audit mini-epic)" in backlog/cold/queue.md already owns exactly this scope — audit each ratchet's slack, apply free tightens, give down-tightening an owner-moment. This task is a member of that theme, not a standalone; check doc-63 before scoping, and consider whether the finding above changes the theme's premise too.
 <!-- SECTION:DESCRIPTION:END -->
