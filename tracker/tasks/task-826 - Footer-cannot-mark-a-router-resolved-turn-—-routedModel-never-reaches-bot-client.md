@@ -3,9 +3,10 @@ id: TASK-826
 title: >-
   Footer cannot mark a router-resolved turn — routedModel never reaches
   bot-client
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 21:03'
+updated_date: '2026-08-30 04:22'
 labels:
   - 'area:bot-client'
   - 'size:M'
