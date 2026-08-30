@@ -1,9 +1,10 @@
 ---
 id: TASK-790
 title: Preset confirmation embeds do not name the slot that was set
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 03:47'
+updated_date: '2026-08-30 11:16'
 labels:
   - 'area:bot-client'
   - 'size:S'
