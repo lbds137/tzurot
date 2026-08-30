@@ -32,4 +32,14 @@ Fix shape: extract the channelIdsToCheck construction that DenylistFilter.ts:60-
 OWNER FLAG: this is a denial-enforcement bypass, so the severity call is the owner one, not an agent one. Anyone denied in a parent channel can currently still run slash commands in its threads.
 
 Acceptance: a parent-channel denial suppresses slash-command interactions in child threads; message-path behavior is unchanged; one test pins each path against the same shared helper.
+
+GROUNDED 2026-08-30 — read before building; this REVISES the fix shape above and adds a landmine the original filing missed.
+
+CALLER COUNT IS EXACTLY TWO in production: index.ts:525 (interaction) and DenylistFilter.ts:65 (message). Everything else matching isChannelDenied is DenylistCache.test.ts or DenylistFilter.test.ts. So this is a two-site change, not a sweep.
+
+REVISED FIX SHAPE — push the parent INTO the cache method rather than extracting a caller-side helper. isChannelDenied's sibling isBlocked ALREADY takes parentChannelId as its fifth parameter and already does thread-to-parent inheritance internally (DenylistCache.ts:187+). Giving isChannelDenied the same shape makes the two methods symmetric and puts the inheritance rule where a reader looks for it, instead of leaving it as a caller responsibility that one of two callers forgot. Prefer the parameter REQUIRED-but-nullable — isChannelDenied(userId, channelId, parentChannelId: string | null) — so the compiler forces every caller to consider it. An optional param would let the next caller forget exactly the way index.ts did.
+
+LANDMINE, and this is the one that would silently break the acceptance: the two inheritance semantics are DELIBERATELY DIFFERENT and are documented at DenylistFilter.ts:56-59. The message path treats ANY mode as denial — BLOCK or MUTE, on the thread OR the parent, either one suppresses the response. isBlocked does NOT work that way: it inherits only BLOCK from the parent, and an explicit MUTE on the thread OVERRIDES a parent BLOCK (comment at the channel-scoped branch: "Only inherit from parent if thread has NO explicit entry"). So implementing isChannelDenied inheritance by copying isBlocked would change message-path behavior, which the acceptance above forbids. Implement the ANY-MODE rule, and keep the divergence comment — moving it onto the cache method is the natural home once both rules live there.
+
+Interaction-side detail: the interaction path has interaction.channel (Channel or null) alongside interaction.channelId, so getThreadParentId(interaction.channel) works there with no API fetch — it reads channel.parentId, a plain snowflake, per its own docstring. Where interaction.channel is null (uncached), parent resolution yields null and behavior degrades to exactly today's, which is an acceptable floor but should be stated in the PR rather than discovered.
 <!-- SECTION:DESCRIPTION:END -->
