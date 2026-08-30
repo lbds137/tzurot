@@ -16,6 +16,7 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
+import type { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type TtsProviderId } from '@tzurot/common-types/services/tts/TtsProvider';
@@ -361,7 +362,7 @@ export class DiagnosticCollector {
    */
   recordError(data: {
     message: string;
-    category: string;
+    category: ApiErrorCategory;
     referenceId?: string;
     rawError?: Record<string, unknown>;
     failedAtStage: string;

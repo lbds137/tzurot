@@ -9,6 +9,7 @@
  */
 
 import type { TtsProviderId } from '../services/tts/TtsProvider.js';
+import type { ApiErrorCategory } from '../constants/error.js';
 
 /**
  * Top-level diagnostic payload stored in the database.
@@ -52,8 +53,8 @@ export interface DiagnosticPayload {
 export interface DiagnosticError {
   /** Error message */
   message: string;
-  /** Error category (from apiErrorParser) */
-  category: string;
+  /** Error category — always an `ApiErrorCategory` member */
+  category: ApiErrorCategory;
   /** Reference ID for support */
   referenceId?: string;
   /** Raw error details (sanitized) */
