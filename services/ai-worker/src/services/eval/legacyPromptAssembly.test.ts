@@ -144,12 +144,19 @@ describe('legacyBuildSystemPrompt (arm A drift pins)', () => {
 
   it('renders volatile blocks INSIDE the system prompt (the pre-restructure placement)', () => {
     const prompt = buildFixtureSystemPrompt();
+    // Closing forms for the two tags OUTPUT_CONSTRAINTS names in its
+    // scaffolding-ban rule: the legacy assembly renders output_constraints
+    // unconditionally, so their OPENING tags are in every system prompt as
+    // static ban text and would satisfy this loop even if the volatile blocks
+    // stopped rendering entirely. The closers come only from the blocks, which
+    // is what this test is about. (<facts / <memory_archive stay prefix forms —
+    // those elements carry attributes.)
     for (const tag of [
-      '<context>',
+      '</context>',
       '<participants>',
       '<facts',
       '<memory_archive',
-      '<contextual_references>',
+      '</contextual_references>',
     ]) {
       expect(prompt).toContain(tag);
     }
