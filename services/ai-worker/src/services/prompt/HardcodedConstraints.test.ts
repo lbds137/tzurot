@@ -70,6 +70,13 @@ describe('HardcodedConstraints', () => {
       // it is a member of PROMPT_TEMPLATE_ORPHAN_TAGS in responseArtifacts.ts.
       expect(OUTPUT_CONSTRAINTS).toContain('<quote>');
       expect(OUTPUT_CONSTRAINTS).toContain('<contextual_references>');
+      // <context> is the only member admitted under the criterion documented on
+      // OUTPUT_CONSTRAINTS: responseArtifacts deliberately omits it from
+      // PROMPT_TEMPLATE_ORPHAN_TAGS as too collision-prone against ordinary
+      // prose, so this ban is its only lever — unlike the five mined-echo tags,
+      // which the strip layer already deletes. Not a prefix collision with
+      // <contextual_references>: that string has no '>' after "context".
+      expect(OUTPUT_CONSTRAINTS).toContain('<context>');
       expect(OUTPUT_CONSTRAINTS).toContain('assembly artifacts');
     });
 
@@ -105,6 +112,48 @@ describe('HardcodedConstraints', () => {
       expect(banLine).toContain('</constraint>');
       expect(banLine).not.toContain('<image_descriptions>');
       expect(banLine).not.toContain('<instruction>');
+    });
+
+    // Four assertions in three other files (PromptBuilder, voiceArms ×2,
+    // legacyPromptAssembly) discriminate a RENDERED block from this static ban
+    // text by asserting the CLOSING form, which works only while the ban line
+    // names tags in opening form exclusively. Nothing else enforces that: a
+    // future wording edit that "clarifies" an entry to <context>...</context>
+    // would leave all four passing while testing nothing.
+    //
+    // Derived from the line rather than hardcoded, so a tag added to the ban
+    // list is covered without editing this test — the failure mode being
+    // guarded is precisely someone editing the line without thinking about it.
+    it('names every banned tag in opening form only, so closing-form assertions stay discriminating', () => {
+      const banLine = OUTPUT_CONSTRAINTS.split('\n').find(line =>
+        line.includes('Never emit input-format scaffolding')
+      );
+      expect(banLine).toBeDefined();
+
+      // `constraint` is the wrapper element, not one of the named tags — its
+      // closer legitimately ends the line.
+      const namedTags = [...(banLine ?? '').matchAll(/<([a-z0-9_-]+)>/g)]
+        .map(match => match[1])
+        .filter(tag => tag !== 'constraint');
+
+      // Completeness, pinned rather than assumed: a tag name the character
+      // class above does not cover would drop out of `namedTags` and the loop
+      // below would skip it with no failure — reduced coverage in exactly the
+      // silent shape this test exists to prevent. Counting the opening tags on
+      // the line independently of the class makes that narrowing fail here.
+      const openingTagCount = (banLine?.match(/<(?!\/)/g) ?? []).length - 1; // -1 for <constraint>
+      expect(namedTags).toHaveLength(openingTagCount);
+
+      // Positive control: both assertions above hold vacuously over an empty
+      // line, so anchor them to a name that must be present.
+      expect(namedTags).toContain('context');
+
+      for (const tag of namedTags) {
+        expect(
+          banLine,
+          `ban line names </${tag}>; closing-form assertions elsewhere go vacuous`
+        ).not.toContain(`</${tag}>`);
+      }
     });
 
     it('should anchor the model to the user’s current message, not continuing its own prior text', () => {

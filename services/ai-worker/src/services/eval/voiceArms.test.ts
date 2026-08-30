@@ -73,11 +73,15 @@ describe('voice arms', () => {
 
   it('arm A: single-container system with volatiles inside and protocol/output on the recency tail', () => {
     const { system } = buildArmMessages('A', buildInputs());
+    // Closing forms for the two tags OUTPUT_CONSTRAINTS names in its
+    // scaffolding-ban rule: their opening tags sit in every system message as
+    // static ban text, so asserting on those would pass without arm A ever
+    // rendering the blocks. The closers come only from the rendered blocks.
     for (const tag of [
-      '<context>',
+      '</context>',
       '<participants>',
       '<memory_archive',
-      '<contextual_references>',
+      '</contextual_references>',
     ]) {
       expect(system).toContain(tag);
     }
@@ -97,7 +101,10 @@ describe('voice arms', () => {
     expect(system.startsWith(`${PLATFORM_CONSTRAINTS}\n\n${OUTPUT_CONSTRAINTS}`)).toBe(true);
     // (<contextual_references> is checked by CONTENT below — the tag NAME
     // legitimately appears inside OUTPUT_CONSTRAINTS' scaffolding-ban rule.)
-    for (const tag of ['<context>', '<memory_archive', '<facts']) {
+    // <context> is in that ban rule too, so its OPENING tag is present in every
+    // system message as static S0 text; the closing form is emitted only by the
+    // rendered volatile block, which is what this arm is asserting about.
+    for (const tag of ['</context>', '<memory_archive', '<facts']) {
       expect(system).not.toContain(tag);
       expect(human).toContain(tag);
     }

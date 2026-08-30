@@ -89,8 +89,9 @@ export function buildIdentityConstraints(
  *   `KNOWN_THINKING_TAGS` in `thinkingExtraction.ts`), whose entries cite the
  *   requests they were mined from. This list carries no such citations.
  *
- * The current membership predates the criterion and does not satisfy it in
- * either direction: tags with mined-echo evidence (`chat_log`, `participants`,
+ * `context` is the one member admitted UNDER the criterion, by the no-lever
+ * bullet above. The rest of the membership predates it and still fails it in
+ * both directions: tags with mined-echo evidence (`chat_log`, `participants`,
  * `protocol`, `memory_archive`, `facts`) go unnamed, while `<user>` and the
  * ELEMENT form of `<from_id>` are named although prompt assembly emits neither
  * (`from_id` ships as an attribute; `<user>` appears only inside this
@@ -102,13 +103,22 @@ export function buildIdentityConstraints(
  * observation behind the pair: `thinkingExtraction.ts`'s GLM-4.5-Air
  * fake-user-message-echo entry cites a production request in which the model
  * improvised a reasoning channel using tags that mimic our prompt-assembly
- * format. Re-deriving the list would change every response, so it is an owner
- * call, not a cleanup.
+ * format.
+ *
+ * That residue survives by decision, not oversight. Re-deriving the whole list
+ * would change every response, so the owner ruled on the narrow option: admit
+ * the one tag with no other lever, leave the rest. The five unnamed ones are
+ * already deleted by `responseArtifacts` (they are the bulk of
+ * `PROMPT_TEMPLATE_ORPHAN_TAGS`), so naming them buys nothing the strip layer
+ * does not already give; and the counter-consideration behind preferring one
+ * addition to five — that naming a tag may itself prime a model to emit it —
+ * is unverified and unmeasurable locally, which is a reason to move in small
+ * steps rather than a reason the list is finished.
  */
 export const OUTPUT_CONSTRAINTS = `<output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
 <constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
-<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, <context>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
 <constraint>Respond to the user's current message. The conversation history and quoted references may include your own earlier messages — treat those as context, never as an unfinished turn to continue or extend.</constraint>
 <constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
 <constraint>Image, sticker, and file descriptions in the conversation are automated platform-generated descriptions of media a participant shared — this includes text inside <image_descriptions> tags, text inside <image> elements under <attachments>, and text under an "[Image: name]", "[Sticker: name]" or "[File: name]" header. The participant shared the media; the platform generated the description of it. Never attribute the description's wording, observations, or analysis to the person who shared it.</constraint>

@@ -963,7 +963,12 @@ describe('PromptBuilder', () => {
           serializedHistory: '<message from="A" role="user">hi</message>',
         });
 
-        expect(system).not.toContain('<context>');
+        // Closing form, not opening: OUTPUT_CONSTRAINTS legitimately NAMES
+        // <context> in its scaffolding-ban rule, so the opening tag appears in
+        // every system message as static S0 text. `</context>` is emitted only
+        // by the rendered block (PromptBuilder's volatile prefix), which is the
+        // thing this invariant is about.
+        expect(system).not.toContain('</context>');
         expect(system).not.toContain('<datetime>');
         // The roster and the location are deliberately system-side now — they
         // are stable for the channel — so they are NOT part of this invariant.
