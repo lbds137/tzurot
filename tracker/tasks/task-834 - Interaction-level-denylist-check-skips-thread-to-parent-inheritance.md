@@ -31,6 +31,8 @@ Fix shape: extract the channelIdsToCheck construction that DenylistFilter.ts:60-
 
 OWNER FLAG: this is a denial-enforcement bypass, so the severity call is the owner one, not an agent one. Anyone denied in a parent channel can currently still run slash commands in its threads.
 
+⚖️ SEVERITY CALL ANSWERED 2026-08-30: the owner chose FIX BEFORE THE beta.211 CUT, over deferring to the next release. So this rides the current release rather than waiting, and the release plan in backlog/now.md lists it accordingly. The flag above is discharged — no further owner input is needed to start.
+
 Acceptance: a parent-channel denial suppresses slash-command interactions in child threads; message-path behavior is unchanged; one test pins each path against the same shared helper.
 
 GROUNDED 2026-08-30 — read before building; this REVISES the fix shape above and adds a landmine the original filing missed.
