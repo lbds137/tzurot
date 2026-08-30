@@ -1,9 +1,10 @@
 ---
 id: TASK-788
 title: Humanize raw enum values in /deny browse and detail rendering
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 02:41'
+updated_date: '2026-08-30 19:57'
 labels:
   - 'area:bot-client'
   - 'size:S'

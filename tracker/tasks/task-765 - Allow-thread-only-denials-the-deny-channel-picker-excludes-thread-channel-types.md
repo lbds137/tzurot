@@ -3,9 +3,10 @@ id: TASK-765
 title: >-
   Allow thread-only denials - the /deny channel picker excludes thread channel
   types
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 15:34'
+updated_date: '2026-08-30 19:57'
 labels:
   - 'area:bot-client'
   - 'size:S'
