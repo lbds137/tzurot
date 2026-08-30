@@ -13,6 +13,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchEntries } from './browse.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 import { showDetailView } from './detail.js';
+import { formatTypeLabel } from './denyLabels.js';
 
 const logger = createLogger('deny-view');
 
@@ -45,7 +46,7 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
   );
 
   if (matches.length === 0) {
-    const typeNote = typeFilter !== undefined ? ` (type: ${typeFilter.toUpperCase()})` : '';
+    const typeNote = typeFilter !== undefined ? ` (type: ${formatTypeLabel(typeFilter)})` : '';
     await context.editReply(`No denylist entries found for \`${target.trim()}\`${typeNote}.`);
     return;
   }

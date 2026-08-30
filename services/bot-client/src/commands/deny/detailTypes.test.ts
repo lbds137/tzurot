@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { APIButtonComponentWithCustomId } from 'discord.js';
-import { buildDetailEmbed, buildDetailButtons, ENTITY_TYPE, VALID_SCOPES } from './detailTypes.js';
+import { buildDetailEmbed, buildDetailButtons, ENTITY_TYPE } from './detailTypes.js';
 
 vi.mock('@tzurot/common-types/constants/discord', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
@@ -41,10 +41,6 @@ describe('constants', () => {
   it('should export entity type', () => {
     expect(ENTITY_TYPE).toBe('deny');
   });
-
-  it('should export valid scopes', () => {
-    expect(VALID_SCOPES).toEqual(['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY']);
-  });
 });
 
 describe('buildDetailEmbed', () => {
@@ -59,8 +55,10 @@ describe('buildDetailEmbed', () => {
           name: 'Target',
           value: expect.stringContaining('<@111222333444555666>'),
         }),
-        expect.objectContaining({ name: 'Type', value: 'USER' }),
-        expect.objectContaining({ name: 'Mode', value: expect.stringContaining('BLOCK') }),
+        expect.objectContaining({ name: 'Type', value: 'User' }),
+        // Exact, not stringContaining: the mode emoji is part of the rendered
+        // value and a loose matcher would let it silently disappear.
+        expect.objectContaining({ name: 'Mode', value: '\u{1F6AB} Block' }),
         expect.objectContaining({ name: 'Scope', value: 'Bot-wide' }),
         expect.objectContaining({ name: 'Reason', value: 'Spamming' }),
       ])
@@ -75,8 +73,8 @@ describe('buildDetailEmbed', () => {
     expect(embed.data.color).toBe(0xffaa00);
     expect(embed.data.fields).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'Target', value: expect.stringContaining('(Guild)') }),
-        expect.objectContaining({ name: 'Mode', value: expect.stringContaining('MUTE') }),
+        expect.objectContaining({ name: 'Target', value: expect.stringContaining('(Server)') }),
+        expect.objectContaining({ name: 'Mode', value: '\u{1F507} Mute' }),
       ])
     );
     // Should NOT have Reason field when null
@@ -91,7 +89,19 @@ describe('buildDetailEmbed', () => {
 
     expect(embed.data.fields).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'Scope', value: 'CHANNEL: `123456789`' }),
+        // Backticked to match the Target field's own monospace ID rendering.
+        expect.objectContaining({ name: 'Scope', value: 'Channel: `123456789`' }),
+      ])
+    );
+  });
+
+  it('renders Server scope with its scope ID for a GUILD-scoped entry', () => {
+    const entry = { ...sampleEntry, scope: 'GUILD' as const, scopeId: 'guild-987' };
+    const embed = buildDetailEmbed(entry);
+
+    expect(embed.data.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Scope', value: 'Server: `guild-987`' }),
       ])
     );
   });

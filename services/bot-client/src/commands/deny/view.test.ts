@@ -141,7 +141,7 @@ describe('handleView', () => {
 
     await handleView(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('(type: GUILD)'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('(type: Server)'));
   });
 
   it('should show detail view for single match', async () => {
