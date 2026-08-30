@@ -41,6 +41,7 @@ import {
 } from './detailTypes.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
 import { ackUpdate } from '../../ux/render/reply.js';
+import { TYPE_LABELS, SCOPE_LABELS } from './denyLabels.js';
 
 const logger = createLogger('deny-detail');
 
@@ -182,7 +183,7 @@ async function handleDelete(interaction: ButtonInteraction, entryId: string): Pr
 
   const { embed, components } = buildDeleteConfirmation({
     entityType: 'Denylist Entry',
-    entityName: `${data.type} ${data.discordId} (${data.scope})`,
+    entityName: `${TYPE_LABELS[data.type]} ${data.discordId} (${SCOPE_LABELS[data.scope]})`,
     confirmCustomId: `deny::confirm-del::${entryId}`,
     cancelCustomId: `deny::cancel-del::${entryId}`,
   });
@@ -230,7 +231,10 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
       session: postActionSession,
       outcome: {
         kind: 'success',
-        banner: formatSuccessBanner('Deleted denylist entry', `${data.type} \`${data.discordId}\``),
+        banner: formatSuccessBanner(
+          'Deleted denylist entry',
+          `${TYPE_LABELS[data.type]} \`${data.discordId}\``
+        ),
       },
     });
   } catch (error) {

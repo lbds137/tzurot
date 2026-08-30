@@ -37,6 +37,7 @@ import {
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import { ackUpdate } from '../../ux/render/reply.js';
+import { MODE_LABELS, formatScopeWithId } from './denyLabels.js';
 
 const logger = createLogger('deny-browse');
 
@@ -67,7 +68,11 @@ const FILTER_TOGGLE_DISPLAY: Record<DenyBrowseFilter, FilterToggleDisplay> = {
   all: { label: 'Filter: All', shortLabel: 'All', emoji: '📋' },
   // 🧍 USER_TARGET — 👤 belongs to the persona ENTITY register (§2.2).
   user: { label: 'Filter: Users', shortLabel: 'Users', emoji: AUTOCOMPLETE_BADGES.USER_TARGET },
-  guild: { label: 'Filter: Guilds', shortLabel: 'Guilds', emoji: AUTOCOMPLETE_BADGES.GUILD_TARGET },
+  guild: {
+    label: 'Filter: Servers',
+    shortLabel: 'Servers',
+    emoji: AUTOCOMPLETE_BADGES.GUILD_TARGET,
+  },
 };
 
 /**
@@ -80,7 +85,7 @@ const FILTER_TOGGLE_DISPLAY: Record<DenyBrowseFilter, FilterToggleDisplay> = {
 function formatSelectLabel(entry: DenylistEntryResponse): string {
   const typeEmoji =
     entry.type === 'USER' ? AUTOCOMPLETE_BADGES.USER_TARGET : AUTOCOMPLETE_BADGES.GUILD_TARGET;
-  const modeIndicator = entry.mode === 'MUTE' ? ' [MUTE]' : '';
+  const modeIndicator = entry.mode === 'MUTE' ? ` [${MODE_LABELS.MUTE}]` : '';
   return `${typeEmoji} ${entry.discordId}${modeIndicator}`;
 }
 
@@ -135,7 +140,7 @@ function buildBrowsePage(
         name: entry.type === 'USER' ? `<@${entry.discordId}>` : entry.discordId,
         techId: entry.type === 'USER' ? entry.discordId : undefined,
         metadata: [
-          entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`,
+          formatScopeWithId(entry.scope, entry.scopeId),
           `Added ${formatDiscordTimestamp(entry.addedAt, 'D')}`,
           ...(entry.reason !== null ? [escapeMarkdown(entry.reason)] : []),
         ],
@@ -167,7 +172,7 @@ function buildBrowsePage(
     formatItem: entry => ({
       label: formatSelectLabel(entry),
       value: entry.id,
-      description: entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`,
+      description: formatScopeWithId(entry.scope, entry.scopeId),
     }),
   });
   if (selectRow !== null) {

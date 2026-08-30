@@ -311,6 +311,9 @@ describe('handleDetailButton', () => {
       expect(buildDeleteConfirmation).toHaveBeenCalledWith(
         expect.objectContaining({
           entityType: 'Denylist Entry',
+          // Exact, not stringContaining: this is the humanized render seam,
+          // and a revert to raw enum casing must fail here.
+          entityName: 'User 111222333444555666 (Bot-wide)',
           confirmCustomId: 'deny::confirm-del::entry-uuid-1234',
           cancelCustomId: 'deny::cancel-del::entry-uuid-1234',
         })
@@ -347,7 +350,7 @@ describe('handleDetailButton', () => {
           }),
           outcome: expect.objectContaining({
             kind: 'success',
-            banner: expect.stringContaining('USER'),
+            banner: '✅ **Deleted denylist entry** · User `111222333444555666`',
           }),
         })
       );

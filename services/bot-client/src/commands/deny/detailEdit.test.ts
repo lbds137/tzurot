@@ -55,7 +55,6 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 // Mock detailTypes so we don't construct Discord.js builders
 vi.mock('./detailTypes.js', () => ({
   ENTITY_TYPE: 'deny',
-  VALID_SCOPES: ['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY'],
   buildDetailEmbed: vi.fn(() => ({ data: { title: 'Detail' } })),
   buildDetailButtons: vi.fn(() => [{ type: 'action-row' }]),
 }));
@@ -148,6 +147,19 @@ describe('handleEdit', () => {
 
     expect(interaction.showModal).toHaveBeenCalled();
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
+  });
+
+  it('pre-fills the scope field with the display label, not the raw enum value', async () => {
+    mockSessionManager.get.mockResolvedValue(sampleSession); // sampleSession.data.scope === 'BOT'
+    const interaction = createMockButtonInteraction('deny::edit::entry-uuid-1234');
+
+    await handleEdit(interaction, 'entry-uuid-1234');
+
+    const modalArg = vi.mocked(interaction.showModal).mock.calls[0][0] as {
+      toJSON: () => unknown;
+    };
+    const serialized = JSON.stringify(modalArg.toJSON());
+    expect(serialized).toContain('Bot-wide');
   });
 
   it('should handle session expiry via reply (unacknowledged button needs initial response)', async () => {
@@ -278,9 +290,36 @@ describe('handleEditModal', () => {
     await handleEditModal(interaction, 'entry-uuid-1234');
 
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Invalid scope') })
+      expect.objectContaining({
+        content: expect.stringContaining('Bot-wide, Server, Channel, or Character'),
+      })
     );
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['Server', 'GUILD'],
+    ['server', 'GUILD'],
+    ['GUILD', 'GUILD'],
+    ['Character', 'PERSONALITY'],
+  ])('accepts scope input "%s" and resolves it to %s', async (rawScope, expectedScope) => {
+    mockSessionManager.get.mockResolvedValue(sampleSession);
+    mockSessionManager.update.mockResolvedValue(sampleSession);
+    stub.addDenylistEntry.mockResolvedValue(
+      makeOk({ entry: { ...sampleEntry, scope: expectedScope, scopeId: 'target-id' } })
+    );
+    stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
+      scope: rawScope,
+      scopeId: 'target-id',
+      reason: 'Spamming',
+    });
+
+    await handleEditModal(interaction, 'entry-uuid-1234');
+
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: expectedScope, scopeId: 'target-id' })
+    );
   });
 
   it('should reject non-* scopeId for BOT scope', async () => {
@@ -294,7 +333,7 @@ describe('handleEditModal', () => {
     await handleEditModal(interaction, 'entry-uuid-1234');
 
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('BOT scope requires') })
+      expect.objectContaining({ content: expect.stringContaining('Bot-wide scope requires') })
     );
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });

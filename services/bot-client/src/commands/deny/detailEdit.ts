@@ -20,11 +20,11 @@ import type { OwnerClient } from '@tzurot/clients';
 import {
   type DenyDetailSession,
   ENTITY_TYPE,
-  VALID_SCOPES,
   buildDetailEmbed,
   buildDetailButtons,
 } from './detailTypes.js';
 import { ackUpdate } from '../../ux/render/reply.js';
+import { SCOPE_LABELS, SCOPE_LABEL_LIST, parseScopeInput } from './denyLabels.js';
 
 const logger = createLogger('deny-detail-edit');
 
@@ -86,17 +86,17 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
         id: 'scope',
         label: 'Scope',
         style: 'short',
-        placeholder: 'BOT, GUILD, CHANNEL, or PERSONALITY',
+        placeholder: SCOPE_LABEL_LIST,
         maxLength: MAX_SCOPE_LENGTH,
         required: true,
-        initialValue: data.scope,
+        initialValue: SCOPE_LABELS[data.scope],
       },
       {
         kind: 'text',
         id: 'scopeId',
         label: 'Scope ID',
         style: 'short',
-        placeholder: '* for BOT, channel/personality ID for others',
+        placeholder: '* for Bot-wide, channel/character ID for others',
         maxLength: MAX_SCOPE_ID_LENGTH,
         required: true,
         initialValue: data.scopeId,
@@ -129,18 +129,39 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   );
 }
 
-/** Validate edit modal inputs. Returns error message if invalid, null if OK. */
-function validateEditInput(scope: string, scopeId: string, reason: string | null): string | null {
-  if (!VALID_SCOPES.includes(scope as (typeof VALID_SCOPES)[number])) {
-    return `\u274C Invalid scope "${scope}". Must be BOT, GUILD, CHANNEL, or PERSONALITY.`;
+/** Result of validating the edit modal's raw text inputs. */
+type EditValidationResult = { ok: true; scope: DenylistScope } | { ok: false; message: string };
+
+/**
+ * Validate edit modal inputs, accepting either the canonical scope enum
+ * name or its display label (case-insensitive) so the friendly placeholder
+ * copy doesn't lie about what the field accepts.
+ */
+function validateEditInput(
+  scope: string,
+  scopeId: string,
+  reason: string | null
+): EditValidationResult {
+  const parsedScope = parseScopeInput(scope);
+  if (parsedScope === null) {
+    return {
+      ok: false,
+      message: `\u274C Invalid scope "${scope}". Must be ${SCOPE_LABEL_LIST}.`,
+    };
   }
-  if (scope === 'BOT' && scopeId !== '*') {
-    return '\u274C BOT scope requires scope ID to be `*`.';
+  if (parsedScope === 'BOT' && scopeId !== '*') {
+    return {
+      ok: false,
+      message: `\u274C ${SCOPE_LABELS.BOT} scope requires scope ID to be \`*\`.`,
+    };
   }
   if (reason !== null && reason.length > MAX_REASON_LENGTH) {
-    return `\u274C Reason too long (${reason.length}/${MAX_REASON_LENGTH} characters).`;
+    return {
+      ok: false,
+      message: `\u274C Reason too long (${reason.length}/${MAX_REASON_LENGTH} characters).`,
+    };
   }
-  return null;
+  return { ok: true, scope: parsedScope };
 }
 
 /**
@@ -199,22 +220,22 @@ export async function handleEditModal(
   }
 
   const data = session.data;
-  const newScopeRaw = interaction.fields.getTextInputValue('scope').trim().toUpperCase();
+  const newScopeRaw = interaction.fields.getTextInputValue('scope').trim();
   const newScopeId = interaction.fields.getTextInputValue('scopeId').trim();
   const newReason = interaction.fields.getTextInputValue('reason').trim() || null;
 
-  const validationError = validateEditInput(newScopeRaw, newScopeId, newReason);
-  if (validationError !== null) {
+  const validation = validateEditInput(newScopeRaw, newScopeId, newReason);
+  if (!validation.ok) {
     // intentionally-raw: deny uses manual re-render for back-to-browse (see
     // detail.ts file-top comment). Validation error is terminal; session
     // remains so user can re-edit.
-    await interaction.editReply({ content: validationError, embeds: [], components: [] });
+    await interaction.editReply({ content: validation.message, embeds: [], components: [] });
     return;
   }
 
-  // Validation above narrowed `newScopeRaw` to a member of VALID_SCOPES,
-  // which is the same set as the schema's DenylistScope literal union.
-  const newScope = newScopeRaw as DenylistScope;
+  // `validation.scope` is the parser's canonical DenylistScope, resolved from
+  // either the enum name or the display label the user typed.
+  const newScope = validation.scope;
 
   try {
     const scopeChanged = newScope !== data.scope || newScopeId !== data.scopeId;
