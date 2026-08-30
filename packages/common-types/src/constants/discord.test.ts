@@ -11,6 +11,7 @@ import {
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
   stripMarkdownDelimiters,
+  toInertCodeSpan,
   DISCORD_PROVIDER_CHOICES,
 } from './discord.js';
 import { AIProvider } from './ai.js';
@@ -172,6 +173,56 @@ describe('Bot Footer Text Constants', () => {
       expect(stripMarkdownDelimiters('()')).toBe('');
       expect(stripMarkdownDelimiters('[]')).toBe('');
       expect(stripMarkdownDelimiters('<>')).toBe('');
+    });
+  });
+
+  describe('toInertCodeSpan', () => {
+    it('renders a masked link inert by wrapping it in a code span', () => {
+      expect(toInertCodeSpan('[Free Nitro](http://evil.example)')).toBe(
+        '`[Free Nitro](http://evil.example)`'
+      );
+    });
+
+    it('leaves ordinary diagnostic punctuation intact', () => {
+      expect(toInertCodeSpan('expected (a), got (b)')).toBe('`expected (a), got (b)`');
+    });
+
+    it('cannot let a backtick in the content break out of the span', () => {
+      const result = toInertCodeSpan('unexpected `token` here');
+      const backtickCount = result.split('`').length - 1;
+      expect(backtickCount).toBe(2);
+      expect(result.startsWith('`')).toBe(true);
+      expect(result.endsWith('`')).toBe(true);
+    });
+
+    it('a content-only backtick run still yields a properly closed, non-empty span', () => {
+      // An empty embed field value throws at build time, so the two-delimiter
+      // form (never empty) matters even when the entire input is backticks.
+      const result = toInertCodeSpan('```');
+      expect(result).toBe('``');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('never returns empty, even for empty input', () => {
+      const result = toInertCodeSpan('');
+      expect(result).toBe('``');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('cannot let a newline in the content close the span before a masked link', () => {
+      const result = toInertCodeSpan('error line one\n[Free Nitro](http://evil.example)');
+      expect(result.includes('\n')).toBe(false);
+      expect(result).toBe('`error line one [Free Nitro](http://evil.example)`');
+    });
+
+    it('collapses a CRLF to exactly one space', () => {
+      const result = toInertCodeSpan('line one\r\nline two');
+      expect(result).toBe('`line one line two`');
+    });
+
+    it('collapses a lone CR to exactly one space', () => {
+      const result = toInertCodeSpan('line one\rline two');
+      expect(result).toBe('`line one line two`');
     });
   });
 

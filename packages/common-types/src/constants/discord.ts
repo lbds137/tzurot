@@ -463,6 +463,45 @@ export function stripMarkdownDelimiters(value: string): string {
 }
 
 /**
+ * Wrap free text in an inline code span so it renders inert on Discord.
+ *
+ * Markdown link and angle-bracket delimiters do not render inside an inline
+ * code span, so wrapping the content makes it inert while diagnostic
+ * punctuation such as `expected (a), got (b)` survives byte-for-byte.
+ * Stripping the delimiters (as `stripMarkdownDelimiters` does) would destroy
+ * that diagnostic, which is why this function wraps instead.
+ *
+ * Backticks in the content are removed before wrapping, because a backtick
+ * in the content could terminate the span early. A content-sized backtick
+ * run (CommonMark's usual answer to "content contains a backtick") was
+ * rejected: it requires space-padding when the content starts or ends with
+ * a backtick, which is more edge surface than the fidelity is worth —
+ * provider error strings essentially never carry backticks, and when they
+ * do, the backtick itself is not the diagnostic.
+ *
+ * Unlike `stripMarkdownDelimiters`, this function's return value is NEVER
+ * empty, for any input including `''` — the two wrapping backticks are
+ * always present. Pinned by a case in `discord.test.ts`.
+ *
+ * Newlines (CR, LF, CRLF) in the content are also collapsed to a single
+ * space before wrapping. An inline code span dies at a newline in Markdown
+ * (see `codeSpanDetection.ts`, which models this same property for its own
+ * scanning purposes), so a newline inside the content would terminate the
+ * span early and let anything after it — e.g. a masked link — render live,
+ * defeating the whole point of this helper. The known call site feeds this a
+ * 200-char truncated one-line diagnostic, so collapsing to one line costs no
+ * information there; a fenced code block was considered and rejected as
+ * having the wrong visual weight in an embed field.
+ *
+ * Exported for the same reason as `stripMarkdownDelimiters`: the surface
+ * that needs this (rendering free text into a Discord-parsed field) may have
+ * more than one call site.
+ */
+export function toInertCodeSpan(value: string): string {
+  return `\`${value.replace(/`/g, '').replace(/\r\n|\r|\n/g, ' ')}\``;
+}
+
+/**
  * Build a model footer line for Discord messages.
  *
  * @param modelUsed - Model name to display

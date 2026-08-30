@@ -3,7 +3,11 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS, stripMarkdownDelimiters } from '@tzurot/common-types/constants/discord';
+import {
+  DISCORD_COLORS,
+  stripMarkdownDelimiters,
+  toInertCodeSpan,
+} from '@tzurot/common-types/constants/discord';
 import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
 import { isRouterAliasModel } from '@tzurot/common-types/constants/ai';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
@@ -337,7 +341,16 @@ export function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
       name: '🚨 Error',
       value: [
         `**Category:** ${error.category}`,
-        `**Message:** ${error.message.substring(0, 200)}${error.message.length > 200 ? '...' : ''}`,
+        // Truncate BEFORE wrapping: wrapping first would let the 200-char cut
+        // land inside the span and remove the closing backtick, leaving an
+        // unterminated code span. The '...' ellipsis is our own annotation,
+        // not part of the provider message, so it stays outside the span.
+        `**Message:** ${toInertCodeSpan(error.message.substring(0, 200))}${error.message.length > 200 ? '...' : ''}`,
+        // Not wrapped through toInertCodeSpan: every producer reaching this field
+        // generates the id internally via generateErrorReferenceId (base36 chars
+        // only, no backticks/markdown) — see GenerationStep.ts and
+        // generationFailureResult.ts. If referenceId ever carries provider- or
+        // user-derived data, wrap it.
         error.referenceId !== undefined ? `**Reference:** \`${error.referenceId}\`` : '',
         `**Failed At:** ${error.failedAtStage}`,
       ]
