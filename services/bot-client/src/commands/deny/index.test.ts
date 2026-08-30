@@ -152,4 +152,48 @@ describe('deny add/remove channel command structure', () => {
       ])
     );
   });
+
+  interface ScopeGroupJson {
+    options: {
+      name: string;
+      options: {
+        name: string;
+        options?: { name: string; required?: boolean }[];
+      }[];
+    }[];
+  }
+
+  function subcommandsOf(groupName: string): {
+    name: string;
+    options?: { name: string; required?: boolean }[];
+  }[] {
+    const json = denyCommand.data.toJSON() as ScopeGroupJson;
+    return json.options.find(opt => opt.name === groupName)?.options ?? [];
+  }
+
+  // The invariant TASK-787 bought: every scope subcommand names exactly ONE
+  // target, and it is required — so no runtime code has to arbitrate between
+  // two optional target options. Asserting the whole shape rather than the
+  // `server` subcommand alone also pins `everywhere`'s user: optional→required
+  // flip, which is the other half of the same change.
+  describe.each(['add', 'remove'])('%s group target options', groupName => {
+    it('exposes exactly one required target option per scope subcommand', () => {
+      const subcommands = subcommandsOf(groupName);
+      expect(subcommands.map(sub => sub.name)).toEqual([
+        'everywhere',
+        'server',
+        'this-server',
+        'channel',
+        'character',
+      ]);
+
+      for (const sub of subcommands) {
+        const targets = (sub.options ?? []).filter(
+          opt => opt.name === 'user' || opt.name === 'server'
+        );
+        expect(targets, `${groupName} ${sub.name} target options`).toHaveLength(1);
+        expect(targets[0]?.required, `${groupName} ${sub.name} target required`).toBe(true);
+      }
+    });
+  });
 });

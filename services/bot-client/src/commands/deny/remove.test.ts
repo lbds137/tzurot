@@ -42,7 +42,7 @@ function createStub(): OwnerStub {
 const TARGET_USER = { id: '999888777', username: 'lbds137', displayName: 'Vlad' };
 
 interface MockContextInput {
-  /** The scope subcommand name (`everywhere` | `this-server` | `channel` | `character`). */
+  /** The scope subcommand name (`everywhere` | `server` | `this-server` | `channel` | `character`). */
   subcommand?: string | null;
   user?: { id: string; username: string; displayName: string } | null;
   channel?: { id: string } | null;
@@ -91,16 +91,17 @@ describe('handleRemove', () => {
     );
   });
 
-  it('removes a server denial derived from the server option', async () => {
+  it('removes a server denial derived from the server subcommand', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
     stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
     const context = createMockContext({
-      subcommand: 'everywhere',
+      subcommand: 'server',
       options: { server: '111222333' },
     });
 
     await handleRemove(context);
 
+    expect(checkDenyPermission).toHaveBeenCalledWith(context, 'BOT', null, null);
     expect(stub.removeDenylistEntry).toHaveBeenCalledWith('GUILD', '111222333', 'BOT', '*');
     expect(context.editReply).toHaveBeenCalledWith(
       '✅ Denial removed for server `111222333` everywhere (every server and DM).'
@@ -168,22 +169,7 @@ describe('handleRemove', () => {
 
     await handleRemove(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Pick a `user`'));
-    expect(checkDenyPermission).not.toHaveBeenCalled();
-  });
-
-  it('rejects when both user and server are supplied', async () => {
-    const context = createMockContext({
-      subcommand: 'everywhere',
-      user: TARGET_USER,
-      options: { server: '111222333' },
-    });
-
-    await handleRemove(context);
-
-    expect(context.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('either `user` or `server`, not both')
-    );
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('No target supplied'));
     expect(checkDenyPermission).not.toHaveBeenCalled();
   });
 

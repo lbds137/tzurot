@@ -7,8 +7,8 @@
  * - Character creators: PERSONALITY scope for characters they own
  *
  * Subcommands:
- * - /deny add {everywhere|this-server|channel|character} — Add a denial entry
- * - /deny remove {everywhere|this-server|channel|character} — Remove a denial entry
+ * - /deny add {everywhere|server|this-server|channel|character} — Add a denial entry
+ * - /deny remove {everywhere|server|this-server|channel|character} — Remove a denial entry
  * - /deny browse — Browse denial entries with pagination (owner only)
  * - /deny view — Look up denylist entries by Discord ID (owner only)
  *
@@ -64,7 +64,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
   const context = ctx as DeferredCommandContext;
   const group = context.getSubcommandGroup();
 
-  // Both groups carry the same four scope subcommands, so a flat router keyed
+  // Both groups carry the same five scope subcommands, so a flat router keyed
   // on subcommand name alone would collide; each group has one handler that
   // derives the scope from the subcommand name.
   if (group === 'add') {
@@ -150,18 +150,34 @@ function buildEverywhere(
   sub: SlashCommandSubcommandBuilder,
   isAdd: boolean
 ): SlashCommandSubcommandBuilder {
-  // The only subcommand exposing `server:` — a server denial is bot-wide by
-  // definition, so the narrower scopes cannot offer the option at all.
+  // A server denial is bot-wide by definition, so it is a distinct TARGET
+  // shape under the same BOT scope rather than an option on a narrower one.
   sub
     .setName('everywhere')
     .setDescription(
-      isAdd ? 'Deny in every server and DM (owner only)' : 'Remove a bot-wide denial (owner only)'
+      isAdd
+        ? 'Deny a user in every server and DM (owner only)'
+        : 'Remove a bot-wide user denial (owner only)'
     )
     .addUserOption(opt =>
-      opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(false)
+      opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
+    );
+  return withAddOnlyOptions(sub, isAdd);
+}
+
+function buildServer(
+  sub: SlashCommandSubcommandBuilder,
+  isAdd: boolean
+): SlashCommandSubcommandBuilder {
+  sub
+    .setName('server')
+    .setDescription(
+      isAdd
+        ? 'Deny an entire server, bot-wide (owner only)'
+        : 'Remove a bot-wide server denial (owner only)'
     )
     .addStringOption(opt =>
-      opt.setName('server').setDescription('Server ID to deny instead of a user').setRequired(false)
+      opt.setName('server').setDescription('The server ID to deny').setRequired(true)
     );
   return withAddOnlyOptions(sub, isAdd);
 }
@@ -226,15 +242,26 @@ function buildCharacter(
   return withAddOnlyOptions(sub, isAdd);
 }
 
-/** Scope-first group: the subcommand name IS the denial scope. */
+/**
+ * Scope-first group: the subcommand name selects the denial scope — and at BOT
+ * scope it also selects the target type (`everywhere` a user, `server` a whole
+ * server). The group description says so rather than naming the target shapes:
+ * enumerating "a user or server" read as though those were the only two, which
+ * stopped being true once `server` became a subcommand of its own.
+ */
 function buildScopeGroup(
   group: SlashCommandSubcommandGroupBuilder,
   isAdd: boolean
 ): SlashCommandSubcommandGroupBuilder {
   return group
     .setName(isAdd ? 'add' : 'remove')
-    .setDescription(isAdd ? 'Deny a user or server' : 'Remove a denial')
+    .setDescription(
+      isAdd
+        ? 'Add a denial — the subcommand picks the scope'
+        : 'Remove a denial — the subcommand picks the scope'
+    )
     .addSubcommand(sub => buildEverywhere(sub, isAdd))
+    .addSubcommand(sub => buildServer(sub, isAdd))
     .addSubcommand(sub => buildThisServer(sub, isAdd))
     .addSubcommand(sub => buildChannel(sub, isAdd))
     .addSubcommand(sub => buildCharacter(sub, isAdd));

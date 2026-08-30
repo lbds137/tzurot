@@ -200,7 +200,7 @@ Problems: 7-option `add` with conditionally-relevant options (`channel` only for
 
 **SUPERSEDED 2026-08-26 — the modal-form recommendation below was NOT the direction taken.** The owner chose **scope-first subcommand groups** instead (TASK-764 § DESIGN SETTLED, shipped in PR #2233): scope becomes the subcommand name (`/deny add channel`, `/deny add character`, …), so options that do not apply to a scope stop existing rather than being conditionally ignored. The modal builder was weighed against it and declined — it adds session state, custom-ID routing and expiry failure modes, and is slower to drive in exactly the live-moderation moment this was reported from.
 
-What the shipped design delivers from the paragraph below: the raw-snowflake `target` is gone (native user picker, with a `server:` ID option surviving only on `everywhere` — which is the raw-ID caveat, satisfied structurally); conditionally-relevant options are gone; internal values no longer leak into display. **Still open** from this section: `remove`/`view` autocomplete from existing denial entries, badges + BLURPLE list per §2, and the non-owner component-click ghost.
+What the shipped design delivers from the paragraph below: the raw-snowflake `target` is gone (native user picker, with a `server:` ID option living on its own bot-wide `server` subcommand — which is the raw-ID caveat, satisfied structurally); conditionally-relevant options are gone; internal values no longer leak into display. **Still open** from this section: `remove`/`view` autocomplete from existing denial entries, badges + BLURPLE list per §2, and the non-owner component-click ghost.
 
 Original recommendation, kept for the reasoning rather than the conclusion:
 

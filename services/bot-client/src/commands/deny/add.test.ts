@@ -42,7 +42,7 @@ function createStub(): OwnerStub {
 const TARGET_USER = { id: '999888777', username: 'lbds137', displayName: 'Vlad' };
 
 interface MockContextInput {
-  /** The scope subcommand name (`everywhere` | `this-server` | `channel` | `character`). */
+  /** The scope subcommand name (`everywhere` | `server` | `this-server` | `channel` | `character`). */
   subcommand?: string | null;
   user?: { id: string; username: string; displayName: string } | null;
   channel?: { id: string } | null;
@@ -98,19 +98,25 @@ describe('handleAdd', () => {
     );
   });
 
-  it('derives GUILD type from the server option on everywhere', async () => {
+  it('derives GUILD type from the server subcommand', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
     stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
     const context = createMockContext({
-      subcommand: 'everywhere',
+      subcommand: 'server',
       options: { server: '111222333' },
     });
 
     await handleAdd(context);
 
-    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'GUILD', discordId: '111222333', scope: 'BOT' })
-    );
+    expect(checkDenyPermission).toHaveBeenCalledWith(context, 'BOT', null, null);
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith({
+      type: 'GUILD',
+      discordId: '111222333',
+      scope: 'BOT',
+      scopeId: '*',
+      mode: 'BLOCK',
+      reason: undefined,
+    });
     expect(context.editReply).toHaveBeenCalledWith(
       '✅ Denied server `111222333` everywhere (every server and DM) — blocked.'
     );
@@ -195,22 +201,7 @@ describe('handleAdd', () => {
 
     await handleAdd(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Pick a `user`'));
-    expect(checkDenyPermission).not.toHaveBeenCalled();
-  });
-
-  it('rejects when both user and server are supplied', async () => {
-    const context = createMockContext({
-      subcommand: 'everywhere',
-      user: TARGET_USER,
-      options: { server: '111222333' },
-    });
-
-    await handleAdd(context);
-
-    expect(context.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('either `user` or `server`, not both')
-    );
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('No target supplied'));
     expect(checkDenyPermission).not.toHaveBeenCalled();
   });
 
