@@ -272,13 +272,26 @@ export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
   });
 }
 
+/** Options for recording the LLM response stage */
+interface LlmResponseDiagnosticOptions {
+  collector: DiagnosticCollector;
+  rawContent: string;
+  modelName: string;
+  metadata: ParsedResponseMetadata;
+  /**
+   * The same routed-model value returned on the invocation result (read off
+   * the raw response's `model_name`, not `metadata`). Threaded in rather than
+   * recomputed here because `ParsedResponseMetadata` doesn't declare
+   * `model_name` — and because the diagnostic surface and the response
+   * surface must agree on what "routed" means, or `/inspect` goes blind
+   * exactly when it's needed to diagnose a routing mismatch.
+   */
+  routedModel: string | undefined;
+}
+
 /** Record the LLM response to the diagnostic collector */
-export function recordLlmResponseDiagnostic(
-  collector: DiagnosticCollector,
-  rawContent: string,
-  modelName: string,
-  metadata: ParsedResponseMetadata
-): void {
+export function recordLlmResponseDiagnostic(opts: LlmResponseDiagnosticOptions): void {
+  const { collector, rawContent, modelName, metadata, routedModel } = opts;
   const finishReason = resolveFinishReason(metadata.responseMetadata);
 
   collector.recordLlmResponse({
@@ -289,7 +302,7 @@ export function recordLlmResponseDiagnostic(
     cachedPromptTokens: metadata.usageMetadata?.input_token_details?.cache_read,
     cacheDiscount: metadata.responseMetadata?.openrouter?.cacheDiscount,
     modelUsed: modelName,
-    routedModel: metadata.responseMetadata?.openrouter?.model,
+    routedModel,
     reasoningDebug: buildReasoningDebug(rawContent, metadata),
   });
 }

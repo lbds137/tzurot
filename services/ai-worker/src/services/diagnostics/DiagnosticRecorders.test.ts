@@ -298,7 +298,13 @@ describe('DiagnosticRecorders', () => {
         },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'Hello world', 'test-model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'Hello world',
+        modelName: 'test-model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       expect(call.rawContent).toBe('Hello world');
@@ -312,7 +318,13 @@ describe('DiagnosticRecorders', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const metadata: ParsedResponseMetadata = {};
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'content', 'model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'content',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       expect(call.promptTokens).toBe(0);
@@ -337,7 +349,13 @@ describe('DiagnosticRecorders', () => {
         },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       expect(call.cachedPromptTokens).toBe(6272);
@@ -350,17 +368,28 @@ describe('DiagnosticRecorders', () => {
         usageMetadata: { input_tokens: 500, output_tokens: 200 },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       expect(call.cachedPromptTokens).toBeUndefined();
       expect(call.cacheDiscount).toBeUndefined();
     });
 
-    it('should thread the routed model alongside the requested model', () => {
-      // modelUsed is what we ASKED for; routedModel is what the payload said
-      // answered. For a router alias the two differ, which is the entire point
-      // of the field — assert both reach the collector, distinctly.
+    it('should record the routedModel it was given, alongside the requested model', () => {
+      // modelUsed is what we ASKED for; routedModel is threaded in from the
+      // caller (readRoutedModel over the raw response), NOT recomputed from
+      // metadata.responseMetadata.openrouter.model — that field is a
+      // DIFFERENT, more narrowly-populated source, which is exactly why this
+      // recorder must not read it independently (it would diverge from the
+      // value the invocation result carries). metadata.openrouter.model is
+      // deliberately left unset here to prove the value comes from the
+      // options field, not from metadata.
       const mockCollector = { recordLlmResponse: vi.fn() };
       const metadata: ParsedResponseMetadata = {
         responseMetadata: {
@@ -368,28 +397,48 @@ describe('DiagnosticRecorders', () => {
           openrouter: {
             apiMessageKeys: [],
             apiReasoningLength: 0,
-            model: 'google/gemini-2.5-flash',
           },
         },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'openrouter/auto', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'openrouter/auto',
+        metadata,
+        routedModel: 'google/gemini-2.5-flash',
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       expect(call.modelUsed).toBe('openrouter/auto');
       expect(call.routedModel).toBe('google/gemini-2.5-flash');
     });
 
-    it('should leave the routed model undefined when the response carried none', () => {
+    it('should leave the routed model undefined when none was passed in, even if metadata carries one', () => {
+      // Pins the fix: the recorder must NOT fall back to reading
+      // metadata.responseMetadata.openrouter.model when the caller passes no
+      // routedModel — that field is a narrower, independently-populated
+      // source and reading it here is exactly the divergence this recorder
+      // must not reintroduce.
       const mockCollector = { recordLlmResponse: vi.fn() };
       const metadata: ParsedResponseMetadata = {
         responseMetadata: {
           finish_reason: 'stop',
-          openrouter: { apiMessageKeys: [], apiReasoningLength: 0 },
+          openrouter: {
+            apiMessageKeys: [],
+            apiReasoningLength: 0,
+            model: 'anthropic/claude-sonnet-4',
+          },
         },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       expect(call.routedModel).toBeUndefined();
@@ -399,8 +448,12 @@ describe('DiagnosticRecorders', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
 
       // Test stop_reason fallback
-      recordLlmResponseDiagnostic(mockCollector as never, '', 'model', {
-        responseMetadata: { stop_reason: 'length' },
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: '',
+        modelName: 'model',
+        metadata: { responseMetadata: { stop_reason: 'length' } },
+        routedModel: undefined,
       });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
@@ -411,7 +464,13 @@ describe('DiagnosticRecorders', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const content = '<reasoning>I think...</reasoning>\nHello world';
 
-      recordLlmResponseDiagnostic(mockCollector as never, content, 'model', {});
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: content,
+        modelName: 'model',
+        metadata: {},
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -422,7 +481,13 @@ describe('DiagnosticRecorders', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const content = '<thought>Analyzing request.</thought>\nHere is the answer.';
 
-      recordLlmResponseDiagnostic(mockCollector as never, content, 'model', {});
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: content,
+        modelName: 'model',
+        metadata: {},
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -434,7 +499,13 @@ describe('DiagnosticRecorders', () => {
       const NS = 'antml';
       const content = `<${NS}:thought>Internal processing.</${NS}:thought>\nResponse.`;
 
-      recordLlmResponseDiagnostic(mockCollector as never, content, 'model', {});
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: content,
+        modelName: 'model',
+        metadata: {},
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -445,7 +516,13 @@ describe('DiagnosticRecorders', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const content = 'Short content';
 
-      recordLlmResponseDiagnostic(mockCollector as never, content, 'model', {});
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: content,
+        modelName: 'model',
+        metadata: {},
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -464,7 +541,13 @@ describe('DiagnosticRecorders', () => {
         },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'z-ai/glm-4.7', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'z-ai/glm-4.7',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -476,7 +559,13 @@ describe('DiagnosticRecorders', () => {
     it('should leave openrouter.* fields undefined when responseMetadata.openrouter is absent', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', {});
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata: {},
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -491,7 +580,13 @@ describe('DiagnosticRecorders', () => {
         additionalKwargs: { reasoning: 'I am thinking about this carefully.' },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -509,7 +604,13 @@ describe('DiagnosticRecorders', () => {
         additionalKwargs: { reasoning_content: 'z.ai reasoning text here' },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'z-ai/glm-4.7', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'z-ai/glm-4.7',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
@@ -529,7 +630,13 @@ describe('DiagnosticRecorders', () => {
         },
       };
 
-      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;

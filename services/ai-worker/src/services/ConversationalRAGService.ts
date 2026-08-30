@@ -367,6 +367,7 @@ export class ConversationalRAGService {
         attachmentDescriptions: buildAttachmentDescriptions(inputs.processedAttachments),
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         modelUsed: modelResult.modelName,
+        routedModel: modelResult.routedModel,
         userMessageContent: budgetResult.contentForStorage,
         freshModeEnabled,
         incognitoModeActive,
