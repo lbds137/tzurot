@@ -331,15 +331,47 @@ export function toModelSlot(value: string): ModelSlot {
 }
 
 /**
- * Shared description for the `slot` slash-command option (Chat | Vision) across the
- * preset/settings setter commands. Single source so the user-facing label can't
- * silently diverge between `/preset` and `/preset override`. The option NAME +
- * required flag stay inline at each call site because the command-types codegen
- * reads them as string literals (it does not read the description). The encoded
- * choice values stay `text`/`vision` (the gateway's `?slot=` wire contract); only
- * the user-facing labels are Chat/Vision.
+ * Single user-facing display vocabulary for a model slot, shared across every
+ * Discord surface that names a slot in a confirmation or status message. Call
+ * sites apply their own markdown emphasis (`**${MODEL_SLOT_LABELS[slot]}**`,
+ * etc.) — the label TEXT is single-sourced here, the emphasis stays local.
+ *
+ * `satisfies Record<ModelSlot, string>` keeps the literal value types AND
+ * makes the compiler reject a slot added to {@link MODEL_SLOTS} without a
+ * corresponding label here.
  */
-export const CONFIG_SLOT_OPTION_DESCRIPTION = 'Which slot to target: Chat (default) or Vision';
+export const MODEL_SLOT_LABELS = {
+  text: 'Chat',
+  vision: 'Vision',
+} as const satisfies Record<ModelSlot, string>;
+
+/**
+ * Shared description for the `slot` slash-command option across the
+ * preset/settings setter commands. The "(image)" gloss lives here rather than in
+ * {@link MODEL_SLOT_LABELS} deliberately: the description is read at the moment
+ * of choosing, which is where the clarification is worth its characters, while
+ * the label itself stays one word on every surface that echoes it back.
+ *
+ * The option NAME + required flag stay inline at each call site because the
+ * command-types codegen reads them as string literals — it regexes `.setName()`
+ * only, and parses neither the description nor `addChoices`, which is what lets
+ * {@link CONFIG_SLOT_OPTION_CHOICES} be a constant.
+ */
+export const CONFIG_SLOT_OPTION_DESCRIPTION =
+  'Which slot to target: Chat (default) or Vision (image)';
+
+/**
+ * The `slot` option's choice list, built from {@link MODEL_SLOT_LABELS} so the
+ * label a user PICKS is the same string the confirmation embed echoes back.
+ * Every setter command spreads this rather than repeating the pair inline.
+ *
+ * The encoded values stay `text`/`vision` — the gateway's `?slot=` wire
+ * contract — and only the names are user-facing.
+ */
+export const CONFIG_SLOT_OPTION_CHOICES = [
+  { name: MODEL_SLOT_LABELS.text, value: 'text' },
+  { name: MODEL_SLOT_LABELS.vision, value: 'vision' },
+] as const satisfies readonly { name: string; value: ModelSlot }[];
 
 /**
  * Voice naming prefix for Tzurot-managed clones across all TTS providers.

@@ -23,6 +23,7 @@ import {
   toModelSlot,
   MODEL_SLOTS,
   DEFAULT_MODEL_SLOT,
+  MODEL_SLOT_LABELS,
 } from './ai.js';
 
 describe('isFreeModel', () => {
@@ -68,6 +69,16 @@ describe('toModelSlot', () => {
     expect(toModelSlot('audio')).toBe(DEFAULT_MODEL_SLOT);
     expect(toModelSlot('')).toBe(DEFAULT_MODEL_SLOT);
     expect(toModelSlot('TEXT')).toBe(DEFAULT_MODEL_SLOT); // case-sensitive
+  });
+});
+
+describe('MODEL_SLOT_LABELS', () => {
+  it('has a non-empty label for every member of MODEL_SLOTS', () => {
+    for (const slot of MODEL_SLOTS) {
+      const label = MODEL_SLOT_LABELS[slot];
+      expect(typeof label).toBe('string');
+      expect(label.length).toBeGreaterThan(0);
+    }
   });
 });
 

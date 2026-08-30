@@ -111,7 +111,28 @@ describe('handleDefaultSet', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            description: expect.stringContaining('Your default vision (image) preset is now'),
+            description: expect.stringContaining('Your default Vision preset is now'),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('names the Chat label when slot:text is chosen explicitly', async () => {
+    mockNonGuestUserApis('00000000-0000-4000-8000-0000000000a2', 'Text Explicit');
+
+    await handleDefaultSet(createMockContext('00000000-0000-4000-8000-0000000000a2', 'text'));
+
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
+      { configId: '00000000-0000-4000-8000-0000000000a2' },
+      { slot: 'text' }
+    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            // Must differ from the slot:vision confirmation string.
+            description: expect.stringContaining('Your default Chat preset is now'),
           }),
         }),
       ],
@@ -129,7 +150,7 @@ describe('handleDefaultSet', () => {
           data: expect.objectContaining({
             title: expect.stringContaining('Default Preset Set'),
             // Default (text) slot is named in the confirmation.
-            description: expect.stringContaining('Your default chat preset is now'),
+            description: expect.stringContaining('Your default Chat preset is now'),
           }),
         }),
       ],
@@ -232,7 +253,7 @@ describe('handleDefaultSet', () => {
           data: expect.objectContaining({
             title: expect.stringContaining('Default Preset Set'),
             // Default (text) slot is named in the confirmation.
-            description: expect.stringContaining('Your default chat preset is now'),
+            description: expect.stringContaining('Your default Chat preset is now'),
           }),
         }),
       ],

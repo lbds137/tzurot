@@ -5,7 +5,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { toModelSlot } from '@tzurot/common-types/constants/ai';
+import { toModelSlot, MODEL_SLOT_LABELS } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetDefaultClearOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -47,7 +47,6 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
     // newEffectiveDefaults iff it was cleared; its value is null when no system
     // free default exists for it. Per-character overrides are unaffected and
     // surface in the closing sentence.
-    const SLOT_LABELS = { text: 'Chat', vision: 'Vision' } as const;
     const fallbackLines = (['text', 'vision'] as const).flatMap(slotKey => {
       const fallback = result.data.newEffectiveDefaults[slotKey];
       // Slot absent from the map → it wasn't cleared, so emit no line for it.
@@ -56,8 +55,8 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
       }
       return [
         fallback !== null
-          ? `**${SLOT_LABELS[slotKey]}** → falling back to system default: \`${fallback.name}\`.`
-          : `**${SLOT_LABELS[slotKey]}** → no system default is configured; the bot will use its built-in fallback.`,
+          ? `**${MODEL_SLOT_LABELS[slotKey]}** → falling back to system default: \`${fallback.name}\`.`
+          : `**${MODEL_SLOT_LABELS[slotKey]}** → no system default is configured; the bot will use its built-in fallback.`,
       ];
     });
 
@@ -67,11 +66,16 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
     // but this keeps the render robust if the response shape ever widens.
     const fallbackSection = fallbackLines.length > 0 ? `${fallbackLines.join('\n')}\n\n` : '';
 
+    const clearedDescription =
+      slot === 'all'
+        ? 'Your default preset has been removed.'
+        : `Your default ${MODEL_SLOT_LABELS[slot]} preset has been removed.`;
+
     const embed = new EmbedBuilder()
       .setTitle('✅ Default Preset Cleared')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default preset has been removed.\n\n${fallbackSection}` +
+        `${clearedDescription}\n\n${fallbackSection}` +
           'Characters with their own per-character overrides will continue to use those.'
       )
       .setTimestamp();

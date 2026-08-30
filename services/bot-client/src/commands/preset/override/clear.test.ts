@@ -95,12 +95,25 @@ describe('Preset Clear Handler', () => {
 
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
-        'The character will now use its default preset.'
+        'The character will now use its default preset for all slots.'
       );
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
       });
+    });
+
+    it('names the Chat label when slot=text is chosen explicitly', async () => {
+      stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
+
+      await handleClear(createMockContext('personality-123', 'text'));
+
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { slot: 'text' });
+      expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
+        '🔄 Preset Override Removed',
+        // Must differ from the slot=vision confirmation string.
+        'The character will now use its default preset for Chat messages.'
+      );
     });
 
     it('clears the vision override when slot=vision', async () => {
@@ -112,26 +125,37 @@ describe('Preset Clear Handler', () => {
       // The vision path completes through to the success embed, same as text.
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
-        'The character will now use its default preset.'
+        'The character will now use its default preset for Vision messages.'
       );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
       });
     });
 
-    it('should show info message when no override was set', async () => {
+    it('should show info message when no override was set (all-slot arm)', async () => {
       stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true, wasSet: false }));
 
       await handleClear(createMockContext('personality-123'));
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'ℹ️ No Override Set',
-        'This character was already using its default preset.'
+        'This character was already using its default preset for all slots.'
       );
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
       });
+    });
+
+    it('names the slot in the not-set (info) branch too', async () => {
+      stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true, wasSet: false }));
+
+      await handleClear(createMockContext('personality-123', 'vision'));
+
+      expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
+        'ℹ️ No Override Set',
+        'This character was already using its default preset for Vision messages.'
+      );
     });
 
     it('should handle API error', async () => {

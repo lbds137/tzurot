@@ -87,10 +87,11 @@ describe('Preset Global Set Default Handler', () => {
 
       expect(embedData.title).toBe('System Default Preset Updated');
       expect(embedData.description).toContain('Claude Opus');
-      expect(embedData.description).toContain('system default');
+      // Omitted slot defaults to text — named as Chat in the confirmation.
+      expect(embedData.description).toContain('system default Chat preset');
     });
 
-    it('should pass slot=vision through to the promote call', async () => {
+    it('should pass slot=vision through to the promote call and name it in the confirmation', async () => {
       const context = createMockContext('vision-config', 'vision');
       stub.setGlobalLlmConfigDefault.mockResolvedValue(
         makeOk({ success: true, configName: 'GPT-4 Vision' })
@@ -101,6 +102,25 @@ describe('Preset Global Set Default Handler', () => {
       expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('vision-config', {
         slot: 'vision',
       });
+
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
+      // Must differ from the omitted-slot (Chat) confirmation string.
+      expect(embedData.description).toContain('system default Vision preset');
+    });
+
+    it('names the Chat label when slot:text is chosen explicitly', async () => {
+      const context = createMockContext('text-config', 'text');
+      stub.setGlobalLlmConfigDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'Text Explicit' })
+      );
+
+      await handleGlobalSetDefault(context);
+
+      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('text-config', { slot: 'text' });
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
+      expect(embedData.description).toContain('system default Chat preset');
     });
 
     it('should handle API error response', async () => {

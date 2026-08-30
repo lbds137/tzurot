@@ -4,7 +4,11 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
+import {
+  DEFAULT_MODEL_SLOT,
+  toModelSlot,
+  MODEL_SLOT_LABELS,
+} from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetOverrideSetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -71,9 +75,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
       .setTitle('✅ Preset Override Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `**${data.override.personalityName}** will now use the **${data.override.configName}** preset for ${
-          slot === 'vision' ? 'vision (image)' : 'chat'
-        } messages.`
+        `**${data.override.personalityName}** will now use the **${data.override.configName}** preset for ${MODEL_SLOT_LABELS[slot]} messages.`
       )
       .setFooter({ text: 'Use /preset override clear to remove this override' })
       .setTimestamp();
