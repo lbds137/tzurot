@@ -4,7 +4,7 @@
  * Discord API limits, colors, and text truncation limits.
  */
 
-import { isChatCapableProvider, stripZaiPrefix } from './ai.js';
+import { isChatCapableProvider, isRouterAliasModel, stripZaiPrefix } from './ai.js';
 import { GUEST_MODE_CATEGORY, type QuotaFallbackCategoryValue } from './error.js';
 
 /**
@@ -379,6 +379,22 @@ export interface ModelFooterOptions {
     fromModel: string;
     category: QuotaFallbackCategoryValue;
   };
+  /**
+   * The model id the provider reported serving. Populated on essentially
+   * every response, not only routed ones — so its mere presence, or its
+   * difference from `modelUsed`, is not by itself evidence that routing
+   * happened (a directly-requested concrete model can come back under a
+   * cosmetically different spelling). The routing arm below only renders
+   * an arrow when `modelUsed` is itself a known router alias, so passing
+   * this field on an ordinary non-aliased turn is harmless.
+   */
+  routedModel?: string;
+  /**
+   * Pre-built info URL for {@link routedModel}, mirroring how `modelUrl`
+   * already arrives pre-built for `modelUsed`. Both `routedModel` and
+   * `routedModelUrl` must be present for the routing arm to render.
+   */
+  routedModelUrl?: string;
 }
 
 /**
@@ -459,7 +475,14 @@ export function buildModelFooterText(
   modelUrl: string,
   options: ModelFooterOptions = {}
 ): string {
-  const { provider, fallbackProviderAttempted, withAutoBadge = false, quotaFallback } = options;
+  const {
+    provider,
+    fallbackProviderAttempted,
+    withAutoBadge = false,
+    quotaFallback,
+    routedModel,
+    routedModelUrl,
+  } = options;
   const sanitizedModel = stripMarkdownDelimiters(modelUsed);
   // The link rides the RESOLVED model wherever it ends up, so that model is
   // named exactly once. On a swap it is the arrow's target — the chain reads
@@ -478,9 +501,35 @@ export function buildModelFooterText(
     text = namesSameModel(quotaFallback.fromModel, modelUsed)
       ? `Model: ${modelLink} (${reason})`
       : `Model: ${sanitizedFrom} → ${modelLink} (${reason})`;
+  } else if (
+    quotaFallback === undefined &&
+    isRouterAliasModel(modelUsed) &&
+    routedModel !== undefined &&
+    routedModel.length > 0 &&
+    routedModelUrl !== undefined &&
+    routedModelUrl.length > 0 &&
+    !namesSameModel(routedModel, modelUsed)
+  ) {
+    // Routing renders only when there is NO quota fallback: a genuine
+    // fallback and a guest-mode substitution each already own the model
+    // line, and both of those renderings are approved as-is. Full
+    // Requested/Served/Routed attribution for the overlapping case already
+    // exists on `/inspect`.
+    //
+    // The provider-reported served id is populated on essentially every
+    // response, so an inequality between it and the requested id is not by
+    // itself evidence that routing happened: a directly-requested concrete
+    // model is routinely echoed back under a different spelling (a dropped
+    // vendor prefix), and an inequality-only test would render a routing
+    // arrow for a turn where no routing occurred. What actually means
+    // routing happened is the requested model being a known router alias —
+    // gate on that, and keep the inequality check only to suppress an
+    // alias that happened to resolve to itself.
+    text = `Model: ${sanitizedModel} → [${stripMarkdownDelimiters(routedModel)}](<${routedModelUrl}>) (routed)`;
   } else {
-    // No quota fallback, OR a guest-mode substitution: guest mode renders
-    // bare, exactly as if quotaFallback were absent — see the JSDoc above.
+    // No quota fallback, no applicable routing, OR a guest-mode substitution:
+    // guest mode renders bare, exactly as if quotaFallback were absent — see
+    // the JSDoc above; the routing arm above did not apply either.
     text = `Model: ${modelLink}`;
   }
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;

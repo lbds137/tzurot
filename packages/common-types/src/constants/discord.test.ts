@@ -546,6 +546,148 @@ describe('Bot Footer Text Constants', () => {
       expect(result).not.toContain('[with]');
       expect(result).not.toContain('<brackets>');
     });
+
+    describe('routing arm', () => {
+      it('renders the routed model when there is no quota fallback', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModel: 'anthropic/claude-x',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe(
+          'Model: openrouter/auto → [anthropic/claude-x](<https://example.com/routed>) (routed)'
+        );
+      });
+
+      it('does not fire when routedModel is undefined', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe('Model: [openrouter/auto](<https://example.com/m>)');
+      });
+
+      it('does not fire when routedModel is an empty string', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModel: '',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe('Model: [openrouter/auto](<https://example.com/m>)');
+      });
+
+      it('does not fire for a directly-requested model the provider echoes under a different spelling', () => {
+        // Observed production shape: modelUsed was requested directly (not a
+        // router alias), and the provider's response_metadata.model_name came
+        // back with the vendor prefix dropped. This input alone cannot show
+        // WHICH guard suppressed the arm — namesSameModel strips exactly that
+        // prefix, so it would suppress this case too. The next test uses a
+        // spelling no prefix-stripping collapses, which is what isolates the
+        // alias gate as the guard doing the work.
+        const result = buildModelFooterText('z-ai/glm-5.3-flash', 'https://example.com/m', {
+          routedModel: 'glm-5.3-flash',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe('Model: [z-ai/glm-5.3-flash](<https://example.com/m>)');
+        expect(result).not.toContain('(routed)');
+      });
+
+      it('does not fire for a directly-requested model whose echoed spelling is not covered by namesSameModel', () => {
+        // The case the old inequality-only condition got wrong: no prefix
+        // stripping would have collapsed these two spellings, so only gating
+        // on modelUsed being a router alias prevents a false "(routed)".
+        const result = buildModelFooterText('some/model-v2', 'https://example.com/m', {
+          routedModel: 'some/model-v2-0613',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe('Model: [some/model-v2](<https://example.com/m>)');
+        expect(result).not.toContain('(routed)');
+      });
+
+      it('fires genuine routing with the observed production pair', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModel: 'google/gemini-3-pro-image-preview',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe(
+          'Model: openrouter/auto → [google/gemini-3-pro-image-preview](<https://example.com/routed>) (routed)'
+        );
+      });
+
+      // ModelFooterOptions is exported, so a caller other than the one that
+      // builds this URL today could pass an empty string. An arrow pointing at
+      // an empty link target is worse than no arrow.
+      it('does not fire when routedModelUrl is an empty string', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModel: 'google/gemini-3-pro-image-preview',
+          routedModelUrl: '',
+        });
+        expect(result).toBe('Model: [openrouter/auto](<https://example.com/m>)');
+        expect(result).not.toContain('(routed)');
+      });
+
+      // The alias gate alone would let this through: modelUsed IS an alias, so
+      // only namesSameModel suppresses an arrow pointing at the alias itself.
+      // Reaching it needs the provider to echo the alias back rather than the
+      // model it picked, which is why nothing else here exercises the guard.
+      it('does not fire when the provider echoes the alias back as the served model', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModel: 'openrouter/auto',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe('Model: [openrouter/auto](<https://example.com/m>)');
+        expect(result).not.toContain('(routed)');
+      });
+
+      it('fires for the free router alias', () => {
+        const result = buildModelFooterText('openrouter/free', 'https://example.com/m', {
+          routedModel: 'google/gemini-3-pro-image-preview',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe(
+          'Model: openrouter/free → [google/gemini-3-pro-image-preview](<https://example.com/routed>) (routed)'
+        );
+      });
+
+      it('a non-guest quota fallback wins over routing, with no (routed) anywhere', () => {
+        const result = buildModelFooterText('paid-default', 'https://example.com/m', {
+          quotaFallback: { fromModel: 'expensive/primary', category: 'rate_limit' },
+          routedModel: 'anthropic/claude-x',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe(
+          'Model: expensive/primary → [paid-default](<https://example.com/m>) (rate limited)'
+        );
+        expect(result).not.toContain('(routed)');
+      });
+
+      // Settled composition rule: routing fires ONLY when quotaFallback is
+      // strictly undefined — a guest-mode substitution already owns the model
+      // line, so it renders bare with no arrow and no "(routed)", exactly as
+      // if routedModel had never been passed.
+      it('composition rule: a guest-mode quota fallback suppresses routing entirely', () => {
+        // modelUsed is a router alias here specifically so this test still
+        // proves the composition rule post-fix: guest mode suppresses
+        // routing even when the requested model IS an alias, not merely
+        // because the alias gate would have blocked it anyway.
+        const result = buildModelFooterText('openrouter/free', 'https://example.com/m', {
+          quotaFallback: { fromModel: 'expensive/paid-model', category: GUEST_MODE_CATEGORY },
+          routedModel: 'anthropic/claude-x',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe('Model: [openrouter/free](<https://example.com/m>)');
+        expect(result).not.toContain('→');
+        expect(result).not.toContain('(routed)');
+      });
+
+      it('strips markdown delimiters from a masked-link routed model id', () => {
+        const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+          routedModel: '[Free Nitro](http://evil.example)',
+          routedModelUrl: 'https://example.com/routed',
+        });
+        expect(result).toBe(
+          'Model: openrouter/auto → [Free Nitrohttp://evil.example](<https://example.com/routed>) (routed)'
+        );
+        expect(result).not.toContain('](http://evil.example)');
+      });
+    });
   });
 });
 

@@ -126,6 +126,23 @@ describe('DiscordResponseSender', () => {
       );
     });
 
+    it('should render the routed-model arm when modelUsed is a router alias', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'openrouter/auto',
+        routedModel: 'anthropic/claude-x',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('→');
+      expect(calledContent).toContain('(routed)');
+    });
+
     it('should link to z.ai blog for zai-coding direct routes', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });

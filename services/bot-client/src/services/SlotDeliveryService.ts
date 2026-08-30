@@ -29,6 +29,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
 import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
+import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
 
 const logger = createLogger('SlotDeliveryService');
 
@@ -125,18 +126,8 @@ export class SlotDeliveryService {
       channel: slot.channel,
       guildId: slot.guildId,
       clientId: slot.clientId,
-      modelUsed: result.metadata?.modelUsed,
-      providerUsed: result.metadata?.providerUsed,
-      fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
-      quotaFallback: result.metadata?.quotaFallback,
-      isGuestMode: result.metadata?.isGuestMode,
+      ...buildResultMetadataPassthrough(result),
       isAutoResponse: slot.isAutoResponse,
-      freshModeEnabled: result.metadata?.freshModeEnabled,
-      incognitoModeActive: result.metadata?.incognitoModeActive,
-      showModelFooter: result.metadata?.showModelFooter,
-      ttsAudioKey: result.metadata?.ttsAudioKey,
-      ttsAudioContentType: result.metadata?.ttsAudioContentType,
-      ttsNotices: result.metadata?.ttsNotices,
       recipientUserId: slot.recipientUserId,
     });
 
