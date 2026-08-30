@@ -136,8 +136,15 @@ The read-side tell is the actual moment of failure: an empty or oddly short
 result indicts your own invocation before it says anything about the data.
 Check, in order: (a) did I suppress or filter stderr, (b) am I searching for
 a form I produced rather than the stored form, (c) is every identifier and
-argument complete and well-formed. Only after those pass does "the data
-isn't there" become a hypothesis — and stating it is governed by
+argument complete and well-formed, (d) am I querying the branch I mean. A
+working-tree read — `grep`, `ls`, `git grep` with no ref, the tracker CLI —
+answers for the CURRENT checkout, and it misleads in BOTH directions: from a
+feature branch, everything committed to `develop` since the cut reads as
+absent; from `develop`, the branch's own new files read as absent. Name a ref
+(`git grep <pat> origin/develop`, `git show <ref>:<path>`,
+`git ls-tree -r --name-only <ref>`) whenever the answer has to hold somewhere
+other than the checkout you are standing in. Only after those pass does "the
+data isn't there" become a hypothesis — and stating it is governed by
 `00-critical.md` § "An empty or sparse tool result" (the store side of this
 same seam). Two write-side shapes are blocked pre-hoc by `lossy-pipe-guard.sh`
 — a filtered `git commit`/`push`, and a `gh` read truncated by head/tail/`sed
