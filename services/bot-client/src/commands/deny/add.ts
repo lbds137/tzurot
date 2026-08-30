@@ -1,10 +1,10 @@
 /**
  * Deny Add Subcommand Group
  *
- * Handles all four scope subcommands (`everywhere`, `this-server`, `channel`,
- * `character`). The scope comes from the subcommand name and the entity type
- * from the filled target option, then the three-tier permission check runs
- * before the gateway call.
+ * Handles all five scope subcommands (`everywhere`, `server`, `this-server`,
+ * `channel`, `character`). The scope comes from the subcommand name, and the
+ * entity type comes from whichever single target option that subcommand
+ * exposes, then the three-tier permission check runs before the gateway call.
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';

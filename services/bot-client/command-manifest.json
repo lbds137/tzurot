@@ -751,24 +751,53 @@
           {
             "type": 2,
             "name": "add",
-            "description": "Deny a user or server",
+            "description": "Add a denial — the subcommand picks the scope",
             "options": [
               {
                 "type": 1,
                 "name": "everywhere",
-                "description": "Deny in every server and DM (owner only)",
+                "description": "Deny a user in every server and DM (owner only)",
                 "options": [
                   {
                     "name": "user",
                     "description": "The user to deny",
-                    "required": false,
+                    "required": true,
                     "type": 6
                   },
                   {
                     "type": 3,
-                    "name": "server",
-                    "description": "Server ID to deny instead of a user",
+                    "name": "reason",
+                    "description": "Reason for the denial",
                     "required": false
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Block (full deny, default)",
+                        "value": "BLOCK"
+                      },
+                      {
+                        "name": "Mute (ignore but keep in context)",
+                        "value": "MUTE"
+                      }
+                    ],
+                    "name": "mode",
+                    "description": "Denial mode (default: Block)",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": 1,
+                "name": "server",
+                "description": "Deny an entire server, bot-wide (owner only)",
+                "options": [
+                  {
+                    "type": 3,
+                    "name": "server",
+                    "description": "The server ID to deny",
+                    "required": true
                   },
                   {
                     "type": 3,
@@ -925,24 +954,31 @@
           {
             "type": 2,
             "name": "remove",
-            "description": "Remove a denial",
+            "description": "Remove a denial — the subcommand picks the scope",
             "options": [
               {
                 "type": 1,
                 "name": "everywhere",
-                "description": "Remove a bot-wide denial (owner only)",
+                "description": "Remove a bot-wide user denial (owner only)",
                 "options": [
                   {
                     "name": "user",
                     "description": "The user to deny",
-                    "required": false,
+                    "required": true,
                     "type": 6
-                  },
+                  }
+                ]
+              },
+              {
+                "type": 1,
+                "name": "server",
+                "description": "Remove a bot-wide server denial (owner only)",
+                "options": [
                   {
                     "type": 3,
                     "name": "server",
-                    "description": "Server ID to deny instead of a user",
-                    "required": false
+                    "description": "The server ID to deny",
+                    "required": true
                   }
                 ]
               },
