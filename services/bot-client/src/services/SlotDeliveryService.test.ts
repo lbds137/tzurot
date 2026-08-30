@@ -109,6 +109,19 @@ describe('SlotDeliveryService', () => {
       expect(vi.mocked(updateDiagnosticResponseIds)).toHaveBeenCalledWith('req-1', ['chunk-1']);
     });
 
+    it('forwards routedModel from result metadata to the response sender', async () => {
+      const result = buildSuccessResult({
+        metadata: { modelUsed: 'test-model', routedModel: 'ROUTED_MODEL_SENTINEL' },
+      } as Partial<LLMGenerationResult>);
+      const slot = buildSlotContext();
+
+      await service.deliverSuccess(result, slot);
+
+      expect(responseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ routedModel: 'ROUTED_MODEL_SENTINEL' })
+      );
+    });
+
     it('forwards the reasoning trace from result metadata into the persisted row', async () => {
       const result = buildSuccessResult({
         metadata: { modelUsed: 'test-model', thinkingContent: 'SLOT_TRACE_SENTINEL' },
