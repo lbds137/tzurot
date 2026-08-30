@@ -179,8 +179,11 @@ function isSameModel(requested: string, served: string): boolean {
  * - `llmResponse.modelUsed` — what we asked the provider for. May already
  *   differ from `llmConfig.model` after a guest override or quota retarget.
  * - `llmResponse.routedModel` — what the provider reported actually running.
- *   Differs from `modelUsed` exactly when a router alias (e.g.
- *   `openrouter/auto`) was requested.
+ *   Populated on essentially every response, not only routed ones — it
+ *   differs from `modelUsed` both when a router alias (e.g.
+ *   `openrouter/auto`) genuinely resolved and when the provider echoes a
+ *   cosmetically different spelling of the same directly-requested model, so
+ *   mere inequality does not by itself mean routing happened.
  *
  * A requested/served substitution and an alias-routing resolution are
  * orthogonal facts and can both fire on the same response (a retarget whose
