@@ -181,6 +181,15 @@ export interface RAGResponse {
   attachmentDescriptions?: string;
   referencedMessagesDescriptions?: string;
   modelUsed?: string;
+  /**
+   * The model id the provider reported serving. Populated on essentially
+   * every response, not only routed ones — it differs from `modelUsed` both
+   * when a router alias genuinely resolved and when the provider echoes a
+   * cosmetically different spelling of the same directly-requested model,
+   * so mere inequality is not evidence of routing. Absent only when the
+   * response carried no reported model id at all.
+   */
+  routedModel?: string;
   userMessageContent?: string;
   /** Whether fresh mode was active (LTM retrieval was skipped) */
   freshModeEnabled?: boolean;
@@ -390,6 +399,15 @@ export interface BudgetAllocationResult {
 export interface ModelInvocationResult {
   cleanedContent: string;
   modelName: string;
+  /**
+   * The model id the provider reported serving. Populated on essentially
+   * every response, not only routed ones — it differs from `modelName` both
+   * when a router alias genuinely resolved and when the provider echoes a
+   * cosmetically different spelling of the same directly-requested model,
+   * so mere inequality is not evidence of routing. Absent only when the
+   * response carried no reported model id at all.
+   */
+  routedModel?: string;
   tokensIn?: number;
   tokensOut?: number;
   /** Extracted thinking/reasoning content from <think> tags, if present */

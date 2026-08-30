@@ -11,6 +11,7 @@ import { type BaseMessage } from '@langchain/core/messages';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
+import { readRoutedModel } from './multimodal/readRoutedModel.js';
 import { type LLMInvoker } from './LLMInvoker.js';
 import { type PromptBuilder } from './PromptBuilder.js';
 import { type ResponsePostProcessor } from './ResponsePostProcessor.js';
@@ -144,9 +145,19 @@ export async function invokeModelAndClean(
   const metadata = parseResponseMetadata(response);
   const { usageMetadata, additionalKwargs, responseMetadata } = metadata;
 
+  // Read off the raw response rather than the parsed metadata: parseResponseMetadata
+  // returns a narrowly-typed ParsedResponseMetadata that does not declare model_name.
+  const routedModel = readRoutedModel(response.response_metadata);
+
   // Record LLM response for diagnostics
   if (diagnosticCollector) {
-    recordLlmResponseDiagnostic(diagnosticCollector, rawContent, modelName, metadata);
+    recordLlmResponseDiagnostic({
+      collector: diagnosticCollector,
+      rawContent,
+      modelName,
+      metadata,
+      routedModel,
+    });
   }
 
   // Process response: deduplicate, extract reasoning, strip artifacts, replace placeholders
@@ -226,6 +237,7 @@ export async function invokeModelAndClean(
   return {
     cleanedContent,
     modelName,
+    routedModel,
     tokensIn: usageMetadata?.input_tokens,
     tokensOut: usageMetadata?.output_tokens,
     thinkingContent: thinkingContent ?? undefined,

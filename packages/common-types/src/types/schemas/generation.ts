@@ -85,6 +85,16 @@ const generationPayloadSchema = z.object({
       tokensOut: z.number().optional(),
       processingTimeMs: z.number().optional(),
       modelUsed: z.string().optional(),
+      /**
+       * The model id the provider reported serving. Populated on essentially
+       * every response, not only routed ones. It differs from `modelUsed`
+       * both when a router alias genuinely resolved and when the provider
+       * echoes a cosmetically different spelling of the same directly-
+       * requested model, so a consumer must not treat mere inequality as
+       * evidence of routing. Absent only when the response carried no
+       * reported model id at all.
+       */
+      routedModel: z.string().optional(),
       /** AI provider used (from API key resolution) */
       providerUsed: z.string().optional(),
       /**

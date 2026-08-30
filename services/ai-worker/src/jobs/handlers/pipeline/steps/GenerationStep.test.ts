@@ -249,6 +249,35 @@ describe('GenerationStep', () => {
       expect(result.result?.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
     });
 
+    // The RAG response and the result metadata are separate shapes, so this
+    // forward is a seam: nothing else asserts that a routed model id reaches
+    // the payload bot-client reads. Absence must survive as absence — the
+    // footer's routing arm treats undefined as "no routing happened".
+    it('forwards routedModel from the RAG response into the result metadata', async () => {
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config: baseConfig,
+        auth: baseAuth,
+        preparedContext: basePreparedContext,
+      };
+
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+        content: 'ok',
+        modelUsed: 'openrouter/auto',
+        routedModel: 'ROUTED_MODEL_SENTINEL',
+      });
+      const routed = await step.process(context);
+      expect(routed.result?.metadata?.routedModel).toBe('ROUTED_MODEL_SENTINEL');
+
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+        content: 'ok',
+        modelUsed: 'anthropic/claude-sonnet-4',
+      });
+      const unrouted = await step.process(context);
+      expect(unrouted.result?.metadata?.routedModel).toBeUndefined();
+    });
+
     describe('free-tier quota (guest pre-flight, site 1)', () => {
       const ragResponse: RAGResponse = {
         content: 'ok',
