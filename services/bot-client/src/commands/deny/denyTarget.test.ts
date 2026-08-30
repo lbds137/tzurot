@@ -20,6 +20,7 @@ function createMockContext(
 describe('scopeForSubcommand', () => {
   it('maps each scope subcommand name to its denial scope', () => {
     expect(scopeForSubcommand('everywhere')).toBe('BOT');
+    expect(scopeForSubcommand('server')).toBe('BOT');
     expect(scopeForSubcommand('this-server')).toBe('GUILD');
     expect(scopeForSubcommand('channel')).toBe('CHANNEL');
     expect(scopeForSubcommand('character')).toBe('PERSONALITY');
@@ -73,24 +74,24 @@ describe('resolveDenyTarget', () => {
     });
   });
 
-  it('rejects when both user and server are supplied', () => {
-    const context = createMockContext(
-      { id: '999888777', username: 'lbds137', displayName: 'Vlad' },
-      { server: '111222333' }
-    );
-
-    const result = resolveDenyTarget(context);
-
-    expect(result).toEqual({
-      ok: false,
-      message: 'Provide either `user` or `server`, not both.',
-    });
-  });
-
   it('rejects when neither is supplied', () => {
     const result = resolveDenyTarget(createMockContext(null));
 
+    expect(result).toEqual({
+      ok: false,
+      message:
+        'No target supplied. Pick a `user`, or use the `server` subcommand for a whole server.',
+    });
+  });
+
+  // handleAdd and handleRemove share this resolver, so a message naming one
+  // group's verb hands the wrong command to the other group's caller.
+  it('names no group verb in the no-target message, since add and remove share it', () => {
+    const result = resolveDenyTarget(createMockContext(null));
+
     expect(result.ok).toBe(false);
+    const message = result.ok ? '' : result.message;
+    expect(message).not.toMatch(/\/deny (add|remove)\b/);
   });
 
   it('treats a whitespace-only server option as absent', () => {

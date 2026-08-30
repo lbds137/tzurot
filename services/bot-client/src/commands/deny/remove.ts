@@ -1,7 +1,7 @@
 /**
  * Deny Remove Subcommand Group
  *
- * Mirrors the add group's four scope subcommands and uses the same three-tier
+ * Mirrors the add group's five scope subcommands and uses the same three-tier
  * permission model — you can only remove denials you have access to.
  */
 
