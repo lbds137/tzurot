@@ -1,10 +1,10 @@
 ---
 id: TASK-814
 title: Re-derive the OUTPUT_CONSTRAINTS scaffolding-ban list from mined-echo evidence
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 11:16'
-updated_date: '2026-08-29 14:35'
+updated_date: '2026-08-30 15:52'
 labels:
   - 'area:ai-worker'
   - 'size:S'
