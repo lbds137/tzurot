@@ -5,6 +5,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS, stripMarkdownDelimiters } from '@tzurot/common-types/constants/discord';
 import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
+import { isRouterAliasModel } from '@tzurot/common-types/constants/ai';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 
 /**
@@ -220,11 +221,28 @@ function buildModelField(
   // id there is nothing to compare against, and isSameModel(x, '') is false
   // for every non-empty x — so without it a payload missing modelUsed would
   // claim a routing resolution it cannot actually know happened.
+  //
+  // `isRouterAliasModel(served)` is the load-bearing gate, not the inequality
+  // check below it. The provider-reported routed id is populated on
+  // essentially every response, so `routedModel !== served` is not by itself
+  // evidence that routing happened — a directly-requested concrete model is
+  // routinely echoed back under a cosmetically different spelling that
+  // `isSameModel`'s normalization doesn't happen to swallow (a `-latest` or
+  // `-preview` suffix, a rename). This surface exists specifically to
+  // diagnose routing, so labelling a mere provider echo `🔀 Routed:` is worse
+  // than omitting the line: it tells the person debugging a routing question
+  // that routing occurred when it did not. What actually means routing
+  // happened is `served` being a known router alias — gate on that first, and
+  // keep the inequality check only to suppress an alias that resolved to
+  // itself. If raw provider-echo visibility is wanted later, that belongs on
+  // a differently-labelled line, not this one — mirrors the footer's
+  // `isRouterAliasModel` gate in packages/common-types/src/constants/discord.ts.
   const routedModel = llmResponse.routedModel;
   if (
     routedModel !== undefined &&
     routedModel.length > 0 &&
     served.length > 0 &&
+    isRouterAliasModel(served) &&
     !isSameModel(routedModel, served)
   ) {
     lines.push(`🔀 **Routed:** ${stripMarkdownDelimiters(routedModel)}`);

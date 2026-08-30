@@ -504,6 +504,35 @@ describe('buildDiagnosticEmbed', () => {
     expect(modelField?.value).toContain('🔀 **Routed:** anthropic/claude-x-sonnet');
   });
 
+  it('renders no Routed line for a directly-requested model echoed under a spelling isSameModel does not swallow', () => {
+    // A `-latest` suffix is not a `-<digits>` version stamp, so isSameModel
+    // treats these as DIFFERENT models — mere inequality would render a
+    // Routed line here. served is not a router alias, so no routing actually
+    // happened: the provider just echoed back a cosmetically different
+    // spelling of the model that was directly requested. This is the exact
+    // scenario the isRouterAliasModel(served) gate exists to suppress.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'anthropic/claude-sonnet-4';
+    payload.llmResponse.modelUsed = 'anthropic/claude-sonnet-4';
+    payload.llmResponse.routedModel = 'anthropic/claude-sonnet-4-latest';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).not.toContain('Routed');
+    expect(modelField?.value).not.toContain('🔀');
+  });
+
+  it('still shows the Routed line for a genuine alias resolution', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'openrouter/auto';
+    payload.llmResponse.modelUsed = 'openrouter/auto';
+    payload.llmResponse.routedModel = 'anthropic/claude-sonnet-4';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('🔀 **Routed:** anthropic/claude-sonnet-4');
+  });
+
   it('shows Requested, Served, AND Routed together when both fire', () => {
     const payload = createMockPayload();
     payload.llmConfig.model = 'z-ai/glm-4.5-air';
