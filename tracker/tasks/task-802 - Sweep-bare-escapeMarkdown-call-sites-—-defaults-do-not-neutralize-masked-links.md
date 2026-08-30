@@ -31,5 +31,9 @@ What: classify the 111 sites — is the value user-authored, and does the surfac
 
 Related: TASK-800 covers the /inspect embed, which needs the strip treatment rather than this one because its exposed values are model and provider.
 
+ENUMERATION GAP — the search space above is too narrow (found 2026-08-30 while reviewing the deny UX PR). "111 bare escapeMarkdown call sites" comes from grepping for escapeMarkdown( minus maskedLink, so it structurally cannot find a site that applies NO escaping at all — and that site is strictly worse than a bare-escapeMarkdown one, since bare escaping at least neutralizes the other delimiters. Confirmed instance: services/bot-client/src/commands/deny/detailTypes.ts renders entry.reason raw in the Reason field, while services/bot-client/src/commands/deny/browse.ts wraps the SAME field in escapeMarkdown for its metadata line — one field, two treatments, in one command family. Low severity on its own (reason is authored by whoever ran /deny add, which requires moderator permissions, so it is not open to arbitrary users) but it is evidence the method misses a whole class.
+
+When this sweep runs, widen the enumeration to BOTH shapes: sites that escape insufficiently AND sites that do not escape at all. The second needs a different search — enumerate the values interpolated into embed fields and ask which are externally authored, rather than grepping for the helper. TASK-704 does not cover it either; that one is about unclamped length, not escaping.
+
 Acceptance: the classification is in the closing PR body, every user-authored site rendering into a parsing surface passes maskedLink, and one test pins a masked-link input rendering inert at a representative site.
 <!-- SECTION:DESCRIPTION:END -->
