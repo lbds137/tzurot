@@ -379,6 +379,88 @@ describe('BaseCacheInvalidationService', () => {
       // duplicate() itself throws before any subscriber is assigned.
       await expect(service.subscribe(vi.fn())).rejects.toThrow('Duplicate failed');
     });
+
+    describe('callback cleanup on failed subscribe', () => {
+      // Read the private callback list directly for the one assertion that
+      // needs the actual array state rather than an inferred behavior —
+      // no existing test in this file exposes an accessor for it.
+      function getRegisteredCallbacks(
+        svc: TestCacheInvalidationService
+      ): ((event: StandardInvalidationEvent) => void)[] {
+        return (svc as unknown as { callbacks: ((event: StandardInvalidationEvent) => void)[] })
+          .callbacks;
+      }
+
+      it('leaves the callback list empty after a failed subscribe', async () => {
+        mockSubscriber.subscribe.mockRejectedValueOnce(new Error('boom'));
+
+        await expect(service.subscribe(vi.fn())).rejects.toThrow('boom');
+
+        expect(getRegisteredCallbacks(service)).toEqual([]);
+      });
+
+      it('does not leave a stale callback registered after subscribe fails — a later successful subscribe delivers to the new callback only', async () => {
+        mockSubscriber.subscribe.mockRejectedValueOnce(new Error('Temporary error'));
+        const callbackA = vi.fn();
+
+        await expect(service.subscribe(callbackA)).rejects.toThrow('Temporary error');
+
+        // Retry: same duplicate mock, but subscribe() now resolves.
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        const callbackB = vi.fn();
+        await service.subscribe(callbackB);
+
+        const messageHandler = mockSubscriber.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'message'
+        )?.[1] as (channel: string, message: string) => void;
+
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+        expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
+        expect(callbackA).not.toHaveBeenCalled();
+      });
+
+      it('removes the failed caller by identity, not position — an interleaved early-return registration must survive', async () => {
+        // Caller A's subscribe() connects but hangs mid-flight (the mock
+        // Promise below is neither resolved nor rejected yet). While A is
+        // still awaiting, caller B calls subscribe() and hits the
+        // "Already subscribed" early-return path (subscriber is already
+        // assigned, synchronously, before A's await point) — B pushes its
+        // own callback and returns immediately. A is left pending until we
+        // reject it below. If cleanup removed the LAST array entry (pop())
+        // instead of A's own entry, it would incorrectly evict B instead.
+        let rejectSubscribe: (err: Error) => void = () => {};
+        const pending = new Promise<void>((_, reject) => {
+          rejectSubscribe = reject;
+        });
+        mockSubscriber.subscribe.mockReturnValueOnce(pending);
+
+        const callbackA = vi.fn();
+        const callbackB = vi.fn();
+
+        const subscribeA = service.subscribe(callbackA);
+        await service.subscribe(callbackB); // early-return path, resolves immediately
+
+        rejectSubscribe(new Error('mid-flight failure'));
+        await expect(subscribeA).rejects.toThrow('mid-flight failure');
+
+        // A's connection attempt never reached the 'message' handler
+        // registration, so retry with a fresh caller to wire up delivery.
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        const callbackC = vi.fn();
+        await service.subscribe(callbackC);
+
+        const messageHandler = mockSubscriber.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'message'
+        )?.[1] as (channel: string, message: string) => void;
+
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+        expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
+        expect(callbackC).toHaveBeenCalledWith({ type: 'all' });
+        expect(callbackA).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('publish', () => {
