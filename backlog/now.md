@@ -34,9 +34,9 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 _beta.211 CUT 2026-08-31 01:58Z (13 PRs / 10 runtime; tag `latest`; finalize done). Its shipped list lives in the release notes — not re-enumerated here._
 
-- **Theme**: **TASK-816 tranche 1** — the owner's "raise the floors deliberately" ruling turned into work: close test gaps in the three at-baseline packages + `conversation-history`'s measured −0.70, THEN raise the per-package floors to the improved scores (floors follow test work; sequencing proposal on the task; per-package targets are an open owner call). Plus **TASK-837** (embed thumbnails render as intentional attachments — owner bug report 2026-08-31, sticker-precedent fix shape on the task).
-- **In already**: _(empty at cut time)_
-- **Waiting on**: the first TASK-816 test-gap PR · TASK-837.
+- **Theme**: **TASK-816 tranche 1** — the owner's "raise the floors deliberately" ruling turned into work: close test gaps in the three at-baseline packages + `conversation-history`'s measured −0.70, THEN raise the per-package floors to the improved scores (floors follow test work; sequencing proposal on the task; per-package targets are an open owner call).
+- **In already**: **TASK-837 ✅ (#2270 merged 2026-08-31, 4 review rounds)** — embed thumbnails now carry link-preview provenance at every render surface; residue tracked as TASK-840/841/842 (constraint-split eval · label-mapping hoist · stored-orphan schema slot).
+- **Waiting on**: the first TASK-816 test-gap PR.
 - **If time/room (owner ask 2026-08-31)**: **TASK-839** — the settings drill-down Parent Value display bug. Wanted in 212 but NOT a cut blocker; if the theme lands first, it rolls to vNext+1.
 - **Data-dictated riders**: TASK-791 fix half (wakes on the first prod `empty_response` window — footer instrumentation now two releases live) · whatever the three beta.211 prod watchers surface (restart recovery, guest 429 floor, GLM rescue).
 - **Explicitly NOT in**: doc-86 (character-initiated messages — all Phase-0 calls are the owner's) · doc-87 (deny naming axes — design/taste) · memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · TASK-786/783/785 (open follow-ups, ride if ready).
