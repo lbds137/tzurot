@@ -146,14 +146,28 @@ export class DenylistCache {
   }
 
   /**
-   * Check if a user is denied for a specific channel (both BLOCK and MUTE)
+   * Check if a user is denied for a specific channel (both BLOCK and MUTE).
+   *
+   * Thread→parent inheritance: a denial on the parent channel also denies the
+   * thread. Callers pass `parentChannelId` (null for non-threads); it is
+   * required rather than optional so the compiler forces every call site to
+   * decide, which is what the interaction path previously got wrong.
+   *
+   * Either mode on either channel denies. This differs from `isBlocked()`
+   * below, which inherits only BLOCK from the parent and lets an explicit
+   * MUTE on the thread override a parent BLOCK (MUTE messages still appear in
+   * context but the bot won't respond to them). Both rules are pinned by tests
+   * in DenylistCache.test.ts.
    */
-  isChannelDenied(userId: string, channelId: string): boolean {
+  isChannelDenied(userId: string, channelId: string, parentChannelId: string | null): boolean {
     const channels = this.channelUsers.get(userId);
     if (channels === undefined) {
       return false;
     }
-    return channels.has(channelId);
+    if (channels.has(channelId)) {
+      return true;
+    }
+    return parentChannelId !== null && channels.has(parentChannelId);
   }
 
   /**
