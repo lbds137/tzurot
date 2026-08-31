@@ -460,6 +460,85 @@ describe('BaseCacheInvalidationService', () => {
         expect(callbackC).toHaveBeenCalledWith({ type: 'all' });
         expect(callbackA).not.toHaveBeenCalled();
       });
+
+      it('does not evict a survivor when the failed caller is absent from the list — unsubscribe() cleared it mid-flight', async () => {
+        // Caller A connects then hangs, exactly like the interleaving test
+        // above, but this time a shutdown races it instead of another
+        // subscribe(): unsubscribe() clears the callback list (and the
+        // connection) before A's own subscribe() settles.
+        let rejectSubscribeA: (err: Error) => void = () => {};
+        const pendingA = new Promise<void>((_, reject) => {
+          rejectSubscribeA = reject;
+        });
+        mockSubscriber.subscribe.mockReturnValueOnce(pendingA);
+
+        const callbackA = vi.fn();
+        const subscribeA = service.subscribe(callbackA);
+
+        await service.unsubscribe();
+
+        // A later subscribe(B) succeeds and registers B against a fresh
+        // connection — A's callback is no longer in the array at all.
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        const callbackB = vi.fn();
+        await service.subscribe(callbackB);
+
+        // Now A's original in-flight subscribe rejects. indexOf(A) must
+        // return -1 (A isn't in the current array), so the guard must skip
+        // the splice — an unconditional splice(-1, 1) would instead evict
+        // the LAST element, which is B.
+        rejectSubscribeA(new Error('mid-flight failure'));
+        await expect(subscribeA).rejects.toThrow('mid-flight failure');
+
+        const messageHandler = mockSubscriber.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'message'
+        )?.[1] as (channel: string, message: string) => void;
+
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+        expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
+      });
+
+      it('removes the failed caller from its own index, not just index 0 — a failure at index 1 is still evicted', async () => {
+        // A connects then hangs; B hits the early-return path while A is
+        // still in flight, so the callback list is [A, B].
+        let rejectSubscribeA: (err: Error) => void = () => {};
+        const pendingA = new Promise<void>((_, reject) => {
+          rejectSubscribeA = reject;
+        });
+        mockSubscriber.subscribe.mockReturnValueOnce(pendingA);
+
+        const callbackA = vi.fn();
+        const callbackB = vi.fn();
+        const subscribeA = service.subscribe(callbackA);
+        await service.subscribe(callbackB); // early-return path
+
+        // A rejects and is removed at its own index (0), leaving [B].
+        rejectSubscribeA(new Error('A failure'));
+        await expect(subscribeA).rejects.toThrow('A failure');
+
+        // C now subscribes against a fresh connection, landing at index 1
+        // (after survivor B) — and its own connection attempt fails too.
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        mockSubscriber.subscribe.mockRejectedValueOnce(new Error('C failure'));
+        const callbackC = vi.fn();
+        await expect(service.subscribe(callbackC)).rejects.toThrow('C failure');
+
+        // A final successful subscribe re-establishes delivery.
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        const callbackD = vi.fn();
+        await service.subscribe(callbackD);
+
+        const messageHandler = mockSubscriber.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'message'
+        )?.[1] as (channel: string, message: string) => void;
+
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+        expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
+        expect(callbackD).toHaveBeenCalledWith({ type: 'all' });
+        expect(callbackC).not.toHaveBeenCalled();
+      });
     });
   });
 
