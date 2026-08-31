@@ -3,9 +3,10 @@ id: TASK-789
 title: >-
   Paid-path vision invocation sends prefixed z-ai model id to the z.ai API — 400
   code 1214
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 02:55'
+updated_date: '2026-08-31 21:10'
 labels:
   - 'area:ai-worker'
   - 'size:S'
