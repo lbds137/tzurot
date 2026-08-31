@@ -13,7 +13,7 @@ _Focus: future AI features — agentic scaffolding and its tool consumers (web s
 
 _SillyTavern-inspired prompt engineering._
 
-- **Lorebooks / Sticky Context** - Keyword-triggered lore injection with TTL
+- ~~**Lorebooks / Sticky Context**~~ — MIGRATED to `doc-88` (Knowledge Store, 2026-08-31): keyword-triggered injection is the degenerate no-embedding case of that theme; design there decides whether keyword and vector tiers coexist
 - **Author's Note Depth Injection** - Insert notes at configurable depth in conversation
 - **Dynamic Directive Injection** - Anti-sycophancy prompt techniques
 
