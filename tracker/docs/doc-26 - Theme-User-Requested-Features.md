@@ -30,6 +30,10 @@ Per-user text injected into the system message, shaping how characters interact 
 - [ ] `/persona` dashboard upgrade to edit sidecar prompt
 - [ ] Migration: move shapes.inc imported `customFields.sidecarPrompt` to proper field
 
+🔺 **DEMAND SIGNAL 2026-08-31 — a second user asked, and the owner steered toward prioritizing.** The ask arrived in a different shape than this entry describes: a user wanted the bots to stop emitting roleplay actions, which the owner answered needs a prompting change that keeps losing to bug fixes. Same layer, wider purpose — a user-overrides slot is not only "tell the character about me", it is also "tell the character how to behave toward me". Worth widening the framing above before the schema is picked, because a backstory field and a behavior-directive field may not want the same UI even if they share storage.
+
+**The architecture half is TASK-110**, which now carries the grounding: the layer seam is designed (§2.1 of `docs/proposals/backlog/prompt-assembly-architecture.md`) but NOT built (`sections.ts` has tiers, no layers), and — the finding that unblocks this — the user-overrides layer is separable from the channel layer that Phase 4's deferral was actually gated on. Two open questions recorded there rather than here: the per-user-global vs per-user-per-character choice this entry leaves open (it drives the schema), and the tension with the caching epic, since S1 is inside the cacheable prefix and a per-user override fragments it per user. Read TASK-110 before scoping; do not open a third record for this feature.
+
 #### ➡️ Channel Allowlist/Denylist — MOVED to doc-75 (Guild / Server Management), Phase 3
 
 Its rationale ("reduces server kicks") and its command scope ("for server
