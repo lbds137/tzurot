@@ -1,6 +1,12 @@
-## 🏗 Active Epic: Provider Prompt Caching (`doc-17`)
+## 🏗 Active Epic: Follow-Up Pool Drain (`doc-7`)
 
-_Focus: restructure prompt assembly so the prefix is stable enough for provider-side prompt caching — spend is input-token-dominated, and caching discounts exactly that side. Owner-picked 2026-08-02._
+_Made OFFICIAL 2026-08-31 (roadmap ratification — it was the de-facto standing unit since 2026-08-01). Full scope + per-batch rate log in tracker `doc-7`; the selection heuristic that works is **same-origin, same-module clusters** (cluster open tasks by surfacing PR number). Batches 1–10 shipped. Remaining clusters at the 2026-08-02 displacement: `#1317` (159–162), `#1323` (167–169), `#1321` (163–165), `#1119` (131–133), `#1035` (100–102). Boundary reminder: rule-outs are owner-gated and fail closed (`06-backlog.md` § Ruling an item out). A themed drain batch rides EVERY release train (roadmap balance mechanism, `cold/queue.md`)._
+
+---
+
+## ⏸ PAUSED after Phases 0+1: Provider Prompt Caching (`doc-17`) — Phase 2 queued at the head of roadmap Phase B
+
+_Focus: restructure prompt assembly so the prefix is stable enough for provider-side prompt caching — spend is input-token-dominated, and caching discounts exactly that side. Owner-picked 2026-08-02; Phases 0+1 shipped and paying (0.62 prod cache-hit measured); Phase 2 (history extraction, ~58% of the measured request) is designed, unblocked, and sequenced BEFORE memory re-entry because both restructure the same prompt/history seams._
 
 **Design ACCEPTED 2026-07-05** → [`docs/proposals/backlog/prompt-assembly-architecture.md`](../docs/proposals/backlog/prompt-assembly-architecture.md) (stability tiers S0/S1/H/V, verified per-provider cache matrix). **Corrected phasing measured 2026-08-01** (doc-17: prod req `456ec221` section table + council pass): Phase 0 alone buys ~0 (+72 tokens — datetime precedes the buster); caching is strictly sequential, so history extraction can't pay before the V-hoist; un-stranding the 2,604-token cross-persona `<protocol>` is most of Phase 1's win (ceiling ~15% of the measured request; the remaining 58% is `<chat_log>`, Phase 2's). **The z.ai coding endpoint caches implicitly** — 97.6% hit measured on a shared prefix (`usage.prompt_tokens_details.cached_tokens`), so the dominant prod route pays with no markers.
 
@@ -24,12 +30,6 @@ _Focus: restructure prompt assembly so the prefix is stable enough for provider-
 > **SCOPE NOTE (2026-08-17)**: the verdict below is about the **token-budget** window (§2.5.1) ONLY, and it still stands — that layer stays dormant by design. It is NOT a verdict on the **count-cap** window (§2.5.2), which evicts on essentially every over-cap turn and whose hysteresis SHIPPED in beta.204 (#2124). Two different windows; read "hysteresis" below as "token-budget hysteresis" or the bolded prohibition reads as a blanket one.
 >
 > **ANSWERED 2026-08-06 — measured, see §2.5.1 of the design doc.** The jitter mechanism is real (no floor, no quantization, no memory of the prior boundary) but **has no occasions to fire**: 0 history drops across 89 prod requests in 24h, all hard-capped with ≥21,100 tokens of headroom. **Do NOT build hysteresis** — nothing to tune against. **Do build §2.5's chunked eviction in Phase 2**, because when trimming starts it will start in attachment-heavy threads where per-turn sliding is worst. Dormant ≠ impossible: at `W`=64,000 it trips at ~484 tok/message over a 100-message window (100 is reachable; 50 is only the default), and Discord allows 10 attachments per message. Trigger is **TASK-447** (`historyMessagesDropped > 0`) — already-recorded, needs no instrumentation. Also filed: TASK-448 (unbudgeted `<chat_log>` legend), TASK-449 (window unclamps on capability-cache miss), TASK-450 (`systemPromptBaseTokens` unrecoverable once trimming starts). Provider economics verified: on z.ai/Gemini/OpenAI-implicit a shifted window forfeits discount only; on Anthropic/Qwen-explicit an unread write costs 1.25×, so don't set `cache_control` on an unstable window.
-
----
-
-## ⏸ Standing background: Follow-Up Pool Drain (`doc-7`)
-
-_Displaced from the slot 2026-08-02 by the owner's caching pick — the pool remains the idle-time/between-epic unit, not abandoned._ Batches 1–10 shipped. Full scope + per-batch rate log in tracker `doc-7`; the selection heuristic that works is **same-origin, same-module clusters** (cluster open tasks by surfacing PR number). Remaining clusters at displacement: `#1317` (159–162), `#1323` (167–169), `#1321` (163–165), `#1119` (131–133), `#1035` (100–102). Boundary reminder: rule-outs are owner-gated and fail closed (`06-backlog.md` § Ruling an item out).
 
 ---
 
