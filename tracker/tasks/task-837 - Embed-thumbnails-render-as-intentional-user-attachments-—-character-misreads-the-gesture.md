@@ -3,9 +3,10 @@ id: TASK-837
 title: >-
   Embed thumbnails render as intentional user attachments — character misreads
   the gesture
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 01:49'
+updated_date: '2026-08-31 14:44'
 labels:
   - 'area:ai-worker'
   - 'size:M'
