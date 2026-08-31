@@ -3,9 +3,10 @@ id: TASK-843
 title: >-
   BaseCacheInvalidationService.subscribe registers the callback before the try
   block — a failed subscribe leaves it stale
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 16:30'
+updated_date: '2026-08-31 21:27'
 labels:
   - 'area:cache-invalidation'
   - 'size:S'
