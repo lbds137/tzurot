@@ -499,6 +499,26 @@ describe('UserService', () => {
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
+    it('should not update when the caller-supplied username is STILL the placeholder shape', async () => {
+      // Isolates the second half of the upgrade guard's `&&`: user.username
+      // IS the placeholder (discordId), but the caller-supplied username is
+      // ALSO still the discordId (no real username has arrived yet) — this
+      // must not fire the upgrade, distinct from the "already real" case
+      // above which isolates the first half instead.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: '900000000000123456', // Placeholder = discordId
+        defaultPersonaId: 'existing-persona-id',
+      });
+
+      const result = await userService.getOrCreateUser('900000000000123456', '900000000000123456');
+
+      expect(result?.userId).toBe('existing-user-id');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.persona.updateMany).not.toHaveBeenCalled();
+    });
+
     it('should create new user with isSuperuser=false for regular users', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
@@ -624,19 +644,36 @@ describe('UserService', () => {
 
       expect(result?.userId).toBe('existing-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+      // The recovery fetch (fetchExistingUserAfterRace) passes its own select
+      // shape through to Prisma — pin the exact where/select the CALLER
+      // requested, since a mocked findUnique's return value doesn't depend on
+      // its arguments and would silently pass even if the shape were wrong.
+      expect(mockPrisma.user.findUnique).toHaveBeenNthCalledWith(2, {
+        where: { discordId: '900000000000123456' },
+        select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
+      });
     });
 
     it('should throw error if user not found after P2002', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.$executeRaw.mockRejectedValueOnce({
+      const raceError = {
         code: 'P2002',
         meta: { target: ['discord_id'] },
-      });
+      };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce(raceError);
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await expect(userService.getOrCreateUser('900000000000123456', 'testuser')).rejects.toThrow(
-        'User not found after P2002 error'
-      );
+      const rejection = await userService
+        .getOrCreateUser('900000000000123456', 'testuser')
+        .catch((e: unknown) => e);
+
+      expect(rejection).toMatchObject({
+        message: expect.stringContaining('User not found after P2002 error'),
+      });
+      // The recovery-not-found error wraps the original P2002 as `cause` —
+      // losing that chain would make a still-thrown error harder to diagnose
+      // even though the outer message stays the same.
+      expect((rejection as { cause?: unknown }).cause).toBe(raceError);
     });
 
     it('should rethrow P2002 errors from unexpected targets (defense-in-depth)', async () => {
@@ -726,6 +763,20 @@ describe('UserService', () => {
       expect(result?.userId).toBe('existing-user-uuid');
     });
 
+    it('rethrows a P2002 whose meta.target is a plain string NOT equal to the constraint', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: 'some_other_column' },
+      });
+
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
+
     it('rethrows a P2002 carrying no meta.target when a target is required', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002', meta: {} });
@@ -746,6 +797,102 @@ describe('UserService', () => {
       ).rejects.toMatchObject({
         code: 'P1001',
       });
+    });
+
+    it('rethrows a literal null rejection untouched (the error === null guard)', async () => {
+      // The `error === null` check must come FIRST in the compound condition —
+      // `'code' in error` throws a TypeError on null, so if this term didn't
+      // short-circuit first the predicate itself would crash instead of
+      // cleanly returning false. Pin that the original null propagates,
+      // rather than a TypeError replacing it.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce(null);
+
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toBeNull();
+    });
+
+    it('rethrows a non-object primitive error untouched (the typeof guard)', async () => {
+      // A string rejection is not null and not an object — `'code' in error`
+      // would throw on a primitive if this term didn't short-circuit first.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce('boom-not-an-object');
+
+      await expect(userService.getOrCreateUser('900000000000123456', 'testuser')).rejects.toBe(
+        'boom-not-an-object'
+      );
+    });
+
+    it('rethrows an object error with no code property at all (the "code" in guard)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ message: 'no code here' });
+
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
+        message: 'no code here',
+      });
+    });
+
+    it('rethrows a P2002 whose meta is null', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002', meta: null });
+
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
+
+    it('rethrows a P2002 whose meta is a non-object primitive', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002', meta: 'not-an-object' });
+
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
+
+    it('rethrows a P2002 whose meta.target is neither an array nor a string', async () => {
+      // Reaches the final `return false` fallthrough — array and string are
+      // the only recognized shapes for meta.target.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002', meta: { target: 42 } });
+
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
+
+    it('isPrismaUniqueConstraintError treats "no target requested" as any-P2002 (unreachable via the public API)', () => {
+      // DEVIATION FROM SPEC: the only call site (createUserWithRaceProtection)
+      // always passes target='discord_id', so the `target === undefined`
+      // early-return branch is structurally unreachable through any public
+      // method today. Calling the private predicate directly is the only way
+      // to exercise it; flagged per the task's STOP/deviation contract rather
+      // than silently reaching for the private method.
+      const anyP2002 = { code: 'P2002' };
+      const nonP2002 = { code: 'P1001' };
+      const predicate = (
+        userService as unknown as {
+          isPrismaUniqueConstraintError: (e: unknown, target?: string) => boolean;
+        }
+      ).isPrismaUniqueConstraintError.bind(userService);
+
+      expect(predicate(anyP2002)).toBe(true);
+      // Strict `false` (not merely falsy) — the guard clauses' bodies are
+      // `{ return false; }`; both callers today only check truthiness, so a
+      // silently-emptied body (implicit `undefined`) is unobservable through
+      // the public getOrCreateUser path even though it is a real behavior
+      // change at the predicate's declared boolean contract.
+      expect(predicate(nonP2002)).toBe(false);
+      expect(predicate({ code: 'P2002', meta: null }, 'discord_id')).toBe(false);
     });
 
     it('should throw and log error on database error', async () => {
@@ -772,6 +919,15 @@ describe('UserService', () => {
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(call?.personaContent).toBe('My bio text');
+    });
+
+    it('defaults persona content to an empty string when no bio is provided', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await userService.getOrCreateUser('900000000000123456', 'testuser');
+
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.personaContent).toBe('');
     });
 
     it('should NOT call $executeRaw when user already has one', async () => {
@@ -802,6 +958,23 @@ describe('UserService', () => {
       expect(result).toBeNull();
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
       expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('returns null for a bot even with an otherwise-valid snowflake discordId', async () => {
+      // The isBot check above must be the one doing the work here — 'bot-123'
+      // in the existing "isBot is true" test is ALSO an invalid snowflake, so
+      // that test can't distinguish the isBot guard from the shape guard that
+      // follows it. A valid snowflake isolates the isBot branch specifically.
+      const result = await userService.getOrCreateUser(
+        '900000000000123456',
+        'test-bot',
+        undefined,
+        undefined,
+        true
+      );
+
+      expect(result).toBeNull();
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
 
     it('should create user normally when isBot is false', async () => {
@@ -896,6 +1069,108 @@ describe('UserService', () => {
       expect(result.has('900000000000000801')).toBe(true);
       expect(result.has('900000000000000802')).toBe(true);
       expect(result.has('bot1')).toBe(false);
+    });
+
+    it('excludes a bot even when it carries an otherwise-valid snowflake discordId', async () => {
+      // Isolates the `!u.isBot` half of the filter's `&&` — 'bot1' above is
+      // ALSO an invalid snowflake, so that test can't distinguish the isBot
+      // check from the shape check; a valid-snowflake bot can only be
+      // excluded by the isBot half doing its job.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      const users = [
+        { discordId: '900000000000000801', username: 'alice', isBot: false },
+        { discordId: '900000000000000809', username: 'validsnowflakebot', isBot: true },
+      ];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      expect(result.size).toBe(1);
+      expect(result.has('900000000000000801')).toBe(true);
+      expect(result.has('900000000000000809')).toBe(false);
+    });
+
+    it('calls getOrCreateUser only for users that survive the filter (not the invalid/bot entries)', async () => {
+      // A permissive filter and the internal getOrCreateUser guards can
+      // converge on the same final Map (both drop invalid/bot entries), so
+      // the result alone can't prove the outer filter ran. Assert the call
+      // count/args directly.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+      const spy = vi.spyOn(userService, 'getOrCreateUser');
+
+      const users = [
+        { discordId: '900000000000000801', username: 'alice', isBot: false },
+        { discordId: 'unknown', username: 'Unknown User', isBot: false },
+        { discordId: 'bot1', username: 'testbot', isBot: true },
+        { discordId: '900000000000000802', username: 'bob', isBot: false },
+      ];
+
+      await userService.getOrCreateUsersInBatch(users);
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls.map(c => c[0])).toEqual(['900000000000000801', '900000000000000802']);
+    });
+
+    it('drops a discordId from the result when getOrCreateUser resolves null for a filter-surviving entry', async () => {
+      // Every entry that reaches this point already passed the outer filter
+      // (!isBot && a valid snowflake), so getOrCreateUser returning null here
+      // is not reachable through its own internal guards — spy + override to
+      // force the branch and pin that the `?? null` fallback (not a throw)
+      // is what removes the entry from the map.
+      const spy = vi.spyOn(userService, 'getOrCreateUser').mockResolvedValueOnce(null);
+
+      const users = [{ discordId: '900000000000000801', username: 'alice', isBot: false }];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(result.size).toBe(0);
+      expect(result.has('900000000000000801')).toBe(false);
+    });
+
+    it('processes users in batches of BATCH_SIZE=10, never issuing more than 10 concurrent lookups', async () => {
+      let concurrent = 0;
+      let maxConcurrent = 0;
+      mockPrisma.user.findUnique.mockImplementation(async () => {
+        concurrent++;
+        maxConcurrent = Math.max(maxConcurrent, concurrent);
+        await Promise.resolve();
+        concurrent--;
+        return {
+          id: 'batched-user-id',
+          isSuperuser: false,
+          username: 'batcheduser',
+          defaultPersonaId: 'batched-persona-id',
+        };
+      });
+
+      // 15 valid, distinct snowflakes — more than one BATCH_SIZE, so the
+      // second batch only runs once the first Promise.all has settled.
+      const users = Array.from({ length: 15 }, (_, i) => ({
+        discordId: `9000000000001${String(i).padStart(4, '0')}`,
+        username: `user${i}`,
+        isBot: false,
+      }));
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      expect(result.size).toBe(15);
+      // Never more than BATCH_SIZE in flight at once (would be 15 if the
+      // slice() were replaced by the full array, or unbounded if the loop
+      // never chunked at all).
+      expect(maxConcurrent).toBeLessThanOrEqual(10);
+      // And genuinely batched in parallel within a chunk, not one at a time.
+      expect(maxConcurrent).toBeGreaterThan(1);
     });
 
     it('should filter out unknown user placeholder', async () => {
@@ -1061,6 +1336,19 @@ describe('UserService', () => {
 
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('buildShellPlaceholderPersonaName', () => {
+  it('prefixes the discordId with "User " (avoids the personas_name_not_snowflake CHECK)', () => {
+    expect(buildShellPlaceholderPersonaName('900000000000123456')).toBe('User 900000000000123456');
+  });
+
+  it('reflects the exact discordId passed, not a fixed literal', () => {
+    // Pins the template's use of the argument (not a hardcoded string) —
+    // a mutant collapsing the template to a fixed literal would still pass a
+    // single-fixture assertion.
+    expect(buildShellPlaceholderPersonaName('111111111111111111')).toBe('User 111111111111111111');
   });
 });
 
