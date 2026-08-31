@@ -203,4 +203,34 @@ describe('propagateDeletionToFacts', () => {
     expect(mockError).toHaveBeenCalledTimes(1);
     expect(mockError.mock.calls[0][0]).toMatchObject({ err: expect.any(Error) });
   });
+
+  describe('SQL shape', () => {
+    it("the fact cascade's predicate honors the curation carve-outs", async () => {
+      // These carve-outs are the documented contract — user curation outranks
+      // the cascade — and they are invisible in the return value.
+      const { prisma, $executeRaw } = makePrisma();
+
+      await propagateDeletionToFacts(prisma);
+
+      const [sql] = $executeRaw.mock.calls[0] as unknown[];
+      const sqlText = Array.isArray(sql) ? sql.join('?') : String(sql);
+
+      expect(sqlText).toContain('memory_facts');
+      expect(sqlText).toContain('is_locked = false');
+      expect(sqlText).toContain("tier <> 'corrected'");
+      expect(sqlText).toContain('source_memory_ids');
+    });
+
+    it('the curation-retained count uses the locked-or-corrected predicate', async () => {
+      const { prisma, $queryRaw } = makePrisma({ factsRetired: 3 });
+
+      await propagateDeletionToFacts(prisma);
+
+      const [sql] = $queryRaw.mock.calls[0] as unknown[];
+      const sqlText = Array.isArray(sql) ? sql.join('?') : String(sql);
+
+      expect(sqlText).toContain('COUNT(*)');
+      expect(sqlText).toContain("is_locked = true OR tier = 'corrected'");
+    });
+  });
 });

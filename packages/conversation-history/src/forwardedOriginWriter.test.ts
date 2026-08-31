@@ -8,6 +8,27 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Hoisted so the miss/failure log lines below can be asserted on — both
+// branches otherwise resolve to a distinct return value, but the log CALL
+// itself (or its absence) is a separate property from that return value.
+const { mockLoggerDebug, mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerDebug: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: mockLoggerDebug,
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn(),
+    }),
+  };
+});
+
 import { mergeForwardedOrigin } from './forwardedOriginWriter.js';
 import type { RawCapableConversationHistoryClient } from './ConversationMessageMapper.js';
 
@@ -36,6 +57,11 @@ const ORIGIN = {
 describe('mergeForwardedOrigin', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Plain vi.fn() mocks (not vi.spyOn) are not reset by restoreAllMocks —
+    // clear their call history explicitly so a prior test's log calls don't
+    // leak into this one's assertions.
+    mockLoggerDebug.mockClear();
+    mockLoggerWarn.mockClear();
   });
 
   it('reports success when a row was updated', async () => {
@@ -117,5 +143,37 @@ describe('mergeForwardedOrigin', () => {
 
     expect(patch).toBeDefined();
     expect(JSON.parse(patch ?? '{}')).toEqual({ forwardedFrom: ORIGIN });
+  });
+
+  it('logs the miss when no row matched', async () => {
+    const executeRaw = rawMock(0);
+
+    await mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN);
+
+    expect(mockLoggerDebug).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'row-uuid' }),
+      'No row matched the forwarded-origin backfill'
+    );
+  });
+
+  it('does not log a miss when the row was updated', async () => {
+    const executeRaw = rawMock(1);
+
+    await mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN);
+
+    expect(mockLoggerDebug).not.toHaveBeenCalled();
+  });
+
+  it('tags its merge failures with its own operation name', async () => {
+    // The operation tag is the only thing distinguishing this writer's
+    // failures from the other writer of the same message_metadata column.
+    const executeRaw = rawMock(new Error('connection reset'));
+
+    await mergeForwardedOrigin(createClient(executeRaw), 'row-uuid', ORIGIN);
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'forwarded-origin-backfill' }),
+      'Metadata merge failed'
+    );
   });
 });
