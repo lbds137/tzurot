@@ -99,9 +99,19 @@ TRANCHE 2 SLICE LOG.
 
   slice                 file score      package    PR     residue
   1 UserService.ts      72.49 -> 89.96  78.97 -> 83.35  #2282  6 noise, 8 equivalent, 2 need src
-  2 PersonalityLoader.ts  (47 survivors)   —            —      —
-  3 PersonaResolver.ts    (29 survivors)   —            —      —
-  4 the remaining five    (53 survivors)   —            —      —
+  2 PersonalityLoader.ts  80.74 -> 97.13  83.35 -> 87.73  #2283  1 noise, 4 equivalent, 2 need src
+  3 PersonaResolver.ts    83.80 -> 98.32  (see note)     #2284  1 noise, 2 equivalent, 0 need src
+  4 the remaining five    (44 survivors + 9 no-coverage)  —      —
+
+Slice 3 measured its package number at the pre-slice-2 base (86.20) because the two ran in parallel off the same develop SHA. Do not read 87.73 and 86.20 as a regression — they are two different trees. Re-measure the package once both are on develop rather than adding them.
+
+METHOD THAT SETTLED IN SLICES 2-3, worth reusing in 4. Predict every survivor disposition BEFORE running Stryker, then run it: the re-run applies all mutants and reports each fate, so it is an exhaustive canary rather than a hand-applied sample. Both slices matched their prediction exactly by mutant id, which is also what makes a mismatch a real finding instead of noise.
+
+TWO KILL MECHANISMS THAT KEEP RECURRING, both invisible to a return-value assertion. (a) Mutants inside Prisma where/select object literals: the mocked client returns the same row whether the caller forwarded the right query or dropped it, so the kill needs a call-argument assertion. (b) Mutants under a try/catch that returns the same value the correct path returns — BaseConfigResolver.ts:161 and getPersonaForPrompt both swallow the mutant throw into an identical return, leaving the error log as the only observable. Slice 3 lost four kills to a spec that assumed (b) was return-value testable.
+
+SLICE 4 IS TWO UNITS, NOT ONE. PersonalityValidator (14 survivors over 6 lines) and BaseConfigResolver (12) are dense assertion work; PersonalityService carries 7 survivors plus 8 NO-COVERAGE mutants, which is a different job — no weak assertion to strengthen, a path nothing executes. One spec covering both is the shape that produced this epochs worst omissions.
+
+THE SEAM PR NOW OWNS THREE SURVIVORS, not two. Slice 2 added PersonalityLoader.ts:86's `|| ownerUuid === ''`, which is dead code on evidence rather than suspicion: buildAccessFilter has exactly one call site (line 245), fed only by accessUuid, whose only producers (lines 121, 130, 147, 150) yield undefined, PUBLIC_ONLY_SENTINEL, or a database user.id. The killing edit is deleting that clause.
 
 Slice 1 notes worth carrying into 2-4. Two mutants are dispositioned NEEDS A SOURCE CHANGE and stayed unkilled deliberately: USER_CACHE_TTL_MS arithmetic and the TTLCache options literal. TTLCache accepts a `now` override built for exactly this kind of test, but UserService never threads one through its constructor call, so verifying the real TTL would need an hour wait or private-field access. If later slices accumulate more of these, a small injection-seam PR is the honest way to close them — as one deliberate source change with its own review, never smuggled into a tests-only slice.
 
