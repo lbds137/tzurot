@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   parseMessageMetadata,
   mapToConversationMessage,
@@ -9,7 +9,10 @@ import {
 } from './ConversationMessageMapper.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 
-// Suppress logger warnings in tests (createLogger now comes from the barrel)
+// Hoisted so the malformed-metadata test below can assert on it — the two
+// null/undefined guards and the schema-rejection branch all return
+// `undefined`, so only the log line (or its absence) distinguishes them.
+const { mockLoggerWarn } = vi.hoisted(() => ({ mockLoggerWarn: vi.fn() }));
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
@@ -17,11 +20,16 @@ vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: mockLoggerWarn,
       error: vi.fn(),
     }),
   };
 });
+
+beforeEach(() => {
+  mockLoggerWarn.mockClear();
+});
+
 describe('ConversationMessageMapper', () => {
   describe('conversationHistorySelect', () => {
     it('includes all required fields', () => {
@@ -468,5 +476,25 @@ describe('buildChannelHistoryWhere', () => {
       NOT: { discordMessageId: { has: 'discord-1' } },
       personalityId: 'persona-a',
     });
+  });
+});
+
+describe('parseMessageMetadata — SQL NULL vs malformed value (log-only distinction)', () => {
+  it('does not warn on a SQL NULL — that is not a validation failure', () => {
+    expect(parseMessageMetadata(null)).toBeUndefined();
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+  });
+
+  it('does not warn on an absent column — that is not a validation failure', () => {
+    expect(parseMessageMetadata(undefined)).toBeUndefined();
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+  });
+
+  it('warns on a malformed stored blob that fails schema validation', () => {
+    // A bare number can never satisfy the object schema, so this reliably
+    // takes the failure branch regardless of what fields it checks.
+    expect(parseMessageMetadata(42)).toBeUndefined();
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn.mock.calls[0][1]).toContain('Invalid messageMetadata');
   });
 });

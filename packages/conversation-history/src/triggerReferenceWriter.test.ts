@@ -12,6 +12,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+
+// Hoisted so the log-only distinctions below (which message, and whether the
+// merge failure gets a SECOND warn on top of the one messageMetadataMerge
+// already emits) can be asserted on directly.
+const { mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+  mockLoggerDebug: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: mockLoggerDebug,
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn(),
+    }),
+  };
+});
+
 import { findTriggerMessage, writeTriggerReferences } from './triggerReferenceWriter.js';
 import {
   type ConversationHistoryClient,
@@ -114,6 +135,8 @@ describe('writeTriggerReferences', () => {
     }) satisfies StoredReferencedMessage;
 
   beforeEach(() => {
+    mockLoggerWarn.mockClear();
+    mockLoggerDebug.mockClear();
     findFirst = vi.fn().mockResolvedValue({ id: 'row-1' });
     executeRaw = vi.fn().mockResolvedValue(1);
     prisma = {
@@ -183,5 +206,58 @@ describe('writeTriggerReferences', () => {
     executeRaw.mockRejectedValue(new Error('update failed'));
 
     await expect(writeTriggerReferences(prisma, SCOPE, [storedRef()])).resolves.toBe(0);
+  });
+
+  it('warns with its own message when no trigger row exists', async () => {
+    findFirst.mockResolvedValue(null);
+
+    await writeTriggerReferences(prisma, SCOPE, [storedRef()]);
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.anything(),
+      'No user message found to store built references on'
+    );
+    expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'Failed to store built references'
+    );
+  });
+
+  it('warns when the row vanished between the lookup and the merge', async () => {
+    findFirst.mockResolvedValue({ id: 'row-1' });
+    executeRaw.mockResolvedValue(0);
+
+    await writeTriggerReferences(prisma, SCOPE, [storedRef()]);
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: 'row-1' }),
+      'Trigger row vanished before the reference merge'
+    );
+  });
+
+  it('stays silent about a vanished row when the merge failed on a DB error', async () => {
+    // `failed` is deliberately silent here — the merge already warned with the
+    // error attached, and repeating it turns one database problem into two
+    // warn events.
+    findFirst.mockResolvedValue({ id: 'row-1' });
+    executeRaw.mockRejectedValue(new Error('update failed'));
+
+    await writeTriggerReferences(prisma, SCOPE, [storedRef()]);
+
+    expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'Trigger row vanished before the reference merge'
+    );
+  });
+
+  it('tags its merge failures with the trigger-references operation', async () => {
+    executeRaw.mockRejectedValue(new Error('update failed'));
+
+    await writeTriggerReferences(prisma, SCOPE, [storedRef()]);
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'trigger-references' }),
+      'Metadata merge failed'
+    );
   });
 });
