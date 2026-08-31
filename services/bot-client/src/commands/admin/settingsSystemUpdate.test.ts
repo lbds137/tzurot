@@ -36,12 +36,19 @@ function makeSession(): SettingsDashboardSession {
     entityId: 'global',
     entityName: 'Global Settings',
     data: {
-      maxMessages: { localValue: 50, hasLocalOverride: true, effectiveValue: 50, source: 'admin' },
+      maxMessages: {
+        localValue: 50,
+        hasLocalOverride: true,
+        effectiveValue: 50,
+        source: 'admin',
+        parentValue: 50,
+      },
       extractionEnabled: {
         localValue: true,
         hasLocalOverride: true,
         effectiveValue: true,
         source: 'admin',
+        parentValue: true,
       },
     },
     view: 'setting' as never,

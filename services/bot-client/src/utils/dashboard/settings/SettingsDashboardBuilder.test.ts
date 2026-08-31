@@ -56,60 +56,70 @@ const createTestSession = (
       hasLocalOverride: false,
       effectiveValue: 50,
       source: 'admin',
+      parentValue: 50,
     },
     maxAge: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 7200,
       source: 'admin',
+      parentValue: 7200,
     },
     maxImages: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 10,
       source: 'admin',
+      parentValue: 10,
     },
     crossChannelHistoryEnabled: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
+      parentValue: false,
     },
     shareLtmAcrossPersonalities: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
+      parentValue: false,
     },
     memoryScoreThreshold: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 0.5,
       source: 'hardcoded',
+      parentValue: 0.5,
     },
     memoryLimit: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 20,
       source: 'hardcoded',
+      parentValue: 20,
     },
     showModelFooter: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: true,
       source: 'hardcoded',
+      parentValue: true,
     },
     voiceResponseMode: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 'always',
       source: 'hardcoded',
+      parentValue: 'always',
     },
     voiceTranscriptionEnabled: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: true,
       source: 'hardcoded',
+      parentValue: true,
     },
     ...dataOverrides,
   },
@@ -169,6 +179,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: true,
           effectiveValue: 25,
           source: 'channel',
+          parentValue: 50,
         },
       });
 
@@ -198,6 +209,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: 75,
           source: 'admin',
+          parentValue: 75,
         },
       });
 
@@ -216,6 +228,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: 60,
           source: 'personality',
+          parentValue: 60,
         },
       });
 
@@ -236,6 +249,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: 40,
           source: 'channel',
+          parentValue: 40,
         },
       });
 
@@ -254,6 +268,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: 30,
           source: 'user-default',
+          parentValue: 30,
         },
       });
 
@@ -272,6 +287,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: 25,
           source: 'user-personality',
+          parentValue: 25,
         },
       });
 
@@ -290,6 +306,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: 50,
           source: 'hardcoded',
+          parentValue: 50,
         },
       });
 
@@ -303,7 +320,13 @@ describe('SettingsDashboardBuilder', () => {
     it('should format duration values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxAge: { localValue: 7200, hasLocalOverride: true, effectiveValue: 7200, source: 'admin' },
+        maxAge: {
+          localValue: 7200,
+          hasLocalOverride: true,
+          effectiveValue: 7200,
+          source: 'admin',
+          parentValue: 7200,
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -321,6 +344,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: false,
           effectiveValue: null,
           source: 'admin',
+          parentValue: null,
         },
       });
 
@@ -363,6 +387,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: true,
           effectiveValue: 30,
           source: 'channel',
+          parentValue: 50,
         },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
@@ -382,6 +407,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: true,
           effectiveValue: 30,
           source: 'channel',
+          parentValue: 50,
         },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
@@ -415,6 +441,31 @@ describe('SettingsDashboardBuilder', () => {
 
       expect(helpField).toBeDefined();
       expect(helpField?.value).toBeTruthy();
+    });
+
+    it('Parent Value renders the PARENT, not the effective value (owner-reported regression)', () => {
+      // Owner repro (TASK-839): admin default Max Age = 30 days, user sets
+      // override "Off" -> the drill-down must show the admin's 30 days as
+      // Parent Value, never the user's own effective OFF.
+      const config = createTestConfig();
+      const THIRTY_DAYS_SECONDS = 2592000;
+      const session = createTestSession({
+        maxAge: {
+          localValue: null,
+          hasLocalOverride: true,
+          effectiveValue: null,
+          source: 'user-default',
+          parentValue: THIRTY_DAYS_SECONDS,
+        },
+      });
+      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxAge (DURATION)
+
+      const embed = buildSettingEmbed(config, session, setting);
+      const fields = getEmbedFields(embed);
+      const parentValueField = fields.find(f => f.name === 'Parent Value');
+
+      expect(parentValueField?.value).toBe('30 days');
+      expect(parentValueField?.value).not.toBe('Off');
     });
   });
 
@@ -460,6 +511,7 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: true,
           effectiveValue: 30,
           source: 'channel',
+          parentValue: 50,
         },
       });
 
@@ -659,12 +711,14 @@ describe('SettingsDashboardBuilder', () => {
           hasLocalOverride: true,
           effectiveValue: true,
           source: 'admin',
+          parentValue: true,
         },
         sysModel: {
           localValue: 'openrouter/auto',
           hasLocalOverride: true,
           effectiveValue: 'openrouter/auto',
           source: 'admin',
+          parentValue: 'openrouter/auto',
         },
       },
     });
@@ -732,7 +786,13 @@ describe('SettingsDashboardBuilder', () => {
         data: Object.fromEntries(
           manySettings.map(s => [
             s.id,
-            { localValue: null, hasLocalOverride: false, effectiveValue: 1, source: 'hardcoded' },
+            {
+              localValue: null,
+              hasLocalOverride: false,
+              effectiveValue: 1,
+              source: 'hardcoded',
+              parentValue: 1,
+            },
           ])
         ),
       };
@@ -773,13 +833,26 @@ describe('SettingsDashboardBuilder', () => {
     };
     const plainData = (): SettingsData => ({
       ...createTestSession().data,
-      sysThreshold: { localValue: 6, hasLocalOverride: true, effectiveValue: 6, source: 'admin' },
-      sysFlag: { localValue: true, hasLocalOverride: true, effectiveValue: true, source: 'admin' },
+      sysThreshold: {
+        localValue: 6,
+        hasLocalOverride: true,
+        effectiveValue: 6,
+        source: 'admin',
+        parentValue: 6,
+      },
+      sysFlag: {
+        localValue: true,
+        hasLocalOverride: true,
+        effectiveValue: true,
+        source: 'admin',
+        parentValue: true,
+      },
       sysProvider: {
         localValue: 'openrouter',
         hasLocalOverride: true,
         effectiveValue: 'openrouter',
         source: 'admin',
+        parentValue: 'openrouter',
       },
     });
     const config = (): SettingsDashboardConfig => ({

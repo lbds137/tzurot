@@ -693,6 +693,19 @@ describe('GenerationStep', () => {
           voiceTranscriptionEnabled: 'hardcoded' as const,
           shareHistoryAcrossPersonalities: 'hardcoded' as const,
         },
+        parentValues: {
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 10,
+          memoryScoreThreshold: 0.5,
+          memoryLimit: 20,
+          crossChannelHistoryEnabled: false,
+          shareLtmAcrossPersonalities: false,
+          showModelFooter: true,
+          voiceResponseMode: 'always',
+          voiceTranscriptionEnabled: true,
+          shareHistoryAcrossPersonalities: 'always',
+        },
       };
 
       it('should propagate showModelFooter=false in success metadata', async () => {

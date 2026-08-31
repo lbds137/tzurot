@@ -25,7 +25,7 @@ function buildDefaultOverrides(): ResolvedConfigOverrides {
   for (const field of fields) {
     sources[field] = 'hardcoded';
   }
-  return { ...HARDCODED_CONFIG_DEFAULTS, sources };
+  return { ...HARDCODED_CONFIG_DEFAULTS, sources, parentValues: { ...HARDCODED_CONFIG_DEFAULTS } };
 }
 
 export class ConfigStep implements IPipelineStep {

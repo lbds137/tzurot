@@ -49,60 +49,70 @@ const createTestSession = (
       hasLocalOverride: false,
       effectiveValue: 50,
       source: 'admin',
+      parentValue: 50,
     },
     maxAge: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 7200,
       source: 'admin',
+      parentValue: 7200,
     },
     maxImages: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 10,
       source: 'admin',
+      parentValue: 10,
     },
     crossChannelHistoryEnabled: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
+      parentValue: false,
     },
     shareLtmAcrossPersonalities: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
+      parentValue: false,
     },
     memoryScoreThreshold: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 0.5,
       source: 'hardcoded',
+      parentValue: 0.5,
     },
     memoryLimit: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 20,
       source: 'hardcoded',
+      parentValue: 20,
     },
     showModelFooter: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: true,
       source: 'hardcoded',
+      parentValue: true,
     },
     voiceResponseMode: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: 'always',
       source: 'hardcoded',
+      parentValue: 'always',
     },
     voiceTranscriptionEnabled: {
       localValue: null,
       hasLocalOverride: false,
       effectiveValue: true,
       source: 'hardcoded',
+      parentValue: true,
     },
     ...dataOverrides,
   },
@@ -140,6 +150,7 @@ describe('settingsButtonBuilders', () => {
         hasLocalOverride: localValue !== null,
         effectiveValue,
         source,
+        parentValue: effectiveValue,
       };
       return session;
     };
@@ -231,6 +242,7 @@ describe('settingsButtonBuilders', () => {
           hasLocalOverride: localValue !== null,
           effectiveValue,
           source,
+          parentValue: effectiveValue,
         },
       });
     };
@@ -358,6 +370,7 @@ describe('settingsButtonBuilders', () => {
           hasLocalOverride: false,
           effectiveValue: 50,
           source: 'admin',
+          parentValue: 50,
         },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
@@ -376,6 +389,7 @@ describe('settingsButtonBuilders', () => {
           hasLocalOverride: true,
           effectiveValue: 25,
           source: 'channel',
+          parentValue: 50,
         },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
@@ -405,6 +419,7 @@ describe('settingsButtonBuilders', () => {
           hasLocalOverride: true,
           effectiveValue: null,
           source: 'channel',
+          parentValue: 7200,
         },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS.find(s => s.id === 'maxAge');

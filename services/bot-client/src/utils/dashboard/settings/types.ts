@@ -97,6 +97,8 @@ export interface SettingValue<T = unknown> {
   effectiveValue: T;
   /** Where the effective value came from */
   source: SettingSource;
+  /** What this field would resolve to if THIS tier's override were removed. */
+  parentValue: T;
 }
 
 /**

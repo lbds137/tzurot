@@ -613,6 +613,44 @@ describe('ConfigCascadeResolver', () => {
     });
   });
 
+  describe('parentValues (what the field resolves to with the winning tier removed)', () => {
+    it('defaults to the hardcoded value when no tier sets the field', async () => {
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.parentValues.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+    });
+
+    it('is the hardcoded default when exactly one tier sets the field', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75 },
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.maxMessages).toBe(75);
+      expect(result.sources.maxMessages).toBe('admin');
+      expect(result.parentValues.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+    });
+
+    it('is the admin value when admin AND user-default both set the field', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75 },
+      });
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-id',
+        configDefaults: { maxMessages: 60 },
+        personalityConfigs: [],
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      // Effective = user-default value; parent = the value one tier down (admin's).
+      expect(result.maxMessages).toBe(60);
+      expect(result.sources.maxMessages).toBe('user-default');
+      expect(result.parentValues.maxMessages).toBe(75);
+    });
+  });
+
   describe('personality tier load failure', () => {
     it('logs a warning and degrades to hardcoded defaults when the personality query throws', async () => {
       mockPrisma.personality.findUnique.mockRejectedValue(new Error('boom'));
