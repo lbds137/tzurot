@@ -34,10 +34,13 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 _beta.212 CUT 2026-08-31 ~19:20Z (10 PRs / 8 runtime / 120 files; tag `latest`; finalize done; Parent Value smoke-verified pre-cut). Its shipped list lives in the release notes — not re-enumerated here._
 
-- **Driver (owner call 2026-08-31)**: **Opus main loop** — budget balancing after a heavy Fable day. The plan is deliberately Opus-shaped: every candidate below is fully fix-shaped with no open design; per the orchestration mode table, substantive units go nested-dispatch, mechanical units single-hop Sonnet, review-round fixes are dispatch work under any driver.
-- **Theme candidates (owner to confirm at planning)**: **TASK-789 impl** (the council-decided error-classification hoists — two specimen anchors in `detectSpecialCases`, negative tests enumerated on the task; size:S) · **TASK-843** (subscribe stale-callback fix, fix shape + proven-red acceptance on the task; size:S) · **identity mutation tranche 2** (192 survivors at 78.97 — the exact pattern four packages just proved out, then raise its floor via the sanctioned path) · **drain batches** (doc-7: 3–5 same-area size:S per PR).
-- **In already**: (empty at cut time)
-- **Waiting on**: the beta.213 planning session (post-compaction, owner + agent).
+- **Driver (owner call 2026-08-31)**: **Opus main loop** — budget balancing after a heavy Fable day. The plan is deliberately Opus-shaped: every unit below is fully fix-shaped with no open design; per the orchestration mode table, substantive units go nested-dispatch, mechanical units single-hop Sonnet, review-round fixes are dispatch work under any driver.
+- **In (RATIFIED by owner at the 2026-08-31 planning session — work in this order)**:
+  1. **TASK-789 clause 2** — the council-decided error-classification hoists (two specimen anchors in `detectSpecialCases`; the panel's three implementation verifications + negative tests are enumerated on the task; size:S). Semantic-adjacent → **nested dispatch**.
+  2. **TASK-843** — subscribe stale-callback fix (one file + colocated test, proven-red acceptance on the task; size:S). Mechanical → **single-hop Sonnet**.
+  3. **Identity mutation tranche 2 + floor raise** — 192 survivors at 78.97; apply the tranche-1 pattern (proven-red kills, full survivor disposition per TASK-816's tranche record), likely 1–2 test PRs, then the sanctioned `mutation:update-baseline` raise (fresh reports for all five at raise time; ~7 min total). Continues the binding rising-quality-target decision.
+  4. **Drain batches ×2** — doc-7 Phase 1: **preset/config (~9 rows)** then **tooling (~7 rows)**, each preceded by the hand-read confirmation pass (jobs/queue precedent — the regex table overcounts). browse/UI stays parked for the UX epic.
+- **Waiting on**: nothing — plan ratified; the Opus session starts at unit 1.
 - **Data-dictated riders**: TASK-791 fix half (wakes on the first prod `empty_response` window) · whatever the prod watchers surface (restart recovery, guest 429 floor, GLM rescue, #2270's first link-share render).
 - **Explicitly NOT in (driver-shaped exclusions)**: doc-87 (deny naming — design/taste, needs owner + a planning pass) · TASK-844 (owner semantics call pending; includes the no-personality 2-tier path) · doc-86 (Phase-0 calls are the owner's) · memory overhaul (doc-8, parked) · TASK-730 (owner call pending).
 - **Deploy notes (carried owner actions)**: none pending.
