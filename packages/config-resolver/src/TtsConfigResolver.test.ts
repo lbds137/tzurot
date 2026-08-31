@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TtsConfigResolver } from './TtsConfigResolver.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { TTS_CONFIG_SELECT_WITH_NAME } from '@tzurot/common-types/services/TtsConfigMapper';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 
 // Hoisted logger spies so tests can assert severity (the WARN→ERROR upgrade
 // for personality-default lookup failures is a behavioral contract worth pinning).
@@ -399,6 +401,107 @@ describe('TtsConfigResolver', () => {
 
       expect(await resolver.getFreeDefaultConfig()).toBeNull();
       expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('strict query shapes (mutation-kill: select payloads)', () => {
+    it('queries the user row with the exact select shape, including TTS_CONFIG_SELECT_WITH_NAME', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: { discordId: 'discord-1' },
+        select: {
+          id: true,
+          defaultTtsConfigId: true,
+          defaultTtsConfig: { select: TTS_CONFIG_SELECT_WITH_NAME },
+        },
+      });
+    });
+
+    it('queries the per-personality override with the exact where + select shape', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultTtsConfigId: null,
+        defaultTtsConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'internal-x', personalityId: 'p-uuid-123', ttsConfigId: { not: null } },
+        select: { ttsConfig: { select: TTS_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+
+    it('queries the personality-default tier with the exact where + select shape', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultTtsConfigId: null,
+        defaultTtsConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.personalityDefaultTtsConfig.findUnique).toHaveBeenCalledWith({
+        where: { personalityId: 'p-uuid-123' },
+        select: { ttsConfig: { select: TTS_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+
+    it('queries adminSettings for the free default with the exact where + select shape', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.getFreeDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultTtsConfig: { select: TTS_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+  });
+
+  describe('positive cache-hit payload integrity', () => {
+    it('the second getFreeDefaultConfig call still carries the real provider/modelId from the cached entry', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultTtsConfig: {
+          name: 'cache-hit-config',
+          provider: 'mistral',
+          modelId: 'voxtral-mini-tts-2603',
+          advancedParameters: null,
+          isGlobal: true,
+        },
+      });
+
+      await resolver.getFreeDefaultConfig();
+      const second = await resolver.getFreeDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(second?.provider).toBe('mistral');
+      expect(second?.modelId).toBe('voxtral-mini-tts-2603');
+    });
+  });
+
+  describe('getFreeDefaultConfig error handling', () => {
+    it('resolves null and logs the failure when adminSettings.findUnique throws', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockRejectedValue(new Error('db down'));
+
+      await expect(resolver.getFreeDefaultConfig()).resolves.toBeNull();
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to get free default TTS config'
+      );
     });
   });
 });

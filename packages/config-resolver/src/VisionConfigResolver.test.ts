@@ -6,6 +6,8 @@ import {
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { LLM_CONFIG_SELECT_WITH_NAME } from '@tzurot/common-types/services/LlmConfigMapper';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 
 // Hoisted logger spies so tests can assert the WARN→ERROR upgrade for a failed
 // personality-default lookup (a behavioral contract, mirroring TtsConfigResolver).
@@ -526,6 +528,180 @@ describe('VisionConfigResolver', () => {
       await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
 
       expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('strict query shapes (mutation-kill: select payloads)', () => {
+    it('queries the user row with the exact select shape, including LLM_CONFIG_SELECT_WITH_NAME', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: { discordId: 'discord-1' },
+        select: {
+          id: true,
+          defaultVisionConfigId: true,
+          defaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
+        },
+      });
+    });
+
+    it('queries the per-personality override with the exact where + select shape', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'internal-x', personalityId: 'p-uuid-123', visionConfigId: { not: null } },
+        select: { visionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+
+    it('queries the personality-vision-default tier with the exact where + select shape', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.personalityVisionDefaultConfig.findUnique).toHaveBeenCalledWith({
+        where: { personalityId: 'p-uuid-123' },
+        select: { llmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+
+    it('queries adminSettings for the global default with the exact where + select shape', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.getGlobalDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { globalDefaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+
+    it('queries adminSettings for the free default with the exact where + select shape', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.getFreeDefaultVisionConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+  });
+
+  describe('resolved-config source label (mutation-kill: string literals)', () => {
+    it('getGlobalDefaultConfig tags its result with source "personality" exactly', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        globalDefaultVisionConfig: visionRow({
+          model: 'global-vision-default',
+          name: 'global-vision',
+        }),
+      });
+
+      const result = await resolver.getGlobalDefaultConfig();
+
+      expect(result?.source).toBe('personality');
+    });
+
+    it('getFreeDefaultVisionConfig tags its result with source "personality" exactly', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultVisionConfig: visionRow({ model: 'free-vision-default', name: 'free-vision' }),
+      });
+
+      const result = await resolver.getFreeDefaultVisionConfig();
+
+      expect(result?.source).toBe('personality');
+    });
+  });
+
+  describe('positive cache-hit payload integrity', () => {
+    it('the second getGlobalDefaultConfig call still carries the real model from the cached entry', async () => {
+      const fresh = new VisionConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 60_000,
+        enableCleanup: false,
+        now: () => Date.now(),
+      });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        globalDefaultVisionConfig: visionRow({ model: 'cache-hit-global', name: 'global-vision' }),
+      });
+
+      await fresh.getGlobalDefaultConfig();
+      const second = await fresh.getGlobalDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(second?.model).toBe('cache-hit-global');
+    });
+
+    it('the second getFreeDefaultVisionConfig call still carries the real model from the cached entry', async () => {
+      const fresh = new VisionConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 60_000,
+        enableCleanup: false,
+        now: () => Date.now(),
+      });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultVisionConfig: visionRow({ model: 'cache-hit-free', name: 'free-vision' }),
+      });
+
+      await fresh.getFreeDefaultVisionConfig();
+      const second = await fresh.getFreeDefaultVisionConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(second?.model).toBe('cache-hit-free');
+    });
+  });
+
+  describe('error handling (no-coverage catch blocks)', () => {
+    it('getGlobalDefaultConfig resolves null and logs when adminSettings.findUnique throws', async () => {
+      const fresh = new VisionConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 60_000,
+        enableCleanup: false,
+        now: () => Date.now(),
+      });
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockRejectedValue(new Error('db down'));
+
+      await expect(fresh.getGlobalDefaultConfig()).resolves.toBeNull();
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to get global vision default config'
+      );
+    });
+
+    it('getFreeDefaultVisionConfig resolves null and logs when adminSettings.findUnique throws', async () => {
+      const fresh = new VisionConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 60_000,
+        enableCleanup: false,
+        now: () => Date.now(),
+      });
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockRejectedValue(new Error('db down'));
+
+      await expect(fresh.getFreeDefaultVisionConfig()).resolves.toBeNull();
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to get free vision default config'
+      );
     });
   });
 });
