@@ -11,16 +11,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { TtsConfigCacheInvalidationService } from './TtsConfigCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 describe('TtsConfigCacheInvalidationService', () => {
@@ -68,6 +68,20 @@ describe('TtsConfigCacheInvalidationService', () => {
     await service.invalidateAll();
     const [, body] = publish.mock.calls[0];
     expect(JSON.parse(body)).toEqual({ type: 'all' });
+  });
+
+  // Pins the service's declared diagnostic contract (getLogContext/getEventDescription),
+  // which is otherwise only exercised through log output.
+  it('carries the service log context into the published log line', async () => {
+    const { service } = makeService();
+    mockLogger.info.mockClear();
+
+    await service.invalidateUserTtsConfig('discord-1');
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ discordId: 'discord-1', description: 'TTS user discord-1' }),
+      expect.any(String)
+    );
   });
 
   describe('subscribe dispatch (wire-contract validation)', () => {

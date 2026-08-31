@@ -6,10 +6,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   CacheInvalidationService,
+  isValidInvalidationEvent,
   type PersonalityCacheTarget,
 } from './CacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
 
 describe('CacheInvalidationService', () => {
   let mockRedis: Redis;
@@ -60,6 +73,36 @@ describe('CacheInvalidationService', () => {
     vi.restoreAllMocks();
   });
 
+  // The message-handler path wraps guard evaluation in a try/catch that logs
+  // and swallows any TypeError the guard itself might throw — so a mutant
+  // that breaks the guard's null/branch handling still passes through that
+  // handler undetected. Assert the guard directly instead.
+  describe('isValidInvalidationEvent', () => {
+    it('rejects null without throwing', () => {
+      expect(isValidInvalidationEvent(null)).toBe(false);
+    });
+
+    it('rejects an unknown event type that otherwise looks like a personality event', () => {
+      expect(isValidInvalidationEvent({ type: 'unknown', personalityId: 'p-1' })).toBe(false);
+    });
+
+    it('accepts a well-formed all event', () => {
+      expect(isValidInvalidationEvent({ type: 'all' })).toBe(true);
+    });
+
+    it('accepts a well-formed personality event', () => {
+      expect(isValidInvalidationEvent({ type: 'personality', personalityId: 'p-1' })).toBe(true);
+    });
+
+    it('rejects a callable whose own properties look like a valid event', () => {
+      // typeof a function is 'function', not 'object' — the guard rejects it on
+      // the typeof arm alone, which the null check cannot cover.
+      const callable = Object.assign(() => undefined, { type: 'all' });
+
+      expect(isValidInvalidationEvent(callable)).toBe(false);
+    });
+  });
+
   describe('subscribe', () => {
     it('should create duplicate Redis connection and subscribe to channel', async () => {
       await service.subscribe();
@@ -105,6 +148,16 @@ describe('CacheInvalidationService', () => {
       await service.subscribe();
       expect(mockRedis.duplicate).toHaveBeenCalledTimes(1); // Still 1, not 2
     });
+
+    it('propagates the original error when creating the duplicate connection fails', async () => {
+      vi.mocked(mockRedis.duplicate).mockImplementation(() => {
+        throw new Error('Duplicate failed');
+      });
+
+      // The cleanup guard must not run when no subscriber was ever assigned —
+      // dereferencing the null subscriber would mask this error with a TypeError.
+      await expect(service.subscribe()).rejects.toThrow('Duplicate failed');
+    });
   });
 
   describe('publish', () => {
@@ -135,6 +188,24 @@ describe('CacheInvalidationService', () => {
 
       const event = { type: 'all' as const };
       await expect(service.publish(event)).rejects.toThrow('Publish failed');
+    });
+
+    it('logs the ALL-personalities publish without a per-personality context object', async () => {
+      mockLogger.info.mockClear();
+
+      await service.publish({ type: 'all' });
+
+      expect(mockLogger.info).toHaveBeenCalledTimes(1);
+      // The 'all' arm logs a bare message; the personality arm prepends a context object.
+      expect(mockLogger.info.mock.calls[0]).toHaveLength(1);
+    });
+
+    it('logs the personality publish with the personalityId context object', async () => {
+      mockLogger.info.mockClear();
+
+      await service.publish({ type: 'personality', personalityId: 'p-1' });
+
+      expect(mockLogger.info).toHaveBeenCalledWith({ personalityId: 'p-1' }, expect.any(String));
     });
   });
 
@@ -194,6 +265,19 @@ describe('CacheInvalidationService', () => {
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('logs a parse failure when the message is not valid JSON', () => {
+      mockLogger.error.mockClear();
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, 'not-valid-json');
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(SyntaxError) }),
+        expect.any(String)
+      );
     });
 
     it('should reject an all event carrying extra keys (strict key count)', () => {
