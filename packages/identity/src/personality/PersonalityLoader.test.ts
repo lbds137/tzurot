@@ -18,6 +18,20 @@ import { LLM_CONFIG_SELECT } from '@tzurot/common-types/services/LlmConfigMapper
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
+
 vi.mock('@tzurot/common-types/config/config', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/config/config')>();
   return {
@@ -78,6 +92,10 @@ describe('PersonalityLoader', () => {
     createdAtCounter = 0;
     // Default: requester is not the bot owner; owner-path tests opt in.
     vi.mocked(isBotOwner).mockReturnValue(false);
+    mockLogger.debug.mockClear();
+    mockLogger.info.mockClear();
+    mockLogger.warn.mockClear();
+    mockLogger.error.mockClear();
 
     mockPrisma = {
       personality: {
@@ -383,6 +401,206 @@ describe('PersonalityLoader', () => {
         expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
         expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(1);
       });
+
+      it('logs a debug line naming the input when every tier misses', async () => {
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce(null);
+
+        const result = await loader.loadFromDatabase('nonexistent');
+
+        expect(result).toBeNull();
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          { nameOrId: 'nonexistent' },
+          'Personality not found'
+        );
+      });
+    });
+
+    describe('resolveBotOwnerAliasUuid guard', () => {
+      it('skips the owner user lookup when userId is undefined even if isBotOwner returns true', async () => {
+        vi.mocked(isBotOwner).mockReturnValue(true);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce(null);
+
+        await loader.loadFromDatabase('mommy');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).not.toHaveBeenCalled();
+      });
+
+      it('skips the owner user lookup when userId is an empty string even if isBotOwner returns true', async () => {
+        vi.mocked(isBotOwner).mockReturnValue(true);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce(null);
+
+        await loader.loadFromDatabase('mommy', '');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).not.toHaveBeenCalled();
+      });
+
+      it('does not perform a second user lookup for a regular user with no database row', async () => {
+        vi.mocked(isBotOwner).mockReturnValue(false);
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce(null);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce(null);
+
+        await loader.loadFromDatabase('mommy', 'discord-user-1');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('resolveBotOwnerAliasUuid query seam', () => {
+      it('queries the owner lazy alias lookup by discordId selecting only id', async () => {
+        vi.mocked(isBotOwner).mockReturnValue(true);
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({ id: 'owner-uuid' } as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        // Not `Once`: an owner with a resolved uuid reaches BOTH alias tiers,
+        // so this path makes two findFirst calls. A single Once would leave the
+        // second on the bare vi.fn()'s `undefined`, which the `!aliasMatch`
+        // guard happens to treat like null — passing on incidental behavior.
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
+
+        await loader.loadFromDatabase('mommy', '999999999999999999');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledWith({
+          where: { discordId: '999999999999999999' },
+          select: { id: true },
+        });
+      });
+    });
+
+    describe('optional-chained owner uuid in resolveBotOwnerAliasUuid', () => {
+      it('resolves via the global alias tier when the bot owner has no database row', async () => {
+        const globalTarget = createMockPersonality({ id: 'global-target', name: 'Mommy' });
+        vi.mocked(isBotOwner).mockReturnValue(true);
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce(null);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce({
+          personalityId: 'global-target',
+        } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(globalTarget as any);
+
+        const result = await loader.loadFromDatabase('mommy', '999999999999999999');
+
+        expect(result?.id).toBe('global-target');
+      });
+    });
+
+    describe('findPersonalityViaAlias not-found guard', () => {
+      it('falls through to the global tier when the personal alias tier has no match', async () => {
+        const globalTarget = createMockPersonality({ id: 'global-target', name: 'Mommy' });
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({ id: 'user-uuid-1' } as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ personalityId: 'global-target' } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(globalTarget as any);
+
+        const result = await loader.loadFromDatabase('mommy', 'discord-user-1');
+
+        expect(result?.id).toBe('global-target');
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('alias tier label reaching the debug log', () => {
+      it('logs tier: personal on a personal-tier alias hit', async () => {
+        const mockPersonality = createMockPersonality({ id: 'personal-target', name: 'Mine' });
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({ id: 'user-uuid-1' } as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce({
+          personalityId: 'personal-target',
+        } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
+        await loader.loadFromDatabase('mommy', 'discord-user-1');
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          expect.objectContaining({ tier: 'personal' }),
+          '[PersonalityLoader] Found personality via alias'
+        );
+      });
+
+      it('logs tier: global on a global-tier alias hit', async () => {
+        const mockPersonality = createMockPersonality({ id: 'global-target', name: 'Lilith' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce({
+          personalityId: 'global-target',
+        } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
+        await loader.loadFromDatabase('lilith');
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          expect.objectContaining({ tier: 'global' }),
+          '[PersonalityLoader] Found personality via alias'
+        );
+      });
+    });
+
+    describe('accessFilter spread into the alias personality query', () => {
+      it('applies no access filter to an internal alias lookup (single-element AND)', async () => {
+        const mockPersonality = createMockPersonality({ id: 'global-target', name: 'Lilith' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce({
+          personalityId: 'global-target',
+        } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
+        await loader.loadFromDatabase('lilith');
+
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+          where: { AND: [{ id: 'global-target' }] },
+          select: expect.any(Object),
+        });
+      });
+    });
+
+    describe('alias matched but personality inaccessible', () => {
+      it('logs the fall-through debug line', async () => {
+        const globalTarget = createMockPersonality({ id: 'global-target', name: 'Public' });
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'user-uuid-1' } as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst)
+          .mockResolvedValueOnce({ personalityId: 'now-private' } as any)
+          .mockResolvedValueOnce({ personalityId: 'global-target' } as any);
+        vi.mocked(mockPrisma.personality.findFirst)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(globalTarget as any);
+
+        await loader.loadFromDatabase('mommy', '123456789012345678');
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          expect.anything(),
+          '[PersonalityLoader] Alias matched but personality inaccessible — falling through'
+        );
+      });
+    });
+
+    describe('accessFilter spread in the UUID branch', () => {
+      it('carries the access filter for a regular user UUID lookup', async () => {
+        const mockPersonality = createMockPersonality({
+          id: '00000000-0000-0000-0000-000000000001',
+          name: 'PrivateBot',
+          isPublic: false,
+          ownerId: 'user-uuid-9',
+        });
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({ id: 'user-uuid-9' } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
+        await loader.loadFromDatabase('00000000-0000-0000-0000-000000000001', 'discord-user-9');
+
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+          where: {
+            AND: [
+              { id: '00000000-0000-0000-0000-000000000001' },
+              { OR: [{ isPublic: true }, { ownerId: 'user-uuid-9' }] },
+            ],
+          },
+          select: expect.any(Object),
+        });
+      });
     });
 
     describe('name vs slug priority (collision prevention)', () => {
@@ -419,6 +637,35 @@ describe('PersonalityLoader', () => {
 
         // Should use findMany for combined lookup
         expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
+      });
+
+      // On the CORRECT path, scoring never runs: the name filter leaves one
+      // match and `nameMatches.length === 1` returns it directly. The slug row
+      // is public (and so higher-scoring) for the mutated path — drop the name
+      // filter and both rows reach pickBestCandidate, where the public slug row
+      // wins. That asymmetry is what makes this test able to fail.
+      it('prefers a name match over a HIGHER-SCORING slug match (name filter must not be dropped)', async () => {
+        const nameRow = createMockPersonality({
+          id: 'name-row',
+          name: 'Lilith',
+          slug: 'lilith-proper',
+          isPublic: false,
+          ownerId: 'other-owner',
+        });
+        const slugRow = createMockPersonality({
+          id: 'slug-row',
+          name: 'Alpha',
+          slug: 'lilith',
+          isPublic: true,
+          ownerId: 'other-owner',
+        });
+
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([nameRow, slugRow] as any);
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+
+        const result = await loader.loadFromDatabase('Lilith');
+
+        expect(result?.id).toBe('name-row');
       });
 
       it('should order by createdAt ascending in query', async () => {
@@ -775,6 +1022,61 @@ describe('PersonalityLoader', () => {
         expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(2);
       });
 
+      it('does not let a lower-scoring but OLDER candidate displace the best (diff < 0 early return)', async () => {
+        const publicNewer = createMockPersonality({
+          id: 'public-newer',
+          name: 'Lilith',
+          slug: 'lilith-public-newer',
+          isPublic: true,
+          ownerId: 'owner-a',
+          createdAt: new Date('2026-02-01T00:00:00Z'),
+        });
+        const privateOlder = createMockPersonality({
+          id: 'private-older',
+          name: 'Lilith',
+          slug: 'lilith-private-older',
+          isPublic: false,
+          ownerId: 'owner-b',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        });
+
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([
+          publicNewer,
+          privateOlder,
+        ] as any);
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+
+        const result = await loader.loadFromDatabase('Lilith');
+
+        expect(result?.id).toBe('public-newer');
+      });
+
+      it('picks the FIRST candidate when two equal-score matches share an identical createdAt', async () => {
+        const first = createMockPersonality({
+          id: 'first-tied',
+          name: 'Lilith',
+          slug: 'lilith-first-tied',
+          isPublic: true,
+          ownerId: 'owner-a',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        });
+        const second = createMockPersonality({
+          id: 'second-tied',
+          name: 'Lilith',
+          slug: 'lilith-second-tied',
+          isPublic: true,
+          ownerId: 'owner-b',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        });
+
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([first, second] as any);
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+
+        const result = await loader.loadFromDatabase('Lilith');
+
+        expect(result?.id).toBe('first-tied');
+      });
+
       it('should retry admin UUID lookup after transient failure', async () => {
         vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
@@ -814,6 +1116,83 @@ describe('PersonalityLoader', () => {
 
         // Admin UUID was looked up twice (not cached on error)
         expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('resolveBotAdminUuid config guard', () => {
+      // Deliberately does NOT claim to pin the `botAdminUuid = null` cache
+      // write: with the config unset on both calls, the second one takes the
+      // same no-lookup branch whether or not the write happened, so the two
+      // are observationally identical here. The cache write itself is pinned
+      // by 'should cache bot admin UUID across multiple calls'.
+      it('performs no admin lookup when BOT_OWNER_ID is unset, on a repeat collision too', async () => {
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+
+        const matchA1 = createMockPersonality({ id: 'a1', name: 'Lilith', slug: 'lilith-a1' });
+        const matchA2 = createMockPersonality({ id: 'a2', name: 'Lilith', slug: 'lilith-a2' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchA1, matchA2] as any);
+        await loader.loadFromDatabase('Lilith');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).not.toHaveBeenCalled();
+
+        const matchB1 = createMockPersonality({ id: 'b1', name: 'Eve', slug: 'eve-b1' });
+        const matchB2 = createMockPersonality({ id: 'b2', name: 'Eve', slug: 'eve-b2' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchB1, matchB2] as any);
+        await loader.loadFromDatabase('Eve');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).not.toHaveBeenCalled();
+      });
+
+      it('performs no admin lookup when BOT_OWNER_ID is an empty string', async () => {
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: '' } as any);
+
+        const matchA1 = createMockPersonality({ id: 'a1', name: 'Lilith', slug: 'lilith-a1' });
+        const matchA2 = createMockPersonality({ id: 'a2', name: 'Lilith', slug: 'lilith-a2' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchA1, matchA2] as any);
+
+        await loader.loadFromDatabase('Lilith');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('resolveBotAdminUuid admin-not-found', () => {
+      it('does not warn and does not cache when the configured admin is absent from the database', async () => {
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: 'discord-admin-id' } as any);
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
+
+        const matchA1 = createMockPersonality({ id: 'a1', name: 'Lilith', slug: 'lilith-a1' });
+        const matchA2 = createMockPersonality({ id: 'a2', name: 'Lilith', slug: 'lilith-a2' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchA1, matchA2] as any);
+        await loader.loadFromDatabase('Lilith');
+
+        const matchB1 = createMockPersonality({ id: 'b1', name: 'Eve', slug: 'eve-b1' });
+        const matchB2 = createMockPersonality({ id: 'b2', name: 'Eve', slug: 'eve-b2' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchB1, matchB2] as any);
+        await loader.loadFromDatabase('Eve');
+
+        expect(mockLogger.warn).not.toHaveBeenCalled();
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('resolveBotAdminUuid catch block', () => {
+      it('warns with the expected message on an admin-lookup database error', async () => {
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: 'discord-admin-id' } as any);
+        vi.mocked(mockPrisma.user.findUnique).mockRejectedValueOnce(
+          new Error('Connection refused')
+        );
+
+        const matchA1 = createMockPersonality({ id: 'a1', name: 'Lilith', slug: 'lilith-a1' });
+        const matchA2 = createMockPersonality({ id: 'a2', name: 'Lilith', slug: 'lilith-a2' });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchA1, matchA2] as any);
+
+        await loader.loadFromDatabase('Lilith');
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.anything(),
+          '[PersonalityLoader] Failed to resolve bot admin UUID, skipping admin preference'
+        );
       });
     });
 
@@ -1086,6 +1465,18 @@ describe('PersonalityLoader', () => {
       expect(result).toBeNull();
     });
 
+    it('queries the AdminSettings singleton row by id', async () => {
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+        globalDefaultLlmConfig: mockConfig,
+      } as any);
+
+      await loader.loadGlobalDefaultConfig();
+
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: ADMIN_SETTINGS_SINGLETON_ID } })
+      );
+    });
+
     it('should return null when the AdminSettings row itself is absent (fresh DB)', async () => {
       // Bootstrap scenario — no AdminSettings singleton yet. The `settings?.…`
       // optional chain short-circuits to null, same as an unset pointer.
@@ -1094,6 +1485,34 @@ describe('PersonalityLoader', () => {
       const result = await loader.loadGlobalDefaultConfig();
 
       expect(result).toBeNull();
+    });
+
+    it('treats an absent AdminSettings row as an unset pointer, not as a load failure', async () => {
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue(null);
+
+      const result = await loader.loadGlobalDefaultConfig();
+
+      expect(result).toBeNull();
+      // Asserting the whole call list, not `not.toHaveBeenCalledWith(...)`: the
+      // failure path warns with two args (`{ err }, message`) while this path
+      // warns with one, so a two-arg negative matcher can never match either
+      // call and would pass whatever the code did.
+      expect(mockLogger.warn.mock.calls).toEqual([
+        ['[PersonalityLoader] No global default LLM config set'],
+      ]);
+    });
+
+    it('warns that no global default is set when the pointer is unset', async () => {
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+        globalDefaultLlmConfig: null,
+      } as any);
+
+      const result = await loader.loadGlobalDefaultConfig();
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[PersonalityLoader] No global default LLM config set'
+      );
     });
 
     it('should handle database errors gracefully', async () => {
