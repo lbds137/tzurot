@@ -61,4 +61,19 @@ CONSEQUENCE: raising a floor now means WRITING TESTS FIRST, then moving the numb
 SEQUENCING (proposed, not owner-settled): (1) re-run conversation-history alone (~89s) to decide whether its -0.70 is real decay or single-run noise, since a real decay means that package needs test work before any floor moves at all; (2) pick per-package target floors with the owner, since "how much rigor to buy" is the same investment call this decision was; (3) close gaps to hit them; (4) move the baselines via the sanctioned pnpm ops mutation:update-baseline path, never by hand. Clause (d) from the original filing (report distance-above-floor) is still worth building — under this decision it becomes the progress meter for the campaign rather than a way to spot free tightens.
 
 RELATED: doc-63 "Ratchet Bidirectionality (audit mini-epic)" in backlog/cold/queue.md already owns exactly this scope — audit each ratchet's slack, apply free tightens, give down-tightening an owner-moment. This task is a member of that theme, not a standalone; check doc-63 before scoping, and consider whether the finding above changes the theme's premise too.
+
+TRANCHE 1 TEST WORK COMPLETE 2026-08-31 — sequencing steps (1) and (3) done, step (2)/(4) pending owner. Four test-only PRs merged same-day, each with full survivor disposition (every kill proven-red via the mutation report's Survived→Killed flip; every non-kill is logger-name noise per the ignorer rationale or a PROBED equivalent):
+
+  package              old ->  new    PR     residue
+  conversation-history 85.64  97.39  #2271   8 noise + 8 equivalent
+  clients              96.44  98.42  #2272   4 equivalent (HARD CEILING without src changes)
+  cache-invalidation   89.44  97.53  #2273  11 noise, 0 equivalent
+  config-resolver      86.89  96.54  #2274   5 noise + 14 equivalent
+  identity             78.83  78.97  (untouched — outside tranche 1; 192 survivors remain)
+
+The conversation-history -0.70 decay was REAL (re-run reproduced 85.64 exactly; forwardedOriginWriter.ts was at 20% mutation score — a post-baseline file with weak tests, now 90%).
+
+RAISE-STEP INPUTS (step 2, owner): fresh local reports exist for ALL FIVE packages as of 2026-08-31 (identity re-run reproduced 78.97 exactly), so `pnpm ops mutation:update-baseline` is executable immediately. Recommendation on record: refresh all five baselines to the measured scores (graceMargin 1.0 continues to absorb run noise — scores reproduced exactly across 2-3 runs each on this machine, so measured-score floors are not lucky-run floors). Constraint: clients at 98.42 is the arithmetic ceiling; a floor demanding more requires deleting two semantically-redundant early-returns (src change, deliberately excluded from the tests-only tranche). identity's gap-closing (192 survivors, 78.97) is tranche 2 if wanted — NOT part of this raise.
+
+Review residue: TASK-843 (subscribe registers callback before try — latent stale-callback defect found by the #2273 review, src fix, size:S).
 <!-- SECTION:DESCRIPTION:END -->
