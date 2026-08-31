@@ -12,16 +12,15 @@ import {
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
 // Mock logger
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 describe('DenylistCacheInvalidationService', () => {
@@ -139,6 +138,40 @@ describe('DenylistCacheInvalidationService', () => {
         })
       ).toBe(false);
     });
+
+    const validEntry = {
+      type: 'USER',
+      discordId: '123',
+      scope: 'BOT',
+      scopeId: '*',
+      mode: 'BLOCK',
+    };
+
+    it('should reject an event type other than add/remove/all', () => {
+      expect(isValidDenylistInvalidationEvent({ type: 'other', entry: validEntry })).toBe(false);
+    });
+
+    it('should reject an add event with a null entry', () => {
+      expect(isValidDenylistInvalidationEvent({ type: 'add', entry: null })).toBe(false);
+    });
+
+    it('should reject an add event whose entry.type is not a string', () => {
+      expect(
+        isValidDenylistInvalidationEvent({ type: 'add', entry: { ...validEntry, type: 123 } })
+      ).toBe(false);
+    });
+
+    it('should reject an add event whose entry.scope is not a string', () => {
+      expect(
+        isValidDenylistInvalidationEvent({ type: 'add', entry: { ...validEntry, scope: 123 } })
+      ).toBe(false);
+    });
+
+    it('should reject an add event whose entry.scopeId is not a string', () => {
+      expect(
+        isValidDenylistInvalidationEvent({ type: 'add', entry: { ...validEntry, scopeId: 123 } })
+      ).toBe(false);
+    });
   });
 
   describe('subscribe', () => {
@@ -222,6 +255,30 @@ describe('DenylistCacheInvalidationService', () => {
       expect(mockRedis.publish).toHaveBeenCalledWith(
         REDIS_CHANNELS.DENYLIST_CACHE_INVALIDATION,
         JSON.stringify({ type: 'add', entry })
+      );
+    });
+
+    // Pins the service's declared diagnostic contract (getLogContext/getEventDescription),
+    // which is otherwise only exercised through log output.
+    it('carries the service log context into the published log line', async () => {
+      mockLogger.info.mockClear();
+      const entry = {
+        type: 'USER',
+        discordId: '123',
+        scope: 'BOT',
+        scopeId: '*',
+        mode: 'BLOCK',
+      };
+
+      await service.publishAdd(entry);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: entry.type,
+          discordId: entry.discordId,
+          description: 'add USER 123 (BOT/*)',
+        }),
+        expect.any(String)
       );
     });
   });
