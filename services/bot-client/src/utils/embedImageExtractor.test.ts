@@ -30,6 +30,7 @@ describe('extractEmbedImages', () => {
     expect(result![0].name).toBe('embed-1-image.png');
     expect(result![0].contentType).toBe('image/png');
     expect(result![0].size).toBeUndefined();
+    expect(result![0].isEmbedPreview).toBe(true);
   });
 
   it('should extract thumbnail URL from embed', () => {
@@ -45,6 +46,7 @@ describe('extractEmbedImages', () => {
     expect(result).toHaveLength(1);
     expect(result![0].url).toBe('https://example.com/thumb.png');
     expect(result![0].name).toBe('embed-1-thumbnail.png');
+    expect(result![0].isEmbedPreview).toBe(true);
   });
 
   it('should extract both image and thumbnail from same embed', () => {
@@ -66,6 +68,8 @@ describe('extractEmbedImages', () => {
     // for its two slots. The fix: both slots of the same embed now share its
     // index.
     expect(result![1].name).toBe('embed-1-thumbnail.png');
+    expect(result![0].isEmbedPreview).toBe(true);
+    expect(result![1].isEmbedPreview).toBe(true);
   });
 
   it('should extract images from multiple embeds', () => {

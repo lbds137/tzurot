@@ -781,6 +781,129 @@ describe('AttachmentProcessor', () => {
     });
   });
 
+  describe('image provenance (source) survives every arm', () => {
+    // `source` rides on the shared `identity` object in `processImageAttachment`
+    // and `unprocessedAttachment`, so all three arms (preprocessed hit, a fresh
+    // describe call failing, and the outer pre-dispatch catch) must carry it —
+    // it is identity, not enrichment, and must not depend on the description
+    // succeeding.
+    it('carries source="link-preview" through the preprocessed-hit arm', async () => {
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/embed.png',
+            contentType: 'image/png',
+            name: 'embed.png',
+            size: 1000,
+            isEmbedPreview: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: [
+          {
+            type: AttachmentType.Image,
+            description: 'Preprocessed embed description',
+            originalUrl: 'https://example.com/embed.png',
+            metadata: {
+              url: 'https://example.com/embed.png',
+              name: 'embed.png',
+              contentType: 'image/png',
+              size: 1000,
+              isEmbedPreview: true,
+            },
+          },
+        ],
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'image',
+        filename: 'embed.png',
+        contentType: 'image/png',
+        source: 'link-preview',
+        description: 'Preprocessed embed description',
+      });
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('carries source="link-preview" through the vision-failure arm', async () => {
+      mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
+
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/embed-broken.png',
+            contentType: 'image/png',
+            name: 'embed-broken.png',
+            size: 1000,
+            isEmbedPreview: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      // Provenance is identity, not enrichment — it must survive the
+      // description failing, not just accompany a successful one.
+      expect(result[0].attachment).toEqual({
+        kind: 'image',
+        filename: 'embed-broken.png',
+        contentType: 'image/png',
+        source: 'link-preview',
+        status: 'undescribed',
+      });
+    });
+
+    it('carries source="link-preview" through the pre-dispatch (unprocessed) arm', async () => {
+      // Same forced pre-dispatch throw as the modality-preservation cases
+      // above: the lookup blows up before classification, so the outer catch's
+      // `unprocessedAttachment` builds the element instead of
+      // `processImageAttachment`.
+      const exploding = [
+        {
+          type: AttachmentType.Image,
+          description: 'unused',
+          originalUrl: 'https://example.com/other.png',
+          metadata: {
+            url: 'https://example.com/other.png',
+            name: 'other.png',
+            contentType: 'image/png',
+            size: 1,
+          },
+        },
+      ];
+      exploding.find = () => {
+        throw new Error('boom before dispatch');
+      };
+
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/embed-unprocessed.png',
+            contentType: 'image/png',
+            name: 'embed-unprocessed.png',
+            size: 1000,
+            isEmbedPreview: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: exploding,
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'image',
+        filename: 'embed-unprocessed.png',
+        contentType: 'image/png',
+        source: 'link-preview',
+        status: 'unprocessed',
+      });
+    });
+  });
+
   describe('requestId correlation', () => {
     // The reason this module logs at all is to explain a reference whose
     // enrichment went missing, and a failure line nobody can tie back to the

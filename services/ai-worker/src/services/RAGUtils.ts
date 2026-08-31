@@ -15,6 +15,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { neutralizeWrapperClosingTags } from '@tzurot/common-types/utils/promptSanitizer';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { validateAIProvider } from '../utils/providerValidation.js';
+import { imageSource } from './prompt/QuoteFormatter.js';
 import { type ModelConfig } from './ModelFactory.js';
 import type { DuplicateRetryConfig } from './ConversationalRAGTypes.js';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
@@ -107,7 +108,11 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     // A sticker travels the image path but is not an image the user attached —
     // labelling it `[Image: …]` would tell the character someone uploaded a
     // file when they picked a sticker, which changes how it reads the gesture.
-    const header = a.metadata.isSticker === true ? 'Sticker' : 'Image';
+    // An embed preview travels the same path with the same problem one step
+    // further out: the user shared a LINK and Discord generated the preview
+    // image off it, so `[Image: …]` claims a deliberate upload that never
+    // happened. Pinned by the `[Link preview: …]` cases in RAGUtils.test.ts.
+    const header = pickImageHeader(a.metadata);
     return `[${header}: ${name}]\n${a.description}`;
   }
   if (a.type === AttachmentType.Audio) {
@@ -121,6 +126,20 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     return `[File: ${name}]\n${a.description}`;
   }
   return '';
+}
+
+/**
+ * The bracket header an image-path attachment renders under — `imageSource`'s
+ * shared precedence mapped to display labels, so this site cannot drift from
+ * the rule (re-deriving it inline is the exact drift `imageSource`'s own doc
+ * warns about).
+ */
+function pickImageHeader(metadata: ProcessedAttachment['metadata']): string {
+  const source = imageSource(metadata);
+  if (source === 'sticker') {
+    return 'Sticker';
+  }
+  return source === 'link-preview' ? 'Link preview' : 'Image';
 }
 
 function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
@@ -165,6 +184,7 @@ function buildImageDescriptionMap(
     existingList.push({
       filename: att.metadata.name ?? 'image',
       description: att.description,
+      source: imageSource(att.metadata),
     });
     if (!map.has(msgId)) {
       map.set(msgId, existingList);

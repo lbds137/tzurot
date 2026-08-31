@@ -177,6 +177,25 @@ describe('HardcodedConstraints', () => {
       expect(OUTPUT_CONSTRAINTS).toContain('<image_descriptions>');
       expect(OUTPUT_CONSTRAINTS).toContain('text inside <image> elements under <attachments>');
       expect(OUTPUT_CONSTRAINTS).toContain('[Image: name]');
+      expect(OUTPUT_CONSTRAINTS).toContain('[Link preview: name]');
+    });
+
+    it('never treats a link-preview image as media the participant chose to upload or send', () => {
+      // The user shared a LINK; Discord generated the preview image off it —
+      // this is the seam the production mis-attribution bug lived in.
+      expect(OUTPUT_CONSTRAINTS).toContain('the participant shared the link, not the image');
+    });
+
+    it('explains the source attribute for both provenance kinds, not just the bracket headers', () => {
+      // The reference paths carry provenance as an <image> attribute rather
+      // than a bracket header; without these pins that half of the constraint
+      // could be dropped with every test still green.
+      expect(OUTPUT_CONSTRAINTS).toContain(
+        'inside an <image> element carrying source="link-preview"'
+      );
+      expect(OUTPUT_CONSTRAINTS).toContain(
+        'An <image> element carrying source="sticker" is a sticker the participant picked'
+      );
     });
 
     // An STT transcript's wording genuinely belongs to the speaker, so

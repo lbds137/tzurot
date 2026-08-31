@@ -42,6 +42,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
         url: imageUrl,
         contentType: CONTENT_TYPES.IMAGE_PNG,
         name: embedImageAttachmentName(embedIndex, EMBED_NAMING.IMAGE_SLOT),
+        isEmbedPreview: true,
         size: undefined,
       });
     }
@@ -52,6 +53,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
         url: thumbnailUrl,
         contentType: CONTENT_TYPES.IMAGE_PNG,
         name: embedImageAttachmentName(embedIndex, EMBED_NAMING.THUMBNAIL_SLOT),
+        isEmbedPreview: true,
         size: undefined,
       });
     }
