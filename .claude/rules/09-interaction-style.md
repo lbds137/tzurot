@@ -41,9 +41,11 @@ When checking in with the user, name the ONE decision being asked and include a 
 
 Corollary — **bare-token answers get their binding restated**: when the user answers a menu with "1" / "the second one" / "sure", the next reply restates what was chosen ("1 = fix the spend gate in this PR"), and the decision lands in a durable surface if it outlives the session. A bare token with no recorded menu is an unreadable decision later.
 
-## A Blocking Question Goes Through a Formal Channel
+## Blocking Questions — and Completions the User Must See — Go Through a Formal Channel
 
 A turn that ends blocked on user input MUST surface the ask through `AskUserQuestion` (structured choices) or `PushNotification` (open-ended asks that don't fit the option format). Remote control surfaces only formal tool decision points, so a prose-only question is invisible to the phone and silently stalls the session until the user happens to look. Backstopped by `.claude/hooks/blocking-question-channel-check.sh`.
+
+**The same channel rule covers completions the user must SEE, not just questions**: a release cut landing, a prod-affecting finding (CI red, CodeQL alert, a prod bug confirmed), and the completion of work the user explicitly asked for each get a `PushNotification` alongside the prose report. Plain replies do not reliably notify — every mined process-gap comment in one full window reduced to "regular replies from you don't seem to reliably notify me": the work was done and the reports reached no channel the user watches.
 
 ## Read Dictated Messages Charitably
 
