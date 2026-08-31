@@ -167,6 +167,7 @@ describe('handleSetButton', () => {
           hasLocalOverride: false,
           effectiveValue: 50,
           source: 'admin',
+          parentValue: 50,
         },
       },
     };

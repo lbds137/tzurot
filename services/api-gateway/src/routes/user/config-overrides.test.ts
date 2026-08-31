@@ -286,6 +286,54 @@ describe('/user/config-overrides routes', () => {
         })
       );
     });
+
+    it('emits parentValues alongside sources', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75 },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 30 },
+      });
+
+      const handler = buildHandler(handleResolveUserDefaults, mockDeps);
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxMessages: 30,
+          sources: expect.objectContaining({ maxMessages: 'user-default' }),
+          parentValues: expect.objectContaining({ maxMessages: 75 }),
+        })
+      );
+    });
+
+    it("owner repro: admin maxAge=30 days, user explicit OFF -> parentValue is admin's 30 days", async () => {
+      // Owner-reported bug (TASK-839): admin default Max Age = 30 days, user sets
+      // override "Off" -> drill-down must show the admin's 30 days as Parent
+      // Value, not the user's own effective OFF.
+      const THIRTY_DAYS_SECONDS = 2592000;
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxAge: THIRTY_DAYS_SECONDS },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        configDefaults: { maxAge: null },
+      });
+
+      const handler = buildHandler(handleResolveUserDefaults, mockDeps);
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxAge: null,
+          sources: expect.objectContaining({ maxAge: 'user-default' }),
+          parentValues: expect.objectContaining({ maxAge: THIRTY_DAYS_SECONDS }),
+        })
+      );
+    });
   });
 
   describe('GET /api/user/config-overrides/defaults', () => {

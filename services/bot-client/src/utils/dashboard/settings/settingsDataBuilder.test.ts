@@ -44,6 +44,7 @@ describe('buildCascadeSettingsData', () => {
         voiceTranscriptionEnabled: 'hardcoded' as const,
         shareHistoryAcrossPersonalities: 'hardcoded' as const,
       },
+      parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
     };
 
     const result = buildCascadeSettingsData(resolved, null, 'channel');
@@ -82,6 +83,7 @@ describe('buildCascadeSettingsData', () => {
         voiceTranscriptionEnabled: 'hardcoded' as const,
         shareHistoryAcrossPersonalities: 'hardcoded' as const,
       },
+      parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
     };
 
     const localOverrides = { maxMessages: 25 };
@@ -150,6 +152,7 @@ describe('buildCascadeSettingsData', () => {
         voiceTranscriptionEnabled: 'hardcoded' as const,
         shareHistoryAcrossPersonalities: 'hardcoded' as const,
       },
+      parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
     };
 
     const localOverrides = { maxImages: 5 };
@@ -191,6 +194,74 @@ describe('buildCascadeSettingsData', () => {
   });
 });
 
+describe('buildCascadeSettingsData parentValue (3-branch rule)', () => {
+  it('uses HARDCODED_CONFIG_DEFAULTS when resolved is null (admin dashboard — lowest tier)', () => {
+    const result = buildCascadeSettingsData(null, { maxMessages: 75 }, 'admin');
+
+    expect(result.maxMessages.source).toBe('admin');
+    expect(result.maxMessages.parentValue).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+  });
+
+  it("uses resolved.parentValues when THIS dashboard's tier is the winner", () => {
+    const resolved: ResolvedConfigOverrides = {
+      ...HARDCODED_CONFIG_DEFAULTS,
+      maxAge: null,
+      sources: {
+        maxMessages: 'hardcoded',
+        maxAge: 'user-default',
+        maxImages: 'hardcoded',
+        memoryScoreThreshold: 'hardcoded',
+        memoryLimit: 'hardcoded',
+        crossChannelHistoryEnabled: 'hardcoded',
+        shareLtmAcrossPersonalities: 'hardcoded',
+        showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded',
+        voiceTranscriptionEnabled: 'hardcoded',
+        shareHistoryAcrossPersonalities: 'hardcoded',
+      },
+      parentValues: {
+        ...HARDCODED_CONFIG_DEFAULTS,
+        maxAge: 2592000, // admin's 30-day value, one tier below the winning user-default tier
+      },
+    };
+
+    const result = buildCascadeSettingsData(resolved, { maxAge: null }, 'user-default');
+
+    expect(result.maxAge.effectiveValue).toBeNull();
+    expect(result.maxAge.source).toBe('user-default');
+    expect(result.maxAge.parentValue).toBe(2592000);
+  });
+
+  it('uses effectiveValue when a HIGHER tier outranks this dashboard (removing a non-winning tier changes nothing)', () => {
+    const resolved: ResolvedConfigOverrides = {
+      ...HARDCODED_CONFIG_DEFAULTS,
+      maxAge: 999,
+      sources: {
+        maxMessages: 'hardcoded',
+        maxAge: 'user-default', // a HIGHER tier than this dashboard's 'channel'
+        maxImages: 'hardcoded',
+        memoryScoreThreshold: 'hardcoded',
+        memoryLimit: 'hardcoded',
+        crossChannelHistoryEnabled: 'hardcoded',
+        shareLtmAcrossPersonalities: 'hardcoded',
+        showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded',
+        voiceTranscriptionEnabled: 'hardcoded',
+        shareHistoryAcrossPersonalities: 'hardcoded',
+      },
+      parentValues: { ...HARDCODED_CONFIG_DEFAULTS, maxAge: 111 },
+    };
+
+    // This dashboard is 'channel' but the resolved source for maxAge is 'user-default' —
+    // a higher tier. Clearing the channel tier can't change the resolution.
+    const result = buildCascadeSettingsData(resolved, { maxAge: 555 }, 'channel');
+
+    expect(result.maxAge.source).toBe('user-default');
+    expect(result.maxAge.effectiveValue).toBe(999);
+    expect(result.maxAge.parentValue).toBe(999);
+  });
+});
+
 describe('convertResolveDefaultsResponse', () => {
   it('should convert flat resolve-defaults response to ResolvedConfigOverrides', () => {
     const response: ResolveDefaultsResponse = {
@@ -217,6 +288,7 @@ describe('convertResolveDefaultsResponse', () => {
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
       },
+      parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
       userOverrides: { maxMessages: 30 },
     };
 
@@ -226,6 +298,7 @@ describe('convertResolveDefaultsResponse', () => {
     expect(resolved.maxAge).toBeNull();
     expect(resolved.sources.maxMessages).toBe('admin');
     expect(resolved.sources.maxAge).toBe('hardcoded');
+    expect(resolved.parentValues).toEqual(HARDCODED_CONFIG_DEFAULTS);
     expect(userOverrides).toEqual({ maxMessages: 30 });
   });
 
@@ -254,6 +327,7 @@ describe('convertResolveDefaultsResponse', () => {
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
       },
+      parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
       userOverrides: null,
     };
 
@@ -283,6 +357,16 @@ describe('buildFallbackSettingsData', () => {
     expect(result.showModelFooter.effectiveValue).toBe(true);
   });
 
+  it('carries the hardcoded default as parentValue for every field', () => {
+    const result = buildFallbackSettingsData();
+
+    for (const field of Object.keys(HARDCODED_CONFIG_DEFAULTS) as (keyof typeof result)[]) {
+      expect(result[field].parentValue).toBe(
+        HARDCODED_CONFIG_DEFAULTS[field as keyof typeof HARDCODED_CONFIG_DEFAULTS]
+      );
+    }
+  });
+
   it('should have null localValue for all fields', () => {
     const result = buildFallbackSettingsData();
 
@@ -305,6 +389,7 @@ describe('buildSystemSettingsData (non-cascading bag adapter)', () => {
       hasLocalOverride: true,
       effectiveValue: true,
       source: 'admin',
+      parentValue: true,
     });
     expect(data.zaiHeadroomPercent.effectiveValue).toBe(75);
   });

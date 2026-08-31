@@ -77,6 +77,19 @@ describe('User Default Settings Dashboard', () => {
       memoryScoreThreshold: 'hardcoded',
       memoryLimit: 'hardcoded',
     },
+    parentValues: {
+      maxMessages: HARDCODED_CONFIG_DEFAULTS.maxMessages,
+      maxAge: HARDCODED_CONFIG_DEFAULTS.maxAge,
+      maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
+      crossChannelHistoryEnabled: HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled,
+      shareLtmAcrossPersonalities: HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities,
+      memoryScoreThreshold: HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold,
+      memoryLimit: HARDCODED_CONFIG_DEFAULTS.memoryLimit,
+      showModelFooter: HARDCODED_CONFIG_DEFAULTS.showModelFooter,
+      voiceResponseMode: HARDCODED_CONFIG_DEFAULTS.voiceResponseMode,
+      voiceTranscriptionEnabled: HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled,
+      shareHistoryAcrossPersonalities: HARDCODED_CONFIG_DEFAULTS.shareHistoryAcrossPersonalities,
+    },
     userOverrides: null,
   };
 

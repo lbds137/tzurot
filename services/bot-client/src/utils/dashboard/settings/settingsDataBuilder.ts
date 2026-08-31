@@ -42,7 +42,26 @@ export function buildCascadeSettingsData(
         : ((localValue ?? HARDCODED_CONFIG_DEFAULTS[field]) as T);
     const source: ConfigOverrideSource =
       resolved !== null ? resolved.sources[field] : hasLocalOverride ? localSource : 'hardcoded';
-    return { localValue, hasLocalOverride, effectiveValue, source };
+
+    // Parent Value = what the field would resolve to if THIS dashboard's tier
+    // override were removed. Three cases:
+    let parentValue: T;
+    if (resolved === null) {
+      // No resolve endpoint available (e.g. admin dashboard — admin is the
+      // lowest cascade tier, so there is nothing below it to fall back to).
+      parentValue = HARDCODED_CONFIG_DEFAULTS[field] as T;
+    } else if (source === localSource) {
+      // This dashboard's own tier supplied the effective value, so removing
+      // it changes the resolution — use the server-computed one-tier-down value.
+      parentValue = resolved.parentValues[field] as T;
+    } else {
+      // A higher tier won, so clearing this tier changes nothing: the
+      // resolution is unaffected because a non-winning tier's contribution
+      // was never part of it.
+      parentValue = effectiveValue;
+    }
+
+    return { localValue, hasLocalOverride, effectiveValue, source, parentValue };
   }
 
   const result = {} as Record<keyof ConfigOverrides, SettingValue<unknown>>;
@@ -66,6 +85,7 @@ export interface ResolveDefaultsResponse {
   voiceTranscriptionEnabled: boolean;
   shareHistoryAcrossPersonalities: 'always' | 'guilds-only' | 'dms-only' | 'never';
   sources: Record<string, ConfigOverrideSource>;
+  parentValues: Required<ConfigOverrides>;
   userOverrides: Record<string, unknown> | null;
 }
 
@@ -91,6 +111,7 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     voiceTranscriptionEnabled: response.voiceTranscriptionEnabled,
     shareHistoryAcrossPersonalities: response.shareHistoryAcrossPersonalities,
     sources: response.sources,
+    parentValues: response.parentValues,
   };
   const userOverrides = response.userOverrides ?? null;
   return { resolved, userOverrides };
@@ -108,6 +129,7 @@ export function buildFallbackSettingsData(): SettingsData {
       hasLocalOverride: false,
       effectiveValue: HARDCODED_CONFIG_DEFAULTS[field],
       source: 'hardcoded',
+      parentValue: HARDCODED_CONFIG_DEFAULTS[field],
     };
   }
   return result;
@@ -117,7 +139,9 @@ export function buildFallbackSettingsData(): SettingsData {
  * Build dashboard SettingsData for the NON-CASCADING system-settings bag.
  * The SettingValue shape is display plumbing only: system settings have no
  * inherit tier, so the values render in `statusDisplay: 'plain'` mode (no
- * override/status/parent semantics — those fields are never shown).
+ * override/status/parent semantics — those fields are never shown). `parentValue`
+ * is set to the same value as `effectiveValue` purely to satisfy the shape;
+ * plain-mode rendering never reads it.
  */
 export function buildSystemSettingsData(bag: Record<string, unknown>): SettingsData {
   const result: SettingsData = {};
@@ -127,6 +151,7 @@ export function buildSystemSettingsData(bag: Record<string, unknown>): SettingsD
       hasLocalOverride: true,
       effectiveValue: value,
       source: 'admin',
+      parentValue: value,
     };
   }
   return result;

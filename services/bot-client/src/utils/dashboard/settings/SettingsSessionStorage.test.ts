@@ -28,55 +28,79 @@ describe('SettingsSessionStorage', () => {
     entityId: 'global',
     entityName: 'Global Settings',
     data: {
-      maxMessages: { localValue: 50, hasLocalOverride: true, effectiveValue: 50, source: 'admin' },
+      maxMessages: {
+        localValue: 50,
+        hasLocalOverride: true,
+        effectiveValue: 50,
+        source: 'admin',
+        parentValue: 50,
+      },
       maxAge: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: null,
         source: 'hardcoded',
+        parentValue: null,
       },
-      maxImages: { localValue: 5, hasLocalOverride: true, effectiveValue: 5, source: 'admin' },
+      maxImages: {
+        localValue: 5,
+        hasLocalOverride: true,
+        effectiveValue: 5,
+        source: 'admin',
+        parentValue: 10,
+      },
       crossChannelHistoryEnabled: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: false,
         source: 'hardcoded',
+        parentValue: false,
       },
       shareLtmAcrossPersonalities: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: false,
         source: 'hardcoded',
+        parentValue: false,
       },
       showModelFooter: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: true,
         source: 'hardcoded',
+        parentValue: true,
       },
       memoryScoreThreshold: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: 0.5,
         source: 'hardcoded',
+        parentValue: 0.5,
       },
       memoryLimit: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: 20,
         source: 'hardcoded',
+        parentValue: 20,
       },
       voiceResponseMode: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: 'always' as const,
         source: 'hardcoded',
+        parentValue: 'always' as const,
       },
       voiceTranscriptionEnabled: {
         localValue: null,
         hasLocalOverride: false,
         effectiveValue: false,
         source: 'hardcoded',
+        // Deliberately distinct from effectiveValue: this suite only exercises
+        // Redis round-trip serialization, and a parentValue that differs from
+        // its neighbor is what proves the field is carried independently
+        // rather than reconstructed. Not a resolution-consistency fixture.
+        parentValue: true,
       },
     },
     view: 'overview' as never,

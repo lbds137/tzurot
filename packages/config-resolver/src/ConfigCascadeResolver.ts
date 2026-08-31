@@ -249,6 +249,12 @@ export class ConfigCascadeResolver {
     // Start with hardcoded defaults
     const values = { ...HARDCODED_CONFIG_DEFAULTS } as Record<keyof ConfigOverrides, unknown>;
     const sources = {} as Record<keyof ConfigOverrides, ConfigOverrideSource>;
+    // Per-field parent value: what the field resolved to one tier down from
+    // whichever tier ends up supplying the effective value. Starts at the
+    // hardcoded baseline and is overwritten with the PREVIOUS `values[field]`
+    // each time a tier applies — so after the loop it holds the value the
+    // winning tier's own override replaced.
+    const parents = { ...HARDCODED_CONFIG_DEFAULTS } as Record<keyof ConfigOverrides, unknown>;
 
     // Initialize all sources to 'hardcoded'
     const fields = Object.keys(HARDCODED_CONFIG_DEFAULTS) as (keyof ConfigOverrides)[];
@@ -260,6 +266,7 @@ export class ConfigCascadeResolver {
     for (const tier of tiers) {
       for (const field of fields) {
         if (tier.overrides[field] !== undefined) {
+          parents[field] = values[field];
           values[field] = tier.overrides[field];
           sources[field] = tier.source;
         }
@@ -280,6 +287,7 @@ export class ConfigCascadeResolver {
       shareHistoryAcrossPersonalities:
         values.shareHistoryAcrossPersonalities as ResolvedConfigOverrides['shareHistoryAcrossPersonalities'],
       sources,
+      parentValues: parents as Required<ConfigOverrides>,
     };
   }
 
