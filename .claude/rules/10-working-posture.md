@@ -254,9 +254,12 @@ is the ordering that stops the report needing recovery at all.
 These are two distinct utterances, and the turn needs both: **the report
 leads, a short confirmation closes.** So a unit-completing turn never ENDS on
 a tool call either — when bookkeeping writes follow the report, the last thing
-in the turn is text saying they landed, never the tool result itself. Both
-observed failure shapes are ordering: the report queued behind the writes and
-killed by compaction, and the turn ending silently on a successful write.
+in the turn is text saying they landed, never the tool result itself. Three
+failure shapes are observed — two of ordering, one of non-execution: the
+report queued behind the writes and killed by compaction; the turn ending
+silently on a successful write; and the turn ending on a STATED INTENTION to
+act ("running the close-out now") — an announced action is not a close; do
+it, or report what blocks it.
 
 ## A comment naming an artifact is a pointer — resolve it before acting
 

@@ -24,7 +24,8 @@
 # Known false-positive shape, accepted the same way (costs one acknowledged
 # turn): a closing inline code span whose content ends in "?" ("Run `foo?`").
 #
-# 09-interaction-style.md § "A Blocking Question Goes Through a Formal Channel".
+# 09-interaction-style.md § "Blocking Questions — and Completions the User Must
+# See — Go Through a Formal Channel".
 
 set -uo pipefail
 
