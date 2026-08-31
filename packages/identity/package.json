@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.5.1"
   },
   "devDependencies": {
     "@stryker-mutator/api": "^10.0.0",
