@@ -37,9 +37,10 @@ _beta.211 CUT 2026-08-31 01:58Z (13 PRs / 10 runtime; tag `latest`; finalize don
 - **Theme**: **TASK-816 tranche 1** — the owner's "raise the floors deliberately" ruling turned into work: close test gaps in the three at-baseline packages + `conversation-history`'s measured −0.70, THEN raise the per-package floors to the improved scores (floors follow test work; sequencing proposal on the task; per-package targets are an open owner call). Plus **TASK-837** (embed thumbnails render as intentional attachments — owner bug report 2026-08-31, sticker-precedent fix shape on the task).
 - **In already**: _(empty at cut time)_
 - **Waiting on**: the first TASK-816 test-gap PR · TASK-837.
+- **If time/room (owner ask 2026-08-31)**: **TASK-839** — the settings drill-down Parent Value display bug. Wanted in 212 but NOT a cut blocker; if the theme lands first, it rolls to vNext+1.
 - **Data-dictated riders**: TASK-791 fix half (wakes on the first prod `empty_response` window — footer instrumentation now two releases live) · whatever the three beta.211 prod watchers surface (restart recovery, guest 429 floor, GLM rescue).
 - **Explicitly NOT in**: doc-86 (character-initiated messages — all Phase-0 calls are the owner's) · doc-87 (deny naming axes — design/taste) · memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · TASK-786/783/785 (open follow-ups, ride if ready).
-- **Deploy notes (carried owner actions)**: the vision-default pointer flip to flash (dev+prod, mechanical — owner decision recorded 2026-08-29, still not executed).
+- **Deploy notes (carried owner actions)**: none. (The vision-default flash flip is DONE — owner-executed some time ago and re-confirmed 2026-08-31 after this note wrongly survived an earlier correction. Its residue bug TASK-789 remains open on its own merits.)
 - **Cut when**: tranche 1 lands, or the standing backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
 - **vNext+1 sketch**: doc-87 deny-naming redesign if the owner engages, else drain batches + TASK-791's prod-data fix.
 
