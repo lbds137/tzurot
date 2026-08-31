@@ -10,6 +10,19 @@ import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 
 /**
+ * The bracket kind an image-path attachment renders under. Sticker wins over
+ * embed preview; the two producers are disjoint, so the ordering states a
+ * precedence rather than resolving a case that arises. Must stay in step with
+ * RAGUtils' `pickImageHeader`, which makes the same choice on the upgrade path.
+ */
+function pickImageKind(attachment: AttachmentMetadata): string {
+  if (attachment.isSticker === true) {
+    return 'Sticker';
+  }
+  return attachment.isEmbedPreview === true ? 'Link preview' : 'Image';
+}
+
+/**
  * Generate placeholder description for a single attachment
  *
  * Placeholders include basic metadata (filename, type, duration) but not AI-processed content.
@@ -38,9 +51,12 @@ export function generateAttachmentPlaceholder(attachment: AttachmentMetadata): s
     // upgrade that would replace it only runs when a description was actually
     // produced — so with sticker vision switched off, or after a describe
     // failure, whatever is written here is what the character reads forever.
-    // Must match RAGUtils' `formatProcessedAttachmentEntry`, which makes the
-    // same Sticker-vs-Image distinction on the upgrade path.
-    const kind = attachment.isSticker === true ? 'Sticker' : 'Image';
+    // An embed preview has the same problem: the user shared a link and Discord
+    // generated the preview image, so `[Image: …]` claims an upload that never
+    // happened.
+    // Must match RAGUtils' `pickImageHeader`, which makes the same three-way
+    // choice on the upgrade path.
+    const kind = pickImageKind(attachment);
     return `[${kind}: ${name}]`;
   }
 

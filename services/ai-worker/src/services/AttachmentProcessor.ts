@@ -20,6 +20,7 @@ import { describeImage, transcribeAudio, type ProcessedAttachment } from './Mult
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import {
   classifyAttachment,
+  imageSource,
   type BuiltAttachment,
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
@@ -249,7 +250,7 @@ function unprocessedAttachment(
       // model than "some voice message we could not process".
       return { kind: 'voice', ...identity, durationSeconds: attachment.duration };
     case 'image':
-      return { kind: 'image', ...identity };
+      return { kind: 'image', ...identity, source: imageSource(attachment) };
     case 'file':
       return { kind: 'file', ...identity };
   }
@@ -347,11 +348,14 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     model,
     log,
   } = options;
-  // Identity only — see the note in processVoiceAttachment.
+  // Identity only — see the note in processVoiceAttachment. `source` rides on
+  // the shared identity so every arm below (preprocessed hit, fresh describe,
+  // failure) carries the same provenance.
   const identity = {
     kind: 'image',
     filename: attachment.name,
     contentType: attachment.contentType,
+    source: imageSource(attachment),
   } as const;
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {

@@ -108,6 +108,46 @@ describe('attachmentPlaceholders', () => {
       expect(generateAttachmentPlaceholder(attachment)).toBe('[Image: photo.jpg]');
     });
 
+    it('should label an embed preview as Link preview, not Image', () => {
+      // Same persisted-placeholder concern as the sticker case: the user
+      // shared a link, and Discord generated this preview image — never a
+      // file they uploaded.
+      const attachment: AttachmentMetadata = {
+        url: 'https://media.discordapp.net/embed-1-image.png',
+        contentType: 'image/png',
+        name: 'embed-1-image.png',
+        isEmbedPreview: true,
+      };
+
+      expect(generateAttachmentPlaceholder(attachment)).toBe('[Link preview: embed-1-image.png]');
+    });
+
+    it('should keep the Image label when isEmbedPreview is absent', () => {
+      // Guards the default — the branch must not flip for ordinary uploads.
+      const attachment: AttachmentMetadata = {
+        url: 'https://example.com/photo.jpg',
+        contentType: 'image/jpeg',
+        name: 'photo.jpg',
+      };
+
+      expect(generateAttachmentPlaceholder(attachment)).toBe('[Image: photo.jpg]');
+    });
+
+    it('should label a sticker as Sticker even when isEmbedPreview is also set', () => {
+      // Disjoint producers, but the precedence must hold if both flags were
+      // ever set on the same entry.
+      const attachment: AttachmentMetadata = {
+        id: '111222333444555666',
+        url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+        contentType: 'image/png',
+        name: 'partyblob',
+        isSticker: true,
+        isEmbedPreview: true,
+      };
+
+      expect(generateAttachmentPlaceholder(attachment)).toBe('[Sticker: partyblob]');
+    });
+
     it('should generate placeholder for generic file', () => {
       const attachment: AttachmentMetadata = {
         url: 'https://example.com/document.pdf',

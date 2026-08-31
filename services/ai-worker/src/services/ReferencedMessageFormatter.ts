@@ -23,6 +23,7 @@ import type { ResolvedPersona } from './reference/UserReferencePatterns.js';
 import {
   attachmentEnrichment,
   buildRenderableAttachments,
+  imageSource,
   type BuiltAttachment,
 } from './prompt/QuoteFormatter.js';
 import {
@@ -202,6 +203,7 @@ function buildDedupedAttachments(
         attachment: {
           kind: 'image',
           filename: entry.metadata.name,
+          source: imageSource(entry.metadata),
           description: entry.description,
         },
       });

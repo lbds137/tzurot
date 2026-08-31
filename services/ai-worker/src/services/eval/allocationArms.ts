@@ -62,7 +62,7 @@ export interface AttachmentSegment {
 }
 
 /** Storage-format attachment headers, at the start or after a blank line. */
-const HEADER_RE = /(?:^|\n\n)\[(?:Image|Sticker|Voice message|Audio|File):[^\]\n]*\]/g;
+const HEADER_RE = /(?:^|\n\n)\[(?:Image|Sticker|Link preview|Voice message|Audio|File):[^\]\n]*\]/g;
 
 const TRANSCRIPT_RE = /<transcript>([\s\S]*?)<\/transcript>/g;
 

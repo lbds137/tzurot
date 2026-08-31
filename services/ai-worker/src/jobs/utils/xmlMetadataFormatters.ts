@@ -218,10 +218,10 @@ export function formatImageSection(msg: StructuredHistoryEntry): string {
   }
 
   const formattedImages = images
-    .map(
-      img =>
-        `<image filename="${escapeXml(img.filename)}">${escapeXmlContent(img.description)}</image>`
-    )
+    .map(img => {
+      const sourceAttr = img.source === undefined ? '' : ` source="${escapeXml(img.source)}"`;
+      return `<image filename="${escapeXml(img.filename)}"${sourceAttr}>${escapeXmlContent(img.description)}</image>`;
+    })
     .join('\n');
   return `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
 }

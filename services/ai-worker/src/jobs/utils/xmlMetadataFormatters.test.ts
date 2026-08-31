@@ -787,6 +787,43 @@ describe('xmlMetadataFormatters', () => {
       expect(result).toContain('filename="cat.jpg"');
       expect(result).toContain('A fluffy cat');
     });
+
+    it('emits a source attribute, after filename, for a link-preview image', () => {
+      const msg = makeEntry({
+        messageMetadata: {
+          imageDescriptions: [
+            { filename: 'preview.png', description: 'A link preview', source: 'link-preview' },
+          ],
+        },
+      });
+      const result = formatImageSection(msg);
+      expect(result).toContain('source="link-preview"');
+      expect(result.indexOf('filename="preview.png"')).toBeLessThan(
+        result.indexOf('source="link-preview"')
+      );
+    });
+
+    it('emits a source attribute for a sticker image', () => {
+      const msg = makeEntry({
+        messageMetadata: {
+          imageDescriptions: [
+            { filename: 'sticker.png', description: 'A sticker', source: 'sticker' },
+          ],
+        },
+      });
+      const result = formatImageSection(msg);
+      expect(result).toContain('source="sticker"');
+    });
+
+    it('omits the source attribute when provenance is absent', () => {
+      const msg = makeEntry({
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'cat.jpg', description: 'A fluffy cat' }],
+        },
+      });
+      const result = formatImageSection(msg);
+      expect(result).not.toContain('source=');
+    });
   });
 
   describe('formatEmbedsSection', () => {
