@@ -6,6 +6,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConversationSyncService } from './ConversationSyncService.js';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
+// Hoisted so several branches below — reachable only through their log line,
+// since the return value is identical either way — can be asserted on.
+const { mockLoggerInfo, mockLoggerDebug, mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerInfo: vi.fn(),
+  mockLoggerDebug: vi.fn(),
+  mockLoggerError: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: mockLoggerDebug,
+      info: mockLoggerInfo,
+      warn: vi.fn(),
+      error: mockLoggerError,
+    }),
+  };
+});
+
 // countTextTokens now lives in @tzurot/common-types (consumed by the production
 // service via the barrel), so intercept it through a partial mock rather than a
 // namespace spy — the latter doesn't reliably catch a re-exported binding.
@@ -545,6 +565,124 @@ describe('ConversationSyncService', () => {
 
       expect(result.updated).toBe(0);
       expect(update).not.toHaveBeenCalled();
+    });
+
+    it('logs the sync summary when work was done', async () => {
+      const row = dbRow('db-1', ['d1'], 'original content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+      ]);
+      vi.spyOn(service, 'updateMessageContent').mockResolvedValue(true);
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'edited content')]);
+
+      expect(result.updated).toBe(1);
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ updated: 1, deleted: 0 }),
+        'Opportunistic sync completed'
+      );
+    });
+
+    it('logs the sync summary when the pass only deleted', async () => {
+      // The summary is gated on `updated > 0 || deleted > 0`. A delete-only
+      // pass is the ONLY case that exercises the second operand — an
+      // edit-only pass leaves it short-circuited and unverified.
+      const row = dbRow('db-1', ['d1'], 'still here');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+        { id: 'db-2', discordMessageId: ['d-deleted'], createdAt: row.createdAt },
+      ]);
+      vi.spyOn(service, 'softDeleteMessages').mockResolvedValue(1);
+
+      await service.runSync('ch-1', 'p-1', [observed('d1', 'still here')]);
+
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ updated: 0, deleted: 1 }),
+        'Opportunistic sync completed'
+      );
+    });
+
+    it('stays silent when the snapshot produced no changes', async () => {
+      const row = dbRow('db-1', ['d1'], 'same content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+      ]);
+
+      await service.runSync('ch-1', 'p-1', [observed('d1', 'same content')]);
+
+      expect(mockLoggerInfo).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'Opportunistic sync completed'
+      );
+    });
+
+    it('an observed message with no DB row is skipped, not fatal', async () => {
+      // Two ids observed; only d1 has a matching DB row. Without the optional
+      // chain on `dbMsg?.deletedAt`, accessing `.deletedAt` on the missing d2
+      // record throws — which runSync's outer catch would swallow into a
+      // zeroed result, hiding the d1 update this test pins.
+      const row = dbRow('db-1', ['d1'], 'original content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+      ]);
+      vi.spyOn(service, 'updateMessageContent').mockResolvedValue(true);
+
+      const result = await service.runSync('ch-1', 'p-1', [
+        observed('d1', 'edited content'),
+        observed('d2', 'unrelated content'),
+      ]);
+
+      expect(result.updated).toBe(1);
+    });
+
+    it('the observed ids reach the query by value', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.runSync('ch-1', 'p-1', [observed('d1', 'x'), observed('d2', 'y')]);
+
+      const firstCallWhere = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0].where;
+      expect(firstCallWhere.discordMessageId.hasSome).toEqual(['d1', 'd2']);
+    });
+
+    it('the no-match case is logged, not silently zero', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.runSync('ch-1', 'p-1', [observed('d1', 'hello')]);
+
+      expect(mockLoggerDebug).toHaveBeenCalledWith(
+        expect.objectContaining({ observedCount: expect.any(Number) }),
+        'No matching DB messages for sync'
+      );
+    });
+
+    it('no update is issued when collation returned null', async () => {
+      const row = dbRow('db-1', ['d1', 'd2'], 'part one part two');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1', 'd2'], createdAt: row.createdAt },
+      ]);
+
+      await service.runSync('ch-1', 'p-1', [observed('d1', 'part one edited')]);
+
+      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
+      expect(mockLoggerError).not.toHaveBeenCalledWith(expect.anything(), 'Sync failed');
+    });
+
+    it('an edit whose update failed is not counted', async () => {
+      const row = dbRow('db-1', ['d1'], 'original content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+      ]);
+      mockPrismaClient.conversationHistory.update.mockRejectedValue(new Error('db down'));
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'edited content')]);
+
+      expect(result.updated).toBe(0);
     });
   });
 });

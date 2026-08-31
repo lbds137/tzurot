@@ -6,19 +6,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
 
-// Suppress logger output in tests (the service's createLogger comes from common-types)
+// Hoisted so the count-gated info log below can be asserted on directly.
+const { mockLoggerInfo } = vi.hoisted(() => ({ mockLoggerInfo: vi.fn() }));
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
       debug: vi.fn(),
-      info: vi.fn(),
+      info: mockLoggerInfo,
       warn: vi.fn(),
       error: vi.fn(),
     }),
   };
 });
+
+// Hoisted spies on the propagation seam: the batch-commit boundary that
+// decides WHICH discord ids (if any) reach memory deletion is otherwise
+// invisible to a test that only checks the returned delete count.
+const { mockPropagateDeletionToMemories, mockPropagateDeletionToFacts } = vi.hoisted(() => ({
+  mockPropagateDeletionToMemories: vi.fn(async () => undefined),
+  mockPropagateDeletionToFacts: vi.fn(async () => undefined),
+}));
+vi.mock('./memoryDeletionPropagation.js', () => ({
+  propagateDeletionToMemories: mockPropagateDeletionToMemories,
+  propagateDeletionToFacts: mockPropagateDeletionToFacts,
+}));
 // Helper to create a mock Prisma client with transaction support
 function createMockPrismaClient() {
   const mockClient = {
@@ -256,6 +269,73 @@ describe('ConversationRetentionService', () => {
 
       await expect(service.cleanupSoftDeletedMessages(7)).rejects.toThrow(
         'Database connection failed'
+      );
+    });
+  });
+
+  describe('memory-propagation seam', () => {
+    it("the batch's discord ids reach propagation, after the batch commits", async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
+        { id: 'm1', discordMessageId: ['d1', 'd2'] },
+      ]);
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.clearHistory('channel-123', 'personality-456');
+
+      expect(mockPropagateDeletionToMemories).toHaveBeenCalledWith(expect.anything(), ['d1', 'd2']);
+    });
+
+    it('a batch carrying no discord ids propagates nothing', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([{ id: 'm1' }]);
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.clearHistory('channel-123', 'personality-456');
+
+      expect(mockPropagateDeletionToMemories).not.toHaveBeenCalled();
+    });
+
+    it('an empty batch propagates nothing', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.clearHistory('channel-123', 'personality-456');
+
+      expect(mockPropagateDeletionToMemories).not.toHaveBeenCalled();
+    });
+
+    it('the time-based sweep never propagates, even over rows that carry discord ids', async () => {
+      // Time-based retention deliberately does not propagate to memories —
+      // long-term memory is meant to outlive the conversation window.
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
+        { id: 'm1', discordMessageId: ['d1'] },
+      ]);
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.cleanupOldHistory(30)).resolves.toBe(1);
+
+      expect(mockPropagateDeletionToMemories).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cleanupSoftDeletedMessages — count-gated logging', () => {
+    it('logs the count only when rows were actually removed', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 3 });
+
+      await service.cleanupSoftDeletedMessages(7);
+
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ count: 3 }),
+        'Hard deleted soft-deleted messages'
+      );
+    });
+
+    it('stays silent when nothing was due', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 0 });
+
+      await service.cleanupSoftDeletedMessages(7);
+
+      expect(mockLoggerInfo).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'Hard deleted soft-deleted messages'
       );
     });
   });
