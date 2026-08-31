@@ -30,23 +30,21 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 ---
 
-### 🚢 Next Release — beta.212 (theme: mutation-floor campaign tranche 1 + prod-data follow-through)
+### 🚢 Next Release — beta.213 (theme: specified-fix drain, Opus-driven)
 
-_beta.211 CUT 2026-08-31 01:58Z (13 PRs / 10 runtime; tag `latest`; finalize done). Its shipped list lives in the release notes — not re-enumerated here._
+_beta.212 CUT 2026-08-31 ~19:20Z (10 PRs / 8 runtime / 120 files; tag `latest`; finalize done; Parent Value smoke-verified pre-cut). Its shipped list lives in the release notes — not re-enumerated here._
 
-- **Theme**: **TASK-816 tranche 1 — TEST WORK COMPLETE 2026-08-31**, all four PRs merged same-day: conversation-history **#2271** (85.64 → 97.39) · clients **#2272** (96.44 → 98.42, the no-src ceiling) · cache-invalidation **#2273** (89.44 → 97.53) · config-resolver **#2274** (86.89 → 96.54, 2 review rounds). Every residue survivor dispositioned (logger-name noise or probed-equivalent); fresh local reports exist for ALL FIVE tracked packages (identity re-run 2026-08-31: 78.97, reproducing exactly). Remaining: the **floor-raise step** — owner sets targets, then sanctioned `pnpm ops mutation:update-baseline`. Constraint recorded: clients cannot floor above 98.42−margin without src changes; review residue task TASK-843 filed.
-- **In already**: **TASK-837 ✅ (#2270 merged 2026-08-31, 4 review rounds)** — embed thumbnails now carry link-preview provenance at every render surface; residue tracked as TASK-840/841/842 (constraint-split eval · label-mapping hoist · stored-orphan schema slot). **TASK-816 tranche-1 PRs ✅ (#2271 #2272 #2273 #2274)**.
-- **Floor raise ✅ (#2275 merged 2026-08-31)**: owner picked "raise all five to measured" — baselines now 96.54 / 97.53 / 97.39 / 78.97 / 98.42, grace 1.0 unchanged. **The cut criterion is MET.**
-- **TASK-839 ✅ (#2277 merged 2026-08-31, 3 review rounds)** — Parent Value now renders the parent tier across all four cascade dashboards (winner-relative snapshot in both resolve producers; the task's pre-local-snapshot sketch was falsified for the channel dashboard and corrected). **Smoke VERIFIED on dev 2026-08-31** (owner screenshot: Current Off, Status Override, Parent 30 days — the exact acceptance). Residue: TASK-844 (channel-dashboard resolution semantics, owner call — now also owns the no-personality 2-tier path gap from the round-3 review).
-- **Dependabot riders ✅ (owner ask 2026-08-31)**: #2269 dev deps (+ @types/node 26.4 compat fix) · #2276 prod deps ×12 incl. prisma 7.10 + zod 4.5.1 · **#2278 claude-code-action 1.0.210 merged to MAIN via main-cut** (owner-approved; `release:finalize` run, develop SHA-resynced; #2267/#2268 closed superseded).
-- **Waiting on**: nothing — **CUT-READY**. Remaining owner input: the Parent Value smoke item above (dev deploys from develop automatically; no migrations pending).
-- **Data-dictated riders**: TASK-791 fix half (wakes on the first prod `empty_response` window — footer instrumentation now two releases live) · whatever the three beta.211 prod watchers surface (restart recovery, guest 429 floor, GLM rescue).
-- **Explicitly NOT in**: doc-86 (character-initiated messages — all Phase-0 calls are the owner's) · doc-87 (deny naming axes — design/taste) · memory overhaul (doc-8, parked) · TASK-730 (owner call pending) · TASK-786/783/785 (open follow-ups, ride if ready).
-- **Deploy notes (carried owner actions)**: none. (The vision-default flash flip is DONE — owner-executed some time ago and re-confirmed 2026-08-31 after this note wrongly survived an earlier correction. Its residue bug TASK-789 remains open on its own merits.)
-- **Cut when**: tranche 1 lands, or the standing backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
-- **vNext+1 sketch**: doc-87 deny-naming redesign if the owner engages, else drain batches + TASK-791's prod-data fix.
+- **Driver (owner call 2026-08-31)**: **Opus main loop** — budget balancing after a heavy Fable day. The plan is deliberately Opus-shaped: every candidate below is fully fix-shaped with no open design; per the orchestration mode table, substantive units go nested-dispatch, mechanical units single-hop Sonnet, review-round fixes are dispatch work under any driver.
+- **Theme candidates (owner to confirm at planning)**: **TASK-789 impl** (the council-decided error-classification hoists — two specimen anchors in `detectSpecialCases`, negative tests enumerated on the task; size:S) · **TASK-843** (subscribe stale-callback fix, fix shape + proven-red acceptance on the task; size:S) · **identity mutation tranche 2** (192 survivors at 78.97 — the exact pattern four packages just proved out, then raise its floor via the sanctioned path) · **drain batches** (doc-7: 3–5 same-area size:S per PR).
+- **In already**: (empty at cut time)
+- **Waiting on**: the beta.213 planning session (post-compaction, owner + agent).
+- **Data-dictated riders**: TASK-791 fix half (wakes on the first prod `empty_response` window) · whatever the prod watchers surface (restart recovery, guest 429 floor, GLM rescue, #2270's first link-share render).
+- **Explicitly NOT in (driver-shaped exclusions)**: doc-87 (deny naming — design/taste, needs owner + a planning pass) · TASK-844 (owner semantics call pending; includes the no-personality 2-tier path) · doc-86 (Phase-0 calls are the owner's) · memory overhaul (doc-8, parked) · TASK-730 (owner call pending).
+- **Deploy notes (carried owner actions)**: none pending.
+- **Cut when**: the confirmed theme lands, or the standing backstops fire (~10 runtime PRs / ~250 files — `pnpm ops release:range` for live values).
+- **vNext+1 sketch**: doc-87 redesign if the owner engages (Fable planning pass), else the next drain train.
 
-- **⚖️ Owner decisions carried forward (binding, do not re-litigate)**: **TASK-816 → raise the mutation floors deliberately** (2026-08-30) — mutation score is a RISING QUALITY TARGET; the agent recommended visibility-only and was overruled, do not re-propose. **Settled footer wording (2026-08-29)**: `Model: <alias> → <concrete> (routed)` for router turns; free-tier substitution renders bare; `/inspect` shares the vocabulary. Deciding either twice is how surfaces drift.
+- **⚖️ Owner decisions carried forward (binding, do not re-litigate)**: **Mutation score is a RISING QUALITY TARGET** (2026-08-30; floors raised and banked in #2275 — the posture governs future tranches, identity included). **Settled footer wording (2026-08-29)**: `Model: <alias> → <concrete> (routed)` for router turns; free-tier substitution renders bare; `/inspect` shares the vocabulary. Deciding either twice is how surfaces drift.
 - **Process PRs (non-runtime, land at convenience)**: the two deferred 08-29 mining operationalizations — owner-decision digest section · PR-body claim scan (deferred to the post-reset window, owner budget call).
 
 ### 🎯 Current Focus (max 3)
