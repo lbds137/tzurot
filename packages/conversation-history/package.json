@@ -27,7 +27,7 @@
     "@stryker-mutator/api": "^10.0.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@tzurot/test-utils": "workspace:*"
   }
 }
