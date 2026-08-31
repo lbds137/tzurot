@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@types/estree": "^1.0.9",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@vitest/coverage-v8": "^4.1.11",
     "memfs": "^4.68.1",
     "typescript": "^6.0.3",
