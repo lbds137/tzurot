@@ -89,7 +89,8 @@ describe('DenylistFilter', () => {
 
   it('should filter messages from channel-denied users', async () => {
     mockCache.isChannelDenied.mockImplementation(
-      (userId: string, channelId: string) => userId === 'user1' && channelId === 'denied-chan'
+      (userId: string, channelId: string, _parentChannelId: string | null) =>
+        userId === 'user1' && channelId === 'denied-chan'
     );
     const message = createMockMessage('user1', 'guild1', 'denied-chan');
     const result = await filter.process(message);
@@ -113,7 +114,8 @@ describe('DenylistFilter', () => {
   describe('thread inheritance', () => {
     it('should deny thread message when parent channel is denied', async () => {
       mockCache.isChannelDenied.mockImplementation(
-        (userId: string, channelId: string) => userId === 'user1' && channelId === 'parent-chan'
+        (userId: string, channelId: string, parentChannelId: string | null) =>
+          userId === 'user1' && (channelId === 'parent-chan' || parentChannelId === 'parent-chan')
       );
       const message = createMockMessage('user1', 'guild1', 'thread-123', {
         type: ChannelType.PublicThread,
@@ -121,11 +123,13 @@ describe('DenylistFilter', () => {
       });
       const result = await filter.process(message);
       expect(result).toBe(true);
+      expect(mockCache.isChannelDenied).toHaveBeenCalledWith('user1', 'thread-123', 'parent-chan');
     });
 
     it('should deny thread message when thread itself is denied (direct)', async () => {
       mockCache.isChannelDenied.mockImplementation(
-        (userId: string, channelId: string) => userId === 'user1' && channelId === 'thread-123'
+        (userId: string, channelId: string, _parentChannelId: string | null) =>
+          userId === 'user1' && channelId === 'thread-123'
       );
       const message = createMockMessage('user1', 'guild1', 'thread-123', {
         type: ChannelType.PublicThread,
@@ -133,8 +137,9 @@ describe('DenylistFilter', () => {
       });
       const result = await filter.process(message);
       expect(result).toBe(true);
-      // Should match on the first check (thread-specific), never reaches parent
-      expect(mockCache.isChannelDenied).toHaveBeenCalledWith('user1', 'thread-123');
+      // Channel-scope denial is now a single call that carries both the
+      // channel and its parent, so isChannelDenied itself decides inheritance.
+      expect(mockCache.isChannelDenied).toHaveBeenCalledWith('user1', 'thread-123', 'parent-chan');
     });
 
     it('should pass through thread message when neither thread nor parent is denied', async () => {
@@ -152,9 +157,9 @@ describe('DenylistFilter', () => {
       });
       const result = await filter.process(message);
       expect(result).toBe(false);
-      // Only called once for the channel itself, not for a parent
+      // A single call, with a null parent for a non-thread channel.
       expect(mockCache.isChannelDenied).toHaveBeenCalledTimes(1);
-      expect(mockCache.isChannelDenied).toHaveBeenCalledWith('user1', 'regular-chan');
+      expect(mockCache.isChannelDenied).toHaveBeenCalledWith('user1', 'regular-chan', null);
     });
   });
 });
