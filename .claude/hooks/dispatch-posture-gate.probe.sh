@@ -22,11 +22,11 @@ mkdir -p "$FIXTURE/services/x" "$FIXTURE/packages/y" "$FIXTURE/docs" "$FIXTURE/.
 
 FAILURES=0
 
-# run <expected-exit> <label> <tool_name> <file_path> <ack_file>
+# run <expected-exit> <label> <tool_name> <file_path> <ack_file> [project_dir]
 run() {
-  local expected="$1" label="$2" tool="$3" path="$4" ack="$5"
+  local expected="$1" label="$2" tool="$3" path="$4" ack="$5" project="${6:-$FIXTURE}"
   jq -n --arg t "$tool" --arg p "$path" '{tool_name:$t,tool_input:{file_path:$p}}' \
-    | CLAUDE_PROJECT_DIR="$FIXTURE" DISPATCH_POSTURE_ACK_FILE="$ack" "$HOOK" >/dev/null 2>&1
+    | CLAUDE_PROJECT_DIR="$project" DISPATCH_POSTURE_ACK_FILE="$ack" "$HOOK" >/dev/null 2>&1
   local actual=$?
   if [ "$actual" -eq "$expected" ]; then
     printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
@@ -42,6 +42,20 @@ run 2 "fresh ack: Edit to services/x/a.ts" "Edit" "$FIXTURE/services/x/a.ts" "$A
 
 # --- case 2: same call again, now acked → passes -----------------------------
 run 0 "same call again (acked) passes" "Edit" "$FIXTURE/services/x/a.ts" "$ACK1"
+
+# --- case 2b: a NEW COMMIT re-arms the gate (HEAD is part of the ack key) ----
+# A review-round fix is by construction a post-commit edit; a per-day key
+# lets one build's ack silently cover every later review round on the branch.
+# Needs a real git fixture: the cases above run un-repo'd (HEAD → "nohead").
+GITFIX="$TMPDIR_PROBE/gitfix"
+mkdir -p "$GITFIX/services/x"
+git -C "$GITFIX" init -q -b probe
+git -C "$GITFIX" -c user.email=probe@probe -c user.name=probe commit -q --allow-empty -m one
+ACK2B="$TMPDIR_PROBE/ack2b"
+run 2 "git fixture: fresh ack blocks" "Edit" "$GITFIX/services/x/a.ts" "$ACK2B" "$GITFIX"
+run 0 "git fixture: same HEAD acked passes" "Edit" "$GITFIX/services/x/a.ts" "$ACK2B" "$GITFIX"
+git -C "$GITFIX" -c user.email=probe@probe -c user.name=probe commit -q --allow-empty -m two
+run 2 "git fixture: NEW COMMIT re-arms the block" "Edit" "$GITFIX/services/x/a.ts" "$ACK2B" "$GITFIX"
 
 # --- case 3: worktree-exempt path → passes -----------------------------------
 ACK3="$TMPDIR_PROBE/ack3"
