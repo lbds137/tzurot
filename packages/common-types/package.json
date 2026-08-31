@@ -64,9 +64,9 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
-    "discord-api-types": "^0.38.53",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "discord-api-types": "^0.38.54",
     "discord.js": "^14.27.0",
     "ioredis": "^5.11.1",
     "lru-cache": "^11.5.2",
