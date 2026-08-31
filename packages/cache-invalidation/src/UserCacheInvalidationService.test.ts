@@ -7,11 +7,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UserCacheInvalidationService } from './UserCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -57,6 +61,19 @@ describe('UserCacheInvalidationService', () => {
     expect(mockRedis.publish).toHaveBeenCalledWith(
       REDIS_CHANNELS.USER_CACHE_INVALIDATION,
       JSON.stringify({ type: 'all' })
+    );
+  });
+
+  // Pins the service's declared diagnostic contract (getLogContext/getEventDescription),
+  // which is otherwise only exercised through log output.
+  it('carries the service log context into the published log line', async () => {
+    mockLogger.info.mockClear();
+
+    await service.invalidateUser('discord-123');
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ discordId: 'discord-123', description: 'user discord-123' }),
+      expect.any(String)
     );
   });
 

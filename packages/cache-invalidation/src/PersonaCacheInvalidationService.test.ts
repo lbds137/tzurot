@@ -11,16 +11,15 @@ import {
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
 // Mock logger
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 describe('PersonaCacheInvalidationService', () => {
@@ -263,6 +262,19 @@ describe('PersonaCacheInvalidationService', () => {
       expect(mockRedis.publish).toHaveBeenCalledWith(
         REDIS_CHANNELS.PERSONA_CACHE_INVALIDATION,
         JSON.stringify({ type: 'all' })
+      );
+    });
+
+    // Pins the service's declared diagnostic contract (getLogContext/getEventDescription),
+    // which is otherwise only exercised through log output.
+    it('carries the service log context into the published log line', async () => {
+      mockLogger.info.mockClear();
+
+      await service.invalidateUserPersona('discord-1');
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ discordId: 'discord-1', description: 'user discord-1' }),
+        expect.any(String)
       );
     });
   });
