@@ -94,4 +94,16 @@ TRANCHE 2 PROFILE (identity) — measured from reports/mutation/identity/mutatio
 TWO THINGS THIS CHANGES ABOUT SCOPING. (1) The top three files hold 139 of 192 (72 percent), so the natural slicing is one PR per file for those three plus one PR for the remaining five, NOT a single tranche-2 PR. (2) Only 32 survivors are StringLiteral, and that is the class that was almost entirely logger-name noise in tranche 1 — here roughly 160 are behavioral (conditionals, blocks, object literals, logical and equality operators), so this is real untested logic rather than a noise tail. Expect tranche 1 effort per FILE, not per package.
 
 Consequence for the floor raise: identity cannot reach a tranche-1-like score in one unit. Either raise its floor in steps as each file lands, or hold the identity raise until the whole tranche completes. That is an owner call at raise time, not settled here.
+
+TRANCHE 2 SLICE LOG.
+
+  slice                 file score      package    PR     residue
+  1 UserService.ts      72.49 -> 89.96  78.97 -> 83.35  #2282  6 noise, 8 equivalent, 2 need src
+  2 PersonalityLoader.ts  (47 survivors)   —            —      —
+  3 PersonaResolver.ts    (29 survivors)   —            —      —
+  4 the remaining five    (53 survivors)   —            —      —
+
+Slice 1 notes worth carrying into 2-4. Two mutants are dispositioned NEEDS A SOURCE CHANGE and stayed unkilled deliberately: USER_CACHE_TTL_MS arithmetic and the TTLCache options literal. TTLCache accepts a `now` override built for exactly this kind of test, but UserService never threads one through its constructor call, so verifying the real TTL would need an hour wait or private-field access. If later slices accumulate more of these, a small injection-seam PR is the honest way to close them — as one deliberate source change with its own review, never smuggled into a tests-only slice.
+
+PRECEDENT SET IN SLICE 1, and deliberately narrow: one test calls a private method. Allowed ONLY where the source itself documents the branch as defense-in-depth for a future caller — which isPrismaUniqueConstraintError's `target` parameter does, its element-equality property existing so a future caller passing a short target cannot silently false-positive. The reviewer independently endorsed the line as narrowly scoped. It is NOT permission to reach past the public surface because a number is hard to move; slices 2-4 hold the same bar.
 <!-- SECTION:DESCRIPTION:END -->
