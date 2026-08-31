@@ -234,6 +234,10 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
       // this one is still connecting, so position and "matches this
       // reference" are not the same thing, and removing every matching
       // reference would over-delete a duplicate registration.
+      //
+      // Taking the FIRST match is fine even when the same reference was
+      // registered twice: the entries are indistinguishable, so dropping
+      // either one leaves the identical array behind.
       const callbackIndex = this.callbacks.indexOf(callback);
       if (callbackIndex !== -1) {
         this.callbacks.splice(callbackIndex, 1);
@@ -243,6 +247,11 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
       // created. Always disconnect it, but null out `this.subscriber` only
       // when it still points at that same connection — a connection a later,
       // concurrently-successful invocation has since installed is left alone.
+      //
+      // The disconnect can be the second one on this object, since a racing
+      // unsubscribe() may already have closed it. ioredis tolerates that:
+      // its disconnect() only sets flags and delegates, with the timeout
+      // clear guarded, so a repeat call is a no-op rather than a throw.
       if (connection !== undefined) {
         connection.disconnect();
         if (this.subscriber === connection) {
