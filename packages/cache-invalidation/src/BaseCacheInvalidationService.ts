@@ -196,14 +196,16 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
       return;
     }
 
+    let connection: Redis | undefined;
     try {
       // Create a separate Redis connection for subscribing
       // (Redis pub/sub requires dedicated connection)
-      this.subscriber = this.redis.duplicate();
+      connection = this.redis.duplicate();
+      this.subscriber = connection;
 
-      await this.subscriber.subscribe(this.channel);
+      await connection.subscribe(this.channel);
 
-      this.subscriber.on('message', (channel: string, message: string) => {
+      connection.on('message', (channel: string, message: string) => {
         if (channel !== this.channel) {
           return;
         }
@@ -237,10 +239,15 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
         this.callbacks.splice(callbackIndex, 1);
       }
 
-      // Clean up the subscriber connection on failure
-      if (this.subscriber) {
-        this.subscriber.disconnect();
-        this.subscriber = null;
+      // A failed subscribe cleans up only the connection THIS invocation
+      // created. Always disconnect it, but null out `this.subscriber` only
+      // when it still points at that same connection — a connection a later,
+      // concurrently-successful invocation has since installed is left alone.
+      if (connection !== undefined) {
+        connection.disconnect();
+        if (this.subscriber === connection) {
+          this.subscriber = null;
+        }
       }
       this.logger.error({ err: error }, 'Failed to subscribe to cache invalidation events');
       throw error;

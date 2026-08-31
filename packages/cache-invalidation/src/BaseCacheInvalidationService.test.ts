@@ -465,12 +465,16 @@ describe('BaseCacheInvalidationService', () => {
         // Caller A connects then hangs, exactly like the interleaving test
         // above, but this time a shutdown races it instead of another
         // subscribe(): unsubscribe() clears the callback list (and the
-        // connection) before A's own subscribe() settles.
+        // connection) before A's own subscribe() settles. A gets its own
+        // distinct connection mock so the assertions below can tell A's
+        // straggling connection apart from B's live one.
+        const subscriberA = createMockRedis();
         let rejectSubscribeA: (err: Error) => void = () => {};
         const pendingA = new Promise<void>((_, reject) => {
           rejectSubscribeA = reject;
         });
-        mockSubscriber.subscribe.mockReturnValueOnce(pendingA);
+        subscriberA.subscribe.mockReturnValueOnce(pendingA);
+        mockRedis.duplicate.mockReturnValueOnce(subscriberA);
 
         const callbackA = vi.fn();
         const subscribeA = service.subscribe(callbackA);
@@ -489,6 +493,13 @@ describe('BaseCacheInvalidationService', () => {
         // the LAST element, which is B.
         rejectSubscribeA(new Error('mid-flight failure'));
         await expect(subscribeA).rejects.toThrow('mid-flight failure');
+
+        // A's straggling catch cleans up only the connection it created —
+        // B's live connection (a different object from A's) survives, and
+        // the service stays subscribed.
+        expect(service.isSubscribed()).toBe(true);
+        expect(subscriberA.disconnect).toHaveBeenCalled();
+        expect(mockSubscriber.disconnect).not.toHaveBeenCalled();
 
         const messageHandler = mockSubscriber.on.mock.calls.find(
           (call: unknown[]) => call[0] === 'message'
