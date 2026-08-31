@@ -82,6 +82,9 @@ export const handleResolveUserDefaults = (deps: RouteDeps): RequestHandler => {
     // Merge: hardcoded → admin → user-default
     const resolved: Record<string, unknown> = { ...HARDCODED_CONFIG_DEFAULTS };
     const sources: Record<string, ConfigOverrideSource> = {};
+    // Per-field parent value: what the field resolved to one tier down from
+    // whichever tier ends up supplying the effective value.
+    const parentValues: Record<string, unknown> = { ...HARDCODED_CONFIG_DEFAULTS };
 
     for (const key of Object.keys(HARDCODED_CONFIG_DEFAULTS)) {
       sources[key] = 'hardcoded';
@@ -90,6 +93,7 @@ export const handleResolveUserDefaults = (deps: RouteDeps): RequestHandler => {
     if (adminDefaults !== null) {
       for (const [key, value] of Object.entries(adminDefaults)) {
         if (value !== undefined) {
+          parentValues[key] = resolved[key];
           resolved[key] = value;
           sources[key] = 'admin';
         }
@@ -99,17 +103,22 @@ export const handleResolveUserDefaults = (deps: RouteDeps): RequestHandler => {
     if (userDefaults !== null) {
       for (const [key, value] of Object.entries(userDefaults)) {
         if (value !== undefined) {
+          parentValues[key] = resolved[key];
           resolved[key] = value;
           sources[key] = 'user-default';
         }
       }
     }
 
-    // 'sources' and 'userOverrides' are reserved metadata keys in this flat
-    // response. Collision with a future ConfigOverrides field name is caught
-    // at compile time by the `_ReservedKeysDoNotCollide` assertion in
-    // packages/common-types/src/schemas/api/configOverrides.ts.
-    sendCustomSuccess(res, { ...resolved, sources, userOverrides: userDefaults }, StatusCodes.OK);
+    // 'sources', 'parentValues', and 'userOverrides' are reserved metadata
+    // keys in this flat response. Collision with a future ConfigOverrides
+    // field name is caught at compile time by the `_ReservedKeysDoNotCollide`
+    // assertion in packages/common-types/src/schemas/api/configOverrides.ts.
+    sendCustomSuccess(
+      res,
+      { ...resolved, sources, parentValues, userOverrides: userDefaults },
+      StatusCodes.OK
+    );
   });
 };
 

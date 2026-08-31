@@ -272,6 +272,7 @@ describe('Config-Overrides Response Schemas', () => {
     sources: Object.fromEntries(
       Object.keys(HARDCODED_CONFIG_DEFAULTS).map(k => [k, 'hardcoded' as const])
     ),
+    parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
   };
 
   describe('ResolvedConfigOverridesSchema', () => {
@@ -283,6 +284,26 @@ describe('Config-Overrides Response Schemas', () => {
       const bad = { ...fullyResolved, sources: { maxMessages: 'bogus' } };
       expect(ResolvedConfigOverridesSchema.safeParse(bad).success).toBe(false);
     });
+
+    it('rejects a payload missing parentValues', () => {
+      const { parentValues: _omit, ...withoutParentValues } = fullyResolved;
+      expect(ResolvedConfigOverridesSchema.safeParse(withoutParentValues).success).toBe(false);
+    });
+
+    it('survives the Zod parse: parentValues field values pass through unchanged', () => {
+      // A response key not declared in the wire schema is stripped by
+      // safeParse before any caller sees it — so parsing a sentinel-bearing
+      // payload and reading it back off `result.data` is the only way to
+      // prove the field actually reaches the caller.
+      const sentinelParentValues = {
+        ...HARDCODED_CONFIG_DEFAULTS,
+        maxMessages: 77,
+      };
+      const payload = { ...fullyResolved, parentValues: sentinelParentValues };
+      const result = ResolvedConfigOverridesSchema.safeParse(payload);
+      expect(result.success).toBe(true);
+      expect(result.data?.parentValues).toEqual(sentinelParentValues);
+    });
   });
 
   describe('ResolveUserConfigDefaultsResponseSchema', () => {
@@ -292,19 +313,21 @@ describe('Config-Overrides Response Schemas', () => {
       Object.keys(HARDCODED_CONFIG_DEFAULTS).map(k => [k, 'hardcoded' as const])
     );
 
-    it('accepts flat shape with exhaustive sources + userOverrides', () => {
+    it('accepts flat shape with exhaustive sources + parentValues + userOverrides', () => {
       const data = {
         ...HARDCODED_CONFIG_DEFAULTS,
         sources: { ...allHardcodedSources, maxMessages: 'user-default' as const },
+        parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
         userOverrides: { maxMessages: 75 },
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
     });
 
-    it('accepts null userOverrides with exhaustive sources + all ConfigOverrides fields', () => {
+    it('accepts null userOverrides with exhaustive sources + parentValues + all ConfigOverrides fields', () => {
       const data = {
         ...HARDCODED_CONFIG_DEFAULTS,
         sources: allHardcodedSources,
+        parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
         userOverrides: null,
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
@@ -314,6 +337,7 @@ describe('Config-Overrides Response Schemas', () => {
       const data = {
         ...HARDCODED_CONFIG_DEFAULTS,
         sources: { maxMessages: 'hardcoded' as const },
+        parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
         userOverrides: null,
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(false);
@@ -324,9 +348,35 @@ describe('Config-Overrides Response Schemas', () => {
         // Missing maxMessages, maxAge, etc. — schema now derived from
         // ConfigOverridesSchema.required() so these are mandatory.
         sources: allHardcodedSources,
+        parentValues: { ...HARDCODED_CONFIG_DEFAULTS },
         userOverrides: null,
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(false);
+    });
+
+    it('rejects a payload missing parentValues', () => {
+      const data = {
+        ...HARDCODED_CONFIG_DEFAULTS,
+        sources: allHardcodedSources,
+        userOverrides: null,
+      };
+      expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(false);
+    });
+
+    it('survives the Zod parse: parentValues field values pass through unchanged', () => {
+      const sentinelParentValues = {
+        ...HARDCODED_CONFIG_DEFAULTS,
+        maxMessages: 88,
+      };
+      const data = {
+        ...HARDCODED_CONFIG_DEFAULTS,
+        sources: allHardcodedSources,
+        parentValues: sentinelParentValues,
+        userOverrides: null,
+      };
+      const result = ResolveUserConfigDefaultsResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      expect(result.data?.parentValues).toEqual(sentinelParentValues);
     });
   });
 

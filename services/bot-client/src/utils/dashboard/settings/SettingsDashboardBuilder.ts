@@ -185,23 +185,25 @@ export function buildOverviewEmbed(
 }
 
 /**
- * Format the inherited (parent-cascade) value for the drill-down's
- * "Parent Value" field — the effectiveValue rendered per setting type.
+ * Format a value for the drill-down's "Parent Value" field, per setting type.
+ * The caller passes the PARENT value — what this tier's field would resolve
+ * to with this tier's own override removed — not the effective value; the two
+ * differ whenever this tier's override is the one currently winning.
  */
-function formatInheritedDisplay(setting: SettingDefinition, effectiveValue: unknown): string {
+function formatInheritedDisplay(setting: SettingDefinition, parentValue: unknown): string {
   switch (setting.type) {
     case SettingType.TRI_STATE:
-      return (effectiveValue as boolean) ? '✅ Enabled' : '❌ Disabled';
+      return (parentValue as boolean) ? '✅ Enabled' : '❌ Disabled';
     case SettingType.DURATION: {
-      const durationValue = effectiveValue as number | null;
+      const durationValue = parentValue as number | null;
       return durationValue === null ? 'Off' : Duration.fromSeconds(durationValue).toHuman();
     }
     case SettingType.ENUM: {
-      const choice = setting.choices?.find(c => c.value === effectiveValue);
-      return choice !== undefined ? `${choice.emoji} ${choice.label}` : String(effectiveValue);
+      const choice = setting.choices?.find(c => c.value === parentValue);
+      return choice !== undefined ? `${choice.emoji} ${choice.label}` : String(parentValue);
     }
     default:
-      return String(effectiveValue);
+      return String(parentValue);
   }
 }
 
@@ -250,7 +252,7 @@ export function buildSettingEmbed(
   ) {
     embed.addFields({
       name: 'Parent Value',
-      value: formatInheritedDisplay(setting, value.effectiveValue),
+      value: formatInheritedDisplay(setting, value.parentValue),
       inline: true,
     });
   }

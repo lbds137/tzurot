@@ -61,6 +61,19 @@ const fullResolvedCascade = {
     voiceResponseMode: 'hardcoded',
     voiceTranscriptionEnabled: 'hardcoded',
   },
+  parentValues: {
+    maxMessages: 50,
+    maxAge: null,
+    maxImages: 10,
+    crossChannelHistoryEnabled: false,
+    shareLtmAcrossPersonalities: false,
+    memoryScoreThreshold: 0.5,
+    memoryLimit: 20,
+    showModelFooter: true,
+    voiceResponseMode: 'always',
+    voiceTranscriptionEnabled: true,
+    shareHistoryAcrossPersonalities: 'always',
+  },
 } as never;
 
 describe('convertCascadeToSettingsData', () => {

@@ -203,6 +203,9 @@ export interface ResolvedConfigOverrides {
 
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;
+
+  /** Per-field parent value: what the field resolves to with the winning tier's contribution removed. */
+  parentValues: Required<ConfigOverrides>;
 }
 
 // ============================================================================
@@ -252,7 +255,7 @@ const ConfigOverridesKeySchema = z.enum(CONFIG_OVERRIDES_KEYS);
  * `.required()` strips the per-field `.optional()` wrappers but preserves
  * nullable types (e.g., `maxAge` remains `number | null`), which matches
  * the `ResolvedConfigOverrides` interface above. The `.extend()` adds the
- * resolver-specific `sources` field.
+ * resolver-specific `sources` and `parentValues` fields.
  *
  * `sources` uses exhaustive `z.record(enum, value)` (Zod v4: this requires
  * every enum member as a key) because both emission paths —
@@ -260,20 +263,28 @@ const ConfigOverridesKeySchema = z.enum(CONFIG_OVERRIDES_KEYS);
  * handler — initialize every key to `'hardcoded'` before applying overrides.
  * The exhaustive shape gives callers tighter type inference
  * (`Record<KnownKey, Source>` rather than `Partial<...>`).
+ *
+ * `parentValues` reuses `ConfigOverridesSchema.required()` (same as the root
+ * fields) so each field keeps its exact per-field type. It carries what the
+ * field would resolve to with the winning tier's contribution removed — the
+ * value one tier down from whichever tier supplied the effective value.
  */
 export const ResolvedConfigOverridesSchema = ConfigOverridesSchema.required().extend({
   sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+  parentValues: ConfigOverridesSchema.required(),
 });
 
 /**
  * Compile-time collision guard. Proves `keyof ConfigOverrides` has empty
- * intersection with the reserved meta-keys (`sources`, `userOverrides`).
- * If a future contributor adds a `ConfigOverrides` field named `sources`
- * or `userOverrides`, this type assertion fails to compile, catching the
+ * intersection with the reserved meta-keys (`sources`, `userOverrides`,
+ * `parentValues`). If a future contributor adds a `ConfigOverrides` field
+ * named one of these, this type assertion fails to compile, catching the
  * flat-spread collision risk at the type level rather than at runtime.
  */
 type _ReservedKeysDoNotCollide =
-  Extract<keyof ConfigOverrides, 'sources' | 'userOverrides'> extends never ? true : false;
+  Extract<keyof ConfigOverrides, 'sources' | 'userOverrides' | 'parentValues'> extends never
+    ? true
+    : false;
 
 const _reservedKeysCheck: _ReservedKeysDoNotCollide = true;
 
@@ -284,18 +295,20 @@ void _reservedKeysCheck;
  * Response for GET /user/config-overrides/resolve-defaults.
  *
  * Flat shape: each `ConfigOverrides` field appears at the top level alongside
- * `sources` (per-field provenance) and `userOverrides` (the raw user tier
- * stored in DB, or null if unset).
+ * `sources` (per-field provenance), `parentValues` (per-field value with the
+ * winning tier's contribution removed), and `userOverrides` (the raw user
+ * tier stored in DB, or null if unset).
  *
- * Derived from `ConfigOverridesSchema.required().extend({ sources, userOverrides })`
+ * Derived from `ConfigOverridesSchema.required().extend({ sources, parentValues, userOverrides })`
  * so callers get the strongly-typed `ConfigOverrides` fields at root
  * (`maxMessages: number | null`, `voiceResponseMode: enum`, etc.) instead of
  * the previous `.passthrough()` shape that yielded `{ [k: string]: unknown }`.
- * Field collisions with `sources` / `userOverrides` are prevented at compile
- * time by the `_ReservedKeysDoNotCollide` assertion above.
+ * Field collisions with `sources` / `parentValues` / `userOverrides` are
+ * prevented at compile time by the `_ReservedKeysDoNotCollide` assertion above.
  */
 export const ResolveUserConfigDefaultsResponseSchema = ConfigOverridesSchema.required().extend({
   sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+  parentValues: ConfigOverridesSchema.required(),
   userOverrides: z.record(z.string(), z.unknown()).nullable(),
 });
 
