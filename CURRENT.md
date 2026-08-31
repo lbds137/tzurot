@@ -24,7 +24,7 @@
 
 ## 📋 Open items (near-term)
 
-- **beta.213 planning is the next session's work** — owner intent: line it up for an **Opus driver** (budget balancing). Opus-shaped candidates staged in `now.md` § 🚢: TASK-789 impl, TASK-843, identity mutation tranche 2, drain batches. Kept out: doc-87 (design/taste), TASK-844 (owner semantics call pending — includes the no-personality 2-tier path gap).
+- **beta.213 PLAN RATIFIED (owner, 2026-08-31 planning session)** — **Opus driver**; slate in `now.md` § 🚢, in order: TASK-789 clause-2 hoists (nested dispatch) → TASK-843 (single-hop Sonnet) → identity mutation tranche 2 + floor raise → drain batches preset/config then tooling (hand-read confirmation first). The Opus session starts at unit 1. Kept out: doc-87 (design/taste), TASK-844 (owner semantics call pending — includes the no-personality 2-tier path gap).
 - **TASK-816 remaining clauses** (a) ratchet classification recorded at definition (b) named recurring trigger (d) audit reports distance-above-floor — the floors themselves are raised and banked; these are the mechanism clauses. doc-63 owns the theme.
 - **Prod watchers live (event-driven, quiet)**: restart recovery (#2253) · guest 429 floor · GLM `model_not_found (rescued)` embeds · **NEW: #2270's first real link-share** (provenance render — `/inspect` observability, no smoke needed) · the #2277 deploy-window transient (accepted, self-heals).
 - **TASK-791 (high)** — instrumentation live; fix half wakes on the next prod `empty_response` window.
