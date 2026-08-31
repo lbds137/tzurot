@@ -235,6 +235,25 @@ describe('callGateway', () => {
     }
   });
 
+  it('falls back to a generic detail when the JSON parse rejects with a non-Error', async () => {
+    // `response.json()` normally rejects with a SyntaxError, but the reject
+    // value is not guaranteed to be an Error (a polyfilled or proxied fetch can
+    // throw anything). The non-Error arm must still produce a readable detail
+    // rather than interpolating an object into the operator-facing message.
+    const response = new Response('{}', { status: 200 });
+    vi.spyOn(response, 'json').mockRejectedValueOnce('not an Error instance');
+    fetchSpy.mockResolvedValueOnce(response);
+
+    const result = await callGateway(baseOpts);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('schema');
+      expect(result.status).toBe(0);
+      expect(result.error).toBe('Response body is not valid JSON: parse error');
+    }
+  });
+
   it('treats a 204 No Content as success (data: null) when no outputSchema is declared', async () => {
     // The mutation succeeded and the route promises no body — an empty body
     // is the contract, not a violation. Response.json() would throw on it.
@@ -273,6 +292,16 @@ describe('callGateway', () => {
       expect(result.kind).toBe('timeout');
       expect(result.error).toBe('Request timeout (gateway slow or unavailable)');
     }
+  });
+
+  it('reports a non-Error fetch rejection as a network failure with a generic message', async () => {
+    // `fetch` is only contractually guaranteed to reject — not to reject with an
+    // Error. A thrown string must still classify as 'network' (never 'timeout',
+    // which `isTimeoutError` gates on `instanceof Error`) and must not surface
+    // an empty or coerced message to the caller.
+    fetchSpy.mockRejectedValueOnce('connection exploded');
+    const result = await callGateway(baseOpts);
+    expect(result).toEqual({ ok: false, kind: 'network', error: 'Unknown error', status: 0 });
   });
 
   it('invokes onWarn for non-2xx responses with kind:http', async () => {
@@ -432,6 +461,27 @@ describe('callGateway', () => {
 
     const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
     expect('rawText' in fields).toBe(false);
+  });
+
+  it('invokes onWarn with the full field set when a 2xx body is not valid JSON', async () => {
+    // The unparseable-body path returns kind:schema to the caller, but the
+    // operator-facing half is the onWarn seam: path/method/kind/error must all
+    // cross it, under the message that distinguishes a malformed body from a
+    // schema mismatch. Asserted as an exact field set so a dropped field fails.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(new Response('<html>not json</html>', { status: 200 }));
+
+    await callGateway({ ...baseOpts, onWarn });
+
+    expect(onWarn).toHaveBeenCalledWith(
+      {
+        path: baseOpts.path,
+        method: 'GET',
+        kind: 'schema',
+        error: expect.any(String) as unknown as string,
+      },
+      'Response body is not valid JSON'
+    );
   });
 
   it('invokes onWarn for schema-validation failures with kind:schema', async () => {
