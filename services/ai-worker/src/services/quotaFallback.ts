@@ -115,9 +115,13 @@ const RETARGETABLE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   ApiErrorCategory.RATE_LIMIT,
   // Availability-class (D12): the model is unhealthy but the user's key is
   // fine — retarget with QUOTA_EXCEEDED-like semantics, never an entity swap.
-  // These reach the runner only after the in-attempt retry ladder exhausts
-  // (they are transient in PERMANENT_ERROR_CATEGORIES terms, so the ladder
-  // retries them; see also CAUSE_PRECEDENCE_CATEGORIES below).
+  // SERVER_ERROR, TIMEOUT, NETWORK, and EMPTY_RESPONSE below reach the runner
+  // only after the in-attempt retry ladder exhausts (they are transient in
+  // PERMANENT_ERROR_CATEGORIES terms, so the ladder retries them; see also
+  // CAUSE_PRECEDENCE_CATEGORIES below). MODEL_NOT_FOUND is the exception: it
+  // IS a member of PERMANENT_ERROR_CATEGORIES, so the ladder fails fast on it
+  // and it reaches the runner directly, without going through the retry
+  // ladder at all.
   ApiErrorCategory.MODEL_NOT_FOUND,
   ApiErrorCategory.SERVER_ERROR,
   ApiErrorCategory.TIMEOUT,

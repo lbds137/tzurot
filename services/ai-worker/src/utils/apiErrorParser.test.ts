@@ -438,6 +438,100 @@ describe('parseApiError', () => {
     });
   });
 
+  describe('z.ai model-not-found detection (code 1214)', () => {
+    const zaiSpecimen = Object.assign(
+      new Error(
+        '400 Provider returned error: {"code":"1214","message":"modelCode: does not exist"}'
+      ),
+      { status: 400 }
+    );
+
+    it('classifies a 400-wrapped code-1214 modelCode-does-not-exist error as MODEL_NOT_FOUND', () => {
+      const result = parseApiError(zaiSpecimen);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+
+    it('is PERMANENT (fail-fast), not TRANSIENT — the whole point of the hoist', () => {
+      const result = parseApiError(zaiSpecimen);
+      expect(result.type).toBe(ApiErrorType.PERMANENT);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('does NOT match when the code is 1215 (a neighboring code) even with the same message shape', () => {
+      const error = Object.assign(
+        new Error(
+          '400 Provider returned error: {"code":"1215","message":"modelCode: does not exist"}'
+        ),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('does NOT match a longer code that merely starts with 1214, even with the same message shape', () => {
+      const error = Object.assign(
+        new Error(
+          '400 Provider returned error: {"code":"12140","message":"modelCode: does not exist"}'
+        ),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('does NOT match when code 1214 appears without the modelCode-does-not-exist message shape', () => {
+      const error = Object.assign(
+        new Error(
+          '400 Provider returned error: {"code":"1214","message":"something else entirely"}'
+        ),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('is retarget-eligible: classifyQuotaFailure resolves it to MODEL_NOT_FOUND', () => {
+      expect(classifyQuotaFailure(zaiSpecimen)).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+  });
+
+  describe('z.ai content-safety refusal detection', () => {
+    const zaiRefusalSpecimen = Object.assign(
+      new Error(
+        '400 Provider returned error: System detected potentially unsafe or sensitive content'
+      ),
+      { status: 400 }
+    );
+
+    it('classifies the prod specimen as PROVIDER_CONTENT_REFUSED', () => {
+      const result = parseApiError(zaiRefusalSpecimen);
+      expect(result.category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+    });
+
+    it('is PERMANENT (fail-fast), not TRANSIENT', () => {
+      const result = parseApiError(zaiRefusalSpecimen);
+      expect(result.type).toBe(ApiErrorType.PERMANENT);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('does NOT match a paraphrase that lacks the anchored phrase', () => {
+      const error = Object.assign(
+        new Error('400 Provider returned error: System detected unsafe content'),
+        { status: 400 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).not.toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('does not change PROVIDER_CONTENT_REFUSED retarget eligibility — still deliberately absent from quota-fallback retargeting', () => {
+      // The category itself, not just this specimen, must stay off the
+      // retarget path — a routing-policy change was explicitly out of scope
+      // for this classification fix.
+      expect(classifyQuotaFailure(zaiRefusalSpecimen)).toBeNull();
+    });
+  });
+
   describe('network error detection', () => {
     it('should detect ECONNRESET as network error', () => {
       const error = { code: 'ECONNRESET', message: 'Connection reset' };

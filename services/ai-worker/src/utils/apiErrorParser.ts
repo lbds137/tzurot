@@ -42,6 +42,54 @@ import { type ApiErrorInfo } from '@tzurot/common-types/types/schemas/generation
 const INVALID_MODEL_ID_PATTERN = /not a valid model id/i;
 
 /**
+ * z.ai's error-code token for "the configured model id is not a real z.ai
+ * model" — body code `1214` paired with a `modelCode: does not exist`
+ * message, wrapped in a 400. This deliberately survives the client-boundary
+ * prefix-stripping fix (`toZaiWireModelId`): it is the live defense for a
+ * genuinely nonexistent CONFIGURED model, not dead code left over from before
+ * that fix.
+ *
+ * Anchored on the code token in "code position" rather than a bare `/1214/`
+ * — a bare numeric match collides with timestamps and character counts
+ * elsewhere in the message. The exact JSON framing of z.ai's error body is
+ * unverified, so this anchors on token proximity (`code` immediately
+ * followed by the number, allowing for quoting/colon/whitespace variance)
+ * rather than a fixed JSON shape.
+ *
+ * The trailing `(?!\d)` pins the exact code rather than a prefix of a longer
+ * run, so a future `12140` reads as the different code it is. That matters
+ * because this token doubles as the drift signal: without the boundary, a
+ * renumbering that kept `1214` as a prefix would keep matching silently
+ * instead of surfacing. No leading boundary is needed — the character class
+ * admits only quotes, colon and whitespace, so a preceding digit already
+ * blocks the match.
+ *
+ * The separator class is `*` rather than `+` on purpose, so a hypothetical
+ * unseparated `code1214` still matches: the wire framing here was recorded
+ * as prose rather than captured raw, so narrowing it would be tightening
+ * against a shape nobody has observed. The cost is that a concatenation
+ * like `errorCode1214` also matches, which the required co-match on the
+ * message shape below makes practically unreachable.
+ */
+const ZAI_MODEL_NOT_FOUND_CODE_PATTERN = /code["':\s]*"?1214(?!\d)/i;
+
+/**
+ * The message-shape half of the z.ai model-not-found signal — paired with
+ * `ZAI_MODEL_NOT_FOUND_CODE_PATTERN` above. Both must match for the hoist to
+ * fire: the code token alone is not enough to avoid collisions, and the
+ * message shape alone is not distinctive enough to trust without the code.
+ */
+const ZAI_MODEL_NOT_FOUND_MESSAGE_PATTERN = /modelcode.*does not exist/i;
+
+/**
+ * z.ai's content-safety refusal wording, wrapped in a 400. Anchored on the
+ * distinctive core rather than the full observed sentence so leading-phrase
+ * variance is tolerated, while staying specific enough that an unrelated
+ * paraphrase does not match.
+ */
+const ZAI_CONTENT_SAFETY_REFUSAL_PATTERN = /potentially unsafe or sensitive content/i;
+
+/**
  * Patterns to detect specific error types from error messages
  */
 const ERROR_PATTERNS = {
@@ -70,19 +118,24 @@ const ERROR_PATTERNS = {
     /authentication.*failed/i,
     /api.*key.*invalid/i,
   ],
-  // A provider's INPUT filter refused the payload. Alibaba (Qwen vision on
-  // OpenRouter) returns body code `data_inspection_failed` with "Input image
-  // data may contain inappropriate content", wrapped in a 400. Listed before
-  // CONTENT_POLICY so the narrower provider-refusal reading wins. BOTH
-  // patterns are deliberately Alibaba-shaped: the advance-not-terminate
-  // semantics this category carries rest on evidence that OTHER providers
-  // describe the refused image, and that evidence exists only for this
-  // provider's filter. Broaden only with per-provider evidence — a generic
-  // phrase here would also route image-intrinsic refusals (CONTENT_POLICY's
-  // terminate case) into tier-burning advances.
+  // A provider's INPUT filter refused the payload. Listed before
+  // CONTENT_POLICY so the narrower provider-refusal reading wins. Two
+  // providers are covered so far: Alibaba's (Qwen vision on OpenRouter) INPUT
+  // filter, which returns body code `data_inspection_failed` with "Input
+  // image data may contain inappropriate content"; and z.ai's content-safety
+  // refusal, anchored on "potentially unsafe or sensitive content". The
+  // advance-not-terminate semantics rest on a provider refusing what another
+  // would accept. The two entries are NOT equally evidenced: other providers
+  // were observed describing the image Alibaba's filter refused; for z.ai the
+  // refusal was observed permanent for that model, but no other provider was
+  // observed accepting the same payload (unverified). Broaden only with
+  // per-provider evidence — a generic phrase here would also route
+  // intrinsically-refused payloads (CONTENT_POLICY's terminate case) into
+  // tier-burning advances.
   PROVIDER_CONTENT_REFUSED: [
     /data_inspection_failed/i,
     /input image data may contain inappropriate content/i,
+    ZAI_CONTENT_SAFETY_REFUSAL_PATTERN,
   ],
   // Content policy
   CONTENT_POLICY: [
@@ -375,6 +428,14 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  * that exists upstream but isn't yet published on OpenRouter also arrives
  * wrapped in a 400; must classify as MODEL_NOT_FOUND before the wrapping 400
  * reads as retryable BAD_REQUEST and dead-ends the quota-fallback retarget.
+ *
+ * z.ai model-not-found (code 1214): z.ai's own "the configured model id
+ * doesn't exist" error also arrives wrapped in a 400; must classify as
+ * MODEL_NOT_FOUND for the same reason as the unpublished-model-id case above.
+ *
+ * z.ai content-safety refusal: z.ai's content-safety refusal wording also
+ * arrives wrapped in a 400; must classify as PROVIDER_CONTENT_REFUSED for the
+ * same reason as the Alibaba input-filter case above.
  */
 function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // AbortError is always an Error subclass at the runtime level. If a future
@@ -437,6 +498,16 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     // and no unrelated error is re-routed. A 404 already maps to
     // MODEL_NOT_FOUND via status, so this changes only the 400-wrapped shape.
     if (INVALID_MODEL_ID_PATTERN.test(messageToSearch)) {
+      return ApiErrorCategory.MODEL_NOT_FOUND;
+    }
+    // z.ai's own model-not-found error (code 1214) arrives wrapped in a 400,
+    // exactly like the three cases above. Requires BOTH the code token and the
+    // message shape — either alone is not distinctive enough (see the
+    // pattern doc comments above for why each half exists).
+    if (
+      ZAI_MODEL_NOT_FOUND_CODE_PATTERN.test(messageToSearch) &&
+      ZAI_MODEL_NOT_FOUND_MESSAGE_PATTERN.test(messageToSearch)
+    ) {
       return ApiErrorCategory.MODEL_NOT_FOUND;
     }
   }
