@@ -1,9 +1,10 @@
 ---
 id: TASK-834
 title: Interaction-level denylist check skips thread-to-parent inheritance
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 18:31'
+updated_date: '2026-08-31 01:06'
 labels:
   - 'area:bot-client'
   - 'size:S'
