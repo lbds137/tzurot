@@ -153,20 +153,18 @@ describe('deny add/remove channel command structure', () => {
     );
   });
 
-  interface ScopeGroupJson {
-    options: {
-      name: string;
-      options: {
-        name: string;
-        options?: { name: string; required?: boolean }[];
-      }[];
-    }[];
+  /** One shape for both structural tests below, so the cast cannot drift between them. */
+  interface ScopeSubcommandJson {
+    name: string;
+    description: string;
+    options?: { name: string; required?: boolean }[];
   }
 
-  function subcommandsOf(groupName: string): {
-    name: string;
-    options?: { name: string; required?: boolean }[];
-  }[] {
+  interface ScopeGroupJson {
+    options: { name: string; options: ScopeSubcommandJson[] }[];
+  }
+
+  function subcommandsOf(groupName: string): ScopeSubcommandJson[] {
     const json = denyCommand.data.toJSON() as ScopeGroupJson;
     return json.options.find(opt => opt.name === groupName)?.options ?? [];
   }
@@ -193,6 +191,21 @@ describe('deny add/remove channel command structure', () => {
         );
         expect(targets, `${groupName} ${sub.name} target options`).toHaveLength(1);
         expect(targets[0]?.required, `${groupName} ${sub.name} target required`).toBe(true);
+      }
+    });
+
+    // The subcommand name answers WHERE for four of the five entries, so the
+    // description is the only place the picker can say WHAT is denied. Owner
+    // verdict on the live picker (doc-87): leaving that implicit reads as
+    // confusing. This pins it so a sixth subcommand cannot land silent.
+    it('names its target in every scope subcommand description', () => {
+      for (const sub of subcommandsOf(groupName)) {
+        // Per-subcommand, not one loose alternation over every target word. A
+        // single regex accepting any of them passes on "Deny in one
+        // server-side channel" — the `server` branch matches while the
+        // description still never says who is denied.
+        const expected = sub.name === 'server' ? /\bserver\b/ : /\b(a user|user denial)\b/;
+        expect(sub.description, `${groupName} ${sub.name} description`).toMatch(expected);
       }
     });
   });

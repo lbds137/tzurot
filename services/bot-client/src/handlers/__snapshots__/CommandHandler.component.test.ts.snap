@@ -1013,7 +1013,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Deny throughout this server",
+        "description": "Deny a user throughout this server",
         "description_localizations": undefined,
         "name": "this-server",
         "name_localizations": undefined,
@@ -1065,7 +1065,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Deny in one channel",
+        "description": "Deny a user in one channel",
         "description_localizations": undefined,
         "name": "channel",
         "name_localizations": undefined,
@@ -1133,7 +1133,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Deny for one character",
+        "description": "Deny a user for one character",
         "description_localizations": undefined,
         "name": "character",
         "name_localizations": undefined,
@@ -1244,7 +1244,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Remove a denial for this server",
+        "description": "Remove a user denial in this server",
         "description_localizations": undefined,
         "name": "this-server",
         "name_localizations": undefined,
@@ -1261,7 +1261,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Remove a denial for one channel",
+        "description": "Remove a user denial in one channel",
         "description_localizations": undefined,
         "name": "channel",
         "name_localizations": undefined,
@@ -1294,7 +1294,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Remove a denial for one character",
+        "description": "Remove a user denial for one character",
         "description_localizations": undefined,
         "name": "character",
         "name_localizations": undefined,
