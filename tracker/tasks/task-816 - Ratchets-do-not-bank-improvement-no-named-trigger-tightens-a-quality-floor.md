@@ -76,4 +76,22 @@ The conversation-history -0.70 decay was REAL (re-run reproduced 85.64 exactly; 
 RAISE-STEP INPUTS (step 2, owner): fresh local reports exist for ALL FIVE packages as of 2026-08-31 (identity re-run reproduced 78.97 exactly), so `pnpm ops mutation:update-baseline` is executable immediately. Recommendation on record: refresh all five baselines to the measured scores (graceMargin 1.0 continues to absorb run noise — scores reproduced exactly across 2-3 runs each on this machine, so measured-score floors are not lucky-run floors). Constraint: clients at 98.42 is the arithmetic ceiling; a floor demanding more requires deleting two semantically-redundant early-returns (src change, deliberately excluded from the tests-only tranche). identity's gap-closing (192 survivors, 78.97) is tranche 2 if wanted — NOT part of this raise.
 
 Review residue: TASK-843 (subscribe registers callback before try — latent stale-callback defect found by the #2273 review, src fix, size:S).
+
+TRANCHE 2 PROFILE (identity) — measured from reports/mutation/identity/mutation.json, the run that reproduced 78.97. Recorded so the slicing is not re-derived; re-run before building, the file is a local artifact.
+
+  survivors by file          by mutator
+    63 UserService.ts          63 ConditionalExpression
+    47 PersonalityLoader.ts    32 StringLiteral
+    29 PersonaResolver.ts      21 BlockStatement
+    15 PersonalityService.ts   17 ObjectLiteral
+    14 PersonalityValidator.ts 15 LogicalOperator
+    12 BaseConfigResolver.ts   13 BooleanLiteral
+    11 PersonalityDefaults.ts  10 EqualityOperator
+     1 RoutingContextResolver  (+ 14 across 7 minor mutators)
+
+  totals: 179 Survived + 13 NoCoverage = 192; 720 Killed, 1 Timeout.
+
+TWO THINGS THIS CHANGES ABOUT SCOPING. (1) The top three files hold 139 of 192 (72 percent), so the natural slicing is one PR per file for those three plus one PR for the remaining five, NOT a single tranche-2 PR. (2) Only 32 survivors are StringLiteral, and that is the class that was almost entirely logger-name noise in tranche 1 — here roughly 160 are behavioral (conditionals, blocks, object literals, logical and equality operators), so this is real untested logic rather than a noise tail. Expect tranche 1 effort per FILE, not per package.
+
+Consequence for the floor raise: identity cannot reach a tranche-1-like score in one unit. Either raise its floor in steps as each file lands, or hold the identity raise until the whole tranche completes. That is an owner call at raise time, not settled here.
 <!-- SECTION:DESCRIPTION:END -->
