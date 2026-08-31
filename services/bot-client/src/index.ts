@@ -4,7 +4,6 @@ import type { Redis } from 'ioredis';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
 import {
   parseRedisUrl,
@@ -57,6 +56,8 @@ import type { SingleJobRecovery } from './services/SingleJobRecovery.js';
 import { runBootRecovery } from './services/bootRecovery.js';
 import { HttpPersonalityLoader } from './services/HttpPersonalityLoader.js';
 import { DenylistCache } from './services/DenylistCache.js';
+import { isInteractionDenied } from './processors/interactionDenylistGate.js';
+import { getThreadParentId } from './utils/discordChannelTypes.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
@@ -515,17 +516,15 @@ client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
       // Denylist check — applies to ALL interaction types (silent deny)
-      if (!isBotOwner(interaction.user.id)) {
-        const guildId = interaction.guildId ?? undefined;
-        if (
-          services.denylistCache.isBotDenied(interaction.user.id, guildId) ||
-          (guildId !== undefined &&
-            services.denylistCache.isUserGuildDenied(interaction.user.id, guildId)) ||
-          (interaction.channelId !== null &&
-            services.denylistCache.isChannelDenied(interaction.user.id, interaction.channelId))
-        ) {
-          return;
-        }
+      if (
+        isInteractionDenied(services.denylistCache, {
+          userId: interaction.user.id,
+          guildId: interaction.guildId,
+          channelId: interaction.channelId,
+          parentChannelId: getThreadParentId(interaction.channel),
+        })
+      ) {
+        return;
       }
 
       // Maintenance gate — friendly ephemeral rejection instead of letting the

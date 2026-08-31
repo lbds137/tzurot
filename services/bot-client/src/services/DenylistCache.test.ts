@@ -59,7 +59,7 @@ describe('DenylistCache', () => {
 
       expect(cache.isBotDenied('user1')).toBe(true);
       expect(cache.isBotDenied('', 'guild1')).toBe(true);
-      expect(cache.isChannelDenied('user2', 'chan1')).toBe(true);
+      expect(cache.isChannelDenied('user2', 'chan1', null)).toBe(true);
       expect(cache.isPersonalityDenied('user3', 'pers1')).toBe(true);
     });
 
@@ -176,7 +176,7 @@ describe('DenylistCache', () => {
         },
       });
 
-      expect(cache.isChannelDenied('user1', 'chan1')).toBe(true);
+      expect(cache.isChannelDenied('user1', 'chan1', null)).toBe(true);
     });
 
     it('should return false for different channel', () => {
@@ -191,11 +191,114 @@ describe('DenylistCache', () => {
         },
       });
 
-      expect(cache.isChannelDenied('user1', 'chan2')).toBe(false);
+      expect(cache.isChannelDenied('user1', 'chan2', null)).toBe(false);
     });
 
     it('should return false for unknown user', () => {
-      expect(cache.isChannelDenied('unknown', 'chan1')).toBe(false);
+      expect(cache.isChannelDenied('unknown', 'chan1', null)).toBe(false);
+    });
+
+    describe('thread→parent inheritance (any mode)', () => {
+      it('inherits a parent BLOCK when the thread has no entry', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'BLOCK',
+          },
+        });
+
+        expect(cache.isChannelDenied('user1', 'thread-chan', 'parent-chan')).toBe(true);
+      });
+
+      it('inherits a parent MUTE when the thread has no entry (ANY-MODE, not BLOCK-only)', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'MUTE',
+          },
+        });
+
+        expect(cache.isChannelDenied('user1', 'thread-chan', 'parent-chan')).toBe(true);
+      });
+
+      it('does NOT let a thread MUTE override a parent BLOCK — unlike isBlocked()', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'BLOCK',
+          },
+        });
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'thread-chan',
+            mode: 'MUTE',
+          },
+        });
+
+        expect(cache.isChannelDenied('user1', 'thread-chan', 'parent-chan')).toBe(true);
+      });
+
+      it('does not inherit when parentChannelId is null, even if the parent channel has an entry', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'BLOCK',
+          },
+        });
+
+        expect(cache.isChannelDenied('user1', 'thread-chan', null)).toBe(false);
+      });
+
+      it('returns false when neither the thread nor the parent has an entry', () => {
+        expect(cache.isChannelDenied('user1', 'thread-chan', 'parent-chan')).toBe(false);
+      });
+
+      it('contrast: isBlocked() lets an explicit thread MUTE override a parent BLOCK (stays divergent from isChannelDenied)', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'BLOCK',
+          },
+        });
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'thread-chan',
+            mode: 'MUTE',
+          },
+        });
+
+        expect(cache.isBlocked('user1', undefined, 'thread-chan', undefined, 'parent-chan')).toBe(
+          false
+        );
+      });
     });
   });
 
@@ -541,10 +644,10 @@ describe('DenylistCache', () => {
       };
 
       cache.handleEvent({ type: 'add', entry });
-      expect(cache.isChannelDenied('user1', 'chan1')).toBe(true);
+      expect(cache.isChannelDenied('user1', 'chan1', null)).toBe(true);
 
       cache.handleEvent({ type: 'remove', entry });
-      expect(cache.isChannelDenied('user1', 'chan1')).toBe(false);
+      expect(cache.isChannelDenied('user1', 'chan1', null)).toBe(false);
     });
 
     it('should add and remove personality entries', () => {
@@ -585,8 +688,8 @@ describe('DenylistCache', () => {
         },
       });
 
-      expect(cache.isChannelDenied('user1', 'chan1')).toBe(true);
-      expect(cache.isChannelDenied('user1', 'chan2')).toBe(true);
+      expect(cache.isChannelDenied('user1', 'chan1', null)).toBe(true);
+      expect(cache.isChannelDenied('user1', 'chan2', null)).toBe(true);
 
       // Remove one, keep the other
       cache.handleEvent({
@@ -600,8 +703,8 @@ describe('DenylistCache', () => {
         },
       });
 
-      expect(cache.isChannelDenied('user1', 'chan1')).toBe(false);
-      expect(cache.isChannelDenied('user1', 'chan2')).toBe(true);
+      expect(cache.isChannelDenied('user1', 'chan1', null)).toBe(false);
+      expect(cache.isChannelDenied('user1', 'chan2', null)).toBe(true);
     });
 
     it('should clean up empty map entries after last removal', () => {
@@ -627,7 +730,7 @@ describe('DenylistCache', () => {
       });
 
       // The user's channel denial is gone after the matching removal.
-      expect(cache.isChannelDenied('user1', 'chan1')).toBe(false);
+      expect(cache.isChannelDenied('user1', 'chan1', null)).toBe(false);
 
       // Removing a non-existent entry from the now-cleaned user must not throw.
       expect(() =>
@@ -706,7 +809,7 @@ describe('DenylistCache', () => {
         },
       });
 
-      expect(cache.isChannelDenied('user1', 'thread-abc')).toBe(true);
+      expect(cache.isChannelDenied('user1', 'thread-abc', null)).toBe(true);
     });
 
     it('preserves parent-inheritance: a parent-scoped BLOCK with no thread entry still blocks the thread', () => {
