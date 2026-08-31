@@ -57,7 +57,7 @@ function setupMockPackage(
       if (p.endsWith(`/${name}`)) return content;
     }
     return '';
-  }) as typeof readFileSync);
+  }) as unknown as typeof readFileSync);
 }
 
 describe('analyzeMonorepo', () => {
@@ -173,7 +173,7 @@ describe('analyzeMonorepo', () => {
       if (p.endsWith('bad.ts')) throw new Error('EACCES: permission denied');
       if (p.endsWith('good.ts')) return goodContent;
       return '';
-    }) as typeof readFileSync);
+    }) as unknown as typeof readFileSync);
 
     const report = analyzeMonorepo('/root');
 
