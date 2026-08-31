@@ -30,7 +30,7 @@
     "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.81.3",
+    "bullmq": "^5.81.4",
     "cac": "^7.0.0",
     "chalk": "^6.0.0",
     "ioredis": "^5.11.1",
@@ -44,7 +44,7 @@
     "memfs": "^4.68.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
-    "zod": "^4.4.3"
+    "zod": "^4.5.1"
   },
   "peerDependencies": {
     "eslint": ">=9.0.0"
