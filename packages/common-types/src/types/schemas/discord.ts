@@ -72,6 +72,23 @@ export const attachmentMetadataSchema = z.object({
    */
   isSticker: z.boolean().optional(),
   /**
+   * True when this entry is an image Discord auto-generated as an embed/link
+   * preview, minted as a synthetic attachment by `extractEmbedImages` rather
+   * than uploaded by anyone.
+   *
+   * A field rather than a naming convention because consumers must not
+   * name-sniff `embed-*` filenames. It gates two things: the `[Link preview: …]`
+   * render header — the participant shared a LINK, and Discord generated the
+   * image — and the `source="link-preview"` provenance attribute on the
+   * reference paths' `<image>` element.
+   *
+   * Deliberately NOT a shared-asset/funding flag, unlike `isSticker`'s role
+   * (1) above: a preview is message-scoped with no stable snowflake key, so
+   * its vision spend stays with the triggering user
+   * (`MultimodalProcessor`'s `isSharedAsset` keys on `isSticker` alone).
+   */
+  isEmbedPreview: z.boolean().optional(),
+  /**
    * Discord message ID this attachment came from (for inline image descriptions).
    * Optional because attachments in direct/triggering messages don't need source tracking.
    */

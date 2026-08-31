@@ -11,6 +11,7 @@ import type {
   MessageReaction,
   ForwardedOrigin,
 } from '@tzurot/common-types/types/schemas/message';
+import type { ImageSource } from '../../services/prompt/QuoteFormatter.js';
 
 /**
  * Image description for inline display in chat_log
@@ -18,6 +19,12 @@ import type {
 export interface InlineImageDescription {
   filename: string;
   description: string;
+  /**
+   * Provenance carried from the source attachment's producer flags, so a
+   * history-replayed image keeps the same `source` attribute the reference
+   * paths emit. Absent means an ordinary upload.
+   */
+  source?: ImageSource;
 }
 
 /**

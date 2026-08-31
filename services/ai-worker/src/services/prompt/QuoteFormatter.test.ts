@@ -3,6 +3,7 @@ import {
   buildRenderableAttachments,
   formatForwardedQuote,
   formatQuoteElement,
+  imageSource,
   renderAttachment,
   type ForwardedMessageContent,
   type QuoteElementOptions,
@@ -709,6 +710,64 @@ describe('QuoteFormatter', () => {
         'https://cdn/photo.png',
         'https://cdn/report.pdf',
       ]);
+    });
+
+    it('carries a sticker source through to the built image', () => {
+      const sticker = { ...image, isSticker: true };
+      const [built] = buildRenderableAttachments([sticker], () => 'a cartoon blob');
+
+      expect(built.attachment).toMatchObject({ kind: 'image', source: 'sticker' });
+    });
+
+    it('carries a link-preview source through to the built image', () => {
+      const preview = { ...image, isEmbedPreview: true };
+      const [built] = buildRenderableAttachments([preview], () => 'a still from the video');
+
+      expect(built.attachment).toMatchObject({ kind: 'image', source: 'link-preview' });
+    });
+
+    it('renders no source attribute for an ordinary image', () => {
+      const [built] = buildRenderableAttachments([image], () => 'a cat');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<image filename="photo.png" type="image/png">a cat</image>'
+      );
+    });
+
+    it('renders source="link-preview" on the <image> element', () => {
+      const preview = { ...image, isEmbedPreview: true };
+      const [built] = buildRenderableAttachments([preview], () => 'a still from the video');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<image filename="photo.png" type="image/png" source="link-preview">a still from the video</image>'
+      );
+    });
+
+    it('renders source="sticker" on the <image> element', () => {
+      const sticker = { ...image, isSticker: true };
+      const [built] = buildRenderableAttachments([sticker], () => 'a cartoon blob');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<image filename="photo.png" type="image/png" source="sticker">a cartoon blob</image>'
+      );
+    });
+  });
+
+  describe('imageSource', () => {
+    it('returns undefined for an ordinary attachment', () => {
+      expect(imageSource({})).toBeUndefined();
+    });
+
+    it('returns "sticker" when isSticker is true', () => {
+      expect(imageSource({ isSticker: true })).toBe('sticker');
+    });
+
+    it('returns "link-preview" when isEmbedPreview is true', () => {
+      expect(imageSource({ isEmbedPreview: true })).toBe('link-preview');
+    });
+
+    it('sticker wins over embed preview when both flags are set', () => {
+      expect(imageSource({ isSticker: true, isEmbedPreview: true })).toBe('sticker');
     });
   });
 });

@@ -906,6 +906,71 @@ describe('Conversation Utilities', () => {
       expect(result).not.toContain('[image/png: photo.png]');
     });
 
+    it('should carry link-preview provenance into a forwarded image attachment', () => {
+      const history: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [
+              {
+                filename: 'preview.png',
+                description: 'A shared link preview',
+                source: 'link-preview',
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('source="link-preview"');
+    });
+
+    it('should carry sticker provenance into a forwarded image attachment', () => {
+      const history: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [
+              { filename: 'sticker.png', description: 'A sticker', source: 'sticker' },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('source="sticker"');
+    });
+
+    it('should not emit a source attribute for an ordinary forwarded upload', () => {
+      const history: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [{ filename: 'photo.png', description: 'An ordinary photo' }],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('source=');
+    });
+
     it('should include embeds in quoted messages', () => {
       const referencedMessage: StoredReferencedMessage = {
         discordMessageId: '123456',

@@ -47,10 +47,23 @@ interface AttachmentIdentity {
 type Enrichment<TStatus extends string> =
   { description: string; status?: never } | { description?: never; status?: TStatus };
 
+/**
+ * Where an image on the image path actually came from, when it was not a file
+ * someone chose to upload. Absent is the ordinary case: a real upload.
+ *
+ * On `RenderableImage` alone rather than on `AttachmentIdentity`, because
+ * neither producer can mint a sticker or a link preview as anything but an
+ * image — a `source` on a voice or file element would be unwriteable nonsense
+ * the renderer silently dropped.
+ */
+export type ImageSource = 'sticker' | 'link-preview';
+
 /** An image, with its vision description when one arrived. */
-export type RenderableImage = AttachmentIdentity & { kind: 'image' } & Enrichment<
-    'undescribed' | 'expired' | 'unprocessed'
-  >;
+export type RenderableImage = AttachmentIdentity & {
+  kind: 'image';
+  /** Provenance, when the image was not an ordinary upload. */
+  source?: ImageSource;
+} & Enrichment<'undescribed' | 'expired' | 'unprocessed'>;
 
 /** A voice message, with its transcript when one arrived. */
 export type RenderableVoice = AttachmentIdentity & {
@@ -120,6 +133,32 @@ export function classifyAttachment(attachment: {
 }
 
 /**
+ * An image's provenance, from the producer flags on its source attachment.
+ *
+ * Exported and lives here for the same reason `classifyAttachment` does: three
+ * producers need the same answer — the deduped-live and stored paths through
+ * `buildRenderableAttachments`, and the full-live path in
+ * `AttachmentProcessor` — and a three-line rule copied three times is how
+ * `classifyAttachment` drifted before it was pulled here.
+ *
+ * Sticker wins over embed preview. The two producers are disjoint
+ * (`stickerAttachments.ts` vs. `embedImageExtractor.ts`), so the ordering
+ * states a precedence rather than resolving a case that arises.
+ *
+ * Structurally typed rather than taking `AttachmentMetadata`, so this module
+ * stays free of the Discord schema.
+ */
+export function imageSource(attachment: {
+  isSticker?: boolean;
+  isEmbedPreview?: boolean;
+}): ImageSource | undefined {
+  if (attachment.isSticker === true) {
+    return 'sticker';
+  }
+  return attachment.isEmbedPreview === true ? 'link-preview' : undefined;
+}
+
+/**
  * The Discord-side fields an attachment must expose to be rendered. Structural
  * rather than `AttachmentMetadata` for the same reason `classifyAttachment` is —
  * this module stays free of the Discord schema.
@@ -130,6 +169,8 @@ export interface AttachmentSource {
   name?: string;
   isVoiceMessage?: boolean;
   duration?: number;
+  isSticker?: boolean;
+  isEmbedPreview?: boolean;
 }
 
 /**
@@ -186,10 +227,12 @@ function renderableFor(
   description: string | undefined
 ): RenderableAttachment {
   switch (classifyAttachment(att)) {
-    case 'image':
+    case 'image': {
+      const imageIdentity = { ...identity, source: imageSource(att) };
       return description !== undefined
-        ? { kind: 'image', ...identity, description }
-        : { kind: 'image', ...identity, status: 'undescribed' };
+        ? { kind: 'image', ...imageIdentity, description }
+        : { kind: 'image', ...imageIdentity, status: 'undescribed' };
+    }
     case 'voice':
       return description !== undefined
         ? { kind: 'voice', ...identity, durationSeconds: att.duration, description }
@@ -322,6 +365,7 @@ function contentWithoutDuplicateAttribution(opts: QuoteElementOptions): string |
  *   <attachments>
  *     <image filename="cat.png">a cat asleep on a keyboard</image>
  *     <image filename="unlucky.png" status="undescribed"/>
+ *     <image filename="embed-1-image.png" source="link-preview">a still from the video</image>
  *     <voice filename="clip.ogg" duration="12s">hey, can you hear me</voice>
  *     <file filename="report.pdf" type="application/pdf"/>
  *   </attachments>
@@ -394,6 +438,7 @@ export function renderAttachment(att: RenderableAttachment): string {
       const attrs = joinAttrs([
         ['filename', att.filename],
         ['type', att.contentType],
+        ['source', att.source],
         ['status', att.status],
       ]);
       const body = renderEnrichment(att.description);

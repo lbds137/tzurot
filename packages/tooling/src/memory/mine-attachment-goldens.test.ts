@@ -76,6 +76,16 @@ describe('splitEnrichedContent', () => {
     expect(split?.messageBare).toBe('nice');
     expect(split?.attachmentText.startsWith('[Sticker: wave]')).toBe(true);
   });
+
+  it('treats a link-preview header as an attachment boundary', () => {
+    // An embed preview renders under its own header; without it in the
+    // enumeration the whole row falls out of the candidate pool unsplit.
+    const split = splitEnrichedContent(
+      'look at this\n\n[Link preview: embed-1-image.png]\nA still from the video.'
+    );
+    expect(split?.messageBare).toBe('look at this');
+    expect(split?.attachmentText.startsWith('[Link preview: embed-1-image.png]')).toBe(true);
+  });
 });
 
 describe('classifyAttachmentKind', () => {
@@ -85,6 +95,23 @@ describe('classifyAttachmentKind', () => {
 
   it('classifies sticker blocks as image', () => {
     expect(classifyAttachmentKind('[Sticker: wave]\nA hand.')).toBe('image');
+  });
+
+  it('classifies link-preview blocks as image', () => {
+    // A link preview is a vision description of an image; it differs from an
+    // upload only in how the image got there.
+    expect(classifyAttachmentKind('[Link preview: embed-1-image.png]\nA still.')).toBe('image');
+  });
+
+  it('classifies a link preview beside a voice block as mixed', () => {
+    // The half that a header-vocabulary miss actually corrupts: without
+    // 'Link preview' in the image test this returns 'voice', losing the
+    // description that dominates the block.
+    expect(
+      classifyAttachmentKind(
+        '[Link preview: embed-1-image.png]\nA still.\n\n[Voice message: 3.0s]\n<voice_transcripts><transcript>hi</transcript></voice_transcripts>'
+      )
+    ).toBe('mixed');
   });
 
   it('classifies voice blocks', () => {

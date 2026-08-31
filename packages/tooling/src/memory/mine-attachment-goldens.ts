@@ -59,7 +59,8 @@ export interface AttachmentGolden extends ConversationGolden {
  * that itself contains such a line would split early; acceptable for an
  * eval-only miner, and the bare-message part is still inspectable in the JSON.
  */
-const ATTACHMENT_HEADER_RE = /(?:^|\n\n)\[(?:Image|Sticker|Voice message|Audio|File):[^\]\n]*\]/;
+const ATTACHMENT_HEADER_RE =
+  /(?:^|\n\n)\[(?:Image|Sticker|Link preview|Voice message|Audio|File):[^\]\n]*\]/;
 
 /** Split enriched row content into the bare user message and the attachment block. */
 export function splitEnrichedContent(
@@ -78,13 +79,17 @@ export function splitEnrichedContent(
 
 /**
  * Classify the attachment block. Voice transcripts are wrapped in
- * `<voice_transcripts>`; images/stickers carry bracket headers with a
- * following description line. A block with both is 'mixed' (sampled under the
- * image quota — the image description is the long dominant part).
+ * `<voice_transcripts>`; images, stickers, and link previews carry bracket
+ * headers with a following description line. A block with both is 'mixed'
+ * (sampled under the image quota — the image description is the long dominant
+ * part).
+ *
+ * A link preview is an image-kind golden: it is a vision description of an
+ * image, differing from an upload only in how the image got there.
  */
 export function classifyAttachmentKind(attachmentText: string): AttachmentKind {
   const hasVoice = attachmentText.includes('<voice_transcripts>');
-  const hasImage = /\[(?:Image|Sticker): /.test(attachmentText);
+  const hasImage = /\[(?:Image|Sticker|Link preview): /.test(attachmentText);
   if (hasVoice && hasImage) {
     return 'mixed';
   }
@@ -245,7 +250,7 @@ async function fetchAttachmentCandidates(
       AND role = 'user'
       AND deleted_at IS NULL
       AND (
-        content ~ ${'\\[(Image|Sticker): [^\\]]*\\]\n'}
+        content ~ ${'\\[(Image|Sticker|Link preview): [^\\]]*\\]\n'}
         OR content LIKE '%<voice_transcripts>%'
       )
   `;
