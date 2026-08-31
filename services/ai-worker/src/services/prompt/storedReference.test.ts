@@ -247,6 +247,40 @@ describe('buildStoredAttachments', () => {
     ]);
   });
 
+  it('carries source="link-preview" through for a stored embed-preview image', () => {
+    // Provenance is a producer flag on the stored `attachments` row, same as
+    // the live path — a stored embed-preview attachment must not replay as an
+    // ordinary uploaded image.
+    const rendered = buildStoredAttachments({
+      ...base,
+      attachments: [
+        {
+          url: 'https://cdn/embed-1-image.png',
+          contentType: 'image/png',
+          name: 'embed-1-image.png',
+          isEmbedPreview: true,
+        },
+      ],
+      attachmentEnrichment: [
+        {
+          url: 'https://cdn/embed-1-image.png',
+          kind: 'image',
+          description: 'a still from the video',
+        },
+      ],
+    });
+
+    expect(rendered).toEqual([
+      {
+        kind: 'image',
+        filename: 'embed-1-image.png',
+        contentType: 'image/png',
+        source: 'link-preview',
+        description: 'a still from the video',
+      },
+    ]);
+  });
+
   it('leaves a non-assistant reference unchanged (authorRole absent, N/A case)', () => {
     const rendered = buildStoredAttachments({
       ...base,

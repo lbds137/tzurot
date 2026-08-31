@@ -40,6 +40,18 @@ describe('parseAttachmentSegments', () => {
     ]);
   });
 
+  it('strips a link-preview header like any other attachment header', () => {
+    // An embed preview renders under its own header. Missing from the
+    // enumeration, its block never opens a segment and its description is
+    // swallowed into the preceding one instead of being embedded on its own.
+    expect(
+      parseAttachmentSegments(`${IMAGE_BLOCK}\n\n[Link preview: embed-1-image.png]\nA still.`)
+    ).toEqual([
+      { isTranscript: false, text: 'A large room with rubber flooring. Mirrors line the wall.' },
+      { isTranscript: false, text: 'A still.' },
+    ]);
+  });
+
   it('handles Audio and File headers', () => {
     expect(parseAttachmentSegments('[Audio: song.mp3]\nA slow piano piece.')).toEqual([
       { isTranscript: false, text: 'A slow piano piece.' },

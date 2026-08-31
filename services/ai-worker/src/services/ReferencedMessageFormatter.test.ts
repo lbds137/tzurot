@@ -1086,6 +1086,43 @@ describe('ReferencedMessageFormatter', () => {
         '<image filename="image3.png" type="image/png">Description of image3</image>'
       );
     });
+
+    it('renders source="link-preview" for an embed-preview image on the full live path', async () => {
+      mockDescribeImage.mockResolvedValue('a still from the video');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'look at this link',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+          attachments: [
+            {
+              url: 'https://example.com/embed-1-image.png',
+              contentType: 'image/png',
+              name: 'embed-1-image.png',
+              size: 1000,
+              isEmbedPreview: true,
+            },
+          ],
+        },
+      ];
+
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
+
+      expect(result).toContain(
+        '<image filename="embed-1-image.png" type="image/png" source="link-preview">a still from the video</image>'
+      );
+    });
   });
 
   describe('Voice message processing', () => {
@@ -2018,8 +2055,11 @@ describe('ReferencedMessageFormatter', () => {
       ['a DEDUPED reference', true],
     ])('renders a preprocessed vision description into %s', async (_label, isDeduplicated) => {
       const { formatted, searchText } = await formatter.formatReferencedMessages(
-        // The stub builder strips `attachments`, so the deduped case models the
-        // real wire shape: descriptions arrive ONLY via preprocessing.
+        // `attachments: undefined` here is this case's own narrowing, not the
+        // wire shape: `referenceEnricher` FLAGS `isDeduplicated` and returns
+        // `{ ...raw }` untouched, so a real deduped reference still carries its
+        // attachment rows. Dropping them here isolates the path where a
+        // description arrives ONLY via preprocessing.
         [refWithImage(isDeduplicated ? { isDeduplicated: true, attachments: undefined } : {})],
         mockPersonality,
         false,
@@ -2031,6 +2071,84 @@ describe('ReferencedMessageFormatter', () => {
       expect(searchText).toContain(VISION_SENTINEL);
       // ...and no new spend was incurred to get it there.
       expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('carries source="link-preview" through the DEDUPED live path', async () => {
+      // The deduped sibling of the full-path case above. `referenceEnricher`
+      // flags `isDeduplicated` without dropping fields, so a deduped reference
+      // still holds its attachment rows and `buildDedupedAttachments` reads the
+      // provenance flag off them — the stub is a render-time projection, not a
+      // rebuilt subset. Preprocessed enrichment supplies the description, so
+      // this asserts provenance without any vision spend.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [
+          refWithImage({
+            isDeduplicated: true,
+            attachments: [
+              {
+                url: 'https://cdn.example.com/embed-1-image.png',
+                contentType: 'image/png',
+                name: 'embed-1-image.png',
+                size: 1000,
+                isEmbedPreview: true,
+              },
+            ],
+          }),
+        ],
+        mockPersonality,
+        false,
+        preprocessedImage
+      );
+
+      expect(formatted).toContain('source="link-preview"');
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('carries source="link-preview" through the ORPHAN loop of the deduped live path', async () => {
+      // The orphan loop in `buildDedupedAttachments` is a separate construction
+      // site from the correlated path above — it builds its own attachment
+      // object rather than projecting one already matched by URL, so provenance
+      // needs its own pin there too.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined })],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Image,
+              description: VISION_SENTINEL,
+              originalUrl: 'https://cdn.example.com/embed-1-image.png',
+              metadata: {
+                url: 'https://cdn.example.com/embed-1-image.png',
+                name: 'embed-1-image.png',
+                contentType: 'image/png',
+                size: 1000,
+                isEmbedPreview: true,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(formatted).toContain('source="link-preview"');
+      // The enrichment itself must survive alongside the new attribute.
+      expect(formatted).toContain(VISION_SENTINEL);
+    });
+
+    it('emits no source= attribute for an ORPHAN image with no provenance flag', async () => {
+      // The negative sibling of the test above: an ordinary orphan image (no
+      // sticker/embed-preview flag on its metadata) proves the attribute is
+      // derived from the flags rather than unconditionally stamped by the
+      // orphan loop.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined })],
+        mockPersonality,
+        false,
+        preprocessedImage
+      );
+
+      expect(formatted).not.toContain('source=');
     });
 
     it('renders a preprocessed voice transcript into a deduped reference', async () => {

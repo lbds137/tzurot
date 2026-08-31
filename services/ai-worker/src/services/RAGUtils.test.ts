@@ -102,6 +102,44 @@ describe('RAGUtils', () => {
       expect(buildAttachmentDescriptions(attachments)).toBe('[Image: photo.png]\nA photo');
     });
 
+    it('labels an embed preview as a Link preview, not an Image', () => {
+      // Discord auto-generated this image from a link the user shared —
+      // calling it an image tells the character someone uploaded a file.
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'a still from the video', {
+          name: 'embed-1-image.png',
+          isEmbedPreview: true,
+        }),
+      ];
+
+      const result = buildAttachmentDescriptions(attachments);
+      expect(result).toBe('[Link preview: embed-1-image.png]\na still from the video');
+    });
+
+    it('keeps the Image label when isEmbedPreview is absent', () => {
+      // Guards the default: the header must not flip for ordinary attachments.
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A photo', { name: 'photo.png' }),
+      ];
+
+      expect(buildAttachmentDescriptions(attachments)).toBe('[Image: photo.png]\nA photo');
+    });
+
+    it('labels a sticker as a Sticker even when isEmbedPreview is also set', () => {
+      // Disjoint producers, but the precedence must hold if both flags were
+      // ever set on the same entry.
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A cartoon blob celebrating', {
+          name: 'partyblob',
+          isSticker: true,
+          isEmbedPreview: true,
+        }),
+      ];
+
+      const result = buildAttachmentDescriptions(attachments);
+      expect(result).toBe('[Sticker: partyblob]\nA cartoon blob celebrating');
+    });
+
     it('formats an unsupported-type File stub under a [File:] header', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(
@@ -679,6 +717,77 @@ describe('RAGUtils', () => {
       await expect(
         enrichConversationHistory(history, undefined, mockPrisma, mockVisionCache)
       ).resolves.toBeUndefined();
+    });
+
+    it('should carry link-preview provenance into the injected image description', async () => {
+      const history: StructuredHistoryEntry[] = [
+        { id: 'discord-msg-1', role: 'user', content: '' },
+      ];
+      const extendedContextAttachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A shared link preview', {
+          name: 'preview.png',
+          sourceDiscordMessageId: 'discord-msg-1',
+          isEmbedPreview: true,
+        } satisfies Partial<ProcessedAttachment['metadata']>),
+      ];
+
+      await enrichConversationHistory(
+        history,
+        extendedContextAttachments,
+        mockPrisma,
+        mockVisionCache
+      );
+
+      expect(history[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'preview.png', description: 'A shared link preview', source: 'link-preview' },
+      ]);
+    });
+
+    it('should carry sticker provenance into the injected image description', async () => {
+      const history: StructuredHistoryEntry[] = [
+        { id: 'discord-msg-1', role: 'user', content: '' },
+      ];
+      const extendedContextAttachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A sticker', {
+          name: 'sticker.png',
+          sourceDiscordMessageId: 'discord-msg-1',
+          isSticker: true,
+        } satisfies Partial<ProcessedAttachment['metadata']>),
+      ];
+
+      await enrichConversationHistory(
+        history,
+        extendedContextAttachments,
+        mockPrisma,
+        mockVisionCache
+      );
+
+      expect(history[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'sticker.png', description: 'A sticker', source: 'sticker' },
+      ]);
+    });
+
+    it('should leave source undefined for an ordinary upload', async () => {
+      const history: StructuredHistoryEntry[] = [
+        { id: 'discord-msg-1', role: 'user', content: '' },
+      ];
+      const extendedContextAttachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'An ordinary photo', {
+          name: 'photo.png',
+          sourceDiscordMessageId: 'discord-msg-1',
+        } satisfies Partial<ProcessedAttachment['metadata']>),
+      ];
+
+      await enrichConversationHistory(
+        history,
+        extendedContextAttachments,
+        mockPrisma,
+        mockVisionCache
+      );
+
+      const [injected] = history[0].messageMetadata?.imageDescriptions ?? [];
+      expect(injected?.source).toBeUndefined();
+      expect(injected).toEqual({ filename: 'photo.png', description: 'An ordinary photo' });
     });
   });
 
