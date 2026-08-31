@@ -25,4 +25,6 @@ Owner decision needed (fail-closed per 06-backlog: user-visible display semantic
 Fix shape if (b): the channel settings command passes a tier-scope cap to the resolve call (resolveCascade already layers tiers explicitly, so capping is a parameter, not a redesign); parentValues continues to work unchanged since it is winner-relative. Verify against services/bot-client/src/commands/channel/settings.ts:276-305 (cite from the 2026-08-31 enumeration; re-verify, cites drift).
 
 Acceptance: owner picks (a) or (b); if (b), two moderators with different personal overrides see identical channel-dashboard values, pinned by a test.
+
+SCOPE ADDITION (PR 2277 round-3 review, folded in as the same channel-dashboard-resolution question): when NO personality is activated in the channel, channel/settings.ts resolves via resolveUserDefaults() — a 2-tier admin+user-default merge — so resolved.sources[field] can never be 'channel' on that path: the channel's OWN overrides never surface in effectiveValue there, and the source===localSource branch of the PR-2277 parentValue rule is structurally unreachable. Predates PR 2277; same code path, same decision. Whichever option the owner picks above should also say what the no-personality path resolves through (option (b)'s hardcoded->admin->channel cap would fix both at once).
 <!-- SECTION:DESCRIPTION:END -->
