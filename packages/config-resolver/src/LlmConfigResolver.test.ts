@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LlmConfigResolver } from './LlmConfigResolver.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { LLM_CONFIG_SELECT_WITH_NAME } from '@tzurot/common-types/services/LlmConfigMapper';
 
 // Shared logger instance so tests can assert on (absence of) error logs — the
 // resolver's logger is created once in the constructor, so the mock must hand
@@ -1063,6 +1064,160 @@ describe('LlmConfigResolver', () => {
 
       expect(await resolver.getFreeDefaultConfig()).toBeNull();
       expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('strict query shapes (mutation-kill: select payloads)', () => {
+    it('queries the user row with the exact select shape, including LLM_CONFIG_SELECT_WITH_NAME', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: { discordId: 'user-123' },
+        select: {
+          id: true,
+          defaultLlmConfigId: true,
+          defaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
+        },
+      });
+    });
+
+    it('queries the per-personality override with the exact where + select shape', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: null,
+        defaultLlmConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
+
+      expect(mockPrisma.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'internal-user-id',
+          personalityId: 'personality-id',
+          llmConfigId: { not: null },
+        },
+        select: { llmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+      });
+    });
+  });
+
+  describe('negative-default sentinel cache (constructor cacheTtlMs + clock injection)', () => {
+    it('honours the injected cacheTtlMs and clock for the negative sentinel', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfig: null,
+        globalDefaultLlmConfig: null,
+      });
+      const r = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 1000,
+        now: () => Date.now(),
+      });
+
+      await r.getFreeDefaultConfig();
+      await r.getFreeDefaultConfig();
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(1500);
+      await r.getFreeDefaultConfig();
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('constructor with no options argument', () => {
+    it('constructs and resolves without throwing when options is entirely omitted', async () => {
+      // Pins that `options?.cacheTtlMs` / `options?.now` are genuinely optional
+      // chaining — reading `.cacheTtlMs` off an undefined `options` directly
+      // would throw a TypeError at construction time.
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfig: null,
+        globalDefaultLlmConfig: null,
+      });
+      const r = new LlmConfigResolver(mockPrisma as unknown as PrismaClient);
+
+      await expect(r.getFreeDefaultConfig()).resolves.toBeNull();
+    });
+  });
+
+  describe('getGlobalDefaultConfig — absent settings row', () => {
+    it('returns null and negatively caches when the whole adminSettings row is absent', async () => {
+      mockLogger.error.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await expect(resolver.getGlobalDefaultConfig()).resolves.toBeNull();
+      await expect(resolver.getGlobalDefaultConfig()).resolves.toBeNull();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('positive cache-hit payload integrity', () => {
+    it('the second getFreeDefaultConfig call still carries the real model from the cached entry', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'cache-hit/model',
+          provider: 'openrouter',
+          advancedParameters: {},
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 128000,
+        },
+      });
+
+      await resolver.getFreeDefaultConfig();
+      const second = await resolver.getFreeDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(second?.model).toBe('cache-hit/model');
+    });
+  });
+
+  describe('admin default log labels', () => {
+    it('logs label "free" when the free default is loaded from the database', async () => {
+      mockLogger.info.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'free/model',
+          provider: 'openrouter',
+          advancedParameters: {},
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 128000,
+        },
+      });
+
+      await resolver.getFreeDefaultConfig();
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ label: 'free' }),
+        'Admin default config loaded from database'
+      );
+    });
+
+    it('logs label "global" when the global default is loaded from the database', async () => {
+      mockLogger.info.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        globalDefaultLlmConfig: {
+          name: 'Global Default Config',
+          model: 'global/model',
+          provider: 'openrouter',
+          advancedParameters: {},
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 200000,
+        },
+      });
+
+      await resolver.getGlobalDefaultConfig();
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ label: 'global' }),
+        'Admin default config loaded from database'
+      );
     });
   });
 });

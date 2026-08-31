@@ -563,6 +563,68 @@ describe('ConfigCascadeResolver', () => {
       // All re-queried
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(4);
     });
+
+    it('treats an empty-string userId as a distinct cache key from an undefined userId', async () => {
+      // The cache key uses `?? 'anon'` for a missing userId, which does NOT
+      // coalesce an empty string — '' and undefined must produce DIFFERENT
+      // cache keys. If the 'anon' sentinel were emptied, both would collide
+      // on the same key and the second call would be wrongly served from cache.
+      await resolver.resolveOverrides(undefined, undefined, undefined);
+      mockPrisma.user.findFirst.mockClear();
+
+      await resolver.resolveOverrides('', undefined, undefined);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalled();
+    });
+
+    it('treats an empty-string personalityId as a distinct cache key from an undefined personalityId', async () => {
+      // Same sentinel-collision guard as above, for the 'none' personalityId sentinel.
+      await resolver.resolveOverrides('u1', undefined, 'c1');
+      mockPrisma.personality.findUnique.mockClear();
+
+      await resolver.resolveOverrides('u1', '', 'c1');
+
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalled();
+    });
+
+    it('treats an empty-string channelId as a distinct cache key from an undefined channelId', async () => {
+      // Same sentinel-collision guard as above, for the 'no-ch' channelId sentinel.
+      await resolver.resolveOverrides('u1', 'p1', undefined);
+      mockPrisma.channelSettings.findUnique.mockClear();
+
+      await resolver.resolveOverrides('u1', 'p1', '');
+
+      expect(mockPrisma.channelSettings.findUnique).toHaveBeenCalled();
+    });
+
+    it('invalidateUserCache does not evict a DIFFERENT user whose id is a superstring (no separator collapse)', async () => {
+      // The invalidation prefix is `${userId}|` — without the '|' separator,
+      // invalidating 'u1' would also match keys starting with 'u12'.
+      await resolver.resolveOverrides('u1', 'p1');
+      await resolver.resolveOverrides('u12', 'p2');
+
+      resolver.invalidateUserCache('u1');
+
+      mockPrisma.adminSettings.findUnique.mockClear();
+      await resolver.resolveOverrides('u12', 'p2');
+
+      // u12's entry must have survived the u1 invalidation — no re-query.
+      expect(mockPrisma.adminSettings.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('personality tier load failure', () => {
+    it('logs a warning and degrades to hardcoded defaults when the personality query throws', async () => {
+      mockPrisma.personality.findUnique.mockRejectedValue(new Error('boom'));
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), personalityId: 'personality-456' }),
+        'Failed to load personality config defaults'
+      );
+    });
   });
 });
 
