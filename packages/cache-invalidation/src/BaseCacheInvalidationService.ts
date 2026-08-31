@@ -224,6 +224,19 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
 
       this.logger.info('Subscribed to cache invalidation events');
     } catch (error) {
+      // A failed subscribe must leave the instance exactly as it found it, so a
+      // later subscribe() call starts clean. Remove only THIS invocation's
+      // callback, by identity and at its own index (never pop() / filter()):
+      // the await above lets a concurrent subscribe() interleave — another
+      // caller can hit the early-return path and push its own callback while
+      // this one is still connecting, so position and "matches this
+      // reference" are not the same thing, and removing every matching
+      // reference would over-delete a duplicate registration.
+      const callbackIndex = this.callbacks.indexOf(callback);
+      if (callbackIndex !== -1) {
+        this.callbacks.splice(callbackIndex, 1);
+      }
+
       // Clean up the subscriber connection on failure
       if (this.subscriber) {
         this.subscriber.disconnect();
