@@ -14,16 +14,15 @@ import {
 } from './BaseCacheInvalidationService.js';
 
 // Mock logger
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 describe('createStandardEventValidator', () => {
@@ -355,6 +354,31 @@ describe('BaseCacheInvalidationService', () => {
       await service.subscribe(vi.fn());
       expect(service.isSubscribed()).toBe(true);
     });
+
+    it('starts with an empty callback list — a seeded bogus entry would throw on dispatch', async () => {
+      mockLogger.error.mockClear();
+      const callback = vi.fn();
+      await service.subscribe(callback);
+
+      const messageHandler = mockSubscriber.on.mock.calls.find(
+        (call: unknown[]) => call[0] === 'message'
+      )?.[1] as (channel: string, message: string) => void;
+
+      messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+      expect(callback).toHaveBeenCalledWith({ type: 'all' });
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('propagates the original error when creating the duplicate connection fails', async () => {
+      mockRedis.duplicate.mockImplementation(() => {
+        throw new Error('Duplicate failed');
+      });
+
+      // The cleanup guard must not dereference a null subscriber when
+      // duplicate() itself throws before any subscriber is assigned.
+      await expect(service.subscribe(vi.fn())).rejects.toThrow('Duplicate failed');
+    });
   });
 
   describe('publish', () => {
@@ -447,6 +471,42 @@ describe('BaseCacheInvalidationService', () => {
       expect(errorCallback).toHaveBeenCalled();
       expect(normalCallback).toHaveBeenCalled();
     });
+
+    it('logs a parse failure when the message is not valid JSON', async () => {
+      mockLogger.error.mockClear();
+      const callback = vi.fn();
+      await service.subscribe(callback);
+
+      const messageHandler = mockSubscriber.on.mock.calls.find(
+        (call: unknown[]) => call[0] === 'message'
+      )?.[1] as (channel: string, message: string) => void;
+
+      messageHandler('test:channel', 'not-valid-json');
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(SyntaxError) }),
+        expect.any(String)
+      );
+    });
+
+    it('logs a callback error when a registered callback throws', async () => {
+      mockLogger.error.mockClear();
+      const throwing = vi.fn(() => {
+        throw new Error('Callback boom');
+      });
+      await service.subscribe(throwing);
+
+      const messageHandler = mockSubscriber.on.mock.calls.find(
+        (call: unknown[]) => call[0] === 'message'
+      )?.[1] as (channel: string, message: string) => void;
+
+      messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        expect.any(String)
+      );
+    });
   });
 
   describe('unsubscribe', () => {
@@ -488,6 +548,28 @@ describe('BaseCacheInvalidationService', () => {
 
       expect(mockSubscriber.unsubscribe).not.toHaveBeenCalled();
       expect(mockSubscriber.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('resets the callback list to empty — a seeded non-empty array would surface as a callback-error log', async () => {
+      const callbackA = vi.fn();
+      await service.subscribe(callbackA);
+      await service.unsubscribe();
+
+      mockRedis.duplicate.mockReturnValue(mockSubscriber);
+      const callbackB = vi.fn();
+      await service.subscribe(callbackB);
+
+      mockLogger.error.mockClear();
+
+      const messageHandler = mockSubscriber.on.mock.calls
+        .filter((call: unknown[]) => call[0] === 'message')
+        .at(-1)?.[1] as (channel: string, message: string) => void;
+
+      messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+      expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
+      expect(callbackA).not.toHaveBeenCalled();
+      expect(mockLogger.error).not.toHaveBeenCalled();
     });
   });
 

@@ -11,16 +11,15 @@ import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
 
 // Mock logger
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -227,6 +226,37 @@ describe('SystemSettingsCacheInvalidationService', () => {
       expect(isValidSystemSettingsInvalidationEvent(null)).toBe(false);
       expect(isValidSystemSettingsInvalidationEvent('all')).toBe(false);
       expect(isValidSystemSettingsInvalidationEvent(42)).toBe(false);
+    });
+
+    it('rejects a callable whose own properties look like a valid event', () => {
+      // typeof a function is 'function', not 'object' — the guard rejects it on
+      // the typeof arm alone, which the null check cannot cover.
+      const callable = Object.assign(() => undefined, { type: 'all' });
+
+      expect(isValidSystemSettingsInvalidationEvent(callable)).toBe(false);
+    });
+
+    it('rejects an unknown event type carrying a well-formed keys array', () => {
+      expect(isValidSystemSettingsInvalidationEvent({ type: 'other', keys: ['a'] })).toBe(false);
+    });
+  });
+
+  describe('logging contract', () => {
+    // Pins the service's declared diagnostic contract (getLogContext/getEventDescription),
+    // which is otherwise only exercised through log output.
+    it('carries the service log context into the published log line', async () => {
+      const service = makeService();
+      mockLogger.info.mockClear();
+
+      await service.invalidateKeys(['setting-a', 'setting-b']);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          keys: ['setting-a', 'setting-b'],
+          description: 'keys: setting-a, setting-b',
+        }),
+        expect.any(String)
+      );
     });
   });
 });
