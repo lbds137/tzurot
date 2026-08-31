@@ -3,9 +3,10 @@ id: TASK-839
 title: >-
   Settings drill-down Parent Value shows the effective value, not the parent
   tier
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 12:31'
+updated_date: '2026-08-31 18:58'
 labels:
   - 'area:bot-client'
   - 'area:api-gateway'
