@@ -826,7 +826,7 @@
               {
                 "type": 1,
                 "name": "this-server",
-                "description": "Deny throughout this server",
+                "description": "Deny a user throughout this server",
                 "options": [
                   {
                     "name": "user",
@@ -861,7 +861,7 @@
               {
                 "type": 1,
                 "name": "channel",
-                "description": "Deny in one channel",
+                "description": "Deny a user in one channel",
                 "options": [
                   {
                     "name": "user",
@@ -910,7 +910,7 @@
               {
                 "type": 1,
                 "name": "character",
-                "description": "Deny for one character",
+                "description": "Deny a user for one character",
                 "options": [
                   {
                     "name": "user",
@@ -985,7 +985,7 @@
               {
                 "type": 1,
                 "name": "this-server",
-                "description": "Remove a denial for this server",
+                "description": "Remove a user denial in this server",
                 "options": [
                   {
                     "name": "user",
@@ -998,7 +998,7 @@
               {
                 "type": 1,
                 "name": "channel",
-                "description": "Remove a denial for one channel",
+                "description": "Remove a user denial in one channel",
                 "options": [
                   {
                     "name": "user",
@@ -1025,7 +1025,7 @@
               {
                 "type": 1,
                 "name": "character",
-                "description": "Remove a denial for one character",
+                "description": "Remove a user denial for one character",
                 "options": [
                   {
                     "name": "user",

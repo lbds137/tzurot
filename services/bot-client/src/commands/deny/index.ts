@@ -188,7 +188,9 @@ function buildThisServer(
 ): SlashCommandSubcommandBuilder {
   sub
     .setName('this-server')
-    .setDescription(isAdd ? 'Deny throughout this server' : 'Remove a denial for this server')
+    .setDescription(
+      isAdd ? 'Deny a user throughout this server' : 'Remove a user denial in this server'
+    )
     .addUserOption(opt =>
       opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
     );
@@ -201,7 +203,7 @@ function buildChannel(
 ): SlashCommandSubcommandBuilder {
   sub
     .setName('channel')
-    .setDescription(isAdd ? 'Deny in one channel' : 'Remove a denial for one channel')
+    .setDescription(isAdd ? 'Deny a user in one channel' : 'Remove a user denial in one channel')
     .addUserOption(opt =>
       opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
     )
@@ -228,7 +230,9 @@ function buildCharacter(
 ): SlashCommandSubcommandBuilder {
   sub
     .setName('character')
-    .setDescription(isAdd ? 'Deny for one character' : 'Remove a denial for one character')
+    .setDescription(
+      isAdd ? 'Deny a user for one character' : 'Remove a user denial for one character'
+    )
     .addUserOption(opt =>
       opt.setName('user').setDescription(USER_OPTION_DESCRIPTION).setRequired(true)
     )
