@@ -76,6 +76,38 @@ describe('PersonaResolver', () => {
       expect(result.config.personaId).toBe('');
     });
 
+    it('pins every field of the SYSTEM_DEFAULT_PERSONA singleton', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      const result = await resolver.resolve('discord-system-default-fields', 'personality-123');
+
+      expect(result.config).toEqual({
+        personaId: '',
+        personaName: '',
+        preferredName: null,
+        pronouns: null,
+        content: '',
+      });
+    });
+
+    it('warns without error-logging when the user is not found (base class does not see a throw)', async () => {
+      // resolveFresh returns normally here rather than throwing, so the base
+      // class's catch (BaseConfigResolver.ts:161, which error-logs "Failed to
+      // resolve config, using system default" and returns the same system
+      // default) is not reached. The error-log assertion below is what pins
+      // that: under the mutants this test targets, the value returned is
+      // identical and only the log differs.
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      await resolver.resolve('discord-not-found', 'personality-123');
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ discordUserId: 'discord-not-found' }),
+        'User not found'
+      );
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
     it('requests exactly the persona fields the mapper consumes (select pin)', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValue(null);
 
@@ -126,6 +158,28 @@ describe('PersonaResolver', () => {
       expect(result.source).toBe('context-override');
       expect(result.config.personaId).toBe('override-persona-123');
       expect(result.config.preferredName).toBe('Override Name');
+    });
+
+    it('carries the personalityId in the override sourceName', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: null,
+        defaultPersona: null,
+        ownedPersonas: [],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue({
+        persona: {
+          id: 'override-persona-abc',
+          preferredName: 'Override Name',
+          pronouns: 'they/them',
+          content: 'Override content',
+        },
+      });
+
+      const result = await resolver.resolve('discord-123', 'personality-abc');
+
+      expect(result.sourceName).toBe('override:personality-abc');
     });
 
     it('pins the personality-override lookup shape (persona linked, not null)', async () => {
@@ -181,6 +235,29 @@ describe('PersonaResolver', () => {
       expect(result.config.preferredName).toBe('Default Name');
     });
 
+    it('logs the resolverName on the base-class debug log for a fresh resolution', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'default-persona-123',
+        defaultPersona: {
+          id: 'default-persona-123',
+          preferredName: 'Default Name',
+          pronouns: 'she/her',
+          content: 'Default content',
+        },
+        ownedPersonas: [],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      await resolver.resolve('discord-resolvername', 'personality-456');
+
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.objectContaining({ resolver: 'PersonaResolver' }),
+        expect.any(String)
+      );
+    });
+
     it('should return first owned persona as transient resolution without persisting', async () => {
       // Resolution is strictly read-only. When a user
       // has owned personas but no defaultPersonaId, we pick the first-owned
@@ -220,6 +297,32 @@ describe('PersonaResolver', () => {
         }),
         expect.stringContaining('Transient resolution')
       );
+    });
+
+    it('does not error-log when defaultPersonaId is legitimately null (not dangling)', async () => {
+      // defaultPersonaId is null (never set), NOT a dangling reference to a
+      // deleted persona — the error log guards `defaultPersonaId !== null`,
+      // so this case must skip it entirely.
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: null,
+        defaultPersona: null,
+        ownedPersonas: [
+          {
+            id: 'first-owned-persona',
+            preferredName: 'First Owned',
+            pronouns: 'he/him',
+            content: 'First owned content',
+          },
+        ],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolve('discord-legit-null', 'personality-456');
+
+      expect(result.config.personaId).toBe('first-owned-persona');
+      expect(mockLogger.error).not.toHaveBeenCalled();
     });
 
     it('should log error and fall through when defaultPersonaId is dangling', async () => {
@@ -303,6 +406,26 @@ describe('PersonaResolver', () => {
       expect(result.source).toBe('user-default');
       expect(result.config.personaId).toBe('default-persona-123');
       // Should not check for personality overrides
+      expect(mockPrismaClient.userPersonalityConfig.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('short-circuits the override lookup for an empty-string personalityId', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'default-persona-123',
+        defaultPersona: {
+          id: 'default-persona-123',
+          preferredName: 'Default Name',
+          pronouns: null,
+          content: 'Content',
+        },
+        ownedPersonas: [],
+      });
+
+      const result = await resolver.resolve('discord-empty-pid', '');
+
+      expect(result.source).toBe('user-default');
+      expect(result.config.personaId).toBe('default-persona-123');
       expect(mockPrismaClient.userPersonalityConfig.findFirst).not.toHaveBeenCalled();
     });
 
@@ -408,6 +531,28 @@ describe('PersonaResolver', () => {
 
       expect(result).toBeNull();
     });
+
+    it('returns null for an empty personaId even when the source is NOT system-default', async () => {
+      // Pins the `|| personaId === ''` half of the guard independently of the
+      // source check: source is 'user-default' here, not 'system-default'.
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'default-persona-empty',
+        defaultPersona: {
+          id: '',
+          name: 'Nameless',
+          preferredName: null,
+          pronouns: null,
+          content: 'c',
+        },
+        ownedPersonas: [],
+      });
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveForMemory('discord-empty-config-id', 'personality-456');
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('resolvePersonaIdOnly', () => {
@@ -455,6 +600,31 @@ describe('PersonaResolver', () => {
 
       expect(result).toBeNull();
     });
+
+    it('returns null for an empty personaId even when the source is NOT system-default', async () => {
+      // Same guard as resolveForMemory, but resolvePersonaIdOnly is a
+      // SEPARATE method with its own copy of the check — pin independently.
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'default-persona-empty',
+        defaultPersona: {
+          id: '',
+          name: 'Nameless',
+          preferredName: null,
+          pronouns: null,
+          content: 'c',
+        },
+        ownedPersonas: [],
+      });
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolvePersonaIdOnly(
+        'discord-empty-config-id-2',
+        'personality-456'
+      );
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('getPersonaContentForPrompt', () => {
@@ -476,6 +646,18 @@ describe('PersonaResolver', () => {
     it('should return content without optional fields', async () => {
       mockPrismaClient.persona.findUnique.mockResolvedValue({
         preferredName: null,
+        pronouns: null,
+        content: 'Just content',
+      });
+
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
+
+      expect(result).toBe('Just content');
+    });
+
+    it('omits the Name line for an empty-string preferredName (not just null)', async () => {
+      mockPrismaClient.persona.findUnique.mockResolvedValue({
+        preferredName: '',
         pronouns: null,
         content: 'Just content',
       });
@@ -531,6 +713,46 @@ describe('PersonaResolver', () => {
 
       expect(result).toBeNull();
       expect(mockPrismaClient.persona.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getPersonaForPrompt', () => {
+    const validPersonaUuid = '12345678-1234-1234-1234-123456789abc';
+
+    it('pins the exact query seam (where/select literals)', async () => {
+      // A return-value assertion cannot see a mutant inside the where/select
+      // object literals — assert the call arguments directly.
+      mockPrismaClient.persona.findUnique.mockResolvedValue({
+        preferredName: 'Alice',
+        pronouns: 'she/her',
+        content: 'Content',
+        ownerId: 'owner-uuid-1',
+      });
+
+      const result = await resolver.getPersonaForPrompt(validPersonaUuid);
+
+      expect(mockPrismaClient.persona.findUnique).toHaveBeenCalledWith({
+        where: { id: validPersonaUuid },
+        select: { preferredName: true, pronouns: true, content: true, ownerId: true },
+      });
+      expect(result).toEqual({
+        preferredName: 'Alice',
+        pronouns: 'she/her',
+        content: 'Content',
+        ownerId: 'owner-uuid-1',
+      });
+    });
+
+    it('returns null without an error log when the persona is not found', async () => {
+      // The mutants fall through to a TypeError caught by the local
+      // try/catch, which also returns null — the absent error log is the
+      // only observable difference.
+      mockPrismaClient.persona.findUnique.mockResolvedValue(null);
+
+      const result = await resolver.getPersonaForPrompt(validPersonaUuid);
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).not.toHaveBeenCalled();
     });
   });
 
