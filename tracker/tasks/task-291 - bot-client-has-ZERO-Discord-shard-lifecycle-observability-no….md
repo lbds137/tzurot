@@ -1,10 +1,10 @@
 ---
 id: TASK-291
 title: bot-client has zero Discord shard-lifecycle observability
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-18 00:00'
-updated_date: '2026-09-01 01:09'
+updated_date: '2026-09-01 14:22'
 labels:
   - 'area:bot-client'
   - 'size:M'
