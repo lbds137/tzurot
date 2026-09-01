@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 
 // Mock child_process
 vi.mock('node:child_process', () => ({
@@ -266,6 +267,116 @@ describe('env-runner', () => {
       const cleaned = cleanEnvForNpx({ DATABASE_URL: 'postgresql://railway/db' });
 
       expect(cleaned.DATABASE_URL).toBe('postgresql://railway/db');
+    });
+  });
+
+  describe('spawned-command timeout (opt-in)', () => {
+    // A child that never emits 'close' unless the test tells it to — the stall
+    // the timeout exists to bound.
+    type MockProc = EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn>;
+    };
+
+    function mockChild(): MockProc {
+      const proc = new EventEmitter() as MockProc;
+      proc.stdout = new EventEmitter();
+      proc.stderr = new EventEmitter();
+      proc.kill = vi.fn();
+      vi.mocked(spawn).mockReturnValue(proc as unknown as ReturnType<typeof spawn>);
+      return proc;
+    }
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.resetModules();
+      vi.useFakeTimers();
+      vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it('kills the child and rejects when the bound elapses before it exits', async () => {
+      const proc = mockChild();
+      const { runPrismaCommand } = await import('./env-runner.js');
+
+      const promise = runPrismaCommand('local', 'migrate', ['status'], 5000);
+      // Handler attached BEFORE advancing: an unhandled rejection otherwise
+      // escapes between the timer firing and the assertion.
+      const assertion = expect(promise).rejects.toThrow(
+        'Command timed out after 5000ms: npx prisma migrate status'
+      );
+
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+
+      expect(proc.kill).toHaveBeenCalled();
+    });
+
+    it('resolves and clears the timer when the child exits inside the bound', async () => {
+      const proc = mockChild();
+      const { runPrismaCommand } = await import('./env-runner.js');
+
+      const promise = runPrismaCommand('local', 'migrate', ['status'], 5000);
+      proc.emit('close', 0);
+
+      await expect(promise).resolves.toEqual({ stdout: '', stderr: '', exitCode: 0 });
+      // A surviving timer would fire kill() on an already-finished command and
+      // hold the event loop open for the rest of the bound.
+      expect(vi.getTimerCount()).toBe(0);
+      expect(proc.kill).not.toHaveBeenCalled();
+    });
+
+    it('arms no timer at all when no bound is passed — `migrate deploy` stays unbounded', async () => {
+      const proc = mockChild();
+      const { runPrismaCommand } = await import('./env-runner.js');
+
+      const promise = runPrismaCommand('local', 'migrate', ['deploy']);
+      expect(vi.getTimerCount()).toBe(0);
+
+      proc.emit('close', 0);
+      await expect(promise).resolves.toEqual({ stdout: '', stderr: '', exitCode: 0 });
+      expect(proc.kill).not.toHaveBeenCalled();
+    });
+
+    it('bounds the Railway URL fetch under the same option', async () => {
+      vi.mocked(execFileSync).mockReturnValue(
+        JSON.stringify({ DATABASE_PUBLIC_URL: 'postgresql://railway-dev/db' })
+      );
+      const proc = mockChild();
+      const { runWithRailway } = await import('./env-runner.js');
+
+      const promise = runWithRailway('dev', 'npx', ['prisma', 'migrate', 'status'], 5000);
+      proc.emit('close', 0);
+      await promise;
+
+      expect(execFileSync).toHaveBeenCalledWith(
+        'railway',
+        expect.any(Array),
+        expect.objectContaining({ timeout: 5000 })
+      );
+    });
+
+    it('leaves the Railway URL fetch options untouched when no bound is passed', async () => {
+      vi.mocked(execFileSync).mockReturnValue(
+        JSON.stringify({ DATABASE_PUBLIC_URL: 'postgresql://railway-dev/db' })
+      );
+      const proc = mockChild();
+      const { runWithRailway } = await import('./env-runner.js');
+
+      const promise = runWithRailway('dev', 'npx', ['prisma', 'migrate', 'deploy']);
+      proc.emit('close', 0);
+      await promise;
+
+      expect(execFileSync).toHaveBeenCalledWith('railway', expect.any(Array), {
+        stdio: 'pipe',
+        encoding: 'utf-8',
+      });
     });
   });
 

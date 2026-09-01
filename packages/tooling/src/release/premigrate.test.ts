@@ -17,12 +17,17 @@ vi.mock('chalk', () => {
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({ readFileSync: vi.fn() }));
-vi.mock('../utils/env-runner.js', () => ({ validateEnvironment: vi.fn() }));
+vi.mock('../utils/env-runner.js', () => ({
+  validateEnvironment: vi.fn(),
+  runPrismaCommand: vi.fn(),
+}));
 vi.mock('../db/run-migration.js', () => ({ runMigration: vi.fn() }));
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { runMigration } from '../db/run-migration.js';
+import { runPrismaCommand } from '../utils/env-runner.js';
+import { RELEASE_GIT_TIMEOUT_MS } from './constants.js';
 import { premigrate, hasApplyAfterDeployMarker, APPLY_AFTER_DEPLOY_MARKER } from './premigrate.js';
 
 const ADDITIVE_MIGRATION = 'prisma/migrations/20260627_add_kind/migration.sql';
@@ -61,6 +66,10 @@ beforeEach(() => {
   exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
     throw new Error(`process.exit:${code}`);
   }) as never);
+  // Default: dev is clean, so every existing test (which doesn't care about
+  // the dev-pending gate) keeps taking the same path it took before that
+  // gate existed.
+  vi.mocked(runPrismaCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
 });
 
 afterEach(() => {
@@ -468,17 +477,84 @@ describe('premigrate', () => {
     expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
   });
 
-  it('warns and skips an unreadable migration file in the destructive scan', async () => {
-    mockGitDiff([DESTRUCTIVE_MIGRATION]);
-    vi.mocked(readFileSync).mockImplementation((() => {
-      throw new Error('EACCES');
-    }) as unknown as typeof readFileSync);
+  describe('unreadable migration file — ENOENT vs. hard-fail', () => {
+    it('warns and skips an ENOENT (checkout behind the range) in the destructive scan, and still migrates', async () => {
+      mockGitDiff([DESTRUCTIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockImplementation((() => {
+        const err = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
+        err.code = 'ENOENT';
+        throw err;
+      }) as unknown as typeof readFileSync);
 
-    await premigrate({ env: 'prod', force: true });
+      await premigrate({ env: 'prod', force: true });
 
-    // Unreadable → skipped in the scan → no destructive hit → migration proceeds.
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('could not read'));
-    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+      // ENOENT is the one legitimate degrade: the local checkout can be
+      // behind the release range. Skipped in the scan → no destructive hit
+      // → migration proceeds.
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('not found'));
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+    });
+
+    it('hard-fails on EACCES in the first scan to read the file — a positively-identified read error must not silently downgrade to "safe"', async () => {
+      // The mock throws for EVERY read, so the failure surfaces in whichever
+      // scan reads first — the marker scan, which premigrate runs ahead of the
+      // destructive one. This covers the end-to-end fail-closed behavior;
+      // migration-scan.test.ts covers each scan's read handling separately.
+      mockGitDiff([DESTRUCTIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockImplementation((() => {
+        const err = new Error('EACCES: permission denied') as NodeJS.ErrnoException;
+        err.code = 'EACCES';
+        throw err;
+      }) as unknown as typeof readFileSync);
+
+      await expect(premigrate({ env: 'prod', force: true })).rejects.toThrow(
+        new RegExp(`${DESTRUCTIVE_MIGRATION}.*EACCES`)
+      );
+      expect(runMigration).not.toHaveBeenCalled();
+    });
+
+    it('hard-fails on a CODE-LESS read error too — fail closed when the failure is unidentified, not just when it is EACCES', async () => {
+      // A bare `new Error('EACCES')` (a message, not a `.code`) is exactly
+      // the shape that must NOT be treated as a positive ENOENT match — an
+      // unidentified read failure is fail-closed, same as a known-bad code.
+      mockGitDiff([DESTRUCTIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockImplementation((() => {
+        throw new Error('EACCES');
+      }) as unknown as typeof readFileSync);
+
+      await expect(premigrate({ env: 'prod', force: true })).rejects.toThrow(DESTRUCTIVE_MIGRATION);
+      expect(runMigration).not.toHaveBeenCalled();
+    });
+
+    it('warns and skips an ENOENT in the apply-after-deploy marker scan too, and still migrates', async () => {
+      // The whole point of the ENOENT/hard-fail split: both safety gates
+      // read migration files, so the same behavior must hold in each.
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockImplementation((() => {
+        const err = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
+        err.code = 'ENOENT';
+        throw err;
+      }) as unknown as typeof readFileSync);
+
+      await premigrate({ env: 'prod', force: true });
+
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('not found'));
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+    });
+
+    it('hard-fails on EACCES in the apply-after-deploy marker scan', async () => {
+      mockGitDiff([MARKED_MIGRATION]);
+      vi.mocked(readFileSync).mockImplementation((() => {
+        const err = new Error('EACCES: permission denied') as NodeJS.ErrnoException;
+        err.code = 'EACCES';
+        throw err;
+      }) as unknown as typeof readFileSync);
+
+      await expect(premigrate({ env: 'prod', force: true })).rejects.toThrow(
+        new RegExp(`${MARKED_MIGRATION}.*EACCES`)
+      );
+      expect(runMigration).not.toHaveBeenCalled();
+    });
   });
 
   describe('apply-after-deploy marker', () => {
@@ -674,6 +750,219 @@ describe('premigrate', () => {
       expect(logOutput).toContain('marked apply-after-deploy');
       expect(logOutput).not.toContain('DESTRUCTIVE migration shapes detected');
       expect(runMigration).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dev migration-status check (TASK-707)', () => {
+    it('proceeds silently when dev has applied every migration', async () => {
+      mockGitDiff([ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;');
+      vi.mocked(runPrismaCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+
+      await premigrate({ env: 'prod', force: true });
+
+      // The 4th argument is the seam that keeps a stalled dev connection from
+      // hanging the release: without it this read-only status call would be the
+      // one unbounded shell-out left in the flow.
+      expect(runPrismaCommand).toHaveBeenCalledWith(
+        'dev',
+        'migrate',
+        ['status'],
+        RELEASE_GIT_TIMEOUT_MS
+      );
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+    });
+
+    it('refuses (exit 1, no migrate) when dev has pending migrations, naming both the range and dev status', async () => {
+      mockGitDiff([ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;');
+      vi.mocked(runPrismaCommand).mockResolvedValue({
+        stdout: 'Following migration have not yet been applied:\n20260627_add_kind',
+        stderr: '',
+        exitCode: 1,
+      });
+
+      await expect(premigrate({ env: 'prod', force: true })).rejects.toThrow('process.exit:1');
+
+      expect(runMigration).not.toHaveBeenCalled();
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      // Names this release's range...
+      expect(logOutput).toContain(ADDITIVE_MIGRATION);
+      // ...and dev's own reported status.
+      expect(logOutput).toContain('20260627_add_kind');
+    });
+
+    it('warns and proceeds when dev is pending but --allow-dev-pending is set', async () => {
+      mockGitDiff([ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;');
+      vi.mocked(runPrismaCommand).mockResolvedValue({
+        stdout: 'Following migration have not yet been applied:\n20260627_add_kind',
+        stderr: '',
+        exitCode: 1,
+      });
+
+      await premigrate({ env: 'prod', force: true, allowDevPending: true });
+
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+    });
+
+    it('reports dev-pending in dry-run without exiting, and still threads dryRun into runMigration', async () => {
+      mockGitDiff([ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;');
+      vi.mocked(runPrismaCommand).mockResolvedValue({
+        stdout: 'Following migration have not yet been applied:\n20260627_add_kind',
+        stderr: '',
+        exitCode: 1,
+      });
+
+      await premigrate({ env: 'prod', dryRun: true });
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: false, dryRun: true });
+      const logOutput = vi
+        .mocked(console.log)
+        .mock.calls.map(c => String(c[0]))
+        .join('\n');
+      expect(logOutput).toContain('[dry-run] would refuse without --allow-dev-pending');
+    });
+
+    describe('dev unreachable — distinguished from dev-pending', () => {
+      const UNREACHABLE = {
+        stdout: '',
+        stderr: "Error: P1001: Can't reach database server at `dev-host`:`5432`",
+        exitCode: 1,
+      };
+
+      function logText(): string {
+        return vi
+          .mocked(console.log)
+          .mock.calls.map(c => String(c[0]))
+          .join('\n');
+      }
+
+      // A missing dev Railway link never produces a non-zero RESULT: the URL
+      // fetch throws inside runPrismaCommand, so the promise rejects and
+      // isDbUnreachable is never consulted. Same class of failure — dev's
+      // state is unknown — so it must reach the same fail-closed gate.
+      const REJECTION = new Error(
+        'Failed to fetch database URL from Railway: no linked environment'
+      );
+
+      it('refuses when the dev status call REJECTS (missing dev link), quoting the fetch error', async () => {
+        mockGitDiff([ADDITIVE_MIGRATION]);
+        vi.mocked(readFileSync).mockReturnValue(
+          'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+        );
+        vi.mocked(runPrismaCommand).mockRejectedValue(REJECTION);
+
+        await expect(premigrate({ env: 'prod', force: true })).rejects.toThrow('process.exit:1');
+
+        expect(runMigration).not.toHaveBeenCalled();
+        const output = logText();
+        expect(output).toContain("Could not verify dev's migration status");
+        expect(output).toContain('no linked environment');
+        expect(output).toContain('Railway link');
+        // The pending-migrations remedy must not appear: nothing established
+        // that dev is merely behind.
+        expect(output).not.toContain('dev migration status is not clean');
+        expect(output).not.toContain('pnpm ops db:migrate --env dev');
+      });
+
+      it('a REJECTED dev status call is NOT overridden by --allow-dev-pending', async () => {
+        mockGitDiff([ADDITIVE_MIGRATION]);
+        vi.mocked(readFileSync).mockReturnValue(
+          'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+        );
+        vi.mocked(runPrismaCommand).mockRejectedValue(REJECTION);
+
+        await expect(
+          premigrate({ env: 'prod', force: true, allowDevPending: true })
+        ).rejects.toThrow('process.exit:1');
+
+        expect(runMigration).not.toHaveBeenCalled();
+      });
+
+      it('reports a REJECTED dev status call in dry-run without exiting', async () => {
+        mockGitDiff([ADDITIVE_MIGRATION]);
+        vi.mocked(readFileSync).mockReturnValue(
+          'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+        );
+        vi.mocked(runPrismaCommand).mockRejectedValue(REJECTION);
+
+        await premigrate({ env: 'prod', dryRun: true });
+
+        expect(exitSpy).not.toHaveBeenCalled();
+        expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: false, dryRun: true });
+        expect(logText()).toContain(
+          "[dry-run] would refuse — dev's migration status is unverifiable"
+        );
+      });
+
+      it('refuses with a DISTINCT message and no pending-migrations remedy', async () => {
+        mockGitDiff([ADDITIVE_MIGRATION]);
+        vi.mocked(readFileSync).mockReturnValue(
+          'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+        );
+        vi.mocked(runPrismaCommand).mockResolvedValue(UNREACHABLE);
+
+        await expect(premigrate({ env: 'prod', force: true })).rejects.toThrow('process.exit:1');
+
+        expect(runMigration).not.toHaveBeenCalled();
+        const output = logText();
+        expect(output).toContain("Could not verify dev's migration status");
+        expect(output).toContain('dev-host');
+        expect(output).toContain('Railway link');
+        // The pending-migrations path's wording must NOT appear — it would tell
+        // the operator to run a migration when the real problem is that we
+        // never reached dev.
+        expect(output).not.toContain('dev migration status is not clean');
+        expect(output).not.toContain('pnpm ops db:migrate --env dev');
+      });
+
+      it('is NOT overridden by --allow-dev-pending', async () => {
+        mockGitDiff([ADDITIVE_MIGRATION]);
+        vi.mocked(readFileSync).mockReturnValue(
+          'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+        );
+        vi.mocked(runPrismaCommand).mockResolvedValue(UNREACHABLE);
+
+        // The flag asserts "I know dev is behind" — a claim nobody can make
+        // when dev's state was never observed. Fail closed.
+        await expect(
+          premigrate({ env: 'prod', force: true, allowDevPending: true })
+        ).rejects.toThrow('process.exit:1');
+
+        expect(runMigration).not.toHaveBeenCalled();
+      });
+
+      it('reports but does not exit in dry-run', async () => {
+        mockGitDiff([ADDITIVE_MIGRATION]);
+        vi.mocked(readFileSync).mockReturnValue(
+          'ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;'
+        );
+        vi.mocked(runPrismaCommand).mockResolvedValue(UNREACHABLE);
+
+        await premigrate({ env: 'prod', dryRun: true });
+
+        expect(exitSpy).not.toHaveBeenCalled();
+        expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: false, dryRun: true });
+        expect(logText()).toContain(
+          "[dry-run] would refuse — dev's migration status is unverifiable"
+        );
+      });
+    });
+
+    it('does not run the dev check for a non-prod env', async () => {
+      mockGitDiff([ADDITIVE_MIGRATION]);
+      vi.mocked(readFileSync).mockReturnValue('ALTER TABLE "llm_configs" ADD COLUMN "kind" TEXT;');
+
+      await premigrate({ env: 'dev', force: true });
+
+      expect(runPrismaCommand).not.toHaveBeenCalled();
+      expect(runMigration).toHaveBeenCalledWith({ env: 'dev', force: true, dryRun: false });
     });
   });
 });

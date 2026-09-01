@@ -97,17 +97,25 @@ export function resolveDatabaseUrl(env: Environment): string {
  *
  * Uses the pgvector service which has the public proxy URL configured.
  */
-export function getRailwayDatabaseUrl(env: 'dev' | 'prod'): string {
+export function getRailwayDatabaseUrl(env: 'dev' | 'prod', timeoutMs?: number): string {
   const railwayEnv = getRailwayEnvName(env);
 
   try {
     console.log(chalk.dim(`Fetching database URL from Railway ${railwayEnv}...`));
 
-    // Use execFileSync with array args to prevent command injection
+    // Use execFileSync with array args to prevent command injection.
+    // The `timeout` option is spread in only when the caller asked for a bound,
+    // so an unbounded caller's option object is unchanged. On expiry
+    // execFileSync throws, and the catch below wraps it into the same
+    // "Failed to fetch database URL" error every other fetch failure produces.
     const result = execFileSync(
       'railway',
       ['variables', '--environment', railwayEnv, '--service', 'pgvector', '--json'],
-      { stdio: 'pipe', encoding: 'utf-8' }
+      {
+        stdio: 'pipe',
+        encoding: 'utf-8',
+        ...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
+      }
     );
 
     const variables = JSON.parse(result) as Record<string, string>;
@@ -129,35 +137,61 @@ export function getRailwayDatabaseUrl(env: 'dev' | 'prod'): string {
   }
 }
 
-/**
- * Run a command with Railway database URL injected
- *
- * Fetches the public database URL from Railway and runs the command locally.
- *
- * @param env - Railway environment ('dev' or 'prod')
- * @param command - The executable to run (e.g., 'npx')
- * @param args - Arguments to pass to the command (e.g., ['prisma', 'migrate', 'deploy'])
- *
- * SECURITY: Uses shell: false with explicit array arguments to prevent command injection.
- * The command and args are passed directly to the process, not through a shell.
- */
-export async function runWithRailway(
-  env: 'dev' | 'prod',
-  command: string,
-  args: string[] = []
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const databaseUrl = getRailwayDatabaseUrl(env);
+/** The shape every spawned-command runner in this module resolves with. */
+interface CommandResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
 
+/**
+ * Spawn a command, stream its output through this process, and collect it.
+ *
+ * `timeoutMs` is OPTIONAL and unset by default: without it the child runs
+ * unbounded, which is what `migrate deploy` and other minutes-long database
+ * operations need. When it IS set and the child is still running at expiry,
+ * the child is killed and the promise REJECTS — callers that gate on the
+ * result (rather than on an exit code) route a rejection to their own
+ * fail-closed path, and the message names both the bound and the command so
+ * the operator sees which call stalled.
+ *
+ * SECURITY: shell: false ensures args are passed directly without shell interpretation.
+ */
+function spawnCollecting(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs?: number
+): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    // SECURITY: shell: false ensures args are passed directly without shell interpretation
     const proc = spawn(command, args, {
       stdio: ['inherit', 'pipe', 'pipe'],
       shell: false,
-      env: cleanEnvForNpx({ DATABASE_URL: databaseUrl }),
+      env,
     });
 
     let stdout = '';
     let stderr = '';
+    let timer: NodeJS.Timeout | undefined;
+    let settled = false;
+
+    // Clearing on every exit path is what keeps a finished command from
+    // holding the event loop open until the (possibly long) bound elapses.
+    const clearTimer = (): void => {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+    };
+
+    if (timeoutMs !== undefined) {
+      timer = setTimeout(() => {
+        settled = true;
+        timer = undefined;
+        proc.kill();
+        reject(new Error(`Command timed out after ${timeoutMs}ms: ${command} ${args.join(' ')}`));
+      }, timeoutMs);
+    }
 
     proc.stdout?.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -170,13 +204,44 @@ export async function runWithRailway(
     });
 
     proc.on('close', code => {
+      clearTimer();
+      if (settled) return;
+      settled = true;
       resolve({ stdout, stderr, exitCode: code ?? 0 });
     });
 
     proc.on('error', err => {
+      clearTimer();
+      if (settled) return;
+      settled = true;
       reject(err);
     });
   });
+}
+
+/**
+ * Run a command with Railway database URL injected
+ *
+ * Fetches the public database URL from Railway and runs the command locally.
+ *
+ * @param env - Railway environment ('dev' or 'prod')
+ * @param command - The executable to run (e.g., 'npx')
+ * @param args - Arguments to pass to the command (e.g., ['prisma', 'migrate', 'deploy'])
+ * @param timeoutMs - Optional bound on BOTH the Railway URL fetch and the spawned
+ *   command. Omit it (the default) for long-running operations like `migrate deploy`.
+ *
+ * SECURITY: Uses shell: false with explicit array arguments to prevent command injection.
+ * The command and args are passed directly to the process, not through a shell.
+ */
+export async function runWithRailway(
+  env: 'dev' | 'prod',
+  command: string,
+  args: string[] = [],
+  timeoutMs?: number
+): Promise<CommandResult> {
+  const databaseUrl = getRailwayDatabaseUrl(env, timeoutMs);
+
+  return spawnCollecting(command, args, cleanEnvForNpx({ DATABASE_URL: databaseUrl }), timeoutMs);
 }
 
 /**
@@ -198,6 +263,10 @@ const ALLOWED_PRISMA_COMMANDS = [
  * @param env - Environment to run in ('local', 'dev', or 'prod')
  * @param command - Prisma subcommand (must be one of ALLOWED_PRISMA_COMMANDS)
  * @param args - Additional arguments to pass to the command
+ * @param timeoutMs - Optional bound on the Prisma invocation (and, for dev/prod, on
+ *   the Railway URL fetch preceding it). Omit it — the default — for `migrate deploy`
+ *   and anything else that legitimately runs for minutes; pass it for short read-only
+ *   calls like `migrate status` that must not hang a release flow.
  *
  * SECURITY: Uses shell: false with explicit array arguments to prevent command injection.
  * The command parameter is validated against a whitelist of known safe commands.
@@ -205,8 +274,9 @@ const ALLOWED_PRISMA_COMMANDS = [
 export async function runPrismaCommand(
   env: Environment,
   command: string,
-  args: string[] = []
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  args: string[] = [],
+  timeoutMs?: number
+): Promise<CommandResult> {
   // SECURITY: Validate command is a known safe value
   if (!ALLOWED_PRISMA_COMMANDS.includes(command as (typeof ALLOWED_PRISMA_COMMANDS)[number])) {
     throw new Error(
@@ -219,38 +289,10 @@ export async function runPrismaCommand(
 
   if (env === 'local') {
     // Run directly with local DATABASE_URL
-    return new Promise((resolve, reject) => {
-      // SECURITY: shell: false ensures args are passed directly without shell interpretation
-      const proc = spawn('npx', prismaArgs, {
-        stdio: ['inherit', 'pipe', 'pipe'],
-        shell: false,
-        env: cleanEnvForNpx(),
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout?.on('data', (data: Buffer) => {
-        stdout += data.toString();
-        process.stdout.write(data);
-      });
-
-      proc.stderr?.on('data', (data: Buffer) => {
-        stderr += data.toString();
-        process.stderr.write(data);
-      });
-
-      proc.on('close', code => {
-        resolve({ stdout, stderr, exitCode: code ?? 0 });
-      });
-
-      proc.on('error', err => {
-        reject(err);
-      });
-    });
+    return spawnCollecting('npx', prismaArgs, cleanEnvForNpx(), timeoutMs);
   } else {
     // Run via Railway environment with injected DATABASE_URL
-    return runWithRailway(env, 'npx', prismaArgs);
+    return runWithRailway(env, 'npx', prismaArgs, timeoutMs);
   }
 }
 
