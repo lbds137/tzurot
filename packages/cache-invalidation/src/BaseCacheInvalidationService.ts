@@ -171,6 +171,7 @@ interface InvalidationLogOptions<TEvent> {
 export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidationEvent> {
   private subscriber: Redis | null = null;
   private callbacks: InvalidationCallback<TEvent>[] = [];
+  private connectPromise: Promise<void> | null = null;
   protected readonly logger: Logger;
 
   constructor(
@@ -190,12 +191,60 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
   async subscribe(callback: InvalidationCallback<TEvent>): Promise<void> {
     this.callbacks.push(callback);
 
-    // Only create subscriber connection once
-    if (this.subscriber !== null) {
-      this.logger.debug('Already subscribed to cache invalidation events');
-      return;
+    // Single-flight: every concurrent caller shares the same in-flight
+    // connect attempt rather than racing independent duplicate()s. The
+    // settled promise is deliberately KEPT after success — it doubles as
+    // the "already connected" cache, so later callers reuse it instead of
+    // opening a second connection; only unsubscribe() clears it. Pinned by
+    // "shares one connection across sequential successful callers".
+    if (this.connectPromise !== null) {
+      this.logger.debug('Joining existing subscriber connection');
     }
 
+    const attempt = (this.connectPromise ??= this.establishSubscriber());
+
+    try {
+      await attempt;
+    } catch (error) {
+      // Clearing the attempt belongs HERE, not inside establishSubscriber():
+      // when duplicate() throws synchronously, that method's catch runs
+      // before `??=` has assigned, so a reset from in there would be
+      // overwritten by the rejected attempt and every later subscribe()
+      // would re-await it. Guarded by identity because a caller's catch
+      // handler may already have started a fresh attempt, which must not be
+      // evicted.
+      if (this.connectPromise === attempt) {
+        this.connectPromise = null;
+      }
+
+      // A failed subscribe must leave the instance exactly as it found it, so a
+      // later subscribe() call starts clean. Remove only THIS invocation's
+      // callback, by identity and at its own index (never pop() / filter()):
+      // the push above happens synchronously, before this invocation awaits
+      // the shared `connectPromise` — so a concurrent subscribe() can still
+      // interleave its own push while this one is in flight, and position
+      // and "matches this reference" are not the same thing, and removing
+      // every matching reference would over-delete a duplicate registration.
+      //
+      // Taking the FIRST match is fine even when the same reference was
+      // registered twice: the entries are indistinguishable, so dropping
+      // either one leaves the identical array behind.
+      const callbackIndex = this.callbacks.indexOf(callback);
+      if (callbackIndex !== -1) {
+        this.callbacks.splice(callbackIndex, 1);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Create the (single-flight) subscriber connection: duplicate the shared
+   * Redis client, attach the error listener, subscribe to the channel, and
+   * wire up the message listener. Concurrent subscribe() callers await the
+   * same promise this method returns, so this body runs at most once per
+   * connect attempt.
+   */
+  private async establishSubscriber(): Promise<void> {
     let connection: Redis | undefined;
     try {
       // Create a separate Redis connection for subscribing
@@ -203,7 +252,39 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
       connection = this.redis.duplicate();
       this.subscriber = connection;
 
+      // Registered BEFORE the subscribe handshake below: ioredis's retry
+      // strategy can emit 'error' per attempt while that first command is
+      // still queued, and an 'error' with no listener falls to ioredis's
+      // internal silentEmit console.error instead of our structured logger.
+      // An unhandled 'error' event on an ioredis instance does not throw, so
+      // this listener is about observability, not crash-prevention.
+      //
+      // External-system claim, hedged: ioredis auto-resubscribes on reconnect
+      // per its built/redis/event_handler.js readyHandler, gated on the
+      // `autoResubscribe` option (defaults true) — re-verify after an ioredis
+      // version bump. The message stays neutral about that because this
+      // listener also covers the initial-connect window, where the catch
+      // below disconnects the connection rather than letting it reconnect.
+      //
+      // A failed initial connect logs here at warn and again at error from
+      // the catch below; two levels, one incident.
+      connection.on('error', (err: Error) => {
+        this.logger.warn({ err }, 'Cache invalidation subscriber connection error');
+      });
+
       await connection.subscribe(this.channel);
+
+      // A shutdown can land while the subscribe above is still pending:
+      // unsubscribe() disconnects this connection and clears the callback
+      // list, so completing the wiring here would leave every caller of this
+      // attempt believing it is subscribed while its callback is gone and its
+      // listeners sit on a disconnected connection. Failing the attempt
+      // instead routes through the catch below, which every caller already
+      // handles. Pinned by "fails a connect attempt that SUCCEEDS after
+      // unsubscribe() tore it down".
+      if (this.subscriber !== connection) {
+        throw new Error('Subscriber connection was torn down while connecting');
+      }
 
       connection.on('message', (channel: string, message: string) => {
         if (channel !== this.channel) {
@@ -226,32 +307,17 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
 
       this.logger.info('Subscribed to cache invalidation events');
     } catch (error) {
-      // A failed subscribe must leave the instance exactly as it found it, so a
-      // later subscribe() call starts clean. Remove only THIS invocation's
-      // callback, by identity and at its own index (never pop() / filter()):
-      // the await above lets a concurrent subscribe() interleave — another
-      // caller can hit the early-return path and push its own callback while
-      // this one is still connecting, so position and "matches this
-      // reference" are not the same thing, and removing every matching
-      // reference would over-delete a duplicate registration.
-      //
-      // Taking the FIRST match is fine even when the same reference was
-      // registered twice: the entries are indistinguishable, so dropping
-      // either one leaves the identical array behind.
-      const callbackIndex = this.callbacks.indexOf(callback);
-      if (callbackIndex !== -1) {
-        this.callbacks.splice(callbackIndex, 1);
-      }
-
       // A failed subscribe cleans up only the connection THIS invocation
       // created. Always disconnect it, but null out `this.subscriber` only
       // when it still points at that same connection — a connection a later,
       // concurrently-successful invocation has since installed is left alone.
       //
       // The disconnect can be the second one on this object, since a racing
-      // unsubscribe() may already have closed it. ioredis tolerates that:
-      // its disconnect() only sets flags and delegates, with the timeout
-      // clear guarded, so a repeat call is a no-op rather than a throw.
+      // unsubscribe() may already have closed it — the torn-down-while-
+      // connecting path reaches this for real. External-system claim,
+      // probed against ioredis 5.11.1 (re-verify on a version bump): its
+      // disconnect() only sets flags and delegates, with the timeout clear
+      // guarded, so a repeat call is a no-op rather than a throw.
       if (connection !== undefined) {
         connection.disconnect();
         if (this.subscriber === connection) {
@@ -309,12 +375,19 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
       this.subscriber.disconnect();
       this.subscriber = null;
       this.callbacks = [];
+      this.connectPromise = null;
       this.logger.info('Unsubscribed from cache invalidation events');
     }
   }
 
   /**
-   * Check if currently subscribed
+   * Reports INTENT — that a subscriber connection was established — not
+   * current connection liveness. This stays true across a dropped
+   * connection: the 'error' listener above hedges the reason it's still
+   * correct to report true then (ioredis auto-resubscribes underneath),
+   * so this value is eventually-consistent-correct rather than exact.
+   * If ioredis exhausts its retry strategy, this stays true with no automatic
+   * recovery; unsubscribe() followed by subscribe() is the reset path.
    */
   isSubscribed(): boolean {
     return this.subscriber !== null;
