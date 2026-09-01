@@ -235,6 +235,22 @@ describe('config', () => {
       expect(withEmpty.VOICE_ENGINE_API_KEY).toBeUndefined();
     });
 
+    it('accepts an optional WATCHDOG_ALERT_WEBHOOK_URL', () => {
+      // Undefined by default
+      const defaults = envSchema.parse({});
+      expect(defaults.WATCHDOG_ALERT_WEBHOOK_URL).toBeUndefined();
+
+      // Accepts a valid URL
+      const withValue = envSchema.parse({
+        WATCHDOG_ALERT_WEBHOOK_URL: 'https://discord.com/api/webhooks/123/abc',
+      });
+      expect(withValue.WATCHDOG_ALERT_WEBHOOK_URL).toBe('https://discord.com/api/webhooks/123/abc');
+
+      // Empty string transforms to undefined
+      const withEmpty = envSchema.parse({ WATCHDOG_ALERT_WEBHOOK_URL: '' });
+      expect(withEmpty.WATCHDOG_ALERT_WEBHOOK_URL).toBeUndefined();
+    });
+
     it('defaults PUBLIC_SITE_URL to the prod site when unset or empty', () => {
       expect(envSchema.parse({}).PUBLIC_SITE_URL).toBe('https://tzurot.org');
       expect(envSchema.parse({ PUBLIC_SITE_URL: '' }).PUBLIC_SITE_URL).toBe('https://tzurot.org');

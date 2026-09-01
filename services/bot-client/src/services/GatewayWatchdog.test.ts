@@ -21,6 +21,9 @@ interface Harness {
     warn: ReturnType<typeof vi.fn>;
     error: ReturnType<typeof vi.fn>;
   };
+  fetchMock: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  off: ReturnType<typeof vi.fn>;
 }
 
 function buildHarness(): Harness {
@@ -28,15 +31,22 @@ function buildHarness(): Harness {
   const on = vi.fn((event: string, handler: Handler) => {
     handlers.set(event, handler);
   });
+  const off = vi.fn((event: string, handler: Handler) => {
+    if (handlers.get(event) === handler) {
+      handlers.delete(event);
+    }
+  });
   const wsState = { status: Status.Ready };
   const guildState = { size: 1 };
   const client = {
     on,
+    off,
     ws: wsState,
     guilds: { cache: guildState },
   } as unknown as Client;
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-  return { client, handlers, wsState, guildState, logger };
+  const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  return { client, handlers, wsState, guildState, logger, fetchMock, on, off };
 }
 
 function emitRaw(handlers: Map<string, Handler>): void {
@@ -56,16 +66,17 @@ describe('startGatewayWatchdog', () => {
     vi.restoreAllMocks();
   });
 
-  it('fires arm A (silent hang) past the stale threshold when guilds are present, and exits', () => {
-    const { client, guildState, logger } = buildHarness();
+  it('fires arm A (silent hang) past the stale threshold when guilds are present, and exits', async () => {
+    const { client, guildState, logger, fetchMock } = buildHarness();
     guildState.size = 1;
     const exit = vi.fn();
     startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
       exit,
       uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+      fetchFn: fetchMock as unknown as typeof fetch,
     });
 
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
 
     // Exact payload shape — both clocks, not just the firing arm's. A silent
     // hang has never left Ready, so notReadyForMs must be null here; that
@@ -86,7 +97,7 @@ describe('startGatewayWatchdog', () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it('does not fire arm A when guilds.cache.size is 0 (idle/reconnecting process)', () => {
+  it('does not fire arm A when guilds.cache.size is 0 (idle/reconnecting process)', async () => {
     const { client, guildState, logger } = buildHarness();
     guildState.size = 0;
     const exit = vi.fn();
@@ -95,13 +106,13 @@ describe('startGatewayWatchdog', () => {
       uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
     });
 
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
 
     expect(logger.error).not.toHaveBeenCalled();
     expect(exit).not.toHaveBeenCalled();
   });
 
-  it('resets the staleness clock on a raw gateway event, avoiding a false arm-A fire', () => {
+  it('resets the staleness clock on a raw gateway event, avoiding a false arm-A fire', async () => {
     const { client, handlers, guildState, logger } = buildHarness();
     guildState.size = 1;
     const exit = vi.fn();
@@ -110,17 +121,17 @@ describe('startGatewayWatchdog', () => {
       uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
     });
 
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS - CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS - CHECK_INTERVAL_MS);
     expect(exit).not.toHaveBeenCalled();
 
     emitRaw(handlers);
 
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS - CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS - CHECK_INTERVAL_MS);
     expect(exit).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('fires arm B (never-ready hot loop) on continuous not-Ready even while raw events keep flowing', () => {
+  it('fires arm B (never-ready hot loop) on continuous not-Ready even while raw events keep flowing', async () => {
     const { client, handlers, wsState, guildState, logger } = buildHarness();
     wsState.status = Status.Reconnecting;
     guildState.size = 1;
@@ -133,7 +144,7 @@ describe('startGatewayWatchdog', () => {
     const iterations = NOT_READY_THRESHOLD_MS / CHECK_INTERVAL_MS + 2;
     for (let i = 0; i < iterations; i++) {
       emitRaw(handlers);
-      vi.advanceTimersByTime(CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
     }
 
     // The hot-loop signature: notReadyForMs past its threshold WHILE
@@ -152,7 +163,7 @@ describe('startGatewayWatchdog', () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it('resets arm B when ws.status recovers to Ready before the not-ready threshold', () => {
+  it('resets arm B when ws.status recovers to Ready before the not-ready threshold', async () => {
     const { client, wsState, guildState, logger } = buildHarness();
     wsState.status = Status.Reconnecting;
     guildState.size = 1;
@@ -162,17 +173,17 @@ describe('startGatewayWatchdog', () => {
       uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
     });
 
-    vi.advanceTimersByTime(NOT_READY_THRESHOLD_MS - CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(NOT_READY_THRESHOLD_MS - CHECK_INTERVAL_MS);
     expect(exit).not.toHaveBeenCalled();
 
     wsState.status = Status.Ready;
-    vi.advanceTimersByTime(NOT_READY_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(NOT_READY_THRESHOLD_MS + CHECK_INTERVAL_MS);
 
     expect(exit).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('defers the exit under the min-uptime gate, then exits once uptime crosses it with the wedge still present', () => {
+  it('defers the exit under the min-uptime gate, then exits once uptime crosses it with the wedge still present', async () => {
     const { client, guildState, logger } = buildHarness();
     guildState.size = 1;
     const exit = vi.fn();
@@ -182,7 +193,7 @@ describe('startGatewayWatchdog', () => {
       uptimeMs: () => uptime,
     });
 
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
 
     expect(exit).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledWith(
@@ -192,12 +203,12 @@ describe('startGatewayWatchdog', () => {
 
     logger.error.mockClear();
     uptime = MIN_UPTIME_BEFORE_EXIT_MS;
-    vi.advanceTimersByTime(CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
 
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it('stops all further ticks after stop() is called', () => {
+  it('stops all further ticks after stop() is called', async () => {
     const { client, guildState, logger } = buildHarness();
     guildState.size = 1;
     const exit = vi.fn();
@@ -211,7 +222,7 @@ describe('startGatewayWatchdog', () => {
     );
 
     watchdog.stop();
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS * 2);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS * 2);
 
     expect(logger.error).not.toHaveBeenCalled();
     expect(exit).not.toHaveBeenCalled();
@@ -220,7 +231,76 @@ describe('startGatewayWatchdog', () => {
     expect(() => watchdog.stop()).not.toThrow();
   });
 
-  it('reports a real notReadyForMs when arm A fires while ALSO not-Ready (both wedged)', () => {
+  it('deregisters the raw gateway listener on stop(), not just the interval', async () => {
+    const { client, handlers, guildState, logger, on, off } = buildHarness();
+    guildState.size = 1;
+    const watchdog = startGatewayWatchdog(
+      client,
+      logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+      {
+        exit: vi.fn(),
+        uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+      }
+    );
+
+    const [registeredEvent, registeredListener] = on.mock.calls[0] as [string, Handler];
+    expect(handlers.has(Events.Raw)).toBe(true);
+
+    watchdog.stop();
+
+    // The SAME function reference must come back off the emitter — passing a
+    // fresh closure to off() would silently leave the listener attached.
+    expect(off).toHaveBeenCalledWith(registeredEvent, registeredListener);
+    expect(handlers.has(Events.Raw)).toBe(false);
+  });
+
+  it('logs a tick that throws and keeps ticking afterwards', async () => {
+    const { wsState, guildState, logger, on, off } = buildHarness();
+    // Not-Ready from the start so the very first tick reaches a guild-cache
+    // read: arm A short-circuits on the still-fresh staleness clock without
+    // touching the cache, and only arm B gets that far this early.
+    wsState.status = Status.Reconnecting;
+    // A field read inside the arms is the realistic failure surface for a tick:
+    // discord.js structures can be torn down under the watchdog mid-outage.
+    let cacheThrows = true;
+    const client = {
+      on,
+      off,
+      ws: wsState,
+      guilds: {
+        get cache(): { size: number } {
+          if (cacheThrows) {
+            throw new Error('guild cache unavailable');
+          }
+          return guildState;
+        },
+      },
+    } as unknown as Client;
+    const exit = vi.fn();
+    startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
+      exit,
+      uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+    });
+
+    // The throw rejects runTick's promise and is absorbed by the interval's
+    // catch, rather than surfacing as an unhandled rejection.
+    await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      expect.stringContaining('tick failed unexpectedly')
+    );
+    expect(exit).not.toHaveBeenCalled();
+
+    // A crashed tick must not kill the interval: once the reads succeed again,
+    // a later tick still fires arm B on the by-then long-not-Ready connection.
+    logger.error.mockClear();
+    cacheThrows = false;
+    await vi.advanceTimersByTimeAsync(NOT_READY_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('reports a real notReadyForMs when arm A fires while ALSO not-Ready (both wedged)', async () => {
     const { client, wsState, guildState, logger } = buildHarness();
     // Both wedged from the start: never Ready AND no raw events ever arrive.
     wsState.status = Status.Reconnecting;
@@ -233,7 +313,7 @@ describe('startGatewayWatchdog', () => {
 
     // Arm B crosses its threshold first, but `exit` is a mock so ticks
     // continue until arm A's longer threshold is crossed too.
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
 
     // The point of the test: arm A's payload must carry the REAL not-Ready
     // age, not null. The readiness clock starts one tick after the staleness
@@ -257,7 +337,7 @@ describe('startGatewayWatchdog', () => {
   // maintenance were skipped when arm A short-circuits arm B, the payload
   // would carry null (contract: "genuinely Ready") for a connection that is
   // demonstrably not Ready.
-  it('stamps the not-Ready clock before arm A fires on the same tick, so the payload is never a false null', () => {
+  it('stamps the not-Ready clock before arm A fires on the same tick, so the payload is never a false null', async () => {
     const { client, wsState, guildState, logger } = buildHarness();
     guildState.size = 1;
     const exit = vi.fn();
@@ -268,12 +348,12 @@ describe('startGatewayWatchdog', () => {
 
     // Ready the whole time the staleness clock runs out — one tick short of
     // arm A firing — so notReadySince is still null here.
-    vi.advanceTimersByTime(STALE_THRESHOLD_MS);
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS);
     expect(logger.error).not.toHaveBeenCalled();
 
     // Now drop out of Ready. The next tick both stamps the clock AND fires arm A.
     wsState.status = Status.Reconnecting;
-    vi.advanceTimersByTime(CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
 
     expect(logger.error).toHaveBeenCalledWith(
       {
@@ -286,5 +366,335 @@ describe('startGatewayWatchdog', () => {
       },
       expect.stringContaining('wedged')
     );
+  });
+
+  describe('owner-alert webhook', () => {
+    it('POSTs the alert before exiting, in order, with the arm and environment in the body', async () => {
+      const { client, guildState, logger, fetchMock } = buildHarness();
+      guildState.size = 1;
+      const order: string[] = [];
+      fetchMock.mockImplementation(() => {
+        order.push('alert');
+        return Promise.resolve(new Response(null, { status: 204 }));
+      });
+      const exit = vi.fn(() => {
+        order.push('exit');
+      });
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          environment: 'production',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://discord.com/api/webhooks/1/abc');
+      const body = JSON.parse(init.body as string) as { content: string };
+      expect(body.content).toContain('silent-hang');
+      expect(body.content).toContain('production');
+      // The alert must be self-sufficient for the two-clock diagnosis: both
+      // clocks plus the socket status and guild count they are read against.
+      expect(body.content).toContain(`staleForMs=${STALE_THRESHOLD_MS + CHECK_INTERVAL_MS}`);
+      expect(body.content).toContain('notReadyForMs=n/a');
+      expect(body.content).toContain('wsStatus=Ready');
+      expect(body.content).toContain('guilds=1');
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+
+      expect(order).toEqual(['alert', 'exit']);
+      expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    // The arm-A alert above carries notReadyForMs=n/a and wsStatus=Ready. This
+    // is the other side of the two-clock diagnosis — a real not-Ready age beside
+    // a one-tick staleness — which is the hot-loop signature the alert text has
+    // to make legible without going to the logs.
+    it('carries the real not-Ready clock, socket status and guild count in a never-ready alert', async () => {
+      const { client, handlers, wsState, guildState, logger, fetchMock } = buildHarness();
+      wsState.status = Status.Reconnecting;
+      guildState.size = 2;
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit: vi.fn(),
+          uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          environment: 'production',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      // Raw events keep flowing, so arm A can never fire and arm B is the only
+      // possible source of this alert.
+      const iterations = NOT_READY_THRESHOLD_MS / CHECK_INTERVAL_MS + 2;
+      for (let i = 0; i < iterations; i++) {
+        emitRaw(handlers);
+        await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+      }
+
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
+      ) as { content: string };
+      expect(body.content).toContain('never-ready');
+      expect(body.content).toContain(`notReadyForMs=${NOT_READY_THRESHOLD_MS + CHECK_INTERVAL_MS}`);
+      expect(body.content).toContain(`staleForMs=${CHECK_INTERVAL_MS}`);
+      expect(body.content).toContain('wsStatus=Reconnecting');
+      expect(body.content).toContain('guilds=2');
+    });
+
+    it('still exits when the alert POST rejects', async () => {
+      const { client, guildState, logger, fetchMock } = buildHarness();
+      guildState.size = 1;
+      fetchMock.mockRejectedValue(new Error('network down'));
+      const exit = vi.fn();
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    it('warns on a non-OK webhook response (dead webhook is not a delivered alert) and still exits', async () => {
+      const { client, guildState, logger, fetchMock } = buildHarness();
+      guildState.size = 1;
+      fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
+      const exit = vi.fn();
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+      expect(logger.warn).toHaveBeenCalledWith({ status: 404 }, expect.stringContaining('non-OK'));
+      expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    it('still exits when the fetch function throws synchronously', async () => {
+      const { client, guildState, logger } = buildHarness();
+      guildState.size = 1;
+      const fetchMock = vi.fn(() => {
+        throw new Error('boom');
+      });
+      const exit = vi.fn();
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+      expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    it('never calls fetch when no webhook URL is configured, and logs the log-only state at startup', async () => {
+      const { client, guildState, logger, fetchMock } = buildHarness();
+      guildState.size = 1;
+      const exit = vi.fn();
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      expect(logger.info).toHaveBeenCalledWith({}, expect.stringContaining('unconfigured'));
+
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        {
+          arm: 'silent-hang',
+          staleForMs: STALE_THRESHOLD_MS + CHECK_INTERVAL_MS,
+          notReadyForMs: null,
+          wsStatus: Status.Ready,
+          guildCount: 1,
+          uptimeMs: MIN_UPTIME_BEFORE_EXIT_MS,
+        },
+        expect.stringContaining('wedged')
+      );
+      expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    // The latch is per-EPISODE, and this test owns the ongoing-wedge half of
+    // that contract: while the wedge persists, later ticks must not re-alert.
+    // The wedge-recover-wedge test below owns the other half.
+    it('sends the deferred alert at most once per ongoing wedge, then sends the exit alert once uptime crosses the gate', async () => {
+      const { client, guildState, logger, fetchMock } = buildHarness();
+      guildState.size = 1;
+      const exit = vi.fn();
+      let uptime = 0;
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => uptime,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      // First deferring tick.
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const firstBody = JSON.parse(
+        (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
+      ) as { content: string };
+      expect(firstBody.content).toContain('deferred');
+
+      // Several more deferring ticks — no additional alert.
+      await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS * 3);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(exit).not.toHaveBeenCalled();
+
+      // Cross the min-uptime gate — the exit-path alert is a SECOND send.
+      uptime = MIN_UPTIME_BEFORE_EXIT_MS;
+      await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const secondBody = JSON.parse(
+        (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string
+      ) as { content: string };
+      expect(secondBody.content).toContain('exiting');
+      expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    // The other half of the per-episode contract. Without the latch reset, a
+    // process that wedges, recovers, and wedges again inside the min-uptime
+    // window alerts only for the first episode — every later wedge is silent
+    // for the whole 30 minutes, which is exactly when the owner most needs to
+    // hear about it.
+    it('re-alerts on a SECOND wedge after a full recovery, under the same min-uptime gate', async () => {
+      const { client, handlers, wsState, guildState, logger, fetchMock } = buildHarness();
+      guildState.size = 1;
+      const exit = vi.fn();
+      // Uptime stays under the gate for the whole test, so every wedge takes
+      // the deferred path and `exit` never fires to end the episode for us.
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => 0,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      // Episode 1: go quiet past the stale threshold.
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Recover fully — BOTH signals healthy: a fresh raw event AND Ready.
+      wsState.status = Status.Ready;
+      emitRaw(handlers);
+      await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Episode 2: a second, distinct wedge — go quiet again from here.
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const bodies = fetchMock.mock.calls.map(
+        call =>
+          (JSON.parse((call as [string, RequestInit])[1].body as string) as { content: string })
+            .content
+      );
+      expect(bodies[0]).toContain('deferred');
+      expect(bodies[1]).toContain('deferred');
+      expect(exit).not.toHaveBeenCalled();
+    });
+
+    // The per-episode latch reset holds for arm B too, not just arm A: a
+    // process that never-readies, recovers, and never-readies again inside
+    // the min-uptime window must alert for BOTH episodes.
+    it('re-alerts on a SECOND arm-B wedge after a full recovery, under the same min-uptime gate', async () => {
+      const { client, handlers, wsState, guildState, logger, fetchMock } = buildHarness();
+      wsState.status = Status.Reconnecting;
+      guildState.size = 1;
+      const exit = vi.fn();
+      // Uptime stays under the gate for the whole test, so every wedge takes
+      // the deferred path and `exit` never fires to end the episode for us.
+      startGatewayWatchdog(
+        client,
+        logger as unknown as Parameters<typeof startGatewayWatchdog>[1],
+        {
+          exit,
+          uptimeMs: () => 0,
+          alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+          fetchFn: fetchMock as unknown as typeof fetch,
+        }
+      );
+
+      const iterations = NOT_READY_THRESHOLD_MS / CHECK_INTERVAL_MS + 2;
+
+      // Episode 1: continuous not-Ready, with raw events flowing throughout
+      // so arm A can never fire — only arm B can.
+      for (let i = 0; i < iterations; i++) {
+        emitRaw(handlers);
+        await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Recover fully — BOTH signals healthy: a fresh raw event AND Ready.
+      wsState.status = Status.Ready;
+      emitRaw(handlers);
+      await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Episode 2: a second, distinct never-ready wedge.
+      wsState.status = Status.Reconnecting;
+      for (let i = 0; i < iterations; i++) {
+        emitRaw(handlers);
+        await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+      }
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const bodies = fetchMock.mock.calls.map(
+        call =>
+          (JSON.parse((call as [string, RequestInit])[1].body as string) as { content: string })
+            .content
+      );
+      expect(bodies[0]).toContain('deferred');
+      expect(bodies[0]).toContain('never-ready');
+      expect(bodies[1]).toContain('deferred');
+      expect(bodies[1]).toContain('never-ready');
+      expect(exit).not.toHaveBeenCalled();
+    });
   });
 });
