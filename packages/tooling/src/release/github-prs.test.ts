@@ -273,4 +273,62 @@ describe('countRangeChangedFiles', () => {
     expect(countRangeChangedFiles('v9.9.9', 'develop')).toBeUndefined();
     expect(mockedExec).toHaveBeenCalledTimes(2);
   });
+
+  describe('leading-dash hardening', () => {
+    // `git diff`'s `--` separator marks the start of PATHS, so it must come
+    // AFTER the revision argument and structurally cannot shield a
+    // dash-prefixed revision. Rejecting outright is the only guard that
+    // works — pinned here so a future "just add `--`" fix regresses loudly.
+    it('rejects a leading-dash fromTag without ever calling git', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(countRangeChangedFiles('-badtag', 'develop')).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('-badtag'));
+      expect(mockedExec).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('rejects a leading-dash base without ever calling git', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(countRangeChangedFiles('v3.0.0-beta.103', '-badbase')).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('-badbase'));
+      expect(mockedExec).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('still returns a count for ordinary, non-dash-prefixed values', () => {
+      // Regression guard: the leading-dash check must not over-reach and
+      // reject legitimate tag/base values.
+      mockedExec.mockReturnValueOnce('').mockReturnValueOnce('a.ts\nb.ts\n');
+      expect(countRangeChangedFiles('v3.0.0-beta.103', 'develop')).toBe(2);
+    });
+  });
+});
+
+describe('every execFileSync call in this module carries a timeout', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('drives every exported function, then asserts every recorded call has a numeric timeout', () => {
+    mockedExec.mockReturnValueOnce('v3.0.0-beta.103\n');
+    discoverPrevTag();
+
+    mockedExec.mockReturnValueOnce('2026-04-22T10:00:00-04:00\n');
+    tagTimestamp('v3.0.0-beta.103');
+
+    // The one network call in the module (a GitHub search API query) — the
+    // task's actual acceptance criterion, asserted again individually below.
+    mockedExec.mockReturnValueOnce('[]');
+    listMergedPrsSince('2026-04-21T00:00:00Z');
+
+    mockedExec.mockReturnValueOnce('').mockReturnValueOnce('a.ts\n');
+    countRangeChangedFiles('v3.0.0-beta.103', 'develop');
+
+    expect(mockedExec.mock.calls.length).toBeGreaterThan(0);
+    for (const call of mockedExec.mock.calls) {
+      expect(call[2]).toEqual(expect.objectContaining({ timeout: expect.any(Number) }));
+    }
+
+    const ghCall = mockedExec.mock.calls.find(c => c[0] === 'gh');
+    expect(ghCall).toBeDefined();
+    expect(ghCall?.[2]).toEqual(expect.objectContaining({ timeout: expect.any(Number) }));
+  });
 });

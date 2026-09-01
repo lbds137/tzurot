@@ -123,6 +123,22 @@ async function showStatusDirect(migrationsPath: string): Promise<void> {
 }
 
 /**
+ * Did a `prisma migrate status` run fail because the database was
+ * unreachable, rather than because migrations are pending?
+ *
+ * `prisma migrate status` exits non-zero for BOTH cases, so the exit code
+ * alone cannot tell "dev is behind" from "we never got to ask dev." Prisma
+ * distinguishes them only in its stderr text, so this is the one discriminator
+ * available — exported so every caller shares it instead of re-deriving the
+ * substring (`release/premigrate.ts` is the other caller).
+ *
+ * Pinned by `migration-status.test.ts` ("isDbUnreachable").
+ */
+export function isDbUnreachable(result: { stderr: string; exitCode: number }): boolean {
+  return result.exitCode !== 0 && result.stderr.includes("Can't reach database server");
+}
+
+/**
  * Show migration status using Prisma CLI (for Railway environments)
  *
  * Note: Prisma migrate status returns exit code 1 when there are pending
@@ -135,7 +151,7 @@ async function showStatusViaPrisma(env: 'dev' | 'prod'): Promise<void> {
 
   // Exit code 1 from 'migrate status' means pending migrations exist (not an error)
   // Only treat as failure if there was a connection error (indicated by specific output)
-  if (result.exitCode !== 0 && result.stderr.includes("Can't reach database server")) {
+  if (isDbUnreachable(result)) {
     console.error(chalk.red('\n❌ Failed to connect to database'));
     process.exit(1);
   }

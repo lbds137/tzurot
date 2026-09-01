@@ -184,6 +184,47 @@ function checkAheadCount(): 'noop' | 'proceed' {
 }
 
 /**
+ * True only when local `develop` (as checked out right now) is already the
+ * result of a completed finalize: it contains every commit on `origin/main`
+ * AND holds every commit `origin/develop` has. Used to make
+ * `runCheckoutRebasePushSequence` re-entrant: a retry after a partial run
+ * (rebase succeeded, push failed) would otherwise abort the `pull --ff-only
+ * origin develop` step with "Not possible to fast-forward" — the rebase
+ * already moved local develop past what origin/develop knows about, which is
+ * exactly what a ff-only pull refuses.
+ *
+ * BOTH checks are required, and neither alone is enough:
+ * - `merge-base --is-ancestor origin/main HEAD` alone doesn't prove
+ *   `origin/develop` has nothing new — HEAD could be ahead of main via some
+ *   OTHER route while origin/develop still holds commits HEAD lacks.
+ * - `cherry HEAD origin/develop` (empty output) alone doesn't prove the
+ *   rebase onto main actually happened — HEAD could simply be an ordinary
+ *   ancestor of origin/develop with main never rebased in at all.
+ *
+ * `merge-base --is-ancestor` signals via EXIT CODE (not stdout), so it's
+ * wrapped in try/catch — `git()` throws on any non-zero exit, which is
+ * exactly "not an ancestor" here. Any git error on EITHER check is treated as
+ * "unanswerable" and returns `false` — the safe direction is the existing
+ * loud pull failure, never a silently-skipped precondition.
+ *
+ * Pinned by `finalize.test.ts`: resumable state skips the pull; a genuinely
+ * diverged develop (cherry non-empty) still runs the pull; and a
+ * `merge-base --is-ancestor` failure also still runs the pull.
+ */
+export function isAlreadyRebasedOntoMain(): boolean {
+  try {
+    git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']);
+  } catch {
+    return false;
+  }
+  try {
+    return git(['cherry', 'HEAD', 'origin/develop']) === '';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The sequence of writes that the finalize runs (or previews, in dry-run):
  * sync main locally, switch to develop, pull, rebase onto main, force-push.
  *
@@ -203,10 +244,27 @@ function runCheckoutRebasePushSequence(dryRun: boolean): void {
 
   // Switch back to develop and pull. The ff-only pull fails loudly if the
   // local tip has diverged from origin/develop — better than a surprise
-  // mid-rebase.
+  // mid-rebase. Skipped on a RESUMED finalize (rebase already landed, only
+  // the push failed last time).
+  //
+  // The predicate is evaluated in dry-run too, since both its checks are
+  // read-only. Note the preview is only exact when the caller already sits
+  // on develop: dry-run does not execute the `checkout develop` above, so
+  // the predicate reads whatever branch HEAD is on. That errs toward
+  // reporting the pull (a foreign HEAD generally leaves origin/develop
+  // commits it lacks, so `cherry` is non-empty), which is the same loud
+  // direction every other unanswerable case takes.
   console.log(chalk.dim('Syncing develop and rebasing onto main...'));
   planStep(['checkout', 'develop'], dryRun);
-  planStep(['pull', '--ff-only', 'origin', 'develop'], dryRun);
+  if (isAlreadyRebasedOntoMain()) {
+    console.log(
+      chalk.dim(
+        '  develop already contains main and holds every origin/develop commit — skipping the ff-only pull (resumed finalize)'
+      )
+    );
+  } else {
+    planStep(['pull', '--ff-only', 'origin', 'develop'], dryRun);
+  }
 
   // Can't use planStep for rebase: it needs try/catch for --abort teardown
   // on conflicts. Dry-run branch mirrors planStep's output format manually

@@ -37,6 +37,14 @@ function mockGit(overrides: Record<string, string | (() => string)> = {}): void 
     if (subKey === 'status') return '';
     if (key === 'rev-list --count') return '0\n';
     if (key === 'gh release list') return '[]';
+    // isAlreadyRebasedOntoMain defaults to "not resumable" (not an ancestor
+    // of main), so every test that doesn't care about the resumed-finalize
+    // path keeps taking the ordinary `pull --ff-only origin develop` branch
+    // it took before that check existed.
+    if (key === 'merge-base --is-ancestor') {
+      throw new Error("fatal: Not a valid commit name 'origin/main'");
+    }
+    if (subKey === 'cherry') return 'abc1234 placeholder commit\n';
     return '';
   }) as unknown as typeof execFileSync);
 }
@@ -90,6 +98,60 @@ describe('finalizeRelease', () => {
       expect(pullDevIdx).toBeGreaterThan(checkoutDevIdx);
       expect(rebaseIdx).toBeGreaterThan(pullDevIdx);
       expect(pushIdx).toBeGreaterThan(rebaseIdx);
+    });
+  });
+
+  describe('resumed finalize (ff-only pull skip)', () => {
+    it('skips the develop pull when local already holds main and every origin/develop commit', async () => {
+      mockGit({
+        'rev-list --count': '3\n',
+        'merge-base --is-ancestor': '',
+        cherry: '',
+      });
+
+      await finalizeRelease({ yes: true });
+
+      const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+      expect(invocations).not.toContain('pull --ff-only origin develop');
+      expect(invocations).toContain('push --force-with-lease origin develop');
+    });
+
+    it('still runs the develop pull, and its failure still propagates, when origin/develop holds commits HEAD lacks', async () => {
+      // merge-base succeeds (HEAD already CONTAINS origin/main) but cherry is
+      // non-empty (origin/develop has commits HEAD doesn't) — the predicate
+      // must require BOTH, so this alone must NOT skip the pull.
+      let pullCallCount = 0;
+      mockGit({
+        'rev-list --count': '3\n',
+        'merge-base --is-ancestor': '',
+        cherry: 'abc1234 a commit HEAD does not have\n',
+        pull: () => {
+          pullCallCount += 1;
+          // First call is `pull --ff-only origin main`, which must succeed
+          // so the sequence reaches `checkout develop` and the predicate.
+          if (pullCallCount === 1) return '';
+          throw new Error('fatal: Not possible to fast-forward, aborting.');
+        },
+      });
+
+      await expect(finalizeRelease({ yes: true })).rejects.toThrow(/Not possible to fast-forward/);
+      expect(pullCallCount).toBe(2);
+    });
+
+    it('still runs the develop pull when `merge-base --is-ancestor` itself fails (unanswerable → not resumable)', async () => {
+      mockGit({
+        'rev-list --count': '3\n',
+        'merge-base --is-ancestor': () => {
+          throw new Error("fatal: Not a valid commit name 'origin/main'");
+        },
+        cherry: '',
+      });
+
+      await finalizeRelease({ yes: true });
+
+      const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+      expect(invocations).toContain('pull --ff-only origin develop');
+      expect(invocations).toContain('push --force-with-lease origin develop');
     });
   });
 
