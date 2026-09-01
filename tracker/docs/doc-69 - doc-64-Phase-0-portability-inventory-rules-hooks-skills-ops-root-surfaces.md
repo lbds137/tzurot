@@ -149,7 +149,7 @@ Slice: every `##`-level section across `00-critical.md` through `10-working-post
 | 06-backlog.md § Out-of-Scope Items Must Be Tracked (incl. sub-requirements/gates) | PARAM | core discipline (deferred work must land at a concrete destination at the moment it's decided, not just in commit prose) is very portable | destination names (now.md, tracker task) |
 | 06-backlog.md § Triage Rules — where does a new item go? | PARAM | general triage-by-size table mechanism portable | destination names |
 | 06-backlog.md § Theme/Epic Structure | PARAM | general template (Focus line + phased checklist) portable | field names |
-| 06-backlog.md § Anti-Patterns | PARAM | lessons generalize (don't let untriaged pile up, aging escalates not deletes) but phrased entirely in Tzurot terms | terms (Current Focus, cold/, tracker) |
+| 06-backlog.md (former § Anti-Patterns — folded into the constraints it restated) | PARAM | lessons generalize (don't let untriaged pile up, aging escalates not deletes) but phrased entirely in Tzurot terms | terms (Current Focus, cold/, tracker) |
 | 06-backlog.md § Tags | PARAM | general consistent-tag-taxonomy mechanism portable | tag/emoji list |
 | 07-documentation.md § Three-Layer System | PORTABLE | genuinely portable documentation-architecture pattern (rules=always-loaded constraints, skills=on-invoke procedures, reference=on-read rationale, each layer points down only) | |
 | 07-documentation.md § Where to Put New Docs | PARAM | mechanism (a doc-type→location routing table) is portable | specific directory tree |
