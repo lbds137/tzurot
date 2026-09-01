@@ -91,4 +91,13 @@ THE REASON NO ALERT FIRED ON 2026-09-01 IS NOT A MISSING CHANNEL - IT IS A MISSI
 CONSEQUENCE FOR THE DESIGN, and it is a large simplification: making the watchdog exit non-zero buys the alerting for FREE, with zero new infrastructure. The exit produces a Deployment.crashed (and the ON_FAILURE restart produces Deployment.restarted), both of which already have a delivery path the owner already watches. Self-heal and notify stop being two features and become one - which is the owner decision recorded 2026-08-31: self-heal via watchdog exit with a minimum-uptime gate, reusing Railway alerting rather than building a transport.
 
 STILL UNVERIFIED, do not state as fact: that a process exit inside a running container is classified Deployment.crashed rather than being silently restarted with no event. ON_FAILURE plus maxRetries 10 is read from the API; the EVENT emitted on an in-container exit is a separate Railway behaviour and was not probed. Cheapest falsification: exit(1) a dev service on purpose and watch whether a webhook fires. Dev restart policy is identical to prod, so dev is a faithful test bed.
+
+CRASH PROBE 2026-09-01 ~03:04Z, dev bot-client, owner-authorized ("it's fine to purposely crash the dev bot"). Reproduced the watchdog's exact action - process.exit(1) inside the running container - via railway ssh: SIGKILL on pid 1 is ignored from inside the PID namespace (as expected; node IS pid 1), so the working path was kill -USR1 1 to open the localhost-only inspector, then piping exec("process.exit(1)") into node inspect. Results, all read back from the Railway API:
+
+- Railway restarted the process IN-PLACE: fresh container booted ~2s later (new hostname, full boot sequence, shard ready). Exit-and-let-Railway-restart is now RUNTIME-confirmed, not just policy-read.
+- The STILL-UNVERIFIED caution above was right: there is NO Deployment.crashed for an in-container exit. The deployment status never transitioned (still SUCCESS, statusUpdatedAt unchanged from the deploy).
+- What Railway DOES emit: action "restarted" in the project event stream (GraphQL events query), timestamped to the exit and naming the bot-client serviceId. The configured notification rules subscribe to Deployment.restarted as well as Deployment.crashed, so the alert path rides the RESTARTED event, not the crashed one.
+- Discord webhook delivery for that restarted event: PENDING owner confirmation (asked 2026-09-01; update this line with the answer).
+
+Design consequence: each watchdog exit should produce a "restarted" notification, which IS the owner alert - pending the delivery confirmation above. What exhausting maxRetries (10) escalates to remains unprobed.
 <!-- SECTION:DESCRIPTION:END -->
