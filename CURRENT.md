@@ -6,6 +6,14 @@
 
 ---
 
+## 🌙 2026-09-01 (evening) — beta.213 units + context-cost pass (Fable-driven after a surprise usage reset)
+
+**Merged**: **#2289** TASK-847+846 (single-flight subscribe + error listener; five rounds — round 2 found a third shutdown race, round 4 moved the listener before the handshake; residue TASK-858) · **#2290** rules economy pass (owner call: trim before the drain batches; −10.3k bytes, five rounds restored ~1.3k of over-cuts). **Open**: **#2291** Batch 1 hooks (round-1 wrapper-bypass fix dispatched) · **Batch 2** tooling/release dispatched. **No PR**: auto-memory 77k → 19.6k bytes (26 → 10 files).
+
+**Context cost, measured (owner's ask)**: a fresh session's first API call is ~106k tokens; the panel's "Memory files" line is CLAUDE.md + rules + auto-memory together (≈64k before this session, ≈46k after the two trims land); "Skills" 4.1k is the always-loaded description listing, mostly built-in skills; invoked skill BODIES re-inject under Messages on every compaction (six this session, 155k bytes on disk) — that is the "stays active" cost. The client update landed mid-session: window is now 1M, so compaction pressure is gone and the trims pay on per-call cost only.
+
+**Honest ledger.** The trim's first pass over-cut seven directives the reviewer correctly named, introduced one hedging overclaim ("both emit" for "were measured emitting"), and its commit-message byte table went stale through three autosquashed rounds — exactly the count-rot my own memory warns about; fixed by amend. Net 14.1% against a 30% target (sole-documentation command blocks were a stop condition). The Batch 1 orchestrator self-corrected two false claims in its own comments and found TASK-753 worse than filed. The #2291 reviewer caught a wrapper bypass in the new tracker guard that the same PR had closed one hook over — the probe suite lacked a quoted-wrapper fixture.
+
 ## 🌙 2026-08-31 (day) — beta.212: full cycle in one session (Fable-driven, nested dispatch)
 
 **v3.0.0-beta.212 CUT + MERGED + PUBLISHED same-day.** Nine work PRs merged (#2270–#2277 + deps), release PR #2279 clean on the holistic review, finalize aligned develop, beta.211 demoted. Every implementation unit went through nested dispatch (Opus orchestrator + Sonnet worker, isolated worktrees, byte-identical patch transfer).
@@ -24,7 +32,7 @@
 
 ## 📋 Open items (near-term)
 
-- **beta.213 PLAN RATIFIED (owner, 2026-08-31 planning session)** — **Opus driver**; slate in `now.md` § 🚢, in order: TASK-789 clause-2 hoists (nested dispatch) → TASK-843 (single-hop Sonnet) → identity mutation tranche 2 + floor raise → drain batches preset/config then tooling (hand-read confirmation first). The Opus session starts at unit 1. Kept out: doc-87 (design/taste), TASK-844 (owner semantics call pending — includes the no-personality 2-tier path gap).
+- **beta.213 slate (`now.md` § 🚢), Fable-driven since the 2026-09-01 reset**: remaining in order — #2291 Batch 1 review rounds → Batch 2 (dispatched) → **floor raise LAST** (all five tracked packages measured locally, sequential, then `mutation:update-baseline`) → cut prep (`release:range`; release PR needs explicit owner approval; the two deferred mining-operationalization process PRs are an owner budget call). Then **session mining** (`/tzurot-session-mining`). Kept out: doc-87, TASK-844/845, doc-86, doc-8, TASK-730. Owner calls parked on #2290's body: the 05-tooling command-reference lever and a skills economy pass.
 - **TASK-816 remaining clauses** (a) ratchet classification recorded at definition (b) named recurring trigger (d) audit reports distance-above-floor — the floors themselves are raised and banked; these are the mechanism clauses. doc-63 owns the theme.
 - **Prod watchers live (event-driven, quiet)**: restart recovery (#2253) · guest 429 floor · GLM `model_not_found (rescued)` embeds · **NEW: #2270's first real link-share** (provenance render — `/inspect` observability, no smoke needed) · the #2277 deploy-window transient (accepted, self-heals).
 - **TASK-791 (high)** — instrumentation live; fix half wakes on the next prod `empty_response` window.

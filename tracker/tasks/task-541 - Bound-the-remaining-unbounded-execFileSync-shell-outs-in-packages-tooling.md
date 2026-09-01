@@ -1,9 +1,10 @@
 ---
 id: TASK-541
 title: Bound the remaining unbounded execFileSync shell-outs in packages/tooling
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 04:35'
+updated_date: '2026-09-01 22:14'
 labels:
   - 'area:tooling'
   - 'size:S'
