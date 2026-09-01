@@ -34,7 +34,7 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 _beta.212 CUT 2026-08-31 ~19:20Z (10 PRs / 8 runtime / 120 files; tag `latest`; finalize done; Parent Value smoke-verified pre-cut). Its shipped list lives in the release notes — not re-enumerated here._
 
-- **Driver**: planned Opus (owner call 2026-08-31, budget balancing), **switched to Fable mid-theme (owner, 2026-09-01)**. Dispatch posture unchanged either way: every unit below is fully fix-shaped with no open design; substantive units go nested-dispatch, mechanical units single-hop Sonnet, review-round fixes are dispatch work under any driver.
+- **Driver**: Opus main loop for the straightforward units (owner call 2026-08-31, budget balancing), **Fable pulled in 2026-09-01 specifically for the TASK-854 blocker** — owner wants the reliable driver on the high-priority issue, then back to Opus for the remainder. Dispatch posture unchanged either way: every unit below is fully fix-shaped with no open design; substantive units go nested-dispatch, mechanical units single-hop Sonnet, review-round fixes are dispatch work under any driver.
 - **In (RATIFIED by owner at the 2026-08-31 planning session — work in this order)**:
   1. ~~**TASK-789 clause 2**~~ — **SHIPPED #2280.** Both z.ai permanent-400 hoists; task closed (clause 2 was its last). Residue: TASK-845.
   2. ~~**TASK-843**~~ — **SHIPPED #2281.** Grew a second bug found in review: the connection cleanup in the same `catch` was identity-blind and could tear down a concurrently-established connection. Residue: TASK-846, TASK-847.
