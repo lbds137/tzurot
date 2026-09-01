@@ -185,6 +185,74 @@ describe('getMigrationStatus', () => {
   });
 });
 
+describe('isDbUnreachable', () => {
+  it('is true only when a non-zero exit is accompanied by the unreachable text', async () => {
+    const { isDbUnreachable } = await import('./migration-status.js');
+
+    expect(
+      isDbUnreachable({
+        exitCode: 1,
+        stderr: "Error: P1001: Can't reach database server at `host`:`5432`",
+      })
+    ).toBe(true);
+  });
+
+  it('is false for pending migrations — the same non-zero exit with no unreachable text', async () => {
+    const { isDbUnreachable } = await import('./migration-status.js');
+
+    // The discriminator's whole reason for existing: `migrate status` exits
+    // non-zero for pending migrations too, so exit code alone cannot split them.
+    expect(
+      isDbUnreachable({
+        exitCode: 1,
+        stderr: '',
+      })
+    ).toBe(false);
+  });
+
+  it('is false on a clean exit even if the text appears in stderr', async () => {
+    const { isDbUnreachable } = await import('./migration-status.js');
+
+    expect(
+      isDbUnreachable({ exitCode: 0, stderr: "warning: Can't reach database server (retried)" })
+    ).toBe(false);
+  });
+
+  it('exits 1 from db:status when dev is unreachable', async () => {
+    envRunnerMock.runPrismaCommand.mockResolvedValue({
+      stdout: '',
+      stderr: "Error: P1001: Can't reach database server at `host`:`5432`",
+      exitCode: 1,
+    });
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${String(code)}`);
+    }) as never);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { getMigrationStatus } = await import('./migration-status.js');
+    await expect(getMigrationStatus({ env: 'dev' })).rejects.toThrow('process.exit:1');
+
+    exitSpy.mockRestore();
+  });
+
+  it('does NOT exit from db:status when dev merely has pending migrations', async () => {
+    envRunnerMock.runPrismaCommand.mockResolvedValue({
+      stdout: 'Following migration have not yet been applied:\n20260627_add_kind',
+      stderr: '',
+      exitCode: 1,
+    });
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${String(code)}`);
+    }) as never);
+
+    const { getMigrationStatus } = await import('./migration-status.js');
+    await getMigrationStatus({ env: 'dev' });
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    exitSpy.mockRestore();
+  });
+});
+
 describe('getLocalMigrations', () => {
   it('should filter out non-directory entries', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);

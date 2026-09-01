@@ -23,14 +23,27 @@
  * (a pure-DML reshape of data the old code reads) can't be detected by shape.
  * Its author declares it with an `-- tzurot:apply-after-deploy` comment line,
  * and this command refuses it, pointing at the merge-then-migrate order.
+ *
+ * The migration-file scanning itself (destructive shapes, the apply-after-
+ * deploy marker) lives in `migration-scan.ts`, extracted purely to keep this
+ * file under the `max-lines` cap — this file owns the gates and the actual
+ * `prisma migrate deploy` orchestration.
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import chalk from 'chalk';
-import { type Environment, validateEnvironment } from '../utils/env-runner.js';
+import { type Environment, validateEnvironment, runPrismaCommand } from '../utils/env-runner.js';
 import { runMigration } from '../db/run-migration.js';
+import { isDbUnreachable } from '../db/migration-status.js';
+import { RELEASE_GIT_TIMEOUT_MS } from './constants.js';
+import {
+  APPLY_AFTER_DEPLOY_MARKER,
+  hasApplyAfterDeployMarker,
+  scanDestructive,
+  scanMarked,
+} from './migration-scan.js';
+
+export { APPLY_AFTER_DEPLOY_MARKER, hasApplyAfterDeployMarker };
 
 export interface PremigrateOptions {
   env?: Environment;
@@ -38,71 +51,8 @@ export interface PremigrateOptions {
   force?: boolean;
   allowDestructive?: boolean;
   allowMarked?: boolean;
+  allowDevPending?: boolean;
 }
-
-/**
- * Opt-in SQL comment declaring "this migration must run AFTER the new code is
- * live." Its use case is a migration whose SQL reads additive to the keyword
- * scan but whose EFFECT breaks the still-live old code — typically a pure-DML
- * reshape of data the old code still reads (a JSONB key rename, a value
- * re-encoding). The scan cannot infer that from the DDL, so the author
- * declares it.
- *
- * Written on its own line in the migration's `.sql`.
- */
-export const APPLY_AFTER_DEPLOY_MARKER = '-- tzurot:apply-after-deploy';
-
-/**
- * Line-anchored and comment-anchored, so the marker only counts as a
- * declaration when it IS the comment — a migration that merely mentions the
- * token inside a statement or in prose does not trip it. Case-sensitive, and
- * end-anchored so ANY continuation after the token (`...-deployX`,
- * `...-deploy-staging`) falls through to the near-miss warning instead of
- * silently counting as the exact marker. Kept deliberately
- * outside the statement-splitting machinery: for the marker's intended
- * single-line-comment use the `^--` anchor rules out string-literal false
- * positives — with one accepted caveat: a MULTI-line string literal whose
- * payload contains a marker-shaped line would still match. That direction
- * fails safe (over-refusal the operator resolves, never a silently-missed
- * real marker), so it stays raw-text rather than statement-aware.
- *
- * The indent classes are HORIZONTAL whitespace only, never `\s`: under `/m`,
- * a `\s*` that can consume newlines lets the same match be retried from every
- * preceding line start, which is super-linear on input that never matches
- * (`regexp/no-super-linear-move` flags it). A marker's own indentation is
- * spaces or tabs, so nothing is lost.
- */
-const APPLY_AFTER_DEPLOY_RE = /^[ \t]*--[ \t]*tzurot:apply-after-deploy[ \t]*\r?$/m;
-
-/** Whether the migration SQL carries the apply-after-deploy declaration. */
-export function hasApplyAfterDeployMarker(sql: string): boolean {
-  return APPLY_AFTER_DEPLOY_RE.test(sql);
-}
-
-/**
- * Heuristic markers for migration SQL that breaks the still-live old code when
- * applied before the merge. Fallible by design — this gates and warns; the
- * human makes the final call (a complex CHECK-constraint tighten or a data
- * rewrite the patterns don't match still needs operator judgment).
- */
-const DESTRUCTIVE_PATTERNS: { label: string; re: RegExp }[] = [
-  { label: 'DROP COLUMN', re: /\bDROP\s+COLUMN\b/i },
-  { label: 'DROP TABLE', re: /\bDROP\s+TABLE\b/i },
-  { label: 'RENAME COLUMN', re: /\bRENAME\s+COLUMN\b/i },
-  { label: 'RENAME TO', re: /\bRENAME\s+TO\b/i },
-  // May false-positive on a new-column backfill-then-constrain (the new column
-  // is additive-in-spirit, so old code never writes a null) — operator overrides
-  // with --allow-destructive.
-  { label: 'SET NOT NULL', re: /\bSET\s+NOT\s+NULL\b/i },
-  { label: 'DROP CONSTRAINT', re: /\bDROP\s+CONSTRAINT\b/i },
-  // A type change can break old writes (e.g. TEXT→INTEGER); a widening
-  // (INT→BIGINT) is benign but flags anyway — over-warning is the safe
-  // direction. `[^;]` bounds the match to a single statement (no greedy span).
-  { label: 'ALTER COLUMN TYPE', re: /\bALTER\s+COLUMN\b[^;]*\bTYPE\b/i },
-];
-
-/** Upper bound for every git call here; the `fetch` is the one that can stall. */
-const GIT_TIMEOUT_MS = 30_000;
 
 /**
  * Run a git subcommand with array args (no shell interpolation — see
@@ -114,7 +64,7 @@ function git(args: string[]): string {
   // network. A STALLED connection (not a clean failure) would otherwise hang
   // premigrate indefinitely — and this runs in the pre-merge migration path,
   // where an operator waiting on a silent hang is worse than a clear error.
-  return execFileSync('git', args, { encoding: 'utf-8', timeout: GIT_TIMEOUT_MS }).trim();
+  return execFileSync('git', args, { encoding: 'utf-8', timeout: RELEASE_GIT_TIMEOUT_MS }).trim();
 }
 
 /**
@@ -135,389 +85,6 @@ function newMigrationSqlFiles(): string[] {
     .split('\n')
     .map(line => line.trim())
     .filter(line => line.endsWith('.sql'));
-}
-
-/** A possibly-quoted, possibly-schema-qualified table reference in DDL. */
-const TABLE_REF = String.raw`(?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?`;
-
-const CREATE_TABLE_RE = new RegExp(
-  String.raw`\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(${TABLE_REF})`,
-  'i'
-);
-
-// Captures the FULL comma-separated table list: `DROP TABLE a, b;` is one
-// statement targeting several tables (ALTER TABLE only ever targets one).
-const TARGET_TABLES_RE = new RegExp(
-  String.raw`\b(?:ALTER|DROP)\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(${TABLE_REF}(?:\s*,\s*${TABLE_REF})*)`,
-  'i'
-);
-
-/** Strip quotes + schema qualifier so `"public"."memory_facts"` ≡ `memory_facts`. */
-function normalizeTableRef(ref: string): string {
-  const parts = ref.split('.').map(p => p.replace(/"/g, '').toLowerCase());
-  return parts[parts.length - 1];
-}
-
-/**
- * Every table the statement targets, or null when none is identifiable
- * (no-target → the caller keeps the hit; over-warning is the safe direction).
- */
-function statementTargetTables(statement: string): string[] | null {
-  const match = TARGET_TABLES_RE.exec(statement);
-  if (match === null) {
-    return null;
-  }
-  return match[1].split(',').map(ref => normalizeTableRef(ref.trim()));
-}
-
-/**
- * Split migration SQL into comment-stripped statements, so a `--` or
- * `/* *\/` comment that merely MENTIONS a destructive keyword (a migration
- * header explaining why it looks destructive, for instance) doesn't trip the
- * scan, and a `;` that only appears inside a string or dollar-quoted body
- * doesn't fracture one real statement into two.
- *
- * String-literal aware for both quote kinds SQL uses: `'...'` (string
- * literals) and `"..."` (quoted identifiers, e.g. `"foo--bar"` naming a
- * column) each track their OWN quote character as the active context — a
- * `"` inside a `'...'` string, or vice versa, is just data. Both kinds use
- * the same doubled-quote escape for an embedded literal quote (`''` inside a
- * string, `""` inside an identifier), and both get it "for free" from the
- * same toggle: closing then immediately reopening the SAME quote character
- * leaves no character in between for a comment marker to land on, so the net
- * effect is the same as never leaving the quoted context.
- *
- * Also recognizes dollar-quoted strings (`$$...$$` / `$tag$...$tag$`, used
- * for several existing PL/pgSQL trigger-function and `DO` bodies in this
- * repo's migrations — at least one contains a `'` inside, e.g. a
- * `RAISE EXCEPTION` message literal). The whole quoted span, opener through
- * matching closer, is kept as ONE UNIT — including any `;` inside it, which
- * is why it can't fracture a statement — because it's PL/pgSQL source, not
- * top-level SQL for THIS pass to split. But comments are comments in
- * PL/pgSQL too: `--`/`/* *\/` comments inside the span's inner content ARE
- * stripped (recursively, through any nested dollar spans), while quoted
- * (`'...'`/`"..."`) content and everything else survives untouched. A
- * DIFFERENT tag nested inside (e.g. `$inner$` inside `$outer$...$outer$`) is
- * itself walked the same way, one level at a time — only the matching closer
- * for the OPENING tag ends the OUTER span. An unterminated dollar-quote (no
- * matching closer before end of input) runs to end of input, same handling
- * as an unterminated block comment. Non-comment content INSIDE a
- * dollar-quoted span is still scanned for destructive keywords by the caller
- * (it's real SQL that could genuinely execute) — this pass only removes
- * comments and protects the span's OWN boundaries and surrounding context.
- *
- * Without the quote tracking, an odd (unbalanced) quote count inside a
- * dollar-quoted body leaves the tracker stuck "inside a string" for the rest
- * of the file, which does NOT delete any code — every character is still
- * copied through — but it DOES stop later `--`/`/* *\/` comments from being
- * recognized and stripped, or the following `;` from splitting statements.
- * A leftover, unstripped comment mentioning `CREATE TABLE <name>` can then
- * satisfy `scanSqlForDestructive`'s created-earlier-in-file exemption for a
- * table name that was never actually created, silently exempting a REAL
- * later `DROP`/`RENAME`/etc. on that same table — the concrete fail-open
- * path, not a merely theoretical one. Same reasoning for double-quoted
- * identifiers: without tracking them, `"foo--bar"` strips from the `--` to
- * end of line, deleting real DDL from the scan. Without stripping comments
- * INSIDE a dollar body specifically, even a perfectly BALANCED body (no
- * quote-parity desync at all) leaks a comment mentioning `CREATE TABLE
- * <name>` straight into the scanned statement — the same exemption bug via a
- * third route, needing no unbalanced quote to trigger it.
- *
- * One known gap, fail-closed direction (consistent with this file's
- * over-warning-is-safe stance): nested block comments (`/* /* *\/ *\/`,
- * Postgres-legal) aren't handled — the inner `*\/` ends the tracked comment
- * early, so the outer `*\/` and anything after briefly reads as live SQL
- * until the next real comment or string context, which can only cause
- * OVER-flagging, never a miss. Same direction for an UNQUOTED identifier
- * containing two `$`s (`col$tag$suffix`, Postgres-legal): the first `$`
- * can be misread as a dollar-quote opener, and with no real closer the
- * "span" runs to end of input, folding the rest of the file into one
- * statement — again over-flagging, never a miss.
- *
- * Returns each statement TWICE: `text` (comment-stripped, everything else
- * intact — what `DESTRUCTIVE_PATTERNS`/`statementTargetTables` scan) and
- * `masked` (comments stripped AND single-quoted literal content AND
- * dollar-quoted span inner content blanked to spaces — what
- * `CREATE_TABLE_RE`'s created-earlier registration scans). The split exists
- * because a `'...'` literal or a dollar body can contain arbitrary TEXT that
- * happens to read as `CREATE TABLE <name>` without creating anything real —
- * e.g. `INSERT INTO changelog (msg) VALUES ('...like a CREATE TABLE
- * staging_data...')` — and registering that name would wrongly exempt a
- * REAL later `DROP TABLE staging_data;`. Double-quoted identifier content is
- * deliberately NOT blanked in `masked`: Prisma emits real DDL as `CREATE
- * TABLE "name"`, so blanking identifiers would break the created-earlier
- * exemption for every actual Prisma migration — the exact false-positive
- * class the exemption exists to prevent. `DESTRUCTIVE_PATTERNS` and
- * `statementTargetTables` deliberately keep scanning the UNMASKED `text`:
- * fail-closed (a literal mentioning a destructive keyword still over-flags),
- * and a literal-sourced target can only ever be EXEMPTED by a REAL create
- * (masked strips the literal from THAT side), never the reverse.
- *
- * Accepted residual: a pathological double-quoted IDENTIFIER whose own name
- * literally contains `CREATE TABLE x` text could still register — masking
- * can't blank identifier content (that's the load-bearing exception above),
- * and an identifier is structurally part of DDL either way. Narrow and
- * contrived; not addressed.
- */
-function splitSqlStatements(sql: string): { text: string; masked: string }[] {
-  const statements: { text: string; masked: string }[] = [];
-  let text = '';
-  let masked = '';
-  let activeQuote: QuoteChar | null = null;
-  let i = 0;
-  while (i < sql.length) {
-    const ch = sql[i];
-    if (activeQuote !== null) {
-      text += ch;
-      masked += activeQuote === "'" ? ' ' : ch;
-      if (ch === activeQuote) activeQuote = null;
-      i++;
-      continue;
-    }
-    if (ch === ';') {
-      statements.push({ text, masked });
-      text = '';
-      masked = '';
-      i++;
-      continue;
-    }
-    const step = stepOutsideString(sql, i);
-    text += step.append;
-    masked += step.maskedAppend;
-    i = step.next;
-    if (step.opensQuote !== null) activeQuote = step.opensQuote;
-  }
-  statements.push({ text, masked });
-  return statements;
-}
-
-/** A SQL quote character tracked as an active string/identifier context. */
-type QuoteChar = "'" | '"';
-
-/** Index just past the end of a `--` line comment starting at `i` (the newline itself is left for the caller to copy through). */
-function skipLineComment(sql: string, i: number): number {
-  let j = i;
-  while (j < sql.length && sql[j] !== '\n') j++;
-  return j;
-}
-
-/** Index just past the closing delimiter of a block comment starting at `i`. */
-function skipBlockComment(sql: string, i: number): number {
-  let j = i + 2;
-  while (j < sql.length && !(sql[j] === '*' && sql[j + 1] === '/')) j++;
-  return j + 2;
-}
-
-/** A dollar-quote opener/closer tag: `$$` or `$name$` (name starts with a letter/underscore). */
-const DOLLAR_QUOTE_TAG_RE = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
-
-/**
- * Comments are comments in PL/pgSQL too, so a `--`/`/* *\/` comment inside a
- * dollar-quoted body is stripped just like one outside — the SAME walk as
- * `splitSqlStatements`, minus the `;`-splitting (a dollar body's own `;` is
- * never a statement boundary). Quoted content (`'...'`, `"..."`) and OTHER
- * dollar-quoted spans nested inside are preserved untouched: `matchDollarQuote`
- * calls this function on ITS OWN inner content before returning, so a nested
- * span gets its comments stripped recursively, one level at a time, the same
- * way the outer one does — each level's search is strictly inside its
- * parent's already-shorter substring, so this always terminates.
- */
-function stripCommentsPreservingQuotes(sql: string): string {
-  let result = '';
-  let activeQuote: QuoteChar | null = null;
-  let i = 0;
-  while (i < sql.length) {
-    const ch = sql[i];
-    if (activeQuote !== null) {
-      result += ch;
-      if (ch === activeQuote) activeQuote = null;
-      i++;
-      continue;
-    }
-    const step = stepOutsideString(sql, i);
-    result += step.append;
-    i = step.next;
-    if (step.opensQuote !== null) activeQuote = step.opensQuote;
-  }
-  return result;
-}
-
-/**
- * If `sql[i]` starts a dollar-quoted string, the whole span (opener through
- * matching closer, or to end of input if unterminated), with any comments in
- * its INNER content stripped; otherwise `null` so the caller treats `$` as an
- * ordinary character. Two replacement forms: `text` keeps quoted content and
- * nested dollar spans intact (comments are the only thing removed); `masked`
- * additionally blanks the ENTIRE inner content to spaces — a dollar body is
- * PL/pgSQL source that could contain anything, so `masked` treats it the
- * same as a single-quoted literal for created-earlier registration purposes
- * (see `splitSqlStatements`). `text` can be SHORTER than the source span
- * whenever a comment was removed, so the source extent is returned
- * separately as `sourceLength` — the caller must advance by THAT, never by
- * `text.length`, or it resumes mid-span and re-walks the tail.
- */
-function matchDollarQuote(
-  sql: string,
-  i: number
-): { text: string; masked: string; sourceLength: number } | null {
-  if (sql[i] !== '$') return null;
-  const openerMatch = DOLLAR_QUOTE_TAG_RE.exec(sql.slice(i));
-  if (openerMatch === null) return null;
-  const tag = openerMatch[0];
-  const innerStart = i + tag.length;
-  const closerIndex = sql.indexOf(tag, innerStart);
-  const hasCloser = closerIndex !== -1;
-  const sourceEnd = hasCloser ? closerIndex + tag.length : sql.length;
-  const rawInner = sql.slice(innerStart, hasCloser ? closerIndex : sql.length);
-  const strippedInner = stripCommentsPreservingQuotes(rawInner);
-  const closer = hasCloser ? tag : '';
-  return {
-    text: tag + strippedInner + closer,
-    masked: tag + ' '.repeat(strippedInner.length) + closer,
-    sourceLength: sourceEnd - i,
-  };
-}
-
-/**
- * One step outside any active quoted context: recognizes the start of a
- * `'...'` string or `"..."` quoted identifier, `--`/`/*` comments, and
- * dollar-quotes, falling back to copying an ordinary character. Returns two
- * replacement forms (`append` for `text`, `maskedAppend` for `masked` — see
- * `splitSqlStatements`) and the index to resume from, plus which quote
- * character (if any) the appended character opens — the only case the
- * caller's `activeQuote` state needs to change here; closing an active quote
- * is handled on the caller's own active-quote branch.
- */
-function stepOutsideString(
-  sql: string,
-  i: number
-): { append: string; maskedAppend: string; next: number; opensQuote: QuoteChar | null } {
-  const ch = sql[i];
-  if (ch === "'" || ch === '"') {
-    // The single-quote delimiter itself is blanked too, for symmetry with
-    // the interior chars the caller's active-quote branch blanks; harmless
-    // either way since a lone quote can't form part of a keyword match.
-    return { append: ch, maskedAppend: ch === "'" ? ' ' : ch, next: i + 1, opensQuote: ch };
-  }
-  if (ch === '-' && sql[i + 1] === '-') {
-    const next = skipLineComment(sql, i);
-    return { append: '', maskedAppend: '', next, opensQuote: null };
-  }
-  if (ch === '/' && sql[i + 1] === '*') {
-    // preserve a token boundary where the comment stood
-    const next = skipBlockComment(sql, i);
-    return { append: ' ', maskedAppend: ' ', next, opensQuote: null };
-  }
-  const dollarQuote = matchDollarQuote(sql, i);
-  if (dollarQuote !== null) {
-    return {
-      append: dollarQuote.text,
-      maskedAppend: dollarQuote.masked,
-      next: i + dollarQuote.sourceLength,
-      opensQuote: null,
-    };
-  }
-  return { append: ch, maskedAppend: ch, next: i + 1, opensQuote: null };
-}
-
-/**
- * Scan one migration file's SQL statement-by-statement for destructive shapes.
- *
- * A destructive statement targeting a table CREATEd **earlier in the same
- * file** is exempt: prod doesn't have that table until this migration runs,
- * so nothing live can break (e.g. CREATE TABLE + ALTER COLUMN TYPE on the new
- * table in one file — a false positive that previously forced
- * --allow-destructive). Order matters deliberately: DROP-then-reCREATE of the
- * same name destroys prod data, and stays flagged because the CREATE comes
- * after the DROP.
- *
- * The CREATE-registration check runs on `masked` (blanks literal/dollar-body
- * content); `DESTRUCTIVE_PATTERNS` and `statementTargetTables` run on `text`
- * (unmasked) — see `splitSqlStatements` for why the two differ.
- */
-function scanSqlForDestructive(sql: string): string[] {
-  const labels: string[] = [];
-  const createdEarlier = new Set<string>();
-  for (const { text, masked } of splitSqlStatements(sql)) {
-    const created = CREATE_TABLE_RE.exec(masked);
-    for (const { label, re } of DESTRUCTIVE_PATTERNS) {
-      if (!re.test(text)) continue;
-      // Exempt ONLY when every targeted table was created earlier in this
-      // file — `DROP TABLE new_one, live_one;` must keep its hit for the
-      // table that exists in prod.
-      const targets = statementTargetTables(text);
-      if (targets?.every(t => createdEarlier.has(t)) === true) continue;
-      if (!labels.includes(label)) labels.push(label);
-    }
-    // Register AFTER scanning the statement itself, so a hypothetical
-    // single-statement create+destroy can't self-exempt.
-    if (created !== null) createdEarlier.add(normalizeTableRef(created[1]));
-  }
-  return labels;
-}
-
-/**
- * Read one migration file for a scan, or return null with a warning. Listed by
- * git-diff but not readable from the working tree (e.g. a path that changed in
- * a later commit) — skip rather than fail the scan, but warn so an unexpected
- * read failure (permissions, corrupt tree) doesn't silently downgrade a
- * dangerous migration to "safe". Shared by both scans for the read-and-warn
- * shape alone — each scan still performs its own read, so a release's files
- * are read once per scan (twice per run), acceptable at a handful of
- * migration files per release.
- */
-function readMigrationFile(repoRoot: string, file: string, scanLabel: string): string | null {
-  try {
-    return readFileSync(resolve(repoRoot, file), 'utf-8');
-  } catch {
-    console.warn(chalk.yellow(`  ⚠️  could not read ${file} for the ${scanLabel} scan — skipping`));
-    return null;
-  }
-}
-
-/** Scan the given migration files for destructive SQL shapes. */
-function scanDestructive(repoRoot: string, files: string[]): { file: string; label: string }[] {
-  const hits: { file: string; label: string }[] = [];
-  for (const file of files) {
-    const sql = readMigrationFile(repoRoot, file, 'destructive');
-    if (sql === null) continue;
-    for (const label of scanSqlForDestructive(sql)) {
-      hits.push({ file, label });
-    }
-  }
-  return hits;
-}
-
-/**
- * Loose companion to the strict matcher: anything containing the phrase at
- * all. When this fires and the strict form does not, the author almost
- * certainly TRIED to mark the migration and got the format wrong — and a
- * silent false negative here premigrates exactly the migration the marker
- * exists to hold back. Case-insensitive on purpose: an echo of the phrase in
- * ordinary prose is rare enough that a spurious warning is the cheap side of
- * this trade.
- */
-const APPLY_AFTER_DEPLOY_LOOSE_RE = /apply-after-deploy/i;
-
-/** The subset of the given migration files carrying the apply-after-deploy marker. */
-function scanMarked(repoRoot: string, files: string[]): string[] {
-  const marked: string[] = [];
-  for (const file of files) {
-    const sql = readMigrationFile(repoRoot, file, 'apply-after-deploy');
-    if (sql === null) continue;
-    if (hasApplyAfterDeployMarker(sql)) {
-      marked.push(file);
-    } else if (APPLY_AFTER_DEPLOY_LOOSE_RE.test(sql)) {
-      console.warn(
-        chalk.yellow(
-          `  ⚠️  ${file} mentions apply-after-deploy but not in the recognized form — ` +
-            `the marker is exactly \`${APPLY_AFTER_DEPLOY_MARKER}\` on its own comment line. ` +
-            'Treating this migration as UNMARKED.'
-        )
-      );
-    }
-  }
-  return marked;
 }
 
 /**
@@ -626,6 +193,156 @@ function gateDestructive(
 }
 
 /**
+ * Handle the case where dev's migration status could not be OBSERVED at all,
+ * as opposed to dev being observably behind. Returns true to continue, false
+ * to stop (the caller exits).
+ *
+ * `detail` is whatever text names the reason — Prisma's stderr when
+ * `migrate status` ran and exited non-zero, or the thrown error's message
+ * when the call never got that far (a missing dev Railway link makes the
+ * DATABASE_URL fetch throw before Prisma is ever spawned).
+ *
+ * Deliberately NOT overridable by `--allow-dev-pending`: that flag asserts
+ * "I know dev is behind and I accept it," which is a claim the operator can
+ * only make after seeing dev's status. Here nobody has seen it, so the gate
+ * fails closed — the whole point of the check is that an unverified dev is
+ * how the `column ... does not exist` window opens. Dry-run still reports
+ * without exiting, matching every other gate in this file.
+ */
+function gateDevUnreachable(detail: string, dryRun: boolean): boolean {
+  // Bounded to the tail because a Prisma stderr banner buries the actual
+  // reason (host, port, auth) under its preamble. A thrown error's message is
+  // typically well under the window, so the slice is a no-op for that shape.
+  const tail = detail.trim().split('\n').slice(-5).join('\n');
+
+  console.log(chalk.red.bold("\n⚠️  Could not verify dev's migration status:"));
+  console.log(chalk.dim(tail));
+  console.log(
+    chalk.yellow(
+      "\nThis is a connectivity/auth failure, not a report that dev is behind — dev's actual " +
+        'state is unknown. Check the dev Railway link (`railway status`, `railway link`, ' +
+        '`railway login`), then re-run. Verify dev directly with ' +
+        '`pnpm ops db:status --env dev`.'
+    )
+  );
+  console.log(
+    chalk.yellow(
+      '--allow-dev-pending does NOT cover this: it means "I know dev is behind", not "skip the ' +
+        'check", and nothing here established what dev\'s state is.'
+    )
+  );
+
+  if (dryRun) {
+    console.log(chalk.dim("\n[dry-run] would refuse — dev's migration status is unverifiable"));
+    return true;
+  }
+
+  console.error(chalk.red("\n❌ Refusing to premigrate prod without verifying dev's migrations."));
+  return false;
+}
+
+/**
+ * Confirm dev has actually applied this release's migrations before
+ * premigrating prod. `release:premigrate` targets prod, but nothing else
+ * re-checks that dev — which auto-deploys new code on every push to
+ * `develop` — didn't fall a migration behind; a release could otherwise ship
+ * with dev running new code against an un-migrated schema, the same failure
+ * shape this whole command exists to close on prod, one environment over.
+ *
+ * Only meaningful for `env === 'prod'` (the caller gates the call on that);
+ * checking dev against itself would be circular. Mirrors `gateMarked` /
+ * `gateDestructive`'s override/dry-run contract: `--allow-dev-pending`
+ * proceeds with a warning, dry-run reports without ever exiting non-zero,
+ * and the default refuses. Reports both this release's migration range (so
+ * the operator can see what's expected) and dev's own `migrate status`
+ * output (so they can see what's actually missing).
+ *
+ * Asking dev fails in one of three shapes, and only two of them arrive as a
+ * result to inspect. `prisma migrate status` exits non-zero for BOTH "dev is
+ * behind" and "we could not reach dev at all," so those two are split on
+ * `isDbUnreachable` (shared with `db:status` — see
+ * `../db/migration-status.ts`). The third produces no result at all:
+ * `runPrismaCommand` REJECTS when the dev Railway link is missing,
+ * because resolving dev's DATABASE_URL throws before Prisma is spawned. The
+ * catch below routes that rejection to the same unreachable gate, quoting the
+ * fetch error — so a missing dev link refuses with the connectivity remedy
+ * rather than escaping as a raw error.
+ *
+ * `--allow-dev-pending` covers only "dev is behind": the flag means "I know
+ * dev is behind," not "skip the check," so an unverifiable dev fails closed
+ * under either unreachable shape.
+ *
+ * Pinned by `premigrate.test.ts`: dev-clean, dev-pending (refuses),
+ * dev-pending + `--allow-dev-pending` (warns and proceeds), dev-pending in
+ * dry-run (reports, never exits), dev-unreachable-by-exit-code, and
+ * dev-unreachable-by-rejection (both refuse, `--allow-dev-pending` overrides
+ * neither, and both report without exiting in dry-run), plus non-prod-env
+ * (never runs).
+ */
+async function gateDevPending(
+  newSqlFiles: string[],
+  opts: { dryRun: boolean; allowDevPending: boolean }
+): Promise<boolean> {
+  // `runPrismaCommand` REJECTS — rather than returning a non-zero result —
+  // when it cannot even reach the point of running Prisma; a missing dev
+  // Railway link makes the DATABASE_URL fetch throw. `isDbUnreachable` only
+  // inspects a RETURNED result, so without this catch the raw error escapes
+  // the whole command. Dev's state is equally unknown either way, so both
+  // shapes route through the same fail-closed gate.
+  //
+  // The bound matters as much as the catch: this is a read-only status call on
+  // every premigrate run, dry-run included, and a stalled connection with no
+  // timeout would hang the release flow indefinitely. A timeout rejects, so it
+  // lands on the same fail-closed path as an unreachable dev.
+  let result;
+  try {
+    result = await runPrismaCommand('dev', 'migrate', ['status'], RELEASE_GIT_TIMEOUT_MS);
+  } catch (error) {
+    return gateDevUnreachable(error instanceof Error ? error.message : String(error), opts.dryRun);
+  }
+
+  if (result.exitCode === 0) {
+    console.log(chalk.dim('✓ dev has applied every migration — no drift ahead of this release.'));
+    return true;
+  }
+
+  if (isDbUnreachable(result)) {
+    return gateDevUnreachable(result.stderr, opts.dryRun);
+  }
+
+  console.log(chalk.red.bold('\n⚠️  dev migration status is not clean:'));
+  console.log(chalk.yellow(`\nThis release's range adds ${newSqlFiles.length} migration(s):`));
+  for (const file of newSqlFiles) console.log(chalk.dim(`  ${file}`));
+  console.log(chalk.yellow('\ndev reported (`prisma migrate status`):'));
+  console.log(chalk.dim(result.stdout.trim()));
+  console.log(
+    chalk.yellow(
+      '\nDev running new code against an un-migrated schema is how the ' +
+        '`column ... does not exist` incident happened — the same deploy window this ' +
+        'command exists to close, one environment over. Correct remedy: ' +
+        '`pnpm ops db:migrate --env dev`.'
+    )
+  );
+
+  if (opts.allowDevPending) {
+    console.warn(chalk.yellow('\n--allow-dev-pending set — proceeding anyway.'));
+    return true;
+  }
+
+  if (opts.dryRun) {
+    console.log(chalk.dim('\n[dry-run] would refuse without --allow-dev-pending'));
+    return true;
+  }
+
+  console.error(
+    chalk.red(
+      '\n❌ Refusing to premigrate prod while dev has pending migrations without --allow-dev-pending.'
+    )
+  );
+  return false;
+}
+
+/**
  * Apply the release's pending migrations to the target environment before the
  * merge, so auto-deploy lands into a ready schema.
  */
@@ -635,6 +352,7 @@ export async function premigrate(options: PremigrateOptions = {}): Promise<void>
   const force = options.force ?? false;
   const allowDestructive = options.allowDestructive ?? false;
   const allowMarked = options.allowMarked ?? false;
+  const allowDevPending = options.allowDevPending ?? false;
 
   validateEnvironment(env);
 
@@ -670,6 +388,13 @@ export async function premigrate(options: PremigrateOptions = {}): Promise<void>
   }
 
   if (!gateDestructive(scanDestructive(repoRoot, newSqlFiles), { dryRun, allowDestructive })) {
+    process.exit(1);
+  }
+
+  // Cross-check dev only when premigrating prod — checking dev against
+  // itself would be circular, and dev has no "premigrate before merge"
+  // window of its own (it auto-deploys on every push to develop).
+  if (env === 'prod' && !(await gateDevPending(newSqlFiles, { dryRun, allowDevPending }))) {
     process.exit(1);
   }
 

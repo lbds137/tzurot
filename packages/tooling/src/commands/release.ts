@@ -143,6 +143,13 @@ function registerPremigrateCommand(cli: CAC): void {
       '--allow-marked',
       'Proceed even if a migration is marked apply-after-deploy (it will land before the new code)'
     )
+    .option(
+      '--allow-dev-pending',
+      "Proceed even if dev has not applied this release range's migrations yet. Does not cover an " +
+        'unreachable dev: a prod premigrate needs the dev Railway link too, since it queries ' +
+        "dev's migration status, and a missing link surfaces as the unreachable refusal with the " +
+        'Railway URL-fetch error quoted.'
+    )
     .example('pnpm ops release:premigrate --dry-run')
     .example('pnpm ops release:premigrate')
     .action(
@@ -152,6 +159,7 @@ function registerPremigrateCommand(cli: CAC): void {
         force?: boolean;
         allowDestructive?: boolean;
         allowMarked?: boolean;
+        allowDevPending?: boolean;
       }) => {
         const { premigrate } = await import('../release/premigrate.js');
         await premigrate(options);

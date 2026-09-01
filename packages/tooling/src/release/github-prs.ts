@@ -6,6 +6,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { RELEASE_GIT_TIMEOUT_MS } from './constants.js';
 import type { MergedPr } from './notes-format.js';
 
 /**
@@ -20,6 +21,7 @@ export function discoverPrevTag(): string {
     return execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: RELEASE_GIT_TIMEOUT_MS,
     }).trim();
   } catch {
     throw new Error(
@@ -53,6 +55,7 @@ export function tagTimestamp(tag: string): string {
       {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: RELEASE_GIT_TIMEOUT_MS,
       }
     ).trim();
   } catch {
@@ -88,6 +91,13 @@ export const DEFAULT_BASE_BRANCH = 'develop';
  *
  * Throws a user-facing error if `gh` is missing / unauthenticated — the
  * raw `spawnSync` error otherwise exposes internal paths without guidance.
+ *
+ * Bounded by `RELEASE_GIT_TIMEOUT_MS` — this is the one network call in the
+ * module (a GitHub search API query), so it's the shell-out a stall would
+ * actually hang on. Every OTHER call in this file is bounded by the same
+ * constant too, deliberately: a uniform bound means a shell-out added later
+ * inherits the ceiling by default, and the cost of bounding a local git call
+ * that never stalls is zero.
  */
 export function listMergedPrsSince(since: string, base: string = DEFAULT_BASE_BRANCH): MergedPr[] {
   let raw: string;
@@ -108,7 +118,7 @@ export function listMergedPrsSince(since: string, base: string = DEFAULT_BASE_BR
         '--json',
         'number,title,mergedAt,files',
       ],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: RELEASE_GIT_TIMEOUT_MS }
     );
   } catch {
     throw new Error(
@@ -167,16 +177,6 @@ function normalizeGhPr(raw: RawGhPr): MergedPr {
 }
 
 /**
- * Bound both shell-outs below. The fetch talks to the network, and a STALLED
- * connection (rather than a clean failure) would otherwise block
- * `release:range` forever with no way to tell "still fetching" from "hung" —
- * the same indistinguishability this whole advisory exists to avoid. On
- * timeout the call throws, which the catch turns into `undefined`, so the
- * report says SKIPPED instead of hanging.
- */
-const RANGE_GIT_TIMEOUT_MS = 30_000;
-
-/**
  * Count files in the whole-range diff (`<tag>..<base>`), which is what the
  * release PR will render. Distinct from the per-PR file lists used for
  * runtime classification: those measure prod risk, this measures how much
@@ -206,8 +206,33 @@ const RANGE_GIT_TIMEOUT_MS = 30_000;
  * tag, a shallow clone, no such ref, an unreachable remote) — the ship inventory is still useful
  * without a size line, and this command runs at release time where failing
  * the whole report over an advisory metric would be the wrong trade.
+ *
+ * Both shell-outs below are bounded by `RELEASE_GIT_TIMEOUT_MS`. The fetch
+ * talks to the network, and a STALLED connection (rather than a clean
+ * failure) would otherwise block `release:range` forever with no way to tell
+ * "still fetching" from "hung" — the same indistinguishability this whole
+ * advisory exists to avoid. On timeout the call throws, which the catch
+ * turns into `undefined`, so the report says SKIPPED instead of hanging.
+ *
+ * `fromTag`/`base` starting with `-` are rejected up front rather than
+ * shielded with a `--` separator: in `git diff`, `--` marks the start of
+ * PATHS, so it must come AFTER the revision argument and structurally
+ * cannot protect the revision itself. A leading-dash reject is the only
+ * guard that actually works here.
  */
 export function countRangeChangedFiles(fromTag: string, base: string): number | undefined {
+  if (fromTag.startsWith('-')) {
+    console.warn(
+      `countRangeChangedFiles: fromTag "${fromTag}" starts with '-', which git would parse as an option rather than a revision — skipping the range-size metric.`
+    );
+    return undefined;
+  }
+  if (base.startsWith('-')) {
+    console.warn(
+      `countRangeChangedFiles: base "${base}" starts with '-', which git would parse as an option rather than a revision — skipping the range-size metric.`
+    );
+    return undefined;
+  }
   try {
     // Refresh first, then diff the REMOTE-tracking ref — never the local
     // branch. A stale local `develop` still resolves, so `git diff` succeeds
@@ -227,10 +252,10 @@ export function countRangeChangedFiles(fromTag: string, base: string): number | 
     // ref forces the update regardless of how the remote is configured.
     execFileSync('git', ['fetch', 'origin', `+refs/heads/${base}:refs/remotes/origin/${base}`], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: RANGE_GIT_TIMEOUT_MS,
+      timeout: RELEASE_GIT_TIMEOUT_MS,
     });
     const out = execFileSync('git', ['diff', '--name-only', `${fromTag}..origin/${base}`], {
-      timeout: RANGE_GIT_TIMEOUT_MS,
+      timeout: RELEASE_GIT_TIMEOUT_MS,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
