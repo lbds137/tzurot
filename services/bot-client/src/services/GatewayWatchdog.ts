@@ -9,6 +9,12 @@
  * restarts the process on a non-zero exit but runs no healthcheck against
  * this service, so only an in-process check can see a wedged-but-running
  * process.
+ *
+ * Arm A (checkSilentHang) does not treat crossing its staleness threshold as
+ * a verdict by itself — a low-traffic guild can legitimately go quiet for
+ * hours. Crossing the threshold instead fires an active gateway liveness
+ * probe (a REQUEST_GUILD_MEMBERS round-trip); only staleness that persists
+ * through the probe's grace window is reported as incident shape (a).
  */
 import { type Client, Events, Status } from 'discord.js';
 import type { createLogger } from '@tzurot/common-types/utils/logger';
@@ -46,12 +52,40 @@ const WATCHDOG_THRESHOLDS = {
   CHECK_INTERVAL_MS: 60_000,
 
   /**
-   * A genuinely quiet-but-healthy gateway must not false-alarm: the raw-event
-   * signal only fires on gateway DISPATCH packets — heartbeat ACKs and other
-   * non-dispatch opcodes do not produce one — so this is deliberately
-   * conservative relative to normal server chatter.
+   * Crossing this threshold no longer means a wedge VERDICT — it means "fire
+   * an active gateway liveness probe" (an op-8 REQUEST_GUILD_MEMBERS
+   * round-trip; see checkSilentHang). A healthy-but-quiet gateway answers
+   * with a GUILD_MEMBERS_CHUNK dispatch, which resets the clock through the
+   * existing raw-event listener same as any other dispatch. Only silence that
+   * PERSISTS through PROBE_GRACE_MS after the probe fires is a wedge. The
+   * previous premise here — that quiet gateways are rare enough for this
+   * threshold to be a safe verdict on its own — was wrong: a low-traffic
+   * guild produces zero DISPATCH packets for hours at a time, and the
+   * raw-event signal only fires on those, so a purely passive threshold
+   * false-alarmed in production against exactly that guild shape.
    */
   STALE_THRESHOLD_MS: 15 * 60 * 1000,
+
+  /**
+   * How long the probe fired at STALE_THRESHOLD_MS gets to be answered by a
+   * GUILD_MEMBERS_CHUNK dispatch (which resets the clock via the raw-event
+   * listener, not via any code in the probe's own .then) before persisting
+   * staleness escalates to a wedge verdict. Two CHECK_INTERVAL_MS ticks, so a
+   * healthy gateway's chunk dispatch has two chances to land before the grace
+   * window closes. Pinned by the probe-at-crossing and wedge-after-grace
+   * tests.
+   */
+  PROBE_GRACE_MS: 2 * 60 * 1000,
+
+  /**
+   * The `time` option handed to the probe's `guild.members.fetch` call,
+   * bounding its own promise so a genuinely wedged socket's fetch cannot
+   * linger indefinitely. The probe's result is advisory/log-only and never
+   * awaited by the tick, so this only bounds how long the fire-and-forget
+   * .then/.catch stays outstanding — not pinned by a test, since the probe
+   * fetch is mocked to settle immediately in the suite.
+   */
+  PROBE_FETCH_TIMEOUT_MS: 30_000,
 
   /**
    * A many-minute hot-loop outage, observed in production, would have been
@@ -84,6 +118,18 @@ export interface GatewayWatchdog {
 interface WatchdogState {
   lastGatewayEventAt: number;
   notReadySince: number | null;
+  /**
+   * Set to the tick timestamp that fired the gateway liveness probe (the
+   * first tick to observe staleness crossing STALE_THRESHOLD_MS this
+   * episode). Null means no probe is currently outstanding — either
+   * staleness hasn't crossed yet, or a fresh raw event ended the episode (see
+   * updateReadinessState) and the next crossing must fire its own probe.
+   * Keyed to staleness ALONE, independent of Ready — a deliberate asymmetry
+   * with `deferredAlertSent` below, which requires BOTH signals: Arm A's
+   * crossing depends only on staleness, so that is the only signal that
+   * should re-arm its probe.
+   */
+  probeStartedAt: number | null;
   /**
    * One deferred alert per wedge EPISODE, not per process. It latches on the
    * first min-uptime-deferred alert so a long deferral does not re-alert every
@@ -243,7 +289,7 @@ async function handleWedge(ctx: TickContext, payload: WedgePayload): Promise<voi
 }
 
 async function checkSilentHang(ctx: TickContext, now: number): Promise<boolean> {
-  const { client, state, uptimeMs } = ctx;
+  const { client, state, logger, uptimeMs } = ctx;
   // Canonical statement of the empty-guild-cache exclusion, which BOTH arms
   // apply (arm B repeats it below). An empty cache is what an idle or
   // still-booting process looks like, and neither is a wedge, so the gate
@@ -254,13 +300,52 @@ async function checkSilentHang(ctx: TickContext, now: number): Promise<boolean> 
   // first guild sync completes. bootWatchdog's own 5-minute deadline covers
   // the process that never finishes logging in; a process that gets past that
   // and still never populates guilds is an accepted residual gap with no
-  // detection here.
+  // detection here. It is also what makes the `guild === undefined` guard
+  // below unreachable in practice: `guilds.cache.first()` cannot return
+  // undefined once `cache.size > 0`.
   if (
     now - state.lastGatewayEventAt <= WATCHDOG_THRESHOLDS.STALE_THRESHOLD_MS ||
     client.guilds.cache.size === 0
   ) {
     return false;
   }
+
+  if (state.probeStartedAt === null) {
+    // First tick past the threshold this episode: fire the probe rather than
+    // a verdict. The guild's own GUILD_MEMBERS_CHUNK response — not this
+    // function — is what resets lastGatewayEventAt, via the existing
+    // raw-event listener; the .then/.catch below is log-only. Pinned by the
+    // probe-at-crossing test.
+    const guild = client.guilds.cache.first();
+    if (guild === undefined) {
+      return false; // TS-strict guard; unreachable given the size gate above
+    }
+    state.probeStartedAt = now;
+    logger.info(
+      { staleForMs: now - state.lastGatewayEventAt },
+      'Gateway dispatch silence crossed the probe threshold — firing gateway liveness probe'
+    );
+    void guild.members
+      .fetch({ query: '', limit: 1, time: WATCHDOG_THRESHOLDS.PROBE_FETCH_TIMEOUT_MS })
+      .then(() => {
+        logger.info({}, 'Gateway watchdog liveness probe resolved');
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Gateway watchdog liveness probe rejected');
+      });
+    return false;
+  }
+
+  if (now - state.probeStartedAt < WATCHDOG_THRESHOLDS.PROBE_GRACE_MS) {
+    // Probe already fired this episode and its grace window hasn't closed —
+    // give the GUILD_MEMBERS_CHUNK dispatch (or any other dispatch) more
+    // ticks to land and reset the clock via the raw-event listener.
+    return false;
+  }
+
+  // Staleness has now persisted through the probe AND its grace window —
+  // this is a wedge verdict, unchanged from the original single-threshold
+  // path. Pinned by the wedge-after-grace test.
   await handleWedge(ctx, buildWedgePayload(client, state, 'silent-hang', now, uptimeMs()));
   return true;
 }
@@ -274,16 +359,25 @@ async function checkSilentHang(ctx: TickContext, now: number): Promise<boolean> 
  * into a false reading. Pinned by the both-wedged test.
  *
  * Episode end is deliberately the conjunction of BOTH signals, since either one
- * alone is exactly what one arm treats as a wedge: a Ready socket that has gone
- * quiet is arm A's case, and fresh raw traffic without Ready is arm B's. Only
- * when neither arm has anything to say is the connection healthy enough to
- * re-arm the deferred alert.
+ * alone is exactly what one arm treats as a candidate wedge: a Ready socket
+ * that stays quiet past its probe's grace window is arm A's case, and fresh
+ * raw traffic without Ready is arm B's. Only when neither arm has anything to
+ * say is the connection healthy enough to re-arm the deferred alert.
  */
 function updateReadinessState({ client, state }: TickContext, now: number): void {
   const isReady = client.ws.status === Status.Ready;
   const eventsAreFresh = now - state.lastGatewayEventAt <= WATCHDOG_THRESHOLDS.STALE_THRESHOLD_MS;
   if (isReady && eventsAreFresh) {
     state.deferredAlertSent = false;
+  }
+
+  // Deliberately a SEPARATE condition from the deferredAlertSent reset above,
+  // keyed to eventsAreFresh alone rather than the BOTH-signals conjunction:
+  // Arm A's crossing (checkSilentHang) depends only on staleness, so a fresh
+  // raw event is sufficient on its own to end that arm's probe episode, even
+  // on a tick where ws.status is not yet Ready.
+  if (eventsAreFresh) {
+    state.probeStartedAt = null;
   }
 
   if (isReady) {
@@ -295,8 +389,9 @@ function updateReadinessState({ client, state }: TickContext, now: number): void
 
 // This arm deliberately does not consult event freshness, so it catches a
 // never-Ready wedge whether or not raw gateway traffic is flowing. That
-// independence is the whole point: arm A can only see a connection that has
-// gone quiet, and a wedge need not be quiet. The paired test constructs the
+// independence is the whole point: arm A can only ever raise a candidate on a
+// connection that has gone quiet (and only confirms it past the probe's grace
+// window), and a wedge need not be quiet. The paired test constructs the
 // still-flowing-raw case to pin it.
 async function checkNeverReady(ctx: TickContext, now: number): Promise<void> {
   const { client, state, uptimeMs } = ctx;
@@ -357,6 +452,7 @@ export function startGatewayWatchdog(
   const state: WatchdogState = {
     lastGatewayEventAt: Date.now(),
     notReadySince: null,
+    probeStartedAt: null,
     deferredAlertSent: false,
   };
   const sendAlert = createAlertSender(logger, alertWebhookUrl, options?.environment, fetchFn);

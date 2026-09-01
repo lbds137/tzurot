@@ -10,6 +10,10 @@ const CHECK_INTERVAL_MS = 60_000;
 const STALE_THRESHOLD_MS = 15 * 60 * 1000;
 const NOT_READY_THRESHOLD_MS = 5 * 60 * 1000;
 const MIN_UPTIME_BEFORE_EXIT_MS = 30 * 60 * 1000;
+const PROBE_GRACE_MS = 2 * 60 * 1000;
+// Arm A's wedge no longer lands on the crossing tick: that tick fires the
+// probe, and the verdict waits out the grace window.
+const ARM_A_WEDGE_AT_MS = STALE_THRESHOLD_MS + CHECK_INTERVAL_MS + PROBE_GRACE_MS;
 
 interface Harness {
   client: Client;
@@ -22,6 +26,7 @@ interface Harness {
     error: ReturnType<typeof vi.fn>;
   };
   fetchMock: ReturnType<typeof vi.fn>;
+  memberFetchMock: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
 }
@@ -38,15 +43,24 @@ function buildHarness(): Harness {
   });
   const wsState = { status: Status.Ready };
   const guildState = { size: 1 };
+  const memberFetchMock = vi.fn().mockResolvedValue(new Map());
+  const mockGuild = { members: { fetch: memberFetchMock } };
   const client = {
     on,
     off,
     ws: wsState,
-    guilds: { cache: guildState },
+    guilds: {
+      cache: {
+        get size(): number {
+          return guildState.size;
+        },
+        first: () => (guildState.size === 0 ? undefined : mockGuild),
+      },
+    },
   } as unknown as Client;
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
-  return { client, handlers, wsState, guildState, logger, fetchMock, on, off };
+  return { client, handlers, wsState, guildState, logger, fetchMock, memberFetchMock, on, off };
 }
 
 function emitRaw(handlers: Map<string, Handler>): void {
@@ -76,7 +90,7 @@ describe('startGatewayWatchdog', () => {
       fetchFn: fetchMock as unknown as typeof fetch,
     });
 
-    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
     // Exact payload shape — both clocks, not just the firing arm's. A silent
     // hang has never left Ready, so notReadyForMs must be null here; that
@@ -85,7 +99,7 @@ describe('startGatewayWatchdog', () => {
     expect(logger.error).toHaveBeenCalledWith(
       {
         arm: 'silent-hang',
-        staleForMs: STALE_THRESHOLD_MS + CHECK_INTERVAL_MS,
+        staleForMs: ARM_A_WEDGE_AT_MS,
         notReadyForMs: null,
         wsStatus: Status.Ready,
         guildCount: 1,
@@ -94,6 +108,110 @@ describe('startGatewayWatchdog', () => {
       expect.stringContaining('wedged')
     );
     expect(exit).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('T1 probe-at-crossing: fires the gateway liveness probe on the crossing tick rather than wedging immediately', async () => {
+    const { client, guildState, logger, fetchMock, memberFetchMock } = buildHarness();
+    guildState.size = 1;
+    const exit = vi.fn();
+    startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
+      exit,
+      uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+      alertWebhookUrl: 'https://discord.com/api/webhooks/1/abc',
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+
+    expect(memberFetchMock).toHaveBeenCalledWith({ query: '', limit: 1, time: 30_000 });
+    expect(exit).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('T2 one-probe-per-episode: further stale ticks inside the grace window do not re-probe', async () => {
+    const { client, guildState, logger, memberFetchMock } = buildHarness();
+    guildState.size = 1;
+    const exit = vi.fn();
+    startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
+      exit,
+      uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+    });
+
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    expect(memberFetchMock).toHaveBeenCalledTimes(1);
+
+    // Still inside PROBE_GRACE_MS — no second probe.
+    await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+    expect(memberFetchMock).toHaveBeenCalledTimes(1);
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  it('T3 wedge-after-grace: staleness persisting through the probe grace window reaches the wedge path', async () => {
+    const { client, guildState, logger } = buildHarness();
+    guildState.size = 1;
+    const exit = vi.fn();
+    startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
+      exit,
+      uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+    });
+
+    await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
+
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ arm: 'silent-hang', staleForMs: ARM_A_WEDGE_AT_MS }),
+      expect.stringContaining('wedged')
+    );
+  });
+
+  it('T4 recovery-and-rearm: a raw event after the probe resets the clock, and a later quiet spell probes again', async () => {
+    const { client, handlers, guildState, logger, memberFetchMock } = buildHarness();
+    guildState.size = 1;
+    const exit = vi.fn();
+    startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
+      exit,
+      uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+    });
+
+    // First quiet spell: crosses the threshold, fires the probe.
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    expect(memberFetchMock).toHaveBeenCalledTimes(1);
+
+    // A raw gateway event (the healthy GUILD_MEMBERS_CHUNK response, or any
+    // other dispatch) resets the clock through the existing raw listener —
+    // no wedge, and the probe episode ends.
+    emitRaw(handlers);
+    await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);
+    expect(exit).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+
+    // A second, distinct quiet spell fires its OWN probe — proving
+    // probeStartedAt was reset by updateReadinessState on recovery.
+    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    expect(memberFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('T5 probe-rejection-is-survivable: a rejected probe fetch does not crash the tick, and the wedge still fires after grace', async () => {
+    const { client, guildState, logger, memberFetchMock } = buildHarness();
+    guildState.size = 1;
+    memberFetchMock.mockRejectedValue(new Error('gateway members timeout'));
+    const exit = vi.fn();
+    startGatewayWatchdog(client, logger as unknown as Parameters<typeof startGatewayWatchdog>[1], {
+      exit,
+      uptimeMs: () => MIN_UPTIME_BEFORE_EXIT_MS,
+    });
+
+    await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
+
+    expect(logger.error).not.toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      expect.stringContaining('tick failed unexpectedly')
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      expect.stringContaining('probe')
+    );
     expect(exit).toHaveBeenCalledWith(1);
   });
 
@@ -193,7 +311,7 @@ describe('startGatewayWatchdog', () => {
       uptimeMs: () => uptime,
     });
 
-    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
     expect(exit).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledWith(
@@ -312,8 +430,9 @@ describe('startGatewayWatchdog', () => {
     });
 
     // Arm B crosses its threshold first, but `exit` is a mock so ticks
-    // continue until arm A's longer threshold is crossed too.
-    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+    // continue until arm A's longer threshold (now including the probe grace
+    // window) is crossed too.
+    await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
     // The point of the test: arm A's payload must carry the REAL not-Ready
     // age, not null. The readiness clock starts one tick after the staleness
@@ -321,8 +440,8 @@ describe('startGatewayWatchdog', () => {
     expect(logger.error).toHaveBeenCalledWith(
       {
         arm: 'silent-hang',
-        staleForMs: STALE_THRESHOLD_MS + CHECK_INTERVAL_MS,
-        notReadyForMs: STALE_THRESHOLD_MS,
+        staleForMs: ARM_A_WEDGE_AT_MS,
+        notReadyForMs: ARM_A_WEDGE_AT_MS - CHECK_INTERVAL_MS,
         wsStatus: Status.Reconnecting,
         guildCount: 1,
         uptimeMs: MIN_UPTIME_BEFORE_EXIT_MS,
@@ -347,8 +466,9 @@ describe('startGatewayWatchdog', () => {
     });
 
     // Ready the whole time the staleness clock runs out — one tick short of
-    // arm A firing — so notReadySince is still null here.
-    await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS);
+    // arm A firing (crossing the threshold and riding out the probe grace
+    // window along the way) — so notReadySince is still null here.
+    await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS - CHECK_INTERVAL_MS);
     expect(logger.error).not.toHaveBeenCalled();
 
     // Now drop out of Ready. The next tick both stamps the clock AND fires arm A.
@@ -358,7 +478,7 @@ describe('startGatewayWatchdog', () => {
     expect(logger.error).toHaveBeenCalledWith(
       {
         arm: 'silent-hang',
-        staleForMs: STALE_THRESHOLD_MS + CHECK_INTERVAL_MS,
+        staleForMs: ARM_A_WEDGE_AT_MS,
         notReadyForMs: 0,
         wsStatus: Status.Reconnecting,
         guildCount: 1,
@@ -392,7 +512,7 @@ describe('startGatewayWatchdog', () => {
         }
       );
 
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -402,7 +522,7 @@ describe('startGatewayWatchdog', () => {
       expect(body.content).toContain('production');
       // The alert must be self-sufficient for the two-clock diagnosis: both
       // clocks plus the socket status and guild count they are read against.
-      expect(body.content).toContain(`staleForMs=${STALE_THRESHOLD_MS + CHECK_INTERVAL_MS}`);
+      expect(body.content).toContain(`staleForMs=${ARM_A_WEDGE_AT_MS}`);
       expect(body.content).toContain('notReadyForMs=n/a');
       expect(body.content).toContain('wsStatus=Ready');
       expect(body.content).toContain('guilds=1');
@@ -466,7 +586,7 @@ describe('startGatewayWatchdog', () => {
         }
       );
 
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(exit).toHaveBeenCalledWith(1);
@@ -488,7 +608,7 @@ describe('startGatewayWatchdog', () => {
         }
       );
 
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
       expect(logger.warn).toHaveBeenCalledWith({ status: 404 }, expect.stringContaining('non-OK'));
       expect(exit).toHaveBeenCalledWith(1);
@@ -512,7 +632,7 @@ describe('startGatewayWatchdog', () => {
         }
       );
 
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
       expect(exit).toHaveBeenCalledWith(1);
     });
@@ -533,13 +653,13 @@ describe('startGatewayWatchdog', () => {
 
       expect(logger.info).toHaveBeenCalledWith({}, expect.stringContaining('unconfigured'));
 
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
       expect(fetchMock).not.toHaveBeenCalled();
       expect(logger.error).toHaveBeenCalledWith(
         {
           arm: 'silent-hang',
-          staleForMs: STALE_THRESHOLD_MS + CHECK_INTERVAL_MS,
+          staleForMs: ARM_A_WEDGE_AT_MS,
           notReadyForMs: null,
           wsStatus: Status.Ready,
           guildCount: 1,
@@ -570,7 +690,7 @@ describe('startGatewayWatchdog', () => {
       );
 
       // First deferring tick.
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const firstBody = JSON.parse(
         (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
@@ -617,7 +737,7 @@ describe('startGatewayWatchdog', () => {
       );
 
       // Episode 1: go quiet past the stale threshold.
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
       // Recover fully — BOTH signals healthy: a fresh raw event AND Ready.
@@ -627,7 +747,7 @@ describe('startGatewayWatchdog', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
       // Episode 2: a second, distinct wedge — go quiet again from here.
-      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS + CHECK_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
       const bodies = fetchMock.mock.calls.map(
