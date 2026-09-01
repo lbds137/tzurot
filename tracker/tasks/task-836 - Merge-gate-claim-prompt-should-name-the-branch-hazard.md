@@ -1,9 +1,10 @@
 ---
 id: TASK-836
 title: Merge-gate claim prompt should name the branch hazard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 01:00'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'

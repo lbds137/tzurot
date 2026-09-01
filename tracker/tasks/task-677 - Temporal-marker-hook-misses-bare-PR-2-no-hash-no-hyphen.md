@@ -1,9 +1,10 @@
 ---
 id: TASK-677
 title: 'Temporal-marker hook misses bare "PR 2" (no hash, no hyphen)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 04:20'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'
