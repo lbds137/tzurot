@@ -128,6 +128,12 @@ pattern_case catch 'Surfaced 2026-04-25 by claude-bot'
 pattern_case catch 'PR #985 final round review'
 pattern_case catch 'GH-1254 regression'
 pattern_case catch 'caught in round 3'
+# The BARE form, with neither a `#` nor a hyphen. Prose naturally spells a
+# rollout position this way ("lands in PR 3") because the number is a slice
+# index rather than a link, and that is the shape the rule most wants: a
+# position goes stale the moment the plan changes.
+pattern_case catch 'see PR 2288'
+pattern_case catch 'the PR 3 backfill'
 
 printf '\n--- TEMPORAL_PATTERN: must ignore ---\n'
 pattern_case ignore '#FF0000'
@@ -141,6 +147,17 @@ pattern_case ignore 'round-trips through the encoder'
 pattern_case ignore 'a rounded-corner review panel'
 # The decade scope exists so spec/RFC dates don't trip the hook.
 pattern_case ignore 'RFC 3339 (2002-07-15)'
+# The bare-`PR` alternative is word-bounded on BOTH sides, and each bound has
+# its own case here because only that case can catch it going missing.
+# Leading: without it, `-i` lets any word ending in those letters open the
+# match (measured — `expr 3` matched). Trailing: without it, the digit run
+# stops wherever it likes and a hex-ish token reads as a number (measured —
+# `PR 1a2b3c` matched on the leading `1`).
+# The plural is a non-match under EITHER bound (`PRs ` holds no `PR ` at all),
+# so it pins the alternative's literal space rather than a bound.
+pattern_case ignore 'PRs since 2026'
+pattern_case ignore 'expr 3 evaluates left to right'
+pattern_case ignore 'PR 1a2b3c is a color'
 
 # ===========================================================================
 # 2. COMMENT_PREFIX — the per-language split is load-bearing

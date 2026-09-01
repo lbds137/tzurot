@@ -432,6 +432,13 @@ describe('runBacklogLint', () => {
       if (path.endsWith('tracker/docs') || path.endsWith('tracker/tasks')) {
         return true;
       }
+      // The shared fs mock never modeled the config file, so every test here
+      // would surface a spurious "not found" from the config gate. A valid
+      // config is the default fixture; the gate's own behaviour is covered in
+      // backlogConfigGate.test.ts, not through this suite.
+      if (path.endsWith('backlog.config.yml')) {
+        return true;
+      }
       if (Object.keys(backlogTree).some(d => path.endsWith(d))) {
         return true;
       }
@@ -448,7 +455,18 @@ describe('runBacklogLint', () => {
         return doc[1];
       }
       const hit = Object.entries(files).find(([suffix]) => path.endsWith(suffix));
-      return hit ? hit[1] : '';
+      if (hit) {
+        return hit[1];
+      }
+      if (path.endsWith('backlog.config.yml')) {
+        return (
+          'filesystem_only: false\n' +
+          'check_active_branches: true\n' +
+          'remote_operations: true\n' +
+          'auto_commit: false\n'
+        );
+      }
+      return '';
     });
     vi.mocked(readdirSync).mockImplementation(((p: unknown, options?: unknown) => {
       const path = String(p);

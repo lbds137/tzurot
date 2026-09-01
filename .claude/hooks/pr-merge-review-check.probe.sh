@@ -518,6 +518,61 @@ assert_pr "an empty argument does not end the PR-number scan" 2002
 # this pins the behaviour rather than fixing anything.
 new_case; invoke 'gh pr merge 1; gh pr merge 2002'
 assert_pr "semicolon-chained real invocations: the FIRST one arms the gate" 1
+assert_stderr_has "…and the SECOND one is why the compound is refused" 'ONE MERGE PER COMMAND'
+
+# ===========================================================================
+# 2c. Compound merges — arming on the first is correct and not sufficient
+#
+# Observed in production: `gh pr merge A && gh pr merge B` armed the gate on A
+# and B merged with no ack cycle of its own. The gate is attention-independent
+# by design, so a shape that silently halves its coverage is a hole.
+#
+# The refusal is deliberately NOT ackable — a retry of the same command would
+# reproduce the same hole — so the only way past it is one merge per command.
+# It counts only invocations the PRECISE command-position scan resolved, for
+# the same reason the delete-branch guard does: the fallback paths exist to
+# over-arm, and hanging a non-ackable refusal off an over-arm has no way out.
+#
+# Upstream gates held inert: base `develop` (no release reminder), no
+# `--delete-branch` (no worktree guard), and a review present (so the gate
+# reaches the injection path at all).
+# ===========================================================================
+printf '\n--- compound merges ---\n'
+
+SHIM_PR_BASE='develop'
+SHIM_REVIEW_JSON="$LGTM"
+
+new_case; invoke 'gh pr merge 2197 && gh pr merge 2198'
+assert_exit "two real merges in one command: refused" 2
+assert_stderr_has "…with the one-merge-per-command banner" 'ONE MERGE PER COMMAND'
+assert_stderr_has "…naming the first PR" '2197'
+assert_stderr_has "…and the second" '2198'
+assert_pr "…and the gate still resolved the first as the armed one" 2197
+assert_ack_lacks "…and nothing is acked, so the same command refuses again" '2197:777'
+
+# The discriminator. A decoy is not a second invocation, and counting it would
+# reintroduce the over-arm the extraction was rewritten to remove — against a
+# refusal that cannot be acked past.
+new_case; invoke 'echo gh pr merge 1 && gh pr merge 2002'
+assert_stderr_lacks "a decoy alongside one real merge is not a compound" 'ONE MERGE PER COMMAND'
+assert_pr "…and the real PR is still the armed one" 2002
+
+new_case; invoke 'gh pr merge 2002 --rebase'
+assert_stderr_lacks "a single merge does not trip the compound refusal" 'ONE MERGE PER COMMAND'
+assert_pr "…and gates normally" 2002
+
+# A merge wrapped in a shell string is a real invocation too, so a wrapped one
+# beside a plain one is a compound. Without this the refusal is bypassable by
+# spelling one half `bash -c`.
+new_case; invoke 'bash -c "gh pr merge 2001" && gh pr merge 2002'
+assert_stderr_has "a wrapped merge beside a plain one is a compound" 'ONE MERGE PER COMMAND'
+
+# Both merges inside ONE nested shell string — the count has to survive the
+# recursion, not just the top level.
+new_case; invoke 'bash -c "gh pr merge 2001 && gh pr merge 2002"'
+assert_stderr_has "two merges inside one -c string are still a compound" 'ONE MERGE PER COMMAND'
+
+SHIM_REVIEW_JSON=''
 
 new_case; invoke 'gh pr merge 2002;'
 assert_pr "a trailing semicolon does not glue to the PR number" 2002
@@ -952,11 +1007,22 @@ assert_stderr_has "…and the review is still injected" 'LGTM. No actionable fin
 assert_stderr_has "claim scan fires" 'CLAIM-SHAPED ADDED COMMENTS'
 assert_stderr_has "…and quotes the matched line" 'this value always comes from the catalog'
 assert_stderr_has "…and says what to do about it" 'hedge it'
+# The verification instruction fires at the one moment the code it names is
+# most likely to be on a branch the shell is not standing on, so it has to name
+# the ref. The shim's headRefName is `feat/example`, so the concrete form is
+# assertable — an abstract "use the PR's ref" would pass a substring check
+# without ever having resolved anything.
+assert_stderr_has "…and names the branch hazard" 'not the working tree'
+assert_stderr_has "…with the PR's own head ref, resolved" 'origin/feat/example'
 
 new_case; SHIM_PR_DIFF="$DIFF_CLEAN"
 invoke 'gh pr merge 2002 --rebase'
 assert_exit "no claim-shaped comment: still blocks to surface the review" 2
 assert_stderr_lacks "neutral diff: no claim paragraph" 'CLAIM-SHAPED'
+# The branch-hazard line rides the claim paragraph and must not print on its
+# own — otherwise every merge carries an instruction with nothing to apply it
+# to, and the assertion above would pass on a hook that printed it always.
+assert_stderr_lacks "neutral diff: no branch-hazard line either" 'not the working tree'
 
 new_case; SHIM_PR_DIFF="$DIFF_SUBSTRING"
 invoke 'gh pr merge 2002 --rebase'

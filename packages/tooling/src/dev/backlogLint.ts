@@ -51,6 +51,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import chalk from 'chalk';
+import { checkBacklogConfig } from './backlogConfigGate.js';
 import { parseLinkDestinations } from './markdownLinks.js';
 import { checkUncommittedTrackerFiles, readTrackerGitStatus } from './trackerGitStatus.js';
 import {
@@ -681,6 +682,7 @@ export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   // bypassed — two local files sharing an id is unambiguous, never a rename.
   const bypassOriginCollision = process.env[ALLOW_ORIGIN_ID_COLLISION_ENV] === '1';
   const problems = [
+    ...checkBacklogConfig(rootDir),
     ...checkNowCaps(rootDir),
     ...checkQueueDocRefs(rootDir),
     ...checkDocIdRefs(rootDir),

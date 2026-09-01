@@ -442,3 +442,80 @@ describe('shell_quotes.substitution_spans_matching (composition used by both gua
     expect(spansMatchGitCommit([cmd])[0]).toBe(true);
   });
 });
+
+/**
+ * `executed_segments` answers a question `strip_quoted` structurally cannot:
+ * a wrapper (`bash -c`, `sh -c`, `zsh -c`, `eval`) EXECUTES its string
+ * argument, so stripping that argument to a placeholder erases a real command,
+ * while stripping `echo`'s argument correctly makes inert text inert. Element 0
+ * is always the plain strip; the rest are the unwrapped arguments.
+ */
+function segments(inputs: readonly string[]): string[][] {
+  return evalAll<string[]>('executed_segments', inputs);
+}
+
+describe('shell_quotes.executed_segments', () => {
+  it('returns the quote-stripped command as the first segment', () => {
+    expect(segments(['git status'])[0]).toEqual(['git status']);
+    expect(segments(['echo "hello"'])[0]).toEqual(['echo S']);
+  });
+
+  it.each([
+    ['bash -c', 'bash -c "pnpm tracker task create x"'],
+    ['sh -c', "sh -c 'pnpm tracker task create x'"],
+    ['zsh -c', 'zsh -c "pnpm tracker task create x"'],
+    ['eval', 'eval "pnpm tracker task create x"'],
+  ])('unwraps the argument %s executes', (_label, cmd) => {
+    expect(segments([cmd])[0]).toContain('pnpm tracker task create x');
+  });
+
+  it('leaves a non-wrapper argument stripped — echo does not execute its argument', () => {
+    // The discriminating pair: identical characters, opposite answers. Without
+    // it, a function that simply unwrapped EVERY quoted span would pass every
+    // case above while destroying the property the strip exists for.
+    expect(segments(['echo "pnpm tracker task create x"'])[0]).toEqual(['echo S']);
+  });
+
+  it('recognizes a wrapper only at command position', () => {
+    // `bash` here is a word being printed, not a shell being run.
+    expect(segments(['echo bash -c "pnpm tracker task create x"'])[0]).toEqual(['echo bash -c S']);
+  });
+
+  it('recognizes a wrapper after a separator', () => {
+    expect(segments(['ls && bash -c "inner cmd"'])[0]).toContain('inner cmd');
+  });
+
+  it('tolerates a path-qualified wrapper and a short-option cluster', () => {
+    expect(segments(['/bin/sh -lc "inner cmd"'])[0]).toContain('inner cmd');
+  });
+
+  it('resolves escaped quotes so a nested wrapper unwraps to a real command', () => {
+    // The inner argument's `\"` are literal quotes to bash, so the nested
+    // command must come back unescaped rather than carrying backslashes.
+    expect(segments(['bash -c "bash -c \\"inner cmd\\""'])[0]).toEqual([
+      'bash -c S',
+      'bash -c S',
+      'inner cmd',
+    ]);
+  });
+
+  it('stops recursing at the depth cap instead of running away', () => {
+    // Five wrappers deep; the cap admits three levels of unwrapping, so the
+    // deepest payload is never reached and the result stays bounded.
+    let cmd = 'deepest cmd';
+    for (let i = 0; i < 5; i++) cmd = `bash -c ${JSON.stringify(cmd)}`;
+    const result = segments([cmd])[0];
+    expect(result).toHaveLength(4);
+    expect(result.join('\n')).not.toContain('deepest cmd');
+  });
+
+  it('falls back to the raw text when a quote is unterminated', () => {
+    // strip_quoted returns None there; keeping the raw text over-arms a scanning
+    // caller, which is the recoverable direction for every consumer.
+    expect(segments(['bash -c "unterminated'])[0]).toEqual(['bash -c "unterminated']);
+  });
+
+  it('yields no wrapper segment when -c has no following word', () => {
+    expect(segments(['bash -c'])[0]).toEqual(['bash -c']);
+  });
+});

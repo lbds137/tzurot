@@ -55,10 +55,19 @@ CONSUMERS
 ---------
     .claude/hooks/lossy-pipe-guard.sh
     .claude/hooks/develop-code-commit-guard.sh
-    .claude/hooks/cwd-drift-guard.sh   (strip_quoted only — it blocks too, but
-                                        for the lower-stakes drift-warning case,
-                                        so it keeps the substitution-blind
-                                        behaviour)
+    .claude/hooks/cwd-drift-guard.sh   (strip_quoted for its drift checks, plus
+                                        executed_segments for its tracker-write
+                                        refusal — it stays substitution-blind
+                                        either way, that being the lower-stakes
+                                        drift-warning case)
+
+A THIRD THING strip_quoted DOES NOT SEE, distinct from the substitution case
+above: a WRAPPER's string argument. `bash -c "…"`, `sh -c "…"` and `eval "…"`
+hand their argument to a shell as a command, so the strip that correctly makes
+`echo "…"` inert erases a real invocation. `executed_segments` is the answer,
+and it is a separate function rather than a change to strip_quoted because the
+distinction is not about quoting at all — it is about which COMMANDS execute
+their arguments.
 
 Behaviour is pinned by packages/tooling/src/dev/shellQuotes.test.ts, which runs
 this module directly, plus each consumer's own .probe.sh.
@@ -75,73 +84,130 @@ and in `pnpm quality`.
 import re
 
 
-def strip_quoted(text):
-    """Replace each quoted span with `S`. Returns None if a quote is unclosed."""
-    out = []
+def _scan_events(text):
+    """Walk `text` once with bash's quote state machine, yielding one event per
+    unit of syntax. Every quote-aware reader in this module is built on this, so
+    the state machine the module docstring argues for exists exactly once.
+
+    Events, as `(kind, payload)`:
+
+        ("char", c)          an ordinary character outside quotes
+        ("escape", c)        a backslash-escaped character outside quotes;
+                             payload is the character bash would produce
+        ("continuation", "") a backslash-newline outside quotes, which bash
+                             deletes entirely rather than making literal
+        ("quoted", value)    a COMPLETE quoted span, emitted at the closing
+                             quote; payload is the span's VALUE — delimiters
+                             removed and escapes resolved as bash resolves them
+                             for that quote type
+        ("unterminated", "") the text ended with a quote still open; always the
+                             last event when it appears
+
+    A quoted span's inner characters produce no events of their own — a reader
+    that wants them reads the `quoted` payload. `strip_quoted` discards that
+    payload (a span is a placeholder to it); the readers that run a span's
+    contents as a command need the value, which is why it is resolved here
+    rather than left raw.
+
+    Inside SINGLE quotes nothing escapes and the value is verbatim. Inside
+    DOUBLE quotes a backslash is literal EXCEPT before `$`, a backtick, `"` or
+    `\\` (where it is removed and the character kept, so `"a\\"b"` stays one
+    span) and before a newline (where both are removed). That is bash's rule,
+    argued from its documented quoting behaviour rather than a runtime repro.
+    """
     quote = None
+    span = []
     i = 0
     while i < len(text):
         ch = text[i]
         if quote is None:
             if ch == "\\" and i + 1 < len(text):
-                # Outside quotes bash lets a backslash escape ANY character, and
-                # the escaped character keeps its own value — `t\ail` runs tail.
-                # Collapsing every escape to a placeholder therefore HID command
-                # names from the scan: measured, a commit piped into that
-                # spelling of tail exited 0 while bash ran it as tail exactly as
-                # written. Emit the real character instead; only an escaped
-                # QUOTE needs a placeholder, so it cannot open a span.
                 nxt = text[i + 1]
-                if nxt == "\n":
-                    # A LINE CONTINUATION, which is not an escape at all: bash
-                    # removes the backslash AND the newline and splices the two
-                    # lines with nothing between them. Emitting a placeholder
-                    # here fabricated a non-whitespace token between two words
-                    # bash runs adjacently, and every target regex requires
-                    # `\s+` adjacency — measured, `git \<newline>  commit -m x`
-                    # stripped to `git Q  commit` and detection returned False,
-                    # so a perfectly ordinary multi-line commit slipped the
-                    # blocking guard. Dropping both characters reproduces the
-                    # splice exactly, including the case that must NOT match:
-                    # `git\<newline>commit` splices to `gitcommit`, one token.
-                    i += 2
-                    continue
-                # Re-emit the escaped character — EXCEPT the ones that are
-                # syntax to the splitters in the calling hooks. An escaped `|`
-                # is a literal pipe character in an argument, not a pipeline
-                # operator, but once the backslash is gone `segment.split("|")`
-                # cannot tell the difference: measured, `git commit -m x\|tail`
-                # blocked as though the commit were piped into tail, when bash
-                # runs no pipeline at all. Same reasoning for the chain
-                # separators. A placeholder keeps the character from acting as
-                # syntax while preserving the token boundary.
-                #
-                # No `\n` in that set: the branch above consumes every
-                # backslash-newline, so it could never reach here — and a
-                # placeholder would be wrong for it anyway. bash DELETES that
-                # pair rather than making it literal, which is exactly the
-                # distinction the two branches encode.
-                out.append("Q" if nxt in "\"'|&;" else nxt)
+                yield ("continuation", "") if nxt == "\n" else ("escape", nxt)
                 i += 2
                 continue
             if ch in "\"'":
                 quote = ch
-                out.append("S")
+                span = []
             else:
-                out.append(ch)
+                yield ("char", ch)
         elif quote == '"':
             if ch == "\\" and i + 1 < len(text):
+                nxt = text[i + 1]
+                if nxt == "\n":
+                    pass
+                elif nxt in '$`"\\':
+                    span.append(nxt)
+                else:
+                    span.append(ch)
+                    span.append(nxt)
                 i += 2
                 continue
             if ch == quote:
+                yield ("quoted", "".join(span))
                 quote = None
+            else:
+                span.append(ch)
         else:
             # Inside single quotes there are no escapes; only the closing
             # quote ends the span.
             if ch == quote:
+                yield ("quoted", "".join(span))
                 quote = None
+            else:
+                span.append(ch)
         i += 1
-    return None if quote is not None else "".join(out)
+    if quote is not None:
+        yield ("unterminated", "")
+
+
+def strip_quoted(text):
+    """Replace each quoted span with `S`. Returns None if a quote is unclosed."""
+    out = []
+    for kind, payload in _scan_events(text):
+        if kind == "char":
+            out.append(payload)
+        elif kind == "quoted":
+            # Emitted at the closing quote rather than the opening one. The
+            # span's own characters produce no output either way, so the
+            # placeholder lands in the same position in the result.
+            out.append("S")
+        elif kind == "escape":
+            # Outside quotes bash lets a backslash escape ANY character, and
+            # the escaped character keeps its own value — `t\ail` runs tail.
+            # Collapsing every escape to a placeholder therefore HID command
+            # names from the scan: measured, a commit piped into that
+            # spelling of tail exited 0 while bash ran it as tail exactly as
+            # written. Emit the real character instead — EXCEPT the ones that
+            # are syntax to the splitters in the calling hooks. An escaped `|`
+            # is a literal pipe character in an argument, not a pipeline
+            # operator, but once the backslash is gone `segment.split("|")`
+            # cannot tell the difference: measured, `git commit -m x\|tail`
+            # blocked as though the commit were piped into tail, when bash
+            # runs no pipeline at all. Same reasoning for the chain separators
+            # and for a quote, which must not be able to open a span. A
+            # placeholder keeps the character from acting as syntax while
+            # preserving the token boundary.
+            #
+            # No `\n` in that set: a backslash-newline arrives as its own
+            # `continuation` event and never reaches here — and a placeholder
+            # would be wrong for it anyway. bash DELETES that pair rather than
+            # making it literal, which is exactly the distinction the two
+            # events encode.
+            out.append("Q" if payload in "\"'|&;" else payload)
+        elif kind == "unterminated":
+            return None
+        # A `continuation` contributes nothing: bash removes the backslash AND
+        # the newline and splices the two lines with nothing between them.
+        # Emitting a placeholder here fabricated a non-whitespace token between
+        # two words bash runs adjacently, and every target regex requires `\s+`
+        # adjacency — measured, `git \<newline>  commit -m x` stripped to
+        # `git Q  commit` and detection returned False, so a perfectly ordinary
+        # multi-line commit slipped the blocking guard. Dropping both
+        # characters reproduces the splice exactly, including the case that
+        # must NOT match: `git\<newline>commit` splices to `gitcommit`, one
+        # token.
+    return "".join(out)
 
 
 def substitution_spans(text):
@@ -341,3 +407,182 @@ def substitution_spans_matching(raw_text, predicate):
         if predicate(scanned if scanned is not None else span):
             return True
     return False
+
+
+# A wrapper is a command whose STRING ARGUMENT bash then executes as a command
+# in its own right. `eval` takes it directly; the shells take it after `-c`.
+_WRAPPER_SHELLS = ("bash", "sh", "zsh")
+
+# `-c` as bash accepts it, including a short-option cluster ending in it
+# (`bash -lc "…"`, `sh -ec "…"`). Matching the cluster over-arms — a flag
+# spelled `-abc` that is not really `-c` would still have its next word
+# scanned — which only ever ADDS text to scan.
+_DASH_C = re.compile(r"^-[A-Za-z]*c$")
+
+# Characters that end a word AND a command, so the next word is at command
+# position. `(` is included because `(cmd)` and `$(cmd)` both start one.
+_WORD_SEPARATORS = ";&|\n()"
+
+# Recursion bound for wrappers nested inside wrappers, matching the intent of
+# `extract`'s cap in pr-merge-review-check.sh: a fixed ceiling so a pathological
+# input cannot recurse without end. Depth 0 is the command itself, so three
+# levels of wrapper get unwrapped and a fourth is left as the placeholder text
+# `strip_quoted` produced for it — an under-arm at a nesting depth no habitual
+# command shape reaches.
+_MAX_WRAPPER_DEPTH = 3
+
+
+def _words(text):
+    """Split `text` into bash words, with `None` marking a command separator.
+
+    Each word is its VALUE as bash would compute it — quotes removed, escapes
+    resolved, adjacent pieces concatenated — because that value is what bash
+    runs and what a wrapper hands to a new shell. `"pnpm tracker task create"`
+    and `pnpm\\ tracker\\ task\\ create` are the same word here, as they are to
+    bash.
+
+    Deliberately NOT a general tokenizer: it knows quoting (via the shared
+    scanner) and unquoted whitespace and separators, and nothing else.
+    Redirections, assignments, and expansions are left as ordinary words —
+    `_wrapped_command_strings` only needs to recognize a command name, a flag,
+    and the word after it.
+
+    An unterminated quote ends the scan where it opens, so the trailing text is
+    dropped. That is the same direction `strip_quoted` takes on unbalanced
+    quotes, and the caller keeps the whole quote-stripped command as its first
+    segment regardless, so nothing a balanced command contains can be hidden.
+    """
+    words = []
+    value = []
+    started = False
+
+    def flush():
+        if started:
+            words.append("".join(value))
+
+    for kind, payload in _scan_events(text):
+        if kind == "quoted" or kind == "escape":
+            # A quoted span starts a word even when empty: `cmd ""` passes one
+            # empty argument, and dropping it would shift the `-c` lookahead.
+            if not started:
+                started = True
+                value = []
+            value.append(payload)
+        elif kind == "char":
+            if payload in " \t":
+                flush()
+                started = False
+                value = []
+            elif payload in _WORD_SEPARATORS:
+                flush()
+                started = False
+                value = []
+                words.append(None)
+            else:
+                if not started:
+                    started = True
+                    value = []
+                value.append(payload)
+        elif kind == "unterminated":
+            break
+        # A `continuation` splices the lines with nothing between them, so it
+        # neither ends the current word nor contributes to it.
+    flush()
+    return words
+
+
+def _wrapped_command_strings(text):
+    """Return the argument of every wrapper invocation in `text`, unquoted.
+
+    A wrapper is recognized only at COMMAND POSITION — the start of `text` or
+    just after a separator — so `echo bash -c "…"` yields nothing: that `bash`
+    is an argument being printed, not a shell being run. A leading path is
+    tolerated (`/bin/sh -c "…"`), because it is the same program.
+
+    `eval` concatenates its arguments with spaces and executes the result;
+    each argument is returned separately instead. For the single-argument form
+    that is exact, and for the multi-argument form it under-arms only a target
+    split ACROSS argument boundaries — deliberate construction, outside the
+    habitual-shapes threat model this module's consumers state.
+    """
+    words = _words(text)
+    found = []
+    at_command_position = True
+    i = 0
+    while i < len(words):
+        word = words[i]
+        if word is None:
+            at_command_position = True
+            i += 1
+            continue
+        if at_command_position:
+            name = word.rsplit("/", 1)[-1]
+            if name == "eval":
+                i += 1
+                while i < len(words) and words[i] is not None:
+                    found.append(words[i])
+                    i += 1
+                continue
+            if name in _WRAPPER_SHELLS:
+                j = i + 1
+                while j < len(words) and words[j] is not None:
+                    if _DASH_C.match(words[j]):
+                        if j + 1 < len(words) and words[j + 1] is not None:
+                            found.append(words[j + 1])
+                        break
+                    j += 1
+        at_command_position = False
+        i += 1
+    return found
+
+
+def executed_segments(text):
+    """Return every command text bash would EXECUTE from `text`, scan-ready.
+
+    The first element is always `text` with its quoted spans stripped — what a
+    structural scan has always read. Each further element is the argument of a
+    wrapper invocation (`bash -c`, `sh -c`, `zsh -c`, `eval`), itself stripped
+    the same way, recursively.
+
+    WHY A SCAN NEEDS MORE THAN strip_quoted
+    ---------------------------------------
+    Stripping quoted spans is what makes `echo "pnpm tracker task create x"`
+    inert: the argument is data the command prints, and letting its CONTENT
+    decide a structural question is the bug this whole module exists for. But
+    the same strip erases `bash -c "pnpm tracker task create x"`, where the
+    identical characters are a command bash runs. The strip cannot tell those
+    apart on its own — only knowing which commands EXECUTE a string argument
+    can, which is what `_wrapped_command_strings` supplies.
+
+    A caller scans every returned segment, so a target anywhere in the chain is
+    seen. `echo` is not a wrapper, so its argument stays a placeholder and the
+    inert case above stays inert.
+
+    WHAT THIS DOES NOT SEE
+    ----------------------
+    A wrapper whose argument is built rather than written — `bash -c "$CMD"`,
+    `eval "$(…)"` — yields the placeholder or the substitution text, not the
+    command that eventually runs. Nothing textual can resolve that; the
+    consumers' threat model is habitual command shapes, and `substitution_spans`
+    covers the substitution half for the callers that want it.
+
+    Recursion stops at `_MAX_WRAPPER_DEPTH`; see that constant.
+
+    Pinned by the wrapper cases in packages/tooling/src/dev/shellQuotes.test.ts
+    and by the wrapped-tracker-mutation fixtures in
+    .claude/hooks/cwd-drift-guard.probe.sh.
+    """
+    return _executed_segments(text, 0)
+
+
+def _executed_segments(text, depth):
+    scanned = strip_quoted(text)
+    # An unterminated quote strips NOTHING, so fall back to the raw text: for
+    # every consumer that is the over-arming direction, the same one
+    # `substitution_spans_matching` takes for a broken span.
+    segments = [text if scanned is None else scanned]
+    if depth >= _MAX_WRAPPER_DEPTH:
+        return segments
+    for inner in _wrapped_command_strings(text):
+        segments.extend(_executed_segments(inner, depth + 1))
+    return segments

@@ -7,11 +7,11 @@ max_column_width: 20
 default_editor: 'vim'
 auto_open_browser: false
 default_port: 6420
-remote_operations: false
+remote_operations: true
 auto_commit: false
-filesystem_only: true
+filesystem_only: false
 bypass_git_hooks: false
-check_active_branches: false
+check_active_branches: true
 active_branch_days: 30
 task_prefix: 'task'
 backlog_directory: 'tracker'
