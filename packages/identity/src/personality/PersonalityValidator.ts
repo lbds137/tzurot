@@ -33,7 +33,9 @@ function coerceToNumber(val: unknown): number | undefined {
   if (val === null || val === undefined) {
     return undefined;
   }
-  // Unexpected type - log and return undefined to trigger Zod validation error
+  // Unexpected type - log it and return undefined; every numeric field is
+  // .optional(), so the parse succeeds with the field absent rather than
+  // producing a validation error. Pinned by the "temperature: 'abc'" test.
   logger.warn({ val, type: typeof val }, 'Unexpected value type in coerceToNumber');
   return undefined;
 }

@@ -106,9 +106,19 @@ export class TTLCache<T extends NonNullable<unknown>> {
   /**
    * Invalidate every entry whose key starts with the given prefix.
    *
-   * Used by config-style resolvers that key their cache as `${userId}-${...}`
-   * — passing `${userId}-` invalidates all of one user's entries when their
-   * config or keys change. Returns the number of entries removed.
+   * Used by config-style resolvers that key their cache as
+   * `${userId}<sep>${...}` to invalidate all of one user's entries when their
+   * config or keys change. The separator is each caller's own choice — `:`,
+   * `|` and `-` are all in use — so this comment does not name one.
+   *
+   * The caller MUST include its separator in the prefix it passes: matching is
+   * a plain `startsWith`, so a bare `${userId}` prefix would also wipe user
+   * `123` when invalidating user `12`. That collision is pinned at a call site
+   * by identity's BaseConfigResolver test 'invalidating user "12" does not
+   * clear user "123"s cache entry, and does clear "12"s' — this file's own
+   * 'should remove all entries whose key starts with the given prefix' covers
+   * the startsWith semantics but uses no colliding pair.
+   * Returns the number of entries removed.
    *
    * Snapshots `keys()` to a plain array BEFORE deleting — `lru-cache`'s
    * generator iterator can compact its backing key list mid-iteration,
