@@ -47,6 +47,7 @@ export default {
   // multiplicative (each runner is a full vitest process) and the Steam Deck
   // dev machine OOMs under default all-cores concurrency. CI runners have
   // more headroom — the workflow raises this via STRYKER_CONCURRENCY.
-  concurrency: process.env.STRYKER_CONCURRENCY !== undefined ? Number(process.env.STRYKER_CONCURRENCY) : 2,
+  concurrency:
+    process.env.STRYKER_CONCURRENCY !== undefined ? Number(process.env.STRYKER_CONCURRENCY) : 2,
   tempDirName: '.stryker-tmp',
 };
