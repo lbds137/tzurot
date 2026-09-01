@@ -52,7 +52,7 @@ describe('registerProcessLifecycle', () => {
       onUnhandledRejection?: (reason: unknown) => void;
     } = {}
   ): {
-    shutdown: () => Promise<void>;
+    shutdown: (trigger?: string, successExitCode?: number) => Promise<void>;
     handlers: Map<string, (arg?: unknown) => void>;
     dispose: ReturnType<typeof vi.fn>;
   } {
@@ -99,6 +99,50 @@ describe('registerProcessLifecycle', () => {
 
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('exits with the caller-provided success code on a clean shutdown', async () => {
+    const { shutdown, dispose } = register();
+
+    await expect(shutdown('gateway-watchdog-selfheal', 1)).rejects.toThrow('process.exit(1)');
+
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(exitSpy).not.toHaveBeenCalledWith(0);
+  });
+
+  it('still exits 1 when dispose fails, even with a success code supplied', async () => {
+    const { shutdown } = register({
+      dispose: () => Promise.reject(new Error('redis already closed')),
+    });
+
+    await expect(shutdown('gateway-watchdog-selfheal', 3)).rejects.toThrow('process.exit(1)');
+
+    expect(exitSpy).not.toHaveBeenCalledWith(3);
+  });
+
+  it('lets the FIRST caller own the exit code — a suppressed re-entry cannot change it', async () => {
+    // The race this parametrized code exists to close: a self-heal shutdown in
+    // flight when a SIGTERM arrives must still exit non-zero, so the platform
+    // restarts rather than treating the stop as a clean success.
+    let resolveDispose = (): void => {};
+    const { shutdown, dispose } = register({
+      dispose: () =>
+        new Promise<void>(resolve => {
+          resolveDispose = resolve;
+        }),
+    });
+
+    const first = shutdown('gateway-watchdog-selfheal', 1);
+    const second = shutdown('SIGTERM'); // guard hits — must not queue an exit(0)
+
+    await expect(second).resolves.toBeUndefined();
+    expect(dispose).toHaveBeenCalledTimes(1);
+
+    resolveDispose();
+    await expect(first).rejects.toThrow('process.exit(1)');
+    expect(exitSpy).toHaveBeenCalledTimes(1);
+    expect(exitSpy).not.toHaveBeenCalledWith(0);
   });
 
   it('exits 1 (not rethrow, not hang) when a dispose step fails', async () => {

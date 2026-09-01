@@ -70,10 +70,12 @@ const DEFAULT_HARD_EXIT_MS = 10_000;
  * guarded, terminal-by-construction shutdown semantics.
  *
  * Returns the wrapped shutdown so services can also trigger it directly
- * (e.g. from a fatal startup check).
+ * (e.g. from a fatal startup check, or a watchdog self-heal). Routing every
+ * caller through this one shutdown is what makes the re-entry guard total:
+ * a second dispose path with its own guard cannot see this one.
  */
 export function registerProcessLifecycle(options: ProcessLifecycleOptions): {
-  shutdown: () => Promise<void>;
+  shutdown: (trigger?: string, successExitCode?: number) => Promise<void>;
 } {
   const { logger, dispose, rejectionPolicy, onUnhandledRejection } = options;
   const hardExitMs = options.hardExitMs ?? DEFAULT_HARD_EXIT_MS;
@@ -83,7 +85,11 @@ export function registerProcessLifecycle(options: ProcessLifecycleOptions): {
   // unhandledRejection handler — returns immediately instead of recursing.
   let shuttingDown = false;
 
-  const shutdown = async (trigger?: string): Promise<void> => {
+  // successExitCode overrides the CLEAN-dispose exit code only. A self-heal
+  // caller passes non-zero because a platform restart-on-failure policy does
+  // not fire on a 0 exit; the failure paths below stay at 1 regardless, and
+  // omitting it exits 0. Pinned by processLifecycle.test.ts.
+  const shutdown = async (trigger?: string, successExitCode?: number): Promise<void> => {
     if (shuttingDown) {
       // Suppressed re-entry is itself a diagnostic: a double-SIGTERM, or a
       // rejection thrown during dispose re-entering via the rejection handler.
@@ -115,7 +121,7 @@ export function registerProcessLifecycle(options: ProcessLifecycleOptions): {
     }
     clearTimeout(hardExit);
     logger.info('Shutdown complete');
-    process.exit(0);
+    process.exit(successExitCode ?? 0);
   };
 
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
