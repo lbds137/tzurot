@@ -3,9 +3,10 @@ id: TASK-854
 title: >-
   Watchdog Arm A false-positives on quiet guilds - dev restart-looping every
   32min
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 17:20'
+updated_date: '2026-09-01 18:10'
 labels:
   - 'area:bot-client'
   - 'size:M'
