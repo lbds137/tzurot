@@ -62,7 +62,10 @@ import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
 import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.js';
-import { buildWatchdogExit } from './services/buildWatchdogExit.js';
+import {
+  buildWatchdogSelfHealExit,
+  type LifecycleShutdown,
+} from './services/watchdogSelfHealExit.js';
 import { startGatewayWatchdog } from './services/GatewayWatchdog.js';
 
 // Processors
@@ -643,15 +646,20 @@ client.on(Events.Error, error => {
 
 // Gateway shard lifecycle — without these, a dead websocket looks like a healthy, silent process.
 registerShardLifecycleLogging(client, logger);
+// Filled in from registerProcessLifecycle's return below. A holder rather than
+// a direct reference because the watchdog is wired here, earlier in this module
+// than the lifecycle is registered, so the self-heal exit reads the shutdown
+// when it fires instead of receiving it at wiring time.
+const lifecycle: { shutdown?: LifecycleShutdown } = {};
 // Liveness watchdog: catches a wedged gateway the platform has no healthcheck for.
-// exit disposes the bot client before exiting with the watchdog's non-zero
-// code — non-zero because the platform restarts only on failure, unlike
-// graceful shutdown's own success path, which exits 0. Pinned by
-// buildWatchdogExit.test.ts.
+// exit routes through the ONE shutdown path so a self-heal and a concurrent
+// SIGTERM cannot each run dispose with a guard blind to the other; the
+// watchdog's non-zero code rides along because the platform restarts only on
+// failure, unlike graceful shutdown's own success path, which exits 0.
 const gatewayWatchdog = startGatewayWatchdog(client, logger, {
   alertWebhookUrl: envConfig.WATCHDOG_ALERT_WEBHOOK_URL,
   environment: envConfig.NODE_ENV,
-  exit: buildWatchdogExit(disposeBotClient, { logger }),
+  exit: buildWatchdogSelfHealExit({ logger, getShutdown: () => lifecycle.shutdown }),
 });
 
 // unhandledRejection handling is registered by registerProcessLifecycle below
@@ -745,7 +753,7 @@ async function disposeBotClient(): Promise<void> {
 // process may run degraded rather than restart. Signals/exceptions still get
 // the guarded, terminal shutdown (the helper replaces the old local
 // `shutdownInitiated` guard and adds the hard-exit backstop).
-registerProcessLifecycle({
+lifecycle.shutdown = registerProcessLifecycle({
   logger,
   dispose: disposeBotClient,
   rejectionPolicy: 'log-and-live',
@@ -756,7 +764,7 @@ registerProcessLifecycle({
       error: reason,
     });
   },
-});
+}).shutdown;
 
 /**
  * Start listening for job results and handle delivery to Discord
