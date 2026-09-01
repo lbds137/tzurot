@@ -62,6 +62,7 @@ import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
 import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.js';
+import { startGatewayWatchdog } from './services/GatewayWatchdog.js';
 
 // Processors
 import {
@@ -641,6 +642,8 @@ client.on(Events.Error, error => {
 
 // Gateway shard lifecycle — without these, a dead websocket looks like a healthy, silent process.
 registerShardLifecycleLogging(client, logger);
+// Liveness watchdog: catches a wedged gateway the platform has no healthcheck for.
+const gatewayWatchdog = startGatewayWatchdog(client, logger);
 
 // unhandledRejection handling is registered by registerProcessLifecycle below
 // (rejectionPolicy: 'log-and-live').
@@ -682,6 +685,7 @@ async function disposeBotClient(): Promise<void> {
     services.responseOrderingService.stopCleanup();
     services.webhookManager.destroy();
     stopNotificationCacheCleanup();
+    gatewayWatchdog.stop();
     stopVerificationCleanupScheduler();
     stopSecretRotationNagScheduler();
     stopReleaseFlagNagScheduler();
