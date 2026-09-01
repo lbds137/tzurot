@@ -3,9 +3,10 @@ id: TASK-846
 title: >-
   A caller that registers via the already-subscribed early return goes
   permanently silent if the connecting subscribe fails
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 21:07'
+updated_date: '2026-09-01 22:14'
 labels:
   - 'area:cache-invalidation'
   - 'size:M'

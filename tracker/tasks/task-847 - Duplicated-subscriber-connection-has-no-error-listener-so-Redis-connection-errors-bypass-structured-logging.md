@@ -3,9 +3,10 @@ id: TASK-847
 title: >-
   Duplicated subscriber connection has no error listener, so Redis connection
   errors bypass structured logging
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 21:24'
+updated_date: '2026-09-01 22:14'
 labels:
   - 'area:cache-invalidation'
   - 'size:S'
