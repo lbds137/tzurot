@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { replacePlaceholders, deriveAvatarUrl, mapToPersonality } from './PersonalityDefaults.js';
 import type { DatabasePersonality } from './PersonalityValidator.js';
 import type { MappedLlmConfig } from '@tzurot/common-types/services/LlmConfigMapper';
+import { PLACEHOLDERS } from '@tzurot/common-types/constants/message';
 import {
   registerSystemSettings,
   resetSystemSettingsRegistration,
@@ -100,6 +101,19 @@ describe('PersonalityDefaults', () => {
       const result = replacePlaceholders('', 'TestBot');
       expect(result).toBeUndefined();
     });
+
+    it('replaces BOTH occurrences of {{user}} — pins the global (g) regex flag, not just the replacement string', () => {
+      const result = replacePlaceholders('Hi {{user}}, bye {{user}}', 'TestBot');
+      expect(result).toBe('Hi {user}, bye {user}');
+    });
+
+    it.each(PLACEHOLDERS.ASSISTANT)(
+      'replaces BOTH occurrences of assistant placeholder %s — pins the global (g) regex flag',
+      placeholder => {
+        const result = replacePlaceholders(`A: ${placeholder} B: ${placeholder}`, 'TestBot');
+        expect(result).toBe('A: TestBot B: TestBot');
+      }
+    );
   });
 
   describe('deriveAvatarUrl', () => {
@@ -469,6 +483,98 @@ describe('PersonalityDefaults', () => {
       expect(result.model).toBe('anthropic/claude-3-opus'); // From personality, not global
       expect(result.temperature).toBe(0.9); // From personality, not global (0.5)
       expect(result.contextWindowTokens).toBe(200000); // From personality, not global (100000)
+    });
+
+    it('provider cascade: personality-scoped provider wins over global', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        updatedAt: testDate,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'z-ai/glm-4.6',
+            provider: 'zai-coding',
+            advancedParameters: {},
+            contextWindowTokens: 131072,
+          },
+        },
+      });
+      const globalConfig: MappedLlmConfig = {
+        model: 'global-model',
+        provider: 'openrouter',
+        contextWindowTokens: 100000,
+      };
+
+      const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
+
+      expect(result.provider).toBe('zai-coding');
+    });
+
+    it('provider cascade: falls back to the literal string "openrouter" when neither personality nor global config sets it', () => {
+      const dbPersonality = createMockDatabasePersonality({ updatedAt: testDate });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      expect(result.provider).toBe('openrouter');
+    });
+
+    it('forwards every sampling field from the personality config', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        updatedAt: testDate,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'anthropic/claude-sonnet-4.5',
+            provider: 'openrouter',
+            advancedParameters: {
+              top_p: 0.42,
+              top_k: 17,
+              frequency_penalty: 0.3,
+              presence_penalty: 0.4,
+              repetition_penalty: 1.1,
+            },
+            contextWindowTokens: 200000,
+          },
+        },
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      expect(result.topP).toBe(0.42);
+      expect(result.topK).toBe(17);
+      expect(result.frequencyPenalty).toBe(0.3);
+      expect(result.presencePenalty).toBe(0.4);
+      expect(result.repetitionPenalty).toBe(1.1);
+    });
+
+    it('maps a null systemPrompt to the empty string, not undefined/falsy', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        updatedAt: testDate,
+        systemPrompt: null,
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      expect(result.systemPrompt).toBe('');
+    });
+
+    it('passes through a custom errorMessage exactly', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        updatedAt: testDate,
+        errorMessage: 'Custom failure text',
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      expect(result.errorMessage).toBe('Custom failure text');
+    });
+
+    it('maps a null errorMessage to undefined', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        updatedAt: testDate,
+        errorMessage: null,
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      expect(result.errorMessage).toBeUndefined();
     });
   });
 });
