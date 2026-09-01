@@ -61,4 +61,24 @@ VERIFY FIRST, before any design commits to it: does Railway actually restart a c
 PROBE ATTEMPTED 2026-09-01, INCONCLUSIVE - do not repeat it. Counted `Starting Container` lines in the current deployment of all three services: bot-client 1, ai-worker 1, api-gateway 1. More than one would have proven an automatic in-deployment restart. One does not disprove it, because none of those three processes crashed during its window - so this is a null result, not a negative one. Also checked `railway --help`: the CLI exposes no restart-policy or service-settings surface (only add/domain/service/ssh/redeploy), so the setting is not readable this way.
 
 What would actually settle it, in rough order of cost: read the service settings in the Railway dashboard; query the Railway GraphQL API for the service's restart policy; or find a HISTORICAL deployment whose logs contain both a crash/exit and a subsequent `Starting Container` (needs the deployment-ID log form, `railway logs <DEPLOYMENT_ID>`, since plain `railway logs` only reads the current deployment). Deliberately crashing a prod service to find out is NOT sanctioned - it needs owner approval and a dev target at minimum.
+
+VERIFY-FIRST QUESTION ANSWERED 2026-08-31, definitively. Railway DOES restart a container that exits non-zero. Read from the Railway GraphQL API (backboard.railway.com/graphql/v2, serviceInstance query, auth from the CLI token in ~/.railway/config.json) - the second of the three settlement paths this task listed, and it works, so the INCONCLUSIVE log-counting probe above never needs repeating.
+
+  restartPolicyType: ON_FAILURE
+  restartPolicyMaxRetries: 10
+  healthcheckPath: null
+  healthcheckTimeout: null
+  numReplicas: null
+  sleepApplication: false
+
+Uniform across bot-client, ai-worker and api-gateway, and identical in development and production - so dev is a faithful test bed for any exit-based self-heal.
+
+What this settles:
+- The exit-and-let-supervision-restart shape is SOUND. bootWatchdog was not resting on an unverified assumption after all; ON_FAILURE is exactly what it needs.
+- healthcheckPath: null independently confirms the in-repo finding (no HEALTHCHECK in the Dockerfile, no railway.json). Railway is not probing liveness, so nothing external can ever notice a wedged-but-running process. Only an in-process check can.
+- A watchdog can therefore be: detect wedge, log loud, process.exit(1), let Railway restart. No in-process client.destroy plus re-login is required, though it remains an option.
+
+NEW CONSTRAINT THIS INTRODUCES, and it must shape the design: maxRetries is 10. A watchdog that exits immediately on every wedge can burn all ten retries against a persistent upstream fault - and the 2026-09-01 incident was a 17-minute unbroken 503 wall, which is exactly the shape that would do it. Ten fast restarts would leave the service stopped with nothing left to restart it, which is strictly WORSE than todays hang. So an exit-based self-heal needs a backoff or a minimum-uptime gate before it is allowed to exit again, not a bare exit on first detection.
+
+NOT ESTABLISHED, and worth checking before building: whether the retry counter resets (per deployment, after a sustained healthy period, or never). That determines whether the ten are a lifetime budget or a per-incident one. The GraphQL surface above does not expose it; it is Railway platform behaviour and needs its own probe or doc read.
 <!-- SECTION:DESCRIPTION:END -->
