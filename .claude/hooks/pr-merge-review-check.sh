@@ -409,11 +409,11 @@ def legacy_scan(text):
     """
     after = re.split(r"gh\s+pr\s+merge", text, maxsplit=1)
     if len(after) < 2:
-        return "", False
+        return "", False, []
     for token in after[1].split():
         if ASCII_DIGITS.fullmatch(token):
-            return token, False
-    return "", False
+            return token, False, [token]
+    return "", False, []
 
 
 def tokenize(command):
@@ -466,8 +466,8 @@ def adjacent_merge_scan(tokens, linenos):
         if tokens[i : i + 3] == ["gh", "pr", "merge"]:
             for candidate in invocation_args(tokens, linenos, i + 3):
                 if ASCII_DIGITS.fullmatch(candidate):
-                    return candidate, False
-    return "", False
+                    return candidate, False, [candidate]
+    return "", False, []
 
 
 def extract(text, depth=0):
@@ -500,7 +500,12 @@ def extract(text, depth=0):
         # cases in pr-merge-review-check.probe.sh.
         capped = strip_heredocs(text)
         match = re.search(r"gh\s+pr\s+merge\s+[\"']*(\d+)", capped)
-        return (match.group(1) if match else ""), False
+        # The third element is the list of invocations the PRECISE scan
+        # resolved, which the compound refusal reads. A fallback path resolves
+        # at most one, deliberately: the refusal is not ackable, and hanging a
+        # non-recoverable check off a path that exists to over-arm has no way
+        # out — the same reasoning the delete-branch flag already follows.
+        return (match.group(1) if match else ""), False, ([match.group(1)] if match else [])
     command = strip_heredocs(text)
     tokenized = tokenize(command)
     if tokenized is None:
@@ -598,12 +603,27 @@ def extract(text, depth=0):
 
     # Execution order, not level order: the earliest token wins, whether it was
     # a plain invocation or one wrapped in `-c`/`eval`.
+    #
+    # Every resolved invocation is COLLECTED rather than returned on the first
+    # hit, because arming on the first one is correct and not sufficient: a
+    # command chaining two merges ran the second with no ack cycle of its own.
+    # The armed PR is still the first, so nothing about which review gets
+    # surfaced changes; the list is what the compound refusal reads.
+    resolved = []
+    primary = None
     for _, kind, value in sorted(candidates, key=lambda c: c[0]):
         if kind == "pr":
-            return value
-        found_pr, found_flag = extract(value, depth + 1)
+            if primary is None:
+                primary = value
+            resolved.append(value[0])
+            continue
+        found_pr, found_flag, found_all = extract(value, depth + 1)
         if found_pr:
-            return found_pr, found_flag
+            if primary is None:
+                primary = (found_pr, found_flag)
+            resolved.extend(found_all)
+    if primary is not None:
+        return primary[0], primary[1], resolved
 
     # STRUCTURAL BACKSTOP. Everything above decides WHICH invocation is real,
     # and every bug this file has had was the same shape: that logic failed to
@@ -633,27 +653,33 @@ def extract(text, depth=0):
 
 
 try:
-    # Two lines: the PR number, then 1/0 for "this invocation carries the
-    # delete-branch flag". The shell reads them positionally.
-    pr_number, delete_flag = extract(raw_command)
+    # Three lines: the PR number, then 1/0 for "this invocation carries the
+    # delete-branch flag", then every PR number the precise scan resolved,
+    # space-separated and in execution order. The shell reads them positionally.
+    pr_number, delete_flag, all_prs = extract(raw_command)
     print(pr_number)
     print("1" if delete_flag else "0")
+    print(" ".join(all_prs))
 except Exception:
     # The whole extraction, not just the tokenizer. Anything escaping here
     # would exit non-zero, hit the shell's `|| PR_NUM=""`, and silently arm
     # nothing — the direction this design refuses. Now structurally true
     # rather than true-by-current-code-shape.
-    pr_number, delete_flag = legacy_scan(raw_command)
+    pr_number, delete_flag, all_prs = legacy_scan(raw_command)
     print(pr_number)
     print("1" if delete_flag else "0")
+    print(" ".join(all_prs))
 
 PYEOF
 ) || MERGE_EXTRACT=""
 
 # Line 1: the PR number. Line 2: 1 when THAT invocation carries the
-# delete-branch flag. Both empty when the extraction produced nothing.
+# delete-branch flag. Line 3: every PR number the precise command-position scan
+# resolved, space-separated. All empty when the extraction produced nothing.
 PR_NUM=$(printf '%s\n' "$MERGE_EXTRACT" | sed -n '1p')
 MERGE_DELETES_BRANCH=$(printf '%s\n' "$MERGE_EXTRACT" | sed -n '2p')
+MERGE_ALL_PRS=$(printf '%s\n' "$MERGE_EXTRACT" | sed -n '3p')
+MERGE_COUNT=$(printf '%s\n' "$MERGE_ALL_PRS" | wc -w)
 
 # No PR number → bare `gh pr merge`, or the command only mentioned the phrase
 # without invoking it. Either way there is nothing to gate on.
@@ -948,6 +974,49 @@ REVIEW_JSON=$(gh api "repos/lbds137/tzurot/issues/${PR_NUM}/comments?per_page=10
     --jq '[.[] | select(.user.login == "claude[bot]")] | sort_by(.created_at) | last' \
     2>/dev/null || echo "")
 
+# COMPOUND MERGE REFUSAL. Everything above arms the gate on the FIRST merge in
+# the command, which is right as far as it goes — and observed insufficient: a
+# single call chaining two merges fired the gate for the first PR only, and the
+# second merged with no ack cycle of its own. The gate is attention-independent
+# by design, so a shape that silently halves its coverage is a hole, not a nit.
+#
+# NOT ACKABLE, on purpose. Acking would let the identical command through on
+# the retry and reproduce the hole exactly; the way past this is to run one
+# merge per command, which is also what makes each PR's review reachable.
+# Recovery costs one extra Bash call, so the direction is safe.
+#
+# Placed AFTER the review fetch and BEFORE the no-review early exit below.
+# After, so the block can name the PR the gate armed on and the extraction
+# stays observable; before, so a PR with no claude-review comment — which exits
+# 0 a few lines down — cannot carry a second merge through on that path.
+#
+# Counts only what the PRECISE command-position scan resolved. The fallback
+# paths (legacy_scan, the adjacency backstop, the depth cap) exist to over-arm,
+# and they report at most one invocation for exactly this reason: hanging a
+# refusal with no ack past it off a deliberate over-arm leaves no way out. Same
+# rule the delete-branch precondition already follows.
+if [ "${MERGE_COUNT:-0}" -gt 1 ] 2>/dev/null; then
+    cat >&2 << MSG
+$RULE
+ONE MERGE PER COMMAND — compound merge refused
+$RULE
+This command invokes \`gh pr merge\` more than once: $MERGE_ALL_PRS
+
+The review gate arms on the FIRST invocation only, so every merge after it
+would run without its own review-ack cycle — the check would report green
+having read one review out of $MERGE_COUNT.
+
+Run them as separate calls, one PR per command, so each merge is gated:
+  gh pr merge <first>    # read its review, then retry
+  gh pr merge <second>
+
+This refusal is not ackable — retrying the same compound command reproduces
+the same gap. Nothing was acked, so no state needs undoing.
+$RULE
+MSG
+    exit 2
+fi
+
 # No claude-review on this PR (yet, or ever). Allow the merge — the gate is
 # only meaningful when there's actually content to surface. The user-facing
 # rule still applies: agent should be reading whatever review IS available.
@@ -1119,6 +1188,13 @@ if release_reminder_due; then RELEASE_DUE=1; fi
         printf 'in the comment itself. A permanent comment that a later reader falsifies\n'
         printf 'is the defect class this scan exists for (.claude/rules/02-code-standards.md,\n'
         printf '"A Comment That Asserts Behavior Is a Claim").\n\n'
+        printf 'Verify against the PR HEAD REF, not the working tree. This instruction\n'
+        printf 'fires at merge time, when the shell is standing on whatever branch was\n'
+        printf 'last checked out while the code these comments describe lives on the PR\n'
+        printf 'branch — a working-tree grep has already answered with the pre-PR text\n'
+        printf 'for a line this scan flagged. Read it off the ref instead:\n\n'
+        printf '  git show origin/%s:<path>\n' "${PR_HEAD:-<pr-head-branch>}"
+        printf '  git grep <pattern> origin/%s\n\n' "${PR_HEAD:-<pr-head-branch>}"
     fi
     if [ "${ORIGIN_HITS:-0}" -gt 0 ] 2>/dev/null; then
         printf '⚠ ORIGIN-LANGUAGE DETECTED (%s matching line(s)). This review scopes at\n' "$ORIGIN_HITS"
