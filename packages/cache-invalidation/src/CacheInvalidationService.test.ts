@@ -29,20 +29,18 @@ describe('CacheInvalidationService', () => {
   let mockSubscriber: Redis;
   let mockPersonalityService: PersonalityCacheTarget;
   let service: CacheInvalidationService;
-  let messageHandlers: Map<string, (channel: string, message: string) => void>;
+  let handlersByEvent: Map<string, (...args: unknown[]) => void>;
 
   beforeEach(() => {
-    messageHandlers = new Map();
+    handlersByEvent = new Map();
 
     // Mock Redis subscriber
     mockSubscriber = {
       subscribe: vi.fn().mockResolvedValue(undefined),
       unsubscribe: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn(),
-      on: vi.fn((event: string, handler: (channel: string, message: string) => void) => {
-        if (event === 'message') {
-          messageHandlers.set('message', handler);
-        }
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        handlersByEvent.set(event, handler);
         return mockSubscriber;
       }),
     } as unknown as Redis;
@@ -122,6 +120,43 @@ describe('CacheInvalidationService', () => {
       // every other consumer of the shared client.
       expect(mockRedis.subscribe).not.toHaveBeenCalled();
       expect(mockSubscriber.subscribe).toHaveBeenCalled();
+    });
+
+    it('should register an error handler on the subscriber connection', async () => {
+      await service.subscribe();
+
+      expect(mockSubscriber.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+
+    it('logs a warning through the error handler without throwing', async () => {
+      mockLogger.warn.mockClear();
+      await service.subscribe();
+
+      const errorHandler = handlersByEvent.get('error');
+      expect(errorHandler).toBeDefined();
+
+      const connectionError = new Error('boom');
+      expect(() => {
+        errorHandler!(connectionError);
+      }).not.toThrow();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: connectionError }),
+        expect.any(String)
+      );
+    });
+
+    it('registers the error handler before the subscribe handshake resolves', async () => {
+      // The initial-connect window (duplicate() through the subscribe
+      // handshake) is exactly where ioredis's retry strategy emits 'error'.
+      // A registration that only happens after subscribe() resolves leaves
+      // that window unlogged, so a REJECTED subscribe must still have seen
+      // the listener attached.
+      vi.mocked(mockSubscriber.subscribe).mockRejectedValue(new Error('Connection failed'));
+
+      await expect(service.subscribe()).rejects.toThrow('Connection failed');
+
+      expect(mockSubscriber.on).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
     it('should handle subscription errors', async () => {
@@ -219,7 +254,7 @@ describe('CacheInvalidationService', () => {
       const message = JSON.stringify(event);
 
       // Simulate receiving message
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
@@ -232,7 +267,7 @@ describe('CacheInvalidationService', () => {
       const message = JSON.stringify(event);
 
       // Simulate receiving message
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
@@ -245,7 +280,7 @@ describe('CacheInvalidationService', () => {
       const message = JSON.stringify(event);
 
       // Simulate receiving message from wrong channel
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!('other-channel', message);
 
@@ -257,7 +292,7 @@ describe('CacheInvalidationService', () => {
       const malformedMessage = 'not-valid-json';
 
       // Should not throw error
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       expect(() => {
         handler!(REDIS_CHANNELS.CACHE_INVALIDATION, malformedMessage);
@@ -269,7 +304,7 @@ describe('CacheInvalidationService', () => {
 
     it('logs a parse failure when the message is not valid JSON', () => {
       mockLogger.error.mockClear();
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
 
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, 'not-valid-json');
@@ -281,7 +316,7 @@ describe('CacheInvalidationService', () => {
     });
 
     it('should reject an all event carrying extra keys (strict key count)', () => {
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify({ type: 'all', extra: true }));
 
@@ -289,7 +324,7 @@ describe('CacheInvalidationService', () => {
     });
 
     it('should reject a personality event carrying extra keys (strict key count)', () => {
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(
         REDIS_CHANNELS.CACHE_INVALIDATION,
@@ -303,7 +338,7 @@ describe('CacheInvalidationService', () => {
       const invalidEvent = { type: 'invalid' };
       const message = JSON.stringify(invalidEvent);
 
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
@@ -315,7 +350,7 @@ describe('CacheInvalidationService', () => {
       const invalidEvent = { type: 'personality' };
       const message = JSON.stringify(invalidEvent);
 
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
@@ -327,7 +362,7 @@ describe('CacheInvalidationService', () => {
       const invalidEvent = { type: 'personality', personalityId: 123 };
       const message = JSON.stringify(invalidEvent);
 
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
@@ -339,7 +374,7 @@ describe('CacheInvalidationService', () => {
       const invalidEvent = { type: 'all', extraProp: 'unexpected' };
       const message = JSON.stringify(invalidEvent);
 
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
@@ -350,7 +385,7 @@ describe('CacheInvalidationService', () => {
     it('should reject non-object events', () => {
       const invalidEvents = ['null', '"string"', '123', 'true', '[]'];
 
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       expect(handler).toBeDefined();
 
       for (const invalidMessage of invalidEvents) {
@@ -408,7 +443,7 @@ describe('CacheInvalidationService', () => {
       await service.publish(event);
 
       // Simulate receiving the published message
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify(event));
 
       // Verify invalidation was called
@@ -426,7 +461,7 @@ describe('CacheInvalidationService', () => {
         { type: 'personality' as const, personalityId: 'id3' },
       ];
 
-      const handler = messageHandlers.get('message');
+      const handler = handlersByEvent.get('message');
       for (const event of events) {
         handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify(event));
       }

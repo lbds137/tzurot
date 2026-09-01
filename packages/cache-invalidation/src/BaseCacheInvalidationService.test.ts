@@ -286,12 +286,61 @@ describe('BaseCacheInvalidationService', () => {
       expect(mockSubscriber.on).toHaveBeenCalledWith('message', expect.any(Function));
     });
 
+    it('should register an error handler on the subscriber connection', async () => {
+      await service.subscribe(vi.fn());
+
+      expect(mockSubscriber.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+
+    it('logs a warning through the error handler without throwing', async () => {
+      mockLogger.warn.mockClear();
+      await service.subscribe(vi.fn());
+
+      const errorHandler = mockSubscriber.on.mock.calls.find(
+        (call: unknown[]) => call[0] === 'error'
+      )?.[1] as (err: Error) => void;
+
+      const connectionError = new Error('boom');
+      expect(() => {
+        errorHandler(connectionError);
+      }).not.toThrow();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: connectionError }),
+        expect.any(String)
+      );
+    });
+
+    it('registers the error handler before the subscribe handshake resolves', async () => {
+      // The initial-connect window (duplicate() through the subscribe
+      // handshake) is exactly where ioredis's retry strategy emits 'error'.
+      // A registration that only happens after subscribe() resolves leaves
+      // that window unlogged, so a REJECTED subscribe must still have seen
+      // the listener attached.
+      vi.mocked(mockSubscriber.subscribe).mockRejectedValue(new Error('Connection failed'));
+
+      await expect(service.subscribe(vi.fn())).rejects.toThrow('Connection failed');
+
+      expect(mockSubscriber.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+
     it('should not create multiple subscribers', async () => {
       await service.subscribe(vi.fn());
       await service.subscribe(vi.fn());
       await service.subscribe(vi.fn());
 
       expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
+    });
+
+    it('logs a debug line when a caller joins the existing subscriber connection', async () => {
+      await service.subscribe(vi.fn());
+
+      // The first caller opens the connection — nothing to join yet.
+      expect(mockLogger.debug).not.toHaveBeenCalledWith('Joining existing subscriber connection');
+
+      await service.subscribe(vi.fn());
+
+      expect(mockLogger.debug).toHaveBeenCalledWith('Joining existing subscriber connection');
     });
 
     it('should register multiple callbacks', async () => {
@@ -420,15 +469,12 @@ describe('BaseCacheInvalidationService', () => {
         expect(callbackA).not.toHaveBeenCalled();
       });
 
-      it('removes the failed caller by identity, not position — an interleaved early-return registration must survive', async () => {
-        // Caller A's subscribe() connects but hangs mid-flight (the mock
-        // Promise below is neither resolved nor rejected yet). While A is
-        // still awaiting, caller B calls subscribe() and hits the
-        // "Already subscribed" early-return path (subscriber is already
-        // assigned, synchronously, before A's await point) — B pushes its
-        // own callback and returns immediately. A is left pending until we
-        // reject it below. If cleanup removed the LAST array entry (pop())
-        // instead of A's own entry, it would incorrectly evict B instead.
+      it('shares a single connect failure across every concurrent caller — one duplicate(), both callbacks evicted', async () => {
+        // Under single-flight, a second caller arriving while the first is
+        // still connecting no longer takes an "already subscribed" shortcut —
+        // it awaits the SAME connectPromise, so when that connect fails,
+        // every concurrent caller rejects together and each removes only its
+        // own callback by identity.
         let rejectSubscribe: (err: Error) => void = () => {};
         const pending = new Promise<void>((_, reject) => {
           rejectSubscribe = reject;
@@ -439,16 +485,84 @@ describe('BaseCacheInvalidationService', () => {
         const callbackB = vi.fn();
 
         const subscribeA = service.subscribe(callbackA);
-        await service.subscribe(callbackB); // early-return path, resolves immediately
+        const subscribeB = service.subscribe(callbackB);
 
-        rejectSubscribe(new Error('mid-flight failure'));
-        await expect(subscribeA).rejects.toThrow('mid-flight failure');
+        // Attach rejection expectations BEFORE triggering the rejection so no
+        // unhandled rejection escapes between the reject() call and the await.
+        const assertionA = expect(subscribeA).rejects.toThrow('shared failure');
+        const assertionB = expect(subscribeB).rejects.toThrow('shared failure');
 
-        // A's connection attempt never reached the 'message' handler
-        // registration, so retry with a fresh caller to wire up delivery.
+        rejectSubscribe(new Error('shared failure'));
+        await assertionA;
+        await assertionB;
+
+        // Only one connect attempt was made for both concurrent callers.
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
+
+        // Both callbacks were evicted — neither is left registered.
+        expect(getRegisteredCallbacks(service)).toEqual([]);
+        expect(service.isSubscribed()).toBe(false);
+      });
+
+      it('retries cleanly after a shared failure — a fresh subscribe() opens a new connection', async () => {
+        let rejectSubscribe: (err: Error) => void = () => {};
+        const pending = new Promise<void>((_, reject) => {
+          rejectSubscribe = reject;
+        });
+        mockSubscriber.subscribe.mockReturnValueOnce(pending);
+
+        const failing = service.subscribe(vi.fn());
+        const assertion = expect(failing).rejects.toThrow('boom');
+        rejectSubscribe(new Error('boom'));
+        await assertion;
+
+        // Post-failure retry: connectPromise was nulled, so this call opens a
+        // genuinely new connection rather than re-awaiting the stale promise.
         mockRedis.duplicate.mockReturnValue(mockSubscriber);
-        const callbackC = vi.fn();
-        await service.subscribe(callbackC);
+        const callback = vi.fn();
+        await service.subscribe(callback);
+
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(2);
+        expect(service.isSubscribed()).toBe(true);
+
+        const messageHandler = mockSubscriber.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'message'
+        )?.[1] as (channel: string, message: string) => void;
+
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+        expect(callback).toHaveBeenCalledWith({ type: 'all' });
+      });
+
+      it('retries after a synchronous duplicate() failure — the rejected attempt is not left cached', async () => {
+        // duplicate() throwing SYNCHRONOUSLY is a distinct path from the
+        // async rejection above: establishSubscriber()'s own catch runs
+        // before its promise is ever handed back to the caller, so the
+        // attempt must be cleared by whoever awaited it, not from inside.
+        mockRedis.duplicate.mockImplementationOnce(() => {
+          throw new Error('sync duplicate failure');
+        });
+
+        const callback1 = vi.fn();
+        await expect(service.subscribe(callback1)).rejects.toThrow('sync duplicate failure');
+
+        // Back to the working connection mock for the retry.
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        const callback2 = vi.fn();
+        await service.subscribe(callback2);
+
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(2);
+        expect(service.isSubscribed()).toBe(true);
+        expect(getRegisteredCallbacks(service)).toEqual([callback2]);
+      });
+
+      it('shares one connection across sequential successful callers — the second subscribe() does not duplicate()', async () => {
+        const callbackA = vi.fn();
+        const callbackB = vi.fn();
+
+        await service.subscribe(callbackA);
+        await service.subscribe(callbackB);
+
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
 
         const messageHandler = mockSubscriber.on.mock.calls.find(
           (call: unknown[]) => call[0] === 'message'
@@ -456,9 +570,16 @@ describe('BaseCacheInvalidationService', () => {
 
         messageHandler('test:channel', JSON.stringify({ type: 'all' }));
 
+        expect(callbackA).toHaveBeenCalledWith({ type: 'all' });
         expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
-        expect(callbackC).toHaveBeenCalledWith({ type: 'all' });
-        expect(callbackA).not.toHaveBeenCalled();
+      });
+
+      it('establishes a new connection when subscribing again after unsubscribe()', async () => {
+        await service.subscribe(vi.fn());
+        await service.unsubscribe();
+        await service.subscribe(vi.fn());
+
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(2);
       });
 
       it('does not evict a survivor when the failed caller is absent from the list — unsubscribe() cleared it mid-flight', async () => {
@@ -510,45 +631,102 @@ describe('BaseCacheInvalidationService', () => {
         expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
       });
 
-      it('removes the failed caller from its own index, not just index 0 — a failure at index 1 is still evicted', async () => {
-        // A connects then hangs; B hits the early-return path while A is
-        // still in flight, so the callback list is [A, B].
+      it('does not clear a live connect attempt when a straggling caller fails — unsubscribe() raced it', async () => {
+        // The same shutdown race as above, aimed at the OTHER identity guard:
+        // A's straggling catch must leave `connectPromise` alone once that
+        // field holds B's live, successful attempt. Resetting it there would
+        // make the next subscribe() open a redundant third connection on top
+        // of one that is already live.
+        const subscriberA = createMockRedis();
         let rejectSubscribeA: (err: Error) => void = () => {};
         const pendingA = new Promise<void>((_, reject) => {
           rejectSubscribeA = reject;
         });
-        mockSubscriber.subscribe.mockReturnValueOnce(pendingA);
+        subscriberA.subscribe.mockReturnValueOnce(pendingA);
+        mockRedis.duplicate.mockReturnValueOnce(subscriberA);
+
+        const subscribeA = service.subscribe(vi.fn());
+
+        await service.unsubscribe();
+
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        await service.subscribe(vi.fn());
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(2);
+
+        rejectSubscribeA(new Error('mid-flight failure'));
+        await expect(subscribeA).rejects.toThrow('mid-flight failure');
+
+        // B's attempt is still cached, so a further subscribe() reuses it
+        // instead of duplicating a third connection.
+        await service.subscribe(vi.fn());
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(2);
+      });
+
+      it('fails a connect attempt that SUCCEEDS after unsubscribe() tore it down — the caller must not believe it is subscribed', async () => {
+        // The third shutdown-race shape, and the only one where the racing
+        // attempt SUCCEEDS: unsubscribe() wipes the callback list and the
+        // connection while A's subscribe() is still pending, then A's
+        // subscribe resolves. Without a teardown check, A would return
+        // normally while its callback is gone and its listeners sit on a
+        // disconnected connection — silent, with no log line.
+        const subscriberA = createMockRedis();
+        let resolveSubscribeA: () => void = () => {};
+        const pendingA = new Promise<void>(resolve => {
+          resolveSubscribeA = resolve;
+        });
+        subscriberA.subscribe.mockReturnValueOnce(pendingA);
+        mockRedis.duplicate.mockReturnValueOnce(subscriberA);
 
         const callbackA = vi.fn();
-        const callbackB = vi.fn();
         const subscribeA = service.subscribe(callbackA);
-        await service.subscribe(callbackB); // early-return path
 
-        // A rejects and is removed at its own index (0), leaving [B].
-        rejectSubscribeA(new Error('A failure'));
-        await expect(subscribeA).rejects.toThrow('A failure');
+        await service.unsubscribe();
 
-        // C now subscribes against a fresh connection, landing at index 1
-        // (after survivor B) — and its own connection attempt fails too.
+        // Attach the rejection expectation BEFORE the pending attempt settles.
+        const assertionA = expect(subscribeA).rejects.toThrow('torn down while connecting');
+        resolveSubscribeA();
+        await assertionA;
+
+        expect(getRegisteredCallbacks(service)).toEqual([]);
+        expect(service.isSubscribed()).toBe(false);
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
+
+        // The failure is loud (establishSubscriber's own catch) and the
+        // success log never fires for a torn-down connection.
+        expect(mockLogger.error).toHaveBeenCalled();
+        expect(mockLogger.info).not.toHaveBeenCalledWith('Subscribed to cache invalidation events');
+      });
+
+      it('recovers after a torn-down connect attempt — a fresh subscribe() opens a new connection and delivers', async () => {
+        const subscriberA = createMockRedis();
+        let resolveSubscribeA: () => void = () => {};
+        const pendingA = new Promise<void>(resolve => {
+          resolveSubscribeA = resolve;
+        });
+        subscriberA.subscribe.mockReturnValueOnce(pendingA);
+        mockRedis.duplicate.mockReturnValueOnce(subscriberA);
+
+        const subscribeA = service.subscribe(vi.fn());
+        await service.unsubscribe();
+
+        const assertionA = expect(subscribeA).rejects.toThrow('torn down while connecting');
+        resolveSubscribeA();
+        await assertionA;
+
+        // A genuinely new connection, not a re-await of the dead attempt.
         mockRedis.duplicate.mockReturnValue(mockSubscriber);
-        mockSubscriber.subscribe.mockRejectedValueOnce(new Error('C failure'));
-        const callbackC = vi.fn();
-        await expect(service.subscribe(callbackC)).rejects.toThrow('C failure');
+        const callbackB = vi.fn();
+        await service.subscribe(callbackB);
 
-        // A final successful subscribe re-establishes delivery.
-        mockRedis.duplicate.mockReturnValue(mockSubscriber);
-        const callbackD = vi.fn();
-        await service.subscribe(callbackD);
+        expect(mockRedis.duplicate).toHaveBeenCalledTimes(2);
+        expect(service.isSubscribed()).toBe(true);
 
         const messageHandler = mockSubscriber.on.mock.calls.find(
           (call: unknown[]) => call[0] === 'message'
         )?.[1] as (channel: string, message: string) => void;
 
         messageHandler('test:channel', JSON.stringify({ type: 'all' }));
-
         expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
-        expect(callbackD).toHaveBeenCalledWith({ type: 'all' });
-        expect(callbackC).not.toHaveBeenCalled();
       });
     });
   });
