@@ -6,10 +6,60 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PersonalityService } from './PersonalityService.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+
+const GLOBAL_SENTINEL_MODEL = 'sentinel-global-default-model';
+
+const makeDbPersonality = (overrides: Record<string, unknown>): Record<string, unknown> => ({
+  id: '00000000-0000-0000-0000-000000000001',
+  name: 'Fixture',
+  displayName: null,
+  slug: 'fixture',
+  isPublic: true,
+  ownerId: null,
+  createdAt: new Date('2020-01-01T00:00:00Z'),
+  updatedAt: new Date('2020-01-01T00:00:00Z'),
+  characterInfo: 'char',
+  personalityTraits: 'traits',
+  personalityTone: null,
+  personalityAge: null,
+  personalityAppearance: null,
+  personalityLikes: null,
+  personalityDislikes: null,
+  conversationalGoals: null,
+  conversationalExamples: null,
+  errorMessage: null,
+  voiceEnabled: false,
+  systemPrompt: { content: 'prompt' },
+  defaultConfigLink: null,
+  ...overrides,
+});
+
+const linkedLlmConfig = (model: string): Record<string, unknown> => ({
+  llmConfig: {
+    model,
+    provider: 'openrouter',
+    advancedParameters: {},
+    contextWindowTokens: 4096,
+  },
+});
 
 describe('PersonalityService - Cache Invalidation', () => {
   let mockPrisma: PrismaClient;
   let service: PersonalityService;
+
+  // Reads mockPrisma at call time, so it lives here rather than at file scope:
+  // beforeEach rebuilds the client, and a file-scope copy would capture nothing.
+  const mockGlobalDefault = (): void => {
+    vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+      globalDefaultLlmConfig: {
+        model: GLOBAL_SENTINEL_MODEL,
+        provider: 'sentinel-provider',
+        advancedParameters: {},
+        contextWindowTokens: 111111,
+      },
+    } as any);
+  };
 
   beforeEach(() => {
     // Mock Prisma client
@@ -25,6 +75,9 @@ describe('PersonalityService - Cache Invalidation', () => {
         findFirst: vi.fn(),
       },
       user: {
+        findUnique: vi.fn(),
+      },
+      adminSettings: {
         findUnique: vi.fn(),
       },
     } as unknown as PrismaClient;
@@ -419,6 +472,197 @@ describe('PersonalityService - Cache Invalidation', () => {
       // Cache should be empty again
       stats = service.getCacheStats();
       expect(stats.size).toBe(0);
+    });
+  });
+
+  describe('UUID regex anchoring', () => {
+    it('never consults cache for a UUID with trailing junk (anchored $)', async () => {
+      const id = '00000000-0000-0000-0000-000000000101xx';
+      const personality = makeDbPersonality({
+        id,
+        name: id,
+        slug: 'a1',
+        defaultConfigLink: linkedLlmConfig('a1-model'),
+      });
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(personality as any);
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([personality] as any);
+
+      const loaded1 = await service.loadPersonality(id);
+      const loaded2 = await service.loadPersonality(id);
+
+      expect(loaded1).not.toBeNull();
+      expect(loaded1?.id).toBe(id);
+      expect(loaded2).not.toBeNull();
+      expect(loaded2?.id).toBe(id);
+
+      const findFirstCalls = vi.mocked(mockPrisma.personality.findFirst).mock.calls.length;
+      const findManyCalls = vi.mocked(mockPrisma.personality.findMany).mock.calls.length;
+      expect(findFirstCalls + findManyCalls).toBe(2);
+    });
+
+    it('never consults cache for a UUID with leading junk (anchored ^)', async () => {
+      const id = 'xx00000000-0000-0000-0000-000000000102';
+      const personality = makeDbPersonality({
+        id,
+        name: id,
+        slug: 'a2',
+        defaultConfigLink: linkedLlmConfig('a2-model'),
+      });
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(personality as any);
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([personality] as any);
+
+      const loaded1 = await service.loadPersonality(id);
+      const loaded2 = await service.loadPersonality(id);
+
+      expect(loaded1).not.toBeNull();
+      expect(loaded1?.id).toBe(id);
+      expect(loaded2).not.toBeNull();
+      expect(loaded2?.id).toBe(id);
+
+      const findFirstCalls = vi.mocked(mockPrisma.personality.findFirst).mock.calls.length;
+      const findManyCalls = vi.mocked(mockPrisma.personality.findMany).mock.calls.length;
+      expect(findFirstCalls + findManyCalls).toBe(2);
+    });
+  });
+
+  describe('global default config fallback', () => {
+    it('loads the global default config when the personality has no defaultConfigLink', async () => {
+      mockGlobalDefault();
+      const id = '00000000-0000-0000-0000-000000000201';
+      const personality = makeDbPersonality({
+        id,
+        name: 'NoLink',
+        slug: 'nolink',
+        defaultConfigLink: null,
+      });
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(personality as any);
+
+      const loaded = await service.loadPersonality(id);
+
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).toHaveBeenCalledTimes(1);
+      // Pin WHICH row the fallback reads, not just that it read one: the global
+      // default is the AdminSettings singleton's pointer relation, and a call
+      // count alone would survive that query being pointed somewhere else.
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: ADMIN_SETTINGS_SINGLETON_ID } })
+      );
+      expect(loaded?.model).toBe(GLOBAL_SENTINEL_MODEL);
+      expect(loaded?.contextWindowTokens).toBe(111111);
+    });
+
+    it('does not load the global default config when the personality has a defaultConfigLink', async () => {
+      mockGlobalDefault();
+      const id = '00000000-0000-0000-0000-000000000202';
+      const personality = makeDbPersonality({
+        id,
+        name: 'HasLink',
+        slug: 'haslink',
+        defaultConfigLink: linkedLlmConfig('own-model'),
+      });
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(personality as any);
+
+      const loaded = await service.loadPersonality(id);
+
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).not.toHaveBeenCalled();
+      expect(loaded?.model).toBe('own-model');
+    });
+  });
+
+  describe('loadAllPersonalities', () => {
+    it('does not load the global default when every personality has a defaultConfigLink', async () => {
+      mockGlobalDefault();
+      const p1 = makeDbPersonality({
+        id: '00000000-0000-0000-0000-000000000301',
+        name: 'A1',
+        slug: 'a1',
+        defaultConfigLink: linkedLlmConfig('model-a'),
+      });
+      const p2 = makeDbPersonality({
+        id: '00000000-0000-0000-0000-000000000302',
+        name: 'A2',
+        slug: 'a2',
+        defaultConfigLink: linkedLlmConfig('model-b'),
+      });
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([p1, p2] as any);
+
+      const result = await service.loadAllPersonalities();
+
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).not.toHaveBeenCalled();
+      expect(result).toHaveLength(2);
+      expect(result.map(p => p.model)).toEqual(['model-a', 'model-b']);
+      expect(result.map(p => p.id)).toEqual([
+        '00000000-0000-0000-0000-000000000301',
+        '00000000-0000-0000-0000-000000000302',
+      ]);
+    });
+
+    // TWO unlinked personalities, deliberately: the load is once per BATCH, not
+    // once per personality that needs it. With a single unlinked entry both
+    // semantics produce exactly one call, so the assertion below would hold
+    // even if the lookup were moved inside the .map().
+    it('loads the global default exactly once for a mixed list, not once per unlinked personality', async () => {
+      mockGlobalDefault();
+      const withLink = makeDbPersonality({
+        id: '00000000-0000-0000-0000-000000000401',
+        name: 'WithLink',
+        slug: 'withlink',
+        defaultConfigLink: linkedLlmConfig('own-model'),
+      });
+      const noLink = makeDbPersonality({
+        id: '00000000-0000-0000-0000-000000000402',
+        name: 'NoLink',
+        slug: 'nolink2',
+        defaultConfigLink: null,
+      });
+      const noLink2 = makeDbPersonality({
+        id: '00000000-0000-0000-0000-000000000403',
+        name: 'NoLinkTwo',
+        slug: 'nolink3',
+        defaultConfigLink: null,
+      });
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([
+        withLink,
+        noLink,
+        noLink2,
+      ] as any);
+
+      const result = await service.loadAllPersonalities();
+
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).toHaveBeenCalledTimes(1);
+      expect(result).toHaveLength(3);
+      expect(result[0]?.id).toBe('00000000-0000-0000-0000-000000000401');
+      expect(result[0]?.model).toBe('own-model');
+      expect(result[1]?.id).toBe('00000000-0000-0000-0000-000000000402');
+      expect(result[1]?.model).toBe(GLOBAL_SENTINEL_MODEL);
+      expect(result[1]?.contextWindowTokens).toBe(111111);
+      expect(result[2]?.id).toBe('00000000-0000-0000-0000-000000000403');
+      expect(result[2]?.model).toBe(GLOBAL_SENTINEL_MODEL);
+    });
+
+    it('warms the cache so a subsequent loadPersonality by ID makes no additional DB calls', async () => {
+      mockGlobalDefault();
+      const id = '00000000-0000-0000-0000-000000000501';
+      const warm = makeDbPersonality({
+        id,
+        name: 'Warm',
+        slug: 'warm',
+        defaultConfigLink: linkedLlmConfig('warm-model'),
+      });
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([warm] as any);
+
+      await service.loadAllPersonalities();
+
+      const afterAll = {
+        first: vi.mocked(mockPrisma.personality.findFirst).mock.calls.length,
+        many: vi.mocked(mockPrisma.personality.findMany).mock.calls.length,
+      };
+
+      const cached = await service.loadPersonality(id);
+
+      expect(cached?.id).toBe(id);
+      expect(cached?.model).toBe('warm-model');
+      expect(vi.mocked(mockPrisma.personality.findFirst).mock.calls.length).toBe(afterAll.first);
+      expect(vi.mocked(mockPrisma.personality.findMany).mock.calls.length).toBe(afterAll.many);
     });
   });
 });
