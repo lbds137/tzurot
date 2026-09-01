@@ -103,7 +103,9 @@ TRANCHE 2 SLICE LOG.
   3 PersonaResolver.ts    83.80 -> 98.32  (see note)     #2284  1 noise, 2 equivalent, 0 need src
   4 the remaining five    (44 survivors + 9 no-coverage)  —      —
 
-Slice 3 measured its package number at the pre-slice-2 base (86.20) because the two ran in parallel off the same develop SHA. Do not read 87.73 and 86.20 as a regression — they are two different trees. Re-measure the package once both are on develop rather than adding them.
+Slice 3 measured its package number at the pre-slice-2 base (86.20) because the two ran in parallel off the same develop SHA. Do not read 87.73 and 86.20 as a regression — they are two different trees, and they do not add.
+
+MEASURED ON DEVELOP AFTER BOTH MERGED (2026-08-31, main tree, idle machine): package 90.58, from 78.97 at tranche start. 826 killed, 76 survived, 10 no-coverage, 1 timeout. Per-file: PersonaResolver 98.32, PersonalityLoader 97.13, RoutingContextResolver 95.83, UserService 89.96, PersonalityDefaults 88.17, PersonalityValidator 71.43, BaseConfigResolver 72.09, PersonalityService 71.15. The remaining 76 survivors are the slice-4 set plus the 32 deliberately dispositioned across slices 1-3.
 
 METHOD THAT SETTLED IN SLICES 2-3, worth reusing in 4. Predict every survivor disposition BEFORE running Stryker, then run it: the re-run applies all mutants and reports each fate, so it is an exhaustive canary rather than a hand-applied sample. Both slices matched their prediction exactly by mutant id, which is also what makes a mismatch a real finding instead of noise.
 
