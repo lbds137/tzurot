@@ -62,6 +62,7 @@ import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
 import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.js';
+import { buildWatchdogExit } from './services/buildWatchdogExit.js';
 import { startGatewayWatchdog } from './services/GatewayWatchdog.js';
 
 // Processors
@@ -643,7 +644,15 @@ client.on(Events.Error, error => {
 // Gateway shard lifecycle — without these, a dead websocket looks like a healthy, silent process.
 registerShardLifecycleLogging(client, logger);
 // Liveness watchdog: catches a wedged gateway the platform has no healthcheck for.
-const gatewayWatchdog = startGatewayWatchdog(client, logger);
+// exit disposes the bot client before exiting with the watchdog's non-zero
+// code — non-zero because the platform restarts only on failure, unlike
+// graceful shutdown's own success path, which exits 0. Pinned by
+// buildWatchdogExit.test.ts.
+const gatewayWatchdog = startGatewayWatchdog(client, logger, {
+  alertWebhookUrl: envConfig.WATCHDOG_ALERT_WEBHOOK_URL,
+  environment: envConfig.NODE_ENV,
+  exit: buildWatchdogExit(disposeBotClient, { logger }),
+});
 
 // unhandledRejection handling is registered by registerProcessLifecycle below
 // (rejectionPolicy: 'log-and-live').

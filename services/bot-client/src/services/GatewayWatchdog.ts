@@ -24,6 +24,7 @@ type Logger = ReturnType<typeof createLogger>;
  */
 interface RawGatewayEmitter {
   on(event: string, listener: () => void): unknown;
+  off(event: string, listener: () => void): unknown;
 }
 
 /**
@@ -35,6 +36,12 @@ const WATCHDOG_THRESHOLDS = {
    * How often the liveness check runs. Cheap (a handful of field reads), so a
    * 1-minute cadence costs nothing while keeping detection latency low
    * relative to the thresholds below.
+   *
+   * Coupled invariant: this must stay comfortably LONGER than the lifecycle
+   * shutdown's hard-exit backstop (processLifecycle DEFAULT_HARD_EXIT_MS,
+   * 10s), or a tick could fire again mid-exit and duplicate the wedge alert —
+   * the exit path does not consult the deferred-alert latch. Re-check this if
+   * either constant is retuned; not pinned by a test.
    */
   CHECK_INTERVAL_MS: 60_000,
 
@@ -59,6 +66,14 @@ const WATCHDOG_THRESHOLDS = {
    * the exit until the process has had a fair chance to recover on its own.
    */
   MIN_UPTIME_BEFORE_EXIT_MS: 30 * 60 * 1000,
+
+  /**
+   * Ceiling on the owner-alert POST. The alert is best-effort context for a
+   * human, never a precondition for recovery, so it must not meaningfully
+   * delay the self-heal exit — a wedged bot stays wedged for however long
+   * this waits.
+   */
+  ALERT_TIMEOUT_MS: 2500,
 } as const;
 
 export interface GatewayWatchdog {
@@ -69,7 +84,22 @@ export interface GatewayWatchdog {
 interface WatchdogState {
   lastGatewayEventAt: number;
   notReadySince: number | null;
+  /**
+   * One deferred alert per wedge EPISODE, not per process. It latches on the
+   * first min-uptime-deferred alert so a long deferral does not re-alert every
+   * tick, and `updateReadinessState` clears it on any tick where BOTH signals
+   * are healthy — ws.status Ready AND a gateway event inside
+   * STALE_THRESHOLD_MS — which is what ends an episode. A later, distinct
+   * wedge in the same process therefore alerts again; an ongoing one does not.
+   * (An exit ends an episode the other way, by restarting the process and
+   * rebuilding this state from scratch.) Both halves are pinned: the
+   * wedge-recover-wedge test for the reset, the single-deferred-alert test for
+   * the ongoing case.
+   */
+  deferredAlertSent: boolean;
 }
+
+type AlertAction = 'exit' | 'deferred';
 
 /**
  * Everything a tick needs, assembled once at start. A cohesive bundle rather
@@ -82,6 +112,7 @@ interface TickContext {
   logger: Logger;
   exit: (code: number) => void;
   uptimeMs: () => number;
+  sendAlert: (payload: WedgePayload, action: AlertAction) => Promise<void>;
 }
 
 /**
@@ -123,11 +154,71 @@ function buildWedgePayload(
   };
 }
 
-// The alert transport (e.g. an owner-channel notification) is itself
-// unreliable exactly when this fires — the gateway is the thing that's
-// wedged — so no notify call is placed here. The platform's crash
-// notification on the non-zero exit is the alerting path for this condition.
-function handleWedge(logger: Logger, exit: (code: number) => void, payload: WedgePayload): void {
+function formatAlertText(payload: WedgePayload, action: AlertAction, environment: string): string {
+  const notReadyText = payload.notReadyForMs === null ? 'n/a' : String(payload.notReadyForMs);
+  const actionText =
+    action === 'exit' ? 'exiting for self-heal restart' : 'exit deferred by min-uptime gate';
+  // The alert channel is the one the owner actually watches, so the text
+  // carries the same fields as the structured log line: both clocks plus the
+  // socket status and guild count they are read against. Without those last
+  // two, diagnosing the incident shape means going and finding the logs.
+  return (
+    `🚨 bot-client [${environment}] gateway watchdog: ${payload.arm} wedge — ` +
+    `staleForMs=${payload.staleForMs}, notReadyForMs=${notReadyText}, ` +
+    `wsStatus=${Status[payload.wsStatus]}(${payload.wsStatus}), guilds=${payload.guildCount}, ` +
+    `uptimeMs=${payload.uptimeMs} — ${actionText}`
+  );
+}
+
+/**
+ * Builds the best-effort owner alert sender. It never throws or rejects, so a
+ * failed alert cannot block the self-heal exit it accompanies — pinned by the
+ * rejecting-fetch and synchronously-throwing-fetch tests. Slowness is bounded
+ * by the ALERT_TIMEOUT_MS abort signal rather than by a test: driving that
+ * abort under fake timers is not practical, so the tests inject a fetch that
+ * settles immediately and the timeout arm is unverified here.
+ */
+function createAlertSender(
+  logger: Logger,
+  alertWebhookUrl: string | undefined,
+  environment: string | undefined,
+  fetchFn: typeof fetch
+): (payload: WedgePayload, action: AlertAction) => Promise<void> {
+  const resolvedEnvironment = environment ?? 'unknown';
+  return async (payload: WedgePayload, action: AlertAction): Promise<void> => {
+    if (alertWebhookUrl === undefined || alertWebhookUrl.trim() === '') {
+      return;
+    }
+    try {
+      const response = await fetchFn(alertWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: formatAlertText(payload, action, resolvedEnvironment) }),
+        signal: AbortSignal.timeout(WATCHDOG_THRESHOLDS.ALERT_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        // A revoked or misconfigured webhook fails as an HTTP status, not a
+        // rejection — without this branch a permanently dead webhook would be
+        // indistinguishable from a delivered alert.
+        logger.warn(
+          { status: response.status },
+          'Gateway watchdog owner-alert webhook returned a non-OK status'
+        );
+      }
+    } catch (err: unknown) {
+      logger.warn({ err }, 'Gateway watchdog owner-alert webhook POST failed');
+    }
+  };
+}
+
+// The in-bot owner-channel notification path is unusable here — it posts
+// through the very gateway this watchdog exists to detect as wedged — so the
+// alert instead goes out over a plain-HTTPS webhook, independent of the
+// gateway socket. It is gated on WATCHDOG_ALERT_WEBHOOK_URL configuration —
+// with it unset, no send is attempted and the exit path is unchanged (pinned
+// by the unconfigured-webhook test) — and bounded by ALERT_TIMEOUT_MS.
+async function handleWedge(ctx: TickContext, payload: WedgePayload): Promise<void> {
+  const { logger, exit, state, sendAlert } = ctx;
   if (payload.uptimeMs >= WATCHDOG_THRESHOLDS.MIN_UPTIME_BEFORE_EXIT_MS) {
     // This line lands before exit() tears the process down because the
     // deployed logger is transport-free: createLogger attaches the
@@ -137,6 +228,7 @@ function handleWedge(logger: Logger, exit: (code: number) => void, payload: Wedg
     // accepted, dev-only gap. Giving the deployed logger an async transport
     // would require a flush-then-exit sequence here.
     logger.error(payload, 'Gateway watchdog detected a wedged connection — exiting');
+    await sendAlert(payload, 'exit');
     exit(1);
     return;
   }
@@ -144,30 +236,57 @@ function handleWedge(logger: Logger, exit: (code: number) => void, payload: Wedg
     { ...payload, minUptimeMs: WATCHDOG_THRESHOLDS.MIN_UPTIME_BEFORE_EXIT_MS },
     'Gateway watchdog detected a wedged connection — exit deferred by the min-uptime gate'
   );
+  if (!state.deferredAlertSent) {
+    state.deferredAlertSent = true; // set BEFORE the await so an overlapping tick cannot double-send
+    await sendAlert(payload, 'deferred');
+  }
 }
 
-function checkSilentHang(ctx: TickContext, now: number): boolean {
-  const { client, state, logger, exit, uptimeMs } = ctx;
+async function checkSilentHang(ctx: TickContext, now: number): Promise<boolean> {
+  const { client, state, uptimeMs } = ctx;
+  // Canonical statement of the empty-guild-cache exclusion, which BOTH arms
+  // apply (arm B repeats it below). An empty cache is what an idle or
+  // still-booting process looks like, and neither is a wedge, so the gate
+  // keeps those from tripping the watchdog. Its cost is a real blind spot
+  // rather than a free filter: for a process whose cache never fills, the
+  // cache stays empty for the whole episode, so no tick of either arm can ever
+  // fire — the watchdog simply cannot see a wedge that happens before the
+  // first guild sync completes. bootWatchdog's own 5-minute deadline covers
+  // the process that never finishes logging in; a process that gets past that
+  // and still never populates guilds is an accepted residual gap with no
+  // detection here.
   if (
     now - state.lastGatewayEventAt <= WATCHDOG_THRESHOLDS.STALE_THRESHOLD_MS ||
     client.guilds.cache.size === 0
   ) {
     return false;
   }
-  handleWedge(logger, exit, buildWedgePayload(client, state, 'silent-hang', now, uptimeMs()));
+  await handleWedge(ctx, buildWedgePayload(client, state, 'silent-hang', now, uptimeMs()));
   return true;
 }
 
 /**
- * Maintains the not-Ready clock. Runs unconditionally at the top of EVERY
- * tick, before either arm, so the clock stays accurate even on a tick where
- * arm A fires and short-circuits arm B. Folding this into arm B would make a
- * both-wedged state log `notReadyForMs: null` — which the payload contract
- * above defines as "currently Ready" — turning the richer diagnosis into a
- * false reading. Pinned by the both-wedged test.
+ * Maintains the not-Ready clock and ends a wedge episode. Runs unconditionally
+ * at the top of EVERY tick, before either arm, so the clock stays accurate even
+ * on a tick where arm A fires and short-circuits arm B. Folding this into arm B
+ * would make a both-wedged state log `notReadyForMs: null` — which the payload
+ * contract above defines as "currently Ready" — turning the richer diagnosis
+ * into a false reading. Pinned by the both-wedged test.
+ *
+ * Episode end is deliberately the conjunction of BOTH signals, since either one
+ * alone is exactly what one arm treats as a wedge: a Ready socket that has gone
+ * quiet is arm A's case, and fresh raw traffic without Ready is arm B's. Only
+ * when neither arm has anything to say is the connection healthy enough to
+ * re-arm the deferred alert.
  */
 function updateReadinessState({ client, state }: TickContext, now: number): void {
-  if (client.ws.status === Status.Ready) {
+  const isReady = client.ws.status === Status.Ready;
+  const eventsAreFresh = now - state.lastGatewayEventAt <= WATCHDOG_THRESHOLDS.STALE_THRESHOLD_MS;
+  if (isReady && eventsAreFresh) {
+    state.deferredAlertSent = false;
+  }
+
+  if (isReady) {
     state.notReadySince = null;
     return;
   }
@@ -179,15 +298,34 @@ function updateReadinessState({ client, state }: TickContext, now: number): void
 // independence is the whole point: arm A can only see a connection that has
 // gone quiet, and a wedge need not be quiet. The paired test constructs the
 // still-flowing-raw case to pin it.
-function checkNeverReady(ctx: TickContext, now: number): void {
-  const { client, state, logger, exit, uptimeMs } = ctx;
+async function checkNeverReady(ctx: TickContext, now: number): Promise<void> {
+  const { client, state, uptimeMs } = ctx;
+  // Same empty-guild-cache exclusion as arm A, with the same blind spot — see
+  // the canonical explanation on checkSilentHang above.
   if (state.notReadySince === null || client.guilds.cache.size === 0) {
     return;
   }
   if (now - state.notReadySince <= WATCHDOG_THRESHOLDS.NOT_READY_THRESHOLD_MS) {
     return;
   }
-  handleWedge(logger, exit, buildWedgePayload(client, state, 'never-ready', now, uptimeMs()));
+  await handleWedge(ctx, buildWedgePayload(client, state, 'never-ready', now, uptimeMs()));
+}
+
+/**
+ * One tick's worth of watchdog logic: maintain the readiness clock, then run
+ * arm A and (if it didn't fire) arm B. Extracted to a module-level function so
+ * the interval callback can drive it without ever producing an unhandled
+ * rejection (see the `void runTick(ctx).catch(...)` wrapper below).
+ */
+async function runTick(ctx: TickContext): Promise<void> {
+  // One clock read per tick, shared by state maintenance and both arms, so
+  // the two ages in a payload are always measured against the same instant.
+  const now = Date.now();
+  updateReadinessState(ctx, now);
+  const hung = await checkSilentHang(ctx, now);
+  if (!hung) {
+    await checkNeverReady(ctx, now);
+  }
 }
 
 export function startGatewayWatchdog(
@@ -197,39 +335,56 @@ export function startGatewayWatchdog(
     exit?: (code: number) => void;
     /** Process uptime in MILLISECONDS. Injected so tests control the min-uptime gate. */
     uptimeMs?: () => number;
+    /** Discord webhook for the owner alert. Unset/empty means log-only. */
+    alertWebhookUrl?: string;
+    /** Deployment environment name, carried into the alert text. */
+    environment?: string;
+    fetchFn?: typeof fetch;
   }
 ): GatewayWatchdog {
   const exit = options?.exit ?? ((code: number) => process.exit(code));
   const uptimeMs = options?.uptimeMs ?? (() => process.uptime() * 1000);
+  const fetchFn = options?.fetchFn ?? globalThis.fetch;
+  const alertWebhookUrl = options?.alertWebhookUrl;
+
+  if (alertWebhookUrl === undefined || alertWebhookUrl.trim() === '') {
+    logger.info(
+      {},
+      'Gateway watchdog owner alerting is unconfigured (WATCHDOG_ALERT_WEBHOOK_URL unset) — log-only'
+    );
+  }
 
   const state: WatchdogState = {
     lastGatewayEventAt: Date.now(),
     notReadySince: null,
+    deferredAlertSent: false,
   };
-  const ctx: TickContext = { client, state, logger, exit, uptimeMs };
+  const sendAlert = createAlertSender(logger, alertWebhookUrl, options?.environment, fetchFn);
+  const ctx: TickContext = { client, state, logger, exit, uptimeMs, sendAlert };
 
-  (client as unknown as RawGatewayEmitter).on(Events.Raw, () => {
+  // Held in a named const so stop() can deregister this exact function: the
+  // interval is only half the subscription, and leaving the listener attached
+  // would keep a stopped watchdog's state object reachable from the client.
+  const rawEmitter = client as unknown as RawGatewayEmitter;
+  const onRawGatewayEvent = (): void => {
     state.lastGatewayEventAt = Date.now();
-  });
+  };
+  rawEmitter.on(Events.Raw, onRawGatewayEvent);
 
   // unref'd: this is a background check on an already-live process, not a
   // deadline that must keep the process alive to fire (contrast bootWatchdog,
   // which deliberately does NOT unref for that reason).
   const interval: NodeJS.Timeout = setInterval(() => {
-    // One clock read per tick, shared by state maintenance and both arms, so
-    // the two ages in a payload are always measured against the same instant.
-    const now = Date.now();
-    updateReadinessState(ctx, now);
-    const hung = checkSilentHang(ctx, now);
-    if (!hung) {
-      checkNeverReady(ctx, now);
-    }
+    void runTick(ctx).catch((err: unknown) => {
+      logger.error({ err }, 'Gateway watchdog tick failed unexpectedly');
+    });
   }, WATCHDOG_THRESHOLDS.CHECK_INTERVAL_MS);
   interval.unref();
 
   return {
     stop(): void {
       clearInterval(interval);
+      rawEmitter.off(Events.Raw, onRawGatewayEvent);
     },
   };
 }

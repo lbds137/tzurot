@@ -192,6 +192,22 @@ export const envSchema = z.object({
    * NOT named GITHUB_TOKEN: GitHub Actions auto-injects that name into CI env.
    */
   GITHUB_API_TOKEN: optionalNonEmptyString(),
+
+  // Gateway Watchdog Alerting
+  /**
+   * Discord webhook the gateway watchdog POSTs to before a self-heal exit
+   * (and once on a min-uptime-deferred wedge). Optional: unset means the
+   * watchdog stays log-only. Deliberately a webhook rather than the in-bot
+   * owner-channel path — that path posts through the very gateway the
+   * watchdog exists to detect as wedged, while a webhook POST is plain
+   * HTTPS REST.
+   */
+  WATCHDOG_ALERT_WEBHOOK_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+
   ENABLE_HEALTH_SERVER: z
     .string()
     .transform(val => val !== 'false')
@@ -318,6 +334,10 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // Worker
     WORKER_CONCURRENCY: 5,
     QUEUE_NAME: 'ai-requests',
+
+    // Gateway Watchdog Alerting
+    WATCHDOG_ALERT_WEBHOOK_URL: undefined,
+
     ENABLE_HEALTH_SERVER: false,
     PORT: 3001,
   };
