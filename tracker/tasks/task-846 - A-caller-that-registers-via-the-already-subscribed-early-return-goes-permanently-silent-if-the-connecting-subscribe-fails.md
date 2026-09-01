@@ -31,4 +31,6 @@ Option (b) is the most correct and the most invasive: it changes the early-retur
 Blast radius today is small and should be stated honestly: all three call sites (bot-client/src/index.ts, ai-worker/src/cacheInvalidation.ts, api-gateway/src/index.ts) subscribe once during startup, so two concurrent subscribe calls on one instance is not a shape we currently produce. Verify those call sites before scoping, cites drift.
 
 Acceptance: a decision recorded among (a)/(b)/(c); if (a) or (b), a test in which the early-return caller either receives events after the other caller connection fails, or observes the failure itself.
+
+DECISION (owner, 2026-09-01, via AskUserQuestion): option (b) — the early-return path awaits a shared in-flight connect promise, so a connection failure propagates to every waiting caller and a resolved subscribe() means the subscription is live. Council pass considered and skipped: the options were already fully characterized and (b) is the standard single-flight idiom; invasiveness is bounded because no current call site subscribes concurrently (the three startup-only call sites above, re-verify before building). RATIFIED INTO beta.213. Sequencing: after TASK-847 resolves its ioredis-resubscribe question, since 847 may reshape the same class; the two may share a PR if the diffs compose cleanly.
 <!-- SECTION:DESCRIPTION:END -->
