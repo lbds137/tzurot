@@ -79,6 +79,21 @@ export class CacheInvalidationService {
       // (Redis pub/sub requires dedicated connection)
       this.subscriber = this.redis.duplicate();
 
+      // Registered BEFORE the subscribe handshake below so the initial-connect
+      // window is covered: ioredis can emit 'error' per retry attempt while
+      // that first command is queued, and an 'error' with no listener falls to
+      // ioredis's console.error instead of our structured logger. See
+      // BaseCacheInvalidationService's subscriber 'error' listener for the
+      // hedged ioredis auto-resubscribe citation and the reason this message
+      // stays neutral about reconnection. An unhandled 'error' event doesn't
+      // throw, so this is observability, not crash-prevention.
+      //
+      // A failed initial connect logs here at warn and again at error from
+      // the catch below; two levels, one incident.
+      this.subscriber.on('error', (err: Error) => {
+        logger.warn({ err }, 'Cache invalidation subscriber connection error');
+      });
+
       await this.subscriber.subscribe(REDIS_CHANNELS.CACHE_INVALIDATION);
 
       this.subscriber.on('message', (channel: string, message: string) => {
