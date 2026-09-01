@@ -3,9 +3,10 @@ id: TASK-857
 title: >-
   cwd-drift-guard misses the cd-inside-the-same-command shape, which is the one
   that strands canary mutations
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 19:18'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'

@@ -1,9 +1,10 @@
 ---
 id: TASK-720
 title: Extend cwd-drift-guard to tracker CLI and file edits from a worktree cwd
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 21:18'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'

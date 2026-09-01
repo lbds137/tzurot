@@ -1,9 +1,10 @@
 ---
 id: TASK-818
 title: tracker task create on a feature branch issues a duplicate id
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 14:37'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -28,3 +29,9 @@ Fix shape (pick after checking the gate): (a) a PreToolUse hook on `tracker task
 
 Acceptance: filing a task from a feature branch either cannot produce a colliding id or is blocked with a message naming develop as the place to file; and duplicate ids in `tracker/tasks/` fail a gate rather than merging silently. Include the observed 816/817 case as the regression fixture.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Watch (from the #2291 review, not probed): Backlog.md v1.50.1 is a native binary, so its remote fetch timeout cannot be set from backlog.config.yml. The runtime probe covered offline (soft-fails); a reachable-but-unresponsive remote could hang task create at the OS TCP timeout. If a task create ever hangs, the local escape is filesystem_only: true (the backlogConfigGate will name the trade); file the observation here.
+<!-- SECTION:NOTES:END -->

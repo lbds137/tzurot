@@ -1,9 +1,10 @@
 ---
 id: TASK-819
 title: cwd-drift-guard misfires for worktree-isolated agents on bare git commands
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 16:42'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'

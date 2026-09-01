@@ -1,9 +1,10 @@
 ---
 id: TASK-753
 title: 'pr-merge-review-check: compound command with two merges only gates the first'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 20:29'
+updated_date: '2026-09-01 23:43'
 labels:
   - 'area:hooks'
   - 'size:S'
