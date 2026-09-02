@@ -33,4 +33,7 @@ Candidate directions, none chosen (owner call): (a) fewer attempts specifically 
 Acceptance: a deliberate owner decision on the timeout-path wait budget, and if a change is chosen, the worst-case wait is bounded to the agreed number with the fallback still reached.
 
 Provenance: owner-approved filing 2026-08-29 ("we can file it").
+
+Owner question: On the TIMEOUT path specifically, do we (a) cut the attempt count, (b) shorten the per-attempt timeout, (c) advance to the fallback after the first timeout, or (d) accept the current worst case as the cost of maximum success rate?
+Recommendation: (a) fewer attempts for the TIMEOUT category only — the task's own reasoning is that a provider silent for 180s is unlikely to answer on attempt 2 or 3 for the same reason, so those attempts buy little while costing the user the whole window, and leaving other categories at the current count keeps the change narrow.
 <!-- SECTION:DESCRIPTION:END -->
