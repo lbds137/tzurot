@@ -24,4 +24,6 @@ Trim 7 over-cap voice references
 
 Owner question: Do you want to schedule the trim-and-reupload batch for these 8 personalities now, or keep it filed?
 Recommendation: Keep filed until you have the trimmed clips — the task states there is no code work left and the only remaining step is owner-side re-uploading, after which the re-run is a single `pnpm ops voice-refs:audit --env prod`.
+
+Decision 2026-09-02 (owner): keep filed; the remaining step is the owner re-uploading trimmed clips, then one audit run.
 <!-- SECTION:DESCRIPTION:END -->

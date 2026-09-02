@@ -9,7 +9,7 @@ labels:
   - 'area:docs'
   - 'area:voice'
   - 'size:S'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 91000
@@ -25,4 +25,6 @@ Mistral slot quota empirical verification
 
 Owner question: Should we spend an account's worth of clone attempts now to probe Mistral's undocumented voice quota, or keep this filed?
 Recommendation: Keep filed — the task's promote-when has two halves (PR 2 in production 2+ weeks without eviction firing AND wanting to decide whether to keep or remove the code), and neither has been stated as met, so the probe would answer a question nobody is currently asking.
+
+Decision 2026-09-02 (owner): keep filed until the promote-when fires (PR 2 in prod 2+ weeks without eviction AND a keep-or-remove decision pending).
 <!-- SECTION:DESCRIPTION:END -->
