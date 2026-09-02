@@ -77,6 +77,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/dispatch-posture-gate.probe.sh',
   },
   {
+    hook: '.claude/hooks/dispatch-spec-ledger-gate.sh',
+    probe: '.claude/hooks/dispatch-spec-ledger-gate.probe.sh',
+  },
+  {
     hook: '.claude/hooks/lossy-pipe-guard.sh',
     probe: '.claude/hooks/lossy-pipe-guard.probe.sh',
   },
@@ -115,6 +119,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     // own unprobedReason.
     hook: '.claude/hooks/tracker-dirty-push-gate.sh',
     probe: '.claude/hooks/tracker-dirty-push-gate.probe.sh',
+  },
+  {
+    hook: '.claude/hooks/turn-end-shape-gate.sh',
+    probe: '.claude/hooks/turn-end-shape-gate.probe.sh',
   },
   {
     hook: '.claude/hooks/eslint-on-edit.sh',

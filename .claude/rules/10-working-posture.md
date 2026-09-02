@@ -24,10 +24,17 @@ the mechanics). Under an Opus driver the same shape applies to SUBSTANTIVE
 units (nested dispatch — the orchestration skill's mode table carries the
 full Opus statement), and review-round fixes are dispatch work under ANY
 driver — the missing fresh reader, not the budget, is the reason
-(`/tzurot-review-response` § 3a). Inline is a narrow exception: a ≤~5-line
-mechanical edit in
-a file already in context, or work where the spec would genuinely cost more
-than the edit. Read fan-outs of ~4+ files go to Explore (`model: haiku`);
+(`/tzurot-review-response` § 3a). Inline is a narrow exception: a ≤5-line
+mechanical edit in a file already in context, or work where the spec would
+genuinely cost more than the edit — and `dispatch-posture-gate.sh` MEASURES
+that five, counting the touched lines of the edit's own old/new text, so a
+larger inline src edit is hard-blocked rather than acked; a comment-only
+edit above five lines is dispatched or split like any other. The five is
+the OUTER gate rather than a sibling of the other clause: above five
+touched lines dispatch is the only path, whichever justification applied,
+so "the spec would cost more than the edit" lives INSIDE the cap and never
+beside it. Read fan-outs
+of ~4+ files go to Explore (`model: haiku`);
 file mutations use the Edit tool, never interpreter rewrite-scripts in
 Bash. The reason is arithmetic, not ideology: every main-loop tool call
 re-reads the full context (~50k weighted tokens per call, measured; ~85% of
@@ -259,7 +266,10 @@ failure shapes are observed — two of ordering, one of non-execution: the
 report queued behind the writes and killed by compaction; the turn ending
 silently on a successful write; and the turn ending on a STATED INTENTION to
 act ("running the close-out now") — an announced action is not a close; do
-it, or report what blocks it.
+it, or report what blocks it. A fourth costume is the same failure: the turn
+ending on a `PushNotification`, which feels like delivery — a PushNotification
+is not the report, and `turn-end-shape-gate.sh` blocks the stop once when the
+turn's last content block is a tool call.
 
 ## A comment naming an artifact is a pointer — resolve it before acting
 
