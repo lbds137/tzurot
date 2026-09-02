@@ -52,6 +52,8 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  *   whose RELATIONSHIP it guards — an edit to either is what that test exists
  *   to react to, so both must invalidate the cache or the guard reports on a
  *   pairing it never re-read
+ * - check-readme.test.ts (and check-readme.ts, its reader at runtime): the
+ *   root README.md, which findReadmeDrift reads directly
  */
 const INLINE_LITERAL_ROOTS = [
   '.github/workflows/ci.yml',
@@ -63,6 +65,7 @@ const INLINE_LITERAL_ROOTS = [
   'services/ai-worker/src',
   'tests/e2e/contracts',
   'prisma/drift-ignore.json',
+  'README.md',
 ];
 
 const REQUIRED_ROOTS: readonly string[] = [

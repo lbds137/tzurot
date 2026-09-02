@@ -410,6 +410,7 @@ describe('findContentRefs (against real repo)', () => {
       'guard:monitor-command',
       'guard:ops-doc',
       'guard:proposal-links',
+      'guard:readme',
       'guard:repo-settings',
       'lines:check',
       'lines:update-baseline',

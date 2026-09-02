@@ -400,7 +400,11 @@ enumerate exactly what shipped — walk each Breaking Changes, Features, and
 Improvements item (breaking renames/removals are the stalest-doc risk) against
 every user-facing doc surface, and fix what's stale in the same sitting:
 
-- `README.md` — feature bullets, slash-command list, project tree.
+- `README.md` — the derivable half (project tree, prerequisites, fenced
+  scripts, slash-command list, links) is gated by `pnpm ops guard:readme`; this
+  sweep is the **Highlights and Features prose**: with the drafted notes in
+  hand, ask whether they still describe what the range shipped, and fix in the
+  same cut.
 - `docs/commands.md` — command table. **Rendered live at tzurot.org/docs/commands.**
 - `docs/guides/*.md` — the getting-started guide (and future guides).
   **Rendered live under tzurot.org/docs.** A new user-visible feature or a

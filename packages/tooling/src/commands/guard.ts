@@ -290,6 +290,14 @@ function registerMetaGuards(cli: CAC): void {
       const { checkGateParity } = await import('../dev/check-gate-parity.js');
       checkGateParity();
     });
+
+  cli
+    .command('guard:readme', 'Fail when README.md drifts from the repo it describes')
+    .example('ops guard:readme')
+    .action(async () => {
+      const { checkReadme } = await import('../dev/check-readme.js');
+      checkReadme();
+    });
 }
 
 /**
