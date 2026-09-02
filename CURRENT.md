@@ -1,10 +1,16 @@
 # Current
 
-> **Version**: v3.0.0-beta.212 — "Parent Value fix + link-preview provenance + mutation-floor campaign + deps" (10 PRs / 8 runtime / 120 range files, no migrations, merged 2026-08-31 ~19:20Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.213 — "gateway watchdog + cache-invalidation single-flight + identity floors + drain batches + vision fallback fix" (16 PRs / 13 runtime / 126 range files, no migrations, merged 2026-09-02 ~02:53Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.211 — "deny surface completion + model-footer clarity + restart delivery recovery" (13 PRs / 10 runtime, 2026-08-31 01:58Z).
+> **Previous**: v3.0.0-beta.212 — "Parent Value fix + link-preview provenance + mutation-floor campaign + deps" (10 PRs / 8 runtime, 2026-08-31 ~19:20Z).
 
 ---
+
+## 🌙 2026-09-02 (late) — beta.213 CUT + TASK-791 fixed in-release (Fable-driven)
+
+**v3.0.0-beta.213 CUT + MERGED + PUBLISHED (PR #2296).** Holistic review clean; its one finding (the standalone `CacheInvalidationService` never got #2289's single-flight guard — verified by grep) is **TASK-861**. Finalize aligned develop; beta.212 demoted. **Owner call mid-cut**: a prod image failed with the chain exhausted (flash refusal → `openrouter/auto` zero choices) and the owner wanted it fixed in this release. **#2295** shipped after three review rounds: OpenRouter's documented 200-with-error-and-no-choices body is restated as a real error status so the existing parser classifies it (with `flagged_input` stripped from the forwarded body, not just the log); a non-guest chain whose capped tail is a router alias gets the concrete code default appended, one over the cap. Owner calls recorded on the board: qwen as the concrete terminal; the guest floor stays `openrouter/free` because provider eligibility is circumstantial (TASK-860 became a watch on the owner's correction). Also merged: **#2294** (mysql2 override). Next: **session mining**.
+
+**Honest ledger.** Two spec defects of mine, both caught downstream: the constant is `MODEL_DEFAULTS.VISION_FALLBACK` (I wrote `AI_DEFAULTS`), and I excluded `openrouter/free` from the alias guard on guest-firewall grounds when the firewall is the guest early return — round 2 widened it. I read the round-0 diff past a real PII leak (the stripped field still rode the forwarded body into pino's error serializer); the reviewer traced it. TASK-860 was filed with a present condition stated as structural; the owner corrected it within the hour. The lossy-pipe guard fired five times and the heredoc guard once — each a retry, all my own command shapes. One orchestrator measured a composition change's blast radius with a targeted vitest run and under-counted it by one test; its resume ran the full package first.
 
 ## 🌙 2026-09-01 (evening) — beta.213 units + context-cost pass (Fable-driven after a surprise usage reset)
 
@@ -32,13 +38,13 @@
 
 ## 📋 Open items (near-term)
 
-- **beta.213 slate (`now.md` § 🚢), Fable-driven since the 2026-09-01 reset**: remaining in order — #2291 Batch 1 review rounds → Batch 2 (dispatched) → **floor raise LAST** (all five tracked packages measured locally, sequential, then `mutation:update-baseline`) → cut prep (`release:range`; release PR needs explicit owner approval; the two deferred mining-operationalization process PRs are an owner budget call). Then **session mining** (`/tzurot-session-mining`). Kept out: doc-87, TASK-844/845, doc-86, doc-8, TASK-730. Owner calls parked on #2290's body: the 05-tooling command-reference lever and a skills economy pass.
+- **Session mining is NEXT** (`/tzurot-session-mining`, owner ask made before the beta.213 cut). The **beta.214 slate (`now.md` § 🚢) is provisional** until mining reshapes it: TASK-861 + TASK-858 (one PR), TASK-859 (rules PR), then whatever mining operationalizes. Owner calls carried on the board: the 05-tooling command-reference lever, a skills economy pass + `lines:check` surface, the two deferred mining process PRs (budget), TASK-845 copy.
 - **TASK-816 remaining clauses** (a) ratchet classification recorded at definition (b) named recurring trigger (d) audit reports distance-above-floor — the floors themselves are raised and banked; these are the mechanism clauses. doc-63 owns the theme.
 - **Prod watchers live (event-driven, quiet)**: restart recovery (#2253) · guest 429 floor · GLM `model_not_found (rescued)` embeds · **NEW: #2270's first real link-share** (provenance render — `/inspect` observability, no smoke needed) · the #2277 deploy-window transient (accepted, self-heals).
-- **TASK-791 (high)** — instrumentation live; fix half wakes on the next prod `empty_response` window.
+- **TASK-791 (high)** — fix half SHIPPED in #2295 (beta.213). The acceptance clause is a prod watch: the first image after this deploy is described, or logs a classified reason from the router alias instead of `empty_response`. TASK-860 (guest free-floor eligibility) is a sibling watch.
 - **🔍 SMOKE ITEM, owner-only (#2259 round 2)**: failed `/inspect` diagnostic with a masked link in the provider error → Error field renders inert literal text. The one clause no local test can close.
 - **beta.209 open clauses:** TASK-598 (worktree-push, close after a quiet stretch) · TASK-764 (experiential /deny) · TASK-612 (runtime invalidation) · TASK-782 watch · TASK-795 · TASK-775.
-- **Usage posture:** owner call 2026-08-31 — heavy Fable today against yesterday's surplus; beta.213 goes to Opus.
+- **Usage posture:** owner call 2026-09-01 (after a surprise weekly reset) — Fable drives with nested dispatch; the Opus single-hop lane is the documented backup when Fable runs low.
 - `ConversationHistoryEntry` (pipeline/types.ts) Pick/Omit fold still carried for whichever slice next touches the wire shape.
 
 ## 🔧 DRAIN CAMPAIGN — standing; batching is the method
