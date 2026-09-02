@@ -395,6 +395,29 @@ describe('OpenRouterFetch', () => {
     expect(parsed.route).toBe('fallback');
   });
 
+  it('leaves a POST body untouched when extraParams is empty (the vision shape)', async () => {
+    const customFetch = createFetch();
+
+    const requestBody = JSON.stringify({ model: 'test-model', messages: [] });
+    let capturedBody: string | undefined;
+
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(mockResponse({ choices: [{ message: { content: 'ok' } }] }, 200));
+    });
+
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: requestBody,
+    });
+
+    expect(capturedBody).toBe(requestBody);
+    const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+    expect(parsed).not.toHaveProperty('transforms');
+    expect(parsed).not.toHaveProperty('route');
+    expect(parsed).not.toHaveProperty('verbosity');
+  });
+
   it('should pass body through unchanged when it is not a JSON-parseable string', async () => {
     // Defensive guard: LangChain's ChatOpenAI always passes a string body today,
     // but we don't want a future LangChain version that uses Uint8Array /
