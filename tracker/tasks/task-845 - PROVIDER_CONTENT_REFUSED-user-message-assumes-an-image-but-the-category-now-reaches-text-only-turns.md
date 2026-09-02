@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-31 20:00'
+updated_date: '2026-09-02 13:38'
 labels:
   - 'area:common-types'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 845000
@@ -30,3 +31,9 @@ Note the second half of the sentence stays true either way — a different provi
 
 Acceptance: owner picks (a) or (b); if (a), the new wording is in place and no test pins the old image-specific phrasing.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-09-02: (a) reword to payload-neutral AND add PROVIDER_CONTENT_REFUSED to the general-path quota-fallback retarget set (quotaFallback.ts ~L135-141 excludes it on the premise that it is image-only; the z.ai content-safety classification made that premise false, so a z.ai text refusal dead-ends where CONTENT_POLICY/CENSORED are routed around). Trace: the copy never surfaces on the image path (vision chain advances tiers, exhaustion yields an [Image unavailable] placeholder) and only surfaces on the text path for characters with no custom errorMessage. Code-read, not runtime-confirmed. Fix: neutral copy + retarget entry + corrected comment + a retarget test.
+<!-- SECTION:NOTES:END -->

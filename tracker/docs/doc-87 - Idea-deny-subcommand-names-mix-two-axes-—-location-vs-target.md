@@ -48,3 +48,9 @@ The `server`/`GUILD` terminology overload (`GUILD` is both a `DenyEntityType` an
 ## What is already done, so it is not redone
 
 PR #2262 (TASK-787) made every `/deny add|remove` subcommand take exactly one required target option and deleted the user/server XOR that arbitrated the old dual-optional shape. That is the shape defect. This doc is about the naming axis, which predates it and survives it.
+
+## Decision (owner, 2026-09-02)
+
+**Direction 2 is the target design**: `/deny user {everywhere|this-server|channel|character}` plus `/deny server`, mirrored by `/undeny user {...}` and `/undeny server`. The group names the TARGET, the leaf names the SCOPE, and the alphabetical-sort constraint stops mattering because the two targets no longer share a picker. Accepted costs: a second top-level command, and `/undeny` as a coined word (`/allow` was rejected — removing a denial is not granting an allowance).
+
+Scheduled as the UX waves 4–6 `/deny` redesign slot (`cold/queue.md`, PR-7 of `doc-14`), not in the drain. Direction 1 (descriptions name the target) stays as the shipped interim until then.

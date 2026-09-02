@@ -52,3 +52,13 @@ Activity-derived and memory-derived triggers, channel behaviour, per-character p
 ## Deliberately not in scope
 
 Dream Sequences and Relationship Graphs (doc-11's own entries) — they are self-directed *processing*, not self-directed *speech*, and folding them in would make this theme unschedulable.
+
+## Owner call (2026-09-02): research prior art before Phase 0
+
+Phase 0 is an open-ended design question with many defensible shapes, so the owner does not want to answer the five questions cold. **First deliverable is a prior-art research pass**, distilled to `docs/research/` (public audience — no user content):
+
+- shapes.inc "free will": closed source, so the signals are user discussions online and official documents or blog posts that hint at the mechanism (trigger model, cadence, consent, who pays).
+- Any other provider with a comparable character-initiated-messaging concept, and how each answers the five questions.
+- The framing question the owner raised: whether this belongs under doc-11's agentic features. Working distinction — agentic features change what a character does INSIDE a turn it was invoked for; this theme is what makes a turn happen with no user message at all. They share the spend/telemetry gate (doc-12), which is why both sit in Phase C.
+
+Phase 0 decisions follow the research, when the time comes. The Phase C build gate (doc-75 + doc-12) is unchanged.
