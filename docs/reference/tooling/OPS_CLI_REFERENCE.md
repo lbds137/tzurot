@@ -78,10 +78,10 @@ Focused (changed-packages-only) task runs plus the standalone dev audits:
 
 ## Backlog Commands
 
-| Command                   | Description                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `pnpm ops backlog`        | Lint the backlog surfaces: `now.md` caps, `queue.md` doc refs, tracker integrity      |
-| `pnpm ops backlog:digest` | Session-start briefing from the tracker store (per-area counts, oldest 20, newest 10) |
+| Command                   | Description                                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm ops backlog`        | Lint the backlog surfaces: `now.md` caps, `queue.md` doc refs, tracker integrity                   |
+| `pnpm ops backlog:digest` | Session-start briefing from the tracker store (per-area counts, owner queue, oldest 20, newest 10) |
 
 `pnpm ops backlog` is wired into `pnpm quality` and the CI lint job (via the `pnpm backlog:lint` shortcut); `backlog:digest` is informational and never gates.
 

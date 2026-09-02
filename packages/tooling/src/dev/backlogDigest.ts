@@ -6,10 +6,14 @@
  * into every session. Run via `pnpm ops backlog:digest` (BACKLOG.md names it
  * as part of the session-start load).
  *
- * Three surfaces, in priority order:
+ * Four surfaces, in priority order:
  *  - **By area** — per-`area:*`-label counts (a multi-area task counts in each
  *    of its areas, so the column can sum past the open total), so any slice of
  *    the haystack is one query away (`pnpm tracker task list -l area:<x> --plain`).
+ *  - **Owner queue** — every open `state:owner` task, each carrying one named
+ *    `Owner question:` plus a `Recommendation:` (`06-backlog.md` § State). The
+ *    lint (`checkOwnerQueue`) gates on both lines being present; this section
+ *    renders the current queue so the owner sees exactly what's waiting.
  *  - **Oldest 20** — the aging escalation. Aging escalates, never deletes
  *    (`.claude/rules/06-backlog.md` § Staleness); this surface exists so the
  *    oldest items get a conscious decision instead of sinking. The old
@@ -22,6 +26,7 @@
  */
 
 import chalk from 'chalk';
+import { ownerQueue, renderOwnerQueueLine } from './backlogOwnerQueue.js';
 import { loadTrackerTasks, openTasks, type TrackerTask } from './trackerTasks.js';
 
 const OLDEST_COUNT = 20;
@@ -103,6 +108,19 @@ export async function runBacklogDigest(options: DigestOptions = {}): Promise<voi
   }
   if (unlabeled > 0) {
     lines.push(`- (no area label yet): ${unlabeled}`);
+  }
+  lines.push('');
+
+  lines.push(
+    '## Owner queue (state:owner — one named question + a recommendation each; decide, then relabel)'
+  );
+  const ownerTasks = ownerQueue(open);
+  if (ownerTasks.length === 0) {
+    lines.push('- (empty)');
+  } else {
+    for (const task of ownerTasks) {
+      lines.push(renderOwnerQueueLine(task));
+    }
   }
   lines.push('');
 

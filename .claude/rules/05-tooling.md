@@ -157,7 +157,7 @@ All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code
 ```bash
 pnpm ops backlog                     # Gate: structural checks over now.md, cross-references, and tracker task files
 pnpm backlog:lint                    # Same check (root-level shortcut)
-pnpm ops backlog:digest              # Session-start briefing from tracker/: per-area counts, oldest 20, newest 10
+pnpm ops backlog:digest              # Session-start briefing from tracker/: per-area counts, owner queue, oldest 20, newest 10
 pnpm tracker task list --search <t> --plain   # Query the small-item pool (Backlog.md CLI)
 ```
 
