@@ -578,6 +578,7 @@ describe('D12 category membership', () => {
     ApiErrorCategory.EMPTY_RESPONSE,
     ApiErrorCategory.CENSORED,
     ApiErrorCategory.CONTENT_POLICY,
+    ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
   ])('%s is now retargetable (availability/censorship class)', category => {
     expect(classifyQuotaFailure(err(category))).toBe(category);
   });
