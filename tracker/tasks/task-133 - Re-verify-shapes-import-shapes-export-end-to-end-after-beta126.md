@@ -24,4 +24,6 @@ Re-verify `/shapes import` + `/shapes export` end-to-end after beta.126
 
 Owner question: Should the shapes import/export round-trip be scheduled as its own verification session, or stay filed until you are next at a desktop with shapes.inc auth?
 Recommendation: Keep filed — the task's promote-when is exactly "next time at a desktop with shapes.inc auth", and it already records that confidence is high (the routes were restored to DEFERRED by the same mechanism as the verified db-sync) on a low-usage, low-impact feature.
+
+Decision 2026-09-02 (owner): keep filed until the next desktop session with shapes.inc auth.
 <!-- SECTION:DESCRIPTION:END -->

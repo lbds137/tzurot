@@ -25,4 +25,6 @@ Make the vision system-fallback daily cap a runtime admin-settings knob
 
 Owner question: Should the admin-settings plumbing for this cap be scheduled now, or stay filed until the owner actually wants to retune it?
 Recommendation: Keep filed — the task's own promote-when trigger is the owner wanting to tune the cap from observed traffic without a deploy, and that has not been stated, so building the adminSettings thread-through now buys a knob nobody is reaching for.
+
+Decision 2026-09-02 (owner): keep filed; build the admin-settings knob only when retuning from observed traffic is wanted.
 <!-- SECTION:DESCRIPTION:END -->

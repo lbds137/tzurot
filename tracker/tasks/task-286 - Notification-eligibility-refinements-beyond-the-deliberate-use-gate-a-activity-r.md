@@ -8,7 +8,7 @@ updated_date: '2026-07-28 10:52'
 labels:
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 286000
@@ -24,4 +24,6 @@ Surfaced 2026-07-17 (community feedback, Mythica in Elephant in the Room; owner:
 
 Owner question: Do you want to narrow the release-DM audience now by (a) activity recency or (b) interaction-surface relevance, or leave the shipped deliberate-use gate as the whole rule?
 Recommendation: Neither yet — keep filed, because the task records both as product-taste refinements rather than correctness gaps, notes the current gate already fails toward the defensible audience, and names its own trigger as post-blast feedback saying the audience is still too broad.
+
+Decision 2026-09-02 (owner): keep the shipped deliberate-use gate as the whole rule; revisit only on post-blast feedback that the audience is still too broad.
 <!-- SECTION:DESCRIPTION:END -->

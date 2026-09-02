@@ -7,7 +7,7 @@ created_date: '2026-08-30 20:53'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 835000
@@ -28,4 +28,6 @@ Acceptance: the intended semantics for a GUILD-type entry at non-BOT scope is wr
 
 Owner question: Is a GUILD-type denial at CHANNEL or PERSONALITY scope a legitimate capability, or incoherent state the edit modal should reject?
 Recommendation: Legitimate — document the modal as deliberately permissive and pin it with a test, because DenylistCache already keys on type plus scope plus scopeId so such a row matches narrowly and reads as "this server is denied in this one channel", and the task warns that a guard written on the assumption it is nonsense could remove a capability someone wants.
+
+Decision 2026-09-02 (owner): legitimate capability. Document the edit modal as deliberately permissive for GUILD-type denials at CHANNEL/PERSONALITY scope and pin it with a test; no rejecting guard.
 <!-- SECTION:DESCRIPTION:END -->
