@@ -3,9 +3,10 @@ id: TASK-866
 title: >-
   lines:check: add a skills surface so skill-body bytes are measured and
   ratcheted
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 13:39'
+updated_date: '2026-09-02 19:29'
 labels:
   - 'area:tooling'
   - 'size:S'
