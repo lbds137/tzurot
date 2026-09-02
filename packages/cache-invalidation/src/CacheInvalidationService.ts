@@ -11,13 +11,20 @@
  * Events:
  * - personality:invalidate:{id} - Invalidate specific personality cache
  * - personality:invalidate:all - Invalidate all personality caches (global default changed)
+ *
+ * Failed invalidations are logged, not retried: the personality cache TTL
+ * (5 minutes) bounds staleness, so a dropped event self-heals rather than
+ * needing a redelivery mechanism. Critical config changes should be verified
+ * manually after execution.
  */
 
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
-import { createLogger } from '@tzurot/common-types/utils/logger';
+import {
+  BaseCacheInvalidationService,
+  createEventValidator,
+  type InvalidationCallback,
+} from './BaseCacheInvalidationService.js';
 import type { Redis } from 'ioredis';
-
-const logger = createLogger('CacheInvalidationService');
 
 /**
  * The minimal cache surface this service drives. PersonalityService
@@ -37,150 +44,57 @@ type InvalidationEvent = { type: 'personality'; personalityId: string } | { type
  * Type guard to validate InvalidationEvent structure
  * Exported for use in DatabaseNotificationListener
  */
-export function isValidInvalidationEvent(obj: unknown): obj is InvalidationEvent {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
+export const isValidInvalidationEvent = createEventValidator<InvalidationEvent>([
+  { type: 'personality', fields: { personalityId: 'string' } },
+  { type: 'all' },
+]);
 
-  const event = obj as Record<string, unknown>;
-
-  if (event.type === 'all') {
-    return Object.keys(event).length === 1;
-  }
-
-  if (event.type === 'personality') {
-    return typeof event.personalityId === 'string' && Object.keys(event).length === 2;
-  }
-
-  return false;
-}
-
-export class CacheInvalidationService {
-  private subscriber: Redis | null = null;
-
+export class CacheInvalidationService extends BaseCacheInvalidationService<InvalidationEvent> {
   constructor(
-    private redis: Redis,
-    private personalityService: PersonalityCacheTarget
-  ) {}
+    redis: Redis,
+    private readonly personalityService: PersonalityCacheTarget
+  ) {
+    super(
+      redis,
+      REDIS_CHANNELS.CACHE_INVALIDATION,
+      'CacheInvalidationService',
+      isValidInvalidationEvent,
+      {
+        getLogContext: event =>
+          event.type === 'personality' ? { personalityId: event.personalityId } : {},
+        getEventDescription: event =>
+          event.type === 'personality' ? 'personality' : 'ALL personalities',
+      }
+    );
+  }
 
-  /**
-   * Start listening for cache invalidation events
-   * Call this during service initialization
-   */
-  async subscribe(): Promise<void> {
-    // Prevent resource leak from double-subscribe
-    if (this.subscriber) {
-      logger.debug('Already subscribed to cache invalidation events, skipping');
+  // ONE stable reference on purpose: the base class dedupes registrations by
+  // identity, so repeated subscribe() calls register exactly one dispatcher —
+  // the replacement for the old "already subscribed, skipping" early return,
+  // and safe under concurrent first calls where that guard was not. Pinned by
+  // "should prevent resource leak from double-subscribe" here and by
+  // "dedupes a repeated subscribe(sameFn)" in the base class's tests.
+  private readonly dispatch = (event: InvalidationEvent): void => {
+    if (event.type === 'all') {
+      this.personalityService.invalidateAll();
       return;
     }
-
-    try {
-      // Create a separate Redis connection for subscribing
-      // (Redis pub/sub requires dedicated connection)
-      this.subscriber = this.redis.duplicate();
-
-      // Registered BEFORE the subscribe handshake below so the initial-connect
-      // window is covered: ioredis can emit 'error' per retry attempt while
-      // that first command is queued, and an 'error' with no listener falls to
-      // ioredis's console.error instead of our structured logger. See
-      // BaseCacheInvalidationService's subscriber 'error' listener for the
-      // hedged ioredis auto-resubscribe citation and the reason this message
-      // stays neutral about reconnection. An unhandled 'error' event doesn't
-      // throw, so this is observability, not crash-prevention.
-      //
-      // A failed initial connect logs here at warn and again at error from
-      // the catch below; two levels, one incident.
-      this.subscriber.on('error', (err: Error) => {
-        logger.warn({ err }, 'Cache invalidation subscriber connection error');
-      });
-
-      await this.subscriber.subscribe(REDIS_CHANNELS.CACHE_INVALIDATION);
-
-      this.subscriber.on('message', (channel: string, message: string) => {
-        if (channel !== REDIS_CHANNELS.CACHE_INVALIDATION) {
-          return;
-        }
-
-        try {
-          const parsed: unknown = JSON.parse(message);
-
-          if (!isValidInvalidationEvent(parsed)) {
-            logger.error({ message }, 'Invalid invalidation event structure');
-            return;
-          }
-
-          this.handleInvalidationEvent(parsed);
-        } catch (error) {
-          // Note: Failed invalidations are logged but not retried. This is acceptable
-          // because personality cache has a TTL (5 minutes), so stale data will
-          // eventually be invalidated. Critical config changes should be verified
-          // manually after execution.
-          logger.error({ err: error, message }, 'Failed to parse invalidation event');
-        }
-      });
-
-      logger.info('Subscribed to cache invalidation events');
-    } catch (error) {
-      // Clean up the subscriber connection on failure to prevent resource leak
-      if (this.subscriber) {
-        this.subscriber.disconnect();
-        this.subscriber = null;
-      }
-      logger.error({ err: error }, 'Failed to subscribe to cache invalidation events');
-      throw error;
-    }
-  }
+    this.personalityService.invalidatePersonality(event.personalityId);
+  };
 
   /**
-   * Publish a cache invalidation event
-   * Call this when LLM configs are modified
+   * Start listening for cache invalidation events; call during service
+   * initialization. Registers the personality-cache dispatcher by default.
+   * The parameter is there so a caller holding this instance through the
+   * base-class type gets the base contract — its own callback registered —
+   * instead of a zero-arity override silently ignoring the argument.
+   * Pinned by "registers an explicitly passed callback instead of the default
+   * dispatcher".
    */
-  async publish(event: InvalidationEvent): Promise<void> {
-    try {
-      const message = JSON.stringify(event);
-      await this.redis.publish(REDIS_CHANNELS.CACHE_INVALIDATION, message);
-
-      if (event.type === 'all') {
-        logger.info('Published cache invalidation event: ALL personalities');
-      } else {
-        logger.info(
-          { personalityId: event.personalityId },
-          'Published cache invalidation event for personality'
-        );
-      }
-    } catch (error) {
-      logger.error({ err: error, event }, 'Failed to publish invalidation event');
-      throw error;
-    }
-  }
-
-  /**
-   * Handle received invalidation event
-   * @private
-   */
-  private handleInvalidationEvent(event: InvalidationEvent): void {
-    if (event.type === 'all') {
-      logger.info('Received cache invalidation event: ALL personalities');
-      this.personalityService.invalidateAll();
-    } else {
-      logger.info(
-        { personalityId: event.personalityId },
-        'Received cache invalidation event for personality'
-      );
-      this.personalityService.invalidatePersonality(event.personalityId);
-    }
-  }
-
-  /**
-   * Clean up subscription on shutdown
-   */
-  async unsubscribe(): Promise<void> {
-    if (this.subscriber) {
-      await this.subscriber.unsubscribe(REDIS_CHANNELS.CACHE_INVALIDATION);
-      this.subscriber.disconnect();
-      this.subscriber = null;
-      logger.info('Unsubscribed from cache invalidation events');
-    }
+  override async subscribe(
+    callback: InvalidationCallback<InvalidationEvent> = this.dispatch
+  ): Promise<void> {
+    await super.subscribe(callback);
   }
 
   /**

@@ -56,7 +56,7 @@ export type StandardInvalidationEvent = UserInvalidationEvent | AllInvalidationE
 /**
  * Callback function for handling invalidation events
  */
-type InvalidationCallback<TEvent> = (event: TEvent) => void;
+export type InvalidationCallback<TEvent> = (event: TEvent) => void;
 
 /**
  * Type guard function signature
@@ -189,7 +189,23 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
    * Call this during service initialization
    */
   async subscribe(callback: InvalidationCallback<TEvent>): Promise<void> {
-    this.callbacks.push(callback);
+    // Captured before the push so the catch below can tell whether
+    // unsubscribe() has replaced the callback list since this invocation
+    // started: unsubscribe() reassigns `this.callbacks` to a fresh array
+    // rather than mutating the existing one, so this reference stays the
+    // OLD array once that happens — see the identity check in the catch.
+    const registeredList = this.callbacks;
+
+    // Dedupe by reference: a caller that stores one stable callback and
+    // calls subscribe() repeatedly (the personality invalidator's `dispatch`
+    // field; the other invalidators' callers subscribe once with an inline
+    // closure) registers it exactly once, so an event dispatches to it once
+    // per registration rather than once per call.
+    if (this.callbacks.includes(callback)) {
+      this.logger.debug('Callback already registered; skipping duplicate registration');
+    } else {
+      this.callbacks.push(callback);
+    }
 
     // Single-flight: every concurrent caller shares the same in-flight
     // connect attempt rather than racing independent duplicate()s. The
@@ -217,21 +233,28 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
         this.connectPromise = null;
       }
 
-      // A failed subscribe must leave the instance exactly as it found it, so a
-      // later subscribe() call starts clean. Remove only THIS invocation's
-      // callback, by identity and at its own index (never pop() / filter()):
-      // the push above happens synchronously, before this invocation awaits
-      // the shared `connectPromise` — so a concurrent subscribe() can still
-      // interleave its own push while this one is in flight, and position
-      // and "matches this reference" are not the same thing, and removing
-      // every matching reference would over-delete a duplicate registration.
+      // A failed subscribe must leave the instance exactly as it found it, so
+      // a later subscribe() call starts clean. Eviction is guarded by array
+      // identity: unsubscribe() REPLACES `this.callbacks` with a fresh array
+      // rather than mutating the existing one, so `this.callbacks ===
+      // registeredList` tells us whether the list this invocation registered
+      // into is still the live one. A mismatch means unsubscribe() already
+      // tore that list down — this invocation's own entry is already gone,
+      // and the live array may since have been rebuilt by a fresh
+      // subscribe() on the same reference, so splicing by index would evict
+      // that NEW registration instead of a stale one.
       //
-      // Taking the FIRST match is fine even when the same reference was
-      // registered twice: the entries are indistinguishable, so dropping
-      // either one leaves the identical array behind.
-      const callbackIndex = this.callbacks.indexOf(callback);
-      if (callbackIndex !== -1) {
-        this.callbacks.splice(callbackIndex, 1);
+      // When the list is still the live one, remove by identity at its own
+      // index (never pop() / filter()): the push above happens synchronously,
+      // before this invocation awaits the shared `connectPromise` — so a
+      // concurrent subscribe() can still interleave its own push while this
+      // one is in flight, and position and "matches this reference" are not
+      // the same thing.
+      if (this.callbacks === registeredList) {
+        const callbackIndex = this.callbacks.indexOf(callback);
+        if (callbackIndex !== -1) {
+          this.callbacks.splice(callbackIndex, 1);
+        }
       }
       throw error;
     }
@@ -370,14 +393,25 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
    * Clean up subscription on shutdown
    */
   async unsubscribe(): Promise<void> {
-    if (this.subscriber) {
-      await this.subscriber.unsubscribe(this.channel);
-      this.subscriber.disconnect();
-      this.subscriber = null;
-      this.callbacks = [];
-      this.connectPromise = null;
-      this.logger.info('Unsubscribed from cache invalidation events');
+    const connection = this.subscriber;
+    if (connection === null) {
+      return;
     }
+    // State is torn down BEFORE the awaited command: an overlapping
+    // unsubscribe() sees "not subscribed" and returns, a connect attempt still
+    // in its handshake fails the torn-down check, and a subscribe() landing
+    // during the await starts a fresh attempt instead of joining a dead one.
+    this.subscriber = null;
+    this.callbacks = [];
+    this.connectPromise = null;
+    try {
+      await connection.unsubscribe(this.channel);
+    } finally {
+      // After the null-out this local is the only handle; a rejected UNSUBSCRIBE
+      // must not orphan an open socket.
+      connection.disconnect();
+    }
+    this.logger.info('Unsubscribed from cache invalidation events');
   }
 
   /**
