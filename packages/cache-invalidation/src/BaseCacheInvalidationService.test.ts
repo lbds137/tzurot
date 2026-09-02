@@ -364,6 +364,29 @@ describe('BaseCacheInvalidationService', () => {
       expect(callback3).toHaveBeenCalledWith({ type: 'all' });
     });
 
+    it('dedupes a repeated subscribe(sameFn) — invoked once per event, debug-logged on the repeat', async () => {
+      mockLogger.debug.mockClear();
+      const sameFn = vi.fn();
+
+      await service.subscribe(sameFn);
+      expect(mockLogger.debug).not.toHaveBeenCalledWith(
+        'Callback already registered; skipping duplicate registration'
+      );
+
+      await service.subscribe(sameFn);
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Callback already registered; skipping duplicate registration'
+      );
+
+      const messageHandler = mockSubscriber.on.mock.calls.find(
+        (call: unknown[]) => call[0] === 'message'
+      )?.[1] as (channel: string, message: string) => void;
+
+      messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+      expect(sameFn).toHaveBeenCalledTimes(1);
+    });
+
     it('should isolate callback errors — a throwing callback must not block later ones', async () => {
       const throwing = vi.fn().mockImplementation(() => {
         throw new Error('subscriber bug');
@@ -728,6 +751,46 @@ describe('BaseCacheInvalidationService', () => {
         messageHandler('test:channel', JSON.stringify({ type: 'all' }));
         expect(callbackB).toHaveBeenCalledWith({ type: 'all' });
       });
+
+      it('does not evict a fresh same-reference registration when a torn-down straggler catches after it', async () => {
+        // A and B share the SAME callback reference — the canonical subclass
+        // usage, where one stable dispatcher field is re-registered on every
+        // subscribe(). A connects, unsubscribe() tears it down
+        // mid-handshake, B re-registers the identical reference on a fresh
+        // connection, and only THEN does A's stale handshake resolve and hit
+        // the torn-down check in establishSubscriber(), landing in this
+        // subscribe() invocation's catch. Without the identity guard, that
+        // catch would splice fn out of the array by identity/index and
+        // silently undo B's live registration.
+        const subscriberA = createMockRedis();
+        let resolveSubscribeA: () => void = () => {};
+        const pendingA = new Promise<void>(resolve => {
+          resolveSubscribeA = resolve;
+        });
+        subscriberA.subscribe.mockReturnValueOnce(pendingA);
+        mockRedis.duplicate.mockReturnValueOnce(subscriberA);
+
+        const fn = vi.fn();
+        const subscribeA = service.subscribe(fn);
+
+        await service.unsubscribe();
+
+        mockRedis.duplicate.mockReturnValue(mockSubscriber);
+        await service.subscribe(fn);
+
+        resolveSubscribeA();
+        await expect(subscribeA).rejects.toThrow('torn down while connecting');
+
+        expect(getRegisteredCallbacks(service)).toEqual([fn]);
+
+        const messageHandler = mockSubscriber.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'message'
+        )?.[1] as (channel: string, message: string) => void;
+
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+
+        expect(fn).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
@@ -898,6 +961,35 @@ describe('BaseCacheInvalidationService', () => {
 
       expect(mockSubscriber.unsubscribe).not.toHaveBeenCalled();
       expect(mockSubscriber.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('calls UNSUBSCRIBE and disconnect exactly once across two overlapping unsubscribe() calls', async () => {
+      await service.subscribe(vi.fn());
+
+      let resolveUnsubscribe: () => void = () => {};
+      const pending = new Promise<void>(resolve => {
+        resolveUnsubscribe = resolve;
+      });
+      mockSubscriber.unsubscribe.mockReturnValueOnce(pending);
+
+      const first = service.unsubscribe();
+      const second = service.unsubscribe();
+
+      resolveUnsubscribe();
+      await first;
+      await second;
+
+      expect(mockSubscriber.unsubscribe).toHaveBeenCalledTimes(1);
+      expect(mockSubscriber.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('still disconnects and propagates the rejection when the UNSUBSCRIBE command rejects', async () => {
+      await service.subscribe(vi.fn());
+
+      mockSubscriber.unsubscribe.mockRejectedValueOnce(new Error('unsubscribe failed'));
+
+      await expect(service.unsubscribe()).rejects.toThrow('unsubscribe failed');
+      expect(mockSubscriber.disconnect).toHaveBeenCalledTimes(1);
     });
 
     it('resets the callback list to empty — a seeded non-empty array would surface as a callback-error log', async () => {

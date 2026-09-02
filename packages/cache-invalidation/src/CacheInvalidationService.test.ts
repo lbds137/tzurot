@@ -179,9 +179,19 @@ describe('CacheInvalidationService', () => {
       await service.subscribe();
       expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
 
-      // Second subscribe should be ignored
+      // Second subscribe shares the same connection via single-flight
       await service.subscribe();
       expect(mockRedis.duplicate).toHaveBeenCalledTimes(1); // Still 1, not 2
+
+      // The base class dedupes callback registration by reference: the stable
+      // `dispatch` field is registered once across both subscribe() calls, so
+      // an event dispatches to the target exactly once rather than once per
+      // subscribe() call.
+      const handler = handlersByEvent.get('message');
+      expect(handler).toBeDefined();
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify({ type: 'all' }));
+
+      expect(mockPersonalityService.invalidateAll).toHaveBeenCalledTimes(1);
     });
 
     it('propagates the original error when creating the duplicate connection fails', async () => {
@@ -192,6 +202,65 @@ describe('CacheInvalidationService', () => {
       // The cleanup guard must not run when no subscriber was ever assigned —
       // dereferencing the null subscriber would mask this error with a TypeError.
       await expect(service.subscribe()).rejects.toThrow('Duplicate failed');
+    });
+
+    it('shares a single connect failure across every concurrent caller — one duplicate(), one disconnect', async () => {
+      // Under single-flight, two overlapping subscribe() calls await the SAME
+      // connectPromise, so a failed handshake rejects both callers off one
+      // connect attempt rather than each racing its own duplicate().
+      let rejectSubscribe: (err: Error) => void = () => {};
+      const pending = new Promise<void>((_, reject) => {
+        rejectSubscribe = reject;
+      });
+      vi.mocked(mockSubscriber.subscribe).mockReturnValueOnce(pending);
+
+      const subscribeA = service.subscribe();
+      const subscribeB = service.subscribe();
+
+      // Attach rejection expectations BEFORE triggering the rejection so no
+      // unhandled rejection escapes between the reject() call and the await.
+      const assertionA = expect(subscribeA).rejects.toThrow('shared failure');
+      const assertionB = expect(subscribeB).rejects.toThrow('shared failure');
+
+      rejectSubscribe(new Error('shared failure'));
+      await assertionA;
+      await assertionB;
+
+      expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
+      expect(mockSubscriber.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a subscribe() whose handshake completes after unsubscribe() tore it down', async () => {
+      let resolveSubscribe: () => void = () => {};
+      const pending = new Promise<void>(resolve => {
+        resolveSubscribe = resolve;
+      });
+      vi.mocked(mockSubscriber.subscribe).mockReturnValueOnce(pending);
+
+      const subscribeA = service.subscribe();
+
+      await service.unsubscribe();
+
+      // Attach the rejection expectation BEFORE the pending attempt settles.
+      const assertionA = expect(subscribeA).rejects.toThrow('torn down while connecting');
+      resolveSubscribe();
+      await assertionA;
+
+      expect(service.isSubscribed()).toBe(false);
+    });
+
+    it('registers an explicitly passed callback instead of the default dispatcher', async () => {
+      const cb = vi.fn();
+
+      await service.subscribe(cb);
+
+      const handler = handlersByEvent.get('message');
+      expect(handler).toBeDefined();
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify({ type: 'all' }));
+
+      expect(cb).toHaveBeenCalledTimes(1);
+      expect(cb).toHaveBeenCalledWith({ type: 'all' });
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
     });
   });
 
@@ -230,9 +299,12 @@ describe('CacheInvalidationService', () => {
 
       await service.publish({ type: 'all' });
 
-      expect(mockLogger.info).toHaveBeenCalledTimes(1);
-      // The 'all' arm logs a bare message; the personality arm prepends a context object.
-      expect(mockLogger.info.mock.calls[0]).toHaveLength(1);
+      // The base class always prepends a context object; the 'all' arm's
+      // object simply carries no personalityId key.
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        { description: 'ALL personalities' },
+        'Published cache invalidation event'
+      );
     });
 
     it('logs the personality publish with the personalityId context object', async () => {
@@ -240,7 +312,10 @@ describe('CacheInvalidationService', () => {
 
       await service.publish({ type: 'personality', personalityId: 'p-1' });
 
-      expect(mockLogger.info).toHaveBeenCalledWith({ personalityId: 'p-1' }, expect.any(String));
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        { personalityId: 'p-1', description: 'personality' },
+        'Published cache invalidation event'
+      );
     });
   });
 
