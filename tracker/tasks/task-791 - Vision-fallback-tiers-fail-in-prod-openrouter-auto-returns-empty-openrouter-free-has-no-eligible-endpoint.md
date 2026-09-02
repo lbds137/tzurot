@@ -3,9 +3,10 @@ id: TASK-791
 title: >-
   Vision fallback tiers fail in prod: openrouter/auto returns empty,
   openrouter/free has no eligible endpoint
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 14:45'
+updated_date: '2026-09-02 04:08'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -54,5 +55,13 @@ Mechanism (verified against OpenRouter's published error reference, fetched 2026
 
 Fix shape (shipped as PR #2295): (A) OpenRouterFetch restates a 200-with-error-and-no-choices body as a real error response (status = error.code when 400-599, else 502) so the existing parser classifies it, with a warn log carrying the safe diagnosis fields and never metadata.flagged_input; (B) composeVisionTiers appends MODEL_DEFAULTS.VISION_FALLBACK after an openrouter/auto paid floor (non-guest only; cap stays 3; guests and keyless users still forced to the free floor by resolveVisionAuth, pinned per-model). The 402 half was already SHIPPED (VISION_MAX_TOKENS 4000, not the 2000 sketched above — re-sized off a measured description distribution).
 
-Remaining open: the acceptance clause is runtime-observable only. Close when a post-#2295 prod image window shows a described image (or a classified, non-empty_response failure reason from auto) instead of an exhausted chain. Point 2 (openrouter/free has no eligible endpoint for guests) is carried by TASK-860.
+### 2026-09-02 — acceptance OBSERVED in prod; task closed, residuals carried
+
+Two post-deploy walks of the same photo, both logged by VisionFallbackLoop / VisionProcessor:
+- 03:14:59Z (extended-context re-walk of the 00:55 attachment after its negative-cache entries lapsed): flash 429 rate_limit → advance; openrouter/auto zero choices (empty_response) → advance; **qwen/qwen3.5-397b-a17b responded at 03:15:32Z**. The 03:36Z /inspect log carries that description inside the quoted 20:55 message; the persona's "customs still holds it" reply was narrative continuity, not a vision failure.
+- 03:49:37Z (owner re-upload, direct attachment): flash provider_content_refused (the #2280 classification, 1h) → advance; auto zero choices → advance; **qwen responded at 03:50:10Z**, a 2,655-char description the persona used in full.
+
+"A fresh image in prod is described without exhausting the chain" — met twice. The exhaustion-rate clause is a longer watch; the chain now cannot end on a router alias, so the beta.209 shape (21 exhaustions / 9h) is structurally closed.
+
+Residuals, each on its own task: **TASK-863** (high) — the 200-with-error surfacing from #2295 never ran on either walk because the OpenRouter custom fetch is only installed when a model config carries transforms/route/verbosity/thinking, which a vision call never does; so WHY auto returns zero choices for images is still uninstrumented. **TASK-864** — the /inspect log does not record which vision model produced a description. **TASK-860** — the guest free-floor eligibility watch (point 2 above).
 <!-- SECTION:DESCRIPTION:END -->
