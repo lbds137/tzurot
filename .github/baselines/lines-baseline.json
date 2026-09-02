@@ -1,9 +1,9 @@
 {
   "surfaces": {
     "rules": {
-      "lines": 2159,
+      "lines": 2114,
       "graceMargin": 150,
-      "bytes": 157060,
+      "bytes": 153882,
       "bytesGraceMargin": 12000
     },
     "current": {
@@ -17,7 +17,7 @@
     "toolVersion": "lines-check/2",
     "configHash": "038ea0a31198",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "861d57e4b33a1d430b84d07911d307444fe50499",
-    "generatedAt": "2026-09-02T14:42:13.258Z"
+    "generatedFromSha": "e62491e8dae643099257b50795f5bef66c566f39",
+    "generatedAt": "2026-09-02T17:18:27.829Z"
   }
 }
