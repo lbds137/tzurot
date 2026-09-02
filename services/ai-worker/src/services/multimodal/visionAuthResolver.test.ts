@@ -21,6 +21,7 @@ import {
 import {
   AIProvider,
   FREE_ROUTER_MODEL,
+  MODEL_DEFAULTS,
   ZAI_FREE_TIER_MODEL,
 } from '@tzurot/common-types/constants/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -346,6 +347,39 @@ describe('resolveVisionConfig', () => {
       expect(mockTryConsume).toHaveBeenCalledWith('user-1');
     });
 
+    // Pins that the concrete terminal vision tier (MODEL_DEFAULTS.VISION_FALLBACK,
+    // a PAID model) is never billed to the system key for a keyless authenticated user.
+    it('downgrades the concrete vision fallback to the free model on the system key for a keyless user', async () => {
+      // Natural model is the concrete paid fallback; user has NO OpenRouter key.
+      mockSelectVisionModel.mockResolvedValue(MODEL_DEFAULTS.VISION_FALLBACK);
+      mockTryResolveUserKey.mockResolvedValue(null);
+      // resolveApiKey for the FREE provider returns the system key.
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: 'user-1',
+      });
+
+      const result = await resolveVisionConfig({
+        personality,
+        mainProvider: AIProvider.ZaiCoding,
+        mainApiKey: 'user-zai-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      });
+
+      expect(result.kind).toBe('resolved');
+      if (result.kind === 'resolved') {
+        expect(result.config.model).toBe(FREE_ROUTER_MODEL);
+        expect(result.config.model).not.toBe(MODEL_DEFAULTS.VISION_FALLBACK);
+        expect(result.config.source).toBe('system');
+        expect(result.config.isGuestMode).toBe(false);
+      }
+    });
+
     it('fails fast when the user is over the daily system-fallback cap', async () => {
       mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
       mockTryResolveUserKey.mockResolvedValue(null);
@@ -580,6 +614,37 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
     expect(result.kind).toBe('resolved');
     if (result.kind === 'resolved') {
       expect(result.config.model).toBe(FREE_ROUTER_MODEL);
+      expect(result.config.apiKey).toBe('system-key');
+    }
+  });
+
+  // Pins that the concrete terminal vision tier (MODEL_DEFAULTS.VISION_FALLBACK,
+  // a PAID model) is never billed to the system key for a guest.
+  it('forces the free model for a GUEST on the concrete vision fallback tier', async () => {
+    mockResolveApiKey.mockResolvedValue({
+      apiKey: 'system-key',
+      source: 'system',
+      isGuestMode: true,
+    });
+
+    const result = await resolveVisionAuth(
+      MODEL_DEFAULTS.VISION_FALLBACK,
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-1'),
+      false
+    );
+
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      expect(result.config.model).toBe(FREE_ROUTER_MODEL);
+      expect(result.config.model).not.toBe(MODEL_DEFAULTS.VISION_FALLBACK);
       expect(result.config.apiKey).toBe('system-key');
     }
   });

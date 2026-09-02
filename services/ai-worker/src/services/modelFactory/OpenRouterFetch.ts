@@ -10,6 +10,10 @@
  *    HTTP 400 with valid `choices[0].message.content` (or reasoning) that
  *    LangChain would otherwise discard by throwing on the error status code.
  *    When found, we synthesize a 200 response so the caller sees the content.
+ * 3. RESPONSE (the mirror image): a 200 whose JSON body carries an `error`
+ *    object and no `choices` is turned into a real error response, so the
+ *    provider's own diagnosis survives instead of collapsing into a generic
+ *    empty-response error. See `trySurfaceOkErrorBody`.
  *
  * Reasoning extraction itself lives in `extractOpenRouterReasoning.ts` and runs
  * AFTER LangChain parses the response. This file no longer mutates response
@@ -22,6 +26,7 @@
  * extraction without touching HTTP bytes.
  */
 
+import { MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
 
@@ -102,6 +107,135 @@ function synthesize200(body: Record<string, unknown>, original: Response): Respo
 }
 
 /**
+ * Synthesize an error Response from a body object, preserving the original headers.
+ *
+ * The body is serialized as the caller hands it over — which for the
+ * 200-with-error-body path means after that caller has stripped
+ * `metadata.flagged_input` (see {@link trySurfaceOkErrorBody}). Nothing else is
+ * rewritten, because the OpenAI SDK's
+ * `APIError.generate(status, body, …)` builds its error from exactly that: it
+ * returns a status-specific subclass carrying `.status`, a `.message` of
+ * `"<status> <error.message>"`, and `.error` set to the body's `error` object.
+ * Probed against the installed SDK rather than taken from its docs; the
+ * resulting classification is pinned by the seam test in
+ * `OpenRouterFetch.test.ts`.
+ */
+function synthesizeErrorStatus(
+  status: number,
+  body: Record<string, unknown>,
+  original: Response
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    statusText: 'Error',
+    headers: original.headers,
+  });
+}
+
+/** Status used when the body's own `error.code` is not a usable HTTP status. */
+const UNMAPPED_ERROR_BODY_STATUS = 502;
+
+/**
+ * Turn an HTTP-200 body that carries an `error` object and no `choices` into a
+ * real error response — the mirror image of {@link tryRecoverErrorContent}.
+ *
+ * OpenRouter's published error reference describes the shape: "If the provider
+ * returns headers and then fails, you receive a `200 OK` whose JSON body holds
+ * only an `error` object and no `choices`." Left alone, that body reaches
+ * @langchain/openai, whose chat-completions converter builds generations from
+ * `choices ?? []` — zero generations — so `invokeModelGuarded` throws a generic
+ * EMPTY_RESPONSE and the whole diagnosis in `error.code` / `error.message` /
+ * `error.metadata` is discarded before anything can classify it.
+ *
+ * Restating the status the body already describes routes it down the same path
+ * a genuine 4xx takes, so `parseApiError` classifies it with no parser change.
+ *
+ * Returns null — leaving the response untouched — for a body that has choices,
+ * a body with no `error` object, or one that will not parse; the downstream
+ * zero-choices guard stays the backstop for those. Every branch is pinned by
+ * `OpenRouterFetch.test.ts` § "200 with an error body and no choices".
+ *
+ * `metadata.flagged_input` is a verbatim excerpt of USER INPUT
+ * (`00-critical.md` § Logging), and both halves of keeping it out of the logs
+ * are handled here: it is absent from the warn payload below, AND it is deleted
+ * from the forwarded body before the error response is synthesized. The second
+ * half is needed because the OpenAI SDK's `APIError` assigns the parsed body's
+ * `error` object to its own enumerable `error` property, and pino's
+ * `customErrorSerializer` copies every own enumerable property of a logged error
+ * onto the log object unsanitized — so any `logger.error({ err })` site
+ * downstream would otherwise print the excerpt (verified against the installed
+ * SDK and `logger.ts` at write time). Both halves are asserted by the same
+ * suite.
+ */
+async function trySurfaceOkErrorBody(response: Response): Promise<Response | null> {
+  try {
+    const clone = response.clone();
+    const body = (await clone.json()) as Record<string, unknown>;
+
+    // Absent, null, or present-but-empty are the three shapes that mean "no
+    // generations" — @langchain/openai's chat-completions converter builds from
+    // `choices ?? []`, so null is as empty as undefined there. Anything else
+    // (including a populated array alongside an `error` field) is a usable
+    // response and must pass through.
+    const choices = body.choices;
+    if (
+      choices !== undefined &&
+      choices !== null &&
+      !(Array.isArray(choices) && choices.length === 0)
+    ) {
+      return null;
+    }
+
+    const error = body.error;
+    if (typeof error !== 'object' || error === null) {
+      return null;
+    }
+    const { code, message, metadata } = error as Record<string, unknown>;
+    if (typeof message !== 'string') {
+      return null;
+    }
+
+    const status =
+      typeof code === 'number' && Number.isInteger(code) && code >= 400 && code <= 599
+        ? code
+        : UNMAPPED_ERROR_BODY_STATUS;
+    const meta: Record<string, unknown> =
+      typeof metadata === 'object' && metadata !== null
+        ? (metadata as Record<string, unknown>)
+        : {};
+
+    // Strip the user-input excerpt from the object that gets serialized: when
+    // `metadata` is an object `meta` IS `body.error.metadata`, so this deletion
+    // reaches the body `synthesizeErrorStatus` stringifies; when it is not an
+    // object `meta` is a throwaway `{}` and there is nothing to strip. Asserted
+    // on the RETURNED response's JSON by the round-trip test.
+    delete meta.flagged_input;
+
+    logger.warn(
+      {
+        status,
+        errorCode: code,
+        // Provider-authored and unbounded, so the LOG copy is capped at the same
+        // `MAX_ERROR_MESSAGE_LENGTH` the parser applies. The forwarded body keeps
+        // the full string: `parseApiError` reads the SDK error's own message and
+        // truncates there. Asserted by the cap test in `OpenRouterFetch.test.ts`.
+        errorMessage: message.slice(0, MAX_ERROR_MESSAGE_LENGTH),
+        providerName: meta.provider_name,
+        modelSlug: meta.model_slug,
+        routedModel: body.model,
+        // Per OpenRouter's published error reference these are short category
+        // strings, so they are logged uncapped; not length-verified here.
+        reasons: meta.reasons,
+      },
+      'OpenRouter returned 200 with an error body and no choices — synthesizing error status'
+    );
+    return synthesizeErrorStatus(status, body, response);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Try to recover valid content from a 400-class error response.
  *
  * Some free-tier providers (notably GLM variants) return HTTP 400 with usable
@@ -177,6 +311,29 @@ async function tryRecoverErrorContent(response: Response): Promise<Response | nu
 }
 
 /**
+ * Route a finished response through the two body inspections: the
+ * 200-with-error-body surfacing on the ok path, and the 400-class content
+ * recovery on the client-error path. Returns the response untouched when
+ * neither applies.
+ *
+ * Both inspections are gated on a JSON content-type. Streaming responses are
+ * `text/event-stream`, so that gate is what keeps either from consuming a
+ * stream — asserted by the `text/event-stream` case in `OpenRouterFetch.test.ts`.
+ */
+async function recoverResponse(response: Response, contentType: string | null): Promise<Response> {
+  if (contentType?.includes('application/json') !== true) {
+    return response;
+  }
+  if (response.ok) {
+    return (await trySurfaceOkErrorBody(response)) ?? response;
+  }
+  if (response.status >= 400 && response.status < 500) {
+    return (await tryRecoverErrorContent(response)) ?? response;
+  }
+  return response;
+}
+
+/**
  * Create a custom fetch function for OpenRouter requests.
  *
  * Injects OpenRouter-specific request params and recovers content from 400-class
@@ -215,18 +372,6 @@ export function createOpenRouterFetch(
       'Custom fetch received response'
     );
 
-    if (!response.ok) {
-      const isJsonClientError =
-        response.status >= 400 &&
-        response.status < 500 &&
-        contentType?.includes('application/json') === true;
-      if (isJsonClientError) {
-        const recovered = await tryRecoverErrorContent(response);
-        if (recovered !== null) {
-          return recovered;
-        }
-      }
-    }
-    return response;
+    return recoverResponse(response, contentType);
   };
 }

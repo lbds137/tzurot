@@ -16,7 +16,9 @@
 import {
   AIProvider,
   isFreeModel,
+  isRouterAliasModel,
   isZaiFreeTierModel,
+  MODEL_DEFAULTS,
   ZAI_FREE_TIER_MODEL,
 } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
@@ -47,9 +49,15 @@ const logger = createLogger('VisionFallbackLoop');
 
 /**
  * Cap on the composed base chain per attachment — each tier is a ~1-3s + $ API
- * call. Not an absolute ceiling on the walk: the guest piggyback hoist can put
- * the tier count one above this (see `composeWalkTiers`), with the loop's
- * resolved-model dedup bounding the actually-attempted calls.
+ * call. Not an absolute ceiling on the walk: TWO cases can put the tier count
+ * one above this, with the loop's resolved-model dedup bounding the
+ * actually-attempted calls either way.
+ *
+ * 1. The guest piggyback hoist (see `composeWalkTiers`).
+ * 2. A non-guest chain whose CAPPED tail is a router alias (`ROUTER_ALIAS_MODELS`:
+ *    `openrouter/auto` or `openrouter/free`) gets the concrete
+ *    `MODEL_DEFAULTS.VISION_FALLBACK` appended after it, so the chain never ends
+ *    on a router (see `appendConcreteTerminal`).
  */
 const MAX_VISION_FALLBACK_TIERS = 3;
 
@@ -131,6 +139,37 @@ async function runVisionTier(
 }
 
 /**
+ * Guarantee that a paid chain never ENDS on a router alias.
+ *
+ * A router alias (`ROUTER_ALIAS_MODELS`: `openrouter/auto` or `openrouter/free`)
+ * resolves to some other model at call time, so when it is the last tier and it
+ * fails there is nothing concrete left to try — the shape that exhausts a chain
+ * with no description. Either alias can reach the tail on a non-guest chain: the
+ * paid floor setting is schema-validated against `ROUTER_ALIAS_MODELS`, so an
+ * operator may configure either one. The check runs POST-cap on the capped
+ * tail, so it fires no matter which source put the alias there: the
+ * system-setting floor, or a gateway-stamped `visionFallbackModels` entry that
+ * outlived the floor once the cap trimmed it. The concrete
+ * `MODEL_DEFAULTS.VISION_FALLBACK` is appended and is allowed to sit ONE tier
+ * above `MAX_VISION_FALLBACK_TIERS`.
+ *
+ * An alias that is NOT the tail already has something concrete after it and
+ * gets nothing. Guest chains get nothing either — the free floor is a billing
+ * firewall (`freeFloors.ts`), and per-tier auth would force a paid successor
+ * back to it anyway, adding a tier that always collapses. Pinned by the
+ * `composeVisionTiers` router-alias tests.
+ */
+function appendConcreteTerminal(capped: string[], isGuestMode: boolean): string[] {
+  if (isGuestMode || !isRouterAliasModel(capped[capped.length - 1])) {
+    return capped;
+  }
+  if (capped.includes(MODEL_DEFAULTS.VISION_FALLBACK)) {
+    return capped;
+  }
+  return [...capped, MODEL_DEFAULTS.VISION_FALLBACK];
+}
+
+/**
  * Compose the ordered, deduped tier list for one attachment: the resolved primary model
  * (the gateway-stamped `visionModel` or `selectVisionModel`, which already folds in the
  * native-main-model + hardcoded picks) → the stamped DB fallbacks (`visionFallbackModels`)
@@ -142,6 +181,28 @@ async function runVisionTier(
  * acceptable because the stamped FREE vision default already fills the free-tier last-resort
  * role when present; the hardcoded floor only needs to survive when there's ≤1 stamped
  * fallback (then it stays within the top 3). See the `caps the tier list at 3` test.
+ *
+ * A ROUTER ALIAS must never be the last paid tier: when a router alias
+ * (`ROUTER_ALIAS_MODELS`: `openrouter/auto` or `openrouter/free`) fails
+ * there is nothing concrete left to try, which is how a two-tier chain exhausts
+ * with no description. That rule is applied AFTER the cap, to whatever source
+ * put the alias at the capped tail — the system-setting floor, or a stamped
+ * fallback that outlived the floor the cap trimmed. When the tail is the alias
+ * on a non-guest walk, `MODEL_DEFAULTS.VISION_FALLBACK` is appended and the
+ * chain is allowed to run ONE tier over the cap rather than lose its concrete
+ * terminal. An alias mid-chain gets nothing (something concrete already follows
+ * it), and guest composition is untouched — its free floor is a billing
+ * firewall (`freeFloors.ts`). See {@link appendConcreteTerminal}; pinned by the
+ * `composeVisionTiers` router-alias tests.
+ *
+ * That concrete default is a PAID model, but composition emits model NAMES
+ * only: per-tier auth resolution is what keeps a guest or a keyless user off it
+ * (`resolveVisionAuth` forces the free floor on every non-primary guest tier,
+ * and `resolveBroadFreeFallback` downgrades a keyless authenticated user onto
+ * the free model on the system key). Pinned for this exact model by the
+ * `visionAuthResolver.test.ts` cases `forces the free model for a GUEST on the
+ * concrete vision fallback tier` and `downgrades the concrete vision fallback
+ * to the free model on the system key for a keyless user`.
  *
  * BYOK reordering is NOT this function's job — `walkFallbackChain` applies
  * `sinkFreeRouteFallbacks` lazily, only once the primary tier has already failed.
@@ -172,7 +233,7 @@ export function composeVisionTiers(
       deduped.push(model);
     }
   }
-  return deduped.slice(0, MAX_VISION_FALLBACK_TIERS);
+  return appendConcreteTerminal(deduped.slice(0, MAX_VISION_FALLBACK_TIERS), isGuestMode);
 }
 
 /**
