@@ -45,4 +45,14 @@ Fix shape (owner-approved 2026-08-28): give the vision path a real maxTokens def
 Still uninstrumented after this fix: VisionProcessor logs the requested modelName but NOT which concrete model openrouter/auto routed to, so an empty_response from auto still cannot be distinguished from auto picking a non-vision model. That gap explains the 20 empty_response results, which this fix does NOT address.
 
 Acceptance: a fresh image in prod is described without exhausting the chain; the exhaustion rate (21 per 9 hours at filing) drops to near zero. The 402 half is closed by the maxTokens cap; the empty_response half needs the routed-model instrumentation above.
+
+### 2026-09-02 — recurrence, mechanism identified, fix PR #2295 (owner: fix in beta.213)
+
+Recurred in prod 2026-09-02 00:55Z and 00:58Z (same attachment, two turns): chain tiers=["z-ai/glm-5.3-flash","openrouter/auto"] exhausted — flash 400 content-safety refusal (bad_request), then openrouter/auto "Model returned zero choices" (empty_response, 600s negative cache). The auto attempt ran with source="user" (a BYOK key), and the chain had only two tiers because the personality had no stamped visionFallbackModels and the prod fallbackVisionModel setting is the router alias.
+
+Mechanism (verified against OpenRouter's published error reference, fetched 2026-09-02): when a provider fails after returning headers, OpenRouter answers HTTP 200 with a body holding only an `error` object and no `choices`. The custom fetch only inspected non-ok responses, so the body reached @langchain/openai, produced zero generations, and the provider's diagnosis (error.code / message / metadata.provider_name / model_slug) was discarded before classification — which is exactly the "cannot be distinguished" gap named above. `readRoutedModel` cannot help here: there is no message to carry response_metadata.
+
+Fix shape (shipped as PR #2295): (A) OpenRouterFetch restates a 200-with-error-and-no-choices body as a real error response (status = error.code when 400-599, else 502) so the existing parser classifies it, with a warn log carrying the safe diagnosis fields and never metadata.flagged_input; (B) composeVisionTiers appends MODEL_DEFAULTS.VISION_FALLBACK after an openrouter/auto paid floor (non-guest only; cap stays 3; guests and keyless users still forced to the free floor by resolveVisionAuth, pinned per-model). The 402 half was already SHIPPED (VISION_MAX_TOKENS 4000, not the 2000 sketched above — re-sized off a measured description distribution).
+
+Remaining open: the acceptance clause is runtime-observable only. Close when a post-#2295 prod image window shows a described image (or a classified, non-empty_response failure reason from auto) instead of an exhausted chain. Point 2 (openrouter/free has no eligible endpoint for guests) is carried by TASK-860.
 <!-- SECTION:DESCRIPTION:END -->
