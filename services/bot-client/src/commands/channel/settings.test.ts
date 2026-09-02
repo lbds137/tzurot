@@ -71,8 +71,7 @@ interface UserClientStub {
   getChannelConfigOverrides: ReturnType<typeof vi.fn>;
   updateChannelConfigOverrides: ReturnType<typeof vi.fn>;
   clearChannelConfigOverrides: ReturnType<typeof vi.fn>;
-  resolveCascade: ReturnType<typeof vi.fn>;
-  resolveUserDefaults: ReturnType<typeof vi.fn>;
+  resolveChannelCascade: ReturnType<typeof vi.fn>;
 }
 
 function createStub(): UserClientStub {
@@ -80,8 +79,7 @@ function createStub(): UserClientStub {
     getChannelConfigOverrides: vi.fn(),
     updateChannelConfigOverrides: vi.fn(),
     clearChannelConfigOverrides: vi.fn(),
-    resolveCascade: vi.fn(),
-    resolveUserDefaults: vi.fn(),
+    resolveChannelCascade: vi.fn(),
   };
 }
 
@@ -194,9 +192,8 @@ describe('Channel Settings Dashboard', () => {
     stub = createStub();
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 
-    // Default: resolve endpoints return hardcoded defaults
-    stub.resolveCascade.mockResolvedValue(makeOk(defaultResolvedData()));
-    stub.resolveUserDefaults.mockResolvedValue(makeOk(defaultResolvedData()));
+    // Default: resolve endpoint returns hardcoded defaults
+    stub.resolveChannelCascade.mockResolvedValue(makeOk(defaultResolvedData()));
     stub.getChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: null }));
     stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
   });
@@ -220,9 +217,9 @@ describe('Channel Settings Dashboard', () => {
 
       expect(mockGetChannelSettings).toHaveBeenCalledWith('channel-123');
       // The channel-scoping contract is the load-bearing argument: the cascade
-      // must resolve for the ACTIVATED personality scoped to THIS channel.
-      expect(stub.resolveCascade).toHaveBeenCalledWith('personality-123', {
-        channelId: 'channel-123',
+      // must resolve for THIS channel with the ACTIVATED personality.
+      expect(stub.resolveChannelCascade).toHaveBeenCalledWith('channel-123', {
+        personalityId: 'personality-123',
       });
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -230,6 +227,66 @@ describe('Channel Settings Dashboard', () => {
           components: expect.any(Array),
         })
       );
+    });
+
+    it('renders IDENTICAL Current/Parent values for two moderators with different personal overrides', async () => {
+      // Two different Discord users viewing the SAME channel. The stub
+      // returns the same channel-scoped resolution regardless of who calls —
+      // exactly the invariant the channel-scoped resolve endpoint enforces:
+      // the dashboard never draws on the VIEWING moderator's own tiers.
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+
+      const buildContextFor = (discordUserId: string): DeferredCommandContext => {
+        const mockEditReply = vi.fn().mockResolvedValue({ id: `message-${discordUserId}` });
+        const mockInteraction = {
+          deferred: true,
+          replied: false,
+          editReply: mockEditReply,
+          user: { id: discordUserId },
+          memberPermissions: { has: vi.fn().mockReturnValue(true) },
+        };
+        return {
+          interaction: mockInteraction,
+          user: { id: discordUserId },
+          guild: null,
+          member: { permissions: { has: vi.fn().mockReturnValue(true) } },
+          channel: null,
+          channelId: 'channel-123',
+          guildId: 'guild-123',
+          commandName: 'channel',
+          isEphemeral: true,
+          getOption: vi.fn(),
+          getRequiredOption: vi.fn(),
+          getSubcommand: () => 'settings',
+          getSubcommandGroup: () => null,
+          editReply: mockEditReply,
+          followUp: vi.fn(),
+          deleteReply: vi.fn(),
+        } as unknown as DeferredCommandContext;
+      };
+
+      const moderatorA = buildContextFor('mod-a-111');
+      const moderatorB = buildContextFor('mod-b-222');
+
+      await handleChannelSettings(moderatorA);
+      await handleChannelSettings(moderatorB);
+
+      const fieldsFor = (context: DeferredCommandContext) => {
+        const call = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+          embeds: Array<{ toJSON: () => { fields: unknown } }>;
+        };
+        return call.embeds[0].toJSON().fields;
+      };
+
+      expect(fieldsFor(moderatorA)).toEqual(fieldsFor(moderatorB));
+      // Both calls resolved through the same channel-scoped endpoint with the
+      // same arguments — never a per-viewer resolution.
+      expect(stub.resolveChannelCascade).toHaveBeenNthCalledWith(1, 'channel-123', {
+        personalityId: 'personality-123',
+      });
+      expect(stub.resolveChannelCascade).toHaveBeenNthCalledWith(2, 'channel-123', {
+        personalityId: 'personality-123',
+      });
     });
 
     it('should include Channel Settings title in embed', async () => {
@@ -292,9 +349,11 @@ describe('Channel Settings Dashboard', () => {
 
       await handleChannelSettings(context);
 
-      // Should call resolveUserDefaults as fallback (not resolveCascade which needs personalityId)
-      expect(stub.resolveUserDefaults).toHaveBeenCalled();
-      expect(stub.resolveCascade).not.toHaveBeenCalled();
+      // Still resolves through the channel-scoped endpoint — personalityId is
+      // just undefined, never a fallback to a different client method.
+      expect(stub.resolveChannelCascade).toHaveBeenCalledWith('channel-123', {
+        personalityId: undefined,
+      });
 
       // Should still display the dashboard
       expect(context.editReply).toHaveBeenCalledWith(
@@ -305,14 +364,16 @@ describe('Channel Settings Dashboard', () => {
       );
     });
 
-    it('should show admin overrides via resolve-defaults when no personality activated', async () => {
+    it('renders the channel own override correctly (Current AND Parent) when no personality activated', async () => {
       const context = createMockContext(true);
       // No character activated
       mockGetChannelSettings.mockResolvedValue({ settings: {} });
-      // resolveUserDefaults returns admin-sourced maxMessages
-      stub.resolveUserDefaults.mockResolvedValue(
+      // resolveChannelCascade already folds the channel tier into the
+      // resolution — maxMessages resolves to the CHANNEL's own override (25),
+      // sourced 'channel', with the tier it overrode (admin's 75) as parent.
+      stub.resolveChannelCascade.mockResolvedValue(
         makeOk({
-          maxMessages: 75,
+          maxMessages: 25,
           maxAge: null,
           maxImages: 10,
           memoryScoreThreshold: 0.5,
@@ -323,7 +384,7 @@ describe('Channel Settings Dashboard', () => {
           voiceResponseMode: 'always',
           voiceTranscriptionEnabled: true,
           sources: {
-            maxMessages: 'admin',
+            maxMessages: 'channel',
             maxAge: 'hardcoded',
             maxImages: 'hardcoded',
             memoryScoreThreshold: 'hardcoded',
@@ -334,28 +395,55 @@ describe('Channel Settings Dashboard', () => {
             voiceResponseMode: 'hardcoded',
             voiceTranscriptionEnabled: 'hardcoded',
           },
-          userOverrides: null,
+          parentValues: {
+            maxMessages: 75,
+            maxAge: null,
+            maxImages: 10,
+            memoryScoreThreshold: 0.5,
+            memoryLimit: 20,
+            crossChannelHistoryEnabled: false,
+            shareLtmAcrossPersonalities: false,
+            showModelFooter: true,
+            voiceResponseMode: 'always',
+            voiceTranscriptionEnabled: true,
+          },
         })
       );
-      // Channel has its own local override of maxMessages
+      // Channel has its own local override of maxMessages — same value the
+      // resolver already folded in above.
       stub.getChannelConfigOverrides.mockResolvedValue(
         makeOk({ configOverrides: { maxMessages: 25 } })
       );
 
       await handleChannelSettings(context);
 
+      // Current value: the channel's own override (25), NOT the admin value
+      // it outranks — this is the exact bug this dashboard fix closes.
+      const storedSession = mockSessionManager.set.mock.calls[0][0] as {
+        data: {
+          data: { maxMessages: { effectiveValue: number; source: string; parentValue: number } };
+        };
+      };
+      const maxMessages = storedSession.data.data.maxMessages;
+      expect(maxMessages.effectiveValue).toBe(25);
+      expect(maxMessages.source).toBe('channel');
+      // Parent value: what maxMessages would resolve to with the channel's
+      // own override removed — the admin tier it overrode.
+      expect(maxMessages.parentValue).toBe(75);
+
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      // maxMessages: effective value from cascade is 75 (admin), with local override badge
       const maxMsgField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Max Messages')
       );
       expect(maxMsgField).toBeDefined();
-      expect(maxMsgField.value).toContain('75');
+      expect(maxMsgField.value).toContain('25');
       expect(maxMsgField.value).toContain('Override');
 
-      // Fields without overrides should show Auto indicator
+      // Fields with no channel override still show the Auto indicator — the
+      // channel-scoped resolve changes which tiers feed the value, not how an
+      // un-overridden field renders.
       const maxImgField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Max Images')
       );
@@ -370,7 +458,7 @@ describe('Channel Settings Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       // Resolve endpoint returns error
-      stub.resolveCascade.mockResolvedValue(makeErr(404, 'Not found'));
+      stub.resolveChannelCascade.mockResolvedValue(makeErr(404, 'Not found'));
       stub.getChannelConfigOverrides.mockResolvedValue(makeErr(404, 'Not found'));
 
       await handleChannelSettings(context);

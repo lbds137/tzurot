@@ -664,6 +664,53 @@ describe('ConfigCascadeResolver', () => {
       );
     });
   });
+
+  describe('channel-scoped resolve (userId omitted — channel dashboard shape)', () => {
+    // The channel settings dashboard resolves with userId=undefined so every
+    // viewing moderator sees the same channel state, never their own
+    // user-default/user-personality tiers. A user-tier row that WOULD win if
+    // loaded proves the omission actually skips the query, not just that the
+    // (empty) user tier happens not to contribute.
+
+    it('never draws from the user tier when userId is undefined, even when a winning user row exists', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 50 },
+      });
+      mockPrisma.channelSettings.findUnique.mockResolvedValue({
+        configOverrides: { maxMessages: 40 },
+      });
+      // This row would win (user-personality > channel) if the user tier were
+      // loaded — proving the test isn't vacuously passing on an empty tier.
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-id',
+        configDefaults: { maxMessages: 60 },
+        personalityConfigs: [{ configOverrides: { maxMessages: 10 } }],
+      });
+
+      const result = await resolver.resolveOverrides(undefined, 'personality-456', 'channel-789');
+
+      expect(result.maxMessages).toBe(40);
+      expect(result.sources.maxMessages).toBe('channel');
+      expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('resolves through personality when no channel override applies, still never touching the user tier', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 50 },
+      });
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-id',
+        configDefaults: { maxMessages: 60 },
+        personalityConfigs: [{ configOverrides: { maxMessages: 10 } }],
+      });
+
+      const result = await resolver.resolveOverrides(undefined, 'personality-456');
+
+      expect(result.maxMessages).toBe(50);
+      expect(result.sources.maxMessages).toBe('personality');
+      expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('stored null as explicit OFF (terminal)', () => {

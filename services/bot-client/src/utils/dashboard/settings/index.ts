@@ -42,7 +42,6 @@ export {
   buildFallbackSettingsData,
   buildSystemSettingsData,
   convertResolveDefaultsResponse,
-  type ResolveDefaultsResponse,
 } from './settingsDataBuilder.js';
 
 // Dashboard Handler

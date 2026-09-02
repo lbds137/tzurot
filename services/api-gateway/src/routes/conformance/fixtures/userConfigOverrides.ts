@@ -52,6 +52,22 @@ export const userConfigOverrideFixtures: Record<string, ConformanceEntry> = {
     body: { maxMessages: 30 },
   },
 
+  resolveChannelCascade: {
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-cascade-channel');
+      const channelId = '800000000000000019';
+      await ctx.call('post', '/api/user/channel/activate', {
+        channelId,
+        personalitySlug: 'conf-cascade-channel',
+        guildId: '800000000000000002',
+      });
+      await ctx.call('patch', `/api/user/channel/${channelId}/config-overrides`, {
+        maxMessages: 25,
+      });
+      return { params: { channelId }, query: { personalityId: personality.id } };
+    },
+  },
+
   clearPersonalityOverrides: {
     seed: async ctx => {
       const personality = await createPersonality(ctx, 'conf-cascade-clear');

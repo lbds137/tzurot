@@ -11,6 +11,9 @@
  *     - GET /resolve/:personalityId: full 5-tier cascade resolution
  *     - PATCH /:personalityId: merge update user-personality tier
  *     - DELETE /:personalityId: clear user-personality tier
+ *     - GET /resolve-channel/:channelId: channel-scoped cascade resolution
+ *       (hardcoded → admin → personality → channel), identical for every
+ *       viewer regardless of their own user-tier overrides
  *
  *  2. Personality-tier endpoints (creator-only writes):
  *     - GET /resolve-personality/:personalityId: hardcoded → admin → personality cascade
@@ -40,8 +43,13 @@ const PERSONALITY_NESTED_PATH = `${BASE}/personality/:personalityId`;
 // (hardcoded → admin → personality → channel → user-default → user-personality).
 // `RESOLVE_PERSONALITY_TIER_PATH` is the personality-tier 3-tier resolution
 // (hardcoded → admin → personality only — strips the user-specific tiers).
+// `RESOLVE_CHANNEL_TIER_PATH` is the channel-tier 4-tier resolution
+// (hardcoded → admin → personality → channel — strips the VIEWER's own
+// user-default/user-personality tiers, so every moderator sees the same
+// channel state regardless of their personal overrides).
 const RESOLVE_PERSONALITY_TIER_PATH = `${BASE}/resolve-personality/:personalityId`;
 const RESOLVE_FULL_CASCADE_PATH = `${BASE}/resolve/:personalityId`;
+const RESOLVE_CHANNEL_TIER_PATH = `${BASE}/resolve-channel/:channelId`;
 
 export const userConfigOverrideRoutes = {
   // ============================================================================
@@ -110,6 +118,21 @@ export const userConfigOverrideRoutes = {
     // (handleSettings / handleOverrides / fetchAndConvertSettingsData) drive
     // dashboards post-defer — so it keeps the 10s budget even if the read
     // default ever moves.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+  },
+
+  resolveChannelCascade: {
+    audience: 'user',
+    method: 'get',
+    path: RESOLVE_CHANNEL_TIER_PATH,
+    id: 'resolveChannelCascade',
+    params: { channelId: z.string() },
+    query: { personalityId: z.string().optional() },
+    output: ResolvedConfigOverridesSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+    // Channel-scoped 4-tier resolve; same multi-read cost as the other
+    // cascade resolves.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
