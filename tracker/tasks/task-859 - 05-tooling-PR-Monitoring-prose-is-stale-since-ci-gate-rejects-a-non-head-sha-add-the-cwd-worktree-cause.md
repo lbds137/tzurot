@@ -3,9 +3,10 @@ id: TASK-859
 title: >-
   05-tooling PR Monitoring prose is stale since ci-gate rejects a non-head
   --sha; add the cwd/worktree cause
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 23:43'
+updated_date: '2026-09-02 14:01'
 labels:
   - 'area:rules'
   - 'size:S'
