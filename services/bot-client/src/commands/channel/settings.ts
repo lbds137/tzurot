@@ -8,6 +8,11 @@
  * Channel moderators can set defaults for the channel. Individual users
  * retain control via their own user-level overrides.
  *
+ * This dashboard's OWN resolution (what it shows as Current/Parent) is
+ * scoped to hardcoded → admin → personality → channel and never draws on
+ * the viewing moderator's user-default/user-personality tiers — every
+ * moderator viewing this channel sees the identical resolved state.
+ *
  * This handler receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
  */
@@ -37,7 +42,6 @@ import {
   type SettingUpdateHandler,
   type SettingUpdateResult,
   type SettingsResetHandler,
-  type ResolveDefaultsResponse,
   createSettingsDashboard,
   createSettingsCommandHandlers,
   EXTENDED_CONTEXT_SETTINGS,
@@ -46,7 +50,6 @@ import {
   VOICE_CASCADE_SETTINGS,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
-  convertResolveDefaultsResponse,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-settings');
@@ -121,8 +124,8 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
     const { userClient } = clientsFor(interaction);
     const data = await fetchAndConvertSettingsData(userClient, personalityId, channelId);
 
-    // When no personality is activated, resolve-defaults is used as fallback,
-    // so admin and user-default overrides are visible. Only personality-tier is missing.
+    // When no personality is activated, the channel-scoped resolve simply
+    // omits the personality tier — hardcoded/admin/channel are still resolved.
     const config =
       personalityId === undefined
         ? {
@@ -263,44 +266,31 @@ export const isChannelSettingsInteraction = channelSettingsHandlers.isInteractio
  * Gets the channel's own overrides (localValue) and the fully resolved values
  * (effectiveValue) with source tracking from the config cascade.
  *
- * When no personality is activated, falls back to resolve-defaults (hardcoded →
- * admin → user-default) so admin overrides are still visible.
+ * Always resolves through the channel-scoped endpoint (hardcoded → admin →
+ * personality when one is activated → channel) — never the viewing
+ * moderator's own user-tier overrides. This is identical for every viewer:
+ * two moderators with different personal overrides see the same channel
+ * state, and the channel's own override is never outranked by a viewer's
+ * private tier.
  */
 async function fetchAndConvertSettingsData(
   userClient: UserClient,
   personalityId: string | undefined,
   channelId: string
 ): Promise<SettingsData> {
-  // Fetch channel's local overrides and resolved cascade in parallel.
-  // When no personality is activated, use resolve-defaults for admin/user cascade.
-  const resolvePromise =
-    personalityId !== undefined
-      ? userClient.resolveCascade(personalityId, { channelId })
-      : userClient.resolveUserDefaults();
-
+  // Fetch channel's local overrides and the channel-scoped resolved cascade
+  // in parallel. personalityId is passed through even when undefined — the
+  // query param is optional and the resolver still applies hardcoded/admin/channel.
   const [channelOverridesResult, resolvedResult] = await Promise.all([
     userClient.getChannelConfigOverrides(channelId),
-    resolvePromise,
+    userClient.resolveChannelCascade(channelId, { personalityId }),
   ]);
 
   const channelOverrides = channelOverridesResult.ok
     ? channelOverridesResult.data.configOverrides
     : null;
 
-  // Convert the resolved result to ResolvedConfigOverrides format
-  let resolved: ResolvedConfigOverrides | null = null;
-  if (resolvedResult.ok) {
-    if (personalityId !== undefined) {
-      // Full cascade response — already in ResolvedConfigOverrides format
-      resolved = resolvedResult.data;
-    } else {
-      // resolve-defaults response — flat format with reserved metadata keys
-      const { resolved: convertedResolved } = convertResolveDefaultsResponse(
-        resolvedResult.data as ResolveDefaultsResponse
-      );
-      resolved = convertedResolved;
-    }
-  }
+  const resolved: ResolvedConfigOverrides | null = resolvedResult.ok ? resolvedResult.data : null;
 
   return buildCascadeSettingsData(resolved, channelOverrides, 'channel');
 }

@@ -92,7 +92,8 @@ export function mergeAndValidateOverrides(
 // Route preambles
 // ============================================================================
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Shared personality-id shape check: canonical UUID form. */
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Extract and UUID-validate the `:personalityId` route param, sending a

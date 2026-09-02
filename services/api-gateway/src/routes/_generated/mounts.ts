@@ -113,7 +113,7 @@ import { handleGetMemory, handleUpdateMemory, handleDeleteMemory, handleSetMemor
 import { handleGetIncognitoStatus, handleEnableIncognito, handleDisableIncognito, handleIncognitoForget } from '../user/memoryIncognito.js';
 import { handleGetFreshStatus, handleEnableFresh, handleDisableFresh } from '../user/memoryFresh.js';
 import { handleListFacts, handleGetFact, handleCorrectFact, handleForgetFact, handleSetFactLock } from '../user/memoryFacts.js';
-import { handleResolveUserDefaults, handleGetUserDefaults, handleUpdateUserDefaults, handleClearUserDefaults, handleResolveCascade, handleUpdatePersonalityOverrides, handleClearPersonalityOverrides } from '../user/config-overrides.js';
+import { handleResolveUserDefaults, handleGetUserDefaults, handleUpdateUserDefaults, handleClearUserDefaults, handleResolveCascade, handleResolveChannelCascade, handleUpdatePersonalityOverrides, handleClearPersonalityOverrides } from '../user/config-overrides.js';
 import { handleResolvePersonalityCascade, handleUpdatePersonalityConfigDefaults } from '../user/personality-config-overrides.js';
 import { handleStoreShapesAuth, handleDeleteShapesAuth, handleGetShapesAuthStatus } from '../user/shapes/auth.js';
 import { handleListShapes } from '../user/shapes/list.js';
@@ -308,6 +308,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.delete('/api/user/fact/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleForgetFact(deps));
   app.put('/api/user/fact/:id/lock', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetFactLock(deps));
   app.get('/api/user/config-overrides/resolve/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveCascade(deps));
+  app.get('/api/user/config-overrides/resolve-channel/:channelId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveChannelCascade(deps));
   app.patch('/api/user/config-overrides/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdatePersonalityOverrides(deps));
   app.delete('/api/user/config-overrides/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearPersonalityOverrides(deps));
   app.get('/api/user/config-overrides/resolve-personality/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolvePersonalityCascade(deps));

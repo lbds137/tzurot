@@ -129,6 +129,7 @@ import {
   handleClearUserDefaults,
   handleGetUserDefaults,
   handleResolveCascade,
+  handleResolveChannelCascade,
   handleResolveUserDefaults,
   handleUpdatePersonalityOverrides,
   handleUpdateUserDefaults,
@@ -549,6 +550,62 @@ describe('/user/config-overrides routes', () => {
           message: 'Invalid personalityId format',
         })
       );
+      expect(mockResolveOverrides).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/user/config-overrides/resolve-channel/:channelId', () => {
+    const TEST_CHANNEL_ID = '999888777666555444';
+
+    it('resolves with userId undefined (channel dashboard never sees the viewer own tiers)', async () => {
+      const handler = buildHandler(handleResolveChannelCascade, mockDeps);
+      const { req, res } = createMockReqRes(
+        {},
+        { channelId: TEST_CHANNEL_ID },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(mockResolveOverrides).toHaveBeenCalledWith(
+        undefined,
+        TEST_PERSONALITY_ID,
+        TEST_CHANNEL_ID
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('resolves with userId AND personalityId undefined when no personality is activated', async () => {
+      const handler = buildHandler(handleResolveChannelCascade, mockDeps);
+      const { req, res } = createMockReqRes({}, { channelId: TEST_CHANNEL_ID });
+
+      await handler(req, res);
+
+      expect(mockResolveOverrides).toHaveBeenCalledWith(undefined, undefined, TEST_CHANNEL_ID);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('rejects a malformed channelId with 400', async () => {
+      const handler = buildHandler(handleResolveChannelCascade, mockDeps);
+      const { req, res } = createMockReqRes({}, { channelId: 'not-a-snowflake' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockResolveOverrides).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed personalityId with 400', async () => {
+      const handler = buildHandler(handleResolveChannelCascade, mockDeps);
+      const { req, res } = createMockReqRes(
+        {},
+        { channelId: TEST_CHANNEL_ID },
+        { personalityId: 'not-a-uuid' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
       expect(mockResolveOverrides).not.toHaveBeenCalled();
     });
   });

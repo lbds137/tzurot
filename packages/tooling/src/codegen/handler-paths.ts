@@ -289,6 +289,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   updateUserDefaults: USER_CONFIG_OVERRIDES,
   clearUserDefaults: USER_CONFIG_OVERRIDES,
   resolveCascade: USER_CONFIG_OVERRIDES,
+  resolveChannelCascade: USER_CONFIG_OVERRIDES,
   updatePersonalityOverrides: USER_CONFIG_OVERRIDES,
   clearPersonalityOverrides: USER_CONFIG_OVERRIDES,
 

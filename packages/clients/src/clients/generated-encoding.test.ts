@@ -190,6 +190,13 @@ describe('Generated client URL encoding — UserClient', () => {
     expect(urlFromFetchCall()).toContain(TRICKY_ENC);
   });
 
+  it('resolveChannelCascade encodes channelId AND the personalityId query param', async () => {
+    await userClient().resolveChannelCascade(TRICKY, { personalityId: 's/lash' });
+    const url = urlFromFetchCall();
+    expect(url).toContain('/config-overrides/resolve-channel/' + TRICKY_ENC);
+    expect(url).toContain('personalityId=s%2Flash');
+  });
+
   it('removeWalletKey encodes provider', async () => {
     await userClient().removeWalletKey(TRICKY);
     expect(urlFromFetchCall()).toContain(TRICKY_ENC);

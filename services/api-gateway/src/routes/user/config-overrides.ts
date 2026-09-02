@@ -7,6 +7,7 @@
  * - GET /api/user/config-overrides/resolve/:personalityId - Resolve cascade overrides
  * - PATCH /api/user/config-overrides/:personalityId - Update per-personality overrides
  * - DELETE /api/user/config-overrides/:personalityId - Clear per-personality overrides
+ * - GET /api/user/config-overrides/resolve-channel/:channelId - Resolve channel-scoped cascade
  * - GET /api/user/config-overrides/defaults - Get user's global defaults
  * - PATCH /api/user/config-overrides/defaults - Update user's global defaults
  * - DELETE /api/user/config-overrides/defaults - Clear user's global defaults
@@ -30,6 +31,7 @@ import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
   getValidatedPersonalityId,
+  UUID_PATTERN,
 } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -53,9 +55,22 @@ function parseConfigTier(raw: unknown): Record<string, unknown> | null {
   return result.data;
 }
 
+const INVALID_CHANNEL_ID_MESSAGE = 'Invalid channelId format';
+const INVALID_PERSONALITY_ID_MESSAGE = 'Invalid personalityId format';
+
 /** Query schema for resolve endpoint */
 const resolveQuerySchema = z.object({
-  channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, 'Invalid channelId format').optional(),
+  channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, INVALID_CHANNEL_ID_MESSAGE).optional(),
+});
+
+/** Path params schema for the resolve-channel endpoint */
+const channelParamsSchema = z.object({
+  channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, INVALID_CHANNEL_ID_MESSAGE),
+});
+
+/** Query schema for the resolve-channel endpoint */
+const resolveChannelQuerySchema = z.object({
+  personalityId: z.string().regex(UUID_PATTERN, INVALID_PERSONALITY_ID_MESSAGE).optional(),
 });
 
 /** GET /api/user/config-overrides/resolve-defaults — admin → user-default cascade */
@@ -201,13 +216,46 @@ export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
     }
     const queryResult = resolveQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
-      sendError(res, ErrorResponses.validationError('Invalid channelId format'));
+      sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
       return;
     }
     const resolved = await cascadeResolver.resolveOverrides(
       req.userId,
       personalityId,
       queryResult.data.channelId
+    );
+    sendCustomSuccess(res, resolved, StatusCodes.OK);
+  });
+};
+
+/**
+ * GET /api/user/config-overrides/resolve-channel/:channelId — channel-scoped
+ * cascade resolution (hardcoded → admin → personality → channel).
+ *
+ * The channel settings dashboard resolves through this endpoint for every
+ * viewer, never the full user-tier resolve: the resolution deliberately
+ * excludes the VIEWING moderator's own user-default/user-personality tiers,
+ * so two moderators looking at the same channel see identical Current/Parent
+ * values regardless of their personal overrides.
+ */
+export const handleResolveChannelCascade = (deps: RouteDeps): RequestHandler => {
+  const cascadeResolver = deps.cascadeResolver;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const paramsResult = channelParamsSchema.safeParse(req.params);
+    if (!paramsResult.success) {
+      sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
+      return;
+    }
+    const queryResult = resolveChannelQuerySchema.safeParse(req.query);
+    if (!queryResult.success) {
+      sendError(res, ErrorResponses.validationError(INVALID_PERSONALITY_ID_MESSAGE));
+      return;
+    }
+    // userId is intentionally omitted (undefined) — see JSDoc above.
+    const resolved = await cascadeResolver.resolveOverrides(
+      undefined,
+      queryResult.data.personalityId,
+      paramsResult.data.channelId
     );
     sendCustomSuccess(res, resolved, StatusCodes.OK);
   });
