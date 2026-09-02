@@ -3,9 +3,10 @@ id: TASK-861
 title: >-
   Port the single-flight subscribe and identity-guarded cleanup from
   BaseCacheInvalidationService to the standalone CacheInvalidationService
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 02:54'
+updated_date: '2026-09-02 13:00'
 labels:
   - 'area:cache-invalidation'
   - 'size:M'

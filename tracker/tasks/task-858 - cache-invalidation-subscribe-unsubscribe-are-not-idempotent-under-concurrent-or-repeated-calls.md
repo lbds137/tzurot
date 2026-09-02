@@ -3,9 +3,10 @@ id: TASK-858
 title: >-
   cache-invalidation subscribe/unsubscribe are not idempotent under concurrent
   or repeated calls
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 22:14'
+updated_date: '2026-09-02 13:00'
 labels:
   - 'area:cache-invalidation'
   - 'size:S'
