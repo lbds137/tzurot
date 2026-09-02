@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "lastUpdated": "2026-08-31T17:06:07.757Z",
+  "lastUpdated": "2026-09-02T00:09:49.798Z",
   "packages": {
     "config-resolver": {
       "score": 96.54,
       "graceMargin": 1
     },
     "cache-invalidation": {
-      "score": 97.53,
+      "score": 97.68,
       "graceMargin": 1
     },
     "conversation-history": {
@@ -15,7 +15,7 @@
       "graceMargin": 1
     },
     "identity": {
-      "score": 78.97,
+      "score": 95.51,
       "graceMargin": 1
     },
     "clients": {
@@ -27,7 +27,7 @@
     "toolVersion": "mutation-check/1",
     "configHash": "60999849d8ff",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "a710130bf1267f540c59c2b8a4f826282e05d25a",
-    "generatedAt": "2026-08-31T17:06:07.757Z"
+    "generatedFromSha": "98f22d7f5fa63b095fd31fd5f14b6fbf39a59199",
+    "generatedAt": "2026-09-02T00:09:49.798Z"
   }
 }
