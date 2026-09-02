@@ -1,15 +1,16 @@
 ---
 id: TASK-860
 title: >-
-  Guest vision chain has one real attempt: pick an eligible free vision model
-  for fallbackVisionModelFree, or add a transient-only same-tier retry
+  Guest vision floor (openrouter/free) eligibility is circumstantial: watch for
+  it returning; retry and hand-picked-model shapes ruled out
 status: To Do
 assignee: []
 created_date: '2026-09-02 01:36'
+updated_date: '2026-09-02 01:48'
 labels:
   - 'area:ai-worker'
   - 'size:S'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 860000
@@ -27,4 +28,13 @@ Fix shape, owner decision:
 (b) code: a transient-only (RATE_LIMIT / SERVER_ERROR / TIMEOUT) single retry of the same tier inside walkFallbackChain, bounded so the worst case stays at MAX_VISION_FALLBACK_TIERS + 1 calls. Only worth it if (a) yields no eligible model.
 
 Acceptance: a guest image whose flash tier fails on a non-image-bound category reaches a second distinct model, observed in prod logs (VisionFallbackLoop tiers list has two resolved models for a guest walk).
+
+### Owner correction 2026-09-02 — the free-floor failure is circumstantial, not structural; this is a WATCH
+
+The premise above ("in practice a guest has ONE real attempt") holds only under present OpenRouter conditions. Providers on OpenRouter come and go and change their data policies; openrouter/free has served guest vision before and can again without any change on our side. Consequences for the two fix shapes:
+
+- (a) is ruled out as fragile in the same way: a hand-picked free model is subject to the same provider churn as the router, just less visibly, and it would have to be re-picked by hand every time. The router alias is the self-healing choice — it resolves against whatever is eligible at call time — so the guest floor stays openrouter/free.
+- (b) stays ruled out on the original grounds (attempt count is not the lever).
+
+No code change. State is observable: the signal is the prod VisionFallbackLoop log for a guest walk. With PR #2295 the free router's failure reason is classified per occurrence (a 200-with-error body now surfaces the body's error and provider), so the day eligibility returns shows up as a guest walk whose openrouter/free tier resolves a description instead of model_not_found. Close this task on that observation; re-open the discussion only if a guest walk fails on a category a retry could have helped (429 / 5xx / timeout) at a rate worth measuring.
 <!-- SECTION:DESCRIPTION:END -->
