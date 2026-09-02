@@ -10,6 +10,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { escapeRegExp } from '../utils/regex.js';
 
 /** A sampled corpus row (the raw, unanonymized shape the miner emits). */
 export interface CorpusRawRow {
@@ -223,11 +224,6 @@ function placeholderFor(index: number): string {
   const letter = String.fromCharCode(65 + (index % 26));
   const cycle = Math.floor(index / 26);
   return `Person${letter}${cycle === 0 ? '' : String(cycle + 1)}`;
-}
-
-/** Escape a literal for use inside a RegExp. */
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export interface AnonymizedRow {
