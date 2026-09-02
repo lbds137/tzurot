@@ -41,7 +41,8 @@ Each research note follows this structure:
 
 ## Current Notes
 
-| File                      | Topic                                                                                  | Added      |
-| ------------------------- | -------------------------------------------------------------------------------------- | ---------- |
-| `voice-cloning-2026.md`   | Voice/TTS engine: Mistral-vs-ElevenLabs rationale, Voxtral API, loudness normalization | 2026-01-24 |
-| `sillytavern-features.md` | Feature ideas from SillyTavern analysis                                                | 2026-01-24 |
+| File                                         | Topic                                                                                       | Added      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------- |
+| `voice-cloning-2026.md`                      | Voice/TTS engine: Mistral-vs-ElevenLabs rationale, Voxtral API, loudness normalization      | 2026-01-24 |
+| `sillytavern-features.md`                    | Feature ideas from SillyTavern analysis                                                     | 2026-01-24 |
+| `character-initiated-messaging-prior-art.md` | Prior art for doc-86: shapes.inc Free Will triggers, Nomi cadence ladder, Kindroid, Replika | 2026-09-02 |

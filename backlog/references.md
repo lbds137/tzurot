@@ -5,6 +5,7 @@
 - Shapes.inc import: Phases 1-4 complete on develop (see Character Portability theme)
 - [docs/research/sillytavern-features.md](../docs/research/sillytavern-features.md)
 - [docs/research/voice-cloning-2026.md](../docs/research/voice-cloning-2026.md) - Voice engine research summary + implementation map
+- [docs/research/character-initiated-messaging-prior-art.md](../docs/research/character-initiated-messaging-prior-art.md) - Prior art for doc-86 (shapes.inc Free Will, Nomi, Kindroid, Replika): two product models, Nomi cadence ladder recommended for v1
 
 ## Claude Code / process resources (2026-07-05 links ingest)
 

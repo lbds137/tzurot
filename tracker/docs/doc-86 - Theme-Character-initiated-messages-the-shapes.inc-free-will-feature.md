@@ -62,3 +62,5 @@ Phase 0 is an open-ended design question with many defensible shapes, so the own
 - The framing question the owner raised: whether this belongs under doc-11's agentic features. Working distinction — agentic features change what a character does INSIDE a turn it was invoked for; this theme is what makes a turn happen with no user message at all. They share the spend/telemetry gate (doc-12), which is why both sit in Phase C.
 
 Phase 0 decisions follow the research, when the time comes. The Phase C build gate (doc-75 + doc-12) is unchanged.
+
+**Research (2026-09-02)**: [`docs/research/character-initiated-messaging-prior-art.md`](../../docs/research/character-initiated-messaging-prior-art.md) — the pass is done; its recommendation is v1 = the DM model with Nomi-style cadence, quiet hours, per-character opt-in.
