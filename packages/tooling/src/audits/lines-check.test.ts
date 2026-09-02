@@ -23,6 +23,8 @@ import {
   measureSurfaces,
   LINES_IMPL_VERSION,
   DIMENSION_NAMES,
+  DEFAULT_GRACE_MARGINS,
+  DEFAULT_BYTES_GRACE_MARGINS,
   type MeasuredSurfaces,
 } from './lines-surfaces.js';
 import { buildBaselineMeta, hashConfigSlice } from './baseline-meta.js';
@@ -31,6 +33,7 @@ function measured(overrides: Partial<MeasuredSurfaces> = {}): MeasuredSurfaces {
   return {
     rules: { lines: 100, bytes: 8000, fileCount: 3 },
     current: { lines: 20, bytes: 7000, fileCount: 1 },
+    skills: { lines: 50, bytes: 3000, fileCount: 2 },
     ...overrides,
   };
 }
@@ -70,6 +73,7 @@ describe('evaluateSurfaceBudgets', () => {
   const budgets = baseline({
     rules: { lines: 100, graceMargin: 10, bytes: 8000, bytesGraceMargin: 500 },
     current: { lines: 20, graceMargin: 5, bytes: 7000, bytesGraceMargin: 400 },
+    skills: { lines: 50, graceMargin: 5, bytes: 3000, bytesGraceMargin: 200 },
   });
 
   it('passes at or below the limit (baseline + grace) on both dimensions', () => {
@@ -391,7 +395,9 @@ describe('runLinesUpdateBaseline CLI shell', () => {
     const { mkdir, writeFile } = await import('node:fs/promises');
     const { join } = await import('node:path');
     await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+    await mkdir(join(tmp, '.claude/skills/example'), { recursive: true });
     await writeFile(join(tmp, '.claude/rules/00-a.md'), 'one\ntwo\n');
+    await writeFile(join(tmp, '.claude/skills/example/SKILL.md'), 'one\n');
     await writeFile(join(tmp, 'CURRENT.md'), 'status\n');
   }
 
@@ -422,6 +428,44 @@ describe('runLinesUpdateBaseline CLI shell', () => {
     });
   });
 
+  it('scoped --surface skills refresh over a rules+current-only baseline writes ONLY the skills entry, untouched elsewhere', async () => {
+    // The skills surface's own bootstrap case: a baseline that predates it
+    // (rules + current only) must gain a skills entry with the DEFAULT
+    // margins (no prior entry to carry forward), while the two existing
+    // entries are carried through byte-for-byte — not recomputed from the
+    // live measurement, which would silently discard any prior manual tuning.
+    await withQuietTmpDir(async tmp => {
+      const { readFile, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      const baselinePath = join(tmp, 'baseline.json');
+      await seedSurfaces(tmp);
+
+      const originalRules = { lines: 999, graceMargin: 111, bytes: 8888, bytesGraceMargin: 222 };
+      const originalCurrent = { lines: 888, graceMargin: 11, bytes: 7777, bytesGraceMargin: 22 };
+      await writeFile(
+        baselinePath,
+        JSON.stringify({ surfaces: { rules: originalRules, current: originalCurrent } })
+      );
+
+      runLinesUpdateBaseline({ rootDir: tmp, baseline: baselinePath, surface: 'skills' });
+      const written = JSON.parse(await readFile(baselinePath, 'utf-8')) as LinesBaseline;
+
+      expect(written.surfaces.rules).toEqual(originalRules);
+      expect(written.surfaces.current).toEqual(originalCurrent);
+
+      const measuredSkills = measureSurfaces(tmp).skills;
+      expect(written.surfaces.skills).toEqual({
+        lines: measuredSkills.lines,
+        graceMargin: DEFAULT_GRACE_MARGINS.skills,
+        bytes: measuredSkills.bytes,
+        bytesGraceMargin: DEFAULT_BYTES_GRACE_MARGINS.skills,
+      });
+      // A scoped refresh still stamps fresh meta even though only one entry
+      // moved — the config it was captured under is identical either way.
+      expect(written.meta).toBeDefined();
+    });
+  });
+
   it('prunes a stray surface entry on an unscoped refresh instead of throwing', async () => {
     // Pre-PR behaviour, preserved: an unscoped refresh rebuilds from nothing,
     // so an entry for a surface no longer tracked is dropped. The spread that
@@ -447,7 +491,7 @@ describe('runLinesUpdateBaseline CLI shell', () => {
 
       const written = JSON.parse(await readFile(baselinePath, 'utf-8')) as LinesBaseline;
       expect(written.surfaces.retired).toBeUndefined();
-      expect(Object.keys(written.surfaces).sort()).toEqual(['current', 'rules']);
+      expect(Object.keys(written.surfaces).sort()).toEqual(['current', 'rules', 'skills']);
     });
   });
 
@@ -497,6 +541,7 @@ describe('runLinesUpdateBaseline CLI shell', () => {
             surfaces: {
               rules: { lines: 1, graceMargin: 1, bytes: 4, bytesGraceMargin: 1 },
               current: { lines: 1, graceMargin: 1, bytes: 7, bytesGraceMargin: 1 },
+              skills: { lines: 1, graceMargin: 1, bytes: 4, bytesGraceMargin: 1 },
             },
           })
         );
@@ -530,9 +575,11 @@ describe('runLinesUpdateBaseline CLI shell', () => {
         const { mkdir, writeFile } = await import('node:fs/promises');
         const { join } = await import('node:path');
         await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+        await mkdir(join(tmp, '.claude/skills/example'), { recursive: true });
         // rules measures 3 lines / 12 bytes; current measures 1 line / 7 bytes.
         await writeFile(join(tmp, '.claude/rules/00-a.md'), 'one\ntwo\nsix\n');
         await writeFile(join(tmp, 'CURRENT.md'), 'status\n');
+        await writeFile(join(tmp, '.claude/skills/example/SKILL.md'), 'one\n');
         const baselinePath = join(tmp, 'baseline.json');
         await writeFile(
           baselinePath,
@@ -747,8 +794,10 @@ describe('runLinesCheck --breakdown wiring', () => {
     const { mkdir, writeFile } = await import('node:fs/promises');
     const { join } = await import('node:path');
     await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+    await mkdir(join(tmp, '.claude/skills/example'), { recursive: true });
     await writeFile(join(tmp, '.claude/rules/00-a.md'), 'rule\n');
     await writeFile(join(tmp, 'CURRENT.md'), 'status\n');
+    await writeFile(join(tmp, '.claude/skills/example/SKILL.md'), 'skill\n');
     const baselinePath = join(tmp, 'baseline.json');
     const m = measureSurfaces(tmp);
     await writeFile(
@@ -765,6 +814,12 @@ describe('runLinesCheck --breakdown wiring', () => {
             lines: m.current.lines,
             graceMargin: 5,
             bytes: m.current.bytes,
+            bytesGraceMargin: 50,
+          },
+          skills: {
+            lines: m.skills.lines,
+            graceMargin: 5,
+            bytes: m.skills.bytes,
             bytesGraceMargin: 50,
           },
         },

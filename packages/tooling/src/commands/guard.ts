@@ -253,10 +253,11 @@ function registerLinesCommands(cli: CAC): void {
     .option('--dry-run', 'Show the diff without writing the file')
     .option(
       '--surface <name>',
-      'Refresh only this surface (rules|current); the others keep their recorded numbers'
+      'Refresh only this surface (rules|current|skills); the others keep their recorded numbers'
     )
     .example('ops lines:update-baseline --dry-run')
     .example('ops lines:update-baseline --surface rules')
+    .example('ops lines:update-baseline --surface skills')
     .action(async (options: { baseline: string; dryRun?: boolean; surface?: string }) => {
       const { runLinesUpdateBaseline } = await import('../audits/lines-check.js');
       runLinesUpdateBaseline(options);

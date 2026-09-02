@@ -205,6 +205,10 @@ describe('audit-canary: lines:check', () => {
         surfaces: {
           rules: { lines: 10, graceMargin: 5, bytes: 500, bytesGraceMargin: 100 },
           current: { lines: 5, graceMargin: 2, bytes: 300, bytesGraceMargin: 50 },
+          // Comfortably under budget on purpose: this canary exists to prove
+          // the rules/CURRENT.md over-budget detection, not the skills
+          // surface, so skills must contribute zero findings here.
+          skills: { lines: 100, graceMargin: 50, bytes: 2000, bytesGraceMargin: 2000 },
         },
         meta: buildBaselineMeta('lines-check/canary', hashConfigSlice(getLinesConfigFingerprint())),
       })
