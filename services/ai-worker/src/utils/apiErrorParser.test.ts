@@ -524,11 +524,15 @@ describe('parseApiError', () => {
       expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
     });
 
-    it('does not change PROVIDER_CONTENT_REFUSED retarget eligibility — still deliberately absent from quota-fallback retargeting', () => {
-      // The category itself, not just this specimen, must stay off the
-      // retarget path — a routing-policy change was explicitly out of scope
-      // for this classification fix.
-      expect(classifyQuotaFailure(zaiRefusalSpecimen)).toBeNull();
+    it('retargets the z.ai TEXT refusal on the general quota-fallback path', () => {
+      // The z.ai content-safety pattern fires on plain text turns, not just
+      // image attachments, so this specimen must retarget the same way
+      // CONTENT_POLICY does — the general generation path never carries raw
+      // image bytes, so PROVIDER_CONTENT_REFUSED reaching it here is a text
+      // refusal, not the vision-fallback image case.
+      expect(classifyQuotaFailure(zaiRefusalSpecimen)).toBe(
+        ApiErrorCategory.PROVIDER_CONTENT_REFUSED
+      );
     });
   });
 

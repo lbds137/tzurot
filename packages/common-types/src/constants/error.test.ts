@@ -522,10 +522,13 @@ describe('PROVIDER_CONTENT_REFUSED', () => {
     ).toBe(INTERVALS.VISION_FAILURE_TTL_LONG);
   });
 
-  it('has a non-empty user-facing message', () => {
+  it('has a non-empty, payload-neutral user-facing message', () => {
     const message = USER_ERROR_MESSAGES[ApiErrorCategory.PROVIDER_CONTENT_REFUSED];
     expect(typeof message).toBe('string');
     expect(message.length).toBeGreaterThan(0);
+    // The category now covers both image (vision) and text refusals, so the
+    // copy must not name a specific payload type.
+    expect(message).not.toMatch(/image|attach/i);
   });
 });
 

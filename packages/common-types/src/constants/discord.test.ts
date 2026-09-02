@@ -296,6 +296,7 @@ describe('Bot Footer Text Constants', () => {
         ['empty_response', 'empty response'],
         ['censored', 'model refused'],
         ['content_policy', 'model refused'],
+        ['provider_content_refused', 'model refused'],
       ];
       for (const [category, wording] of cases) {
         const result = buildModelFooterText('floor-model', 'https://example.com/m', {
