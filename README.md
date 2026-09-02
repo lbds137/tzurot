@@ -22,7 +22,7 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 
 ### Prerequisites
 
-- Node.js 25+
+- Node.js 24 (the `engines` field in `package.json` is the source of truth; the dependency-cruiser gate rejects 25)
 - pnpm 10+
 - PostgreSQL 16+ with pgvector extension
 - Redis 7+ (for BullMQ)
@@ -167,6 +167,7 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 Tzurot is fully managed via Discord slash commands. For the complete reference (every subcommand, every argument), see the **[Command Reference](docs/commands.md)**.
 
 - **`/character`** — Create, edit, browse, import/export AI characters; chat with them; manage per-character config + voice cloning enrollment
+- **`/chat`** + **`/chime-in`** + **`/random`** — Chat one-on-one with a character; have a character (or every character carrying a tag) chime in on the recent conversation; chat with a random character or have one read the room
 - **`/persona`** — User personas, defaults, per-character overrides
 - **`/voice`** — TTS/STT provider config, cloned-voice library, per-character resolved-state dashboard (`/voice view`)
 - **`/preset`** + **`/channel`** — Custom LLM presets, channel auto-response activation
@@ -175,16 +176,13 @@ Tzurot is fully managed via Discord slash commands. For the complete reference (
 - **`/settings`** — Timezone, BYOK API keys, per-character preset overrides, global default settings dashboard, data export/delete
 - **`/notifications`** — Release-notes DM preferences (enable/disable, severity level, DM cleanup)
 - **`/feedback`** — Send feedback to the developer from inside Discord
-- **`/inspect`** + **`/help`** — Diagnostic log browser (full LLM request flight recorder); list all available commands
+- **`/inspect`** + **`/help`** — Diagnostic log browser (full LLM request flight recorder), also reachable from any exchange via the **Inspect Message** and **View Reasoning** message context menus; list all available commands
 - **`/shapes`** — Legacy Shapes.inc character migration
 - **`/admin`** + **`/deny`** — Owner-only monitoring, maintenance, denial management
 
 ### 📋 Planned
 
-- **TTS Phase 2 — NeuTTS Air**: Self-hosted next-gen voice cloning engine alongside Pocket TTS, for free-tier voice-clone users
-- **Multi-character per channel**: Multiple characters responding naturally to the same conversation
-- **Lorebooks / sticky context**: Keyword-triggered lore injection
-- **Memory enhancements**: LTM summarization, OpenMemory integration
+Planned work is not maintained here — it lives on the board ([BACKLOG.md](BACKLOG.md)) and lands in the [GitHub Releases](https://github.com/lbds137/tzurot/releases) notes when it ships.
 
 ## Development
 
@@ -192,7 +190,7 @@ Tzurot is fully managed via Discord slash commands. For the complete reference (
 pnpm build            # Build all services
 pnpm test             # Run unit tests
 pnpm test:component   # Run component tests
-pnpm quality          # Lint + CPD + depcruise + typecheck
+pnpm quality          # The full static gate — composition in package.json scripts.quality
 pnpm format           # Format code
 pnpm ops --help       # CLI tooling reference
 ```
