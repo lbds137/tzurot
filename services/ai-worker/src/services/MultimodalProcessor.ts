@@ -18,6 +18,7 @@ import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsSe
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type AttachmentDescriptionAttribution } from '@tzurot/common-types/types/diagnostic';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { withParallelRetry } from '../utils/parallelRetry.js';
@@ -38,6 +39,8 @@ export interface ProcessedAttachment {
   description: string; // Text description/transcription for history
   originalUrl: string; // For current turn (send raw media)
   metadata: AttachmentMetadata;
+  /** Which vision model produced `description`; null for placeholders and non-image attachments. */
+  attribution?: AttachmentDescriptionAttribution | null;
 }
 
 /**
@@ -203,24 +206,39 @@ async function processSingleAttachment(
     // single-model describeImage with the pre-resolved config (legacy / no-resolver path).
     const effectiveAuth =
       visionAuth !== undefined && isSharedAsset ? asInstanceFundedAuth(visionAuth) : visionAuth;
-    const description =
-      effectiveAuth !== undefined
-        ? await describeImageWithFallback(attachment, personality, effectiveAuth, {
-            loggingContext,
-            model: dispatch.model,
-          })
-        : await describeImage(attachment, personality, dispatch.isGuestMode, dispatch.userApiKey, {
-            skipNegativeCache: true,
-            loggingContext,
-            provider: dispatch.provider,
-            model: dispatch.model,
-          });
+    let description: string;
+    let attribution: AttachmentDescriptionAttribution | null = null;
+    if (effectiveAuth !== undefined) {
+      const result = await describeImageWithFallback(attachment, personality, effectiveAuth, {
+        loggingContext,
+        model: dispatch.model,
+      });
+      description = result.description;
+      attribution = result.attribution;
+    } else {
+      description = await describeImage(
+        attachment,
+        personality,
+        dispatch.isGuestMode,
+        dispatch.userApiKey,
+        {
+          skipNegativeCache: true,
+          loggingContext,
+          provider: dispatch.provider,
+          model: dispatch.model,
+          onAttribution: a => {
+            attribution = a;
+          },
+        }
+      );
+    }
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,
       description,
       originalUrl: attachment.url,
       metadata: attachment,
+      attribution,
     };
   } else if (
     attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||

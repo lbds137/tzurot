@@ -90,23 +90,23 @@ export function isValidVisionDescription(description: string): boolean {
 export async function readValidCachedDescription(
   cacheKeyOptions: { attachmentId?: string; url: string; model?: string },
   attachment: { id?: string; name?: string | null }
-): Promise<string | null> {
-  const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
-  if (cachedDescription === null) {
+): Promise<{ description: string; model: string } | null> {
+  const cached = await visionDescriptionCache.getCanonical(cacheKeyOptions);
+  if (cached === null) {
     return null;
   }
-  if (isValidVisionDescription(cachedDescription)) {
+  if (isValidVisionDescription(cached.description)) {
     logger.debug(
       { attachmentName: attachment.name, attachmentId: attachment.id },
       'Using cached vision description - avoiding duplicate API call'
     );
-    return cachedDescription;
+    return cached;
   }
   logger.warn(
     {
       attachmentId: attachment.id,
-      cachedLength: cachedDescription.length,
-      preview: cachedDescription.substring(0, 80),
+      cachedLength: cached.description.length,
+      preview: cached.description.substring(0, 80),
     },
     'Cached vision description appears invalid — re-processing image'
   );

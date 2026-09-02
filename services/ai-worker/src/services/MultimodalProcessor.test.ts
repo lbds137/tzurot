@@ -114,6 +114,9 @@ vi.mock('../redis.js', () => ({
     isInflight: vi.fn().mockResolvedValue(false),
     releaseInflight: vi.fn().mockResolvedValue(undefined),
     get: mockVisionCacheGet,
+    // Only ever resolved to null (cache miss) in this suite — the object shape
+    // never matters here, so the same mock backs both `get` and `getCanonical`.
+    getCanonical: mockVisionCacheGet,
     store: mockVisionCacheStore,
     getFailure: mockVisionCacheGetFailure,
     storeFailure: mockVisionCacheStoreFailure,
@@ -173,7 +176,10 @@ describe('MultimodalProcessor', () => {
     mockVisionCacheStore.mockResolvedValue(undefined);
     mockVisionCacheGetFailure.mockResolvedValue(null); // Default: no failure cached
     mockVisionCacheStoreFailure.mockResolvedValue(undefined);
-    mockDescribeImageWithFallback.mockResolvedValue('Fallback-loop description');
+    mockDescribeImageWithFallback.mockResolvedValue({
+      description: 'Fallback-loop description',
+      attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+    });
   });
 
   afterEach(() => {
@@ -321,7 +327,77 @@ describe('MultimodalProcessor', () => {
       expect(results[0]).toMatchObject({
         type: AttachmentType.Image,
         description: 'Fallback-loop description',
+        attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
       });
+    });
+
+    it('carries a null attribution through when the fallback chain terminates on a placeholder', async () => {
+      // Wrapper is mocked → no retry timers needed.
+      vi.useRealTimers();
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/image1.png',
+          name: 'image1.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+      const visionAuth: ResolveVisionConfigOptions = {
+        personality: mockPersonality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: {
+          resolveApiKey: vi.fn(),
+          tryResolveUserKey: vi.fn(),
+        } as unknown as ApiKeyResolver,
+      };
+
+      // A chain-exhausted / terminate-category result resolves with a placeholder
+      // description and `attribution: null` — that null must reach the row
+      // distinguishably from "absent". A `?? undefined` on the assignment would be
+      // invisible to any assertion weaker than `toBeNull()`.
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: '[Image unavailable: vision unavailable]',
+        attribution: null,
+      });
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        visionAuth,
+      });
+
+      expect(results[0].attribution).toBeNull();
+    });
+
+    it('attributes a single-model describe when no visionAuth bundle is supplied', async () => {
+      // No visionAuth → processAttachments takes the single-model describeImage
+      // branch, whose `onAttribution` callback is the ONLY way the model that
+      // actually produced the description reaches this row — a dropped
+      // callback silently yields a null attribution.
+      vi.useRealTimers();
+      mockCheckModelVisionSupport.mockResolvedValue(true);
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/image1.png',
+          name: 'image1.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
+
+      expect(mockDescribeImageWithFallback).not.toHaveBeenCalled();
+      expect(results[0].attribution).not.toBeNull();
+      // The single-model branch attributes to the personality's own resolved
+      // vision model (selectVisionModel), not the mocked chat model's name.
+      expect(results[0].attribution).toEqual(
+        expect.objectContaining({ model: 'gpt-4-vision-preview', fromCache: false })
+      );
     });
 
     it('funds a STICKER description from the instance, not the triggering user', async () => {

@@ -125,7 +125,9 @@ describe('DiagnosticCollector', () => {
       });
 
       const payload = collector.finalize();
-      expect(payload.inputProcessing.attachmentDescriptions).toEqual(['A photo of a sunset']);
+      expect(payload.inputProcessing.attachmentDescriptions).toEqual([
+        { description: 'A photo of a sunset', attribution: null },
+      ]);
     });
 
     it('should fallback to type for attachments with null/undefined description', () => {
@@ -143,7 +145,9 @@ describe('DiagnosticCollector', () => {
       });
 
       const payload = collector.finalize();
-      expect(payload.inputProcessing.attachmentDescriptions).toEqual(['[image]']);
+      expect(payload.inputProcessing.attachmentDescriptions).toEqual([
+        { description: '[image]', attribution: null },
+      ]);
     });
 
     it('should keep empty string description as-is', () => {
@@ -162,7 +166,49 @@ describe('DiagnosticCollector', () => {
 
       const payload = collector.finalize();
       // Empty string is kept as-is since ?? only handles null/undefined
-      expect(payload.inputProcessing.attachmentDescriptions).toEqual(['']);
+      expect(payload.inputProcessing.attachmentDescriptions).toEqual([
+        { description: '', attribution: null },
+      ]);
+    });
+
+    it('forwards a ProcessedAttachment.attribution unchanged, and defaults an absent one to null', () => {
+      collector.recordInputProcessing({
+        rawUserMessage: 'Check these images',
+        processedAttachments: [
+          {
+            type: AttachmentType.Image,
+            description: 'a routed photo',
+            originalUrl: 'https://example.com/a.jpg',
+            metadata: { contentType: 'image/jpeg', url: 'https://example.com/a.jpg' },
+            attribution: {
+              model: 'openrouter/auto',
+              routedModel: 'google/gemini-2.5-flash',
+              fromCache: false,
+            },
+          },
+          {
+            type: AttachmentType.Image,
+            description: 'an unrouted photo',
+            originalUrl: 'https://example.com/b.jpg',
+            metadata: { contentType: 'image/jpeg', url: 'https://example.com/b.jpg' },
+            // No `attribution` field at all — mirrors a caller that never set it.
+          },
+        ],
+        searchQuery: 'photos',
+      });
+
+      const payload = collector.finalize();
+      expect(payload.inputProcessing.attachmentDescriptions).toEqual([
+        {
+          description: 'a routed photo',
+          attribution: {
+            model: 'openrouter/auto',
+            routedModel: 'google/gemini-2.5-flash',
+            fromCache: false,
+          },
+        },
+        { description: 'an unrouted photo', attribution: null },
+      ]);
     });
 
     it('should extract voice transcript from audio attachment', () => {

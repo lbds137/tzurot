@@ -209,7 +209,13 @@ describe('buildInputView', () => {
     const payload = createMockPayload({
       inputProcessing: {
         rawUserMessage: 'What is the weather?',
-        attachmentDescriptions: ['a photo of a cat', 'an audio clip'],
+        attachmentDescriptions: [
+          {
+            description: 'a photo of a cat',
+            attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+          },
+          { description: 'an audio clip', attribution: null },
+        ],
         voiceTranscript: 'what is the weather',
         referencedMessageIds: ['111', '222'],
         referencedMessagesContent: ['first referenced', 'second referenced'],
@@ -224,6 +230,8 @@ describe('buildInputView', () => {
     expect(text).toContain('What is the weather?');
     expect(text).toContain('### Attachments (2)');
     expect(text).toContain('1. a photo of a cat');
+    expect(text).toContain('Model: qwen/qwen3.5-397b-a17b');
+    expect(text).toContain('2. an audio clip');
     expect(text).toContain('### Voice transcript');
     expect(text).toContain('### Referenced messages');
     expect(text).toContain('`111`');
@@ -262,6 +270,36 @@ describe('buildInputView', () => {
     expect(text).not.toContain('### Voice transcript');
     expect(text).not.toContain('### Referenced messages');
     expect(text).not.toContain('### Memory search query');
+  });
+
+  it('renders a legacy bare-string attachment entry alongside a current object entry', () => {
+    // Models an unvalidated JSONB read-back of a row written before the
+    // { description, attribution } shape shipped: the array can mix a
+    // bare string with the current object shape.
+    const legacyMixedDescriptions = [
+      'a legacy description',
+      {
+        description: 'a photo of a cat',
+        attribution: { model: 'openrouter/auto', fromCache: false },
+      },
+    ] as unknown as DiagnosticPayload['inputProcessing']['attachmentDescriptions'];
+
+    const payload = createMockPayload({
+      inputProcessing: {
+        rawUserMessage: 'What is in these?',
+        attachmentDescriptions: legacyMixedDescriptions,
+        voiceTranscript: null,
+        referencedMessageIds: [],
+        referencedMessagesContent: [],
+        searchQuery: null,
+      },
+    });
+
+    const text = buildInputView(payload, 'req-1', OWNER_CTX).chunkedText?.text ?? '';
+
+    expect(text).toContain('1. a legacy description');
+    expect(text).toContain('2. a photo of a cat');
+    expect(text).toContain('Model: openrouter/auto');
   });
 });
 

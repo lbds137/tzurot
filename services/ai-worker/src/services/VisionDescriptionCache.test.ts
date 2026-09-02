@@ -152,6 +152,38 @@ describe('VisionDescriptionCache', () => {
     });
   });
 
+  describe('getCanonical — description + producing model, for /inspect attribution', () => {
+    it('returns the description alongside the producing model on a hit', async () => {
+      mockRedis.get.mockResolvedValueOnce(
+        canonicalEntry('a cat on a keyboard', 2).replace('"model":"m"', '"model":"openai/gpt-4o"')
+      );
+      const result = await cache.getCanonical({ attachmentId: '123', url: 'u' });
+      expect(result).toEqual({ description: 'a cat on a keyboard', model: 'openai/gpt-4o' });
+    });
+
+    it('returns null on miss, mirroring get()', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      expect(await cache.getCanonical({ attachmentId: '123', url: 'u' })).toBeNull();
+    });
+
+    it('degrades a missing/non-string model to an empty string rather than a miss or a throw', async () => {
+      // A legacy entry whose top-level shape still parses (description/tier/ts all
+      // present, per readCanonicalEntry's own validated set) but predates the
+      // `model` field. `model` is observability-only — a malformed value must
+      // never turn a genuine cache hit into a miss.
+      mockRedis.get.mockResolvedValueOnce(
+        JSON.stringify({ description: 'legacy description', tier: 1, ts: Date.now() })
+      );
+      const result = await cache.getCanonical({ attachmentId: '123', url: 'u' });
+      expect(result).toEqual({ description: 'legacy description', model: '' });
+    });
+
+    it('backs get() — get() returns exactly getCanonical()’s description', async () => {
+      mockRedis.get.mockResolvedValueOnce(canonicalEntry('a cat on a keyboard', 2));
+      expect(await cache.get({ attachmentId: '123', url: 'u' })).toBe('a cat on a keyboard');
+    });
+  });
+
   describe('store — tier promotion', () => {
     it('does NOT overwrite a paid (tier 2) description with a free (tier 1) one', async () => {
       mockRedis.get.mockResolvedValueOnce(canonicalEntry('paid desc', 2));

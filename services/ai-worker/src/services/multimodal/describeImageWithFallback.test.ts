@@ -465,10 +465,73 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('primary description');
+    expect(result.description).toBe('primary description');
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     // No selectVisionModel — describeOptions.model was supplied.
     expect(mockSelectVisionModel).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the producing model as attribution on primary-tier success', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    mockDescribeImage.mockImplementationOnce(async (_att, _pers, _guest, _key, options) => {
+      (options as { onAttribution?: (a: unknown) => void }).onAttribution?.({
+        model: 'primary/model',
+        fromCache: false,
+      });
+      return 'primary description';
+    });
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result.attribution).toEqual({ model: 'primary/model', fromCache: false });
+  });
+
+  it('surfaces the provider-served model as routedModel when a fallback tier resolves through a router alias', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['openrouter/auto'] });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockImplementationOnce(async (_att, _pers, _guest, _key, options) => {
+        (options as { onAttribution?: (a: unknown) => void }).onAttribution?.({
+          model: 'openrouter/auto',
+          routedModel: 'google/gemini-2.5-flash',
+          fromCache: false,
+        });
+        return 'auto description';
+      });
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result.attribution).toEqual({
+      model: 'openrouter/auto',
+      routedModel: 'google/gemini-2.5-flash',
+      fromCache: false,
+    });
+  });
+
+  it('returns null attribution when the whole chain is exhausted', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockDescribeImage.mockRejectedValue(
+      new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused')
+    );
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result.attribution).toBeNull();
   });
 
   it('walks the chain in BYOK order when the user has an OpenRouter key (7da570d8 shape)', async () => {
@@ -489,7 +552,7 @@ describe('describeImageWithFallback', () => {
       { model: 'qwen/qwen3.7-plus' }
     );
 
-    expect(result).toBe('auto description');
+    expect(result.description).toBe('auto description');
     // Seam: the probe asks the resolver for the USER's OpenRouter wallet entry.
     expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
     // Tier order crossing the auth seam: qwen first, then auto — free never reached.
@@ -514,7 +577,7 @@ describe('describeImageWithFallback', () => {
       { model: 'qwen/qwen3.7-plus' }
     );
 
-    expect(result).toBe('free description');
+    expect(result.description).toBe('free description');
     expect(mockTryResolveUserKey).not.toHaveBeenCalled();
     expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
       'qwen/qwen3.7-plus',
@@ -617,7 +680,7 @@ describe('describeImageWithFallback', () => {
       { model: 'qwen/qwen3.7-plus' }
     );
 
-    expect(result).toBe('zai description');
+    expect(result.description).toBe('zai description');
     expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
       'qwen/qwen3.7-plus',
       'z-ai/glm-4.8',
@@ -640,7 +703,7 @@ describe('describeImageWithFallback', () => {
       { model: 'qwen/qwen3.7-plus' }
     );
 
-    expect(result).toBe('free description');
+    expect(result.description).toBe('free description');
     expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
       'qwen/qwen3.7-plus',
       FREE_ROUTER_MODEL,
@@ -660,7 +723,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('second tier description');
+    expect(result.description).toBe('second tier description');
     expect(mockDescribeImage).toHaveBeenCalledTimes(2);
   });
 
@@ -677,7 +740,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('recovered');
+    expect(result.description).toBe('recovered');
     expect(mockDescribeImage).toHaveBeenCalledTimes(2);
   });
 
@@ -696,7 +759,7 @@ describe('describeImageWithFallback', () => {
 
     // The loop is the graceful-degradation boundary — a non-VisionModelError advances
     // instead of propagating, so the next tier still gets a shot.
-    expect(result).toBe('second tier description');
+    expect(result.description).toBe('second tier description');
     expect(mockDescribeImage).toHaveBeenCalledTimes(2);
   });
 
@@ -718,7 +781,8 @@ describe('describeImageWithFallback', () => {
       'img.png'
     );
     expect(mockDescribeImage).not.toHaveBeenCalled();
-    expect(typeof result).toBe('string');
+    expect(typeof result.description).toBe('string');
+    expect(result.attribution).toBeNull();
   });
 
   it('short-circuits on a TERMINATE category (CONTENT_POLICY) without trying later tiers', async () => {
@@ -735,7 +799,7 @@ describe('describeImageWithFallback', () => {
     );
 
     // Returns buildFailureFallback(CONTENT_POLICY, ...) immediately.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.CONTENT_POLICY}/system]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.CONTENT_POLICY}/system]`);
     expect(mockBuildFailureFallback).toHaveBeenCalledWith(
       ApiErrorCategory.CONTENT_POLICY,
       expect.anything(),
@@ -758,7 +822,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe(`[fallback:${ApiErrorCategory.MEDIA_NOT_FOUND}/system]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.MEDIA_NOT_FOUND}/system]`);
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
   });
 
@@ -776,7 +840,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
     // primary/model, tier-a, and the paid floor are three distinct resolved models.
     expect(mockDescribeImage).toHaveBeenCalledTimes(3);
     // Source is threaded from the last attempted tier (resolvedFor → 'system').
@@ -805,7 +869,7 @@ describe('describeImageWithFallback', () => {
     // A resolved-key 401 must respect the source (buildFailureFallback maps system-source AUTH
     // to a non-blaming "temporarily unavailable"), NOT the fixed "configure your key" string
     // — which would wrongly tell a guest to fix a key they don't own.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.AUTHENTICATION}/system]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.AUTHENTICATION}/system]`);
     expect(mockBuildFailureFallback).toHaveBeenCalledWith(
       ApiErrorCategory.AUTHENTICATION,
       'system',
@@ -826,7 +890,7 @@ describe('describeImageWithFallback', () => {
     );
 
     // visionAuthFailFastDescription(attachment.name) → AUTH + 'user' + the filename.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.AUTHENTICATION}/user]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.AUTHENTICATION}/user]`);
     expect(mockBuildFailureFallback).toHaveBeenCalledWith(
       ApiErrorCategory.AUTHENTICATION,
       'user',
@@ -860,7 +924,7 @@ describe('describeImageWithFallback', () => {
 
     // Rendered via buildFailureFallback(RATE_LIMIT, <the attempted tier's source>), NOT the
     // auth placeholder — the genuine RATE_LIMIT failure survives the later failFast tiers.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
     expect(mockBuildFailureFallback).toHaveBeenCalledWith(
       ApiErrorCategory.RATE_LIMIT,
       'system',
@@ -885,7 +949,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('tier-a description');
+    expect(result.description).toBe('tier-a description');
     // describeImage was called exactly once — only for the second (resolved) tier.
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
   });
@@ -911,7 +975,7 @@ describe('describeImageWithFallback', () => {
     // Every attempt collapsed onto 'collapsed-free' → only one real describeImage call.
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     // Chain exhausted on a retryable (rate-limit) category → generic fallback.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
+    expect(result.description).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
   });
 
   it('passes throwOnFailure + skipNegativeCache to describeImage', async () => {
@@ -964,7 +1028,7 @@ describe('describeImageWithFallback', () => {
       // no describeOptions → falls through to selectVisionModel
     );
 
-    expect(result).toBe('ok');
+    expect(result.description).toBe('ok');
     expect(mockSelectVisionModel).toHaveBeenCalledWith(personality, false);
     // The resolved model echoes the selected primary — and the first tier is
     // flagged primary (the only tier allowed the same-provider fast path).
@@ -993,7 +1057,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('ok');
+    expect(result.description).toBe('ok');
     // Seam assertion: isPrimaryTier must be true for tier 1 and false afterwards —
     // a fallback tier taking the fast path would retry the identical dead key.
     expect(mockResolveVisionAuth).toHaveBeenNthCalledWith(
@@ -1153,7 +1217,7 @@ describe('z.ai piggyback vision tier (walkFallbackChain)', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('primary description');
+    expect(result.description).toBe('primary description');
     expect(mockDescribeImage).toHaveBeenNthCalledWith(
       1,
       attachment,
@@ -1186,7 +1250,7 @@ describe('z.ai piggyback vision tier (walkFallbackChain)', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('flash description');
+    expect(result.description).toBe('flash description');
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     // Seam assertion: without it this test passes vacuously when the tier is never
     // prepended — the single call would just be the primary returning the same string.
@@ -1216,7 +1280,7 @@ describe('z.ai piggyback vision tier (walkFallbackChain)', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe('floor description');
+    expect(result.description).toBe('floor description');
     expect(mockDescribeImage).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),

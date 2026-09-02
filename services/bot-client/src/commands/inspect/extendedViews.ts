@@ -11,6 +11,7 @@ import type {
 import type { ViewContext } from './viewContext.js';
 import type { DebugViewResult } from './views.js';
 import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
+import { formatAttachmentEntry } from './attachmentEntry.js';
 
 // ---------------------------------------------------------------------------
 // Pipeline Health
@@ -124,7 +125,7 @@ export function buildInputView(
 
   const attachments =
     input.attachmentDescriptions.length > 0
-      ? input.attachmentDescriptions.map((d, i) => `${i + 1}. ${escapeFenceBreaks(d)}`).join('\n')
+      ? input.attachmentDescriptions.map((entry, i) => formatAttachmentEntry(entry, i)).join('\n')
       : null;
 
   const referenced =
