@@ -151,6 +151,9 @@ jobs:
       - name: Check the ops CLI reference documents every registered command
         run: pnpm ops guard:ops-doc
 
+      - name: Check README.md agrees with the repo it describes
+        run: pnpm ops guard:readme
+
       - name: Check the CI-monitor command is identical across its three surfaces
         run: pnpm ops guard:monitor-command
 

@@ -262,12 +262,12 @@ owner restoring one line is cheaper than the corpus keeping ten.
 
 ### 10. Root README.md
 
-- [ ] Project structure lists all services in `services/` and all packages in `packages/`
+- [ ] `pnpm ops guard:readme` is green (project structure tree, Quick Start
+      Node/pnpm versions, fenced `pnpm` scripts, slash-command list, and
+      documentation links are all derivable and gated there — don't re-check
+      these by hand)
 - [ ] Architecture diagram matches actual services and external APIs
-- [ ] Slash commands list matches actual commands in `services/bot-client/src/commands/`
 - [ ] External APIs section lists all current providers (OpenRouter, ElevenLabs, etc.)
-- [ ] Quick Start prerequisites are current (Node version, tools)
-- [ ] Documentation links point to files that exist
 - [ ] Planned features section is accurate (none secretly implemented)
 - [ ] Feature list reflects current capabilities (voice, TTS, etc.)
 
