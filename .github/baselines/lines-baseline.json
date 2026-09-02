@@ -11,13 +11,19 @@
       "graceMargin": 20,
       "bytes": 35237,
       "bytesGraceMargin": 4000
+    },
+    "skills": {
+      "lines": 3768,
+      "graceMargin": 250,
+      "bytes": 243022,
+      "bytesGraceMargin": 17000
     }
   },
   "meta": {
-    "toolVersion": "lines-check/2",
-    "configHash": "038ea0a31198",
+    "toolVersion": "lines-check/3",
+    "configHash": "3631b168bcb2",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "e62491e8dae643099257b50795f5bef66c566f39",
-    "generatedAt": "2026-09-02T17:18:27.829Z"
+    "generatedFromSha": "506e70da1bf231b2fb5432d1fab87a745ef97b80",
+    "generatedAt": "2026-09-02T17:59:48.825Z"
   }
 }

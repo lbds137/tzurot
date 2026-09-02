@@ -178,6 +178,7 @@ describe('collectLinesMarginBullets', () => {
           'bytes rules: 14/30 (16 headroom, live measure)',
           'lines current: 1/5 (4 headroom, live measure)',
           'bytes current: 7/10 (3 headroom, live measure)',
+          'lines skills: NOT TRACKED by the baseline (run `lines:update-baseline`)',
         ]);
       }
     );
@@ -201,6 +202,7 @@ describe('collectLinesMarginBullets', () => {
           'lines rules: 3/10 (7 headroom, live measure)',
           'bytes rules: no byte budget in baseline (run `lines:update-baseline`)',
           'lines current: NOT TRACKED by the baseline (run `lines:update-baseline`)',
+          'lines skills: NOT TRACKED by the baseline (run `lines:update-baseline`)',
         ]);
       }
     );
@@ -228,6 +230,7 @@ describe('collectLinesMarginBullets', () => {
         expect(collectLinesMarginBullets(rootDir)).toEqual([
           'lines rules: unmeasurable (surface matched zero files)',
           'lines current: NOT TRACKED by the baseline (run `lines:update-baseline`)',
+          'lines skills: NOT TRACKED by the baseline (run `lines:update-baseline`)',
         ]);
       }
     );

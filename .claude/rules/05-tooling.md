@@ -106,7 +106,7 @@ All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code
 **After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. Local precondition: `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches — `git fetch origin develop:develop` if it fails on a fresh clone.
 
 `pnpm ops lines:check` keeps the always-loaded surfaces (`.claude/rules`
-total, `CURRENT.md`) within their LINE and BYTE budgets; `--breakdown` ranks
+total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE budgets; `--breakdown` ranks
 every file worst-first by bytes — the trim order the `/tzurot-doc-audit`
 economy pass consumes. `pnpm ops lines:update-baseline` makes budget growth
 explicit (same `--update` contract as cpd/test:audit); `--surface <name>`

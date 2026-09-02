@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost.'
-lastUpdated: '2026-08-08'
+lastUpdated: '2026-09-02'
 ---
 
 # Documentation Audit Procedure
@@ -145,14 +145,14 @@ deeper check than the generic list above — the coupling drifts silently:
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `/tzurot-review-response` | Edit-shape whitelist current? Round-cap + fixup-commit procedure matches the CI `fixup-check` job? |
 
-### 3b. Economy Pass — always-loaded surfaces (rules + `CURRENT.md`)
+### 3b. Economy Pass — always-loaded surfaces (rules + `CURRENT.md` + skills)
 
 Sections 2 and 3 ask **is this still accurate?** Nothing above asks **is this
 earning its context cost?** — so the always-loaded corpus only ever grows.
 Rank it, then cut from the top:
 
 ```bash
-pnpm ops lines:check --breakdown   # every rules file + CURRENT.md, worst-first by bytes
+pnpm ops lines:check --breakdown   # every rules file + CURRENT.md + skill body, worst-first by bytes
 ```
 
 **Work the ranking in order and stop after the top 3.** Bytes, not lines, is

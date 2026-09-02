@@ -3,9 +3,10 @@
 ## What
 
 A size ratchet over the always-loaded context surfaces: the
-`.claude/rules/*.md` set (summed across all files) and `CURRENT.md` (alone).
-`pnpm ops lines:check` measures both surfaces on **two dimensions — lines and
-bytes** — and fails when either surface exceeds either budget
+`.claude/rules/*.md` set (summed across all files), `CURRENT.md` (alone), and
+the `.claude/skills/*/SKILL.md` set (summed across all skill bodies).
+`pnpm ops lines:check` measures every surface on **two dimensions — lines and
+bytes** — and fails when any surface exceeds either budget
 (`baseline + graceMargin`), with the baseline in
 `.github/baselines/lines-baseline.json`. `pnpm ops lines:update-baseline` is
 the sanctioned refresh path, and `--surface <name>` scopes it to one surface.
@@ -13,7 +14,7 @@ The gate runs in `pnpm quality`, the CI lint job, AND the pre-push docs-only
 fast path — the last one matters most, because doc-only pushes skip every heavy
 check and are exactly how these surfaces bloat.
 
-`--breakdown` adds a read-only per-file ranking of both surfaces, worst-first
+`--breakdown` adds a read-only per-file ranking of every surface, worst-first
 by bytes: the gate says whether a surface is over budget, the ranking says
 which of its files to open. It is **not** wired into any of those automated
 paths and never gates anything — it is run by hand, by whoever is doing the
@@ -55,11 +56,11 @@ readability, and nothing gates on that estimate.
 
 Baseline-and-hold at the **measured** count, not a round-number cap. The
 grace margins (150 lines / 12,000 bytes for rules, 20 lines / 4,000 bytes for
-CURRENT.md) absorb legitimate small additions between refreshes — a new rule
+CURRENT.md, 250 lines / 17,000 bytes for skills) absorb legitimate small additions between refreshes — a new rule
 subsection, a release's smoke checklist — without demanding a baseline bump
 for every paragraph. The byte margins are set from that same intent rather
-than converted from the line margins, because the two surfaces absorb
-different things (~7% on rules is one section at the corpus's own density;
+than converted from the line margins, because the surfaces absorb
+different things (~7% on rules, and the same proportion on skills, is one section at the corpus's own density;
 ~11% on CURRENT.md is a checklist that reverts at the next reset). Hard growth
 beyond the margin requires `lines:update-baseline`, which shows up as a
 baseline-file diff a reviewer can question. Trimming a surface and refreshing
@@ -78,12 +79,13 @@ tightening safe to run on its own.
 Three failure modes, three detectors. (1) **Tool rot**: the canary fixture
 (`test-fixtures/audit-canaries/lines-check/`) is a fake repo root whose
 surfaces deliberately exceed a tiny runtime-built baseline; the canary test
-asserts `status: 'fail'` with EXACTLY four findings (two surfaces x two
+asserts `status: 'fail'` with EXACTLY four findings (the two over-budget surfaces x two
 dimensions), so a change that breaks glob matching, either count, or that
 silently drops a dimension from evaluation turns CI red. (2) **Config drift**: the baseline
 carries a `configHash` over `getLinesConfigFingerprint()` (impl version,
 surface set, globs) — changing what gets measured without refreshing the
 baseline hard-fails. Bump `LINES_IMPL_VERSION` when the counting or matching
 logic changes. (3) **Hollow measurements**: a surface whose glob matches
-zero files is a failure, never a 0-line pass — moving `.claude/rules/` or
-renaming `CURRENT.md` cannot silently disarm the gate.
+zero files is a failure, never a 0-line pass — moving `.claude/rules/`,
+renaming `CURRENT.md`, or moving `.claude/skills/` cannot silently disarm the
+gate.

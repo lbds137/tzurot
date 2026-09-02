@@ -59,6 +59,7 @@ describe('measureSurfaces', () => {
       expect(measureSurfaces(tmp)).toEqual({
         rules: { lines: 5, bytes: 22, fileCount: 2 },
         current: { lines: 1, bytes: 7, fileCount: 1 },
+        skills: { lines: 0, bytes: 0, fileCount: 0 },
       });
     });
   });
@@ -85,7 +86,26 @@ describe('measureSurfaces', () => {
       expect(measureSurfaces(tmp)).toEqual({
         rules: { lines: 0, bytes: 0, fileCount: 0 },
         current: { lines: 0, bytes: 0, fileCount: 0 },
+        skills: { lines: 0, bytes: 0, fileCount: 0 },
       });
+    });
+  });
+
+  it('measures the skills surface across per-directory SKILL.md files, missing dir = hollow', async () => {
+    // The skills surface uses the THIRD glob shape (`<dir>/*/<file>`), distinct
+    // from both the literal-file and the flat `<dir>/*.md` shapes above — a
+    // missing `.claude/skills` directory must measure fileCount: 0, not throw.
+    await withTmpDir(async tmp => {
+      expect(measureSurfaces(tmp).skills).toEqual({ lines: 0, bytes: 0, fileCount: 0 });
+
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      await mkdir(join(tmp, '.claude/skills/alpha'), { recursive: true });
+      await mkdir(join(tmp, '.claude/skills/beta'), { recursive: true });
+      await writeFile(join(tmp, '.claude/skills/alpha/SKILL.md'), 'one\ntwo\n');
+      await writeFile(join(tmp, '.claude/skills/beta/SKILL.md'), 'one\n');
+
+      expect(measureSurfaces(tmp).skills).toEqual({ lines: 3, bytes: 12, fileCount: 2 });
     });
   });
 });
@@ -135,6 +155,28 @@ describe('measureSurfaceFiles', () => {
       expect(measureSurfaceFiles(tmp, 'current')).toEqual([]);
     });
   });
+
+  it('matches skill dirs in sorted order, ignoring a dir with no SKILL.md and a stray top-level file', async () => {
+    // The `<dir>/*/<file>` shape: one level of subdirectories, each
+    // contributing exactly one file if (and only if) it exists there.
+    await withTmpDir(async tmp => {
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      await mkdir(join(tmp, '.claude/skills/b'), { recursive: true });
+      await mkdir(join(tmp, '.claude/skills/a'), { recursive: true });
+      // A directory with no SKILL.md must contribute nothing.
+      await mkdir(join(tmp, '.claude/skills/no-skill-md'), { recursive: true });
+      await writeFile(join(tmp, '.claude/skills/a/SKILL.md'), 'one\ntwo\n');
+      await writeFile(join(tmp, '.claude/skills/b/SKILL.md'), 'one\n');
+      // A plain file directly under .claude/skills must not be picked up.
+      await writeFile(join(tmp, '.claude/skills/README.md'), 'not a skill\n');
+
+      expect(measureSurfaceFiles(tmp, 'skills')).toEqual([
+        { path: '.claude/skills/a/SKILL.md', lines: 2, bytes: 8 },
+        { path: '.claude/skills/b/SKILL.md', lines: 1, bytes: 4 },
+      ]);
+    });
+  });
 });
 
 describe('getLinesConfigFingerprint', () => {
@@ -144,11 +186,12 @@ describe('getLinesConfigFingerprint', () => {
     // glob must invalidate baselines.
     expect(getLinesConfigFingerprint()).toEqual({
       implVersion: LINES_IMPL_VERSION,
-      surfaces: ['rules', 'current'],
+      surfaces: ['rules', 'current', 'skills'],
       dimensions: ['lines', 'bytes'],
       globs: {
         rules: '.claude/rules/*.md',
         current: 'CURRENT.md',
+        skills: '.claude/skills/*/SKILL.md',
       },
     });
   });
@@ -172,25 +215,31 @@ describe('assertSurfaceName', () => {
 
 describe('trackedSurfaceNames', () => {
   it('returns the canonical set when the baseline holds exactly it', () => {
-    expect(trackedSurfaceNames({ rules: {}, current: {} })).toEqual(['rules', 'current']);
+    expect(trackedSurfaceNames({ rules: {}, current: {}, skills: {} })).toEqual([
+      'rules',
+      'current',
+      'skills',
+    ]);
   });
 
   it('includes a canonical surface the baseline does not carry', () => {
     // The whole point: iterating the baseline alone would drop `current`
-    // entirely, and a surface nobody iterates is a surface nobody gates.
-    expect(trackedSurfaceNames({ rules: {} })).toEqual(['rules', 'current']);
+    // (and `skills`) entirely, and a surface nobody iterates is a surface
+    // nobody gates.
+    expect(trackedSurfaceNames({ rules: {} })).toEqual(['rules', 'current', 'skills']);
   });
 
   it('appends stray baseline keys after the canonical ones, without duplicating', () => {
     expect(trackedSurfaceNames({ current: {}, retired: {} })).toEqual([
       'rules',
       'current',
+      'skills',
       'retired',
     ]);
   });
 
   it('returns the canonical set for an empty baseline', () => {
-    expect(trackedSurfaceNames({})).toEqual(['rules', 'current']);
+    expect(trackedSurfaceNames({})).toEqual(['rules', 'current', 'skills']);
   });
 });
 
