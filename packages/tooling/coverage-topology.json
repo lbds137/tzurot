@@ -1948,6 +1948,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:resolveChannelCascade",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /config-overrides/resolve-channel/:channelId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:resolvePersonalityCascade",
       "kind": "http-route",
       "producer": "client",

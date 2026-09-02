@@ -2226,6 +2226,27 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async resolveChannelCascade(channelId: string, options: { personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveChannelCascade.output>>> {
+    const fullPath = `/api/user/config-overrides/resolve-channel/${encodeURIComponent(channelId)}` + buildQueryString([['personalityId', options.personalityId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.resolveChannelCascade.output,
+      timeoutMs: ROUTE_MANIFEST.resolveChannelCascade.timeoutMs,
+    });
+  }
+
   async updatePersonalityOverrides(personalityId: string, input: z.input<typeof ROUTE_MANIFEST.updatePersonalityOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityOverrides.output>>> {
     const fullPath = `/api/user/config-overrides/${encodeURIComponent(personalityId)}`;
     return callGateway({
