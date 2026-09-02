@@ -160,13 +160,16 @@ export enum ApiErrorCategory {
   /** 403 - Content policy violation or forbidden */
   CONTENT_POLICY = 'content_policy',
   /**
-   * A specific provider's INPUT filter refused this image before the model ran
-   * (e.g. an Alibaba `data_inspection_failed` on a Qwen vision route, surfaced
-   * by OpenRouter as a 400). Provider-and-attachment bound, never
-   * image-intrinsic: other providers routinely describe the same image, so the
-   * vision fallback chain must ADVANCE to the next tier rather than terminate.
-   * Distinct from CONTENT_POLICY (the request itself was forbidden) and from
-   * CENSORED (the model emitted a refusal in its OUTPUT).
+   * A specific provider's INPUT filter refused the request before the model
+   * ran — e.g. an Alibaba `data_inspection_failed` on a Qwen vision route
+   * (surfaced by OpenRouter as a 400), or a z.ai content-safety pattern that
+   * also fires on plain TEXT turns, not just image attachments. On the image
+   * path this is provider-and-attachment bound, never image-intrinsic: other
+   * providers routinely describe the same image, so the vision fallback chain
+   * must ADVANCE to the next tier rather than terminate. On the general text
+   * path, the quota-fallback runner retargets it the same way it retargets
+   * CONTENT_POLICY. Distinct from CONTENT_POLICY (the request itself was
+   * forbidden) and from CENSORED (the model emitted a refusal in its OUTPUT).
    */
   PROVIDER_CONTENT_REFUSED = 'provider_content_refused',
   /** 400 - Bad request (context window exceeded, invalid params) */
@@ -240,6 +243,9 @@ export const QUOTA_FALLBACK_CATEGORIES = [
   'empty_response',
   'censored',
   'content_policy',
+  // A provider input-filter refusal (e.g. z.ai's content-safety pattern) that
+  // reaches the general text path, not just the image vision-fallback chain.
+  'provider_content_refused',
   // Not a failure: the guest/free ladder substituted the configured model
   // before dispatch. Produced ONLY by the guest admission path, never by the
   // quota-fallback runner (which narrows from `ApiErrorCategory`).
@@ -264,7 +270,7 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
   [ApiErrorCategory.CONTENT_POLICY]:
     'The AI declined to respond due to content guidelines. Please try rephrasing your message.',
   [ApiErrorCategory.PROVIDER_CONTENT_REFUSED]:
-    'The provider handling that request declined the attached image. Try again — a different provider may accept it.',
+    'The provider handling that request refused its content before the model ran. Try again — a different provider may accept it.',
   [ApiErrorCategory.BAD_REQUEST]:
     'The conversation has become too long. Please start a new conversation or try a shorter message.',
   [ApiErrorCategory.MODEL_NOT_FOUND]:
@@ -320,8 +326,9 @@ export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.MODEL_NOT_FOUND,
   ApiErrorCategory.MEDIA_NOT_FOUND,
-  // Retrying the SAME provider re-hits the same input filter — the vision
-  // chain's tier advance (a DIFFERENT provider) is what actually recovers.
+  // Retrying the SAME provider re-hits the same input filter. Recovery is a
+  // DIFFERENT provider — reached by the vision chain's tier advance on the
+  // image path, and by the quota-fallback retarget on the text path.
   ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
 ]);
 

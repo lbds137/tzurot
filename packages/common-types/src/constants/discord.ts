@@ -398,6 +398,12 @@ export interface ModelFooterOptions {
 }
 
 /**
+ * Shared wording for the refusal class — a model-emitted refusal, a forbidden
+ * request, and a provider input-filter rejection all read the same to a user.
+ */
+const REFUSAL_REASON = 'model refused';
+
+/**
  * Footer wording per announceable swap reason (D12 descent included, plus the
  * non-failure guest-mode substitution).
  */
@@ -410,8 +416,9 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
   timeout: 'timed out',
   network: 'network error',
   empty_response: 'empty response',
-  censored: 'model refused',
-  content_policy: 'model refused',
+  censored: REFUSAL_REASON,
+  content_policy: REFUSAL_REASON,
+  provider_content_refused: REFUSAL_REASON,
   guest_mode: 'guest mode',
 };
 
