@@ -22,8 +22,9 @@ import { UsageError } from '../utils/errors.js';
  * forces an explicit `lines:update-baseline` refresh.
  *
  * 2: added the bytes dimension.
+ * 3: added the skills surface.
  */
-export const LINES_IMPL_VERSION = 2;
+export const LINES_IMPL_VERSION = 3;
 
 /**
  * The tracked dimensions, in report order. Part of the config fingerprint, so
@@ -34,28 +35,32 @@ export const DIMENSION_NAMES = ['lines', 'bytes'] as const;
 export type DimensionName = (typeof DIMENSION_NAMES)[number];
 
 /** The tracked surfaces, in stable order (part of the config fingerprint). */
-export const SURFACE_NAMES = ['rules', 'current'] as const;
+export const SURFACE_NAMES = ['rules', 'current', 'skills'] as const;
 export type SurfaceName = (typeof SURFACE_NAMES)[number];
 
 /**
- * What each surface measures. Two glob shapes are supported — a literal
- * file path, or a single-directory `<dir>/*.md` — because that's all the
+ * What each surface measures. Three glob shapes are supported — a literal
+ * file path, a single-directory `<dir>/*.md`, or a per-subdirectory shape
+ * (one file per immediate child directory) — because that's all the
  * always-loaded surfaces need. Not a general glob engine, on purpose.
  */
 export const SURFACE_GLOBS: Record<SurfaceName, string> = {
   rules: '.claude/rules/*.md',
   current: 'CURRENT.md',
+  skills: '.claude/skills/*/SKILL.md',
 };
 
 /**
  * Default grace margins (lines) for newly-tracked surfaces. Sized to absorb
  * legitimate small additions between baseline refreshes: ~150 lines across
  * the ten rules files is one modest new section; ~20 lines keeps CURRENT.md
- * near its session-status cap.
+ * near its session-status cap; ~250 lines across the fifteen skill bodies is
+ * the same ~7% proportion as rules.
  */
 export const DEFAULT_GRACE_MARGINS: Record<SurfaceName, number> = {
   rules: 150,
   current: 20,
+  skills: 250,
 };
 
 /**
@@ -63,11 +68,13 @@ export const DEFAULT_GRACE_MARGINS: Record<SurfaceName, number> = {
  * rather than by converting them, because the two surfaces absorb different
  * things: ~7% on rules is one modest new section at the corpus's own average
  * density, and ~11% on CURRENT.md is a release's smoke checklist, which is
- * legitimate mid-release growth that reverts at the next reset.
+ * legitimate mid-release growth that reverts at the next reset. Skills uses
+ * the same ~7% proportion as rules.
  */
 export const DEFAULT_BYTES_GRACE_MARGINS: Record<SurfaceName, number> = {
   rules: 12_000,
   current: 4_000,
+  skills: 17_000,
 };
 
 /** The measurement-affecting config slice — the baseline drift contract. */
@@ -76,10 +83,7 @@ export function getLinesConfigFingerprint(): Record<string, unknown> {
     implVersion: LINES_IMPL_VERSION,
     surfaces: [...SURFACE_NAMES],
     dimensions: [...DIMENSION_NAMES],
-    globs: {
-      rules: SURFACE_GLOBS.rules,
-      current: SURFACE_GLOBS.current,
-    },
+    globs: { ...SURFACE_GLOBS },
   };
 }
 
@@ -150,9 +154,27 @@ export function countLines(content: string): number {
   return segments[segments.length - 1] === '' ? segments.length - 1 : segments.length;
 }
 
-/** Expand one of the two supported glob shapes into absolute file paths. */
+/** Expand one of the three supported glob shapes into absolute file paths. */
 function matchSurfaceFiles(rootDir: string, glob: string): string[] {
+  const perSubdirMarker = '/*/';
   const dirGlobSuffix = '/*.md';
+  if (glob.includes(perSubdirMarker)) {
+    const markerIndex = glob.indexOf(perSubdirMarker);
+    const dir = join(rootDir, glob.slice(0, markerIndex));
+    const child = glob.slice(markerIndex + perSubdirMarker.length);
+    try {
+      return readdirSync(dir, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name)
+        .sort()
+        .map(name => join(dir, name, child))
+        .filter(file => existsSync(file));
+    } catch {
+      // Missing directory = zero matches; the evaluator turns that into a
+      // hollow-measurement failure rather than a silent 0-line pass.
+      return [];
+    }
+  }
   if (glob.endsWith(dirGlobSuffix)) {
     const dir = join(rootDir, glob.slice(0, -dirGlobSuffix.length));
     try {
