@@ -18,9 +18,13 @@
 # arm-delay window, but it also makes this copy differ from the two doc copies,
 # and every hand-filled SHA has to be transcribed from somewhere — which failed
 # four times in one session. The cost is that anything moving HEAD between the
-# push and the Monitor — a branch checkout more often than a new commit — makes
-# the gate watch a different SHA silently; the rule names that window. Do not "fix" this back to $SHA without reading that section
-# and guard:monitor-command, which requires all three copies to match.
+# push and the Monitor — a branch checkout, or a shell cwd in a different
+# checkout than the worktree holding the branch — resolves a different SHA;
+# the gate refuses one that is not the PR head — fail-open only when the head
+# cannot be read — so that costs a re-arm, not a silent mis-watch
+# (05-tooling.md § PR Monitoring names both causes). Do not
+# "fix" this back to $SHA without reading that section and
+# guard:monitor-command, which requires all three copies to match.
 
 # No `-e`: we rely on graceful early-exits via empty-var checks. `-u` catches
 # typos on variable names; pipefail surfaces failures from pipelines.

@@ -234,10 +234,12 @@ export type HeadShaVerdict =
  *
  * Closes the one window the substitution opened. `$(git rev-parse HEAD)`
  * resolves when the Monitor runs, not when you pushed, so anything moving `HEAD`
- * in between — a branch checkout to file a tracker task is the realistic one —
- * makes the gate watch a different commit. Neither `FULL_SHA` nor `gitHasCommit`
+ * in between — a branch checkout to file a tracker task, or a shell cwd in a
+ * different checkout than the worktree holding the branch — makes the gate
+ * watch a different commit. Neither `FULL_SHA` nor `gitHasCommit`
  * catches it: a moved `HEAD` still names a real local commit, so it validates
- * cleanly and the gate then waits on the wrong SHA in silence.
+ * cleanly and the gate then waits on the wrong SHA in silence — the failure
+ * this check itself now prevents.
  *
  * `undefined` means "could not tell" and is treated as fine. This check is a
  * safety net, not a gate on the gate: a `gh` hiccup must never stop a monitor
