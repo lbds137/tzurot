@@ -3,9 +3,10 @@ id: TASK-865
 title: >-
   05-tooling: cut the Ops CLI command tables to a pointer at
   OPS_CLI_REFERENCE.md plus decision-point triggers
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 13:39'
+updated_date: '2026-09-02 17:27'
 labels:
   - 'area:rules'
   - 'size:S'
