@@ -3,10 +3,10 @@ id: TASK-844
 title: >-
   Channel dashboard Current Value shows the viewing moderator personal override,
   not channel-scoped state
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 18:24'
-updated_date: '2026-09-02 13:38'
+updated_date: '2026-09-02 20:03'
 labels:
   - 'area:bot-client'
   - 'size:S'
