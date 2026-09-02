@@ -1,9 +1,10 @@
 ---
 id: TASK-601
 title: Bound the gh pr list shell-out in listMergedPrsSince
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 03:38'
+updated_date: '2026-09-02 00:30'
 labels:
   - 'area:tooling'
   - 'size:S'

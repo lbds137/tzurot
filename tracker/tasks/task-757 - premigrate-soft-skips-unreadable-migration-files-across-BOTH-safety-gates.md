@@ -1,9 +1,10 @@
 ---
 id: TASK-757
 title: premigrate soft-skips unreadable migration files across BOTH safety gates
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 01:46'
+updated_date: '2026-09-02 00:30'
 labels:
   - 'area:tooling'
   - 'size:S'
