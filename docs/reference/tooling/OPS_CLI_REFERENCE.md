@@ -24,6 +24,7 @@ This document provides the complete command reference for `pnpm ops`. For quick 
 
 - `--migrations-path <path>` - Custom migrations directory
 - `--force` - Skip confirmation for production
+- `--name <n>` - Migration name for `db:safe-migrate`; REQUIRED in non-TTY environments (AI assistants, CI)
 - `--verbose` - Show detailed output
 
 ## Run Command
@@ -332,6 +333,7 @@ Ratchet audits to enforce test coverage (CI runs these automatically):
 | `pnpm ops test:audit-contracts`          | Audit API schema contract test coverage                     |
 | `pnpm ops test:audit-services`           | Audit service component test coverage                       |
 | `pnpm ops test:audit --strict`           | Fail on ANY gap (not just new ones)                         |
+| `pnpm ops test:audit --update`           | Update the unified baseline + meta block (both audits)      |
 | `pnpm ops test:audit-contracts --update` | Update baseline after adding contract tests                 |
 | `pnpm ops test:audit-services --update`  | Update baseline after adding component tests                |
 | `pnpm ops test:tiers`                    | Report the per-package test-tier distribution (report-only) |

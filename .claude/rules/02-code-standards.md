@@ -297,7 +297,7 @@ code, never in the shared module.
 
 ### CPD measurement: raw vs filtered
 
-Commands: `05-tooling.md` § CPD. `pnpm cpd` (raw jscpd) is informational — the
+Commands: [`OPS_CLI_REFERENCE.md`](../../docs/reference/tooling/OPS_CLI_REFERENCE.md). `pnpm cpd` (raw jscpd) is informational — the
 raw count cannot reach zero in a well-abstracted TypeScript codebase;
 `pnpm ops cpd:filtered` is the metric that reflects real debt.
 
