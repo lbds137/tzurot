@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-31 18:24'
+updated_date: '2026-09-02 13:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 844000
@@ -28,3 +29,9 @@ Acceptance: owner picks (a) or (b); if (b), two moderators with different person
 
 SCOPE ADDITION (PR 2277 round-3 review, folded in as the same channel-dashboard-resolution question): when NO personality is activated in the channel, channel/settings.ts resolves via resolveUserDefaults() — a 2-tier admin+user-default merge — so resolved.sources[field] can never be 'channel' on that path: the channel's OWN overrides never surface in effectiveValue there, and the source===localSource branch of the PR-2277 parentValue rule is structurally unreachable. Predates PR 2277; same code path, same decision. Whichever option the owner picks above should also say what the no-personality path resolves through (option (b)'s hardcoded->admin->channel cap would fix both at once).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-09-02: option (b) — the channel dashboard resolves through hardcoded -> admin -> channel only, so every moderator sees identical channel-scoped state; the no-personality path resolves through the same cap. Pin with a two-moderator test.
+<!-- SECTION:NOTES:END -->
