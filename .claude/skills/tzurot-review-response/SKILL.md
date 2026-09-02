@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-08-28'
+lastUpdated: '2026-09-02'
 ---
 
 # Review-Response Iteration
@@ -120,9 +120,25 @@ The correct pre-merge sequence is:
 ```bash
 # On the feature branch, right before requesting merge:
 git rebase --autosquash <base-branch>           # squash all fixups into their targets
+
+# Re-derive the base body's counts (see below) and amend NON-INTERACTIVELY —
+# a bare `git commit --amend` opens $EDITOR and stalls an agent session.
+git commit --amend -m "$(cat <<'EOF'
+<type>(<scope>): <re-derived subject>
+
+<body re-derived against the FINAL diff — every count and enumeration>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+
 git push --force-with-lease origin <branch>     # CI's fixup-check now passes
 gh pr merge <PR#> --rebase --delete-branch      # then merge (or use the web UI)
 ```
+
+**Amend the base commit's body in that sequence.** Fixup commits never touch the base message, so every count and enumeration written into it at round 0 is stale by merge time — re-derive them against the final diff and amend with the heredoc form above, never a bare `git commit --amend` (which opens `$EDITOR`). The merge gate's re-derive prompt covers the PR body, not the commit message (this gap was reviewer-caught on a five-round PR). `--amend` reaches only the tip commit, which is the base commit on the ordinary one-semantic-commit-plus-fixups branch. On a multi-commit branch there is no agent-safe form of that pass: `git rebase -i` opens `$EDITOR` on its todo file (probed — a recorder editor was invoked and the rebase stalled), exactly the stall a bare `--amend` causes. So the non-tip bodies are the owner's interactive job, or the branch is collapsed to a single commit whose body is amended with the heredoc form above — never `git rebase -i` from an agent session. The one-line escape does not exist: `GIT_SEQUENCE_EDITOR=true git rebase -i <base>` opens no editor but accepts the all-`pick` todo verbatim, so it rewrites no message at all (probed — subjects unchanged).
 
 **Final-round one-push exception**: when a round's fixes are the _expected last edits_ (post-autosquash review findings, or a round the agent intends to merge after), combining the fixup with the pre-merge autosquash in ONE force-push is sanctioned — it saves a full CI cycle versus fixup-push → green → autosquash-push → green. Judgment call: use it only when nothing else is expected to change; if the next review finds more, the branch is already squashed and the next fixes start a fresh fixup cycle (no harm, just no savings).
 

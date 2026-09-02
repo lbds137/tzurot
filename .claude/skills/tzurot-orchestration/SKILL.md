@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-29'
+lastUpdated: '2026-09-02'
 ---
 
 # Orchestrator Mode
@@ -169,13 +169,19 @@ worker deviations — the template gets shortest exactly where the unit is
 largest, which is backwards.
 
 1. **Task** — the design decisions already made. The worker executes; it never
-   designs. Include a **premise ledger**: every premise the spec asserts about
-   RUNTIME behavior carries a one-line cite of the read that established it,
-   and the orchestrator is instructed to re-verify each by probe or test — not
-   by re-reading the same code — before building on it. The premises that
-   failed this pattern all looked correct on the page; the worst was caught
-   only by printing the actual runtime value after code-reading-based tests
-   went green.
+   designs. Include a ledger under the exact heading `## Premise ledger`:
+   every premise the spec asserts about RUNTIME behavior carries a one-line
+   cite of the read that established it, and the orchestrator is instructed to
+   re-verify each by probe or test — not by re-reading the same code — before
+   building on it. The premises that failed this pattern all looked correct on
+   the page; the worst was caught only by printing the actual runtime value
+   after code-reading-based tests went green. Two rows are mandatory in every
+   ledger, because both failures are invisible from inside the spec: the grep
+   for the FIX'S OWN NAME (is it already built?) and the grep for a PRIOR TASK
+   ID or shipped PR that already covers it. `dispatch-spec-ledger-gate.sh`
+   blocks an `Agent` call whose named spec carries no such section — but it
+   enforces the section's PRESENCE only; its quality is the orchestrator's
+   re-verification, which no hook can see.
 2. **Files in scope** — mandatory, never omitted. Every `file:line` cite is
    marked "verify before editing — cites drift". State how the enumeration was
    derived (the exact grep) and its positive control (the known-present
@@ -284,7 +290,14 @@ branch** (observed repeatedly on this repo — a worker dispatched from `develop
 starts on the last release, missing everything merged since). The
 `worktree-agent-*` branch shape is likewise observed harness behavior, not
 repo-defined — if the harness ever changes it, the gate fails closed (the
-worker stops instead of self-healing). Treat the stale
+worker stops instead of self-healing). With `worktree.baseRef: "head"` set in
+tracked settings, agent worktrees branch from the current checkout's HEAD
+instead, so the required base is usually already in place — but that HEAD is
+read at SPAWN TIME, so the main checkout must be parked on the dispatch's
+target branch before the Agent call, and a branch hop between units re-creates
+the stale-base case the self-heal below still covers; the self-heal
+below stays as the fail-closed backstop for a session whose settings are
+overridden or stale. Treat the stale
 base as the expected state and put the correction IN the dispatch prompt, as
 the worker's step 0:
 

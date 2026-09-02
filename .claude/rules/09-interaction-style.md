@@ -21,7 +21,7 @@ When a user message contains a question, answer it BEFORE advancing your own age
 
 ## User Directives Are Immutable Session State
 
-Once the user has made a call — a release gate ("I want them fixed before the release is cut"), a scope decision, a design choice — do not re-propose the alternative in later turns. Re-litigating forces escalation ("I'm not budging on that"). Genuinely new information may justify surfacing the tradeoff once more, explicitly framed as new information; convenience or effort never does.
+Once the user has made a call — a release gate ("I want them fixed before the release is cut"), a scope decision, a design choice — do not re-propose the alternative in later turns. Re-litigating forces escalation ("I'm not budging on that"). Genuinely new information may justify surfacing the tradeoff once more, explicitly framed as new information; convenience or effort never does. A plain factual correction from the owner — "that shipped already", "auto is the paid router, free is the free one" — gets the same treatment as a decision: write it to the durable surface it contradicts (board, task, comment) in the SAME turn, then grep-sweep for other copies. A correction that lives only in chat comes back to the owner as a stale entry they have to re-issue ("this stale item has stuck around despite me issuing a correction the last time it came up").
 
 ## Most-Correct Is the Standing Default
 
