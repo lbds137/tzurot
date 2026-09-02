@@ -227,7 +227,7 @@ Arm the Monitor with this as its `command`, **substitution included** — copy i
 pnpm ops gh:ci-gate N --sha $(git rev-parse HEAD)
 ```
 
-**The substitution resolves when the Monitor executes, not when you pushed — so arm it immediately.** Anything that moves `HEAD` in between makes the gate watch a different SHA in silence, and **a branch hop is the likelier trigger than another commit**. A moved `HEAD` still names a real commit, so no local check objects.
+**The substitution resolves when the Monitor executes, not when you pushed — so arm it immediately, from the checkout that holds the branch.** Two things change what it resolves to: a branch hop in that checkout (filing a tracker task between pushes is the usual one), and a shell whose cwd is a different checkout than the worktree holding the branch — the substitution runs in the persistent shell cwd, so a worktree-held branch armed from the repo root resolves the main checkout's `HEAD`. Either value still names a real local commit, so the `git cat-file` check passes; the gate then reads the PR's head SHA from GitHub and refuses a `--sha` that is not it, printing both, so the cost is a re-arm rather than a mis-watch. That head read is fail-open — when GitHub cannot be read the gate arms anyway and prints that the drift check did not run — which is why arming promptly still matters.
 
 **This invocation is duplicated in three places on purpose** — here, the hook heredoc, and `/tzurot-git-workflow`. `pnpm ops guard:monitor-command` fails CI if the copies diverge, so change all three.
 
