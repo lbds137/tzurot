@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-28 23:24'
+updated_date: '2026-09-02 14:49'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 803000
@@ -33,4 +34,8 @@ The tradeoff the convention argument misses: name is the value that appears in l
 4. No test combines sanitizing and clamping on the same value. The strip test uses a short delimiter-only string; the clamp test uses a 5000-char repeat with no delimiters. Nothing pins a value that both contains brackets AND exceeds 1024 chars after stripping. The path is simple enough that a bug is unlikely, but everything else in that file is canary-pinned.
 
 Acceptance: items 2, 3 and 4 closed or explicitly declined with a reason. Item 1 is already resolved — keep name.
+
+Owner question: Now that item 1 is answered (keep personality.name), should this task be relabelled state:ready and scheduled, since items 2, 3 and 4 are agent-callable?
+Recommendation: Relabel to state:ready and schedule items 2-4 — the task's own text marks item 1 ANSWERED and describes the remainder as agent-callable, so nothing left in it is waiting on an owner decision.
+Resolved 2026-09-02: relabelled state:ready in the PR that introduced this convention; item 1 was answered by the owner on 2026-08-28 and items 2-4 are agent-callable.
 <!-- SECTION:DESCRIPTION:END -->

@@ -3,7 +3,7 @@
     "rules": {
       "lines": 2159,
       "graceMargin": 150,
-      "bytes": 156832,
+      "bytes": 157060,
       "bytesGraceMargin": 12000
     },
     "current": {
@@ -17,7 +17,7 @@
     "toolVersion": "lines-check/2",
     "configHash": "038ea0a31198",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "a43391217628ba6575a9da278bec5f8b52208369",
-    "generatedAt": "2026-09-02T13:27:40.821Z"
+    "generatedFromSha": "861d57e4b33a1d430b84d07911d307444fe50499",
+    "generatedAt": "2026-09-02T14:42:13.258Z"
   }
 }

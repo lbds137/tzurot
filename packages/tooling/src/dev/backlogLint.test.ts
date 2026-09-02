@@ -623,6 +623,42 @@ describe('runBacklogLint', () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it('flags a state:owner task missing its Owner question and Recommendation lines', async () => {
+    // Wiring test: pins that checkOwnerQueue's findings actually reach the
+    // aggregate `problems` array and the exit code — not the pure function in
+    // isolation, which has its own suite in backlogOwnerQueue.test.ts.
+    const OWNER_TASK_MISSING_LINES = [
+      '---',
+      'id: TASK-2',
+      "title: 'Owner task'",
+      'status: To Do',
+      "created_date: '2026-05-16 00:00'",
+      'labels:',
+      "  - 'area:db'",
+      "  - 'size:S'",
+      "  - 'state:owner'",
+      'priority: medium',
+      '---',
+      '',
+      'No owner lines in this body.',
+    ].join('\n');
+    mockFs({ 'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n' }, [], {
+      'task-1 - valid.md': VALID_TASK,
+      'task-2 - owner.md': OWNER_TASK_MISSING_LINES,
+    });
+
+    await runBacklogLint({ rootDir: '/repo', origin: NO_ORIGIN_FILES });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    expect(out).toContain(
+      "task-2 - owner.md: state:owner task has no 'Owner question:' line (06-backlog § State)"
+    );
+    expect(out).toContain(
+      "task-2 - owner.md: state:owner task has no 'Recommendation:' line (06-backlog § State)"
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
   it('flags a missing tracker store (the store is load-bearing post-flip)', async () => {
     vi.mocked(existsSync).mockImplementation(p => String(p).endsWith('backlog/now.md'));
     vi.mocked(readFileSync).mockReturnValue('### 🎯 Current Focus (max 3)\n1. a\n');

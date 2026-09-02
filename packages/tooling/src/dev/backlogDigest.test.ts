@@ -149,4 +149,63 @@ describe('runBacklogDigest', () => {
     expect(out).toContain('tracker/tasks/ not found');
     expect(process.exitCode).toBeUndefined();
   });
+
+  it('renders the Owner queue section between By area and Oldest 20', async () => {
+    mockStore([
+      { id: 'TASK-1', date: '2026-01-01', labels: ['area:db', 'state:owner'] },
+      { id: 'TASK-2', date: '2026-02-01' },
+    ]);
+    vi.mocked(readFileSync).mockImplementation(path => {
+      const name = String(path).split('/').at(-1) as string;
+      if (name === 'task-1.md') {
+        return [
+          '---',
+          'id: TASK-1',
+          "title: 'Task TASK-1'",
+          'status: To Do',
+          "created_date: '2026-01-01 00:00'",
+          'labels:',
+          "  - 'area:db'",
+          "  - 'state:owner'",
+          '---',
+          '',
+          'Owner question: Ship it?',
+          'Recommendation: Yes.',
+        ].join('\n');
+      }
+      return [
+        '---',
+        'id: TASK-2',
+        "title: 'Task TASK-2'",
+        'status: To Do',
+        "created_date: '2026-02-01 00:00'",
+        'labels: []',
+        '---',
+        '',
+        'Body.',
+      ].join('\n');
+    });
+
+    await runBacklogDigest({ rootDir: '/repo' });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    const byAreaIndex = out.indexOf('## By area');
+    const ownerQueueIndex = out.indexOf('## Owner queue');
+    const oldestIndex = out.indexOf('## Oldest 20');
+    expect(byAreaIndex).toBeGreaterThan(-1);
+    expect(ownerQueueIndex).toBeGreaterThan(byAreaIndex);
+    expect(oldestIndex).toBeGreaterThan(ownerQueueIndex);
+    expect(out).toContain('- TASK-1 [] — Ship it? → Yes.');
+  });
+
+  it('excludes a Done state:owner task from the Owner queue section', async () => {
+    mockStore([{ id: 'TASK-1', date: '2026-01-01', labels: ['state:owner'], status: 'Done' }]);
+
+    await runBacklogDigest({ rootDir: '/repo' });
+
+    const out = logSpy.mock.calls.flat().join('\n');
+    const section = out.slice(out.indexOf('## Owner queue'), out.indexOf('## Oldest 20'));
+    expect(section).toContain('- (empty)');
+    expect(section).not.toContain('TASK-1');
+  });
 });

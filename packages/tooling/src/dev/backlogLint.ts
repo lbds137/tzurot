@@ -52,6 +52,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import chalk from 'chalk';
 import { checkBacklogConfig } from './backlogConfigGate.js';
+import { checkOwnerQueue } from './backlogOwnerQueue.js';
 import { parseLinkDestinations } from './markdownLinks.js';
 import { checkUncommittedTrackerFiles, readTrackerGitStatus } from './trackerGitStatus.js';
 import {
@@ -689,6 +690,7 @@ export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
     ...checkRelativeLinks(rootDir),
     ...trackerProblems,
     ...checkTaskTriage(tasks),
+    ...checkOwnerQueue(tasks),
     ...checkDuplicateTaskIds(tasks),
     ...checkArchiveIdConflicts(readLiveTaskFiles(rootDir), readArchivedTaskFiles(rootDir)),
     ...(bypassOriginCollision ? [] : checkOriginIdCollisions(tasks, origin)),
