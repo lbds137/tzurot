@@ -120,7 +120,14 @@ loop retries **down the chain** on a _retryable_ failure before giving up:
 skipped): resolved primary → main-model-native-vision (worker-local) → `globalDefaultVisionConfigId`
 → `freeDefaultVisionConfigId` → hardcoded floor. The two DB tiers are **stamped gateway-side** onto
 `personality.visionFallbackModels` (Slice B) — the worker has no Prisma, so all DB resolution stays
-on the gateway; the worker composes its local tiers around the stamped list.
+on the gateway; the worker composes its local tiers around the stamped list. The list is capped
+at 3, **plus one over the cap** when the capped tail is a router alias (`ROUTER_ALIAS_MODELS`:
+`openrouter/auto` or `openrouter/free`)
+(non-guest only): the worker appends the concrete `MODEL_DEFAULTS.VISION_FALLBACK` after it, so
+the concrete default always follows the alias and a chain never ends on a router that can fail
+with nothing concrete left. The check runs after the cap, so it covers an alias arriving from
+either source — the system-setting floor or a gateway-stamped fallback. An alias that is not the
+tail already has something concrete after it and gets nothing.
 
 **Retry-vs-terminate policy** — `VISION_TERMINATE_CATEGORIES = { CONTENT_POLICY, CENSORED,
 MEDIA_NOT_FOUND }` terminate the loop immediately (the _image itself_ is rejected — another model

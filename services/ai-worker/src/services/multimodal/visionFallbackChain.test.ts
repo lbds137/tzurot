@@ -434,9 +434,13 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // Keyless user + mixed free/paid fallback tail + failing primary: tier 0's REAL
   // resolveVisionAuth already asked tryResolveUserKey for (user, OpenRouter) and the
   // negative wasn't cached, then maybeReorderFallbacks probes the SAME pair once more.
-  // The exact call count is the pin: 3 per-tier resolutions + 1 reorder probe = 4. If a
-  // future refactor threads tier 0's auth result into the probe, this drops to 3 — update
-  // the acceptance comment in describeImageWithFallback.ts alongside this assertion.
+  // The exact call count is the pin: one resolution per composed tier + 1 reorder probe.
+  // The chain here is four tiers — primary, the stamped free route, the paid floor (the
+  // `fallbackVisionModel` setting, whose default IS the openrouter/auto alias), and the
+  // concrete terminal `composeVisionTiers` appends after a router-alias tail — so 4 + 1 = 5.
+  // If a future refactor threads tier 0's auth result into the probe, the probe term drops
+  // out — update the acceptance comment in describeImageWithFallback.ts alongside this
+  // assertion.
   it('keyless user, mixed tail: the reorder probe re-reads the wallet once beyond per-tier resolution', async () => {
     const mixedTailPersonality: LoadedPersonality = {
       ...personality,
@@ -462,12 +466,12 @@ describe('vision fallback chain (wiring / seam test)', () => {
     expect(results).toHaveLength(1);
     expect(results[0].description.startsWith('[Image')).toBe(true);
 
-    // Every lookup targeted the same (user, OpenRouter) pair: all three composed tiers
+    // Every lookup targeted the same (user, OpenRouter) pair: all four composed tiers
     // are OpenRouter-routed, and the probe asks for OpenRouter by construction.
     for (const call of mockApiKeyResolver.tryResolveUserKey.mock.calls) {
       expect(call).toEqual(['user-1', AIProvider.OpenRouter]);
     }
-    // THE PIN: 3 per-tier resolveVisionAuth lookups + exactly 1 reorder-probe lookup.
-    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(4);
+    // THE PIN: 4 per-tier resolveVisionAuth lookups + exactly 1 reorder-probe lookup.
+    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(5);
   });
 });

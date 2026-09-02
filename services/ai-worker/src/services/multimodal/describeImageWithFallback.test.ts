@@ -24,7 +24,9 @@ import {
 import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
 import {
   AIProvider,
+  AUTO_ROUTER_MODEL,
   FREE_ROUTER_MODEL,
+  MODEL_DEFAULTS,
   ZAI_FREE_TIER_MODEL,
   isZaiFreeTierModel,
 } from '@tzurot/common-types/constants/ai';
@@ -253,14 +255,182 @@ describe('composeVisionTiers', () => {
     const personality = makePersonality({
       visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
     });
+    // The stamped members keep their composed order — that is the assertion here.
+    // This fixture's capped tail happens to be the router alias (the concrete floor
+    // is what the cap trims), so the concrete default follows it as the fourth tier.
     const tiers = composeVisionTiers('qwen/qwen3.7-plus', personality, false);
-    expect(tiers).toEqual(['qwen/qwen3.7-plus', FREE_ROUTER_MODEL, 'openrouter/auto']);
+    expect(tiers).toEqual([
+      'qwen/qwen3.7-plus',
+      FREE_ROUTER_MODEL,
+      'openrouter/auto',
+      MODEL_DEFAULTS.VISION_FALLBACK,
+    ]);
   });
 
   it('drops empty-string models', () => {
     const personality = makePersonality({ visionFallbackModels: ['', 'tier-a', ''] });
     const tiers = composeVisionTiers('primary/model', personality, false);
     expect(tiers).toEqual(['primary/model', 'tier-a', FALLBACK_PAID_MODEL]);
+  });
+
+  it('appends nothing after a concrete paid floor — the alias-only successor is the router alias case', () => {
+    // Uses the outer (module-level) registration: floor = 'openrouter/paid-floor', a
+    // concrete model, so there is nothing for a router-alias successor to guard against.
+    const personality = makePersonality({ visionFallbackModels: [] });
+    const tiers = composeVisionTiers('primary/model', personality, false);
+    expect(tiers).toEqual(['primary/model', FALLBACK_PAID_MODEL]);
+  });
+
+  describe('router-alias paid floor (AUTO_ROUTER_MODEL)', () => {
+    beforeAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? AUTO_ROUTER_MODEL
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    afterAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? FALLBACK_PAID_MODEL
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    it('appends the concrete VISION_FALLBACK after the router-alias floor when non-guest', () => {
+      const personality = makePersonality({ visionFallbackModels: [] });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual(['primary/model', AUTO_ROUTER_MODEL, MODEL_DEFAULTS.VISION_FALLBACK]);
+    });
+
+    it('guest mode is untouched — the alias floor stays the free floor, no concrete successor', () => {
+      const personality = makePersonality({ visionFallbackModels: [] });
+      const tiers = composeVisionTiers('primary/model', personality, true);
+      expect(tiers).toEqual(['primary/model', FREE_ROUTER_MODEL]);
+      expect(tiers).not.toContain(MODEL_DEFAULTS.VISION_FALLBACK);
+    });
+
+    it('dedups the concrete successor when it is already a stamped fallback', () => {
+      const personality = makePersonality({
+        visionFallbackModels: [MODEL_DEFAULTS.VISION_FALLBACK],
+      });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers.filter(model => model === MODEL_DEFAULTS.VISION_FALLBACK)).toHaveLength(1);
+    });
+
+    it('runs one over the cap rather than lose the concrete successor to a stamped fallback', () => {
+      // primary + tier-a + AUTO_ROUTER_MODEL already fills MAX_VISION_FALLBACK_TIERS
+      // (3), and the capped tail is the alias — so the concrete VISION_FALLBACK is
+      // appended as a fourth tier instead of being sliced off, which would leave the
+      // chain ending on a router with nothing concrete left.
+      const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual([
+        'primary/model',
+        'tier-a',
+        AUTO_ROUTER_MODEL,
+        MODEL_DEFAULTS.VISION_FALLBACK,
+      ]);
+      expect(tiers).toHaveLength(4);
+    });
+
+    it('appends nothing when the concrete default is already earlier in the chain', () => {
+      const personality = makePersonality({
+        visionFallbackModels: [MODEL_DEFAULTS.VISION_FALLBACK],
+      });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual(['primary/model', MODEL_DEFAULTS.VISION_FALLBACK, AUTO_ROUTER_MODEL]);
+      expect(tiers.length).toBeLessThanOrEqual(3);
+    });
+
+    it('guest mode gets no concrete successor even when a stamped alias is the tail', () => {
+      // Guest floor is free, so the alias can only reach the tail via the stamped
+      // list — the billing firewall must hold there too.
+      const personality = makePersonality({
+        visionFallbackModels: ['stamped-1', AUTO_ROUTER_MODEL],
+      });
+      const tiers = composeVisionTiers('primary/model', personality, true);
+      expect(tiers).toEqual(['primary/model', 'stamped-1', AUTO_ROUTER_MODEL]);
+      expect(tiers).not.toContain(MODEL_DEFAULTS.VISION_FALLBACK);
+    });
+  });
+
+  describe('router-alias paid floor (FREE_ROUTER_MODEL)', () => {
+    beforeAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? FREE_ROUTER_MODEL
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    afterAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? FALLBACK_PAID_MODEL
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    it('appends the concrete VISION_FALLBACK after the router-alias floor when non-guest', () => {
+      const personality = makePersonality({ visionFallbackModels: [] });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual(['primary/model', FREE_ROUTER_MODEL, MODEL_DEFAULTS.VISION_FALLBACK]);
+    });
+
+    it('guest mode gets no concrete successor — the billing firewall extends to the free-alias floor too', () => {
+      // The existing guest tests here only cover AUTO_ROUTER_MODEL as the tail; the
+      // firewall must hold identically when the alias itself IS the free floor.
+      const personality = makePersonality({ visionFallbackModels: [] });
+      const tiers = composeVisionTiers('primary/model', personality, true);
+      expect(tiers).toEqual(['primary/model', FREE_ROUTER_MODEL]);
+    });
+  });
+
+  describe('router alias arriving from the STAMPED list (concrete floor)', () => {
+    it('appends the concrete successor when the cap leaves a stamped alias at the tail', () => {
+      // The floor here is concrete (outer registration), so the alias reaches the
+      // tail only because the cap trimmed that floor off. A pre-cap, floor-only
+      // rule would miss this entirely and let the chain end on the router.
+      const personality = makePersonality({
+        visionFallbackModels: ['stamped-1', AUTO_ROUTER_MODEL],
+      });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual([
+        'primary/model',
+        'stamped-1',
+        AUTO_ROUTER_MODEL,
+        MODEL_DEFAULTS.VISION_FALLBACK,
+      ]);
+    });
+
+    it('appends the concrete successor when the STAMPED alias is FREE_ROUTER_MODEL, not AUTO', () => {
+      // Same shape as the AUTO_ROUTER_MODEL case above, but the stamped fallback that
+      // survives the cap is the free-router alias — the concrete-terminal rule keys off
+      // isRouterAliasModel, not the AUTO constant specifically.
+      const personality = makePersonality({
+        visionFallbackModels: ['stamped-1', FREE_ROUTER_MODEL],
+      });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual([
+        'primary/model',
+        'stamped-1',
+        FREE_ROUTER_MODEL,
+        MODEL_DEFAULTS.VISION_FALLBACK,
+      ]);
+    });
+
+    it('appends nothing when the alias is NOT the tail — something concrete already follows', () => {
+      const personality = makePersonality({ visionFallbackModels: [AUTO_ROUTER_MODEL] });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual(['primary/model', AUTO_ROUTER_MODEL, FALLBACK_PAID_MODEL]);
+      expect(tiers).not.toContain(MODEL_DEFAULTS.VISION_FALLBACK);
+    });
   });
 });
 

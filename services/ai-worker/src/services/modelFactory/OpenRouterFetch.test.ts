@@ -16,6 +16,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ApiErrorCategory, MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
+import { parseApiError } from '../../utils/apiErrorParser.js';
+
+// Stable hoisted mock object — the file's createLogger factory used to return
+// a NEW object per call, so no test could reach the module-level logger.
+// `vi.clearAllMocks()` in `beforeEach` resets it between tests.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 
 // Mock @tzurot/common-types
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -24,12 +36,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -412,5 +419,230 @@ describe('OpenRouterFetch', () => {
 
     // Body passes through unchanged — params NOT injected (would have required parsing)
     expect(capturedBody).toBe(nonJsonBody);
+  });
+
+  describe('200 with an error body and no choices', () => {
+    it('synthesizes an error status from body.error.code, round-tripping the body minus flagged_input', async () => {
+      const customFetch = createFetch();
+
+      const responseBody = {
+        error: {
+          code: 403,
+          message: 'Moderation flagged the input',
+          metadata: {
+            reasons: ['harassment'],
+            flagged_input: 'SECRET_USER_TEXT',
+            provider_name: 'ProviderX',
+            model_slug: 'vendor/model-y',
+          },
+        },
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(403);
+      const body = (await result.json()) as {
+        error: { message: string; code: number; metadata: Record<string, unknown> };
+      };
+      // Asserts on the RETURNED response's JSON, which is the object the OpenAI
+      // SDK hangs off APIError.error — this is what a consumer actually sees.
+      expect(body.error.metadata.flagged_input).toBeUndefined();
+      expect(body.error.metadata.provider_name).toBe('ProviderX');
+      expect(body.error.metadata.reasons).toEqual(['harassment']);
+      expect(body.error.message).toBe('Moderation flagged the input');
+      expect(body.error.code).toBe(403);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('caps the logged errorMessage at MAX_ERROR_MESSAGE_LENGTH while the forwarded body keeps the full string', async () => {
+      const customFetch = createFetch();
+      const longMessage = 'x'.repeat(MAX_ERROR_MESSAGE_LENGTH + 250);
+
+      const responseBody = {
+        error: {
+          code: 403,
+          message: longMessage,
+        },
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      // Log copy: capped at MAX_ERROR_MESSAGE_LENGTH.
+      const loggedErrorMessage = (mockLogger.warn.mock.calls[0]?.[0] as { errorMessage: string })
+        .errorMessage;
+      expect(loggedErrorMessage).toHaveLength(MAX_ERROR_MESSAGE_LENGTH);
+      expect(loggedErrorMessage).toBe(longMessage.slice(0, MAX_ERROR_MESSAGE_LENGTH));
+
+      // Forwarded body: the full, untruncated string survives to the consumer.
+      const body = (await result.json()) as { error: { message: string } };
+      expect(body.error.message).toBe(longMessage);
+    });
+
+    it('never logs the flagged_input PII excerpt, but does log the safe diagnosis fields', async () => {
+      const customFetch = createFetch();
+
+      const responseBody = {
+        error: {
+          code: 403,
+          message: 'Moderation flagged the input',
+          metadata: {
+            reasons: ['harassment'],
+            flagged_input: 'SECRET_USER_TEXT',
+            provider_name: 'ProviderX',
+            model_slug: 'vendor/model-y',
+          },
+        },
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      // Negative half: the user-input excerpt never reaches the log payload.
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('SECRET_USER_TEXT');
+      // Positive half: the safe diagnosis fields ARE present — a warn that logged
+      // nothing at all would trivially pass the negative assertion above alone.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerName: 'ProviderX',
+          modelSlug: 'vendor/model-y',
+          reasons: ['harassment'],
+          errorCode: 403,
+        }),
+        expect.any(String)
+      );
+    });
+
+    it.each([
+      ['a non-HTTP low code', 0],
+      ['a non-HTTP high code', 200],
+      ['a non-numeric code', 'x'],
+    ])('falls back to 502 for %s', async (_label, code) => {
+      const customFetch = createFetch();
+
+      const responseBody = { error: { code, message: 'Something went sideways' } };
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(502);
+    });
+
+    it('passes through unchanged when choices is an empty array and there is no error field', async () => {
+      const customFetch = createFetch();
+
+      const responseBody = { choices: [] };
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(200);
+    });
+
+    it('passes through unchanged when choices is populated even alongside an error field', async () => {
+      const customFetch = createFetch();
+
+      const responseBody = {
+        choices: [{ message: { content: 'still usable' } }],
+        error: { code: 403, message: 'irrelevant — choices already usable' },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(200);
+    });
+
+    it('never parses a non-JSON 200 (text/event-stream) — the branch never runs', async () => {
+      const customFetch = createFetch();
+
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse({ error: { code: 403 } }, 200, 'text/event-stream'));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(200);
+      // The only observable of the surface-error branch running is the warn log —
+      // a non-JSON content-type must short-circuit before any parse is attempted.
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('passes through unchanged when the 200 JSON-content-type body is not valid JSON', async () => {
+      const customFetch = createFetch();
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(
+        new Response('this is not json', {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'application/json' },
+        })
+      );
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(200);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('strips flagged_input as a no-op when body.error has no metadata object', async () => {
+      const customFetch = createFetch();
+
+      const responseBody = { error: { code: 503, message: 'Provider fell over' } };
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(result.status).toBe(503);
+    });
+
+    it('treats choices: null the same as choices: undefined — no generations', async () => {
+      const customFetch = createFetch();
+
+      const responseBody = {
+        choices: null,
+        error: { code: 403, message: 'Moderation flagged the input' },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      // @langchain/openai's converter builds generations from `choices ?? []`,
+      // so a null choices array is empty there too.
+      expect(result.status).toBe(403);
+    });
+  });
+
+  describe('synthesized 403 error-body classification (seam test)', () => {
+    it('classifies as CONTENT_POLICY at parseApiError', () => {
+      // The `openai` package is not resolvable from services/ai-worker (pnpm strict;
+      // node_modules here carries @langchain/openai but not openai directly), so
+      // importing it would be an undeclared dependency. This constructs the equivalent
+      // error shape the OpenAI SDK's `APIError.generate` produces for a 403 body —
+      // probed against the installed SDK version: status/message/error mirror
+      // `APIError.generate(403, body, undefined, new Headers())`. The SDK attaches
+      // the body's `error` object as an own enumerable property on the constructed
+      // error, which is why flagged_input must be stripped upstream in
+      // trySurfaceOkErrorBody rather than at any log site.
+      const body = {
+        error: {
+          code: 403,
+          message: 'Moderation flagged the input',
+          metadata: { reasons: ['harassment'] },
+        },
+      };
+      const constructedApiError = Object.assign(new Error('403 Moderation flagged the input'), {
+        status: 403,
+        error: body.error,
+      });
+
+      const parsed = parseApiError(constructedApiError);
+
+      expect(parsed.category).toBe(ApiErrorCategory.CONTENT_POLICY);
+    });
   });
 });
