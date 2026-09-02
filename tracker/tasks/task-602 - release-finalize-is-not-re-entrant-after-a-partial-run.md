@@ -1,9 +1,10 @@
 ---
 id: TASK-602
 title: 'release:finalize is not re-entrant after a partial run'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 11:02'
+updated_date: '2026-09-02 00:30'
 labels:
   - 'area:tooling'
   - 'size:S'
