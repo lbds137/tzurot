@@ -117,9 +117,10 @@ export class DiagnosticCollector {
     );
     this.inputProcessing = {
       rawUserMessage: data.rawUserMessage,
-      attachmentDescriptions: data.processedAttachments.map(
-        att => att.description ?? `[${att.type}]`
-      ),
+      attachmentDescriptions: data.processedAttachments.map(att => ({
+        description: att.description ?? `[${att.type}]`,
+        attribution: att.attribution ?? null,
+      })),
       voiceTranscript: audioAttachment?.description ?? null,
       referencedMessageIds: data.referencedMessages?.map(m => m.discordMessageId) ?? [],
       referencedMessagesContent: data.referencedMessages?.map(m => m.content) ?? [],

@@ -4,14 +4,14 @@ import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 const mockTryAcquireInflight = vi.fn();
 const mockIsInflight = vi.fn();
 const mockReleaseInflight = vi.fn();
-const mockCacheGet = vi.fn();
+const mockCacheGetCanonical = vi.fn();
 
 vi.mock('../../redis.js', () => ({
   visionDescriptionCache: {
     tryAcquireInflight: (options: unknown) => mockTryAcquireInflight(options),
     isInflight: (options: unknown) => mockIsInflight(options),
     releaseInflight: (options: unknown) => mockReleaseInflight(options),
-    get: (options: unknown) => mockCacheGet(options),
+    getCanonical: (options: unknown) => mockCacheGetCanonical(options),
   },
 }));
 
@@ -32,7 +32,7 @@ describe('enterSingleFlight', () => {
     mockTryAcquireInflight.mockResolvedValue(true);
     mockIsInflight.mockResolvedValue(false);
     mockReleaseInflight.mockResolvedValue(undefined);
-    mockCacheGet.mockResolvedValue(null);
+    mockCacheGetCanonical.mockResolvedValue(null);
   });
 
   it('skipCache bypasses acquisition entirely', async () => {
@@ -44,17 +44,23 @@ describe('enterSingleFlight', () => {
   it('winner acquires and proceeds without waiting', async () => {
     const entry = await enterSingleFlight(keyOptions, attachment, false);
     expect(entry).toEqual({ acquired: true, coalesced: null });
-    expect(mockCacheGet).not.toHaveBeenCalled();
+    expect(mockCacheGetCanonical).not.toHaveBeenCalled();
   });
 
   it('loser coalesces onto the winner cache write', async () => {
     mockTryAcquireInflight.mockResolvedValue(false);
-    mockCacheGet.mockResolvedValue('A valid description of the image, long enough to pass');
+    mockCacheGetCanonical.mockResolvedValue({
+      description: 'A valid description of the image, long enough to pass',
+      model: 'winner-model',
+    });
 
     const entry = await enterSingleFlight(keyOptions, attachment, false);
 
     expect(entry.acquired).toBe(false);
-    expect(entry.coalesced).toBe('A valid description of the image, long enough to pass');
+    expect(entry.coalesced).toEqual({
+      description: 'A valid description of the image, long enough to pass',
+      model: 'winner-model',
+    });
   });
 
   it('loser keeps waiting through a SLOW successful winner and coalesces (regression: 45s ceiling < 90s model timeout)', async () => {
@@ -65,10 +71,13 @@ describe('enterSingleFlight', () => {
       // Winner stores after ~100s of polling — beyond the OLD 45s ceiling,
       // within the vision invoke's own 90s budget plus download/store overhead.
       const start = Date.now();
-      mockCacheGet.mockImplementation(() =>
+      mockCacheGetCanonical.mockImplementation(() =>
         Promise.resolve(
           Date.now() - start >= 100_000
-            ? 'A valid description of the image from a slow winner'
+            ? {
+                description: 'A valid description of the image from a slow winner',
+                model: 'slow-winner-model',
+              }
             : null
         )
       );
@@ -77,7 +86,10 @@ describe('enterSingleFlight', () => {
       await vi.advanceTimersByTimeAsync(101_000);
       const entry = await entryPromise;
 
-      expect(entry.coalesced).toBe('A valid description of the image from a slow winner');
+      expect(entry.coalesced).toEqual({
+        description: 'A valid description of the image from a slow winner',
+        model: 'slow-winner-model',
+      });
     } finally {
       vi.useRealTimers();
     }
@@ -88,7 +100,7 @@ describe('enterSingleFlight', () => {
     try {
       mockTryAcquireInflight.mockResolvedValue(false);
       mockIsInflight.mockResolvedValue(true); // crashed winner: marker held until TTL
-      mockCacheGet.mockResolvedValue(null);
+      mockCacheGetCanonical.mockResolvedValue(null);
 
       const entryPromise = enterSingleFlight(keyOptions, attachment, false);
       // Past the derived ceiling (VISION_MODEL 90s + 30s margin = 120s).
@@ -103,7 +115,7 @@ describe('enterSingleFlight', () => {
 
   it('loser falls through when the winner dies without a cache write', async () => {
     mockTryAcquireInflight.mockResolvedValue(false);
-    mockCacheGet.mockResolvedValue(null);
+    mockCacheGetCanonical.mockResolvedValue(null);
     mockIsInflight.mockResolvedValue(false); // marker gone → winner failed
 
     const entry = await enterSingleFlight(keyOptions, attachment, false);

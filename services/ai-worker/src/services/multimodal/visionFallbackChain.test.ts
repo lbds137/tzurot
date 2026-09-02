@@ -92,6 +92,9 @@ vi.mock('../../redis.js', () => ({
     isInflight: vi.fn().mockResolvedValue(false),
     releaseInflight: vi.fn().mockResolvedValue(undefined),
     get: mockVisionCacheGet,
+    // Only ever resolved to null (cache miss) in this suite — the object shape
+    // never matters here, so the same mock backs both `get` and `getCanonical`.
+    getCanonical: mockVisionCacheGet,
     store: mockVisionCacheStore,
     getFailure: mockVisionCacheGetFailure,
     storeFailure: mockVisionCacheStoreFailure,

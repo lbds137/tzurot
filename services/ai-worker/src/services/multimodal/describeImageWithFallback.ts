@@ -24,6 +24,7 @@ import {
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type AttachmentDescriptionAttribution } from '@tzurot/common-types/types/diagnostic';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
@@ -293,6 +294,13 @@ async function maybeReorderFallbacks(
   return sinkFreeRouteFallbacks(tiers);
 }
 
+/** Outcome of one full fallback-chain walk: the description plus its producing model. */
+export interface DescribeImageWithFallbackResult {
+  description: string;
+  /** `null` for a terminate-category or chain-exhausted placeholder. */
+  attribution: AttachmentDescriptionAttribution | null;
+}
+
 /**
  * Describe an image, retrying down the vision fallback chain on a retryable failure.
  * Returns a description string on success, or a `[Image … couldn't be processed …]`
@@ -305,7 +313,7 @@ export async function describeImageWithFallback(
   personality: LoadedPersonality,
   authOptions: ResolveVisionConfigOptions,
   describeOptions: DescribeImageOptions = {}
-): Promise<string> {
+): Promise<DescribeImageWithFallbackResult> {
   try {
     return await walkFallbackChain(attachment, personality, authOptions, describeOptions);
   } catch (error) {
@@ -316,7 +324,10 @@ export async function describeImageWithFallback(
       { err: error, attachmentId: attachment.id },
       'Vision fallback loop threw unexpectedly — rendering generic fallback'
     );
-    return buildFailureFallback(ApiErrorCategory.UNKNOWN, undefined, attachment.name);
+    return {
+      description: buildFailureFallback(ApiErrorCategory.UNKNOWN, undefined, attachment.name),
+      attribution: null,
+    };
   }
 }
 
@@ -502,7 +513,18 @@ async function walkFallbackChain(
   personality: LoadedPersonality,
   authOptions: ResolveVisionConfigOptions,
   describeOptions: DescribeImageOptions
-): Promise<string> {
+): Promise<DescribeImageWithFallbackResult> {
+  // Captured by the tier that actually produces (or cache-serves) the description;
+  // stays null for a terminate-category or chain-exhausted placeholder, since
+  // those returns never reach a tier that calls onAttribution.
+  let attribution: AttachmentDescriptionAttribution | null = null;
+  const describeOptionsWithAttribution: DescribeImageOptions = {
+    ...describeOptions,
+    onAttribution: a => {
+      attribution = a;
+    },
+  };
+
   const isGuestMode = authOptions.isGuestMode;
   const primaryModel =
     describeOptions.model !== undefined && describeOptions.model.length > 0
@@ -545,13 +567,16 @@ async function walkFallbackChain(
       quota,
       attachment,
       personality,
-      describeOptions,
+      describeOptions: describeOptionsWithAttribution,
     });
     if (attempt.kind === 'skip') {
       continue; // no usable key for this tier's provider (and no free fallback), or a dedup hit — advance
     }
     if (attempt.kind === 'resolved') {
-      return attempt.description;
+      // `attribution` is set by now for a genuine description (onAttribution fired
+      // inside this same synchronous call chain); it stays null for a terminate-
+      // category placeholder, which never reaches invokeVisionModel's attribution call.
+      return { description: attempt.description, attribution };
     }
     lastAttempt = {
       category: attempt.category,
@@ -570,7 +595,10 @@ async function walkFallbackChain(
   // user to fix a key they don't own (buildFailureFallback maps system-source AUTH to a
   // non-blaming "temporarily unavailable" message).
   if (lastAttempt === undefined) {
-    return visionAuthFailFastDescription(attachment.name);
+    return { description: visionAuthFailFastDescription(attachment.name), attribution: null };
   }
-  return buildFailureFallback(lastAttempt.category, lastAttempt.source, attachment.name);
+  return {
+    description: buildFailureFallback(lastAttempt.category, lastAttempt.source, attachment.name),
+    attribution: null,
+  };
 }

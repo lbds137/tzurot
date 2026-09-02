@@ -14,6 +14,7 @@ import { AI_DEFAULTS, isFreeModel, type AIProvider } from '@tzurot/common-types/
 import { ERROR_MESSAGES, ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type AttachmentDescriptionAttribution } from '@tzurot/common-types/types/diagnostic';
 import {
   type LoadedPersonality,
   type VisionTierParams,
@@ -39,6 +40,10 @@ import {
 } from './visionDescriptionValidity.js';
 
 const logger = createLogger('VisionProcessor');
+
+// Attribution is optional for most callers, so binding a no-op once keeps the
+// notify call sites unconditional.
+const noopAttribution = (): void => undefined;
 
 /**
  * Typed vision-invocation failure. Carries the `ApiErrorCategory` so the fallback loop
@@ -164,6 +169,16 @@ export interface DescribeImageOptions {
    * modes — this flag only governs the negative-cache-hit path's throw-vs-return.)
    */
   throwOnFailure?: boolean;
+  /**
+   * Fires exactly once with the model that produced (or, on a cache hit,
+   * already cached) the returned description — never on a placeholder. Lets
+   * the fallback loop surface which vision model actually answered without
+   * widening `describeImage`'s return type.
+   * `describeImageWithFallback` replaces this field with its own capture and
+   * exposes the result on its return value instead, so a handler passed
+   * through the chain is never invoked.
+   */
+  onAttribution?: (attribution: AttachmentDescriptionAttribution) => void;
 }
 
 /**
@@ -228,6 +243,8 @@ interface InvokeVisionModelOptions {
   imageUrl?: string;
   loggingContext: VisionLoggingContext;
   personalityName: string;
+  /** Forwarded from `DescribeImageOptions.onAttribution` — see there. */
+  onAttribution?: (attribution: AttachmentDescriptionAttribution) => void;
 }
 
 /**
@@ -353,6 +370,7 @@ async function invokeVisionModel(
     }
 
     logger.info({ modelName, routedModel, attachmentId: attachment.id }, 'Vision model responded');
+    options.onAttribution?.({ model: modelName, routedModel, fromCache: false });
 
     return content;
   } catch (error) {
@@ -681,6 +699,7 @@ export async function describeImage(
   options: DescribeImageOptions = {}
 ): Promise<string> {
   const loggingContext: VisionLoggingContext = options.loggingContext ?? {};
+  const notifyAttribution = options.onAttribution ?? noopAttribution;
   logger.debug(
     {
       personalityName: personality.name,
@@ -707,9 +726,10 @@ export async function describeImage(
   // free-tier requests that could never produce one themselves.
   const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url, model: usedModel };
   if (options?.skipCache !== true) {
-    const cachedDescription = await readValidCachedDescription(cacheKeyOptions, attachment);
-    if (cachedDescription !== null) {
-      return cachedDescription;
+    const cached = await readValidCachedDescription(cacheKeyOptions, attachment);
+    if (cached !== null) {
+      notifyAttribution({ model: cached.model, fromCache: true });
+      return cached.description;
     }
   }
 
@@ -739,7 +759,8 @@ export async function describeImage(
   // without it). Coalesced → return the winner's description, zero calls.
   const flight = await enterSingleFlight(cacheKeyOptions, attachment, options?.skipCache === true);
   if (flight.coalesced !== null) {
-    return flight.coalesced;
+    notifyAttribution({ model: flight.coalesced.model, fromCache: true });
+    return flight.coalesced.description;
   }
 
   try {
@@ -791,6 +812,7 @@ export async function describeImage(
         // tier's model forced via options.model, so this lookup naturally gives
         // every tier ITS OWN config's params.
         visionParams: personality.visionConfigParams?.[usedModel],
+        onAttribution: options.onAttribution,
       },
       options.throwOnFailure === true
     );

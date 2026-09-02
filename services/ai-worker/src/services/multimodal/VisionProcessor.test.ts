@@ -85,7 +85,12 @@ const mockCreateChatModel = vi.fn().mockReturnValue({
 const mockCheckModelVisionSupport = vi.fn();
 
 // Mock the visionDescriptionCache from redis.ts
-const mockVisionCacheGet = vi.fn().mockResolvedValue(null); // Default: cache miss
+const mockVisionCacheGetCanonical = vi.fn().mockResolvedValue(null); // Default: cache miss
+// Wired into the redis.js mock's `get` for shape parity with the real cache, but
+// nothing VisionProcessor.ts exercises in THIS file calls `.get()`: describeImage's
+// cache check and visionSingleFlight's poll loop both go through getCanonical
+// (mockVisionCacheGetCanonical above). Other suites still exercise `.get()`.
+const mockVisionCacheGet = vi.fn().mockResolvedValue(null);
 const mockVisionCacheStore = vi.fn().mockResolvedValue(undefined);
 const mockVisionCacheGetFailure = vi.fn().mockResolvedValue(null); // Default: no failure cached
 const mockVisionCacheStoreFailure = vi.fn().mockResolvedValue(undefined);
@@ -96,6 +101,8 @@ const mockReleaseInflight = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../redis.js', () => ({
   checkModelVisionSupport: (modelId: string) => mockCheckModelVisionSupport(modelId),
   visionDescriptionCache: {
+    getCanonical: (options: { attachmentId?: string; url: string }) =>
+      mockVisionCacheGetCanonical(options),
     get: (options: { attachmentId?: string; url: string }) => mockVisionCacheGet(options),
     store: (options: { attachmentId?: string; url: string; model?: string }, description: string) =>
       mockVisionCacheStore(options, description),
@@ -167,6 +174,7 @@ describe('VisionProcessor', () => {
     // Default mock behavior - return false unless specified
     mockCheckModelVisionSupport.mockResolvedValue(false);
     // Default cache behavior - miss (null)
+    mockVisionCacheGetCanonical.mockResolvedValue(null);
     mockVisionCacheGet.mockResolvedValue(null);
     mockVisionCacheStore.mockResolvedValue(undefined);
     // Default failure cache behavior - no failure cached
@@ -236,7 +244,7 @@ describe('VisionProcessor', () => {
           expect.objectContaining({ contentType: 'image/png' })
         );
         // Cache key stays the ORIGINAL url, never the synthesized data: URL.
-        expect(mockVisionCacheGet).toHaveBeenCalledWith(
+        expect(mockVisionCacheGetCanonical).toHaveBeenCalledWith(
           expect.objectContaining({ url: 'https://cdn.discordapp.com/test-image.png' })
         );
       });
@@ -597,23 +605,30 @@ describe('VisionProcessor', () => {
         // READS already have (a paid request reuses a free-tier-produced entry).
         const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
         mockTryAcquireInflight.mockResolvedValue(false);
-        // First poll: winner's cache write already landed.
-        mockVisionCacheGet
-          .mockResolvedValueOnce(null) // describeImage's own initial cache check
-          .mockResolvedValue('A detailed description of the shared image from the winner');
+        const attributions: Array<{ model: string; fromCache: boolean }> = [];
+        // describeImage's own initial cache check (getCanonical) — miss, so it
+        // proceeds to single-flight, where it becomes a loser and polls
+        // getCanonical too (the winner's cache write, once it lands).
+        mockVisionCacheGetCanonical.mockResolvedValueOnce(null).mockResolvedValueOnce({
+          description: 'A detailed description of the shared image from the winner',
+          model: 'winner-model',
+        });
 
-        const result = await describeImage(mockAttachment, personality);
+        const result = await describeImage(mockAttachment, personality, false, undefined, {
+          onAttribution: a => attributions.push(a),
+        });
 
         expect(result).toBe('A detailed description of the shared image from the winner');
         expect(mockCreateChatModel).not.toHaveBeenCalled();
         // A loser never owns the marker — it must not release the winner's.
         expect(mockReleaseInflight).not.toHaveBeenCalled();
+        expect(attributions).toEqual([{ model: 'winner-model', fromCache: true }]);
       });
 
       it('a loser falls through to its own call when the winner dies without writing', async () => {
         const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
         mockTryAcquireInflight.mockResolvedValue(false);
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         // Marker gone on first check → winner failed → own call (pre-feature path).
         mockIsInflight.mockResolvedValue(false);
 
@@ -968,22 +983,32 @@ describe('VisionProcessor', () => {
     });
 
     describe('caching', () => {
-      it('should return cached description on cache hit', async () => {
+      it('should return cached description on cache hit, and surface fromCache attribution', async () => {
         const cachedDescription = 'Previously cached image description';
-        mockVisionCacheGet.mockResolvedValue(cachedDescription);
+        const cachedProducerModel = 'qwen/qwen3.5-397b-a17b';
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: cachedDescription,
+          model: cachedProducerModel,
+        });
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
           visionModel: undefined,
         });
 
-        const result = await describeImage(mockAttachment, personality);
+        const attributions: unknown[] = [];
+        const result = await describeImage(mockAttachment, personality, false, undefined, {
+          onAttribution: a => attributions.push(a),
+        });
 
         expect(result).toBe(cachedDescription);
+        // The cache-hit attribution names the CACHED entry's producer, not the
+        // tier the current caller would have requested.
+        expect(attributions).toEqual([{ model: cachedProducerModel, fromCache: true }]);
         // gpt-4o lacks vision in this test (mock unset → false), so selectVisionModel
         // falls through to the paid floor (fallbackVisionModel setting — the
         // auto-router registry fallback here); the cache key is namespaced by it.
-        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+        expect(mockVisionCacheGetCanonical).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           model: SYSTEM_SETTINGS_FALLBACKS.fallbackVisionModel,
@@ -994,8 +1019,47 @@ describe('VisionProcessor', () => {
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
       });
 
+      it('surfaces onAttribution on a fresh (non-cached) success with no routed model', async () => {
+        mockModelInvoke.mockResolvedValueOnce({
+          content: 'Mocked image description',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'gpt-4-vision-preview',
+        });
+
+        const attributions: unknown[] = [];
+        await describeImage(mockAttachment, personality, false, undefined, {
+          onAttribution: a => attributions.push(a),
+        });
+
+        expect(attributions).toEqual([{ model: 'gpt-4-vision-preview', fromCache: false }]);
+      });
+
+      it('surfaces the provider-reported routed model in onAttribution on a fresh success', async () => {
+        mockModelInvoke.mockResolvedValueOnce({
+          content: 'Mocked image description',
+          response_metadata: { model_name: 'google/gemini-2.5-flash' },
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'openrouter/auto',
+        });
+
+        const attributions: unknown[] = [];
+        await describeImage(mockAttachment, personality, false, undefined, {
+          onAttribution: a => attributions.push(a),
+        });
+
+        expect(attributions).toEqual([
+          { model: 'openrouter/auto', routedModel: 'google/gemini-2.5-flash', fromCache: false },
+        ]);
+      });
+
       it('should call vision API and cache result on cache miss', async () => {
-        mockVisionCacheGet.mockResolvedValue(null); // Cache miss
+        mockVisionCacheGetCanonical.mockResolvedValue(null); // Cache miss
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
@@ -1008,7 +1072,7 @@ describe('VisionProcessor', () => {
         expect(result).toBe('Mocked image description');
         // gpt-4o has vision here (mock → true), so it IS the used model; the cache
         // keys (read + write) are namespaced by it.
-        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+        expect(mockVisionCacheGetCanonical).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           model: 'gpt-4o',
@@ -1021,7 +1085,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should not cache on vision API error', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockRejectedValue(new Error('Vision API error'));
 
@@ -1035,7 +1099,7 @@ describe('VisionProcessor', () => {
         );
 
         // Should have checked cache (namespaced by the gpt-4o vision model)
-        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+        expect(mockVisionCacheGetCanonical).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           model: 'gpt-4o',
@@ -1195,7 +1259,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should check failure cache after success cache miss', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockVisionCacheGetFailure.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
@@ -1206,7 +1270,7 @@ describe('VisionProcessor', () => {
 
         await describeImage(mockAttachment, personality);
 
-        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+        expect(mockVisionCacheGetCanonical).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           model: 'gpt-4o',
@@ -1220,7 +1284,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should store failure in negative cache on vision API error', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockVisionCacheGetFailure.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockRejectedValue(new Error('Vision API error'));
@@ -1243,7 +1307,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should store permanent failure for authentication errors', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockVisionCacheGetFailure.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockRejectedValue(new Error('Invalid API key'));
@@ -1273,7 +1337,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should store permanent failure for content policy violations', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockVisionCacheGetFailure.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockRejectedValue(new Error('Content policy violation'));
@@ -1305,7 +1369,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should store transient failure for timeout errors', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockVisionCacheGetFailure.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockRejectedValue(new Error('Request timed out'));
@@ -1337,7 +1401,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should store transient failure for rate limit errors', async () => {
-        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetCanonical.mockResolvedValue(null);
         mockVisionCacheGetFailure.mockResolvedValue(null);
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockRejectedValue(new Error('Rate limit exceeded'));
@@ -1369,7 +1433,10 @@ describe('VisionProcessor', () => {
       });
 
       it('should skip failure cache when success cache hits', async () => {
-        mockVisionCacheGet.mockResolvedValue('Cached description');
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: 'Cached description',
+          model: 'test-model',
+        });
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
@@ -1472,7 +1539,10 @@ describe('VisionProcessor', () => {
       });
 
       it('should still use positive cache even with skipNegativeCache', async () => {
-        mockVisionCacheGet.mockResolvedValue('Cached description');
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: 'Cached description',
+          model: 'test-model',
+        });
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
@@ -1691,9 +1761,10 @@ describe('VisionProcessor', () => {
 
     describe('cached description quality validation', () => {
       it('should reject cached error-like descriptions and re-process', async () => {
-        mockVisionCacheGet.mockResolvedValue(
-          'I cannot access the image at the provided URL because it has expired.'
-        );
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: 'I cannot access the image at the provided URL because it has expired.',
+          model: 'test-model',
+        });
         mockCheckModelVisionSupport.mockResolvedValue(true);
         mockModelInvoke.mockResolvedValue({
           content: 'A landscape photo showing mountains and a lake.',
@@ -1712,7 +1783,10 @@ describe('VisionProcessor', () => {
       });
 
       it('should reject cached descriptions with URL error patterns', async () => {
-        mockVisionCacheGet.mockResolvedValue('The image URL is invalid or has expired.');
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: 'The image URL is invalid or has expired.',
+          model: 'test-model',
+        });
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
@@ -1727,7 +1801,7 @@ describe('VisionProcessor', () => {
       });
 
       it('should reject very short cached descriptions', async () => {
-        mockVisionCacheGet.mockResolvedValue('N/A');
+        mockVisionCacheGetCanonical.mockResolvedValue({ description: 'N/A', model: 'test-model' });
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
@@ -1742,9 +1816,11 @@ describe('VisionProcessor', () => {
       });
 
       it('should accept valid cached descriptions', async () => {
-        mockVisionCacheGet.mockResolvedValue(
-          'A photograph of a sunset over the ocean with vibrant orange and pink clouds.'
-        );
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description:
+            'A photograph of a sunset over the ocean with vibrant orange and pink clouds.',
+          model: 'test-model',
+        });
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
@@ -1771,7 +1847,7 @@ describe('VisionProcessor', () => {
         ];
 
         for (const description of legitimateDescriptions) {
-          mockVisionCacheGet.mockResolvedValue(description);
+          mockVisionCacheGetCanonical.mockResolvedValue({ description, model: 'test-model' });
           mockModelInvoke.mockClear();
 
           const personality = createMockPersonality({
@@ -1789,7 +1865,10 @@ describe('VisionProcessor', () => {
 
     describe('skipCache option', () => {
       it('should bypass positive cache when skipCache is true', async () => {
-        mockVisionCacheGet.mockResolvedValue('Previously cached description that is long enough');
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: 'Previously cached description that is long enough',
+          model: 'test-model',
+        });
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
@@ -1802,7 +1881,7 @@ describe('VisionProcessor', () => {
         });
 
         // Should NOT check positive cache
-        expect(mockVisionCacheGet).not.toHaveBeenCalled();
+        expect(mockVisionCacheGetCanonical).not.toHaveBeenCalled();
         // Should call vision API directly
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(result).toBe('Mocked image description');
@@ -1829,7 +1908,10 @@ describe('VisionProcessor', () => {
       });
 
       it('should bypass both caches when both skip options are true', async () => {
-        mockVisionCacheGet.mockResolvedValue('Previously cached valid description');
+        mockVisionCacheGetCanonical.mockResolvedValue({
+          description: 'Previously cached valid description',
+          model: 'test-model',
+        });
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
           cachedAt: '2026-04-28T18:22:42.000Z',
@@ -1849,7 +1931,7 @@ describe('VisionProcessor', () => {
         // Positive cache is fully bypassed (skipCache); the negative cache is still
         // CHECKED (always), but the cached failure here is TRANSIENT (rate_limit) so the
         // skip path doesn't honor it — we re-attempt the vision API.
-        expect(mockVisionCacheGet).not.toHaveBeenCalled();
+        expect(mockVisionCacheGetCanonical).not.toHaveBeenCalled();
         expect(mockVisionCacheGetFailure).toHaveBeenCalled();
         // Should call vision API directly
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);

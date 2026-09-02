@@ -132,6 +132,7 @@ vi.mock('../redis.js', () => ({
     isInflight: vi.fn().mockResolvedValue(false),
     releaseInflight: vi.fn().mockResolvedValue(undefined),
     get: vi.fn().mockResolvedValue(null),
+    getCanonical: vi.fn().mockResolvedValue(null),
   },
   checkModelReasoningSupport: vi.fn().mockResolvedValue(true),
   checkModelContextLength: vi.fn().mockResolvedValue(null),

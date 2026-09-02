@@ -223,7 +223,8 @@ async function processSingleImage(options: ProcessSingleImageOptions): Promise<I
   if (visionAuth !== undefined) {
     // The loop never throws — it returns a description or a placeholder — so there's no
     // withRetry (the tier walk IS the retry) and no catch: a placeholder is a valid result.
-    const description = await describeImageWithFallback(attachment, personality, visionAuth, {
+    // Attribution is not needed on this job's output — not threaded further.
+    const { description } = await describeImageWithFallback(attachment, personality, visionAuth, {
       loggingContext,
     });
     return { url: attachment.url, description, success: true };

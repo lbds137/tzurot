@@ -142,13 +142,14 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
       { content: 'a scenic mountain at dusk' },
     ]);
 
-    const description = await describeImageWithFallback(
+    const { description, attribution } = await describeImageWithFallback(
       attachment,
       personality,
       makeAuthOptions(personality)
     );
 
     expect(description).toBe('a scenic mountain at dusk');
+    expect(attribution).toEqual({ model: 'itest/tier-two', fromCache: false });
     expect(generate).toHaveBeenCalledTimes(2);
 
     // The negative-cache entry is keyed by (model, attachment) in REAL Redis —
@@ -191,7 +192,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
       personality,
       makeAuthOptions(personality)
     );
-    expect(firstPass).toBe('first-pass description');
+    expect(firstPass.description).toBe('first-pass description');
 
     // The winning tier's description landed in the positive cache under the
     // tier-2 model key (this is what makes the second pass free).
@@ -206,13 +207,15 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     // negative entry (no LLM call), tier 2 serves from the positive cache
     // (no LLM call) — the whole request costs zero LLM calls.
     const generate = scriptModelInvocations([{ content: 'should never be called' }]);
-    const description = await describeImageWithFallback(
+    const { description, attribution } = await describeImageWithFallback(
       attachment,
       personality,
       makeAuthOptions(personality)
     );
 
     expect(description).toBe('first-pass description');
+    // The cache-hit path names the CACHED entry's producer as the attribution.
+    expect(attribution).toEqual({ model: 'itest/tier-two', fromCache: true });
     expect(generate).not.toHaveBeenCalled();
   });
 
@@ -223,7 +226,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
       { reject: new Error('Image rejected: content policy violation — flagged content') },
     ]);
 
-    const description = await describeImageWithFallback(
+    const { description, attribution } = await describeImageWithFallback(
       attachment,
       personality,
       makeAuthOptions(personality)
@@ -233,6 +236,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     // loop must NOT spend tier-2/floor calls.
     expect(generate).toHaveBeenCalledTimes(1);
     expect(description.startsWith('[Image')).toBe(true);
+    expect(attribution).toBeNull();
   });
 });
 
