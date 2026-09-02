@@ -22,6 +22,10 @@
 
 set -uo pipefail
 
+# A missing lib fails OPEN (the review-body injection still runs; only the
+# added-comment claim scan needs the regex, and it degrades to no matches).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/claim-shapes.sh" || exit 0
+
 INPUT=$(cat)
 TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT" 2>/dev/null || echo "")
 COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "")
@@ -1125,7 +1129,7 @@ PR_DIFF=$(gh pr diff "$PR_NUM" 2>/dev/null || echo "")
 # bullet. Each costs or saves one banner paragraph, never a block.
 CLAIM_ALL=$(grep -E '^\+[^+]' <<<"$PR_DIFF" |
     grep -E "^\+[[:space:]]*(//|\*|/\*|#|\"\"\"|''')" |
-    grep -iE '\balways\b|\bnever\b|\bcannot\b|\bguaranteed\b|\bonly (place|path|caller|writer|reader)\b|\bcomes? from\b|\bderived from\b|\bpopulated (by|from)\b|\bread from\b|\bwritten (only )?by\b|\b(both|all|the) [0-9]+ |\b[0-9]+ (call sites?|tests?|files?|instances?|copies|callers?|places)\b' || true)
+    grep -iE "$CLAIM_SHAPE_CORE_REGEX" || true)
 
 # Count the FULL match set, THEN cap what gets displayed. Counting after the cap
 # would make every total above the cap report AS the cap — a silent truncation.

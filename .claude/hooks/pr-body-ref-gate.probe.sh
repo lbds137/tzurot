@@ -59,11 +59,43 @@ make_repo_no_tracker() {
   printf '%s' "$repo"
 }
 
-# Run the hook from inside $1's cwd with a Bash command $2.
+# Run the hook from inside $1's cwd with a Bash command $2. Every call gets
+# its OWN claim-scan ack path under $TMPDIR_PROBE (a fresh sequence number
+# per call) so this probe never reads or writes the real
+# /tmp/.claude_pr_body_claim_ack.<uid> file — the same "leak guard" intent as
+# pr-merge-review-check.probe.sh's own ack-file isolation.
+CLAIM_ACK_SEQ=0
 run_hook() {
   local repo="$1"
   local cmd="$2"
-  OUT=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && "$HOOK") 2>&1)
+  CLAIM_ACK_SEQ=$((CLAIM_ACK_SEQ + 1))
+  local ack_file="$TMPDIR_PROBE/claim-ack-seq-$CLAIM_ACK_SEQ"
+  OUT=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && PR_BODY_CLAIM_ACK_FILE="$ack_file" "$HOOK") 2>&1)
+  RC=$?
+}
+
+# Like run_hook, but reuses a caller-provided claim-ack path so a retry case
+# can prove the SAME body is acked across two calls (run_hook's per-call
+# sequence number would otherwise give each call a fresh, never-acked file).
+run_hook_fixed_ack() { # $1=ack_file $2=repo $3=cmd
+  local ack_file="$1"
+  local repo="$2"
+  local cmd="$3"
+  OUT=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && PR_BODY_CLAIM_ACK_FILE="$ack_file" "$HOOK") 2>&1)
+  RC=$?
+}
+
+# Like run_hook, but prepends $1 onto PATH for just the hook invocation — used
+# to shim out a binary (e.g. sha256sum) for exactly one call without touching
+# the real PATH for jq, which runs OUTSIDE the subshell in this pipeline.
+CLAIM_ACK_SEQ_PATH=0
+run_hook_with_path() { # $1=path_prefix $2=repo $3=cmd
+  local path_prefix="$1"
+  local repo="$2"
+  local cmd="$3"
+  CLAIM_ACK_SEQ_PATH=$((CLAIM_ACK_SEQ_PATH + 1))
+  local ack_file="$TMPDIR_PROBE/claim-ack-path-seq-$CLAIM_ACK_SEQ_PATH"
+  OUT=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && PATH="$path_prefix:$PATH" PR_BODY_CLAIM_ACK_FILE="$ack_file" "$HOOK") 2>&1)
   RC=$?
 }
 
@@ -108,8 +140,12 @@ run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE"
 assert_blocks "--body-file unresolved ref blocks" "task-99999"
 
 # ---- Case 5: --body-file with resolving ref → pass --------------------------
+# Rule 2 also flags a bare `Closes TASK-N` line, so this fixture carries an
+# `## Acceptance` heading — the closing-reference narrowing's exemption —
+# to keep testing what it was written for: rule 1's resolve-path, not
+# rule 2's claim scan (that gets its own cases (d)/(e) below).
 BODY_FILE2="$TMPDIR_PROBE/body-resolved.txt"
-echo "Closes TASK-100" >"$BODY_FILE2"
+printf 'Closes TASK-100\n\n## Acceptance\n- done\n' >"$BODY_FILE2"
 run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE2"
 assert_pass "--body-file resolving ref passes"
 
@@ -129,7 +165,7 @@ cat >"$SHIM_DIR/git" <<'EOF'
 exit 1
 EOF
 chmod +x "$SHIM_DIR/git"
-OUT=$(jq -n --arg c 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up."' '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$REPO" && PATH="$SHIM_DIR:$PATH" "$HOOK") 2>&1)
+OUT=$(jq -n --arg c 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up."' '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$REPO" && PATH="$SHIM_DIR:$PATH" PR_BODY_CLAIM_ACK_FILE="$TMPDIR_PROBE/claim-ack-brokengit" "$HOOK") 2>&1)
 RC=$?
 assert_pass "broken git fails open"
 
@@ -138,7 +174,9 @@ run_hook "$REPO" 'gh pr create --base develop --title "feat: x" --body "Adds a t
 assert_pass "no refs passes"
 
 # ---- Case 10: archived task resolves → pass ----------------------------------
-run_hook "$REPO" 'gh pr create --body "Closes TASK-112."'
+# Carries a backticked path cite so rule 2's claim scan does not flag the
+# bare `Closes TASK-112` line this case is not testing.
+run_hook "$REPO" 'gh pr create --body "Closes TASK-112 (see `tracker/archive/tasks/task-112 - Archived Task.md`)."'
 assert_pass "archived TASK-112 resolves"
 
 # ---- Case 11: pnpm ops gh:pr-edit variant → block ----------------------------
@@ -224,5 +262,216 @@ assert_blocks "fifth chained id is still checked" "task-99999"
 # ---- Case 25: colon after the verb (GitHub `Closes: TASK-N` convention) -----
 run_hook "$REPO" 'gh pr create --body "Closes: TASK-99999"'
 assert_blocks "colon-suffixed claim verb still matches" "task-99999"
+
+# ============================================================================
+# Rule 2 (claim-shape scan) cases (a)-(h)
+# ============================================================================
+
+# ---- Case a: uncited count claim blocks, then an identical retry passes ----
+ACK_A="$TMPDIR_PROBE/claim-ack-case-a"
+BODY_FILE_A="$TMPDIR_PROBE/body-claim-count.txt"
+echo "This fixes all 4 call sites." >"$BODY_FILE_A"
+run_hook_fixed_ack "$ACK_A" "$REPO" "gh pr create --base develop --body-file $BODY_FILE_A"
+assert_blocks "uncited count line blocks (rule 2)" "all 4 call sites"
+run_hook_fixed_ack "$ACK_A" "$REPO" "gh pr create --base develop --body-file $BODY_FILE_A"
+assert_pass "identical retry with the same ack file passes"
+
+# ---- Case b: the same count claim, cited with a backticked grep → pass -----
+BODY_FILE_B="$TMPDIR_PROBE/body-claim-count-cited.txt"
+echo 'This fixes all 4 call sites (see `grep -rn fooBar src/`).' >"$BODY_FILE_B"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_B"
+assert_pass "count line cited with a backticked grep passes on first try"
+
+# ---- Case c: a hedged claim line passes ------------------------------------
+BODY_FILE_C="$TMPDIR_PROBE/body-claim-hedged.txt"
+echo "This updates every caller — not verified." >"$BODY_FILE_C"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_C"
+assert_pass "hedged claim line passes"
+
+# ---- Case d: closing reference to a RESOLVING task, no Acceptance heading --
+# Rule 1 passes (TASK-100 resolves); rule 2 fires on the bare closing claim.
+BODY_FILE_D="$TMPDIR_PROBE/body-claim-closes-no-accept.txt"
+echo "Closes TASK-100." >"$BODY_FILE_D"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_D"
+assert_blocks "closing reference with no Acceptance heading blocks (rule 2)" "Closes TASK-100."
+
+# ---- Case e: same body plus an Acceptance heading → pass -------------------
+BODY_FILE_E="$TMPDIR_PROBE/body-claim-closes-with-accept.txt"
+printf 'Closes TASK-100.\n\n## Acceptance\n- done\n' >"$BODY_FILE_E"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_E"
+assert_pass "closing reference exempted by an Acceptance heading"
+
+# ---- Case f: gh api PATCH form with an uncited claim blocks ----------------
+BODY_FILE_F="$TMPDIR_PROBE/body-claim-patch.txt"
+echo "This is guaranteed to work." >"$BODY_FILE_F"
+run_hook "$REPO" "gh api -X PATCH repos/o/r/pulls/12 -F body=@$BODY_FILE_F"
+assert_blocks "gh api PATCH form with an uncited claim blocks" "guaranteed"
+
+# ---- Case g: a claim inside a fenced code block is skipped -----------------
+BODY_FILE_G="$TMPDIR_PROBE/body-claim-fenced.txt"
+printf '```\nThis is guaranteed to always work.\n```\n' >"$BODY_FILE_G"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_G"
+assert_pass "claim inside a fenced code block is skipped"
+
+# ---- Case h: an unwritable claim-ack file fails open -----------------------
+# `chmod 500` does not make a directory unwritable for root (root ignores
+# directory write permission bits), so this case has no meaningful assertion
+# to run under a root runner — skip it there rather than asserting a
+# guarantee the fixture can't actually produce.
+if [ "$(id -u)" -eq 0 ]; then
+  echo "skip: unwritable-ack case needs a non-root runner"
+else
+  NO_WRITE_DIR="$TMPDIR_PROBE/no-write-dir"
+  mkdir -p "$NO_WRITE_DIR"
+  chmod 500 "$NO_WRITE_DIR"
+  BODY_FILE_H="$TMPDIR_PROBE/body-claim-unwritable.txt"
+  echo "This is guaranteed to work." >"$BODY_FILE_H"
+  OUT=$(jq -n --arg c "gh pr create --base develop --body-file $BODY_FILE_H" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$REPO" && PR_BODY_CLAIM_ACK_FILE="$NO_WRITE_DIR/ack" "$HOOK") 2>&1)
+  RC=$?
+  assert_pass "unwritable claim-ack file fails open"
+  if [[ "$OUT" != *"failing open"* ]]; then
+    echo "FAIL: expected a fail-open message on stderr"
+    printf '     got: %s\n' "$OUT"
+    fail=1
+  else
+    echo "ok: fail-open message present on stderr"
+  fi
+  chmod 700 "$NO_WRITE_DIR" 2>/dev/null || true
+fi
+
+# ---- Case i: colon-suffixed closing reference, no Acceptance heading ------
+BODY_FILE_I2="$TMPDIR_PROBE/body-claim-colon-closes-no-accept.txt"
+echo "Closes: TASK-100." >"$BODY_FILE_I2"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_I2"
+assert_blocks "colon-suffixed closing reference with no Acceptance heading blocks (rule 2)" "Closes: TASK-100."
+
+# ---- Case j: colon-suffixed closing reference, with Acceptance heading ----
+BODY_FILE_J="$TMPDIR_PROBE/body-claim-colon-closes-with-accept.txt"
+printf 'Closes: TASK-100.\n\n## Acceptance\n- done\n' >"$BODY_FILE_J"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_J"
+assert_pass "colon-suffixed closing reference exempted by an Acceptance heading"
+
+# ---- Case k: gh api PATCH form's lowercase -f body=@path is a LITERAL -----
+# `-f`/`--raw-field` sends a literal string, so the body scanned is the text
+# `@<path>`, which carries no claim; the file itself is never read. The
+# fixture file still holds a claim so this case genuinely proves the file is
+# not read (a false pass here would hide behind an empty fixture).
+BODY_FILE_K="$TMPDIR_PROBE/body-claim-patch-lowercase-f.txt"
+echo "This is guaranteed to work." >"$BODY_FILE_K"
+run_hook "$REPO" "gh api -X PATCH repos/o/r/pulls/12 -f body=@$BODY_FILE_K"
+assert_pass "gh api PATCH form's lowercase -f body=@path is a literal string, not a file ref"
+
+# ---- Case k2: gh api PATCH form's -f body=<text> is an inline raw field ---
+# An inline raw-field string still reaches rule 2.
+run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/12 -f body="all 4 call sites"'
+assert_blocks "gh api PATCH form's -f body=<text> reaches rule 2" "all 4 call sites"
+
+# ---- Case l: a nested blockquote line is skipped ---------------------------
+BODY_FILE_L="$TMPDIR_PROBE/body-claim-nested-quote.txt"
+echo ">> all 4 call sites" >"$BODY_FILE_L"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_L"
+assert_pass "nested blockquote line is skipped"
+
+# ---- Case m: an Acceptance heading inside a fenced block does not count ----
+# The heading lives inside a fence, so has_acceptance must stay 0 — the bare
+# closing reference after the fence is then unexempted and blocks.
+BODY_FILE_M="$TMPDIR_PROBE/body-claim-fenced-acceptance.txt"
+printf '```\n## Acceptance\n```\nCloses TASK-100\n' >"$BODY_FILE_M"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_M"
+assert_blocks "fenced Acceptance heading does not exempt the closing reference" "Closes TASK-100"
+
+# ---- Case n: `gh pr edit --body-file` pins rule-2 coverage for that family -
+# The `gh api` family is already covered above (case f); this pins `gh pr
+# edit --body-file`.
+BODY_FILE_N="$TMPDIR_PROBE/body-claim-pr-edit-file.txt"
+echo "This fixes all 4 call sites." >"$BODY_FILE_N"
+run_hook "$REPO" "gh pr edit 12 --body-file $BODY_FILE_N"
+assert_blocks "gh pr edit --body-file uncited claim blocks (rule 2)" "all 4 call sites"
+
+# ---- Case o: `pnpm ops gh:pr-edit --body-file` pins rule-2 coverage --------
+BODY_FILE_O="$TMPDIR_PROBE/body-claim-ops-pr-edit-file.txt"
+echo "This fixes all 4 call sites." >"$BODY_FILE_O"
+run_hook "$REPO" "pnpm ops gh:pr-edit 12 --body-file $BODY_FILE_O"
+assert_blocks "pnpm ops gh:pr-edit --body-file uncited claim blocks (rule 2)" "all 4 call sites"
+
+# ---- Case p: an INDENTED Acceptance heading still exempts a closing ref ----
+# Mirrors the main loop's own leading-whitespace-tolerant heading skip.
+BODY_FILE_P="$TMPDIR_PROBE/body-claim-indented-acceptance.txt"
+printf 'Closes TASK-100.\n\n  ## Acceptance\n- done\n' >"$BODY_FILE_P"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_P"
+assert_pass "indented Acceptance heading still exempts the closing reference"
+
+# ============================================================================
+# Rule 2 correction cases (i)-(iii): rule 2 scans ONLY the parsed PR body
+# text (extract_pr_body), never the raw command string; and a heading line
+# is a section label, not a claim.
+# ============================================================================
+
+# ---- Case i: a claim word in --title does not reach rule 2 (correction 1) --
+BODY_FILE_I="$TMPDIR_PROBE/body-claim-title-only.txt"
+echo "This is a clean description." >"$BODY_FILE_I"
+run_hook "$REPO" "gh pr create --base develop --title \"fix: never retry on 4xx\" --body-file $BODY_FILE_I"
+assert_pass "title-only claim word (never) does not reach rule 2"
+
+# ---- Case ii: a bare 'verified' HEADING is not a claim (correction 2) ------
+BODY_FILE_II="$TMPDIR_PROBE/body-claim-heading-only.txt"
+printf 'Some intro line.\n\n## Verified, and how\n\nThis is normal text.\n' >"$BODY_FILE_II"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_II"
+assert_pass "verified-only heading line is not a claim (rule 2)"
+
+# ---- Case iii: an inline --body (no --body-file) still reaches rule 2 -----
+ACK_III="$TMPDIR_PROBE/claim-ack-case-iii"
+run_hook_fixed_ack "$ACK_III" "$REPO" 'gh pr create --base develop --body "all 4 call sites"'
+assert_blocks "inline --body claim reaches rule 2" "all 4 call sites"
+run_hook_fixed_ack "$ACK_III" "$REPO" 'gh pr create --base develop --body "all 4 call sites"'
+assert_pass "identical inline-body retry with the same ack file passes"
+
+# ---- Case q: gh api PATCH form's uppercase -F body="text" is inline text --
+# `-F`/`--field` sends a literal string unless the value starts with `@`; a
+# quoted, non-`@` value reaches rule 2 the same as `-f`.
+run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/12 -F body="all 4 call sites"'
+assert_blocks "-F body= literal on the PATCH form reaches rule 2" "all 4 call sites"
+
+# ---- Case r: a lowercase '## acceptance' heading still exempts a closing ref
+BODY_FILE_R="$TMPDIR_PROBE/body-claim-lowercase-acceptance.txt"
+printf 'Closes TASK-100.\n\n## acceptance\n- done\n' >"$BODY_FILE_R"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_R"
+assert_pass "lowercase acceptance heading exempts the closing reference"
+
+# ---- Case s: a backticked yarn command counts as a cite --------------------
+# The command itself carries no `/` or `:`, so only the widened command
+# alternative — not the path alternative — exempts this line.
+BODY_FILE_S="$TMPDIR_PROBE/body-claim-yarn-cite.txt"
+printf 'All 4 call sites updated; `yarn test` passes.\n' >"$BODY_FILE_S"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_S"
+assert_pass "backticked yarn command counts as a cite"
+
+# ---- Case t: -XPATCH concatenated form reaches rule 2 ----------------------
+run_hook "$REPO" 'gh api -XPATCH repos/o/r/pulls/12 -F body="all 4 call sites"'
+assert_blocks "-XPATCH concatenated form reaches rule 2" "all 4 call sites"
+
+# ---- Case u: --field body= spelling reaches rule 2 --------------------------
+run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/12 --field body="all 4 call sites"'
+assert_blocks "--field body= on the PATCH form reaches rule 2" "all 4 call sites"
+
+# ---- Case v: a claim inside an INDENTED fenced block is skipped ------------
+# Mirrors case g, but the fence markers themselves are indented under a list
+# item — the fence toggle must key off the line with leading whitespace
+# stripped, not the raw line, or the fence never closes and the claim inside
+# it is scanned.
+BODY_FILE_V="$TMPDIR_PROBE/body-claim-indented-fence.txt"
+printf '  ```\n  all 4 call sites\n  ```\n' >"$BODY_FILE_V"
+run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_V"
+assert_pass "claim inside an indented fenced block is skipped"
+
+# ---- Case w: claim scan fails open when sha256sum is unavailable ----------
+# Without a hash there is no ack key, so the scan fails open rather than
+# sharing one key across every body for the rest of the day.
+SHA_SHIM_DIR="$TMPDIR_PROBE/sha-shim"
+mkdir -p "$SHA_SHIM_DIR"
+printf '#!/bin/bash\nexit 127\n' >"$SHA_SHIM_DIR/sha256sum"
+chmod +x "$SHA_SHIM_DIR/sha256sum"
+run_hook_with_path "$SHA_SHIM_DIR" "$REPO" 'gh pr create --base develop --body "all 4 call sites"'
+assert_pass "claim scan fails open when sha256sum is unavailable"
 
 exit $fail

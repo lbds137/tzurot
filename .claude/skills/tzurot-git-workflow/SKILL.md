@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-23'
+lastUpdated: '2026-09-02'
 ---
 
 # Git Workflow Procedures
@@ -92,6 +92,9 @@ contradicts. If any clause is unmet, the PR says **partial** and names the task
 that carries the remainder — `00-critical.md` § Completion claims required the
 re-read already and was cited back by a reviewer on a PR that skipped it, so
 what this adds is the moment, not the standard.
+`.claude/hooks/pr-body-ref-gate.sh`'s claim scan backstops this: it blocks a
+PR create/body edit once, naming any claim-shaped body line that carries no
+cite and no hedge.
 
 The same check applies to any exhaustiveness claim in the body ("every call
 site", "all N modules", "the whole module"): name the enumeration command whose
