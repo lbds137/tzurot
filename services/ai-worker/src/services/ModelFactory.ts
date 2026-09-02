@@ -364,18 +364,25 @@ function getEffectiveMaxTokens(
  * `appTitleSuffix` appends to the X-Title attribution header so background
  * workloads (e.g. fact extraction) show as a distinct app in the OpenRouter
  * dashboard instead of blending into chat-completion traffic.
+ *
+ * The custom fetch is attached for EVERY OpenRouter client, not just configs
+ * carrying request-side extras: its response-side recovery (400-content
+ * recovery, 200-with-error-body surfacing) applies to every OpenRouter call,
+ * including vision calls that never carry transforms/route/verbosity or a
+ * reasoning config. Request-side param injection stays gated inside the fetch
+ * on a non-empty `extraParams`, so an empty one is a no-op on the request.
  */
 function buildOpenRouterClientConfig(
   extraParams: OpenRouterExtraParams,
-  needsCustomFetch: boolean,
   appTitleSuffix?: string
-): { baseURL: string; defaultHeaders?: Record<string, string>; fetch?: typeof fetch } {
+): { baseURL: string; defaultHeaders?: Record<string, string>; fetch: typeof fetch } {
   const clientConfig: {
     baseURL: string;
     defaultHeaders?: Record<string, string>;
-    fetch?: typeof fetch;
+    fetch: typeof fetch;
   } = {
     baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
+    fetch: createOpenRouterFetch(extraParams),
   };
 
   // OpenRouter app attribution requires both HTTP-Referer and X-Title headers.
@@ -402,10 +409,6 @@ function buildOpenRouterClientConfig(
 
   if (Object.keys(headers).length > 0) {
     clientConfig.defaultHeaders = headers;
-  }
-
-  if (needsCustomFetch) {
-    clientConfig.fetch = createOpenRouterFetch(extraParams);
   }
 
   return clientConfig;
@@ -442,7 +445,6 @@ function buildOpenRouterModel(
   const hasExtraParams = Object.keys(extraParams).length > 0;
   const hasReasoning =
     modelConfig.thinking !== undefined && modelConfig.supportsReasoning !== false;
-  const needsCustomFetch = hasExtraParams || hasReasoning;
 
   logger.debug(
     {
@@ -456,7 +458,6 @@ function buildOpenRouterModel(
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
       extraParams: hasExtraParams ? extraParams : undefined,
       reasoningEnabled: hasReasoning,
-      customFetch: needsCustomFetch,
     },
     'Creating model'
   );
@@ -479,11 +480,7 @@ function buildOpenRouterModel(
       // ladder owns retries; a 429 must surface to it immediately.
       maxRetries: 0,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
-      configuration: buildOpenRouterClientConfig(
-        extraParams,
-        needsCustomFetch,
-        modelConfig.appTitleSuffix
-      ),
+      configuration: buildOpenRouterClientConfig(extraParams, modelConfig.appTitleSuffix),
       // Surfaces the raw OpenRouter response under additional_kwargs.__raw_response,
       // which extractAndPopulateOpenRouterReasoning() in LLMInvoker reads to populate
       // additional_kwargs.reasoning + response_metadata.reasoning_details. This
