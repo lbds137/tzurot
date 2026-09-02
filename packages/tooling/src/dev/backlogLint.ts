@@ -40,7 +40,7 @@
  * Run via `pnpm ops backlog`. Exits non-zero on a structural problem so it can
  * gate in `pnpm quality` and CI. This is a binary "is the layout in sync?"
  * check, NOT an audit-class tool — no baseline / WHY.md / canary
- * (see `.claude/rules/05-tooling.md` on the audit-class criteria).
+ * (see `docs/reference/audit-enforcement.md` on the audit-class criteria).
  *
  * The aging-escalation surface (oldest open tasks) lives in the digest
  * (`pnpm ops backlog:digest`), which is read at session start — an

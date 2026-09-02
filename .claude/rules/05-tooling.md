@@ -29,145 +29,100 @@ Code. Run sequentially: `pnpm test && pnpm quality`.
 
 ## Ops CLI (`pnpm ops`)
 
+**Every command, with its flags and examples:
+[`OPS_CLI_REFERENCE.md`](../../docs/reference/tooling/OPS_CLI_REFERENCE.md).**
+`pnpm ops guard:ops-doc` fails CI when a registered command has no row there,
+so the reference cannot lag the CLI. This section keeps only the
+decision-point triggers — when to reach for a command, and what never to do
+with one.
+
 ### Database
 
-```bash
-pnpm ops db:status --env dev          # Check migration status
-pnpm ops db:migrate --env dev         # Apply pending migrations
-pnpm ops db:safe-migrate --name <n>   # Create migration with drift sanitization
-pnpm ops db:inspect                   # Inspect tables/indexes (local)
-pnpm ops db:check-drift               # Check for migration drift
-```
-
-**`db:safe-migrate` requires `--name` in non-TTY environments (AI assistants, CI).**
+`pnpm ops db:safe-migrate` requires `--name` in non-TTY environments (AI
+assistants, CI). **Migration timing:** prod — `pnpm ops release:premigrate`
+BEFORE merging the release PR; dev — `pnpm ops db:migrate --env dev` promptly
+after the push. Details: `03-database.md` § Deployment. Destructive migrations
+need maintenance mode (`pnpm ops maintenance on|off|status --env prod`) —
+sequence in `/tzurot-deployment`.
 
 ### GitHub (Use instead of broken `gh pr edit`)
 
-```bash
-pnpm ops gh:pr-info 478              # Get PR title, body, state
-pnpm ops gh:pr-reviews 478           # Get all reviews
-pnpm ops gh:pr-comments 478          # Get line-level review comments
-pnpm ops gh:pr-edit 478 --title "..."  # Edit PR
-```
-
-### Deployment
-
-```bash
-pnpm ops deploy:setup-vars --env dev --dry-run  # Preview env var setup
-pnpm ops run --env dev <command>     # Run any command with Railway creds
-pnpm ops maintenance on|off|status --env prod   # Maintenance mode (destructive migrations) — sequence in /tzurot-deployment
-```
-
-**Migration timing:** prod — `pnpm ops release:premigrate` BEFORE merging the release PR; dev — `pnpm ops db:migrate --env dev` promptly after the push. Details: `03-database.md` § Deployment.
+`gh pr edit` is broken — use `pnpm ops gh:pr-edit`. The three read commands
+(`gh:pr-info`, `gh:pr-reviews`, `gh:pr-comments`) are the review-fetch step of
+§ PR Monitoring below, and `pnpm ops gh:ci-gate` is its wait step.
 
 ### Codebase Analysis (Xray)
 
-```bash
-pnpm ops xray                        # Full analysis (terminal)
-pnpm ops xray --summary              # File-level overview (no declarations)
-pnpm ops xray bot-client             # Single package
-pnpm ops xray --format md            # Markdown (for LLM consumption)
-pnpm ops xray --format json          # JSON (for tooling)
-pnpm ops xray --summary --output f   # Write summary to file
-pnpm ops xray --include-private      # Include non-exported declarations
-pnpm ops xray --include-tests        # Include test files
-pnpm ops xray --imports              # Include import analysis (auto for md/json)
-```
-
-**Use `--summary` for architectural overview.** Full mode lists every declaration.
+**Use `pnpm ops xray --summary` for an architectural overview** — full mode
+lists every declaration. `--format md` is the LLM-consumable form;
+`--suppressions` audits lint suppressions (`02-code-standards.md`).
 
 ### Mutation-Score Ratchet (Stryker)
 
-```bash
-pnpm --filter @tzurot/<pkg> test:mutation   # run Stryker for one tracked package (writes reports/mutation/<pkg>/)
-pnpm ops mutation:check --summary           # CI gate: per-package score >= baseline - graceMargin
-pnpm ops mutation:gate                      # CI skip gate: run=false when the diff can't move any tracked score (fail-open)
-pnpm ops mutation:update-baseline           # sanctioned refresh (needs a fresh LOCAL report for EVERY tracked package)
-```
-
-Tracked set: `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). On a genuine score drop, close the test gaps — never hand-edit the baseline. `ignoreStatic` stays OFF. Services are not per-PR viable (30-70min); don't re-attempt without new data. Adding a package: 4-step checklist in `packages/tooling/src/test/mutation-check.WHY.md` § Onboarding.
+`pnpm --filter @tzurot/<pkg> test:mutation` runs Stryker for one tracked
+package; `pnpm ops mutation:check --summary` is the CI gate;
+`pnpm ops mutation:update-baseline` is the only sanctioned refresh and needs a
+fresh LOCAL report for EVERY tracked package. Tracked set: `MUTATED_PACKAGES`
+(`packages/tooling/src/test/mutation-check.ts`). On a genuine score drop,
+close the test gaps — never hand-edit the baseline. `ignoreStatic` stays OFF.
+Services are not per-PR viable (30-70min); don't re-attempt without new data.
+Adding a package: 4-step checklist in
+`packages/tooling/src/test/mutation-check.WHY.md` § Onboarding.
 
 ### Secret Rotation
 
-```bash
-pnpm ops secrets:rotation-status --env prod       # ledger + overdue state
-pnpm ops secrets:mark-rotated <name> --env prod   # stamp a manual rotation
-pnpm ops secrets:rotate-byok --env prod --stage 1 # staged BYOK key rotation (1=stage, 2=reencrypt, 3=finalize)
-```
-
-Never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable — always the staged command (dual-key window in `common-types/utils/encryption.ts`). Intervals: BYOK 180d, others 365d; a daily bot-client check nags the owner channel when one lapses.
+Never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable — always
+the staged command, `pnpm ops secrets:rotate-byok --env prod --stage 1|2|3`
+(stage, reencrypt, finalize; dual-key window in
+`common-types/utils/encryption.ts`). Intervals: BYOK 180d, others 365d; a
+daily bot-client check nags the owner channel when one lapses.
 
 ### Security Advisories
 
-```bash
-pnpm ops security:advisories            # open Dependabot advisories: severity + fix version + direct/transitive
-pnpm ops security:advisories --json     # machine-readable surface
-pnpm ops security:advisories --strict   # exit nonzero on an actionable (fix-available) high/critical
-```
-
-Flags each advisory **direct** (Dependabot auto-PRs the fix) vs **transitive-only** (needs a manual `pnpm.overrides` bump — no PR will ever appear). **Decision-point trigger:** the release security-preflight (`/tzurot-git-workflow` § Release) — ride any transitive-with-fix advisory into the release via an override. Degrades to "unavailable", never blocks.
+`pnpm ops security:advisories` flags each open Dependabot advisory **direct**
+(Dependabot auto-PRs the fix) vs **transitive-only** (needs a manual
+`pnpm.overrides` bump — no PR will ever appear). **Decision-point trigger:**
+the release security-preflight (`/tzurot-git-workflow` § Release) — ride any
+transitive-with-fix advisory into the release via an override. Degrades to
+"unavailable", never blocks.
 
 ### Test Audits
 
-```bash
-pnpm ops test:audit                  # Run coverage ratchet (CI)
-pnpm ops test:audit --update         # Update baseline + refresh meta block (run after closing coverage gaps)
-```
-
-Bump `TEST_AUDIT_IMPL_VERSION` (`packages/tooling/src/test/audit-version.ts`) whenever measurement-affecting logic changes; `--update` is the only sanctioned baseline refresh.
+`pnpm ops test:audit` is the coverage ratchet (CI); `--update` is the only
+sanctioned baseline refresh (run after closing coverage gaps). Bump
+`TEST_AUDIT_IMPL_VERSION` (`packages/tooling/src/test/audit-version.ts`)
+whenever measurement-affecting logic changes.
 
 ### CPD (Duplication Ratchet)
 
-```bash
-pnpm cpd                             # Run jscpd (writes reports/jscpd/jscpd-report.json)
-pnpm ops cpd:filtered                # Post-filter + breakdown (excludes call-dominant fragments)
-pnpm ops cpd:filtered --show-pairs 25  # Show top 25 remaining file pairs
-pnpm ops cpd:check                   # CI ratchet gate (drift-detected)
-pnpm ops cpd:update-baseline         # Refresh baseline + meta block
-pnpm ops cpd:update-baseline --dry-run  # Preview without writing
-```
-
-Bump `FILTER_IMPL_VERSION` (`packages/tooling/src/cpd/postFilter.ts`) when the call-dominance heuristic changes.
+Bump `FILTER_IMPL_VERSION` (`packages/tooling/src/cpd/postFilter.ts`) when
+the call-dominance heuristic changes. Raw vs. filtered, and when a clone trips
+the ratchet: `02-code-standards.md` § CPD.
 
 ### Guards (Structural enforcement)
-
-```bash
-pnpm ops guard:boundaries            # Service-boundary imports (bot-client/Prisma, etc.)
-pnpm ops guard:duplicate-exports     # Same name exported from multiple files
-pnpm ops guard:dockerfile-dist       # Dockerfile runner stages copy every runtime workspace dep's dist
-pnpm ops guard:proposal-links        # docs/proposals/backlog/*.md must have inbound link
-pnpm ops guard:audit-tool-docs       # Every registered audit tool has a non-stub WHY.md
-pnpm ops guard:workflow-sync         # claude workflow files must be byte-identical to origin/main
-pnpm ops guard:gate-parity           # pnpm-quality chain and CI lint job must not drift (allowlisted asymmetries excepted)
-pnpm ops guard:ops-doc               # every registered ops CLI command has a row in OPS_CLI_REFERENCE.md
-pnpm ops guard:hook-probes           # runs every .claude/hooks/*.probe.sh; every hook needs a probe or a written reason
-pnpm ops guard:commit-scope-sync     # commit-scope prose in this file / the git-workflow skill must match allScopes in commitlint.config.cjs
-pnpm ops lines:check                 # always-loaded surfaces (.claude/rules total, CURRENT.md) within their LINE and BYTE budgets
-pnpm ops lines:update-baseline       # make budget growth explicit (same --update contract as cpd/test:audit); --surface <name> scopes the write
-```
-
-`--breakdown` ranks every file worst-first by bytes — the trim order the `/tzurot-doc-audit` economy pass consumes. `--surface <name>` scopes a refresh; the unscoped write ratchets a trimmed surface DOWN and a grown one UP in the same commit.
 
 All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code-review.yml` and `claude.yml` — those must land via a **main-cut** branch (a develop-first change silently disables claude-review on every PR until the next release); it self-skips on main-cut branches, `--base main` overrides. Other workflow files (`ci.yml`) may land via develop like any code change.
 
 **After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. Local precondition: `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches — `git fetch origin develop:develop` if it fails on a fresh clone.
 
+`pnpm ops lines:check` keeps the always-loaded surfaces (`.claude/rules`
+total, `CURRENT.md`) within their LINE and BYTE budgets; `--breakdown` ranks
+every file worst-first by bytes — the trim order the `/tzurot-doc-audit`
+economy pass consumes. `pnpm ops lines:update-baseline` makes budget growth
+explicit (same `--update` contract as cpd/test:audit); `--surface <name>`
+scopes the write — the unscoped write ratchets a trimmed surface DOWN and a
+grown one UP in the same commit.
+
 ### Backlog lint + digest
 
-```bash
-pnpm ops backlog                     # Gate: structural checks over now.md, cross-references, and tracker task files
-pnpm backlog:lint                    # Same check (root-level shortcut)
-pnpm ops backlog:digest              # Session-start briefing from tracker/: per-area counts, owner queue, oldest 20, newest 10
-pnpm tracker task list --search <t> --plain   # Query the small-item pool (Backlog.md CLI)
-```
-
-Gate details and the triage axes live in `06-backlog.md`. The digest never gates — it's the session-start aging surface.
-
-**The check list is `backlogLint.ts`'s `problems` array, not this line** — read
-the array rather than trusting an enumeration here. `pnpm ops backlog` ALSO
-prints a **non-gating** warning naming any uncommitted file under `tracker/`
-(invisible to every query until committed); it never sets the exit code, so an
-uncommitted task file does not fail CI.
+`pnpm ops backlog` (also `pnpm backlog:lint`) gates structural checks over
+`now.md`, cross-references, and tracker task files; `pnpm ops backlog:digest`
+is the session-start briefing and never gates. Gate details and the triage
+axes live in `06-backlog.md`. **The check list is `backlogLint.ts`'s
+`problems` array, not any prose enumeration** — read the array. `pnpm ops
+backlog` ALSO prints a **non-gating** warning naming any uncommitted file
+under `tracker/` (invisible to every query until committed); it never sets
+the exit code, so an uncommitted task file does not fail CI.
 
 ### Audit-tool infrastructure (Layers 1-3)
 

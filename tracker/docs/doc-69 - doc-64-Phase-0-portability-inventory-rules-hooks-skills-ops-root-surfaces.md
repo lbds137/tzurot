@@ -123,9 +123,8 @@ Slice: every `##`-level section across `00-critical.md` through `10-working-post
 | 04-discord.md § Observability > Structured Logging | PORTABLE | general "structured fields, not string interpolation" discipline | |
 | 05-tooling.md § Essential Commands | PARAM | general concept (categorized dev/test/static-analysis/focused command groups) portable | actual command names |
 | 05-tooling.md § Resource Constraints (CRITICAL) | PARAM | general "don't run heavy suites in parallel on constrained hardware" ops lesson portable | which commands are "heavy," hardware description |
-| 05-tooling.md § Ops CLI > Database | BOUND | Tzurot's specific `pnpm ops db:*` commands | |
+| 05-tooling.md § Ops CLI > Database | BOUND | Tzurot's specific `pnpm ops db:*` commands plus the Railway migration-timing and maintenance-mode triggers (the former Deployment subsection, folded in) | |
 | 05-tooling.md § Ops CLI > GitHub | PARAM | pattern (wrap a broken vendor CLI subcommand with a custom one) portable | specific commands |
-| 05-tooling.md § Ops CLI > Deployment | BOUND | Railway-specific deploy/maintenance commands | |
 | 05-tooling.md § Ops CLI > Codebase Analysis (Xray) | PARAM | idea (LLM-consumable codebase declaration index, multiple output formats) is a portable capability | the home-grown xray tool itself |
 | 05-tooling.md § Ops CLI > Mutation-Score Ratchet (Stryker) | PARAM | general mechanism (mutation-testing gate with baseline ratchet, no static-baseline editing) portable | Stryker, tracked-package list |
 | 05-tooling.md § Ops CLI > Secret Rotation | PARAM | general mechanism (rotation ledger + staged dual-key rotation) portable | key names, rotation intervals |

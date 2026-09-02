@@ -104,5 +104,5 @@ sweep cannot prove completeness.
 
 ## Related
 
-- `.claude/rules/05-tooling.md` § Secret Rotation — the command surface and the ledger's role
+- `.claude/rules/05-tooling.md` § Secret Rotation — the staged-rotation constraint; the command surface (`secrets:rotation-status`, `secrets:mark-rotated`, `secrets:rotate-byok`) and the ledger's role live in [OPS_CLI_REFERENCE.md](../tooling/OPS_CLI_REFERENCE.md) § Secrets Commands
 - [Railway Operations](../deployment/RAILWAY_OPERATIONS.md)
