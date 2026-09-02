@@ -339,13 +339,13 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          configuration: {
-            baseURL: 'https://openrouter.ai/api/v1',
-          },
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { baseURL?: string; fetch?: unknown };
+      };
+      expect(callArgs?.configuration?.baseURL).toBe('https://openrouter.ai/api/v1');
+      // The custom fetch is always attached — its response-side recovery
+      // must run even for a config with no extras or reasoning.
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
     // ===================================
@@ -485,7 +485,7 @@ describe('ModelFactory', () => {
       };
 
       expect(callArgs?.modelKwargs?.reasoning).toBeUndefined();
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
     it('never sends exclude — both providers default to returning the trace', () => {
@@ -557,6 +557,21 @@ describe('ModelFactory', () => {
         modelName: 'test-model',
         verbosity: 'low',
       };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+    });
+
+    it('installs the custom fetch for a config with no extras or reasoning (the vision shape)', () => {
+      // Vision calls (VisionProcessor.invokeVisionModel) carry only sampling knobs
+      // (VisionTierParams), never routing extras or a reasoning config — the custom
+      // fetch's response-side recovery must still run on this path.
+      const config: ModelConfig = { modelName: 'test-model' };
 
       createChatModel(config);
 
@@ -922,7 +937,7 @@ describe('ModelFactory', () => {
       expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'medium' });
     });
 
-    it('should not use custom fetch when reasoning is gated out', () => {
+    it('still installs the custom fetch when reasoning is gated out', () => {
       const config: ModelConfig = {
         modelName: 'meta-llama/llama-3-70b',
         thinking: 'high',
@@ -932,10 +947,13 @@ describe('ModelFactory', () => {
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
         configuration?: { fetch?: unknown };
       };
-      // No reasoning = no custom fetch needed (unless other params require it)
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      // Reasoning is gated out of modelKwargs, but the fetch is installed
+      // regardless — its response-side recovery is unconditional.
+      expect(callArgs?.modelKwargs?.reasoning).toBeUndefined();
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
   });
 
