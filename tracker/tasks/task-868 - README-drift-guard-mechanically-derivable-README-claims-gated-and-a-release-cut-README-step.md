@@ -3,9 +3,10 @@ id: TASK-868
 title: >-
   README drift guard: mechanically-derivable README claims gated, and a
   release-cut README step
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 14:23'
+updated_date: '2026-09-02 23:55'
 labels:
   - 'area:tooling'
   - 'size:M'
