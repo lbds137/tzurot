@@ -3,10 +3,10 @@ id: TASK-845
 title: >-
   PROVIDER_CONTENT_REFUSED user message assumes an image, but the category now
   reaches text-only turns
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 20:00'
-updated_date: '2026-09-02 13:38'
+updated_date: '2026-09-02 18:15'
 labels:
   - 'area:common-types'
   - 'size:S'
