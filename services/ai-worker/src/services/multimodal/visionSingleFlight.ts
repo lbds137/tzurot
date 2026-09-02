@@ -52,10 +52,11 @@ export interface SingleFlightEntry {
    */
   acquired: boolean;
   /**
-   * A concurrent winner's description, when coalescing succeeded — the caller
-   * returns it directly and makes no provider call.
+   * A concurrent winner's description and the model that produced it, when
+   * coalescing succeeded — the caller returns the description directly (and
+   * forwards the model for attribution) and makes no provider call.
    */
-  coalesced: string | null;
+  coalesced: { description: string; model: string } | null;
 }
 
 /**
@@ -100,23 +101,24 @@ export async function exitSingleFlight(
 
 /**
  * Wait for a concurrent describe (the single-flight winner) to publish its
- * canonical description. Returns the description on success, or null when the
- * winner disappeared without writing (its call failed) or the wait ceiling
- * passed — callers then proceed with their own provider call.
+ * canonical description. Returns the description and the model that produced
+ * it on success, or null when the winner disappeared without writing (its
+ * call failed) or the wait ceiling passed — callers then proceed with their
+ * own provider call.
  */
 async function waitForCoalescedDescription(
   cacheKeyOptions: SingleFlightKeyOptions,
   attachment: AttachmentMetadata
-): Promise<string | null> {
+): Promise<{ description: string; model: string } | null> {
   const deadline = Date.now() + SINGLE_FLIGHT_MAX_WAIT_MS;
   while (Date.now() < deadline) {
-    const cached = await visionDescriptionCache.get(cacheKeyOptions);
-    if (cached !== null && isValidVisionDescription(cached)) {
+    const canonical = await visionDescriptionCache.getCanonical(cacheKeyOptions);
+    if (canonical !== null && isValidVisionDescription(canonical.description)) {
       logger.info(
         { attachmentId: attachment.id, attachmentName: attachment.name },
         'Coalesced onto concurrent vision describe — no extra provider call'
       );
-      return cached;
+      return canonical;
     }
     if (!(await visionDescriptionCache.isInflight(cacheKeyOptions))) {
       // Winner released without a (valid) cache write — its call failed.

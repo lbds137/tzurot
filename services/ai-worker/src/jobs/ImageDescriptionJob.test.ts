@@ -98,7 +98,10 @@ describe('ImageDescriptionJob', () => {
     mockDescribeImage.mockResolvedValue('Mocked image description');
 
     // Default: the fallback loop (resolver-present path) returns a description.
-    mockDescribeImageWithFallback.mockResolvedValue('Fallback loop description');
+    mockDescribeImageWithFallback.mockResolvedValue({
+      description: 'Fallback loop description',
+      attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+    });
 
     // Default: withRetry calls the function and returns successful result
     mockWithRetry.mockImplementation(async fn => {
@@ -541,9 +544,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue(
-        '[Image "broken2.png" unavailable: all vision routes failed]'
-      );
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: '[Image "broken2.png" unavailable: all vision routes failed]',
+        attribution: null,
+      });
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
@@ -845,7 +849,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue('BYOK description');
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: 'BYOK description',
+        attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+      });
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
@@ -902,7 +909,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue('anchored description');
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: 'anchored description',
+        attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+      });
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
@@ -946,7 +956,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue('fallback-anchored description');
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: 'fallback-anchored description',
+        attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+      });
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
@@ -1080,7 +1093,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue('Downgraded free-model description');
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: 'Downgraded free-model description',
+        attribution: { model: 'qwen/qwen3.5-397b-a17b', fromCache: false },
+      });
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
@@ -1145,7 +1161,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue(placeholder);
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: placeholder,
+        attribution: null,
+      });
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
@@ -1196,7 +1215,10 @@ describe('ImageDescriptionJob', () => {
         tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
-      mockDescribeImageWithFallback.mockResolvedValue(placeholder);
+      mockDescribeImageWithFallback.mockResolvedValue({
+        description: placeholder,
+        attribution: null,
+      });
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 

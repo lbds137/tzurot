@@ -95,13 +95,34 @@ export interface DiagnosticMeta {
 }
 
 /**
+ * Which vision model produced an attachment's description, surfaced by the
+ * `/inspect` Input view under the description line. `null` on the entry it's
+ * paired with means a placeholder (chain exhausted / terminate category) or a
+ * non-image attachment — neither has a producing model to name.
+ */
+export interface AttachmentDescriptionAttribution {
+  /** Vision model the tier requested (or, on a cache hit, the cached producer). */
+  model: string;
+  /** Model the provider actually served, when it differs from the requested one. */
+  routedModel?: string;
+  /** True when the description came from the canonical description cache. */
+  fromCache: boolean;
+}
+
+/**
  * Stage 1: Input processing - what the user sent
  */
 export interface DiagnosticInputProcessing {
   /** Raw user message text */
   rawUserMessage: string;
-  /** Descriptions of processed attachments */
-  attachmentDescriptions: string[];
+  /**
+   * Descriptions of processed attachments, paired with the vision model that
+   * produced each one (`null` for a placeholder or a non-image attachment).
+   */
+  attachmentDescriptions: {
+    description: string;
+    attribution: AttachmentDescriptionAttribution | null;
+  }[];
   /** Voice message transcript if any */
   voiceTranscript: string | null;
   /** Discord message IDs being replied to */

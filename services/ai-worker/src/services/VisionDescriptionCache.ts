@@ -123,9 +123,13 @@ export interface VisionFailureEntry {
 interface CanonicalEntry {
   description: string;
   /**
-   * Model that produced it — observability/debugging ONLY (log fields). Never
-   * feeds a decision, which is why `readCanonicalEntry` deliberately does not
-   * validate it; promote it into the validated set if that ever changes.
+   * Model that produced it — observability/debugging ONLY (log fields, and the
+   * `/inspect` Input view's `Model:` attribution line). Never feeds a decision,
+   * which is why `readCanonicalEntry` deliberately does not validate it;
+   * promote it into the validated set if that ever changes.
+   * The `/inspect` renderer's cached arm (bot-client `commands/inspect/attachmentEntry.ts`)
+   * assumes a cached entry never carries a served-model distinction — a future
+   * write of the routed model here has that consumer to update.
    */
   model: string;
   /** `visionModelTier` of the producing model — drives promotion dominance. */
@@ -289,6 +293,20 @@ export class VisionDescriptionCache {
    * for this image). Returns the description string, or null on miss / corrupt entry.
    */
   async get(options: VisionCacheKeyOptions): Promise<string | null> {
+    const canonical = await this.getCanonical(options);
+    return canonical?.description ?? null;
+  }
+
+  /**
+   * Get the canonical description alongside the model that produced it — the
+   * `/inspect` diagnostic view's attribution source on a cache hit. `model` is
+   * read purely for display: an entry with a missing/non-string `model` (a
+   * legacy write) degrades to an empty string rather than a miss or a throw,
+   * matching `readCanonicalEntry`'s own observability-only treatment of the field.
+   */
+  async getCanonical(
+    options: VisionCacheKeyOptions
+  ): Promise<{ description: string; model: string } | null> {
     try {
       const entry = await this.readCanonicalEntry(this.getCanonicalKey(options));
       if (entry !== null && entry.description.length > 0) {
@@ -296,7 +314,10 @@ export class VisionDescriptionCache {
           { attachmentId: options.attachmentId, model: entry.model, tier: entry.tier },
           '[VisionDescriptionCache] Canonical HIT'
         );
-        return entry.description;
+        return {
+          description: entry.description,
+          model: typeof entry.model === 'string' ? entry.model : '',
+        };
       }
       logger.debug(
         { attachmentId: options.attachmentId },

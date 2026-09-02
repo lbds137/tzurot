@@ -7,6 +7,7 @@ import {
   RecentDiagnosticLogsResponseSchema,
   DiagnosticUpdateResponseSchema,
 } from './diagnostic.js';
+import type { DiagnosticPayload } from '../../types/diagnostic.js';
 
 function validLogShape() {
   return {
@@ -56,6 +57,37 @@ describe('DiagnosticLogSchema', () => {
   it('accepts arbitrary data field shape (trusted JSONB)', () => {
     const withArbitraryData = { ...validLogShape(), data: { totally: ['novel', 'shape', 42] } };
     expect(DiagnosticLogSchema.safeParse(withArbitraryData).success).toBe(true);
+  });
+
+  it('survives the RESPONSE direction: `data` is z.unknown() passthrough, so nothing on it is stripped', () => {
+    // `data` never goes through a mirrored Zod shape (see the file-header rationale) —
+    // it's an opaque passthrough, so a field a typed schema WOULD strip (an undeclared
+    // wire key) instead survives untouched. Pin that a deeply-nested new field
+    // (attachmentDescriptions[].attribution.model) reaches `result.data` unchanged.
+    const sentinelModel = 'qwen/qwen3.5-397b-a17b';
+    const log = {
+      ...validLogShape(),
+      data: {
+        meta: { requestId: 'req-uuid-1' },
+        inputProcessing: {
+          rawUserMessage: 'hi',
+          attachmentDescriptions: [
+            {
+              description: 'a photo of a cat',
+              attribution: { model: sentinelModel, fromCache: false },
+            },
+          ],
+        },
+      },
+    };
+    const result = DiagnosticLogSchema.safeParse(log);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const data = result.data.data as DiagnosticPayload;
+      expect(data.inputProcessing.attachmentDescriptions[0]?.attribution?.model).toBe(
+        sentinelModel
+      );
+    }
   });
 
   it('rejects missing required string fields', () => {

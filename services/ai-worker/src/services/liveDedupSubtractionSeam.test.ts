@@ -51,7 +51,10 @@ vi.mock('./reference/BatchResolvers.js', () => ({
   batchResolveByDiscordIds: vi.fn().mockResolvedValue(new Map()),
 }));
 vi.mock('../redis.js', () => ({
-  visionDescriptionCache: { get: vi.fn().mockResolvedValue(null) },
+  visionDescriptionCache: {
+    get: vi.fn().mockResolvedValue(null),
+    getCanonical: vi.fn().mockResolvedValue(null),
+  },
 }));
 
 const VISION_SENTINEL = 'SENTINEL_SEAM_VISION_4c17fe: a tabby asleep on a keyboard';
