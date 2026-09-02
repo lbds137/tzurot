@@ -1,4 +1,7 @@
 {
+  "worktree": {
+    "baseRef": "head"
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -64,6 +67,15 @@
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/dispatch-posture-gate.sh"
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/dispatch-spec-ledger-gate.sh"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -76,6 +88,10 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/blocking-question-channel-check.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/turn-end-shape-gate.sh"
           }
         ]
       }

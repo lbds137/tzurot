@@ -108,4 +108,131 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# === size measurement (the 5-line inline exemption, measured) ================
+# The cases above pass no old_string/new_string, so they measure 0 lines and
+# exercise the ack path. These drive the size branch, which sits BEFORE the ack
+# logic: over five touched lines is a hard block with no ack recorded, so the
+# retry blocks too.
+
+# lines <n> — a string of n newline-separated lines, with NO trailing newline.
+lines() {
+  local n="$1" i out=""
+  for ((i = 1; i <= n; i++)); do out+="line $i"$'\n'; done
+  printf '%s' "${out%$'\n'}"
+}
+
+# lines_nl <n> <varname> — the same n lines, but WITH a trailing newline. This
+# is the ordinary shape of a block copied out of a file, and the count must not
+# treat that final newline as a sixth line.
+#
+# It assigns to the variable NAMED by $2 rather than writing to stdout: command
+# substitution strips every trailing newline, so a `$(lines_nl 5)` call site
+# would silently receive the no-trailing-newline shape and test nothing.
+lines_nl() {
+  printf -v "$2" '%s\n' "$(lines "$1")"
+}
+
+# run_sized <expected-exit> <label> <payload-json> <ack_file> [project_dir]
+run_sized() {
+  local expected="$1" label="$2" payload="$3" ack="$4" project="${5:-$FIXTURE}"
+  printf '%s' "$payload" \
+    | CLAUDE_PROJECT_DIR="$project" DISPATCH_POSTURE_ACK_FILE="$ack" "$HOOK" >/dev/null 2>&1
+  local actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+edit_payload() {
+  jq -cn --arg p "$1" --arg o "$2" --arg n "$3" \
+    '{tool_name:"Edit",tool_input:{file_path:$p,old_string:$o,new_string:$n}}'
+}
+
+SRC="$FIXTURE/services/x/a.ts"
+
+# --- case i: a 3-line Edit → blocks once, passes on retry (ack path) ---------
+ACK_I="$TMPDIR_PROBE/ack_i"
+P_I=$(edit_payload "$SRC" "$(lines 3)" "$(lines 3)")
+run_sized 2 "3-line Edit: blocks once (ack path)" "$P_I" "$ACK_I"
+run_sized 0 "3-line Edit: retry passes (acked)" "$P_I" "$ACK_I"
+
+# --- case i-b: exactly 5 lines is INSIDE the exemption -----------------------
+ACK_IB="$TMPDIR_PROBE/ack_ib"
+P_IB=$(edit_payload "$SRC" "$(lines 5)" "$(lines 5)")
+run_sized 2 "5-line Edit: blocks once (still the ack path)" "$P_IB" "$ACK_IB"
+run_sized 0 "5-line Edit: retry passes (boundary is >5, not >=5)" "$P_IB" "$ACK_IB"
+
+# --- case i-c: 6 lines is the first over-size value --------------------------
+ACK_IC="$TMPDIR_PROBE/ack_ic"
+P_IC=$(edit_payload "$SRC" "$(lines 6)" "$(lines 6)")
+run_sized 2 "6-line Edit: hard block" "$P_IC" "$ACK_IC"
+run_sized 2 "6-line Edit: retry blocks AGAIN (no ack)" "$P_IC" "$ACK_IC"
+
+# --- case i-d: 5 lines WITH a trailing newline is still inside the exemption -
+ACK_ID="$TMPDIR_PROBE/ack_id"
+lines_nl 5 FIVE_NL
+P_ID=$(edit_payload "$SRC" "$FIVE_NL" "$FIVE_NL")
+run_sized 2 "5-line Edit + trailing newline: blocks once (ack path)" "$P_ID" "$ACK_ID"
+run_sized 0 "5-line Edit + trailing newline: retry passes (not counted as 6)" "$P_ID" "$ACK_ID"
+
+# --- case i-e: 6 lines with a trailing newline is still the first over-size --
+ACK_IE="$TMPDIR_PROBE/ack_ie"
+lines_nl 6 SIX_NL
+P_IE=$(edit_payload "$SRC" "$SIX_NL" "$SIX_NL")
+run_sized 2 "6-line Edit + trailing newline: hard block" "$P_IE" "$ACK_IE"
+run_sized 2 "6-line Edit + trailing newline: retry blocks AGAIN (no ack)" "$P_IE" "$ACK_IE"
+
+# --- case ii: a 20-line Edit → blocks, and blocks again on retry -------------
+ACK_II="$TMPDIR_PROBE/ack_ii"
+P_II=$(edit_payload "$SRC" "$(lines 20)" "$(lines 20)")
+run_sized 2 "20-line Edit: hard block" "$P_II" "$ACK_II"
+run_sized 2 "20-line Edit: retry blocks AGAIN (no ack recorded)" "$P_II" "$ACK_II"
+
+# --- case ii-b: size is the MAX of old/new, not either alone -----------------
+# A 20-line insertion has no old text; a 20-line deletion has no new text.
+ACK_IIB="$TMPDIR_PROBE/ack_iib"
+run_sized 2 "20-line pure insertion (empty old_string): hard block" \
+  "$(edit_payload "$SRC" "" "$(lines 20)")" "$ACK_IIB"
+ACK_IIC="$TMPDIR_PROBE/ack_iic"
+run_sized 2 "20-line pure deletion (empty new_string): hard block" \
+  "$(edit_payload "$SRC" "$(lines 20)" "")" "$ACK_IIC"
+
+# --- case iii: a Write of 40 lines → blocks twice ----------------------------
+ACK_III="$TMPDIR_PROBE/ack_iii"
+P_III=$(jq -cn --arg p "$FIXTURE/packages/y/b.ts" --arg c "$(lines 40)" \
+  '{tool_name:"Write",tool_input:{file_path:$p,content:$c}}')
+run_sized 2 "40-line Write: hard block" "$P_III" "$ACK_III"
+run_sized 2 "40-line Write: retry blocks AGAIN" "$P_III" "$ACK_III"
+
+# --- case iii-b: MultiEdit sums its edits over the limit ---------------------
+# Three 3-line edits are each inside the exemption; together they are not.
+ACK_IIIB="$TMPDIR_PROBE/ack_iiib"
+P_IIIB=$(jq -cn --arg p "$SRC" --arg s "$(lines 3)" \
+  '{tool_name:"MultiEdit",tool_input:{file_path:$p,
+     edits:[{old_string:$s,new_string:$s},{old_string:$s,new_string:$s},{old_string:$s,new_string:$s}]}}')
+run_sized 2 "MultiEdit 3x3 lines (sum 9): hard block" "$P_IIIB" "$ACK_IIIB"
+run_sized 2 "MultiEdit 3x3 lines: retry blocks AGAIN" "$P_IIIB" "$ACK_IIIB"
+
+# --- case iv: the worktree-path exemption still wins over a 20-line edit -----
+# The size branch must sit AFTER the scope checks, not before them.
+ACK_IV="$TMPDIR_PROBE/ack_iv"
+run_sized 0 "20-line Edit under .claude/worktrees/ still passes" \
+  "$(edit_payload "$FIXTURE/.claude/worktrees/w1/services/x/a.ts" "$(lines 20)" "$(lines 20)")" \
+  "$ACK_IV"
+
+# --- case iv-b: a 20-line docs edit is still out of scope --------------------
+ACK_IVB="$TMPDIR_PROBE/ack_ivb"
+run_sized 0 "20-line Edit to docs/a.md still passes (out of scope)" \
+  "$(edit_payload "$FIXTURE/docs/a.md" "$(lines 20)" "$(lines 20)")" "$ACK_IVB"
+
+# --- case iv-c: the worktree AS project root, over-size → still passes -------
+ACK_IVC="$TMPDIR_PROBE/ack_ivc"
+run_sized 0 "20-line Edit with the worktree AS project root passes" \
+  "$(jq -cn --arg o "$(lines 20)" --arg n "$(lines 20)" \
+    '{tool_name:"Edit",tool_input:{file_path:"services/x/a.ts",old_string:$o,new_string:$n}}')" \
+  "$ACK_IVC" "$WT_ROOT"
+
 exit $FAILURES
