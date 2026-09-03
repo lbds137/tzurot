@@ -15,6 +15,13 @@
 # that turn started from. Only the transcript TAIL is read — session files
 # reach tens of MB and this runs on every user prompt.
 #
+# A trailing `{"type":"system","subtype":"compact_boundary"}` entry silences the
+# hook: the first prompt after a compaction runs before any post-compaction
+# assistant turn exists, so the last usage total describes the context that was
+# just discarded, not the one now live. The event shape is observed in real
+# transcripts; if the harness ever changes it, the hook simply stops muting
+# (fail-open).
+#
 # Fail-open everywhere: no jq, no transcript, unreadable tail, non-numeric
 # total — silent exit 0. A reminder hook must never block a prompt.
 
@@ -58,15 +65,31 @@ if [ -f "$STAMP" ] && [ -z "$(find "$STAMP" -mmin +"$COOLDOWN_MIN" 2>/dev/null)"
     exit 0
 fi
 
-# Last assistant usage from the transcript tail. `jq -R 'fromjson?'` parses
+# The LAST relevant transcript event, tagged. `jq -R 'fromjson?'` parses
 # per line and silently drops anything malformed — the mid-line cut at the
 # start of a >4MB tail AND a partial last line mid-write — without positional
 # dropping, so a sub-4MB transcript whose first line is the relevant entry
 # still counts (same pattern as queued-message-receipt.sh).
-TOTAL=$(tail -c 4000000 "$TRANSCRIPT" 2>/dev/null \
-    | jq -R -r 'fromjson? | select(.type? == "assistant") | .message.usage | select(. != null)
-             | ((.input_tokens // 0) + (.cache_read_input_tokens // 0) + (.cache_creation_input_tokens // 0))' 2>/dev/null \
+#
+# Two event kinds matter and their ORDER is the whole decision, so both are
+# emitted into one stream rather than queried separately: `A <total>` for an
+# assistant turn's context size, `C` for a compaction boundary.
+LAST_EVENT=$(tail -c 4000000 "$TRANSCRIPT" 2>/dev/null \
+    | jq -R -r 'fromjson?
+             | if (.type? == "system" and .subtype? == "compact_boundary") then "C"
+               elif (.type? == "assistant" and (.message.usage? != null))
+                 then "A \((.message.usage.input_tokens // 0) + (.message.usage.cache_read_input_tokens // 0) + (.message.usage.cache_creation_input_tokens // 0))"
+               else empty end' 2>/dev/null \
     | tail -1)
+
+# A compaction boundary LAST means no turn has yet measured the new context.
+# Reporting the pre-compaction total there is worse than saying nothing: it
+# nags for a compaction that just happened.
+case "$LAST_EVENT" in
+    C) exit 0 ;;
+    'A '*) TOTAL=${LAST_EVENT#A } ;;
+    *) exit 0 ;;
+esac
 
 case "$TOTAL" in
     '' | *[!0-9]*) exit 0 ;;
