@@ -52,6 +52,13 @@ user_line() {
     jq -nc '{type: "user", message: {content: "hello"}}'
 }
 
+# The entry the harness writes when a compaction lands — observed in real
+# session transcripts as `{"type":"system","subtype":"compact_boundary"}`,
+# not inferred from docs.
+compact_line() {
+    jq -nc '{type: "system", subtype: "compact_boundary"}'
+}
+
 # Run the hook. $1 = session suffix, $2 = transcript path ("" omits the field).
 run_hook() {
     local session="$SESSION_PREFIX-$1" json
@@ -178,5 +185,31 @@ else
     echo "ok: traversal-shaped session id stays inside STATE_DIR"
 fi
 rm -f "$STATE_DIR/context-reminder-.._.._$SESSION_PREFIX-evil" 2>/dev/null
+
+# ---- Case 11: a compaction boundary AFTER the last usage entry → silent -----
+# The first prompt after /compact runs before any post-compaction assistant
+# entry exists. The last usage total then describes the context that was just
+# discarded, so reporting it nags for a compaction that already happened.
+T="$TMPDIR_PROBE/compacted.jsonl"
+{
+    user_line
+    assistant_line 1 600000 0
+    compact_line
+} >"$T"
+run_hook compacted "$T"
+assert_silent "trailing compact_boundary stays silent (pre-compaction total)"
+
+# ---- Case 12: a usage entry AFTER the boundary rules again → fires ----------
+# Ordering is the whole decision: once a turn has measured the NEW context, the
+# boundary earlier in the file must not keep the hook muted.
+T="$TMPDIR_PROBE/postboundary.jsonl"
+{
+    user_line
+    compact_line
+    user_line
+    assistant_line 1 600000 0
+} >"$T"
+run_hook postboundary "$T"
+assert_fires "usage entry after the boundary fires again" "~600k tokens"
 
 exit $fail
