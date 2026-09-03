@@ -54,6 +54,11 @@ const FENCE_DELIMITER = /^(`{3,}|~{3,})/;
  * a ``` fence is open (or vice versa) is ordinary interior content, not a
  * closer. An unterminated fence at EOF leaves the remaining lines
  * classified as fenced.
+ *
+ * Closing-fence LENGTH is not validated against the opener, so a run of
+ * three backticks closes a four-backtick fence where CommonMark would keep
+ * it as interior text — pinned by the classifyLines test titled
+ * "documented limitation: a shorter closing run still closes a longer fence".
  */
 export function classifyLines(readme: string): ClassifiedLine[] {
   const result: ClassifiedLine[] = [];
