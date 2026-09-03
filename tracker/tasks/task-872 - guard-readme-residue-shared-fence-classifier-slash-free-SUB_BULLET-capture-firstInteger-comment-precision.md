@@ -3,9 +3,10 @@ id: TASK-872
 title: >-
   guard:readme residue - shared fence classifier, slash-free SUB_BULLET capture,
   firstInteger comment precision
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 23:53'
+updated_date: '2026-09-03 12:15'
 labels:
   - 'area:tooling'
   - 'size:S'
