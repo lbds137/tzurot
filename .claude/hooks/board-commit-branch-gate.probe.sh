@@ -737,6 +737,95 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# --- NEWLINE-JOINED shapes (review round 2 regressions) --------------------
+# These pin real bash semantics: a bare `\n` between two commands is a
+# command separator, so the FIRST command's effect does not carry into the
+# second — the same way `;` doesn't. The grep→python port's separator class
+# had no `\n`, so all three misread a two-command compound as one continuous
+# invocation.
+
+# REGRESSION GUARD: an env-assignment on its own line does NOT reach a
+# `git commit` on the next — bash never exports it there, so this must still
+# block like any bypass-free commit. Runtime-confirmed to false-GRANT
+# (exit 0) before the fix: BYPASS_RE's junction after the token's value was
+# `\s+`, which matches `\n`, reading the pair as one prefixed invocation.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+git -C "$DIR" add tracker/
+(
+  cd "$DIR" || exit 99
+  CMD='TZUROT_ALLOW_BOARD_ON_FEATURE=1
+git commit -m msg'
+  jq -n --arg c "$CMD" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  newline-joined assignment + commit still blocks (regression guard)\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  newline-joined assignment + commit still blocks (regression guard)\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# REGRESSION GUARD: a `git add` on one line and `git commit` on the next is
+# two separate commands sharing nothing but that the add really did stage the
+# board file — the compound must still block. Runtime-confirmed to
+# false-NEGATIVE (exit 0) before the fix: `segment_after`'s stop class had no
+# `\n`, so the add's pathspec span ran forward into the next line's
+# `git commit -m msg` tokens, `add_args` absorbed them as bogus non-board
+# paths, and NON_BOARD went non-empty.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+(
+  cd "$DIR" || exit 99
+  CMD='git add tracker/
+git commit -m msg'
+  jq -n --arg c "$CMD" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  newline-joined add + commit of a board file still blocks (regression guard)\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  newline-joined add + commit of a board file still blocks (regression guard)\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# PRE-EXISTING-BUG GUARD: `-a` belongs to `git branch` on the SECOND line, not
+# to the commit on the first — the commit does not auto-stage, so only the
+# staged board file is in the assessed set and this must block. This shape
+# predates the grep→python port: the old bash `case` scanned the whole
+# command for `-a`/`-am`/`--all` with no line boundary at all, so it
+# misattributed the flag before the port ever touched auto-stage detection.
+# Runtime-confirmed to false-NEGATIVE (exit 0) both before AND after the
+# port, for the same underlying reason `segment_after` now fixes: forward
+# scanning from the commit match crossed the newline into `branch -a`.
+DIR=$(make_repo develop)
+mkdir -p "$DIR/tracker/tasks" "$DIR/src"
+echo x > "$DIR/src/a.ts"
+git -C "$DIR" add src/
+git -C "$DIR" -c user.email=probe@x -c user.name=probe commit -q -m code
+git -C "$DIR" checkout -q -b feat/x
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+git -C "$DIR" add tracker/
+echo x2 > "$DIR/src/a.ts"
+(
+  cd "$DIR" || exit 99
+  CMD='git commit -m msg
+git branch -a'
+  jq -n --arg c "$CMD" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  newline-joined commit + git branch -a still blocks (pre-existing-bug guard)\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  newline-joined commit + git branch -a still blocks (pre-existing-bug guard)\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo
 if [ "$FAILURES" -gt 0 ]; then
   echo "board-commit-branch-gate probe: $FAILURES FAILURE(S)"
