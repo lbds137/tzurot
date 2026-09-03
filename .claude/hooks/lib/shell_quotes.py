@@ -55,6 +55,12 @@ CONSUMERS
 ---------
     .claude/hooks/lossy-pipe-guard.sh
     .claude/hooks/develop-code-commit-guard.sh
+    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted only — it is
+                                        substitution-blind by the same
+                                        lower-stakes reasoning as cwd-drift-guard
+                                        below: its worst case is a board/doc
+                                        commit passing, never a code commit
+                                        being wrongly blocked)
     .claude/hooks/cwd-drift-guard.sh   (strip_quoted for its drift checks, plus
                                         executed_segments for its tracker-write
                                         refusal — it stays substitution-blind
