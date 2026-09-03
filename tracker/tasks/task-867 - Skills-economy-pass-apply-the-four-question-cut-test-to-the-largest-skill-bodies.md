@@ -3,9 +3,10 @@ id: TASK-867
 title: >-
   Skills economy pass: apply the four-question cut test to the largest skill
   bodies
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 13:39'
+updated_date: '2026-09-03 00:44'
 labels:
   - 'area:skills'
   - 'size:M'
