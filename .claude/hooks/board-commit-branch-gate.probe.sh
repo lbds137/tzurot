@@ -826,6 +826,36 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# KNOWN GAP (deliberate, fail-safe direction): a real, legitimately-prefixed
+# commit sitting BESIDE an UNRELATED newline-split `git`⏎`commit` pair (no
+# valid executing command behind it — bash treats the bare `\n` as a command
+# separator) inflates the outer commit COUNT by one more than it inflates the
+# bypass count, so COMMIT_COUNT=2 vs BYPASSED_COUNT=1 and the gate spuriously
+# BLOCKS a bypass that was actually carried. This pins that KNOWN GAP as the
+# behavior we currently accept, NOT as the behavior we want — see BYPASS_RE's
+# own comment in board-commit-branch-gate.sh for why it is not being fixed
+# (fixing it would mean relaxing the count comparison, which would also let a
+# genuinely unbypassed commit ride through on a phantom's coattails).
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+git -C "$DIR" add tracker/
+(
+  cd "$DIR" || exit 99
+  CMD='TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m msg1
+git
+commit -m msg2'
+  jq -n --arg c "$CMD" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  real prefixed commit beside an unrelated phantom newline-split commit spuriously blocks (KNOWN GAP, not a desired behavior)\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  real prefixed commit beside an unrelated phantom newline-split commit spuriously blocks (KNOWN GAP, not a desired behavior)\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo
 if [ "$FAILURES" -gt 0 ]; then
   echo "board-commit-branch-gate probe: $FAILURES FAILURE(S)"
