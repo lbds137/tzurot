@@ -1,9 +1,10 @@
 ---
 id: TASK-756
 title: board-commit-branch-gate bypass is unreachable from the agent seat
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 00:40'
+updated_date: '2026-09-03 14:13'
 labels:
   - 'area:hooks'
   - 'size:S'
