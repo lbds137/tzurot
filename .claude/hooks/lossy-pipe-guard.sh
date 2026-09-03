@@ -46,8 +46,8 @@
 # KNOWN OVER-BLOCK, same treatment: an UNQUOTED subshell carrying its own pipe
 # (`git commit -m $(echo x | head -1) | cat`) is split into three stages rather
 # than two, and the middle one begins with a filter word, so the command blocks
-# even though its real trailing stage is a harmless pass-through. Only the
-# `$(cat <<…)` heredoc form is special-cased; a quoted subshell is absorbed by
+# even though its real trailing stage is a harmless pass-through. Heredoc
+# bodies never reach this split in any spelling; a quoted subshell is absorbed by
 # the quote strip. This cannot cause a bypass — it fails toward blocking — and
 # is named here so the next reader who hits it recognises it rather than
 # hunting a bug.
