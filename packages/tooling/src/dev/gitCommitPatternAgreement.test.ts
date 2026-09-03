@@ -30,11 +30,11 @@
  *
  * Copy 2 detects `(commit|push)` rather than `commit`. Every case below is
  * free of the token `push` (asserted), which makes that alternation inert and
- * lets both be compared directly with no rewriting of the extracted text.
+ * lets all three be compared directly with no rewriting of the extracted text.
  *
  * EXTERNAL BINARIES: this file shells out to `python3`, because the only honest
  * way to evaluate a hook's pattern is to run it through the same engine the
- * hook does. `python3` was already required to RUN both hooks and their
+ * hook does. `python3` was already required to RUN all three hooks and their
  * .probe.sh scripts; this makes it a prerequisite of the tooling unit-test cell
  * too. It is present on ubuntu-latest, which is where CI runs. If a future
  * minimal image drops it, the failure surfaces here as an ENOENT at collection
@@ -96,7 +96,7 @@ function extractPattern(source: PatternSource): string {
   return match![1];
 }
 
-/** Cases both implementations must agree on. */
+/** Cases all three implementations must agree on. */
 const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] = [
   // --- is a commit ---
   [true, 'git commit'],
@@ -111,8 +111,8 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [true, 'git add . && git commit -m "x" && git status'],
 
   // --- case ---
-  // Both copies carry an inline (?i). Uppercase is not a hypothetical: shells
-  // accept it, and a case-sensitive copy exits silently on it — for two BLOCKING
+  // All three copies carry an inline (?i). Uppercase is not a hypothetical: shells
+  // accept it, and a case-sensitive copy exits silently on it — for three BLOCKING
   // hooks that means a commit that should have been stopped goes through. The
   // flag is inline rather than an re.I argument because these patterns are
   // extracted from source TEXT above; a flag outside the string would be
@@ -138,8 +138,8 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [false, 'echo committing now'],
 
   // --- Unicode boundary cases ---
-  // These two were pinned as bash-vs-Python DIVERGENCES while a third, ASCII-only
-  // bash copy was compared here. Both Python copies agree on them, so with that
+  // These two were pinned as bash-vs-Python DIVERGENCES while the retired ASCII-only
+  // bash copy was compared here. All three Python copies agree on them, so with that
   // copy retired they are ordinary agreement cases — but each still pins a real
   // property, which is why they survived the migration rather than being dropped.
 
@@ -149,7 +149,7 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
 
   // A non-breaking space (U+00A0) between `git` and `commit`. Python's `\s` is
   // Unicode-aware and matches it, so this IS a commit. This row is what makes
-  // adding `re.ASCII` to either copy fail here — the flag would narrow `\s` and
+  // adding `re.ASCII` to any copy fail here — the flag would narrow `\s` and
   // the guard would MISS a real commit, which for a blocking hook means letting
   // through a commit that should have been stopped.
   //
@@ -162,7 +162,7 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [true, 'git\u00A0commit -m "x"'],
 ];
 
-/** One python3 spawn evaluates both patterns over every case. */
+/** One python3 spawn evaluates all three patterns over every case. */
 function pythonVerdicts(patterns: readonly string[], inputs: readonly string[]): boolean[][] {
   const script = [
     'import json, re, sys',
