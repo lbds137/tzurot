@@ -55,12 +55,19 @@ CONSUMERS
 ---------
     .claude/hooks/lossy-pipe-guard.sh
     .claude/hooks/develop-code-commit-guard.sh
-    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted only — it is
-                                        substitution-blind by the same
-                                        lower-stakes reasoning as cwd-drift-guard
-                                        below: its worst case is a board/doc
-                                        commit passing, never a code commit
-                                        being wrongly blocked)
+    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted only — no
+                                        executed_segments. Unlike
+                                        cwd-drift-guard below, this consumer's
+                                        WHOLE purpose is the higher-stakes case
+                                        (a refusal, not a warning), so a
+                                        `bash -c` / `sh -c` / `eval` wrapper
+                                        does not merely narrow detection the
+                                        way substitution-blindness does — it
+                                        defeats the gate entirely: a board/doc
+                                        commit that would block unwrapped
+                                        passes clean when wrapped, on any
+                                        feature branch. Open gap, tracked as
+                                        TASK-879, not fixed here.)
     .claude/hooks/cwd-drift-guard.sh   (strip_quoted for its drift checks, plus
                                         executed_segments for its tracker-write
                                         refusal — it stays substitution-blind

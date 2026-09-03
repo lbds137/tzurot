@@ -856,6 +856,36 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# KNOWN GAP, pinning CURRENT (broken) behavior, NOT desired behavior: a
+# `bash -c "…"` wrapper around the whole board-only compound is not merely
+# narrowed like a substitution would be, it makes the compound INVISIBLE —
+# strip_quoted erases the wrapper's whole string argument as one quoted span,
+# so COMMIT_RE never sees a `git ... commit` token and the gate exits 0 on a
+# feature branch where the unwrapped compound blocks (exit 2). This is the
+# gate's own named threat model (`git add tracker/ && git commit`) run
+# through a wrapper, and it is TRACKED AS TASK-879, not fixed here — see
+# board-commit-branch-gate.sh's KNOWN GAPS block. When TASK-879 lands
+# (executed_segments-based wrapper unwrapping), FLIP this assertion to
+# `-eq 2` rather than deleting the case — it should then pin the fixed
+# behavior instead of the gap.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+git -C "$DIR" add tracker/
+(
+  cd "$DIR" || exit 99
+  CMD='bash -c "git add tracker/ && git commit -m msg"'
+  jq -n --arg c "$CMD" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 0 ]; then
+  printf 'PASS  (exit 0)  bash -c wrapper around a board-only compound evades the gate entirely (KNOWN GAP, TASK-879, not a desired behavior)\n'
+else
+  printf 'FAIL  (exit %d, expected 0)  bash -c wrapper around a board-only compound evades the gate entirely (KNOWN GAP, TASK-879, not a desired behavior)\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo
 if [ "$FAILURES" -gt 0 ]; then
   echo "board-commit-branch-gate probe: $FAILURES FAILURE(S)"
