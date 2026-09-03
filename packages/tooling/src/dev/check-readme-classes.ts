@@ -16,6 +16,61 @@ import GithubSlugger from 'github-slugger';
 
 import { escapeRegExp } from '../utils/regex.js';
 
+/** One classified README line — see {@link classifyLines}. */
+export interface ClassifiedLine {
+  /** The original README line, verbatim. */
+  line: string;
+  /** True only for lines INSIDE a fence; a delimiter line itself is false. */
+  fenced: boolean;
+  /** True for both the opening and the closing fence delimiter lines. */
+  delimiter: boolean;
+  /**
+   * Lowercased info-string of the ENCLOSING fence's opening delimiter
+   * (`''` when the opening fence had no info-string); null for lines
+   * outside any fence.
+   */
+  tag: string | null;
+}
+
+/** Trimmed lines whose leading run of ``` or ~~~ marks a fence delimiter. */
+const FENCE_DELIMITER = /^(`{3,}|~{3,})/;
+
+/**
+ * Classifies every README line as fenced interior, a fence delimiter, or
+ * plain text, tracking each fence's opening info-string so consumers never
+ * re-implement fence-tracking themselves.
+ *
+ * A fence opened with a run of backticks is closed only by a later
+ * delimiter line using the SAME character — a `~~~` line encountered while
+ * a ``` fence is open (or vice versa) is ordinary interior content, not a
+ * closer. An unterminated fence at EOF leaves the remaining lines
+ * classified as fenced.
+ */
+export function classifyLines(readme: string): ClassifiedLine[] {
+  const result: ClassifiedLine[] = [];
+  let fenceChar: string | null = null;
+  let tag: string | null = null;
+  for (const line of readme.split('\n')) {
+    const trimmed = line.trim();
+    const match = FENCE_DELIMITER.exec(trimmed);
+    if (fenceChar === null && match !== null) {
+      fenceChar = match[1][0];
+      tag = trimmed.slice(match[1].length).trim().toLowerCase();
+      result.push({ line, fenced: false, delimiter: true, tag });
+      continue;
+    }
+    if (fenceChar !== null && match?.[1].startsWith(fenceChar) === true) {
+      result.push({ line, fenced: false, delimiter: true, tag });
+      fenceChar = null;
+      tag = null;
+      continue;
+    }
+    const insideFence = fenceChar !== null;
+    result.push({ line, fenced: insideFence, delimiter: false, tag: insideFence ? tag : null });
+  }
+  return result;
+}
+
 /**
  * README lines with the interior of every fenced code block blanked out
  * (fence delimiter lines are kept as-is; line count and indices are
@@ -24,17 +79,7 @@ import { escapeRegExp } from '../utils/regex.js';
  * difference.
  */
 export function stripFencedBlocks(readme: string): string[] {
-  const result: string[] = [];
-  let inFence = false;
-  for (const line of readme.split('\n')) {
-    if (line.trim().startsWith('```')) {
-      inFence = !inFence;
-      result.push(line);
-      continue;
-    }
-    result.push(inFence ? '' : line);
-  }
-  return result;
+  return classifyLines(readme).map(c => (c.fenced ? '' : c.line));
 }
 
 /** Everything between a heading LINE (exact match) and the next `#`-heading. */
@@ -56,7 +101,7 @@ export function extractSection(readme: string, headingLine: string): string {
 // ---------------------------------------------------------------------------
 
 const TOP_BULLET = /^-\s+\*\*`([a-z-]+)\/`\*\*/;
-const SUB_BULLET = /^\s+-\s+`([^`]+)\/`/;
+const SUB_BULLET = /^\s+-\s+`([^`/]+)\/`/;
 
 /** The `services/` and `packages/` sub-bullet names named in the README tree. */
 export function parseProjectStructureTree(readme: string): {
@@ -139,8 +184,11 @@ export function parsePrerequisiteVersions(readme: string): {
  * `node: ">=24.0.0"` and `pnpm: ">=10.0.0"`).
  *
  * Documented limitation: a compound range such as `^24 || >=25` would
- * mis-read as `24` (the first integer, not the effective minimum) — not a
- * bug, because no such range is in use here.
+ * mis-read as `24` (the first integer, not the effective minimum), and that
+ * mis-read is silent — it produces no finding even when the effective
+ * minimum differs from the first integer, so the guard would report clean
+ * on a genuinely stale README. Not a bug, because no such range is in use
+ * here.
  */
 function firstInteger(value: string | undefined): string | null {
   if (value === undefined) {
@@ -242,24 +290,11 @@ function stripTrailingComment(line: string): string {
 export function extractFencedPnpmCommands(readme: string): string[] {
   const commands: string[] = [];
   const seen = new Set<string>();
-  let inFence = false;
-  let scanFence = false;
-  for (const rawLine of readme.split('\n')) {
-    const trimmed = rawLine.trim();
-    if (trimmed.startsWith('```')) {
-      if (inFence) {
-        inFence = false;
-        scanFence = false;
-      } else {
-        inFence = true;
-        scanFence = SHELL_FENCE_TAGS.has(trimmed.slice(3).trim().toLowerCase());
-      }
+  for (const c of classifyLines(readme)) {
+    if (!c.fenced || c.tag === null || !SHELL_FENCE_TAGS.has(c.tag)) {
       continue;
     }
-    if (!inFence || !scanFence) {
-      continue;
-    }
-    const line = stripTrailingComment(rawLine).trim();
+    const line = stripTrailingComment(c.line).trim();
     if (!line.startsWith('pnpm ')) {
       continue;
     }
