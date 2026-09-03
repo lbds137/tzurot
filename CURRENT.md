@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.213 — "gateway watchdog + cache-invalidation single-flight + identity floors + drain batches + vision fallback fix" (16 PRs / 13 runtime / 126 range files, no migrations, merged 2026-09-02 ~02:53Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.214 — "vision attribution + custom fetch everywhere + refusal retarget + channel dashboard scope + process batch" (14 PRs / 7 runtime / 160 range files, no migrations, merged 2026-09-03 ~01:12Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.212 — "Parent Value fix + link-preview provenance + mutation-floor campaign + deps" (10 PRs / 8 runtime, 2026-08-31 ~19:20Z).
+> **Previous**: v3.0.0-beta.213 — "gateway watchdog + cache-invalidation single-flight + identity floors + drain batches + vision fallback fix" (16 PRs / 13 runtime, 2026-09-02 ~02:53Z).
 
 ---
 
@@ -23,6 +23,8 @@
 **beta.214 item 10: #2309 merged** (TASK-864 Done — per-description vision-model attribution in /inspect with legacy-row tolerance; four rounds: single-flight losers had no attribution (a real gap both diff reads missed), a complexity ceiling the orchestrator first called non-gating and then corrected, two nit rounds; **TASK-871** for the file at its ceiling). **TASK-867 (skills economy pass) dispatched** from the post-#2308 head. Slate: items 0–10 shipped; 867 is the last.
 
 **beta.214 item 6 second half: #2310 merged** (TASK-867 Done — economy pass over git-workflow/review-response/orchestration, −19.3 KB, skills baseline 243022 → 223880 B; one review round, two low findings answered in the PR body, six contested cuts listed there). **Slate complete**; the cut is next (`release:range` before #2310: 13 PRs / 7 runtime / 145 files, no migrations; the two open browserslist advisories are fixed on develop by #2298 and clear when main rescans). Board item 3 corrected to ✅ #2297 (all six mining proposals shipped there).
+
+**v3.0.0-beta.214 CUT + MERGED + PUBLISHED (PR #2311).** Holistic review clean (six cross-PR seams checked, no findings); merge gate caught the range file count moving 145 → 160 after the bump, fixed pre-merge. Finalize aligned develop; beta.213 demoted. Next plan on the board: beta.215 = ceiling extractions (TASK-871, TASK-852) + review residue (TASK-869, TASK-872, TASK-862) + the first drain batch.
 
 **🔍 beta.214 smoke checklist (dev = develop, so runnable now; needs-smoke tier only — everything else is CI + review + canaries, or an event-driven prod watch):**
 
