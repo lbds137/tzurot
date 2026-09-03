@@ -41,7 +41,8 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getFreeVisionFloor } from '../freeFloors.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
-import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
+import { selectVisionModel } from './VisionProcessor.js';
+import { buildFailureFallback } from './visionDescribeGates.js';
 import { visionFallbackQuota, zaiFreeTierAdmission } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 

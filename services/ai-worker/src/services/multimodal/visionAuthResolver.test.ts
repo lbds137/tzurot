@@ -31,7 +31,8 @@ import {
   createVisionQuotaTracker,
   visionAuthFailFastDescription,
 } from './visionAuthResolver.js';
-import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
+import { selectVisionModel } from './VisionProcessor.js';
+import { buildFailureFallback } from './visionDescribeGates.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 
 // Logger mock — visionAuthResolver imports createLogger from common-types
@@ -55,6 +56,9 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 // without reaching into Redis (hasVisionSupport).
 vi.mock('./VisionProcessor.js', () => ({
   selectVisionModel: vi.fn(),
+}));
+
+vi.mock('./visionDescribeGates.js', () => ({
   // visionAuthFailFastDescription delegates to this at call time. vi.fn so the
   // delegation test can assert the args that cross the seam (incl. the filename).
   buildFailureFallback: vi.fn(

@@ -3,12 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  hasVisionSupport,
-  describeImage,
-  LONG_TTL_FAILURE_CATEGORIES,
-  VISION_TERMINATE_CATEGORIES,
-} from './VisionProcessor.js';
+import { hasVisionSupport, describeImage } from './VisionProcessor.js';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -24,12 +19,7 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
-import {
-  ApiErrorCategory,
-  ERROR_MESSAGES,
-  VISION_FAILURE_CACHE_POLICY,
-} from '@tzurot/common-types/constants/error';
-import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types/constants/error';
 import { HttpError } from '../../utils/attachmentFetch.js';
 import { ExpiredCdnUrlError } from '../../utils/discordCdnExpiry.js';
 
@@ -1937,80 +1927,6 @@ describe('VisionProcessor', () => {
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(result).toBe('Mocked image description');
       });
-    });
-  });
-
-  describe('cache-policy / fallback-set invariant', () => {
-    it('every LONG_TTL_FAILURE_CATEGORIES member must use VISION_FAILURE_TTL_LONG', () => {
-      // The `LONG_TTL_FAILURE_CATEGORIES` set (in `VisionProcessor.ts`) drives
-      // the user-facing fallback message; the LONG-TTL entries in
-      // `VISION_FAILURE_CACHE_POLICY` (in `error.ts`) drive the negative-cache cooldown.
-      // Both encode the same "this failure is bound to the attachment, not transient
-      // state" decision in different shapes — they must stay in sync. Adding a new
-      // category to one structure but not the other would silently produce a TTL
-      // mismatch (short cooldown when long is expected) or fallback-message mismatch
-      // (generic "temporarily unavailable" when a specific label is expected).
-      for (const category of LONG_TTL_FAILURE_CATEGORIES) {
-        expect(VISION_FAILURE_CACHE_POLICY[category].l1TtlSeconds).toBe(
-          INTERVALS.VISION_FAILURE_TTL_LONG
-        );
-      }
-    });
-
-    // (The FAILURE_LABELS-coverage invariant test was removed with FAILURE_LABELS
-    // itself: buildFailureFallback no longer renders per-category labels — the
-    // placeholder distinguishes only permanent vs transient vs auth wording.)
-  });
-
-  describe('terminate-set / attachment-bound-set invariant', () => {
-    // `VISION_TERMINATE_CATEGORIES` (the categories where the fallback LOOP stops trying
-    // other tiers) and `LONG_TTL_FAILURE_CATEGORIES` (the categories the negative
-    // cache treats as image-bound for TTL purposes) encode two RELATED-but-distinct
-    // decisions. The relationship is a deliberate strict subset: every "give up, the image
-    // is the problem" category is also "bound to this attachment," but two categories are
-    // attachment-bound for cache-TTL purposes yet are exactly what the loop routes around:
-    // MODEL_NOT_FOUND (a different tier is a different model) and PROVIDER_CONTENT_REFUSED
-    // (a different tier is a different provider's filter, so the chain must advance rather
-    // than terminate). These tests pin that relationship so a future edit to either set
-    // surfaces the divergence at PR time.
-
-    it('VISION_TERMINATE_CATEGORIES is a strict subset of LONG_TTL_FAILURE_CATEGORIES', () => {
-      for (const category of VISION_TERMINATE_CATEGORIES) {
-        expect(LONG_TTL_FAILURE_CATEGORIES.has(category)).toBe(true);
-      }
-      // Strict (proper) subset: the attachment-bound set must have at least one member the
-      // terminate set lacks (that member is asserted to be MODEL_NOT_FOUND below).
-      expect(LONG_TTL_FAILURE_CATEGORIES.size).toBeGreaterThan(VISION_TERMINATE_CATEGORIES.size);
-    });
-
-    it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND, PROVIDER_CONTENT_REFUSED }', () => {
-      // MODEL_NOT_FOUND: a missing model won't reappear for THIS attachment on the SAME
-      // model, but a different tier is a different model, so the loop advances.
-      // PROVIDER_CONTENT_REFUSED: a provider's input filter won't reappear for THIS
-      // attachment on the SAME provider, but a different tier is a different provider's
-      // filter, so the loop must also advance rather than terminate.
-      const difference = [...LONG_TTL_FAILURE_CATEGORIES].filter(
-        category => !VISION_TERMINATE_CATEGORIES.has(category)
-      );
-      expect(new Set(difference)).toEqual(
-        new Set([ApiErrorCategory.MODEL_NOT_FOUND, ApiErrorCategory.PROVIDER_CONTENT_REFUSED])
-      );
-    });
-
-    it('VISION_TERMINATE_CATEGORIES does NOT contain PROVIDER_CONTENT_REFUSED — the chain must advance, not terminate', () => {
-      expect(VISION_TERMINATE_CATEGORIES.has(ApiErrorCategory.PROVIDER_CONTENT_REFUSED)).toBe(
-        false
-      );
-    });
-
-    it('VISION_TERMINATE_CATEGORIES contains exactly CONTENT_POLICY, CENSORED, MEDIA_NOT_FOUND', () => {
-      expect(new Set(VISION_TERMINATE_CATEGORIES)).toEqual(
-        new Set([
-          ApiErrorCategory.CONTENT_POLICY,
-          ApiErrorCategory.CENSORED,
-          ApiErrorCategory.MEDIA_NOT_FOUND,
-        ])
-      );
     });
   });
 });
