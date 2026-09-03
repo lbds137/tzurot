@@ -330,6 +330,34 @@ run 2 "UNQUOTED indented heredoc + trailing tail" 'git commit -m $(cat <<-EOF
 	EOF
 ) | tail -5'
 
+# --- the rejoin's boundaries ----------------------------------------------
+# A here-string (`<<<WORD`) is NOT a heredoc opener: it takes its data from the
+# word itself and introduces no body, so there is nothing to rejoin. The shared
+# opener pattern carries a `(?<!<)` lookbehind for exactly this, and the rejoin
+# composes from that pattern so it inherits the guard. Written out a second time
+# without it, the trailing `<` plus the bare word matched, the newline after it
+# was eaten, and the NEXT statement was glued onto this one — the two lines
+# below then read as a single `git commit … | head` pipeline and blocked, though
+# bash runs them as two statements and pipes nothing into the commit. Drop the
+# lookbehind and this case exits 2.
+run 0 "here-string is not a heredoc opener to rejoin" 'git commit -F - <<<Fixup
+git log --oneline | head -3'
+
+# The complement, and an ACCEPTED OVER-BLOCK rather than a bug: the rejoin is a
+# global substitution with no state tying it to the heredoc just emptied, so two
+# SEQUENTIAL heredocs both collapse and their statements share one scan line.
+# Here the commit from the first statement and the `tail` from the second meet
+# in one segment and block, where bash runs them separately and pipes the commit
+# into nothing. Pinned as behaviour, not endorsed as correct — a future rejoin
+# that tracks which opener it is closing turns this into a 0, and that should
+# show up as a deliberate probe change rather than a silent one.
+run 2 "back-to-back heredocs merge onto one scan line" "git commit -F - <<'MSG'
+feat: x
+MSG
+cat <<'NOTES' | tail -5
+notes
+NOTES"
+
 # --- a BARE heredoc body is prose, not a pipeline -------------------------
 # The reproducer: writing up the incident this guard exists for — a body line
 # carrying a gh read, a pipe and a truncator all together — blocked the write.
