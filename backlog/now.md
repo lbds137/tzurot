@@ -34,10 +34,10 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 
 _beta.214 CUT 2026-09-03 (14 PRs / 7 runtime / 145 range files; no migrations; PR #2311; tag `latest`; finalize done). Its shipped list lives in the release notes — not re-enumerated here._
 
-- **Driver**: Fable, nested dispatch (standing). Theme rationale: two files sit AT an eslint ceiling and block the next change there (TASK-871 VisionProcessor 400/400, TASK-852 bot-client index 600/600); three review-round residues are filed and fully specified (TASK-869, TASK-872, TASK-862); the drain campaign (doc-7) is the standing epic and has not had a batch since beta.213's identity floors. Theme-closers first, then one drain batch.
-- **In**: _(empty at cut time; grows as PRs merge)_
+- **Driver**: Opus, nested dispatch (driver switched mid-slate). Theme rationale: two files sit AT an eslint ceiling and block the next change there (TASK-871 VisionProcessor 400/400, TASK-852 bot-client index 600/600); three review-round residues are filed and fully specified (TASK-869, TASK-872, TASK-862); the drain campaign (doc-7) is the standing epic and has not had a batch since beta.213's identity floors. Theme-closers first, then one drain batch.
+- **In**: **#2312** TASK-871 — vision describe gates extracted from `VisionProcessor.ts` (400 → 321 counted lines, `describeImage` complexity 20 → 12).
 - **Waiting on** (the landing of these defines the cut):
-  1. **TASK-871** (ai-worker, size:S) — extract from `VisionProcessor.ts` before the next change there; the file is at exactly 400 counted lines.
+  1. ✅ **TASK-871** — shipped as #2312.
   2. **TASK-852** (bot-client, size:S) — `index.ts` at its 600-line ceiling; same shape.
   3. **TASK-869** (hooks, size:S) — the claim-scan parser edges from the #2302 round-6 residue · **TASK-872** (tooling, size:S) — the readme-guard fence classifier and capture nits; separate PRs (a hook PR and a tooling PR).
   4. **TASK-862** (hooks, size:S) — lossy-pipe-guard false positive on quoted prose in a heredoc.
