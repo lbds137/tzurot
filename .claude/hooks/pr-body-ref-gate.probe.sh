@@ -464,14 +464,49 @@ printf '  ```\n  all 4 call sites\n  ```\n' >"$BODY_FILE_V"
 run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_V"
 assert_pass "claim inside an indented fenced block is skipped"
 
-# ---- Case w: claim scan fails open when sha256sum is unavailable ----------
+# ---- Case w: claim scan fails open when sha256sum yields an EMPTY hash ----
 # Without a hash there is no ack key, so the scan fails open rather than
 # sharing one key across every body for the rest of the day.
+# The shim below is an executable that exits non-zero, so `command -v` still
+# FINDS it and the missing-binary branch is not the one exercised here — what
+# runs is the empty-hash guard two lines below it. A PATH prefix cannot hide a
+# binary from `command -v`, so the missing-binary branch is not reachable from
+# a probe at all; both branches take the same `return 0`, so this case is the
+# coverage for that behaviour.
 SHA_SHIM_DIR="$TMPDIR_PROBE/sha-shim"
 mkdir -p "$SHA_SHIM_DIR"
 printf '#!/bin/bash\nexit 127\n' >"$SHA_SHIM_DIR/sha256sum"
 chmod +x "$SHA_SHIM_DIR/sha256sum"
 run_hook_with_path "$SHA_SHIM_DIR" "$REPO" 'gh pr create --base develop --body "all 4 call sites"'
-assert_pass "claim scan fails open when sha256sum is unavailable"
+assert_pass "claim scan fails open when sha256sum yields an empty hash"
+
+# ---- Case x: CONTROL for cases y and z below -------------------------------
+# The three cases here are one group: same endpoint, same `-f`, same inline
+# value, same claim text. Only this one blocks; y and z each vary exactly ONE
+# property from it and document a fail-open miss. Case f is NOT usable as that
+# control — it passes the body by FILE reference (`-F body=@path`), so it
+# differs from y and z in two properties at once, and a control that varies two
+# properties cannot attribute a pass to the gap under test.
+run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/12 -f body="This is guaranteed to work."'
+assert_blocks "inline -f body= on the PATCH form blocks (control for the two gap cases below)" "guaranteed"
+
+# ---- Case y: a whole-token-quoted field argument is a fail-open MISS -------
+# Varies ONE property from case x: where the quote sits (`-f "body=…"` rather
+# than `-f body="…"`). Documents a KNOWN GAP, not a desired behaviour — the
+# required-flag check matches `body=` only where it directly follows the flag's
+# whitespace, so a leading quote makes the hook exit before either rule runs.
+# Behind that sits a second layer — extract_pr_body's inline-value patterns
+# anchor the same way — so closing only the flag check leaves this case passing.
+run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/12 -f "body=This is guaranteed to work."'
+assert_pass "whole-token-quoted -f \"body=…\" is a documented fail-open miss"
+
+# ---- Case z: a shell-variable PR number is a fail-open MISS ----------------
+# Varies ONE property from case x: the PR number, literal `12` becoming `$N`.
+# Also a KNOWN GAP rather than a desired behaviour — IS_PATCH_PR_API anchors on
+# `pulls/[0-9]+` against the unexpanded command text, so `pulls/$N` is never
+# recognized as the PATCH family. Single-quoted here so `$N` stays literal in
+# the command string the hook receives.
+run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/$N -f body="This is guaranteed to work."'
+assert_pass "shell-variable PR number is a documented fail-open miss"
 
 exit $fail
