@@ -3,9 +3,10 @@ id: TASK-864
 title: >-
   inspect log records the text model but not which vision model produced each
   attachment description
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 03:57'
+updated_date: '2026-09-03 00:15'
 labels:
   - 'area:ai-worker'
   - 'size:S'
