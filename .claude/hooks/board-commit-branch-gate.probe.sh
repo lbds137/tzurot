@@ -624,6 +624,50 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# ADD_RE case-insensitivity, independent of COMMIT_RE. Same fixture shape as
+# the global-flag case above: nothing staged, so the `git add` pathspec is the
+# ONLY source of the assessed file set — a missed uppercase `ADD` leaves the
+# set empty and passes; a detected one contributes the board pathspec and
+# blocks. The commit half is a plain lowercase `git commit`, always detected,
+# so ADD_RE's case handling is the only variable this case can fail on.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+(
+  cd "$DIR" || exit 99
+  jq -n '{tool_name:"Bash",tool_input:{command:"GIT ADD tracker/ && git commit -m msg"}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  uppercase GIT ADD is detected independently of COMMIT_RE\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  uppercase GIT ADD is detected independently of COMMIT_RE\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ADD_RE Unicode-whitespace handling, independent of COMMIT_RE. Same fixture
+# shape again. Written as an ESCAPE, matching the commit-side NBSP case above:
+# a raw U+00A0 is indistinguishable from a plain space on screen, and retyped
+# as one this case would silently become a duplicate of the plain `git add`
+# case.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+(
+  cd "$DIR" || exit 99
+  jq -n --arg c "$(printf 'git\u00a0add tracker/ && git commit -m msg')" \
+    '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  a non-breaking space between git and add is detected\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  a non-breaking space between git and add is detected\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
 # AUTO-STAGE SCOPING. `-a` belongs to the invocation it is written on. Scanned
 # over the whole command, the `-a` on `git branch` read as an auto-staging
 # commit, pulled in the dirty non-board file, and the mixed set turned a
