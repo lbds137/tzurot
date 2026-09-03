@@ -330,6 +330,28 @@ run 2 "UNQUOTED indented heredoc + trailing tail" 'git commit -m $(cat <<-EOF
 	EOF
 ) | tail -5'
 
+# --- a BARE heredoc body is prose, not a pipeline -------------------------
+# The reproducer: writing up the incident this guard exists for — a body line
+# carrying a gh read, a pipe and a truncator all together — blocked the write.
+# A bare `cat <<'TAG'` redirect has no $(...) wrapper for the quote strip to
+# collapse, so before the body came off the whole command each body line was
+# its own pipeline segment and the prose read as a real command.
+run 0 "prose quoting a gh read inside a bare heredoc" 'cat <<'"'"'TAG'"'"'
+the documented example is: gh pr checks 42 | tail -30
+TAG'
+# The load-bearing complement. Without it the case above only proves the guard
+# can be made quiet, not that it still fires — a fix that simply disarmed the
+# gh rule would pass the prose case identically.
+run 2 "the SAME text as a real command still blocks" 'gh pr checks 42 | tail -30'
+# An UNQUOTED delimiter is stripped too. Bash DOES substitute inside such a
+# body, so treating it as inert is an accepted under-arm rather than an exact
+# model — documented on strip_heredoc_bodies and pinned here as behaviour, so
+# a future narrowing of the stripper to quoted delimiters alone shows up as a
+# probe change rather than a silent one.
+run 0 "prose inside an UNQUOTED-delimiter heredoc"   'cat <<TAG
+the documented example is: gh pr checks 42 | tail -30
+TAG'
+
 # --- sed truncation in its real spellings --------------------------------
 # `\b` cannot fire mid-token, so a standalone-first-flag regex matched none of
 # these — while all three truncate exactly like the tidy `sed -n '5,20p'` form.

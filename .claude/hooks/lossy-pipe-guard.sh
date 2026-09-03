@@ -154,7 +154,11 @@ import sys
 # non-zero, which the caller treats as allow (fail-open) — the probe is
 # what catches a missing lib, not runtime.
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted, substitution_spans_matching
+from shell_quotes import (
+    strip_heredoc_bodies,
+    strip_quoted,
+    substitution_spans_matching,
+)
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -165,17 +169,26 @@ if not cmd:
 # UNSTRIPPED text (see GH_READ_TARGET).
 raw_cmd = cmd
 
-# Remove $(cat <<'EOF' ... EOF) substitutions (commit-message heredocs) and
-# quoted strings so message CONTENT can't false-positive the structure scan.
-# `<<-?` covers the INDENTED heredoc form by design. It was surviving only by
-# accident before — the double-quote strip below spans newlines and happened to
-# collapse the whole $(...) span. That accident holds only while the heredoc
-# sits inside one contiguous quoted span; a bare heredoc redirect with no $(...)
-# wrapper leaves each body line as its own pipeline segment, and a body line
-# quoting an example command (a target token, a pipe, and a filter together —
-# exactly what this repo's own incident-documenting commits contain) would
-# false-block.
-cmd = re.sub(r"\$\(cat <<-?'?\"?(\w+)'?\"?.*?\n\s*\1\s*\)", "MSG", cmd, flags=re.S)
+# A heredoc BODY is inert DATA, so it comes off the WHOLE command FIRST —
+# before the quote strip and before the stage split, the same order
+# substitution_spans_matching cleans a span in. The shared stripper is used
+# rather than a local regex because it recognizes the BARE redirect form
+# (`cat <<'TAG' | tail`) as well as the `$(cat <<'EOF' … EOF)` commit-message
+# spelling. A local regex matching only the $(...) form left the bare form
+# untouched, so each body line stayed its own pipeline segment and a line
+# merely QUOTING an example command — a target token, a pipe and a filter
+# together, exactly what this repo's own incident-documenting commits contain
+# — false-blocked. Pinned in both directions by the "prose inside a bare
+# heredoc" and "the same text as a REAL command" cases in the probe.
+cmd = strip_heredoc_bodies(cmd)
+
+# The stripper preserves the opener line and the newlines around the removed
+# body, so a heredoc-fed command stays a MULTI-LINE command and its trailing
+# `) | tail` lands in a later chain segment than the target. Collapse the
+# emptied heredoc back onto its opener line so the target and the truncator
+# stay in one segment — pinned by the "heredoc message + real trailing tail"
+# cases in the probe, which block only if this join happens.
+cmd = re.sub(r"<<(-?)\s*(['\"]?)(\w+)\2\n+\s*", r"<<\1\2\3\2 ", cmd)
 
 # Quote stripping is a single left-to-right SCAN, not a pair of regex passes:
 # the two-pass version failed on ordinary English (an apostrophe in one
