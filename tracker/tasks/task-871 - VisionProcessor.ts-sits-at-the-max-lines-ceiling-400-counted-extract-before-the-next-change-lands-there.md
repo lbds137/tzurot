@@ -23,4 +23,6 @@ Why: the #2309 round-1 fix (single-flight coalesced attribution + a noop-bound n
 Fix shape: extract the cache-hit + single-flight preamble of describeImage (the readValidCachedDescription branch, enterSingleFlight, the coalesced return) into a colocated module with its own test, keeping the onAttribution seam tests green; measure with the eslint max-lines one-liner before and after. size:S, one file split.
 
 Acceptance: VisionProcessor.ts under 360 counted lines and describeImage under complexity 18, with the existing VisionProcessor and single-flight suites unchanged in meaning.
+
+Correction (while building): extracting the preamble ALONE cannot meet this acceptance. The preamble is 25 counted lines, and max-lines runs with skipComments, so removing it lands the file near 381 against the 360 threshold. The shipped seam is wider - a visionDescribeGates module also taking VisionModelError, both category sets, buildFailureFallback and checkNegativeCache, 128 counted lines total. See PR 2312.
 <!-- SECTION:DESCRIPTION:END -->
