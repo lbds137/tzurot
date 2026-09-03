@@ -37,13 +37,28 @@
 #   - a porcelain rename under -a/--all reads as one non-board token (below).
 #   - `chore/release-*` matches ANY branch with that prefix, not only real
 #     release-cut branches — accepted wideness, same fail-open direction.
+#   - a `bash -c "…"` / `sh -c "…"` / `eval "…"` wrapper around the whole
+#     compound is not narrowed, it is INVISIBLE: the wrapper's string argument
+#     is a quoted span, so strip_quoted erases it along with everything inside
+#     — COMMIT_RE never sees a `git ... commit` token at all and the gate exits
+#     0 before the branch/allowlist checks run, on every feature branch,
+#     runtime-confirmed. This is the gate's own named threat model (the
+#     habitual `git add tracker/ && git commit` shape) run through a wrapper
+#     that changes nothing about intent. Open, tracked as TASK-879 — fixing it
+#     needs `executed_segments` (lib/shell_quotes.py), which is a scan-surface
+#     change with its own probes and bypass-count analysis, not a documentation
+#     fix.
 #
 # Deliberate OVER-arming — the opposite direction, and therefore listed apart
 # from the gaps rather than among them. The shared commit pattern's `\b` left
 # context arms on a dash-prefixed wrapper name (`my-git commit`), and its `(?i)`
-# arms on `GIT COMMIT`. Arming only means the branch and allowlist checks get to
-# run: a code-bearing, mixed, or empty file set still passes, so the widened
-# side of the pattern cannot produce a wrong BLOCK on its own.
+# arms on `GIT COMMIT`. Arming only means the branch and allowlist checks get
+# to run, and against a CODE-bearing, mixed, or empty file set that still
+# passes — the widened side of the pattern cannot wrongly block a real code
+# commit. The narrow exception, not a counterexample to that: an unrelated
+# `-git`-suffixed command (`my-git commit -m msg`, not git at all) CAN be
+# blocked, based on whatever happens to be staged at that moment — runtime-
+# confirmed (probe case: "a dash-prefixed wrapper name arms detection").
 #
 # Bypass-recognition gaps — degrade to the gate BLOCKING, which is the safe
 # direction for an escape hatch (the worst case is a refused bypass, never a
@@ -238,6 +253,15 @@ ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*"
 # not being fixed here: doing so would mean relaxing the count comparison,
 # which would also let a genuinely unbypassed commit ride through on a
 # phantom's coattails, the wrong direction for an escape hatch.
+# Guards the slice below: if a future edit ever changes COMMIT_RE's inline
+# flags, this raises loudly and immediately, right here — instead of the
+# slice silently mis-embedding a wrong prefix (or re.compile throwing deep
+# inside a `SCAN=$(...) || exit 0` that swallows any python failure, which
+# would degrade to the WHOLE gate going fail-open on every invocation with no
+# indication beyond a mass probe failure).
+assert COMMIT_RE.pattern.startswith("(?i)"), (
+    "COMMIT_RE no longer opens with the literal 4-char (?i) the slice below assumes"
+)
 BYPASS_RE = re.compile(
     r"(?:^|[;&|])\s*"
     + ASSIGNMENTS
