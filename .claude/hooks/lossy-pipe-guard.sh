@@ -200,15 +200,26 @@ cmd = strip_heredoc_bodies(cmd)
 # `-` indent flag, 2 = the quote character, 3 = the marker), a coupling the
 # shared pattern's own comment names as its exported contract.
 #
-# ACCEPTED OVER-BLOCK: the substitution is global and carries no state tying it
-# to the heredoc just emptied, so two SEQUENTIAL heredocs both rejoin and their
-# two statements land on one scan line — a target in the first and a truncator
-# in the second then read as one pipeline and block, where the real command runs
-# them as separate statements. Pinned by the "back-to-back heredocs merge onto
-# one scan line" case in the probe. Left as-is: it fails toward over-blocking,
-# the direction this file already accepts elsewhere (the `[a-z]*grep` family and
-# the command-wide substitution span both over-match by design), and the cost is
-# one re-run against a bypass on the other side.
+# ACCEPTED OVER-BLOCK, and its boundary is wider than the two-heredoc shape that
+# first surfaced it. The trailing `\n+\s*` matches whatever follows the emptied
+# opener line, with no check that the text CONTINUES the same statement — so ANY
+# heredoc whose opener line carries a target is glued onto the next line, and if
+# that next line holds a lossy stage the two read as one pipeline and block,
+# where bash runs them as separate statements and pipes the target into nothing.
+# A single heredoc-fed commit followed by an unrelated filtered command is the
+# base case; two SEQUENTIAL heredocs are one instance of the same class rather
+# than its boundary, because the substitution is global and carries no state
+# tying it to the heredoc just emptied. Pinned by BOTH the "single heredoc
+# rejoins onto an unrelated following statement" and "back-to-back heredocs
+# merge onto one scan line" cases in the probe. Left as-is: it fails toward
+# over-blocking, the direction this file already accepts elsewhere (the
+# `[a-z]*grep` family and the command-wide substitution span both over-match by
+# design), and the cost is one re-run without the pipe against a bypass on the
+# other side. Not free, though: commit-then-check is an ordinary command shape,
+# so the narrowing that would remove the class — fire the rejoin only when the
+# following text continues the statement, which for the `$(cat <<EOF … EOF) |
+# tail` form means a remainder beginning with `)` — is real work with its own
+# canary set, not a nicety.
 cmd = re.sub(HEREDOC_OPENER.pattern + r"\n+\s*", r"<<\1\2\3\2 ", cmd)
 
 # Quote stripping is a single left-to-right SCAN, not a pair of regex passes:

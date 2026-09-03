@@ -381,6 +381,43 @@ describe('shell_quotes.strip_heredoc_bodies', () => {
 });
 
 /**
+ * `HEREDOC_OPENER` is exported so a consumer can compose its own pattern from
+ * it — lossy-pipe-guard.sh rebuilds an opener from the match groups rather than
+ * re-typing the regex, which silently drops the here-string lookbehind. That
+ * makes the GROUP NUMBERING an exported contract, so it gets an assertion of
+ * its own rather than resting on the hook probes downstream.
+ */
+function openerGroups(inputs: readonly string[]): (string[] | null)[] {
+  const script = [
+    'import json, sys',
+    'sys.path.insert(0, sys.argv[1])',
+    'from shell_quotes import HEREDOC_OPENER',
+    'def groups(c):',
+    '    m = HEREDOC_OPENER.search(c)',
+    '    return None if m is None else [m.group(1), m.group(2), m.group(3)]',
+    'json.dump([groups(c) for c in json.load(sys.stdin)], sys.stdout)',
+  ].join('\n');
+  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
+    input: JSON.stringify(inputs),
+    encoding: 'utf-8',
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  return JSON.parse(out) as (string[] | null)[];
+}
+
+describe('shell_quotes.HEREDOC_OPENER (exported group contract)', () => {
+  it('numbers its groups indent-flag, quote-char, marker', () => {
+    expect(openerGroups(["cat <<-'EOF'"])[0]).toEqual(['-', "'", 'EOF']);
+    expect(openerGroups(['cat <<"EOF"'])[0]).toEqual(['', '"', 'EOF']);
+    expect(openerGroups(['cat <<EOF'])[0]).toEqual(['', '', 'EOF']);
+  });
+
+  it('does not match a here-string', () => {
+    expect(openerGroups(['git commit -F - <<<Fixup'])[0]).toBeNull();
+  });
+});
+
+/**
  * Runs `substitution_spans_matching` with a fixed `'git commit' in span`
  * predicate, exercising the full composition both blocking guards rely on
  * (heredoc-strip the WHOLE raw text → extract spans → strip_quoted each →
