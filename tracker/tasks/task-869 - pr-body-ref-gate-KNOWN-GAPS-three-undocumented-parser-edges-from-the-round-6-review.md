@@ -3,9 +3,10 @@ id: TASK-869
 title: >-
   pr-body-ref-gate KNOWN GAPS: three undocumented parser edges from the round-6
   review
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 16:40'
+updated_date: '2026-09-03 14:54'
 labels:
   - 'area:hooks'
   - 'size:S'
