@@ -3,9 +3,10 @@ id: TASK-795
 title: >-
   board-gate probe: pin the separator variants of the over-authorization and
   mistaken-bypass shapes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 16:53'
+updated_date: '2026-09-03 15:01'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -27,4 +28,6 @@ Why: two test-coverage suggestions from the final review round on PR 2242, filed
 Fix shape: extend the existing assert_cmd cases in board-commit-branch-gate.probe.sh — parameterize the over-authorization cases over the three separators the way the separator-terminated-assignment cases already loop, and add the compound-operator attempt as its own case. Canary each addition by reverting the relevant value-class exclusion and confirming the new cases redden; if one cannot be made to redden, do not ship it as coverage — say so in a comment instead, which is the precedent set in that file for two hardenings that have no failing fixture.
 
 Acceptance: the over-authorization property is pinned for all three separators, the compound-operator attempt has a case, and every added case has a demonstrated failing mutation.
+
+CLOSED PARTIAL, shipped as PR 2318 (91060fa75). Four cases added, probe 43 to 47. What is NOT covered, and why it is not a follow-up: acceptance clause 1 is met only on the PASSING arm (a compound where every commit carries the prefix, pinned for semicolon, ampersand and pipe). The BLOCKING arm - a bypass-free commit beside a bypassed one - is not parameterized, because no mutation distinguishes it. Those arms reach their verdict through the count comparison at board-commit-branch-gate.sh:212, which never inspects the separator; the separator appears only in the bypass anchor at :204. Narrowing that anchor leaves every blocking variant green, and the only mutation that reddens them (dropping the -eq clause) reddens the pre-existing double-ampersand cases in the same run. So the nine candidate cases are redundant rather than vacuous, and clause 3 of this same acceptance line - every case has a demonstrated failing mutation - is what rules them out. This is a measured negative result, not deferred work, and it now lives in the probe beside the loop it explains (grep for NOT parameterized, deliberately). Two neighbouring spellings are likewise documented rather than pinned: export VAR=1 double-ampersand git commit really would export the variable, so pinning its refusal would freeze behaviour that may want changing; and the space-free VAR=1 double-ampersand git commit cannot be reddened under any mutation that changes only separator handling.
 <!-- SECTION:DESCRIPTION:END -->
