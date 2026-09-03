@@ -94,9 +94,9 @@
 #     red, which is how the second layer was found. Probe: "whole-token-quoted
 #     -f \"body=…\" is a documented fail-open miss", against the inline
 #     `-f body="…"` control case immediately above it, which varies only where
-#     the quote sits. `gh`'s own documented style quotes the VALUE and not the whole
-#     token, so this is documented rather than closed, same fail-open family
-#     as the two quoted-token bullets above.
+#     the quote sits. This repo's own commands never write the whole-token
+#     quoted form, so this is documented rather than closed, same fail-open
+#     family as the two quoted-token bullets above.
 #   - A PR body edited through the ISSUES endpoint (`gh api -X PATCH
 #     .../issues/N -F body=…`, which GitHub accepts for a PR) is not
 #     scanned: the PATCH shape is recognized by `pulls/N` only. This repo's
@@ -149,9 +149,10 @@
 #     every body for the rest of the UTC day. Losing one write's worth of
 #     blocking beats acking the whole day. Probe: "claim scan fails open when
 #     sha256sum yields an empty hash" — that case covers the empty-hash half;
-#     the missing-binary half is not reachable from a probe, since a PATH
-#     prefix cannot hide a binary from `command -v`, and both halves take the
-#     same return.
+#     the missing-binary half is out of reach of the probe's PATH-PREPEND
+#     technique, since a prepended directory cannot hide a binary from
+#     `command -v` (replacing PATH outright could reach it). Both halves take
+#     the same return, so the coverage is unaffected.
 #
 # Fixture check: run .claude/hooks/pr-body-ref-gate.probe.sh after ANY edit.
 
