@@ -51,8 +51,14 @@
 #   - the bypass is recognised only as a bare `VAR=1 git commit` prefix, so
 #     `export TZUROT_ALLOW_BOARD_ON_FEATURE=1 && git commit ...` — which really
 #     would export it — is refused. The documented form is the bare prefix.
-#   - likewise a backslash-continued prefix (assignment on one line, the commit
-#     on the next): grep matches within a line.
+#   - likewise a backslash-continued prefix (assignment on one physical line
+#     ending `\`, the commit on the next): the `\` is not whitespace, so the
+#     junction's `[ \t]+` cannot cross it — even though bash really does treat
+#     that pair as one logical line and would carry the assignment into the
+#     commit. A BARE newline between them is NOT this gap and correctly
+#     blocks: bash treats a bare `\n` as a real command separator (the
+#     assignment does NOT carry over), and the junction excludes `\n` on
+#     purpose for exactly that reason (see BYPASS_RE below).
 #   - likewise a subshell-wrapped prefix (`(VAR=1 git commit ...)`), whose `(`
 #     is neither start-of-line nor a command separator, and an operator-adjacent
 #     prefix with no spaces (`VAR=1&&git commit`), where the value class stops
@@ -148,7 +154,16 @@ AUTOSTAGE_RE = re.compile(r"\s(?:-am|-a|--all)(?=\s|$)")
 # afterwards. Tightening it here was tried and reverted — no probe case could
 # distinguish the two forms, and an unfalsifiable tightening is
 # indistinguishable from no tightening.
-ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
+#
+# The JUNCTION after each assignment's value is `[ \t]+`, not `\s+`: a `\n` is
+# a command separator in bash, so an assignment on one line does NOT carry
+# into a command on the next. `\s+` matched across it anyway (\s includes
+# \n), reading `TZUROT_ALLOW_BOARD_ON_FEATURE=1\ngit commit` as one prefixed
+# invocation — a false GRANT, runtime-confirmed (probe case: "newline-joined
+# assignment does not carry into the commit"). This class is used twice —
+# once for a leading generic assignment, once trailing our own token before
+# COMMIT_RE — and both had the same bug, since it is one definition reused.
+ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*"
 # The bypass match must span the assignment ALL THE WAY THROUGH to a
 # `git ... commit` token, because that is what an env-assignment prefix means in
 # a shell: it governs the one command it precedes. Two weaker anchors were tried
@@ -177,10 +192,39 @@ ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
 # excluding only whitespace swallows the separator and reads the whole thing as
 # one prefixed invocation — a false GRANT again (probe cases: "an assignment
 # terminated by <sep> does not carry into the commit").
+#
+# The JUNCTION right after that value is `[ \t]+`, matching ASSIGNMENTS' own
+# fix above and for the identical reason: `\s+` crossed a `\n`, so an
+# assignment opening line 1 reached a `git commit` opening line 2 even though
+# bash treats the newline as a command boundary between them — a false GRANT,
+# runtime-confirmed (probe case: "newline-joined assignment + commit").
+#
+# The leading `(?:^|[;&|])\s*` keeps `\s*`, deliberately NOT narrowed: it sits
+# BEFORE the assignment, consuming only whitespace that already follows a real
+# separator (`^` or `;`/`&`/`|`) — the separator itself is what draws the
+# command boundary here, so whitespace including a newline after it is just
+# ordinary formatting (`;\nTZUROT_ALLOW...=1 git commit` is the same shell
+# statement as `; TZUROT_ALLOW...=1 git commit`). Narrowing this one would not
+# close a grant; it would only reject a harmless formatting variant.
+#
+# The embedded copy of COMMIT_RE below (required verbatim by
+# gitCommitPatternAgreement.test.ts, so its OWN `\s+` between `git` and
+# `commit` is not touched here) is not a false-grant vector either, despite
+# also crossing newlines: bash treats a bare `\n` as a command terminator, so
+# `git` and `commit` split across one are two SEPARATE commands (`git` with no
+# subcommand, then a bare `commit` — not a valid executable) — never a real
+# executing `git commit`. Whatever COMMIT_RE recognises across that newline,
+# it recognises identically in BOTH its uses: the outer `commits` count and
+# this embedded bypass copy. A phantom match that inflates one inflates the
+# other by the same amount, so the bypassed/commit-count comparison this gate
+# is built on stays consistent — and since no real commit runs behind a
+# newline-split `git`/`commit`, granting or refusing a "bypass" for it changes
+# nothing observable. Confirmed via bash's own command-separation semantics,
+# not by widening a probe on live commit execution.
 BYPASS_RE = re.compile(
     r"(?:^|[;&|])\s*"
     + ASSIGNMENTS
-    + r"TZUROT_ALLOW_BOARD_ON_FEATURE=[^\s;&|]+\s+"
+    + r"TZUROT_ALLOW_BOARD_ON_FEATURE=[^\s;&|]+[ \t]+"
     + ASSIGNMENTS
     + "(?i:" + COMMIT_RE.pattern.removeprefix("(?i)") + ")",
     re.M,
@@ -190,7 +234,16 @@ BYPASS_RE = re.compile(
 def segment_after(end):
     """Text from `end` to the next command separator — one invocation's args."""
     seg = view[end:]
-    stop = re.search(r"[;&|]", seg)
+    # `\n` is a command separator in bash exactly like `;`/`&`/`|`, but was
+    # missing here: a compound like `git add board.md\ngit commit -m x` let
+    # the `git add` match's segment run FORWARD past the newline into the
+    # next line's tokens (misread as bogus pathspecs), and
+    # `git commit -m x\ngit branch -a` let the commit match's segment run
+    # forward into the next line's `-a`, misread as that commit's own
+    # auto-stage flag — both misattribution shapes runtime-confirmed (probe
+    # cases: "newline-joined add + commit" pathspec leak, and "newline-joined
+    # commit + `git branch -a`" auto-stage leak).
+    stop = re.search(r"[;&|\n]", seg)
     return seg[: stop.start()] if stop is not None else seg
 
 
