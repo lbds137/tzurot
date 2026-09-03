@@ -27,6 +27,24 @@ import { fileURLToPath } from 'node:url';
 const LIB_DIR = fileURLToPath(new URL('../../../../.claude/hooks/lib', import.meta.url));
 
 /**
+ * Spawns one python3 process running `script` with `LIB_DIR` as `argv[1]`, feeds
+ * `inputs` in as JSON on stdin, and parses the JSON result back out. Every helper
+ * below differs only in its script body and its result type, so the spawn itself
+ * lives here once.
+ *
+ * `PYTHONDONTWRITEBYTECODE` keeps the import from dropping a `__pycache__` beside
+ * the library, where a stale `.pyc` could mask a broken edit.
+ */
+function runPython<T>(script: string, inputs: readonly string[]): T {
+  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
+    input: JSON.stringify(inputs),
+    encoding: 'utf-8',
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  return JSON.parse(out) as T;
+}
+
+/**
  * One python3 spawn strips every case. `null` is the unterminated-quote signal,
  * carried through JSON so this test can assert it rather than inferring it from
  * a returned string.
@@ -38,12 +56,7 @@ function stripAll(inputs: readonly string[]): (string | null)[] {
     'from shell_quotes import strip_quoted',
     'json.dump([strip_quoted(c) for c in json.load(sys.stdin)], sys.stdout)',
   ].join('\n');
-  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
-    input: JSON.stringify(inputs),
-    encoding: 'utf-8',
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
-  });
-  return JSON.parse(out) as (string | null)[];
+  return runPython<(string | null)[]>(script, inputs);
 }
 
 /**
@@ -58,12 +71,7 @@ function evalAll<T>(fn: string, inputs: readonly string[]): T[] {
     `from shell_quotes import ${fn}`,
     `json.dump([${fn}(c) for c in json.load(sys.stdin)], sys.stdout)`,
   ].join('\n');
-  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
-    input: JSON.stringify(inputs),
-    encoding: 'utf-8',
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
-  });
-  return JSON.parse(out) as T[];
+  return runPython<T[]>(script, inputs);
 }
 
 /** [label, input, expected output] — `null` means "unterminated, strip nothing". */
@@ -397,12 +405,7 @@ function openerGroups(inputs: readonly string[]): (string[] | null)[] {
     '    return None if m is None else [m.group(1), m.group(2), m.group(3)]',
     'json.dump([groups(c) for c in json.load(sys.stdin)], sys.stdout)',
   ].join('\n');
-  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
-    input: JSON.stringify(inputs),
-    encoding: 'utf-8',
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
-  });
-  return JSON.parse(out) as (string[] | null)[];
+  return runPython<(string[] | null)[]>(script, inputs);
 }
 
 describe('shell_quotes.HEREDOC_OPENER (exported group contract)', () => {
@@ -432,12 +435,7 @@ function spansMatchGitCommit(inputs: readonly string[]): boolean[] {
     "pred = lambda s: 'git commit' in s.lower()",
     'json.dump([substitution_spans_matching(c, pred) for c in json.load(sys.stdin)], sys.stdout)',
   ].join('\n');
-  const out = execFileSync('python3', ['-c', script, LIB_DIR], {
-    input: JSON.stringify(inputs),
-    encoding: 'utf-8',
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
-  });
-  return JSON.parse(out) as boolean[];
+  return runPython<boolean[]>(script, inputs);
 }
 
 describe('shell_quotes.substitution_spans_matching (composition used by both guards)', () => {
