@@ -191,6 +191,28 @@ assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m a && git commit -m b
 assert_cmd 0 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m a && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m b && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m c' \
   'three commits all carrying the prefix pass'
 
+# The same all-carry-the-prefix compound joined by each of the OTHER separators.
+# `;`, `&` and `|` all open a new command, so the count comparison should treat
+# them exactly as it treats `&&` — and this is the arm where that actually gets
+# decided: the bypass pattern's left context is what has to recognise the
+# separator before the second commit can be counted as bypassed. Narrowing that
+# left context by one separator reddens only the spelling it dropped and leaves
+# the `&&` cases above green, which is how each of these three earns its place.
+#
+# NOT parameterized, deliberately: the BLOCKING arms above (a bypass-free commit
+# before, after, or in the middle of the chain). Those reach `block` through the
+# count comparison alone, which never inspects the separator — every mutation
+# that reddens their `;`/`&`/`|` spellings reddens the `&&` spellings above in
+# the same run, so they would report coverage they do not add. Same reasoning as
+# the not-probed note further down: a case that cannot fail on its own measures
+# nothing. The three-commit chain is likewise left at `&&` only — it pins the
+# N>2 generalization once, and the separator handling is already decided by the
+# two-commit form below.
+for sep in ';' '&' '|'; do
+  assert_cmd 0 "TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m a ${sep} TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m b" \
+    "a compound joined by ${sep} where every commit carries the prefix passes"
+done
+
 # SEPARATOR-TERMINATED ASSIGNMENTS. `;`, `&` and `|` end a word with or without
 # surrounding space, so each of these is an unexported assignment followed by a
 # SEPARATE commit that never sees the variable. A value class excluding only
@@ -201,6 +223,23 @@ for sep in ';' '&' '|'; do
   assert_cmd 2 "TZUROT_ALLOW_BOARD_ON_FEATURE=1${sep} git commit -m msg" \
     "an assignment terminated by ${sep} does not carry into the commit"
 done
+
+# THE MISTAKEN COMPOUND-OPERATOR ATTEMPT: joining the assignment to the commit
+# with `&&` instead of using it as a bare prefix. Shell-wise it is the same inert
+# shape as the separator-terminated cases above — an unexported assignment, then
+# a SEPARATE command that never sees the variable — so refusing it is correct,
+# and the hook names it in KNOWN GAPS. It is a plausible spelling for someone
+# reaching for the documented bypass, which is why the refusal is pinned here
+# rather than left to the reader of that block.
+#
+# Two neighbouring spellings are NOT probed. `export VAR=1 && git commit` really
+# would export the variable, so its refusal is a genuine gap the hook already
+# documents — pinning it would freeze a behaviour we may want to change. And
+# `VAR=1&&git commit` (no spaces) cannot be reddened: the value class stops at
+# the `&` and the whitespace the pattern then requires is absent, so it fails to
+# match under every mutation that changes only the separator handling.
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 && git commit -m msg' \
+  'an assignment joined to the commit by && is not a bypass'
 
 # QUOTE-STRIPPING FAILURE must not disarm the gate. strip_quoted returns None on
 # an unterminated quote, and printing that emitted the literal "None" as
