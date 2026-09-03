@@ -81,10 +81,36 @@
 #     direction, same family as the quoted --body-file gap above). This
 #     repo's own commands never quote the whole `-F body=@path` token, so the
 #     gap is documented rather than closed.
+#   - A whole-token QUOTED field argument (`-f "body=…"`, and the same for
+#     `-F` and `--field`) is not scanned by EITHER rule. The required-flag
+#     check below matches `body=` only where it directly follows the flag's
+#     whitespace; a leading quote sits there instead, so the check rejects
+#     and the hook exits 0 before rule 1 or rule 2 runs. Pre-filter #1's
+#     `body=` glob still admits the command — the flag check is what turns it
+#     away. The miss has a SECOND layer behind that one: extract_pr_body's
+#     inline-value patterns anchor on `body="` after the flag's whitespace
+#     too, so widening only the flag check leaves BODY_TEXT empty and rule 2
+#     with nothing to scan. Both were mutated to make the probe case below go
+#     red, which is how the second layer was found. Probe: "whole-token-quoted
+#     -f \"body=…\" is a documented fail-open miss", against the inline
+#     `-f body="…"` control case immediately above it, which varies only where
+#     the quote sits. `gh`'s own documented style quotes the VALUE and not the whole
+#     token, so this is documented rather than closed, same fail-open family
+#     as the two quoted-token bullets above.
 #   - A PR body edited through the ISSUES endpoint (`gh api -X PATCH
 #     .../issues/N -F body=…`, which GitHub accepts for a PR) is not
 #     scanned: the PATCH shape is recognized by `pulls/N` only. This repo's
 #     conventions never edit a PR body that way.
+#   - A PR number carried in a SHELL VARIABLE (`gh api -X PATCH
+#     .../pulls/$N -f body=…`) is not scanned by either rule. The
+#     IS_PATCH_PR_API check below anchors on `pulls/[0-9]+` against the raw
+#     command text, which the hook never expands, so `pulls/$N` fails the
+#     digit anchor, the PATCH family is not recognized, and a scripted
+#     PR-body edit passes through unscanned (fail-open direction). Probe:
+#     "shell-variable PR number is a documented fail-open miss", against the
+#     same inline `-f body="…"` control case, which varies only the PR number
+#     from a literal to `$N`. This repo edits PR bodies through `pnpm ops
+#     gh:pr-edit`, which is matched by name and needs no `pulls/N` at all.
 #   - A RELATIVE --body-file path resolves against this hook's own cwd (the
 #     repo root, per the settings.json wrapper), not the wrapped command's
 #     cwd — `cd sub/dir && gh pr create --body-file ./x.md` therefore fails
@@ -115,6 +141,17 @@
 #     alternative, carrying no `/` or `:` of its own, does not count as a
 #     cite. That alternative is the repo's tooling vocabulary and grows on
 #     demand — the cost of a miss is one retry.
+#   - Rule 2's BLOCK — not its scan — fails open when `sha256sum` is missing
+#     or yields an empty hash. The guard sits downstream of the
+#     `flagged_count -eq 0` early return, so the scan has already run and
+#     collected its flagged lines; what cannot be computed is the ack key
+#     that scopes a block to one body text, and a shared empty key would ack
+#     every body for the rest of the UTC day. Losing one write's worth of
+#     blocking beats acking the whole day. Probe: "claim scan fails open when
+#     sha256sum yields an empty hash" — that case covers the empty-hash half;
+#     the missing-binary half is not reachable from a probe, since a PATH
+#     prefix cannot hide a binary from `command -v`, and both halves take the
+#     same return.
 #
 # Fixture check: run .claude/hooks/pr-body-ref-gate.probe.sh after ANY edit.
 
@@ -494,7 +531,10 @@ run_claim_scan() {
   # blocking on retry would infinite-loop).
   # No sha256sum means no ack key to scope the block to THIS body text; a
   # shared empty key would ack every body for the rest of the UTC day, so
-  # fail open instead of computing a degraded key.
+  # fail open instead of computing a degraded key. Note what is lost: this
+  # guard is downstream of the `flagged_count -eq 0` return above, so the
+  # scan itself has already run and flagged its lines — only the BLOCK is
+  # given up here, for this one write.
   command -v sha256sum >/dev/null 2>&1 || return 0
   local body_hash
   body_hash=$(printf '%s' "$BODY_TEXT" | sha256sum | cut -d' ' -f1)
