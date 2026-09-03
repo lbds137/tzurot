@@ -122,6 +122,23 @@
 #     Closing it would mean reconstructing the body from git log (or
 #     blocking a legitimate flag); this repo's conventions never use --fill,
 #     so the gap is documented rather than closed.
+#   - Rule 2's BLOCK — not its scan — fails open when `sha256sum` is missing
+#     or yields an empty hash. The guard sits downstream of the
+#     `flagged_count -eq 0` early return, so the scan has already run and
+#     collected its flagged lines; what cannot be computed is the ack key
+#     that scopes a block to one body text, and a shared empty key would ack
+#     every body for the rest of the UTC day. Losing one write's worth of
+#     blocking beats acking the whole day. Probe: "claim scan fails open when
+#     sha256sum yields an empty hash" — that case covers the empty-hash half;
+#     the missing-binary half is out of reach of the probe's PATH-PREPEND
+#     technique, since a prepended directory cannot hide a binary from
+#     `command -v` (replacing PATH outright could reach it). Both halves take
+#     the same return, so the coverage is unaffected.
+#
+#   The bullets above are misses. The bullets BELOW are deliberate
+#   under-blocking — choices not to over-block. Append a new miss above this
+#   line, not after it.
+#
 #   - CLAIM_CITE_EXEMPT_REGEX's backticked-span cite is broad on purpose: an
 #     incidental backticked value containing a colon — a timestamp like
 #     `4:30pm`, a ratio — sitting beside an uncited count on the same line
@@ -141,18 +158,6 @@
 #     alternative, carrying no `/` or `:` of its own, does not count as a
 #     cite. That alternative is the repo's tooling vocabulary and grows on
 #     demand — the cost of a miss is one retry.
-#   - Rule 2's BLOCK — not its scan — fails open when `sha256sum` is missing
-#     or yields an empty hash. The guard sits downstream of the
-#     `flagged_count -eq 0` early return, so the scan has already run and
-#     collected its flagged lines; what cannot be computed is the ack key
-#     that scopes a block to one body text, and a shared empty key would ack
-#     every body for the rest of the UTC day. Losing one write's worth of
-#     blocking beats acking the whole day. Probe: "claim scan fails open when
-#     sha256sum yields an empty hash" — that case covers the empty-hash half;
-#     the missing-binary half is out of reach of the probe's PATH-PREPEND
-#     technique, since a prepended directory cannot hide a binary from
-#     `command -v` (replacing PATH outright could reach it). Both halves take
-#     the same return, so the coverage is unaffected.
 #
 # Fixture check: run .claude/hooks/pr-body-ref-gate.probe.sh after ANY edit.
 
