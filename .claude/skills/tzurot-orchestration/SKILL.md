@@ -23,23 +23,19 @@ Who drives the main loop determines the delegation posture. The mechanism is
 quality — fresh context plus an independent diff review — not budget.
 
 **Fable-driven NESTED DISPATCH is the PRIMARY workflow for routine work**
-(owner verdict 2026-08-22, superseding the earlier Opus-default call): Fable
-drives the main loop and dispatches one Opus orchestrator + Sonnet worker per
-unit. **The Opus single-hop main loop is the documented BACKUP lane** for when
-Fable usage runs low — its own record (TASK-513/487) stays valid and the lane
-stays maintained; it is a fallback, not a deprecation. The nested pattern's
-evidence ledger through the beta.206 epoch: 15 units, 33 dispatch-spec defects
-caught by the fresh-context orchestrator, zero worker-tier defects on units
-with complete specs. Release operations are **not** model-scoped: release
-safety rests on the per-release owner-approval gate (`00-critical.md` § Merge
-Approval), which is model-independent. Schema and migration work, and any
-owner-taste call, still escalate to the owner regardless of driver.
+(owner verdict): Fable drives the main loop and dispatches one Opus
+orchestrator + Sonnet worker per unit. **The Opus single-hop main loop is the
+documented BACKUP lane** for when Fable usage runs low — a fallback, not a
+deprecation. Release operations are **not** model-scoped: release safety rests
+on the per-release owner-approval gate (`00-critical.md` § Merge Approval),
+which is model-independent. Schema and migration work, and any owner-taste
+call, still escalate to the owner regardless of driver.
 
-| Driver                                          | Posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Fable main loop** _(PRIMARY — routine work)_  | **Nested dispatch is the STANDARD** (owner verdicts, TASK-718 + the 2026-08-22 hierarchy call) — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), or work where writing the spec genuinely costs more than the edit. Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a); the mid-review carve-out compounded to 13 inline rounds in one night and is retired (owner call, 2026-08-24).                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Opus main loop** _(BACKUP — low Fable usage)_ | **Nested dispatch for SUBSTANTIVE units under this driver too** (owner call): one fresh Opus orchestrator + Sonnet worker per unit, same § Nested dispatch contract, with the Opus main loop's own full-diff read as the gate. The fresh-context layer, not the model tier, is the defect-catcher — a fresh instance of the SAME model re-verifies spec premises the authoring context cannot see past, and its marginal cost bills the non-binding budget. Mechanical-class units may go single-hop Sonnet (§ Worker model tier). But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). Review-round fix batches are dispatch work under this driver too (/tzurot-review-response § 3a) — the handful-of-tool-calls exception never covers them: inline round-fixes are how self-fed review loops start. The nested form is untested under this driver at adoption — the next Opus-window mining pass measures it (round counts, self-fed loops). |
-| **Bulk reading/exploration**                    | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Driver                                          | Posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop** _(PRIMARY — routine work)_  | **Nested dispatch is the STANDARD** — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), or work where writing the spec genuinely costs more than the edit. Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a).                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Opus main loop** _(BACKUP — low Fable usage)_ | **Nested dispatch for SUBSTANTIVE units under this driver too** (owner call): one fresh Opus orchestrator + Sonnet worker per unit, same § Nested dispatch contract, with the Opus main loop's own full-diff read as the gate. The fresh-context layer, not the model tier, is the defect-catcher — a fresh instance of the SAME model re-verifies spec premises the authoring context cannot see past, and its marginal cost bills the non-binding budget. Mechanical-class units may go single-hop Sonnet (§ Worker model tier). But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). Review-round fix batches are dispatch work under this driver too (/tzurot-review-response § 3a) — the handful-of-tool-calls exception never covers them: inline round-fixes are how self-fed review loops start. |
+| **Bulk reading/exploration**                    | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
 the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
@@ -47,11 +43,6 @@ the agent definition's model, or inherits from the parent" — inference from
 that schema line, not a live probe), so an unpinned spawn bills the scarcest
 budget, while every file read inline re-bills as main-loop input on all later
 turns.
-Per-call `model` is the verified mechanism; a frontmatter override file was
-ruled out — TASK-438's probes showed the harness ignores subagent
-TOOL-restriction frontmatter (`tools:`/`disallowedTools:`), so an override's
-read-only surface would rest on unenforced fields, and whether a project file
-can override a built-in agent name at all was never probed.
 
 **Worker model tier (settled)**: for a **mechanical-class** unit — one whose
 spec describes the edit precisely (renames, sweeps, fixture updates, applying
@@ -59,10 +50,7 @@ a settled pattern across files) — the orchestrator passes `model: sonnet` on
 the Agent call instead of the default Opus model (same `opus-implementer`
 contract, only the model overridden per-call); an edit that can be described
 precisely does not need Opus-tier judgment to execute, and the spec template
-produces exactly that. Sonnet is the STANDING tier for mechanical-class units
-— settled by the TASK-487 record (11 units, 0 worker semantic defects; every
-review round attributable to reviewer polish or orchestrator-side scoping,
-never the worker tier). Semantic-class units (design judgment inside the
+produces exactly that. Sonnet is the STANDING tier for mechanical-class units. Semantic-class units (design judgment inside the
 diff) stay on Opus. If a Sonnet unit ships a semantic defect: append it to
 TASK-487's notes (that file is the tier's standing evidence ledger; its Done
 status does not bar appends, and appends are file edits only — the CLI's
@@ -88,33 +76,22 @@ nested dispatch the Opus layer is NOT skipped for mechanical-class units — the
 layer is the quality mechanism (independent grounding, gates, and an honest
 report), not a tier choice — and the inner worker stays Sonnet regardless of
 unit class: semantic judgment inside the diff belongs to the ORCHESTRATOR
-layer, which resolves it itself rather than promoting the worker (the observed
-shape across the evidence ledger — orchestrators made the judgment calls and
-delegated only the mechanical application). Evidence ledger: TASK-718 (four units, zero worker-tier defects; the
-orchestrators repeatedly caught errors in the DISPATCH spec, which is the
-fresh-context value the pattern buys).
+layer, which resolves it itself rather than promoting the worker.
 
 The dispatch prompt's non-negotiable contract points:
 
 - **Step 0 is base-SHA verification with the self-heal authorized** (§ "The
   base IS stale by default"). Name the SHA with its subject line. **Copy the
   four-condition self-heal block from that section VERBATIM — never
-  paraphrase it**: a paraphrase has already regressed to a bare
-  verify-and-stop once and to three-of-four conditions twice; those dispatches
-  survived only because the orchestrator overrode the spec by citing this
-  skill. A LOCAL-only
+  paraphrase it**. A LOCAL-only
   commit is a valid base — the worktree shares the object store, so committing
   a precursor (e.g. a schema/migration half) on the feature branch in the main
   tree and dispatching against that SHA works without any push.
 - **The inner worker's first action is `pwd` PLUS an assertion that the path
-  contains `.claude/worktrees/`** — not a bare "confirm pwd". One worker
-  acknowledged the bare instruction and still began targeting the shared
-  checkout; only its own isolation guard stopped it.
+  contains `.claude/worktrees/`** — not a bare "confirm pwd".
 - **Instruct the inner worker to end its turn with its report as its final
   text and make NO `SendMessage` attempt** — the orchestrator receives the
-  Agent tool result directly. An inner worker that tried to message its "peer
-  session" found no such agent and delivered its results to the MAIN loop
-  instead, twice in one unit.
+  Agent tool result directly.
 - **Work the harness cannot do in a worktree stays with the main loop**:
   anything needing `.env` or the local dev DB (migrations, `db:*` commands)
   is done in the MAIN tree and committed as the base the worker self-heals
@@ -150,32 +127,19 @@ outside it** → verify the worktree has no unpushed commits, then
 preceding checks: the byte-identical diff covers everything uncommitted, and
 the no-unpushed-commits check covers anything a worker committed against its
 contract — either alone leaves a loss window) → run the touched packages' test suites and `pnpm quality` in the main tree (sequentially) → commit → PR →
-monitor. The
-review gate is not delegated and not skipped for a clean-looking report — the
-evidence ledger records TWO defects that reached review, both caught only by
-claude-review: a shipped test gap missed by the nested orchestrator AND the
-Fable diff read, and a shipped code bug in an untouched caller of the changed
-function — outside the worker's diff entirely, so only Fable's spec scoping
-and diff read were positioned to catch it, and both missed. Together they are
-the argument for keeping every layer, not for trusting any one of them.
+monitor. The review gate is not delegated and not skipped for a clean-looking report.
 
 ## The spec template
 
 Every implementation spec carries these sections, by name. A missing section is
-a gap the worker will fill by guessing. **Dropping sections under time pressure
-is measurable**: the two beta.206-epoch dispatches that omitted four sections
-each produced the epoch's only high-severity review escapes and most of its
-worker deviations — the template gets shortest exactly where the unit is
-largest, which is backwards.
+a gap the worker will fill by guessing.
 
 1. **Task** — the design decisions already made. The worker executes; it never
    designs. Include a ledger under the exact heading `## Premise ledger`:
    every premise the spec asserts about RUNTIME behavior carries a one-line
    cite of the read that established it, and the orchestrator is instructed to
    re-verify each by probe or test — not by re-reading the same code — before
-   building on it. The premises that failed this pattern all looked correct on
-   the page; the worst was caught only by printing the actual runtime value
-   after code-reading-based tests went green. Two rows are mandatory in every
+   building on it. Two rows are mandatory in every
    ledger, because both failures are invisible from inside the spec: the grep
    for the FIX'S OWN NAME (is it already built?) and the grep for a PRIOR TASK
    ID or shipped PR that already covers it. `dispatch-spec-ledger-gate.sh`
@@ -194,8 +158,6 @@ largest, which is backwards.
    smaller than the expected addition, name the extraction target as a
    PRE-AUTHORIZED routine decision rather than a stop; same for any touched
    function already at `max-lines-per-function`/`max-statements`/`max-params`.
-   13 mid-build ceiling collisions in one epoch, every one measurable in one
-   command at authoring time.
 4. **Landmines** — enumerated known traps: formatters that rewrite the file,
    gated baselines, hook behavior, fixture shapes. Say up front that the worker
    edits files with the Edit tool and never an interpreter heredoc rewrite
@@ -215,9 +177,7 @@ largest, which is backwards.
    parallel (`05-tooling.md` § Resource Constraints).
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
-   A file-scoped test list is systematically narrower than CI and has cost
-   two full failed transfers in one epoch — a format-check miss and a
-   package-suite miss. Name individual files only IN ADDITION, as a canary.
+   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary.
 8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this
@@ -226,9 +186,8 @@ largest, which is backwards.
    verify-and-stop.
 9. **Report requirements** — deviations flagged, verbatim verification tails,
    survivor-grep results. Git-state claims (current branch, base SHA,
-   porcelain status) appear as pasted command output, never restated prose —
-   restated git state was wrong twice in one day with the pasted form correct
-   both times. The report also **declares the delegation shape**
+   porcelain status) appear as pasted command output, never restated prose.
+   The report also **declares the delegation shape**
    ("no inner worker — I judged the unit small enough" is a valid answer;
    silence is not) and carries **transfer notes**: tiers the worktree could
    not reach (`typecheck:spec`, `pnpm test:component` when a snapshot surface
@@ -243,8 +202,7 @@ with no isolation flag, because its job is to edit the outer orchestrator's
 already-isolated worktree, not a third tree (§ Nested dispatch).** A same-tree file-mutating worker and an orchestrator
 that keeps using `git checkout` are fighting over one working tree: the
 orchestrator's branch hop silently carries the worker's uncommitted edits onto
-another branch (observed live — the first Sonnet-pilot unit had its branch
-yanked mid-edit). Same-tree spawns are for read-only analysis only — plus the sanctioned
+another branch. Same-tree spawns are for read-only analysis only — plus the sanctioned
 nested-dispatch inner worker above, which is not a violation. Should the rule
 nonetheless be violated and an UNsanctioned file-mutating worker found sharing
 the tree,
@@ -263,10 +221,7 @@ sanctioned nested-dispatch inner worker is expected to appear in no list of
 its own, and its absence is not a freeze trigger.)
 
 Only the main tree listed means the worker is in the SHARED tree despite
-`isolation: "worktree"` (observed: a spawn silently got no worktree, the worker
-ran `git checkout -b` in the shared tree, and the orchestrator's branch moved
-mid-turn — a review fixup landed on the worker's branch and cost a cherry-pick
-to recover). Why the flag can be ignored is **unknown and unprobed** — do not
+`isolation: "worktree"`. Why the flag can be ignored is **unknown and unprobed** — do not
 record a cause. The response is the damage-control freeze above: no checkout,
 pull, rebase, or merge until the worker reports. The weaker universal guard is
 worth having too — re-read `git branch --show-current` immediately before any
@@ -286,8 +241,7 @@ was right about the code it cannot.
 ### The base IS stale by default — dispatch with a self-heal, not a stop
 
 **The harness cuts agent worktrees from `main`, not from the orchestrator's
-branch** (observed repeatedly on this repo — a worker dispatched from `develop`
-starts on the last release, missing everything merged since). The
+branch** (a worker dispatched from `develop` starts on the last release, missing everything merged since). The
 `worktree-agent-*` branch shape is likewise observed harness behavior, not
 repo-defined — if the harness ever changes it, the gate fails closed (the
 worker stops instead of self-healing). With `worktree.baseRef: "head"` set in
@@ -328,13 +282,10 @@ only correction that arrives in time.
 
 ### Resuming a worktree-isolated worker
 
-**A `SendMessage` resume can silently drop the isolation.** Observed: a worker
-spawned with `isolation: "worktree"` (worktree confirmed — it reported a base
-SHA 26 commits stale and stopped on it) was resumed via `SendMessage`; the
-resumed run created its branch and made every edit in the ORCHESTRATOR's tree,
-and `.claude/worktrees/` was empty at completion. The tool result says
-"resumed from transcript" and nothing about isolation, so this fails silently
-in the direction the worktree mandate exists to prevent. A resume runs in the
+**A `SendMessage` resume can silently drop the isolation** — the resumed run
+can make every edit in the ORCHESTRATOR's tree while the tool result says only
+"resumed from transcript", so this fails silently in the direction the worktree
+mandate exists to prevent. A resume runs in the
 BACKGROUND — `SendMessage` returns while the worker's turn is still executing —
 so there is no checkpoint to gate on: the check below races the worker rather
 than preceding it. Run it as soon as the resume returns, and until it comes
@@ -355,10 +306,7 @@ exist so waiting is never the activity (`10-working-posture.md` § Momentum).
 
 **Board and tracker commits go to `develop` — check the branch first.** If the
 main tree is parked on a feature branch while a dispatch runs,
-`git switch develop`, commit, and switch back: both recovered
-board-on-feature-branch commits in the beta.206 epoch happened inside a
-dispatch window, and the push then no-ops as "Everything up-to-date" in
-silence. Interaction with `05-tooling.md` § PR Monitoring: a branch hop moves
+`git switch develop`, commit, and switch back: a board commit made on a feature branch pushes as a silent "Everything up-to-date" no-op. Interaction with `05-tooling.md` § PR Monitoring: a branch hop moves
 `$(git rev-parse HEAD)`, so arm any pending CI monitor — and see its SHA echo
 — before hopping, not after. Backstopped by `board-commit-branch-gate.sh`.
 
@@ -387,16 +335,11 @@ use subagents to verify or double-check your own work. Then:
   letter.
 - **Verify, don't relay.** Re-run `git -C <worktree> log -1`,
   `status --porcelain`, and `diff --stat` for every git claim the report makes,
-  and `git diff --stat -- <file>` for every "I added tests to X" — worker
-  git-state or authorship claims were false in 5 of 15 beta.206-epoch units,
-  every one caught only by this check. A worker's "this canary cannot redden"
+  and `git diff --stat -- <file>` for every "I added tests to X". A worker's "this canary cannot redden"
   is also a claim: build the discriminating fixture before accepting it.
 - Re-run the gates yourself when the worker's verification tails are absent or
   truncated; a claim without command output is unverified.
-- **Then sweep OUTWARD from the diff.** Every high-severity finding this
-  pattern has leaked to review was a claim or instruction on a surface the
-  diff did not touch — a system-prompt constant still naming a field the new
-  mode removed, an adjacent instruction string describing the old shape.
+- **Then sweep OUTWARD from the diff.** The leak shape is a claim or instruction on a surface the diff did not touch — a system-prompt constant still naming a field the new mode removed, an adjacent instruction string describing the old shape.
   Enumerate, by name, the prose and constants that DESCRIBE the behavior the
   unit changed but live outside its diff, and read each one. Neither the
   worker (out of its diff) nor the reviewer above (reading only the diff) is
@@ -404,11 +347,7 @@ use subagents to verify or double-check your own work. Then:
 - Then the normal commit → PR → monitor cycle per `/tzurot-git-workflow`.
 - **Review-round hard cap (~6 rounds/PR)**: past it, stop iterating in this
   context — hand the open findings to a fresh-context implementer or the owner
-  (`/tzurot-review-response` § 5a carries the procedure and the evidence; both
-  observed 14–15-round marathons were self-fed — later rounds fixing
-  regressions earlier rounds introduced; the 14-round one occurred in inline,
-  non-delegated orchestrator work, which is why this skill carries its own
-  pointer).
+  (`/tzurot-review-response` § 5a carries the procedure; the pointer is here because the failure has occurred in inline, non-delegated orchestrator work).
 
 ## Opus-main-loop posture
 
@@ -419,15 +358,6 @@ works behind a spec.
   context window fills, and the degradation is invisible from inside it. Close
   the unit out to `CURRENT.md` / the tracker first, then compact — a boundary
   compaction loses nothing, while a mid-unit one loses the work-stack pointer.
-- **Escalate as one named question plus a recommendation**
-  (`09-interaction-style.md`). A menu without a pick is not an escalation; it
-  moves the decision to the user without the analysis that would let them make
-  it cheaply.
-- **Cite the read that proved it.** Before stating any factual claim about the
-  code, name the tool result from THIS session that establishes it
-  (`00-critical.md` § Don't Present Speculation as Fact). When challenged on a
-  claim, re-verify at the source rather than defending it — the pull to defend
-  is strongest exactly when the claim came from memory rather than a read.
 - **Calibrate written-deliverable length.** Opus 5's disk deliverables (docs,
   backlog entries, PR bodies, CURRENT.md paragraphs) run longer than prior
   models' by documented tendency. Match length to what the task needs — cover

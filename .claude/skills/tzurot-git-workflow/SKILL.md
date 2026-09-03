@@ -42,7 +42,6 @@ EOF
 **Command-shape rules for commit/push** (each class cost multiple cycles in practice):
 
 - Chain with `&&`, never `;` — a hook-rejected commit must halt the chain; with `;` the dead commit flows into a push that no-ops as "Everything up-to-date" and the rejection reason scrolls away.
-- **Never filter commit/push output** through `grep`/`tail`/`head` — hook rejections (commitlint, pre-push gate) get swallowed and cost a blind re-diagnosis cycle. Read the full output; it's short when things work and essential when they don't.
 - **Pass `timeout: 600000`** on Bash calls that commit or push — lint-staged + the pre-push gate run the full local pipeline (minutes); default timeouts kill mid-hook and leave ambiguous state (commit landed, push didn't).
 - In compound commands that `cd` into a package, run the git step as `git -C <repo-root> …` (or with absolute paths) — repo-relative pathspecs break after the cd, failing AFTER the tests already passed.
 - **Create a new branch in a SEPARATE Bash call, before staging/committing** — never chain `git checkout -b <branch> && git add … && git commit …`. The `develop-code-commit-guard` PreToolUse hook evaluates the CURRENT branch _before_ the command runs, so on a compound "branch-then-commit" it still sees `develop`/`main` and blocks the commit as an on-long-lived-branch code commit. Run `git checkout -b` first, confirm the branch, then stage + commit in the next call.
@@ -60,9 +59,7 @@ pnpm test && git push -u origin <branch>
 
 **Verify every push actually landed** before proceeding (and before arming the
 CI Monitor): confirm the `-> branch` ref-update line in the push output, or
-`git status -sb` showing in-sync. Backgrounded pushes reporting exit 0 AND
-foreground pushes with `| tail`/`| grep`-filtered output have both hidden
-failed transfers.
+`git status -sb` showing in-sync.
 
 ## PR Procedure
 
@@ -89,9 +86,7 @@ acceptance line verbatim into the PR body, then state per clause whether it is
 met.** Recalling the acceptance from memory is what fails: an overclaim survives
 paraphrase easily and rarely survives being placed next to the words it
 contradicts. If any clause is unmet, the PR says **partial** and names the task
-that carries the remainder — `00-critical.md` § Completion claims required the
-re-read already and was cited back by a reviewer on a PR that skipped it, so
-what this adds is the moment, not the standard.
+that carries the remainder.
 `.claude/hooks/pr-body-ref-gate.sh`'s claim scan backstops this: it blocks a
 PR create/body edit once, naming any claim-shaped body line that carries no
 cite and no hedge.
@@ -121,77 +116,46 @@ being used properly:
 git ls-tree -r --name-only origin/develop -- tracker/tasks/ | grep task-N
 ```
 
-Commit it first, then write the sentence. `pnpm ops backlog` already prints a
-non-gating warning naming any uncommitted `tracker/` file — that warning is
-deliberately soft (a half-written task is a legitimate working state), so it
-cannot be promoted to a hard failure, which is exactly why the check belongs
-here at the moment of the claim. It has been read past: a PR body said "Filed
-as TASK-552" over an untracked file after the warning printed twice, and the
-reviewer searched and correctly reported the task missing.
+Commit it first, then write the sentence.
 
 ### Arm CI monitor (required)
 
 Immediately after `gh pr create` — and after any subsequent `git push` to an open PR — start a `Monitor` that waits for CI to complete and reports new review comments back. **Do not skip this step and do not wait for the user to ask about CI status.**
 
-**`TaskStop` the PR's previous monitor first — one monitor per PR.** Re-arming each push without stopping the old one stacks watchers on the same PR, and since the reporting half is not SHA-pinned a stale one can fire `CI_COMPLETE` carrying the current state under an older push's label (`05-tooling.md` § PR Monitoring).
+**One monitor per PR — `TaskStop` the previous one first** (`05-tooling.md` § PR Monitoring).
 
-Arm it from the template below every time — `.claude/hooks/pr-monitor-reminder.sh` builds a pre-filled reminder but its output never reaches the agent (non-blocking post-hoc hook output is dropped), so there is no banner to wait for. This template is the only path, not a fallback:
+Arm it from the template below every time:
 
-Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800000`, `persistent: false` (required by the schema; deliberately NOT `true` — see 05-tooling.md, a forgotten session-length watcher can't be cleaned up), and this as its `command` — verbatim, as plain bash:
+Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800000`, `persistent: false` (`05-tooling.md` § PR Monitoring explains the `false`), and this as its `command` — verbatim, as plain bash:
 
 ```bash
 pnpm ops gh:ci-gate <N> --sha $(git rev-parse HEAD)
 ```
 
-This invocation is one of three copies (here, `05-tooling.md`, the hook heredoc). Edit one and `pnpm ops guard:monitor-command` fails CI until the other two match — the PR/SHA placeholders may differ, nothing else may.
+**Copy the substitution verbatim — never resolve the SHA and paste the result.** The gate rejects an abbreviated SHA and a well-formed one naming no local commit, but the substitution removes the step entirely.
 
-**Copy the substitution verbatim — never resolve the SHA and paste the result.** Hand-transcribing failed four times in one session, twice by completing an abbreviated SHA with invented characters; both shapes spin silently rather than erroring. The gate rejects an abbreviated SHA and a well-formed one naming no local commit, but the substitution removes the step entirely.
+When the monitor fires, run the four-step procedure in `05-tooling.md`
+§ PR Monitoring in full — CI state plus the SHA-pinned run-list query, the
+three review endpoints (`gh:pr-comments` / `gh:pr-reviews` / `gh:pr-info`),
+one consolidated report that reads every `###` section of every `claude[bot]`
+entry, then `/tzurot-review-response`. Do not stop after the CI check: only
+`CI_COMPLETE` means CI finished, and a green check list is not proof CI ran.
 
-The gate waits for the CI workflow RUN to complete — and for nothing else on that SHA to still be in flight — before handing off to `--watch`. A fixed startup `sleep` does not work here: workflow-run creation itself can lag the push by minutes, so `--watch` starts against a check list holding only the fast checks and exits immediately. See `05-tooling.md` § PR Monitoring for the measurement and for what the gate reports when `gh api` fails.
-
-When the monitor fires, **all four** of the following must happen — do not stop after #1 even when every check passed:
-
-1. Inspect the final `gh pr checks <N>` output for pass/fail.
-2. Fetch new reviewer feedback via three endpoints (GitHub splits them; the raw `/issues/N/comments` call silently misses inline line comments):
-   - `pnpm ops gh:pr-comments <N>` — conversation + inline line-level review comments
-   - `pnpm ops gh:pr-reviews <N>` — review summaries (Approve / Request Changes)
-   - `pnpm ops gh:pr-info <N>` — PR-level state
-
-   No bot-only filter — human reviewer comments matter too. Dedup by tracking `created_at` of the last-reported comment.
-
-3. Report CI status **and** new reviewer feedback in one concise message. Group findings as blocking vs. non-blocking. If no new reviews since the last push, say so explicitly — silence is not a substitute for "no new comments."
-
-   **Read the body, not just the summary.** Reviewer output is tiered: verdict → strengths → major items → minor items → observations → summary. The trailing "Summary" / "Actionable items" section is a reviewer's shortcut; it frequently under-reports items the body flags in detail. When a review is 100+ lines, treat length as a skimming red flag — walk every `###` section before calling the report done. Cross-check: if codecov flags missing lines, grep the review body for a corresponding test-gap call-out.
-
-   **Each `claude[bot]` entry is a separate review cycle.** If multiple exist (pre-rebase + post-rebase, push + re-push), read every one — don't assume only the latest matters. Track `created_at` of the last-reported comment so future fetches dedup correctly across session boundaries.
-
-4. Apply review feedback per `/tzurot-review-response` — trivial-shape edits auto-apply (test-gated fixup commits), semantic-shape edits ASK; batch-present all items in one end-of-round message.
-
-The #1-without-#2 failure mode is worth guarding against: all-green CI feels complete, but new review comments can still carry blocking findings or non-blocking observations the user wants to triage.
-
-The #2-without-full-body failure mode is the second trap: fetching comments but extracting only the summary section. A review that ends "**Summary**: two actionable items" almost always has a body with additional items that weren't promoted to the summary.
-
-The gate prints exactly one sentinel, and **only `CI_COMPLETE` means CI actually finished** — `CI_GATE_TIMEOUT` (gave up at 25 min) and `CI_GATE_STARTUP_FAILURE` (a run died before dispatch) both mean re-arm, as does no sentinel at all (the Monitor's own 30-min kill). See `05-tooling.md` § PR Monitoring for the table. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
-
-**Merge gate is green-only.** Per `.claude/rules/00-critical.md` "Never Merge PRs Without Completed CI": every check must be green before `gh pr merge` runs, including release PRs. If a check fails for what looks like infrastructure reasons (binary not found, missing secret, action-setup error), `gh run rerun <run-id> --failed` and re-arm the Monitor — don't merge through the red. The release procedure below assumes a green pipeline.
+**Merge gate is green-only** — every check green before `gh pr merge`, release PRs included; infrastructure-shaped failures get `gh run rerun <run-id> --failed` and a re-armed Monitor, never a merge through the red (`00-critical.md` § Never Merge PRs Without Completed CI).
 
 ### Before merging: the head branch must be checked out NOWHERE
 
 **`--delete-branch` fails silently when the head branch is checked out anywhere** — git refuses to delete a checked-out branch, `gh` reports the LOCAL failure, and the merge itself still succeeds. The PR closes as merged and nothing says a branch is still there; it surfaces later as a repo-state-sweep finding, or when someone notices the pile.
 
-**Observed, with the mechanism left open:** on the merges that hit this, the **remote** branch survived as well as the local one (PR #2064's live error text; PR #2061 found later in a sweep; PR #2063 clean once the worktree was removed first). Whether `gh` skips the remote delete _because_ the local one failed, or the two just fail together for a shared reason, is not established — the observation is that both survive, and `gh`'s internal ordering is not the kind of thing that stays fixed across versions. That is why the verification step below exists rather than a rule about what `gh` does: verify the ref, don't reason about the tool.
-
 "Anywhere" is the whole rule, and the easy-to-forget instance is the checkout you are not looking at: a **worktree** (the orchestration skill mandates one for every file-mutating worker, so every delegated unit lands in this state) or the **main checkout** still sitting on the branch after a local review.
 
-The worktree case is the confirmed, load-bearing one — `gh` cannot know about a checkout in another directory. For the main checkout, `gh` may well switch you away itself (the hotfix section below records it doing exactly that), so treat that half as defensive rather than load-bearing; it is unverified for the ordinary feature-PR path and costs nothing either way. Before the merge:
+Before the merge:
 
 ```bash
 git status --short                        # check the main tree BEFORE moving off the branch
 git worktree list                         # find any worktree holding the branch
 git checkout develop                      # get the main checkout off it
 ```
-
-`git checkout` refuses rather than discards, so the leading `status` is not protecting against loss — it is there because uncommitted work in the main tree at merge time means something is unfinished, and finding that out _before_ the merge is cheaper than after.
 
 **Check every worktree before removing it — `--force` or not.** Run this against each worktree the previous step listed, and do not skip it because you are using plain `remove`:
 
@@ -202,7 +166,7 @@ git -C <path> log --oneline --not --remotes       # empty = every commit is on a
 git worktree remove <path>                        # only once BOTH are empty
 ```
 
-**Plain `git worktree remove` does not protect you here.** It refuses only on a DIRTY worktree — modified or untracked files. A worktree whose work is **committed but never pushed** is clean by that definition, so plain removal takes it with exit 0, and `--delete-branch` at the merge step below then deletes the only ref holding those commits, leaving them reachable solely through a local reflog. Measured end to end in a scratch repo: commit-without-push → `git worktree remove` exit 0 → `git branch -D` → the commit is absent from `git log --all`. That is precisely the resumed-worker scenario in § Resuming a worktree-isolated worker in `/tzurot-orchestration`, which is why the check is unconditional rather than a `--force` caveat.
+**Plain `git worktree remove` does not protect you here.** It refuses only on a DIRTY worktree — modified or untracked files. A worktree whose work is **committed but never pushed** is clean by that definition, so plain removal takes it with exit 0, and `--delete-branch` at the merge step below then deletes the only ref holding those commits, leaving them reachable solely through a local reflog. That is precisely the resumed-worker scenario in § Resuming a worktree-isolated worker in `/tzurot-orchestration`, which is why the check is unconditional rather than a `--force` caveat.
 
 **`--not --remotes`, not `@{u}..`** — measured: `@{u}` dies with `fatal: no upstream configured` (exit 128) on a branch that was created but never pushed, which is precisely the state you are checking for, so the check would abort exactly when it matters.
 
@@ -213,7 +177,7 @@ git -C <path> add -A && git -C <path> commit -m "chore: snapshot before worktree
 git -C <path> push -u origin HEAD                                       # if commits were unpushed
 ```
 
-Uncommitted work in a worktree is the same hours-of-work class as anywhere else (`00-critical.md` § Destructive Commands): commit and push it, then decide what it was. A merge is never urgent enough to skip that. (`chore:`, not `wip:` — `wip` is not in commitlint's `type-enum`, so the hook rejects it at exactly the moment you need the commit to land.)
+(`chore:`, not `wip:` — `wip` is not in commitlint's `type-enum`, so the hook rejects it at exactly the moment you need the commit to land.)
 
 **If that push happened, you are no longer ready to merge.** It put a commit on the PR's head branch that CI has never seen, so re-arm the Monitor and wait for a fresh green run before the merge below — `00-critical.md` § Never Merge PRs Without Completed CI requires green on the LATEST commit, and the green-only gate a few sections above applies here with no exception for a recovery commit. Then merge — this is the feature-PR invocation the sections above build up to, and `--delete-branch` is correct here precisely because the branch is disposable:
 
@@ -241,9 +205,9 @@ esac
 
 **This is not the push-verify `ls-remote` from the Commit Procedure above.** That one reads the ref's SHA out of stdout to prove a push landed _at a specific commit_; this one asks only whether the ref exists at all, which is why it wants `--exit-code` and ignores stdout. Same command, opposite questions — don't swap one form for the other.
 
-**Use the `case`, not `&& … || …`.** Measured: the `||` form prints `deleted ✓` immediately after a fatal `Could not read from remote repository`, because `||` catches every nonzero — a network blip, an auth failure or a wrong remote all report the branch gone. A verification step that reports success when it could not run is the failure it exists to catch. `--exit-code` distinguishes the cases (`0` found, `2` no match, anything else an error), so read the status rather than its truthiness.
+**Use the `case`, not `&& … || …`.** `--exit-code` distinguishes the cases (`0` found, `2` no match, anything else an error), so read the status rather than its truthiness.
 
-`git push origin --delete <branch>` re-deletes a survivor. **Never for `develop` or `main`** (`00-critical.md` § Long-Lived Branch Protection) — the `develop`→`main` release PR merges without `--delete-branch`, so nothing here applies to it. That carve-out is about the long-lived BRANCH, not about the word "release": the hotfix flow below cuts a disposable `chore/release-vX.Y.Z-beta.N` branch and does pass `--delete-branch`, so it can survive its merge like any other feature branch — verify it the same way.
+`git push origin --delete <branch>` re-deletes a survivor. **Never for `develop` or `main`** (`00-critical.md` § Long-Lived Branch Protection) — the `develop`→`main` release PR merges without `--delete-branch`, so nothing here applies to it.
 
 ## Dependabot PR Recovery
 
@@ -259,7 +223,7 @@ Dependabot PRs have three distinct cleanup paths — using the wrong one wastes 
 
 **Rule of thumb**: don't hit "Update branch" on dependabot PRs. Use the chat command. If you do hit it by accident, don't waste time on `rebase` — go straight to `recreate`.
 
-**`dependabot.yml` is read from the DEFAULT branch (`main`)** — same trap as the claude workflow files below. An `ignore:` entry merged to `develop` does nothing until the next release lands it on `main`; dependabot will keep opening PRs with the "ignored" dep in the meantime (observed: the bullmq ignore merged to develop, and the very next recreate still carried bullmq 6). For immediate effect, comment `@dependabot ignore <dep-name> major version` on the open PR — a server-side ignore, persistent until `@dependabot unignore <dep-name> major version`, and it works per-dependency inside grouped PRs. Config entry = durable documentation; chat command = the thing that actually stops the PRs. Removing an ignore later requires BOTH the config-entry removal and the unignore comment.
+**`dependabot.yml` is read from the DEFAULT branch (`main`)** — same trap as the claude workflow files below. An `ignore:` entry merged to `develop` does nothing until the next release lands it on `main`; dependabot will keep opening PRs with the "ignored" dep in the meantime. For immediate effect, comment `@dependabot ignore <dep-name> major version` on the open PR — a server-side ignore, persistent until `@dependabot unignore <dep-name> major version`, and it works per-dependency inside grouped PRs. Config entry = durable documentation; chat command = the thing that actually stops the PRs. Removing an ignore later requires BOTH the config-entry removal and the unignore comment.
 
 **After a dev-tooling bump merges (eslint/tsc/prettier/vitest — especially a major), rebase every open PR before merging it.** A green PR's CI ran against its OLD base, so the new tooling never saw its code, and merging on that stale base can redden `develop`. **`gh pr merge --rebase` rebases-and-merges WITHOUT re-running CI**, so it does not protect against this — only a manual pass does: `git rebase origin/develop` → `pnpm install` → re-run the affected gate (`pnpm focus:lint` for eslint/prettier, `pnpm typecheck` for tsc; changed-package scope is enough, since the bump's own merge proved existing code passes) → push for a confirming CI round → merge.
 
@@ -267,7 +231,7 @@ Dependabot PRs have three distinct cleanup paths — using the wrong one wastes 
 
 GitHub Actions that validate against the **default branch (`main`)** — notably **`claude-review`** and the `@claude` responder — refuse to run on a PR unless **their own workflow file** is byte-identical to the version on `main`. A "security skip": it stops an untrusted PR from altering the very workflow that reviews it.
 
-**Scope — the validation is file-scoped.** Only the self-validating claude workflow files (`claude-code-review.yml`, `claude.yml`) trigger the skip; a PR carrying drift in any OTHER workflow file still gets a real review (empirically confirmed: a PR with ci.yml drift received a full claude-review). Non-claude workflows (`ci.yml`) also _execute_ from the PR's own branch, so **routine `ci.yml` edits ride normal develop PRs like any code change** — no main-cut ceremony. `pnpm ops guard:workflow-sync` enforces exactly this scope (claude files only).
+**Scope — the validation is file-scoped.** Only the self-validating claude workflow files (`claude-code-review.yml`, `claude.yml`) trigger the skip; a PR carrying drift in any OTHER workflow file still gets a real review. Non-claude workflows (`ci.yml`) also _execute_ from the PR's own branch, so **routine `ci.yml` edits ride normal develop PRs like any code change** — no main-cut ceremony.
 
 **Consequence**: a change to one of the **claude workflow files** that lands on `develop` first **silently disables those reviews on every PR** — they pass as a green ~10-15s no-op (`"Skipping action due to workflow validation"`, no review posted) — until the change reaches `main`. Under the normal flow that's only at the next release, and the release PR's own review skips too, so it compounds across the whole cycle.
 
@@ -279,7 +243,7 @@ GitHub Actions that validate against the **default branch (`main`)** — notably
 
 **Recovery — a claude-workflow change already landed on `develop`** (the disruptive case; infrequent but real):
 
-1. Branch off `main`, sync just the affected workflow file(s) to develop's state (`git checkout origin/develop -- .github/workflows/<file>`), commit, PR against `main`. (Pattern: PR #1318 — `actions/checkout` bump.)
+1. Branch off `main`, sync just the affected workflow file(s) to develop's state (`git checkout origin/develop -- .github/workflows/<file>`), commit, PR against `main`.
 2. Merge to `main` (needs explicit approval — `main` always does).
 3. Rebase `develop` onto `main` so the two don't diverge on the workflow file (`pnpm ops release:finalize`, or manual `git rebase origin/main` + `--force-with-lease`).
 4. **Order matters — do step 3 first.** For each open PR: rebase the feature branch onto the updated `develop` (`git rebase develop`) and push. The push itself re-triggers the review on the new HEAD, which now carries the updated workflow in its ancestry — so the validation passes. Do **not** reach for `gh run rerun`: it re-runs the _old_ commit's checkout, whose workflow bytes still mismatch `main`, so it keeps skipping. The rebase-push is the only reliable trigger (the PR's review validates the PR branch's _own_ HEAD workflow against `main`).
@@ -304,8 +268,7 @@ git push --force-with-lease origin feat/your-feature
 
 ### 0. Risk & Coverage Appraisal (produce UNPROMPTED with any release proposal)
 
-The owner opens essentially every release with "any risks? anything that would
-raise confidence?" — answer it before being asked, as part of proposing the cut:
+Answer these before being asked, as part of proposing the cut:
 
 - **The proposal itself is three parts, always** (owner directive):
   a full summary of everything included (every PR, grouped by theme), an
@@ -330,7 +293,6 @@ raise confidence?" — answer it before being asked, as part of proposing the cu
 - **The smoke request IS the CURRENT.md write** — never ask the owner to
   smoke-test anything that isn't already a CURRENT.md checklist item with its
   own status line. Asking in chat shorthand forces "remind me what to test?"
-  (recurred: the ask lived only in chat and scrolled away).
 - **Each smoke item carries a confidence tier** (canonical definition in
   `/tzurot-testing` § Human-Verification Requests) — offer the owner only the
   _needs-smoke_ tier, never the _high_ tier CI + review already cover.
@@ -355,34 +317,22 @@ Write release notes following the Conventional Changelog format defined in `.cla
 
 **Source of truth**: `git log v<previous-tag>..HEAD --no-merges` — NOT CURRENT.md.
 CURRENT.md tracks session work; release notes track what shipped between tags.
-Using CURRENT.md caused duplicate entries in beta.94 (items from beta.93 re-listed).
 
 **Any count or list of "PRs merged since the last release"** — in a release
 proposal, a PR body, or a status message — comes from `pnpm ops release:range`,
-never a hand-rolled `gh pr list`/date-window query: a tag-date window silently
-double-counted already-shipped PRs once. It also classifies each PR
-runtime/non-runtime and prints **two independent cut triggers** — read both:
-
-- **Runtime-PR count** (~10) — prod risk. A tooling/docs-only batch does not
-  move it.
-- **Range diff size** (advisory ~250 files, against GitHub's 300-file
-  rendering ceiling) — review capacity. The release reviewer reads every file
-  regardless of which side of the runtime line it sits on, so a mostly
-  non-runtime range can trip this one alone. If the size cannot be measured
-  the command says so on stderr; a SKIPPED check is not a passing one.
+never a hand-rolled `gh pr list`/date-window query. It classifies each PR
+runtime/non-runtime and prints both cut triggers (runtime-PR count ~10, range
+diff size ~250 files); read both, per `10-working-posture.md` § Ship in bounded
+units. If the size cannot be measured the command says so on stderr; a SKIPPED
+check is not a passing one.
 
 **Backlog sweep — same pass, same commit as the notes.** The release range
 enumerates every shipped PR anyway, which is the one deterministic moment the
 full shipped-list exists. For each PR in the range, grep `backlog/` (recursive,
-incl. `cold/`) for the item's topic and strike/remove the shipped entries. This
-mechanizes 06-backlog's session-end removal gate at the moment it's nearly free
-— removal-at-ship keeps being missed, which is what leaves the board stale
-enough that the owner's memory has to catch it ("didn't we already do X?").
+incl. `cold/`) for the item's topic and strike/remove the shipped entries.
 
 ```bash
-# 0. Sync tags FIRST — the local tag store only updates on fetch, and a stale
-#    store silently spans two releases (the beta.156 cut was nearly mis-framed
-#    as beta.155 this way; the notes-verification step caught it)
+# 0. Sync tags FIRST — a stale local tag store silently spans two releases
 git fetch --tags origin
 
 # 1. Find the previous release tag
@@ -421,15 +371,11 @@ website-rendered markdown sources must ALSO be COPY'd in
 loudly via the pages' getEntry throw — by design). Prose docs have no
 mechanical drift guard; the release-notes draft is the one moment the full
 delta is already enumerated, so the sweep is nearly free here and expensive
-anywhere else (`/feedback` + `/notifications` shipped undocumented until a
-manual release-prep sweep caught them; the `/notifications` default sat wrong
-in commands.md for a day after the blast-radius fix).
+anywhere else.
 
 ### 3. Create Release PR
 
-**Security preflight first**: enumerate open advisories before cutting the
-release — the user has repeatedly been the one to notice new advisories
-mid-release, and a fixable vuln is cheaper to ride along than to hotfix after.
+**Security preflight first** — a fixable vuln is cheaper to ride along than to hotfix after:
 
 ```bash
 pnpm ops security:advisories        # each advisory + severity + fix version + direct/transitive + action
@@ -437,16 +383,9 @@ pnpm ops guard:repo-settings        # deletion of main/develop must be UNREACHAB
 gh pr list --author "app/dependabot" --state open   # any auto-PRs to ride along
 ```
 
-**`guard:repo-settings` belongs in the preflight specifically**, because the release merge is the one merge whose head branch is `develop`. It asserts that `delete_branch_on_merge` is off — that setting deletes the head branch on every merge regardless of the `--delete-branch` flag, and GitHub runs the delete with admin privileges, so it passes through `develop`'s deliberately-bypassable ruleset. A CRITICAL finding here means the next release merge will delete `develop`; fix it before cutting, not after.
+**`guard:repo-settings` belongs in the preflight specifically**, because the release merge is the one merge whose head branch is `develop`. A CRITICAL finding means the next release merge will delete `develop` — fix it before cutting (`00-critical.md` § Long-Lived Branch Protection).
 
-`security:advisories` is the primary check: it prints each open advisory with
-its fix version and — crucially — whether it's a **direct** dep (Dependabot
-will auto-PR it) or **transitive-only** (Dependabot _can't_ PR it; it needs a
-manual `pnpm.overrides` bump and otherwise lingers open indefinitely). A
-transitive-with-fix advisory is the ride-along candidate: widen/add the
-override, `pnpm install`, verify the lockfile resolves the patched version.
-(`--json` for machine output; `--strict` exits nonzero on an actionable
-high/critical.) The same list also appears in `pnpm ops health`.
+`security:advisories` is the primary check. The ride-along candidate is a **transitive-with-fix** advisory — Dependabot can never PR one, so widen/add the `pnpm.overrides` entry, `pnpm install`, and verify the lockfile resolves the patched version (`05-tooling.md` § Security Advisories).
 
 ```bash
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description" --assignee @me
@@ -461,17 +400,17 @@ pnpm ops release:premigrate --dry-run   # preview the new migrations in the rele
 pnpm ops release:premigrate             # apply to prod, THEN proceed to merge
 ```
 
-Skip if the release has no migration — `release:premigrate` detects this and exits cleanly (or check `git log v<previous>..HEAD --no-merges -- prisma/migrations/`). Safe for **additive** migrations (old code ignores the new column/table/constraint). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window and need a brief maintenance window — `release:premigrate` refuses them without `--allow-destructive`. A migration marked `-- tzurot:apply-after-deploy` (a pure-DML reshape the old code reads) is refused too: the correct order is merge → deploy lands → `pnpm ops db:migrate --env prod`, or override with `--allow-marked`. See `.claude/rules/03-database.md` § Deployment.
+Skip if the release has no migration — `release:premigrate` detects this and exits cleanly. It refuses a destructive migration without `--allow-destructive` and an `-- tzurot:apply-after-deploy` one without `--allow-marked`; both cases, and the maintenance-window sequence, are in `.claude/rules/03-database.md` § Deployment.
 
 ### 5. Merge Release PR
 
 ⚠️ **NEVER use `--delete-branch` for release PRs.** `develop` is a long-lived branch.
 
-⚠️ **Wait for every CI check to be green** per `.claude/rules/00-critical.md` "Never Merge PRs Without Completed CI". Release PRs are not exempt — claude-review is the second-look on the full release delta and infra failures (binary not found, missing secret) need `gh run rerun <run-id> --failed` before merge, not "merge through it."
+⚠️ **Wait for every CI check to be green** — release PRs are not exempt (`00-critical.md` § Never Merge PRs Without Completed CI); claude-review is the second look on the full release delta.
 
 ⚠️ **When assessing release safety, do NOT cite "soaked in dev".** Dev has no organic traffic — a dev deploy proves boot, not behavior (see `/tzurot-deployment` § "What a dev deploy proves"). The honest safety basis is per-PR CI + reviews, the holistic release review, and blast-radius analysis of runtime-unverified paths.
 
-⚠️ **CodeQL "new alert" on a large release PR is usually a re-surfaced _dismissed_ alert, not a real one.** The release PR's diff is huge (hundreds of files); CodeQL's PR-diff analysis can't diff it cleanly and the check's own summary says so verbatim: _"Alerts not introduced by this pull request might have been detected because the code changes were too large."_ A constituent PR that **relocated** code (e.g. a file/function move) carries any previously-dismissed alert to the new path, where the release PR re-flags it as "new." **Before treating it as a blocker**: (1) read the alert's rule + file/line from the failed check-run's annotations (`gh api repos/{owner}/{repo}/check-runs/<id>/annotations`); (2) check the repo's open-alert count (`gh api …/code-scanning/alerts?state=open`) — 0 open means it's not a real default-branch alert; (3) find the matching dismissed alert (`…/code-scanning/alerts?state=dismissed`) and confirm same rule + relocated code. If it's a confirmed re-surface, the _durable_ fix is to make the code stop tripping the rule (so it can't re-surface on the next relocation) rather than re-dismissing — then the release CodeQL greens on the fixed tree. (Precedent: beta.174's `js/insecure-randomness` on a relocated `Math.random` pick → swapped to `crypto.randomInt`.)
+⚠️ **CodeQL "new alert" on a large release PR is usually a re-surfaced _dismissed_ alert, not a real one.** The release PR's diff is huge (hundreds of files); CodeQL's PR-diff analysis can't diff it cleanly and the check's own summary says so verbatim: _"Alerts not introduced by this pull request might have been detected because the code changes were too large."_ A constituent PR that **relocated** code (e.g. a file/function move) carries any previously-dismissed alert to the new path, where the release PR re-flags it as "new." **Before treating it as a blocker**: (1) read the alert's rule + file/line from the failed check-run's annotations (`gh api repos/{owner}/{repo}/check-runs/<id>/annotations`); (2) check the repo's open-alert count (`gh api …/code-scanning/alerts?state=open`) — 0 open means it's not a real default-branch alert; (3) find the matching dismissed alert (`…/code-scanning/alerts?state=dismissed`) and confirm same rule + relocated code. If it's a confirmed re-surface, the _durable_ fix is to make the code stop tripping the rule (so it can't re-surface on the next relocation) rather than re-dismissing — then the release CodeQL greens on the fixed tree.
 
 ```bash
 # ✅ CORRECT - Merge without deleting develop (only after all checks green)
@@ -483,7 +422,7 @@ gh pr merge <number> --rebase --delete-branch
 
 #### Fallback for large PRs: fast-forward when rebase-merge chokes
 
-GitHub's "Rebase and merge" replays every PR commit onto `main` as **new** commits. On a release PR with a large commit range (observed failing at ~200 commits, beta.126 / PR #1120), the API rejects the merge and the web UI falsely reports merge conflicts — even though `gh pr view <N> --json mergeable,mergeStateStatus` returns `MERGEABLE` / `CLEAN`. `--admin` does **not** help; this is a mechanical rebase failure, not a branch-protection block. The error to grep this skill for when you hit it:
+GitHub's "Rebase and merge" replays every PR commit onto `main` as **new** commits. On a release PR with a large commit range (observed failing at ~200 commits), the API rejects the merge and the web UI falsely reports merge conflicts — even though `gh pr view <N> --json mergeable,mergeStateStatus` returns `MERGEABLE` / `CLEAN`. `--admin` does **not** help; this is a mechanical rebase failure, not a branch-protection block. The error to grep this skill for when you hit it:
 
 ```
 GraphQL: This branch can't be rebased (mergePullRequest)
@@ -576,9 +515,7 @@ then `gh release create vXX --title vXX --latest --notes-file …`, then — bet
 ### 9. Reset CURRENT.md Unreleased Section
 
 After a release merges to main, reset the "Unreleased on Develop" section in
-CURRENT.md to only track items since the new release tag. Failing to do this
-caused duplicate entries in the beta.94 release notes (items from beta.93
-were re-listed because CURRENT.md still tracked them).
+CURRENT.md to only track items since the new release tag.
 
 Also flag that a **fresh session** is available as an alternative to compacting
 onward when the session has spanned one or more releases — long-lived sessions
@@ -590,10 +527,7 @@ at close-out is enough, and the call is theirs.
 
 ### 10. Draft the Next Release Plan
 
-Close the release by planning the next one — this is the named moment the
-bigger picture gets looked at (`10-working-posture.md` § Ship in bounded
-units); skipping it reverts release scoping to ad-hoc accumulation, which the
-owner has explicitly moved away from. Rewrite the 🚢 Next Release section in
+Close the release by planning the next one (`10-working-posture.md` § Ship in bounded units). Rewrite the 🚢 Next Release section in
 `backlog/now.md` for vNext (~10 minutes, direct-commit doc change):
 
 - **Theme** — what this release IS, in a phrase. Pull candidates from Current
@@ -613,14 +547,11 @@ owner has explicitly moved away from. Rewrite the 🚢 Next Release section in
 
 Three gotchas the standard `develop`→`main` flow never exercises: (1) the pre-push branch-name pattern has **no `release` type** — use a valid prefix such as `chore/release-vX.Y.Z-beta.N`; (2) `gh pr merge --rebase --delete-branch` **switches the local checkout** to the default branch and tries to fast-forward it, so expect "not possible to fast-forward" noise and a stale local `main` — `git pull origin main` after; (3) `pnpm ops release:finalize --yes` rebases `develop` cleanly (duplicate cherry-picks drop via patch-id), but its force-push can still fail the pre-push gate on **semantic** divergence the textual rebase resolved (a symbol that moved between packages, a develop-side manifest route the conformance gate wants fixtures for) — budget one fix-commit riding the rebased push, and note the force-push to `develop` needs explicit per-instance user approval.
 
-## GitHub CLI (Use ops instead of broken `gh pr edit`)
+## GitHub CLI
 
-```bash
-pnpm ops gh:pr-info 478        # Get PR info
-pnpm ops gh:pr-reviews 478     # Get reviews
-pnpm ops gh:pr-comments 478    # Get line comments
-pnpm ops gh:pr-edit 478 --title "New title"
-```
+`gh pr edit` is broken — use `pnpm ops gh:pr-edit`. The read commands
+(`gh:pr-info`, `gh:pr-reviews`, `gh:pr-comments`) and their flags are in
+`05-tooling.md` § GitHub and `docs/reference/tooling/OPS_CLI_REFERENCE.md`.
 
 ## References
 
