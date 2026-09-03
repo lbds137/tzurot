@@ -1,11 +1,13 @@
 /**
- * Agreement guard for the two git-commit-detection patterns.
+ * Agreement guard for the three git-commit-detection patterns.
  *
  * The same "does this command string invoke `git commit`" decision is encoded
- * twice, and both copies BLOCK:
+ * three times, and all three copies BLOCK:
  *
- *   1. `.claude/hooks/develop-code-commit-guard.sh` — a Python regex
- *   2. `.claude/hooks/lossy-pipe-guard.sh`          — a Python regex
+ *   1. `.claude/hooks/develop-code-commit-guard.sh`  — a Python regex
+ *   2. `.claude/hooks/lossy-pipe-guard.sh`           — a Python regex
+ *   3. `.claude/hooks/board-commit-branch-gate.sh`   — a Python regex, inside
+ *      the python3 heredoc that hook already spawns for quote stripping
  *
  * They cannot be collapsed into one: each needs its own heredoc/quote stripping
  * inside its own blocking hook. So the coupling is real, hand-managed, and
@@ -13,15 +15,16 @@
  * unenforced-invariant shape. It has already opened once: the commit-tree false
  * positive was fixed in one copy a PR before the other.
  *
- * A third, bash copy (`lib/git-command.sh`) sat here until it was retired. It
+ * A fourth, bash copy (`lib/git-command.sh`) sat here until it was retired. It
  * had no runtime consumer, so its drift could not cause a runtime bug — while
- * still imposing a change-one-change-three obligation and forcing this file to
- * demand GNU grep on PATH. Both copies that remain are ones a wrong verdict
- * actually blocks a commit on.
+ * still imposing a change-one-change-N obligation and forcing this file to
+ * demand GNU grep on PATH. Every copy that remains is one a wrong verdict
+ * actually blocks a commit on, and every one of them is a PYTHON regex, which
+ * is why the evaluator below needs only a python3 spawn.
  *
- * This test asserts the two agree on a shared CASE TABLE, not that they are
- * textually identical — they deliberately aren't. The patterns are EXTRACTED
- * from the hook sources at run time, so editing one without the other fails
+ * This test asserts the three agree on a shared CASE TABLE, not that they are
+ * textually identical — copy 2 deliberately isn't. The patterns are EXTRACTED
+ * from the hook sources at run time, so editing one without the others fails
  * here; an extraction that stops matching is a hard failure, never a silent
  * pass.
  *
@@ -64,6 +67,14 @@ const SOURCES: readonly PatternSource[] = [
     label: 'python lossy-pipe-guard.sh',
     file: '.claude/hooks/lossy-pipe-guard.sh',
     extract: /GIT_TARGET = re\.compile\(r"(.+)"\)/,
+  },
+  {
+    label: 'python board-commit-branch-gate.sh',
+    file: '.claude/hooks/board-commit-branch-gate.sh',
+    // Anchored, because that hook's python block also defines an ADD_RE of the
+    // same shape and the file's prose discusses the pattern by name; an
+    // unanchored extractor would match more than the one definition line.
+    extract: /^COMMIT_RE = re\.compile\(r"(.+)"\)$/,
   },
 ];
 
@@ -173,22 +184,38 @@ const pythonResults = pythonVerdicts(patterns, allInputs);
 /** verdicts[sourceIndex][caseIndex] */
 const verdicts: boolean[][] = pythonResults;
 
-describe('git-commit detection patterns agree across both blocking copies', () => {
-  it('extracts a distinct, non-empty pattern from each hook', () => {
+describe('git-commit detection patterns agree across all three blocking copies', () => {
+  it('extracts a non-empty pattern from each hook, from its own file', () => {
     for (const [i, pattern] of patterns.entries()) {
       expect(pattern.length, `${SOURCES[i].label} extracted an empty pattern`).toBeGreaterThan(10);
     }
 
-    // Distinctness is not cosmetic: if an extractor were edited to capture the
-    // same substring from two files, every case below would compare a pattern
-    // against ITSELF and pass unconditionally — the guard would read green while
-    // enforcing nothing, which is the exact failure it exists to prevent. The
-    // two patterns genuinely differ today (only one carries the (commit|push)
-    // alternation), so equality means a broken extractor, never a legitimate
-    // convergence.
-    expect(new Set(patterns).size, 'two extractors captured the same pattern').toBe(
-      patterns.length
+    // WHAT THIS GUARDS: an extractor edited (or copy-pasted) to read the WRONG
+    // FILE. Two entries pointed at one file would compare a pattern against
+    // ITSELF for every case below and pass unconditionally — the guard reading
+    // green while enforcing nothing, the exact failure it exists to prevent.
+    // Distinct `file` plus distinct `extract` is what actually rules that out,
+    // and it rules it out at the copy-paste itself: sharing the file is caught
+    // here, and sharing only the extractor is caught by extractPattern's
+    // exactly-one-line requirement, which a foreign extractor will not meet.
+    //
+    // WHAT IT NO LONGER GUARDS: equal pattern TEXT. Two of these three copies
+    // are deliberately spelled identically — that is the point of unifying
+    // them — so comparing the extracted strings for uniqueness would now fail
+    // on the correct state of the tree.
+    const files = SOURCES.map(source => source.file);
+    expect(new Set(files).size, 'two sources named the same hook file').toBe(files.length);
+    const extractors = SOURCES.map(source => String(source.extract));
+    expect(new Set(extractors).size, 'two sources share one extractor regex').toBe(
+      extractors.length
     );
+
+    // The table still has to compare at least two DIFFERENT decisions, or the
+    // agreement it reports is vacuous however many sources are listed.
+    expect(
+      new Set(patterns).size,
+      'every source extracted the same pattern text — nothing is being compared'
+    ).toBeGreaterThan(1);
   });
 
   it('uses only push-free cases, so the (commit|push) alternation is inert', () => {

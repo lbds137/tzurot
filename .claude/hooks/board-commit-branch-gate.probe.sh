@@ -565,6 +565,116 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# --- the shared-pattern behaviour changes ----------------------------------
+# Detection is the pattern `develop-code-commit-guard.sh` and `lossy-pipe-guard.sh`
+# carry, spelled identically and held to one case table by
+# gitCommitPatternAgreement.test.ts. Adopting it is not behaviour-neutral: each
+# case below is a shape this gate did NOT see before, and every one of them
+# arms the gate rather than disarming it. They share the canonical blocking
+# fixture so the command text is the only variable.
+
+# A value-taking global flag between `git` and the subcommand. The pattern's
+# `(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*` consumes the flag's VALUE; a flag class
+# that only matched dash-leading words stopped at `user.name=x` and never
+# reached `commit`.
+assert_cmd 2 'git -c user.name=x commit -m msg' \
+  'a value-taking global flag no longer defeats detection'
+
+# Case. Shells accept `GIT COMMIT`, and the pattern's leading `(?i)` sees it.
+# The raw short-circuit above the python block has to be case-insensitive too,
+# which is what this case actually decides — a case-sensitive `case` statement
+# exits before the pattern is ever consulted.
+assert_cmd 2 'GIT COMMIT -m msg' \
+  'uppercase GIT COMMIT still blocks'
+
+# Right boundary. `(?![-\w])` consumes nothing, so a separator flush against
+# `commit` is a match; requiring whitespace-or-end after it missed this.
+assert_cmd 2 'git commit;git status' \
+  'a commit flush against a chaining semicolon is detected'
+
+# Left boundary. `\b` treats a preceding `-` as a boundary, where an explicit
+# `[^[:alnum:]_-]` class excluded it. Over-arming: the branch and allowlist
+# checks simply get to run on a command that may not be git at all.
+assert_cmd 2 'my-git commit -m msg' \
+  'a dash-prefixed wrapper name arms detection'
+
+# Python's `\s` is Unicode-aware, so a non-breaking space between `git` and
+# `commit` is a real match. Written as an ESCAPE: a raw U+00A0 is
+# indistinguishable from a plain space on screen, and retyped as one this case
+# would silently become a duplicate of the plain `git commit` case.
+assert_cmd 2 "$(printf 'git\u00a0commit -m msg')" \
+  'a non-breaking space between git and commit is detected'
+
+# The same flag-value consumption on the `git add` half. Nothing is staged here,
+# so the add pathspec is the ONLY source of the assessed file set — an add
+# invocation missed because of its global flag left the set empty and passed.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+(
+  cd "$DIR" || exit 99
+  jq -n '{tool_name:"Bash",tool_input:{command:"git -C . add tracker/ && git commit -m msg"}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  a global flag on git add no longer hides its pathspec\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  a global flag on git add no longer hides its pathspec\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# AUTO-STAGE SCOPING. `-a` belongs to the invocation it is written on. Scanned
+# over the whole command, the `-a` on `git branch` read as an auto-staging
+# commit, pulled in the dirty non-board file, and the mixed set turned a
+# board-only commit into a silent PASS. Board file staged, unrelated non-board
+# file dirty, `-a` on a NON-commit git invocation -> must still block.
+DIR=$(make_repo develop)
+mkdir -p "$DIR/tracker/tasks" "$DIR/src"
+echo x > "$DIR/src/a.ts"
+git -C "$DIR" add src/
+git -C "$DIR" -c user.email=probe@x -c user.name=probe commit -q -m code
+git -C "$DIR" checkout -q -b feat/x
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+git -C "$DIR" add tracker/
+echo x2 > "$DIR/src/a.ts"
+(
+  cd "$DIR" || exit 99
+  jq -n '{tool_name:"Bash",tool_input:{command:"git branch -a && git commit -m msg"}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  -a on a non-commit git invocation does not auto-stage\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  -a on a non-commit git invocation does not auto-stage\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ...and the same fixture with `-a` on the COMMIT still auto-stages, so the case
+# above pins the scoping rather than the auto-stage branch simply being dead.
+DIR=$(make_repo develop)
+mkdir -p "$DIR/tracker/tasks" "$DIR/src"
+echo x > "$DIR/src/a.ts"
+git -C "$DIR" add src/
+git -C "$DIR" -c user.email=probe@x -c user.name=probe commit -q -m code
+git -C "$DIR" checkout -q -b feat/x
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+git -C "$DIR" add tracker/
+echo x2 > "$DIR/src/a.ts"
+(
+  cd "$DIR" || exit 99
+  jq -n '{tool_name:"Bash",tool_input:{command:"git branch && git commit -a -m msg"}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 0 ]; then
+  printf 'PASS  (exit 0)  -a on the commit itself still auto-stages the dirty set\n'
+else
+  printf 'FAIL  (exit %d, expected 0)  -a on the commit itself still auto-stages the dirty set\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
 # non-commit git command never blocks
 DIR=$(make_repo feat/x)
 mkdir -p "$DIR/tracker/tasks"
