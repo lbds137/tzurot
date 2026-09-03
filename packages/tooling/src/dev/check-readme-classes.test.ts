@@ -344,6 +344,11 @@ describe('extractFencedPnpmCommands', () => {
     const fence = ['```bash', 'pnpm lint && pnpm test', '```'].join('\n');
     expect(extractFencedPnpmCommands(fence)).toEqual(['lint']);
   });
+
+  it('scans a `pnpm` line inside a four-backtick shell fence', () => {
+    const fence = ['````sh', 'pnpm bogus', '````'].join('\n');
+    expect(extractFencedPnpmCommands(fence)).toEqual(['bogus']);
+  });
 });
 
 describe('checkSlashCommands', () => {
@@ -538,6 +543,27 @@ describe('classifyLines', () => {
       delimiter: false,
       tag: 'bash',
     });
+  });
+
+  it('slices the info-string by the actual delimiter length, not a hardcoded 3', () => {
+    const readme = ['````sh', 'pnpm fourtick', '````'].join('\n');
+    const classified = classifyLines(readme);
+    expect(classified[0]).toEqual({ line: '````sh', fenced: false, delimiter: true, tag: 'sh' });
+    expect(classified[1]).toEqual({
+      line: 'pnpm fourtick',
+      fenced: true,
+      delimiter: false,
+      tag: 'sh',
+    });
+  });
+
+  it('documented limitation: a shorter closing run still closes a longer fence', () => {
+    // CommonMark requires the closer to be at least as long as the opener; this
+    // classifier does not check length, so the three-backtick line closes here.
+    const readme = ['````sh', 'pnpm inside', '```', 'after'].join('\n');
+    const classified = classifyLines(readme);
+    expect(classified[2]).toEqual({ line: '```', fenced: false, delimiter: true, tag: 'sh' });
+    expect(classified[3]).toEqual({ line: 'after', fenced: false, delimiter: false, tag: null });
   });
 });
 
