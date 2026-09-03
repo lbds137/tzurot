@@ -3,9 +3,10 @@ id: TASK-871
 title: >-
   VisionProcessor.ts sits at the max-lines ceiling (400 counted) - extract
   before the next change lands there
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 22:51'
+updated_date: '2026-09-03 02:10'
 labels:
   - 'area:ai-worker'
   - 'size:S'
