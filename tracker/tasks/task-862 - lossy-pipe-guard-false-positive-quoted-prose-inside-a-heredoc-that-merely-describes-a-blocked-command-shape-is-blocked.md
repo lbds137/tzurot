@@ -3,9 +3,10 @@ id: TASK-862
 title: >-
   lossy-pipe-guard false positive: quoted prose inside a heredoc that merely
   describes a blocked command shape is blocked
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-02 03:15'
+updated_date: '2026-09-03 13:06'
 labels:
   - 'area:hooks'
   - 'size:S'
