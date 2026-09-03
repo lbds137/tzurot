@@ -1,9 +1,10 @@
 ---
 id: TASK-852
 title: bot-client index.ts is at its 600-line eslint ceiling
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 14:03'
+updated_date: '2026-09-03 12:15'
 labels:
   - 'area:bot-client'
   - 'size:S'
