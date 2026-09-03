@@ -16,10 +16,13 @@ import {
   checkPrerequisites,
   checkProjectStructure,
   checkSlashCommands,
+  classifyLines,
   extractFencedPnpmCommands,
   extractHeadingSlugs,
   extractLinkTargets,
   extractSection,
+  parseProjectStructureTree,
+  stripFencedBlocks,
 } from './check-readme-classes.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -458,5 +461,135 @@ describe('extractLinkTargets', () => {
   it('includes a link target whose `](...)` sits outside any fence', () => {
     const unfenced = 'echo "foo](bar)"';
     expect(extractLinkTargets(unfenced)).toContain('bar');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyLines: the shared fence classifier behind both stripFencedBlocks
+// and extractFencedPnpmCommands
+// ---------------------------------------------------------------------------
+
+const TILDE_FENCE = ['before', '~~~sh', 'pnpm tildescript', '~~~', 'after'].join('\n');
+
+const MIXED_FENCE = [
+  'before',
+  '```bash',
+  'pnpm should-not-see-me',
+  '~~~ still interior, not a closer',
+  'pnpm still-inside',
+  '```',
+  'after',
+].join('\n');
+
+describe('classifyLines', () => {
+  it('gives one entry per input line, in order', () => {
+    const readme = ['a', 'b', 'c'].join('\n');
+    expect(classifyLines(readme).map(c => c.line)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('marks a fence delimiter as delimiter:true, fenced:false, with the lowercased info-string as tag', () => {
+    const classified = classifyLines(TILDE_FENCE);
+    expect(classified[1]).toEqual({ line: '~~~sh', fenced: false, delimiter: true, tag: 'sh' });
+    expect(classified[3]).toEqual({ line: '~~~', fenced: false, delimiter: true, tag: 'sh' });
+  });
+
+  it('marks the fence interior as fenced:true, carrying the opening tag', () => {
+    const classified = classifyLines(TILDE_FENCE);
+    expect(classified[2]).toEqual({
+      line: 'pnpm tildescript',
+      fenced: true,
+      delimiter: false,
+      tag: 'sh',
+    });
+  });
+
+  it('marks lines outside any fence as fenced:false, delimiter:false, tag:null', () => {
+    const classified = classifyLines(TILDE_FENCE);
+    expect(classified[0]).toEqual({ line: 'before', fenced: false, delimiter: false, tag: null });
+    expect(classified[4]).toEqual({ line: 'after', fenced: false, delimiter: false, tag: null });
+  });
+
+  it('does not close a ``` fence on a ~~~ line, or vice versa (same-character closing only)', () => {
+    const classified = classifyLines(MIXED_FENCE);
+    // The `~~~ still interior...` line stays fenced — it is NOT treated as a delimiter.
+    const tildeLine = classified[3];
+    expect(tildeLine.line).toBe('~~~ still interior, not a closer');
+    expect(tildeLine).toEqual({
+      line: '~~~ still interior, not a closer',
+      fenced: true,
+      delimiter: false,
+      tag: 'bash',
+    });
+  });
+
+  it('records no tag for an untagged fence (empty info-string)', () => {
+    const readme = ['```', 'interior', '```'].join('\n');
+    const classified = classifyLines(readme);
+    expect(classified[0]).toEqual({ line: '```', fenced: false, delimiter: true, tag: '' });
+    expect(classified[1]).toEqual({ line: 'interior', fenced: true, delimiter: false, tag: '' });
+  });
+
+  it('leaves an unterminated fence classified as fenced through EOF', () => {
+    const readme = ['```bash', 'pnpm never-closed'].join('\n');
+    const classified = classifyLines(readme);
+    expect(classified[1]).toEqual({
+      line: 'pnpm never-closed',
+      fenced: true,
+      delimiter: false,
+      tag: 'bash',
+    });
+  });
+});
+
+describe('shared classifier: ~~~ fences are understood by both consumers', () => {
+  it('stripFencedBlocks blanks a ~~~ fence interior and keeps the delimiters + line count', () => {
+    const stripped = stripFencedBlocks(TILDE_FENCE);
+    expect(stripped).toEqual(['before', '~~~sh', '', '~~~', 'after']);
+    expect(stripped).toHaveLength(TILDE_FENCE.split('\n').length);
+  });
+
+  it('extractFencedPnpmCommands picks up a pnpm line inside a ~~~sh fence', () => {
+    expect(extractFencedPnpmCommands(TILDE_FENCE)).toEqual(['tildescript']);
+  });
+
+  it('extractFencedPnpmCommands still skips a ``` fence containing a ~~~ interior line (same-character closing)', () => {
+    // Both pnpm invocations are inside the ``` fence — the ~~~ line never closes it.
+    expect(extractFencedPnpmCommands(MIXED_FENCE)).toEqual(['should-not-see-me', 'still-inside']);
+  });
+
+  it('stripFencedBlocks blanks straight through a ~~~ interior line inside a ``` fence', () => {
+    const stripped = stripFencedBlocks(MIXED_FENCE);
+    expect(stripped).toEqual(['before', '```bash', '', '', '', '```', 'after']);
+  });
+});
+
+describe('parseProjectStructureTree: nested-path sub-bullet', () => {
+  it('does not mis-capture a nested-path sub-bullet like `foo/bar/` as `foo/bar`', () => {
+    const nestedFixture = [
+      '## Project Structure',
+      '',
+      '- **`packages/`** — Shared code',
+      '  - `foo/bar/` — a nested path, not a package name',
+      '',
+      '## Features',
+    ].join('\n');
+    const tree = parseProjectStructureTree(nestedFixture);
+    expect(tree.packages).not.toContain('foo/bar');
+    expect(tree.packages).toEqual([]);
+  });
+
+  it('surfaces the on-disk-but-not-listed finding rather than a bogus name, end to end', () => {
+    const nestedFixture = [
+      '## Project Structure',
+      '',
+      '- **`packages/`** — Shared code',
+      '  - `foo/bar/` — a nested path, not a package name',
+      '',
+      '## Features',
+    ].join('\n');
+    const findings = checkProjectStructure(nestedFixture, [], ['real-package']);
+    expect(findings).toEqual([
+      "packages/real-package/ exists on disk but is not listed under packages/ in the README's Project Structure",
+    ]);
   });
 });
