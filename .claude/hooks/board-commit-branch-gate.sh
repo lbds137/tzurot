@@ -63,6 +63,13 @@
 #     is neither start-of-line nor a command separator, and an operator-adjacent
 #     prefix with no spaces (`VAR=1&&git commit`), where the value class stops
 #     AT the `&` and the whitespace the pattern then requires is not there.
+#   - a real, legitimately-prefixed commit sitting BESIDE an UNRELATED
+#     newline-split `git`⏎`commit` pair (no valid executing command — see
+#     BYPASS_RE's own comment on its embedded COMMIT_RE copy) inflates the
+#     outer commit COUNT by one more than it inflates the bypass count, so
+#     the count comparison spuriously refuses a bypass that was carried. A
+#     deliberate, narrower BLOCK than "no phantom present" would give — the
+#     safe direction, never a false grant.
 # The threat model is the habitual mis-commit shape (plain `git add tracker/
 # && git commit`, 3 observed incidents) — exotic spellings are not written by
 # accident, mirroring lossy-pipe-guard's stated boundary.
@@ -209,24 +216,41 @@ ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*"
 #
 # The embedded copy of COMMIT_RE below (required verbatim by
 # gitCommitPatternAgreement.test.ts, so its OWN `\s+` between `git` and
-# `commit` is not touched here) is not a false-grant vector either, despite
-# also crossing newlines: bash treats a bare `\n` as a command terminator, so
-# `git` and `commit` split across one are two SEPARATE commands (`git` with no
-# subcommand, then a bare `commit` — not a valid executable) — never a real
-# executing `git commit`. Whatever COMMIT_RE recognises across that newline,
-# it recognises identically in BOTH its uses: the outer `commits` count and
-# this embedded bypass copy. A phantom match that inflates one inflates the
-# other by the same amount, so the bypassed/commit-count comparison this gate
-# is built on stays consistent — and since no real commit runs behind a
-# newline-split `git`/`commit`, granting or refusing a "bypass" for it changes
-# nothing observable. Confirmed via bash's own command-separation semantics,
-# not by widening a probe on live commit execution.
+# `commit` is not touched here) is not a false-GRANT vector: despite also
+# crossing newlines (bash treats a bare `\n` as a command terminator, so
+# `git` and `commit` split across one are two SEPARATE commands — `git` with
+# no subcommand, then a bare `commit`, never a real executing `git commit`),
+# this copy only counts toward `bypassed` when a bypass assignment precedes
+# it, so a phantom match here can never grant an unearned bypass on its own.
+#
+# It IS a false-BLOCK vector, and the inflation is NOT symmetric with
+# COMMIT_RE's own outer use as `commits`: the outer count grows on the
+# phantom match alone, with no precondition, while this copy only grows
+# `bypassed` when that same phantom also sits behind a bypass assignment. A
+# real prefixed commit sitting BESIDE an unrelated newline-split `git`/
+# `commit` pair therefore inflates `commits` by one more than it inflates
+# `bypassed` — COMMIT_COUNT=2 vs BYPASSED_COUNT=1 — and the
+# bypassed/commit-count comparison this gate is built on spuriously BLOCKS a
+# bypass that was legitimately carried. Runtime-confirmed (probe case:
+# "phantom newline-split commit beside a real prefixed commit still
+# blocks"). This is a bypass-recognition gap in the fail-safe direction
+# named above — a refused bypass, never a granted one — and is deliberately
+# not being fixed here: doing so would mean relaxing the count comparison,
+# which would also let a genuinely unbypassed commit ride through on a
+# phantom's coattails, the wrong direction for an escape hatch.
 BYPASS_RE = re.compile(
     r"(?:^|[;&|])\s*"
     + ASSIGNMENTS
     + r"TZUROT_ALLOW_BOARD_ON_FEATURE=[^\s;&|]+[ \t]+"
     + ASSIGNMENTS
-    + "(?i:" + COMMIT_RE.pattern.removeprefix("(?i)") + ")",
+    # Sliced rather than `.removeprefix("(?i)")` — that method is Python
+    # 3.9+, an undocumented floor this file otherwise doesn't take (contrast
+    # develop-code-commit-guard.sh and lossy-pipe-guard.sh, which each name
+    # their own Python-version requirement explicitly). `COMMIT_RE.pattern`
+    # always starts with the literal 4-char `(?i)` this file itself wrote
+    # two definitions above, so the fixed-length slice is exact for this
+    # input; it is not a general prefix-strip.
+    + "(?i:" + COMMIT_RE.pattern[len("(?i)"):] + ")",
     re.M,
 )
 
