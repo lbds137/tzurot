@@ -29,14 +29,12 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
 import { zaiFreeTierFailureReactor } from '../../redis.js';
+import { describeImage, selectVisionModel, type DescribeImageOptions } from './VisionProcessor.js';
 import {
-  describeImage,
-  selectVisionModel,
   buildFailureFallback,
   VisionModelError,
   VISION_TERMINATE_CATEGORIES,
-  type DescribeImageOptions,
-} from './VisionProcessor.js';
+} from './visionDescribeGates.js';
 import {
   resolveVisionAuth,
   createVisionQuotaTracker,

@@ -39,12 +39,8 @@ import {
   describeImageWithFallback,
   sinkFreeRouteFallbacks,
 } from './describeImageWithFallback.js';
-import {
-  describeImage,
-  selectVisionModel,
-  buildFailureFallback,
-  VisionModelError,
-} from './VisionProcessor.js';
+import { describeImage, selectVisionModel } from './VisionProcessor.js';
+import { buildFailureFallback, VisionModelError } from './visionDescribeGates.js';
 import { resolveVisionAuth, createVisionQuotaTracker } from './visionAuthResolver.js';
 import type { ResolveVisionConfigOptions, VisionConfigResult } from './visionAuthResolver.js';
 
@@ -102,15 +98,23 @@ vi.mock('../../redis.js', () => ({
   },
 }));
 
-// VisionProcessor: mock describeImage/selectVisionModel/buildFailureFallback,
-// keep the REAL VisionModelError + VISION_TERMINATE_CATEGORIES so the wrapper's
-// `instanceof` and terminate-set membership checks behave against real values.
+// VisionProcessor: mock describeImage/selectVisionModel.
 vi.mock('./VisionProcessor.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./VisionProcessor.js')>();
   return {
     ...actual,
     describeImage: vi.fn(),
     selectVisionModel: vi.fn(),
+  };
+});
+
+// visionDescribeGates: mock buildFailureFallback, keep the REAL VisionModelError +
+// VISION_TERMINATE_CATEGORIES so the wrapper's `instanceof` and terminate-set
+// membership checks behave against real values.
+vi.mock('./visionDescribeGates.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('./visionDescribeGates.js')>();
+  return {
+    ...actual,
     // Declaration-time real-string impl as a safety default; beforeEach re-sets it
     // to the source-aware `[fallback:<category>/<source>]` render the assertions use.
     // (visionAuthFailFastDescription calls this at CALL time — no module-load bake.)
