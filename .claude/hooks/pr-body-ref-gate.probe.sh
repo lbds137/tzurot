@@ -469,10 +469,12 @@ assert_pass "claim inside an indented fenced block is skipped"
 # sharing one key across every body for the rest of the day.
 # The shim below is an executable that exits non-zero, so `command -v` still
 # FINDS it and the missing-binary branch is not the one exercised here — what
-# runs is the empty-hash guard two lines below it. A PATH prefix cannot hide a
-# binary from `command -v`, so the missing-binary branch is not reachable from
-# a probe at all; both branches take the same `return 0`, so this case is the
-# coverage for that behaviour.
+# runs is the empty-hash guard two lines below it. run_hook_with_path PREPENDS
+# the shim dir onto the existing PATH, and a prepended dir cannot hide a binary
+# from `command -v`, so the missing-binary branch is out of reach of THIS
+# technique — reaching it would take replacing PATH outright with a directory
+# that omits sha256sum. Both branches take the same `return 0`, so this case is
+# the coverage for that behaviour either way.
 SHA_SHIM_DIR="$TMPDIR_PROBE/sha-shim"
 mkdir -p "$SHA_SHIM_DIR"
 printf '#!/bin/bash\nexit 127\n' >"$SHA_SHIM_DIR/sha256sum"
@@ -487,6 +489,10 @@ assert_pass "claim scan fails open when sha256sum yields an empty hash"
 # control — it passes the body by FILE reference (`-F body=@path`), so it
 # differs from y and z in two properties at once, and a control that varies two
 # properties cannot attribute a pass to the gap under test.
+# Case k2 above is this exact shape already — same flag, same quoting, same
+# PATCH form, differing only in body text. This case exists so the three-case
+# group shares ONE claim string, which is what makes the single varied property
+# visible at a glance.
 run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/12 -f body="This is guaranteed to work."'
 assert_blocks "inline -f body= on the PATCH form blocks (control for the two gap cases below)" "guaranteed"
 
