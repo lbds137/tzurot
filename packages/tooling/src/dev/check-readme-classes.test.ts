@@ -564,29 +564,22 @@ describe('shared classifier: ~~~ fences are understood by both consumers', () =>
 });
 
 describe('parseProjectStructureTree: nested-path sub-bullet', () => {
+  const nestedFixture = [
+    '## Project Structure',
+    '',
+    '- **`packages/`** — Shared code',
+    '  - `foo/bar/` — a nested path, not a package name',
+    '',
+    '## Features',
+  ].join('\n');
+
   it('does not mis-capture a nested-path sub-bullet like `foo/bar/` as `foo/bar`', () => {
-    const nestedFixture = [
-      '## Project Structure',
-      '',
-      '- **`packages/`** — Shared code',
-      '  - `foo/bar/` — a nested path, not a package name',
-      '',
-      '## Features',
-    ].join('\n');
     const tree = parseProjectStructureTree(nestedFixture);
     expect(tree.packages).not.toContain('foo/bar');
     expect(tree.packages).toEqual([]);
   });
 
   it('surfaces the on-disk-but-not-listed finding rather than a bogus name, end to end', () => {
-    const nestedFixture = [
-      '## Project Structure',
-      '',
-      '- **`packages/`** — Shared code',
-      '  - `foo/bar/` — a nested path, not a package name',
-      '',
-      '## Features',
-    ].join('\n');
     const findings = checkProjectStructure(nestedFixture, [], ['real-package']);
     expect(findings).toEqual([
       "packages/real-package/ exists on disk but is not listed under packages/ in the README's Project Structure",
