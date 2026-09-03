@@ -10,11 +10,11 @@ When `claude-review` or any PR reviewer returns findings, the agent follows this
 
 ## Why this procedure exists
 
-The prior policy was "report only, never fix without user approval." Rigorously safe but produces decision fatigue — a typical PR reaches 3–5 review rounds with ~10 trivial findings per session, and the user spent meaningful attention rubber-stamping items the agent could have safely auto-applied. This procedure shifts trivial chores to auto-apply (under tight constraints) while preserving explicit approval for anything that changes program behavior.
+This procedure shifts trivial chores to auto-apply (under tight constraints) while preserving explicit approval for anything that changes program behavior.
 
 **Key design principle**: `claude-review` is the same model family as the agent. It has no special epistemic authority. When the reviewer's severity label conflicts with the agent's own classification, that's **uncertainty**, not an override opportunity in either direction. The safe resolution is always ASK.
 
-## The six rules
+## The rules
 
 ### 1. Classify the edit shape first
 
@@ -59,7 +59,7 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 | An observable outside our control (a user report, a metric threshold, a provider change, a feature arriving) | **Backlog candidate** |
 | Nothing — taste, or a self-dismissal ("actually fine", "could be cleaner someday")                           | **Dismissed**         |
 
-**Do it now** is the disposition that defaults wrong without this rule. "Next time you touch this file" _sounds_ like a named condition, so it reads as a backlog candidate — but the condition is "somebody remembers," and remembering means grepping a several-hundred-row table before unrelated work, which nobody does. Filing it is how it never happens. The finding is also, by construction, **small and colocated** — the reviewer named this PR's own code — so the file is already open and the fix is usually smaller than the row describing it. Fix it here.
+**Do it now** is the disposition that defaults wrong without this rule. The finding is also, by construction, **small and colocated** — the reviewer named this PR's own code — so the file is already open and the fix is usually smaller than the row describing it. Fix it here.
 
 Do-it-now sends the finding back through **rule 1**, not around it: a trivial-shape fix auto-applies under the test gate and reports under Auto-applied; a semantic-shape one still ASKs and reports under Asks. This disposition changes the destination, never the safety rails.
 
@@ -73,8 +73,6 @@ Do-it-now sends the finding back through **rule 1**, not around it: a trivial-sh
 
 **Dismissed** closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
 
-**Why the bar is here**: the old follow-ups table grew 3× in five weeks, and a full read found ~0 rows removable — the pile was honest, just unreachable. A third of it carried triggers that can never fire on their own: "next time someone touches this" (nobody greps to find it) and "next tooling pass" (the pass was never scheduled, because only its symptoms got filed). Admitting either shape as an item is strictly worse than fixing it, scheduling the batch, or declining it — which is why the store moved to queryable tasks and triggers stopped being the selection mechanism.
-
 **Reviewer self-contradiction across rounds**: when round-N reviewer reverses its round-(N-1) stance on the same item (e.g., round 3 says "drop the `?? ''` as unreachable," round 4 says "add `?? ''` back for defensive typing"), the reviewer is not authoritative on its own prior disagreement. Dismiss and cite the earlier round's reasoning in the summary. Don't ping-pong. This is distinct from genuine new information surfacing — a round-N reviewer observation that _builds on_ round-(N-1) (adds context, corrects an error) is normal; a direct reversal on the same fact-pattern is noise.
 
 ### 3. Apply with test-suite gating
@@ -86,9 +84,9 @@ For items that passed rules 1 and 2 (trivial-shape + no conflict):
 3. Tests pass → keep the fixup commit.
 4. Tests fail → **escalate to ASK immediately**, with the test failure output attached. A trivial-shape edit that breaks tests is the signal that the whitelist mis-classified it; escalation preserves the safety net.
 
-**Riders are caught at review, not at commit.** A fix that ADDS code rather than changing it gets systematically less scrutiny than planned work — "one clause" / "~10 lines" is exactly the size that skips the checks a planned change gets. Measured across four PRs in one session, four separate defects arrived this way — one per PR, each riding a larger change that was itself correct. (Not _every_ defect that session was a rider: a new implementation's own gaps are ordinary primary-change defects. The rider class is distinctive because it evades the scrutiny the primary change gets, not because it is the only source of bugs.)
+**Riders are caught at review, not at commit.** A fix that ADDS code rather than changing it gets systematically less scrutiny than planned work — "one clause" / "~10 lines" is exactly the size that skips the checks a planned change gets.
 
-The authoring-time version of this control failed on its own terms: it existed here as a pre-commit checklist — read four times that day — AND as a commit-time banner that fired on all four of those commits. Not one was prevented. The timing is why — at commit time the rider is already written and staged, so the honest answer to "does this need its own test" costs a rewrite and the cheap read is "it's fine." The reviewer caught all four. So the three questions below are **review-side**: what a flagged rider is usually failing, not a ritual to recite before committing.
+The three questions below are **review-side** — what a flagged rider is usually failing, not a ritual to recite before committing; at commit time the rider is already written and the cheap answer is "it's fine".
 
 - (a) Does the addition need its own test? (New function/branch → yes by default; "it's small" is not an exemption.)
 - (b) Does it stale a comment or doc elsewhere — including `schema.prisma` doc comments and files the fix doesn't touch?
@@ -102,16 +100,13 @@ lock, guard, or retry as "unnecessary", check the justifying argument against
 the code that will actually run, line by line — not the code the argument
 pictures — and write the justification AFTER reading the final diff, never
 before. Pin the property the argument rests on with a test where one is
-assertable. This is the rider shape in a costume: an optimization made as a
-review concession gets less scrutiny than the primary change, and one such
-removal shipped a silent under-fetch race that only a final unrequested review
-round caught.
+assertable.
 
 Fixup commits autosquash naturally on the next `git rebase -i --autosquash`. This is the correct escape valve for a rebase-only workflow — `git revert` is not available on rewritten-history branches, but fixup-drop during interactive rebase is cheap and native.
 
 **When is "the next rebase"?** Once, **right before merge**, not after each round. Keep fixup commits visible through review iteration and just `git push` them — do not `rebase --autosquash` and do not force-push between rounds. Fixup commits sitting on the branch as `fixup! <target message>` are fine through review; reviewers and CI can read them.
 
-**Critical: `gh pr merge --rebase` does NOT autosquash fixup commits.** It runs `git rebase`, not `git rebase --autosquash`. Fixup commits will land on the base branch with their `fixup!` titles intact and clutter `git log` permanently (observed 2026-04-24 on PRs #889 and #890 — both required force-push cleanup of develop after merge).
+**Critical: `gh pr merge --rebase` does NOT autosquash fixup commits.** It runs `git rebase`, not `git rebase --autosquash`. Fixup commits will land on the base branch with their `fixup!` titles intact and clutter `git log` permanently.
 
 **Structural enforcement: the `fixup-check` job in `.github/workflows/ci.yml`** runs on every push to a feature branch and fails if any commit on the branch (since the merge base with develop) has a `fixup!` or `squash!` subject. CI stays red until you autosquash, which means the merge button is gated on it being green — you can't accidentally merge a branch with fixup commits.
 
@@ -138,7 +133,7 @@ git push --force-with-lease origin <branch>     # CI's fixup-check now passes
 gh pr merge <PR#> --rebase --delete-branch      # then merge (or use the web UI)
 ```
 
-**Amend the base commit's body in that sequence.** Fixup commits never touch the base message, so every count and enumeration written into it at round 0 is stale by merge time — re-derive them against the final diff and amend with the heredoc form above, never a bare `git commit --amend` (which opens `$EDITOR`). The merge gate's re-derive prompt covers the PR body, not the commit message (this gap was reviewer-caught on a five-round PR). `--amend` reaches only the tip commit, which is the base commit on the ordinary one-semantic-commit-plus-fixups branch. On a multi-commit branch there is no agent-safe form of that pass: `git rebase -i` opens `$EDITOR` on its todo file (probed — a recorder editor was invoked and the rebase stalled), exactly the stall a bare `--amend` causes. So the non-tip bodies are the owner's interactive job, or the branch is collapsed to a single commit whose body is amended with the heredoc form above — never `git rebase -i` from an agent session. The one-line escape does not exist: `GIT_SEQUENCE_EDITOR=true git rebase -i <base>` opens no editor but accepts the all-`pick` todo verbatim, so it rewrites no message at all (probed — subjects unchanged).
+**Amend the base commit's body in that sequence.** Fixup commits never touch the base message, so every count and enumeration written into it at round 0 is stale by merge time — re-derive them against the final diff and amend with the heredoc form above, never a bare `git commit --amend` (which opens `$EDITOR`). The merge gate's re-derive prompt covers the PR body, not the commit message. `--amend` reaches only the tip commit, which is the base commit on the ordinary one-semantic-commit-plus-fixups branch. On a multi-commit branch there is no agent-safe form of that pass: `git rebase -i` opens `$EDITOR` on its todo file (probed — a recorder editor was invoked and the rebase stalled), exactly the stall a bare `--amend` causes. So the non-tip bodies are the owner's interactive job, or the branch is collapsed to a single commit whose body is amended with the heredoc form above — never `git rebase -i` from an agent session. The one-line escape does not exist: `GIT_SEQUENCE_EDITOR=true git rebase -i <base>` opens no editor but accepts the all-`pick` todo verbatim, so it rewrites no message at all (probed — subjects unchanged).
 
 **Final-round one-push exception**: when a round's fixes are the _expected last edits_ (post-autosquash review findings, or a round the agent intends to merge after), combining the fixup with the pre-merge autosquash in ONE force-push is sanctioned — it saves a full CI cycle versus fixup-push → green → autosquash-push → green. Judgment call: use it only when nothing else is expected to change; if the next review finds more, the branch is already squashed and the next fixes start a fresh fixup cycle (no harm, just no savings).
 
@@ -213,8 +208,6 @@ The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST ap
 - A **do-it-now** item lands under Auto-applied or Asks depending on its shape, tagged `[do-it-now:trivial]` / `[do-it-now:semantic]` with the reviewer's deferral quoted — that pairing is the whole justification for fixing it here instead of filing it, so it belongs in the report.
 - A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme-doc phase or idea doc now owns the pass.
 
-Without the tags both dispositions are invisible in the summary: a do-it-now fix reads as an ordinary trivial edit, and a filed batch reads as an ordinary deferral.
-
 **A correction EDITS the original sentence; it does not annotate it.** A round
 that falsifies a claim usually produces two edits — the code fix, reported
 above, and the claim itself, which is easy to leave behind. Appending "update:
@@ -243,15 +236,14 @@ Each round's fixes have surfaced new findings. Options:
 - Review the loop — maybe the PR scope is wrong
 ```
 
-Long review loops are usually a convergence failure rather than genuine quality refinement, and the user is better positioned than the agent to decide whether to merge, rewrite, or abandon. What this guideline protects against is the agent and reviewer trading nits without converging — it was never meant to ship a known-wrong diff on a technicality.
+Long review loops are usually a convergence failure rather than genuine quality refinement, and the user is better positioned than the agent to decide whether to merge, rewrite, or abandon.
 
 The cap resets on user intervention. **"User intervention" means the user explicitly answered an ASK, approved/rejected an auto-apply call, or directed the agent to take a specific action.** Merely reading a round summary without a response, acknowledging with a thumbs-up emoji, or a "continue" that doesn't address an open ASK does not count — those are light-touch signals the user is still present, but the decision-fatigue pressure the round cap exists to bound is about _active_ user engagement, not _passive_ presence. When in doubt: if the user said something that would differently route an item (answered an ASK, amended a fix, told the agent to do X), reset the counter; if they didn't, don't reset.
 
 ### 5a. Hard cap at ~6 rounds: hand off, don't keep iterating
 
 The soft guideline above governs rounds where the residue is nits. **This cap
-governs everything, substantive findings included** (owner call, 2026-08-12):
-when a PR reaches **round 7 without user intervention** (i.e., past ~6
+governs everything, substantive findings included**: when a PR reaches **round 7 without user intervention** (i.e., past ~6
 automated rounds), stop iterating in the current context — even on a finding
 that would otherwise be FIXED under rule 5. Instead, hand off:
 
@@ -261,25 +253,7 @@ that would otherwise be FIXED under rule 5. Instead, hand off:
 - **Escalate to the owner** with the round ledger when the loop's shape suggests
   the PR's scope is wrong rather than its execution.
 
-Why a hard cap: both observed marathons (14 and 15 rounds, one PR each) had
-later rounds fixing regressions that EARLIER rounds introduced — past ~6
-rounds the iterating context is generating the defects it then fixes, because
-its checks inherit the assumptions accumulated across its own rounds. A fresh
-context is the countermeasure, not more care in the stale one. Same
-reset-on-user-intervention rule as the soft guideline.
-
-### 6. Reviewer mode decay across rounds (aspirational)
-
-On round 1: reviewer runs a full audit (all severities, all categories).
-
-On round 2+: reviewer should flag only:
-
-- **Blocking** items that would prevent merge
-- **New regressions** introduced by the agent's round-(N-1) fixes
-
-This is a constraint on the _reviewer's_ behavior, not the agent's — but since the reviewer is configured by the same project rules, it belongs here. Implementation: pass a `round_number` hint to the review prompt; round > 1 filters to blocking + regressions.
-
-**Current status: aspirational.** The existing `claude-review` GitHub Action is not round-aware. Until it is, the agent follows rules 1–5a regardless of what the reviewer surfaces — rule 5's soft menu handles nit accumulation, and rule 5a's hard cap is the actual backstop when rounds keep producing findings.
+Why a hard cap: past ~6 rounds the iterating context generates the defects it then fixes, because its checks inherit the assumptions accumulated across its own rounds. A fresh context is the countermeasure, not more care in the stale one. Same reset-on-user-intervention rule as the soft guideline.
 
 ## Edit-shape whitelist
 
@@ -319,7 +293,7 @@ When the user observes the agent making a category of change it handles well, ad
 
 When the user observes a mis-classification the agent should have avoided, add the specific shape to **Explicit non-trivial** with the mis-classification incident noted.
 
-The whitelist is expected to drift over time as trust develops. Keep each entry self-contained so an observer can verify a candidate diff against one entry without reading the full file.
+Keep each entry self-contained so an observer can verify a candidate diff against one entry without reading the full file.
 
 ## Checklist for the agent
 
