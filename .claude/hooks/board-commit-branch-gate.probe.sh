@@ -737,7 +737,7 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
-# --- NEWLINE-JOINED shapes (review round 2 regressions) --------------------
+# --- NEWLINE-JOINED shapes --------------------------------------------------
 # These pin real bash semantics: a bare `\n` between two commands is a
 # command separator, so the FIRST command's effect does not carry into the
 # second — the same way `;` doesn't. The grep→python port's separator class
@@ -883,6 +883,45 @@ if [ "$actual" -eq 0 ]; then
   printf 'PASS  (exit 0)  bash -c wrapper around a board-only compound evades the gate entirely (KNOWN GAP, TASK-879, not a desired behavior)\n'
 else
   printf 'FAIL  (exit %d, expected 0)  bash -c wrapper around a board-only compound evades the gate entirely (KNOWN GAP, TASK-879, not a desired behavior)\n' "$actual"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# --- Backtracking-reliance pins ---------------------------------------------
+# COMMIT_RE and ADD_RE's shared flag-consuming group has an optional trailing
+# value slot: `(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*`. For `git --no-pager
+# commit`, that slot greedily tries to consume `commit` itself as
+# `--no-pager`'s value, and the match only succeeds because Python backtracks
+# and retries with the slot empty. These two cases pin that RELIANCE on
+# backtracking (not just today's match result), so a future rewrite to an
+# atomic/possessive group, or a port to a non-backtracking engine, cannot
+# silently regress it.
+
+# The hook-level complement to gitCommitPatternAgreement.test.ts's own
+# `[true, 'git --no-pager commit -m "x"']` case, which already pins the
+# COMMIT_RE half at the pattern level. This case pins the same reliance at the
+# hook's actual exit-code boundary.
+assert_cmd 2 'git --no-pager commit' \
+  'a flag with a value-shaped next token still matches via backtracking (git commit)'
+
+# ADD_RE has no cross-hook sibling and is NOT in the agreement test's table
+# (`grep -c 'no-pager' .claude/hooks/board-commit-branch-gate.probe.sh` was 0
+# before this case), so this is its only coverage anywhere. Same
+# nothing-staged fixture shape as "a global flag on git add no longer hides
+# its pathspec" — the add's pathspec is the only source of the assessed file
+# set.
+DIR=$(make_repo feat/x)
+mkdir -p "$DIR/tracker/tasks"
+echo t > "$DIR/tracker/tasks/task-1 - probe.md"
+(
+  cd "$DIR" || exit 99
+  jq -n '{tool_name:"Bash",tool_input:{command:"git --no-pager add tracker/ && git commit -m msg"}}' \
+    | "$HOOK" >/dev/null 2>&1
+)
+actual=$?
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  a flag with a value-shaped next token still matches via backtracking (git add)\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  a flag with a value-shaped next token still matches via backtracking (git add)\n' "$actual"
   FAILURES=$((FAILURES + 1))
 fi
 
