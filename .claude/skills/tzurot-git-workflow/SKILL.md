@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-09-02'
+lastUpdated: '2026-09-03'
 ---
 
 # Git Workflow Procedures
@@ -94,6 +94,12 @@ cite and no hedge.
 The same check applies to any exhaustiveness claim in the body ("every call
 site", "all N modules", "the whole module"): name the enumeration command whose
 output backs it, or scope the sentence to what was actually swept.
+
+**Cite by grep token, not `file:line`, while the file is still under review.** A
+line number into a file later rounds will edit is stale by construction — five
+cites on one PR moved three times before merge. `grep -n '<distinctive token>'
+<file>` names the same place at every round, and `pr-body-ref-gate.sh` accepts
+either form.
 
 **A FORWARD reference — "filed as TASK-N", "tracked in doc-N" — is the same
 claim pointing the other way, and it needs `git ls-files`, not `existsSync`.**

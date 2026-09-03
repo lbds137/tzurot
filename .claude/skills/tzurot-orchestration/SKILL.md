@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-02'
+lastUpdated: '2026-09-03'
 ---
 
 # Orchestrator Mode
@@ -107,6 +107,11 @@ The dispatch prompt's non-negotiable contract points:
   not a bad diff. Per-package `.bin` links arrive incomplete — the root-hoisted
   `node_modules/.bin/vitest` from the package dir is the fallback when
   `pnpm --filter <pkg> test` cannot resolve.
+- **The dispatching turn states the expected wall time** from the measured
+  range for the unit class — initial units ~20–45 min, review-round fixes
+  ~5–20 min — so the owner has a "not stuck yet" horizon. A 45-minute dispatch
+  with no horizon stated drew three "is it stuck?" check-ins in 90 minutes, and
+  a plain range answers all three before they are asked.
 - **Verification gates enumerated as exact commands** with the instruction to
   capture verbatim tails, run sequentially, and never run repo-wide heavy
   commands. Canaries (Core Principle 9) named in the spec get run and reported.
@@ -143,9 +148,15 @@ a gap the worker will fill by guessing.
    ledger, because both failures are invisible from inside the spec: the grep
    for the FIX'S OWN NAME (is it already built?) and the grep for a PRIOR TASK
    ID or shipped PR that already covers it. `dispatch-spec-ledger-gate.sh`
-   blocks an `Agent` call whose named spec carries no such section — but it
+   blocks a worktree dispatch carrying no such section — looking in the named
+   spec file when the prompt names one, and in the PROMPT ITSELF when the
+   instructions are inline, because writing a spec into the Agent call instead
+   of a file does not make its premises any more checkable by the worker. It
    enforces the section's PRESENCE only; its quality is the orchestrator's
-   re-verification, which no hook can see.
+   re-verification, which no hook can see. The same gate also blocks two
+   mechanical spec defects a worker discovers only by hitting them: a
+   `pnpm --filter @tzurot/<pkg> <script>` the package does not declare, and a
+   base SHA that resolves but is not the main checkout's HEAD.
 2. **Files in scope** — mandatory, never omitted. Every `file:line` cite is
    marked "verify before editing — cites drift". State how the enumeration was
    derived (the exact grep) and its positive control (the known-present
