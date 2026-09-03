@@ -768,6 +768,16 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# NOT A GAP (the documentation used to claim otherwise): a backslash-continued
+# prefix — assignment ending `\`, `git commit` on the next physical line — IS
+# recognised and the bypass IS granted. `strip_quoted` collapses the
+# continuation before BYPASS_RE ever runs, so the scanned view is one
+# unbroken logical line, which is exactly what bash itself does with a
+# backslash-newline continuation. Contrast with the bare-newline case above,
+# which correctly blocks because a bare `\n` really is a command separator.
+assert_cmd 0 "$(printf 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 \\\ngit commit -m msg')" \
+  'backslash-continued bypass prefix is honoured, not a gap'
+
 # REGRESSION GUARD: a `git add` on one line and `git commit` on the next is
 # two separate commands sharing nothing but that the add really did stage the
 # board file — the compound must still block. Runtime-confirmed to

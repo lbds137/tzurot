@@ -66,14 +66,16 @@
 #   - the bypass is recognised only as a bare `VAR=1 git commit` prefix, so
 #     `export TZUROT_ALLOW_BOARD_ON_FEATURE=1 && git commit ...` — which really
 #     would export it — is refused. The documented form is the bare prefix.
-#   - likewise a backslash-continued prefix (assignment on one physical line
-#     ending `\`, the commit on the next): the `\` is not whitespace, so the
-#     junction's `[ \t]+` cannot cross it — even though bash really does treat
-#     that pair as one logical line and would carry the assignment into the
-#     commit. A BARE newline between them is NOT this gap and correctly
-#     blocks: bash treats a bare `\n` as a real command separator (the
-#     assignment does NOT carry over), and the junction excludes `\n` on
-#     purpose for exactly that reason (see BYPASS_RE below).
+#   - a BARE newline between the assignment and the commit correctly blocks:
+#     bash treats a bare `\n` as a real command separator (the assignment does
+#     NOT carry over), and the junction excludes `\n` on purpose for exactly
+#     that reason (see BYPASS_RE below). A backslash-continued prefix
+#     (assignment ending `\` then a real newline, commit on the next physical
+#     line) is NOT in this list — it is not a gap at all: `strip_quoted`
+#     collapses the continuation before BYPASS_RE ever runs (see its comment
+#     below), so the scanned view sees one unbroken logical line and the
+#     bypass is granted, matching bash's own line-continuation semantics.
+#     Runtime-confirmed.
 #   - likewise a subshell-wrapped prefix (`(VAR=1 git commit ...)`), whose `(`
 #     is neither start-of-line nor a command separator, and an operator-adjacent
 #     prefix with no spaces (`VAR=1&&git commit`), where the value class stops
@@ -359,11 +361,11 @@ ADD_ARGS=""
 # COUNT rather than a single match decides the question are all documented at
 # the pattern itself.
 #
-# Known gap, fail-safe direction: a backslash-continued prefix (assignment on
-# one line, `git commit` on the next) is not recognised — the `\` between them
-# is not whitespace, so the pattern's `\s+` cannot cross it. That refuses a
-# legitimate bypass — the gate blocks, which is the harmless direction — rather
-# than granting one.
+# Not a gap: a backslash-continued prefix (assignment ending `\`, `git commit`
+# on the next physical line) IS recognised and grants the bypass. The pattern
+# never has to cross the `\` itself — `strip_quoted` collapses the
+# continuation before this scan runs, so the view it matches against already
+# reads as one logical line, exactly as bash treats it. Runtime-confirmed.
 #
 # The process-env check stays as a second path for a caller that exported it.
 #
