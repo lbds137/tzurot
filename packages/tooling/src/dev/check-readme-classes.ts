@@ -22,7 +22,16 @@ export interface ClassifiedLine {
   line: string;
   /** True only for lines INSIDE a fence; a delimiter line itself is false. */
   fenced: boolean;
-  /** True for both the opening and the closing fence delimiter lines. */
+  /**
+   * True for both the opening and the closing fence delimiter lines.
+   *
+   * Keeps the classification complete and unambiguous on its own terms,
+   * rather than carrying only what today's consumers happen to read. Without
+   * it, a delimiter line is indistinguishable from ordinary outside-fence
+   * text except by a derived subtlety — both carry `fenced: false`, so
+   * telling them apart would mean leaning on `tag !== null`. An explicit
+   * field beats a clever derivation.
+   */
   delimiter: boolean;
   /**
    * Lowercased info-string of the ENCLOSING fence's opening delimiter
