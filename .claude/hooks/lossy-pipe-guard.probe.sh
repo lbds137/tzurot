@@ -343,14 +343,23 @@ run 2 "UNQUOTED indented heredoc + trailing tail" 'git commit -m $(cat <<-EOF
 run 0 "here-string is not a heredoc opener to rejoin" 'git commit -F - <<<Fixup
 git log --oneline | head -3'
 
-# The complement, and an ACCEPTED OVER-BLOCK rather than a bug: the rejoin is a
-# global substitution with no state tying it to the heredoc just emptied, so two
-# SEQUENTIAL heredocs both collapse and their statements share one scan line.
-# Here the commit from the first statement and the `tail` from the second meet
-# in one segment and block, where bash runs them separately and pipes the commit
-# into nothing. Pinned as behaviour, not endorsed as correct — a future rejoin
-# that tracks which opener it is closing turns this into a 0, and that should
-# show up as a deliberate probe change rather than a silent one.
+# The complement, and an ACCEPTED OVER-BLOCK rather than a bug. The rejoin's
+# trailing `\n+\s*` matches whatever follows the emptied opener line and never
+# checks that the text CONTINUES the statement, so the base case needs only ONE
+# heredoc: the commit's opener line is glued onto the next statement, and an
+# unrelated `find … | tail` there lands in the same scan segment as the commit.
+# Bash runs the two separately and pipes the commit into nothing. This is the
+# whole accepted class; the two-heredoc case below is one instance of it, not
+# its edge. Pinned as behaviour, not endorsed as correct — a rejoin that fires
+# only on a statement-continuing remainder turns both of these into 0s, and that
+# should show up as a deliberate probe change rather than a silent one.
+run 2 "single heredoc rejoins onto an unrelated following statement" "git commit -F - <<'MSG'
+fix: x
+MSG
+find . -name '*.log' | tail -20"
+
+# Two SEQUENTIAL heredocs: the same substitution collapses both, so the commit
+# from the first statement and the `tail` from the second meet in one segment.
 run 2 "back-to-back heredocs merge onto one scan line" "git commit -F - <<'MSG'
 feat: x
 MSG
