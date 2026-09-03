@@ -3,9 +3,10 @@ id: TASK-746
 title: >-
   Fold board-commit-branch-gate git-commit detection into the pattern-agreement
   guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 13:54'
+updated_date: '2026-09-03 21:59'
 labels:
   - 'area:hooks'
   - 'size:S'
