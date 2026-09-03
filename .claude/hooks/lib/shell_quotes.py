@@ -297,7 +297,20 @@ def substitution_spans(text):
 # candidate text a caller would scan — the recoverable direction here. Each
 # hook strips the heredoc forms its own matching cares about (module docstring),
 # so the two need not agree.
-_HEREDOC_OPENER = re.compile(r"(?<!<)<<(-?)\s*(['\"]?)(\w+)\2")
+#
+# PUBLIC, unlike the other module-private names: lossy-pipe-guard.sh has to
+# REJOIN an emptied heredoc onto its opener line, and the opener half of that
+# substitution is this same pattern. Spelling it out a second time in the hook
+# is exactly the divergence this module exists to prevent — the copy there was
+# written without the here-string lookbehind above and false-blocked a
+# here-string followed by a piped command, so the hook composes from this name
+# instead. Two consequences for anyone editing the pattern: the group NUMBERING
+# (1 = the `-` indent flag, 2 = the quote character, 3 = the marker) is part of
+# the exported contract, because that hook's replacement template reconstructs
+# an opener from those groups; and both consumers are pinned by the heredoc and
+# here-string cases in lossy-pipe-guard.probe.sh, which is where a group
+# renumbering would surface.
+HEREDOC_OPENER = re.compile(r"(?<!<)<<(-?)\s*(['\"]?)(\w+)\2")
 
 
 def strip_heredoc_bodies(text):
@@ -349,7 +362,7 @@ def strip_heredoc_bodies(text):
     out = []
     pos = 0
     while True:
-        match = _HEREDOC_OPENER.search(text, pos)
+        match = HEREDOC_OPENER.search(text, pos)
         if match is None:
             out.append(text[pos:])
             return "".join(out)
