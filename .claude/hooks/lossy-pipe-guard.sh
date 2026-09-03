@@ -155,6 +155,7 @@ import sys
 # what catches a missing lib, not runtime.
 sys.path.insert(0, os.environ["HOOK_LIB"])
 from shell_quotes import (
+    HEREDOC_OPENER,
     strip_heredoc_bodies,
     strip_quoted,
     substitution_spans_matching,
@@ -188,7 +189,27 @@ cmd = strip_heredoc_bodies(cmd)
 # emptied heredoc back onto its opener line so the target and the truncator
 # stay in one segment — pinned by the "heredoc message + real trailing tail"
 # cases in the probe, which block only if this join happens.
-cmd = re.sub(r"<<(-?)\s*(['\"]?)(\w+)\2\n+\s*", r"<<\1\2\3\2 ", cmd)
+#
+# The opener half is the SHARED pattern rather than a second spelling of it.
+# Re-typing it here dropped the `(?<!<)` here-string lookbehind the shared one
+# carries, and a here-string followed on the next line by a piped command then
+# joined into one segment and false-blocked — pinned by the "here-string is not
+# a heredoc opener to rejoin" case in the probe, which exits 0 only while the
+# lookbehind is inherited. Composing by string keeps ONE opener definition; the
+# replacement template rebuilds the opener from that pattern's groups (1 = the
+# `-` indent flag, 2 = the quote character, 3 = the marker), a coupling the
+# shared pattern's own comment names as its exported contract.
+#
+# ACCEPTED OVER-BLOCK: the substitution is global and carries no state tying it
+# to the heredoc just emptied, so two SEQUENTIAL heredocs both rejoin and their
+# two statements land on one scan line — a target in the first and a truncator
+# in the second then read as one pipeline and block, where the real command runs
+# them as separate statements. Pinned by the "back-to-back heredocs merge onto
+# one scan line" case in the probe. Left as-is: it fails toward over-blocking,
+# the direction this file already accepts elsewhere (the `[a-z]*grep` family and
+# the command-wide substitution span both over-match by design), and the cost is
+# one re-run against a bypass on the other side.
+cmd = re.sub(HEREDOC_OPENER.pattern + r"\n+\s*", r"<<\1\2\3\2 ", cmd)
 
 # Quote stripping is a single left-to-right SCAN, not a pair of regex passes:
 # the two-pass version failed on ordinary English (an apostrophe in one
