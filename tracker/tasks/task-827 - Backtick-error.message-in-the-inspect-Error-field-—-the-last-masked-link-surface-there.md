@@ -3,9 +3,10 @@ id: TASK-827
 title: >-
   Backtick error.message in the /inspect Error field — the last masked-link
   surface there
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 22:06'
+updated_date: '2026-09-04 15:41'
 labels:
   - 'area:bot-client'
   - 'size:S'
