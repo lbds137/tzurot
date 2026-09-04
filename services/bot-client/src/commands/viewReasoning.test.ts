@@ -41,6 +41,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: (id: string) => id === 'owner-123',
+  };
+});
+
 interface MockInteraction {
   targetId: string;
   user: { id: string };
@@ -48,10 +58,10 @@ interface MockInteraction {
   followUp: ReturnType<typeof vi.fn>;
 }
 
-function makeInteraction(): MockInteraction {
+function makeInteraction(userId = 'user-1'): MockInteraction {
   return {
     targetId: '123456789012345678',
-    user: { id: 'user-1' },
+    user: { id: userId },
     editReply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
   };
@@ -285,5 +295,71 @@ describe('View Reasoning context-menu command', () => {
     // Read classification: never claims a change may still be applying
     expect(content).not.toContain('may still');
     expect(content.length).toBeGreaterThan(0);
+  });
+
+  describe('header id-tag masking', () => {
+    // `meta` is empty in every fixture here, so `computeViewContext` resolves
+    // `canViewCharacter: true` for both an owner and a non-owner viewer — the
+    // ONLY difference between the two paths in this block is whether the
+    // header id tag survives byte-exact or gets masked. Tier 1 masks through
+    // `payloadForViewer`; tier 2 masks through the `maskTags` param on
+    // `lookupPersistedReasoning`.
+    it('masks a tier-1 header id tag for a non-owner viewer', async () => {
+      resolveMock.mockResolvedValue(
+        logWithThinking('the model weighed Vlad (id:abcd1234) against the roster')
+      );
+      const interaction = makeInteraction('user-1');
+
+      await viewReasoningCommand.execute(asInteraction(interaction));
+
+      const content = editReplyContent(interaction);
+      expect(content).not.toContain('abcd1234');
+      expect(content).toContain('(id:····)');
+    });
+
+    it('leaves a tier-1 header id tag byte-exact for the bot owner', async () => {
+      resolveMock.mockResolvedValue(
+        logWithThinking('the model weighed Vlad (id:abcd1234) against the roster')
+      );
+      const interaction = makeInteraction('owner-123');
+
+      await viewReasoningCommand.execute(asInteraction(interaction));
+
+      expect(editReplyContent(interaction)).toContain('(id:abcd1234)');
+    });
+
+    it('masks a tier-2 header id tag for a non-owner viewer', async () => {
+      resolveMock.mockResolvedValue({
+        success: false,
+        errorMessage: 'No diagnostic logs found for this message.',
+      });
+      getMessageReasoningMock.mockResolvedValue({
+        ok: true,
+        data: { thinkingContent: 'the trace named Vlad (id:deadbeef) once', createdAt: 'T' },
+      });
+      const interaction = makeInteraction('user-1');
+
+      await viewReasoningCommand.execute(asInteraction(interaction));
+
+      const content = editReplyContent(interaction);
+      expect(content).not.toContain('deadbeef');
+      expect(content).toContain('(id:····)');
+    });
+
+    it('leaves a tier-2 header id tag byte-exact for the bot owner', async () => {
+      resolveMock.mockResolvedValue({
+        success: false,
+        errorMessage: 'No diagnostic logs found for this message.',
+      });
+      getMessageReasoningMock.mockResolvedValue({
+        ok: true,
+        data: { thinkingContent: 'the trace named Vlad (id:deadbeef) once', createdAt: 'T' },
+      });
+      const interaction = makeInteraction('owner-123');
+
+      await viewReasoningCommand.execute(asInteraction(interaction));
+
+      expect(editReplyContent(interaction)).toContain('(id:deadbeef)');
+    });
   });
 });

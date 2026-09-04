@@ -480,11 +480,12 @@ export function buildCacheView(
  * fence, it introduces no fence pairing of its own across chunk boundaries.
  *
  * No `canViewCharacter` gate, deliberately: `redactPayloadForNonOwner` in
- * `views.ts` redacts ONLY the system message's content, so user/assistant
- * messages are already exposed intact to non-owners through the Full JSON
- * view. Excluding the system role here means this view leaks nothing Full
- * JSON does not. The `_ctx` parameter is kept for the uniform VIEW_BUILDERS
- * signature.
+ * `views.ts` redacts ONLY the system message's content, and both this view
+ * and the Full JSON view now render from the same payload — already routed
+ * through the viewer-masking seam at dispatch — so user/assistant messages
+ * carry identical content on both surfaces. Excluding the system role here
+ * means this view shows nothing the Full JSON view does not. The `_ctx`
+ * parameter is kept for the uniform VIEW_BUILDERS signature.
  */
 export function buildMessagesView(
   payload: DiagnosticPayload,

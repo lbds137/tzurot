@@ -15,8 +15,8 @@ import {
 } from './extendedViews.js';
 import type { ViewContext } from './viewContext.js';
 
-const OWNER_CTX: ViewContext = { canViewCharacter: true };
-const NON_OWNER_CTX: ViewContext = { canViewCharacter: false };
+const OWNER_CTX: ViewContext = { canViewCharacter: true, isBotOwner: true };
+const NON_OWNER_CTX: ViewContext = { canViewCharacter: false, isBotOwner: false };
 
 function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPayload {
   return {
@@ -491,7 +491,9 @@ describe('buildCacheView', () => {
       },
     });
 
-    const text = describeOf(buildCacheView(payload, 'req-1', { canViewCharacter: false }));
+    const text = describeOf(
+      buildCacheView(payload, 'req-1', { canViewCharacter: false, isBotOwner: false })
+    );
     expect(text).toContain('**Cached:** 6,272 (63%)');
     expect(text).toContain('🔒');
     expect(text).not.toContain('system_identity');

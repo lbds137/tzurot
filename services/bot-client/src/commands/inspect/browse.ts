@@ -38,6 +38,7 @@ import {
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
+import { payloadForUser } from './maskHeaderIdTags.js';
 import { buildInspectComponents } from './components.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { DiagnosticLogSummary } from './types.js';
@@ -277,7 +278,7 @@ export async function handleBrowseLogSelection(
       return;
     }
 
-    const embed = buildDiagnosticEmbed(result.log.data);
+    const embed = buildDiagnosticEmbed(payloadForUser(result.log.data, interaction.user.id));
     const inspectComponents = buildInspectComponents(
       result.log.requestId,
       result.log.data.postProcessing.thinkingContent?.length ?? 0

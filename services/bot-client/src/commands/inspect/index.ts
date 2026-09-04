@@ -58,6 +58,7 @@ import {
   buildCacheView,
 } from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
+import { payloadForViewer, payloadForUser } from './maskHeaderIdTags.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('inspect');
@@ -144,7 +145,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
     }
 
     const { log } = result;
-    const embed = buildDiagnosticEmbed(log.data);
+    const embed = buildDiagnosticEmbed(payloadForUser(log.data, context.interaction.user.id));
     const components = buildInspectComponents(
       log.requestId,
       log.data.postProcessing.thinkingContent?.length ?? 0
@@ -203,10 +204,14 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     // original /inspect invoker. Ephemeral replies already prevent other users
     // from seeing the buttons, but each click revalidates.
     const ctx = computeViewContext(result.log, interaction.user.id);
+    // Masking happens once here, on the whole payload, so every view below
+    // renders from the same viewer-masked source rather than each view
+    // builder redoing the walk.
+    const data = payloadForViewer(result.log.data, ctx);
     // Picking MemoryInspector from the select menu always starts at DEFAULT_MEMORY_STATE.
     // Filter / sort / Top-N state is only preserved when navigating between memory-inspector
     // buttons (handleButton below threads parsed.memoryState through).
-    const viewResult = VIEW_BUILDERS[viewType](result.log.data, parsed.requestId, ctx);
+    const viewResult = VIEW_BUILDERS[viewType](data, parsed.requestId, ctx);
     await renderViewResult(interaction, viewResult);
   } catch (error) {
     logger.error(
@@ -258,10 +263,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
     // See handleSelectMenu — same defense-in-depth re-evaluation.
     const ctx = computeViewContext(result.log, interaction.user.id);
+    const data = payloadForViewer(result.log.data, ctx);
     const viewResult =
       parsed.viewType === DebugViewType.MemoryInspector
-        ? buildMemoryInspectorView(result.log.data, parsed.requestId, ctx, parsed.memoryState)
-        : VIEW_BUILDERS[parsed.viewType](result.log.data, parsed.requestId, ctx);
+        ? buildMemoryInspectorView(data, parsed.requestId, ctx, parsed.memoryState)
+        : VIEW_BUILDERS[parsed.viewType](data, parsed.requestId, ctx);
     await renderViewResult(interaction, viewResult);
   } catch (error) {
     logger.error(

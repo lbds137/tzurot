@@ -23,6 +23,7 @@ import { defineContextMenuCommand } from '../utils/defineCommand.js';
 import { clientsFor } from '../utils/gatewayClients.js';
 import { resolveDiagnosticLog } from './inspect/lookup.js';
 import { buildDiagnosticEmbed } from './inspect/embed.js';
+import { payloadForUser } from './inspect/maskHeaderIdTags.js';
 import { buildInspectComponents } from './inspect/components.js';
 import { CATALOG } from '../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../ux/catalog/classify.js';
@@ -52,7 +53,7 @@ export default defineContextMenuCommand({
       }
 
       const { log } = result;
-      const embed = buildDiagnosticEmbed(log.data);
+      const embed = buildDiagnosticEmbed(payloadForUser(log.data, interaction.user.id));
       const components = buildInspectComponents(
         log.requestId,
         log.data.postProcessing.thinkingContent?.length ?? 0

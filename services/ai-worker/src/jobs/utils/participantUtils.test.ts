@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { HEADER_ID_TAG_WIDTHS } from '@tzurot/common-types/constants/headerIdTags';
 
 // Hoisted singleton so log-field assertions can inspect what was emitted.
 const mockLogger = vi.hoisted(() => ({
@@ -583,13 +584,20 @@ describe('buildHeaderIdTags', () => {
   });
 
   it('falls back to the FULL hex id when even 8 chars collide', () => {
+    // Two UUIDs sharing an 8-char prefix after hyphen-stripping — forces
+    // assignGroupTags past both trial widths to the whole-hex fallback.
     const ids = ['a1b2c3d4-0000-0000-0000-000000000001', 'a1b2c3d4-0000-0000-0000-000000000002'];
     const map = buildHeaderIdTags(
       ids.map(id => participant(id, 'Lila')),
       []
     );
+    const lastWidth = HEADER_ID_TAG_WIDTHS[HEADER_ID_TAG_WIDTHS.length - 1];
     expect(map.get(ids[0])).toBe(ids[0].toLowerCase().replace(/-/g, ''));
     expect(map.get(ids[1])).toBe(ids[1].toLowerCase().replace(/-/g, ''));
+    // The fallback returns the WHOLE hex string, which for a UUID id is
+    // exactly the last (32-char) entry of HEADER_ID_TAG_WIDTHS.
+    expect(map.get(ids[0])).toHaveLength(lastWidth);
+    expect(map.get(ids[1])).toHaveLength(lastWidth);
   });
 
   it('never groups unrenderable names — nothing renders, so nothing collides', () => {
