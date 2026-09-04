@@ -30,6 +30,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import {
   fetchUserCharacters,
   fetchPublicCharacters,
@@ -414,7 +415,7 @@ export async function handleBrowsePagination(
       { err: error, userId: interaction.user.id, ...parsed },
       'Failed to load browse page'
     );
-    // Keep existing content on error
+    await followUpBrowsePageFailure(interaction, error);
   }
 }
 

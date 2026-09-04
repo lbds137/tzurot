@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
@@ -202,8 +203,9 @@ describe('handleBrowsePagination', () => {
     } as unknown as ButtonInteraction;
 
     await handleBrowsePagination(interaction);
-    const call = followUp.mock.calls[0][0] as { content: string };
+    const call = followUp.mock.calls[0][0] as { content: string; flags?: number };
     expect(call.content).toContain('Failed to load the page');
+    expect(call.flags).toBe(MessageFlags.Ephemeral);
   });
 });
 
@@ -227,6 +229,29 @@ describe('sort modes', () => {
     catalogMock.fetchModelCatalog.mockResolvedValue([catalogModel({ id: 'a/model', name: 'A' })]);
     const description = await renderViaPagination('models::browse::0::all::default::');
     expect(description).toContain('sorted: usable first');
+  });
+
+  it('shows the ↕️ glyph on the sort-toggle button (not the 🔀 router badge)', async () => {
+    // The toggle button always shows the label/emoji for the NEXT sort — the
+    // cycle is default → price → recent → default, so starting from
+    // 'recent' renders the 'default' (↕️) glyph on the button.
+    catalogMock.fetchModelCatalog.mockResolvedValue([catalogModel({ id: 'a/model', name: 'A' })]);
+    const editReply = vi.fn();
+    const interaction = {
+      customId: 'models::browse::0::all::recent::',
+      user: { id: 'u1' },
+      deferUpdate: vi.fn(),
+      editReply,
+    } as unknown as ButtonInteraction;
+    await handleBrowsePagination(interaction);
+    const call = editReply.mock.calls[0][0] as {
+      components: {
+        toJSON: () => { components: { label?: string; emoji?: { name?: string } }[] };
+      }[];
+    };
+    const buttonRow = call.components[call.components.length - 1].toJSON().components;
+    const sortButton = buttonRow.find(button => button.label?.startsWith('Sort: '));
+    expect(sortButton?.emoji?.name).toBe('↕️');
   });
 
   it('price sort lists cheaper models first and labels the embed', async () => {

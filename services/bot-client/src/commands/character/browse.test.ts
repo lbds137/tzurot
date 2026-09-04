@@ -14,7 +14,7 @@ import { registerBrowseRebuilder, buildDashboardEmbed } from '../../utils/dashbo
 import { getCharacterDashboardConfig } from './config.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -618,6 +618,7 @@ describe('handleBrowsePagination', () => {
       },
       deferUpdate: vi.fn(),
       editReply: vi.fn(),
+      followUp: vi.fn(),
     } as unknown as ButtonInteraction;
   }
 
@@ -644,8 +645,22 @@ describe('handleBrowsePagination', () => {
     // Should not throw
     await expect(handleBrowsePagination(mockInteraction, mockConfig)).resolves.not.toThrow();
 
-    // Should not call editReply on error (keeps existing content)
+    // The visible page is left intact; the user is told via followUp (asserted below).
     expect(mockInteraction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user (followUp) when page load fails', async () => {
+    vi.mocked(api.fetchUserCharacters).mockRejectedValue(new Error('API error'));
+
+    const mockInteraction = createMockButtonInteraction('character::browse::1::all::date::');
+    await handleBrowsePagination(mockInteraction, mockConfig);
+
+    expect(mockInteraction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 
   it('should return early for invalid custom ID', async () => {

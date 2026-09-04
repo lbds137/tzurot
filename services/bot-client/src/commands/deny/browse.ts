@@ -36,6 +36,7 @@ import {
   type FilterToggleDisplay,
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
+import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 import { MODE_LABELS, formatScopeWithId } from './denyLabels.js';
 
@@ -286,6 +287,11 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   const { ownerClient } = clientsFor(interaction);
   const entries = await fetchEntries(ownerClient);
   if (entries === null) {
+    // `fetchEntries` collapses both failure arms (a `!ok` gateway result and a
+    // thrown error) into `null`, so there is no failure object to classify —
+    // the helper renders its generic load-failure shape (classify.test.ts's
+    // "TOTAL: unknown error shapes" case pins `null` among its inputs).
+    await followUpBrowsePageFailure(interaction, null);
     return;
   }
 

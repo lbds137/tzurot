@@ -9,6 +9,7 @@ import {
 } from './browse.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
@@ -191,6 +192,7 @@ function createMockButtonInteraction(customId: string): ButtonInteraction {
     user: { id: 'user-123' },
     deferUpdate: vi.fn(),
     editReply: vi.fn(),
+    followUp: vi.fn(),
   } as unknown as ButtonInteraction;
 }
 
@@ -548,7 +550,7 @@ describe('handleBrowsePagination', () => {
     expect(call.embeds[0].data.footer.text).toContain('filtered by: Users');
   });
 
-  it('should silently handle API error', async () => {
+  it('notifies the user (followUp) when the API errors, leaving the page in place', async () => {
     stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'Error'));
     const interaction = createMockButtonInteraction('deny::browse::1::all::date::');
 
@@ -556,6 +558,12 @@ describe('handleBrowsePagination', () => {
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 });
 
