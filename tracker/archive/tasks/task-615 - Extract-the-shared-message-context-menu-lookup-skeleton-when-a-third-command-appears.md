@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-15 10:34'
+updated_date: '2026-09-04 19:44'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -28,3 +29,13 @@ What: extract runMessageContextLookup(interaction, { noun, hintOnMiss, render })
 
 Acceptance: three context-menu commands share one skeleton; each keeps its own noun, miss-path hint and renderer; cpd:filtered no worse than before.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:44
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. admission bar (06-backlog.md: there is deliberately no state for the-only-trigger-is-next-time-someone-touches-this; a task in it should never have been filed). The trigger event and the need are the same diff: the third message-context-menu command copies inspectMessage.ts or viewReasoning.ts.
+---
+<!-- COMMENTS:END -->
