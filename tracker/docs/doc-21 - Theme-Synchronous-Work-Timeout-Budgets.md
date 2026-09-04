@@ -75,7 +75,7 @@ theme is picked up first.
 - [ ] Watch the tightened ladder's label rates post-deploy (2026-07-01)
 - [ ] Document the "pooler strips `options` → gateway boot fails" caveat (2026-06-25)
 - [ ] Fast-pool code-polish nits ×3 (2026-06-25)
-- [ ] Re-check the main-pool idle-in-tx GUC if interactive transactions arrive (2026-07-12)
+- [ ] Re-check the main-pool idle-in-tx GUC **if external I/O is ever awaited inside a `$transaction` block**. The 60s `idle_in_transaction_session_timeout` (#1606) is safe while no Postgres transaction is held across external I/O; a block awaiting an LLM or API call between statements could idle past 60s and be reaped mid-work. **Condition rewritten 2026-09-04** — the row's original trigger was "any PR introduces `$transaction` usage (grep is the check)", and that literal trigger is now STALE: `$transaction` has grown to **32 non-test call sites** (createPersonality, updatePersonality, shapes import/export, history, memoryFacts, override, `ShapesImportHelpers`…), every sampled one performing pure Prisma reads/writes with no external `await` between statements. A bare grep now fires on ordinary transactional writes while the actual hazard stays unfired, so the condition is the external-I/O-inside-a-transaction shape, not the presence of `$transaction`. (2026-07-12)
 
 ### Phase 5 — Job lifecycle edges
 
@@ -92,3 +92,13 @@ theme is picked up first.
 The items live in `tracker/tasks/` as the authoritative text; this file is the
 scope index. When a phase is picked up, mark its tasks Done per
 `06-backlog`'s session-end removal gate rather than duplicating them here.
+
+## Superseded tasks (2026-09-04 pass)
+
+Five tracker rows whose content this file **already carries by content**; they are archived rather than re-bulleted, and each id below points at the bullet that holds it. Verified before archiving: `grep -ci externalCallBudgetMs` on this file → 1, i.e. the members are present, not merely adjacent.
+
+- **TASK-167** → Phase 1, `deleteVoice`/`clearVoices` chain sequential external calls (2 × 30s delete, N-deep clear loop)
+- **TASK-281** → Phase 1, account deletion runs synchronously in one 60s transaction — with its "promote when logged deletion duration p95 > 10s" verbatim, and the owner's deliberate choice of atomicity over a half-deleting job
+- **TASK-180** → Phase 2, keep the prod voice-engine warm — the bullet also **records the prior owner ruling** (a keep-warm toggle was previously overruled on hosting spend), which is why this is not an open owner question
+- **TASK-168** → Phase 3, the fetch-detecting `externalCallBudgetMs` guard; the doc names it as the phase's whole content and the structural fix that stops Phase 1 recurring
+- **TASK-252** → Phase 4, the main-pool idle-in-tx GUC re-check — **condition rewritten in this same pass** to "external I/O awaited inside a `$transaction` block"; see that bullet for why the literal `$transaction` grep is stale at 32 DB-only call sites

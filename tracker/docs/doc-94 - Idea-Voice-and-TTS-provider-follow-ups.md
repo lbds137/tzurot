@@ -1,0 +1,29 @@
+---
+id: doc-94
+title: 'Idea: Voice and TTS provider follow-ups'
+type: other
+created_date: '2026-09-04 15:47'
+---
+
+### Idea: Voice and TTS provider follow-ups
+
+_Focus: four provider-adapter and voice-round-trip items in `services/ai-worker/src/services/voice/providers/` plus the shapes/voice import-export seam, each gated on a change to the provider surface._
+
+## Why one doc
+
+All four live in the same territory — the BYOK provider adapters, the voice-engine ASR path, and the voice half of the import/export round trip — and each is gated on a change to that surface rather than on anything a query can see. They are small enough that four pool slots is more bookkeeping than the work.
+
+Checked and rejected as owner: **doc-20 is NOT the owner.** doc-20 is the self-hosted-engine *re-evaluation* (NeuTTS Air, abandoned 2026-05-13) — a different axis. Its own cleanup is a separate item; see doc-96 (Doc-lifecycle chores), which owns TASK-25.
+
+**Selection cost: modest, with one thing consolidation must not bury** — see the TASK-230 note below.
+
+## Members
+
+- **TASK-230 — Voice reference export (round-trip symmetry with voice-at-import)** (filed 2026-07, was state:ready size:M). ⚠️ **READY NOW — grounded design already in the task; do not let this doc bury it.** This is the one member with no blocker and a `state:ready` label, and the design was GROUNDED during the definition-privacy epic rather than sketched: the existing `/voice-references/:slug` route is deliberately service-auth-gated (anti-enumeration) and bot-client's `serviceFetch` contract forbids non-infrastructure use, so the correct shape is a NEW owner-gated user route — `GET /user/personality/:slug/voice-reference`, `requireUserAuth` + `canEdit` — returning `{ voiceReferenceData: dataUri, voiceReferenceType }` via the typed client (mirroring how import uploads it), after which export decodes it to a file attachment like the avatar. Needs: route + manifest entry + client regen + export wiring + tests. Trigger/cost: export emits no voice file while import accepts one, so voice does not survive a round trip the way avatar does; promote at the next character-command session, or on a user asking for voice round-trip. Evidence 2026-09-04: `git grep -n voiceReferenceData -- character/import.ts` → present throughout; `git grep -n voiceReference -- character/export.ts` → **zero hits** (only unrelated `avatarData` comments).
+- **TASK-265 — BYOK TTS providers receive but never consult the abort signal** (filed 2026-07, was state:dependent size:S). `TtsContext.signal` (#1636) is checked by the self-hosted chunker and the dispatcher's fallback walk, but `MistralTtsProvider` and `ElevenLabsTtsProvider` receive the field on their single-shot `synthesize()` calls and ignore it. Fix shape: add `signal?.throwIfAborted()` between requests if either provider grows a multi-request synthesis path. Trigger/cost: correct today — no chunking, no shared semaphore, and each has its own per-request HTTP timeout; the signal contract exists so that new multi-request paths must opt in. Promote when a BYOK TTS provider grows chunked or long-running multi-request synthesis. Evidence 2026-09-04: `git grep -n "signal" services/ai-worker/src/services/voice/providers/MistralTtsProvider.ts services/ai-worker/src/services/voice/providers/ElevenLabsTtsProvider.ts` → one unrelated comment hit, no actual signal consultation.
+- **TASK-267 — Shapes.inc voice import (locate the field, then build step 7.5)** (filed 2026-07, was state:dependent size:M). shapes.inc has a user-visible voice feature (owner-confirmed 2026-07-13, overriding the 2026-07-09 competitive research that under-reported it), but our fetcher's four endpoints expose no known voice fields, so imported characters currently lose their voice. Fix shape, in order: first identify where the voice data lives — grep a fresh raw JSON export for voice/audio/tts keys, since post-#1630 exports pass all fields through verbatim, and if absent probe for an unfetched voice endpoint — then build the pre-designed step 7.5, cloning `downloadAndStoreAvatar` (`ShapesImportHelpers.ts`) into `downloadAndStoreVoiceReference` writing `Personality.voiceReferenceData`/`voiceReferenceType` + `voiceEnabled: true`; lazy register/clone fires automatically via `VoiceRegistrationService.ensureVoiceRegistered`, so no provider wiring is needed. Trigger/cost: **the data shape is the gate** — building against guessed field shapes is the class of work this project refuses. Promote when a voice field or endpoint is identified in live shapes.inc data. The reader flagged this member as **owner-call-adjacent** (a user-visible import-fidelity feature). Evidence 2026-09-04: `git grep -n "voiceReferenceData\|downloadAndStoreVoiceReference" services/ai-worker` → `voiceReferenceData` exists only as an export-omit field on `Personality`; no import-side writer.
+- **TASK-181 — Evaluate batched `asr_model.transcribe([...windows])` vs the sequential loop** (filed 2026-06, was state:observable size:M). The voice-engine chunked path (`_transcribe_chunks`, `services/voice-engine/server.py`) transcribes windows one at a time under `_asr_inference_lock` — deterministic memory, version-independent. NeMo *may* accept a batch of windows in one `.transcribe()` call, but batch memory and parallelism are version-specific and could OOM the 4GB box. Fix shape: benchmark batched vs sequential per-window inference time **and peak RSS** on Railway CPU; switch only if the speedup is real and memory stays bounded. Trigger/cost: promote when prod `per_chunk_sec` logs show the sequential loop is the latency bottleneck for long audio, OR a measurement pass is run. Evidence 2026-09-04: `git grep -n "_transcribe_chunks\|asr_model.transcribe" services/voice-engine/server.py` → still the sequential per-window loop, unchanged (server.py:466-491).
+
+## Superseded tasks (2026-09-04 pass)
+
+TASK-265, TASK-267, TASK-230, TASK-181
