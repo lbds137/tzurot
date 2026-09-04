@@ -3,9 +3,10 @@ id: TASK-831
 title: >-
   formatFinishReason default arm renders provider text raw — the last unescaped
   render in the /inspect embed
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 16:11'
+updated_date: '2026-09-04 18:09'
 labels:
   - 'area:bot-client'
   - 'size:S'
