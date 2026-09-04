@@ -1,10 +1,10 @@
 ---
 id: TASK-344
 title: MISSING_PERMISSIONS key-test result renders under the generic Invalid title
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 20:22'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-04 23:21'
 labels:
   - 'area:bot-client'
   - 'size:S'
