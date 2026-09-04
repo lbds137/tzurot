@@ -102,6 +102,8 @@ recorded where the next session will look), or **deferred** (with a
 promote-when trigger). Anything else is rot. Write the disposition to the
 tracking surface in the same working session as the decision — chat prose does
 not survive compaction, and a promise that exists only in chat does not exist.
+For low-priority residue of process work, that surface is the PR body's
+`## Residue` section (`06-backlog.md` § The process-residue default).
 
 ## Presence-then-test after bulk edits
 

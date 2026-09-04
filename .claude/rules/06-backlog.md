@@ -73,9 +73,15 @@ File a "not now" item by **size**: a multi-phase initiative → theme doc (`pnpm
 
 - **This same file or diff** ("next time we touch this") → **do it now**, in the work that surfaced it; filing it converts a five-minute edit into pool weight.
 - **A named batch across files** ("next tooling-DRY pass"), or simply too big for this diff → **file the batch, not the item**; a theme-doc phase or idea doc owns the pass, and this item is one of its members.
-- Anything else small → **file it as a task.** No trigger needed.
+- Anything else small → **file it as a task.** No trigger needed — with one scoped inversion, low-priority process residue, below.
 
 **Which one, for a batch**: if the whole pass is one PR's worth of sweeping, it's an idea doc. If it needs its own phased rollout, it's a theme doc. **Search before creating the batch** — `pnpm tracker task list --search <term> --plain` AND `pnpm tracker doc search <term>` by the pass's name and the module it sweeps; if an entry already owns the pass, add the item as a member instead of fragmenting.
+
+### The process-residue default
+
+**Low-priority residue from process work is dispositioned in the PR body, not filed.** Process work is a PR whose substance lies under `.claude/`, `.husky/`, `packages/tooling/`, or `.github/` — hooks, skills, rules, tooling, CI — with bookkeeping under `tracker/`, `backlog/`, `docs/`, or the root markdown files free to ride along; a diff that touches any runtime file (runtime as `10-working-posture.md` § Ship in bounded units defines it, plus `packages/test-utils/` and `packages/test-factories/`, which this rule counts as runtime because their residue is coverage debt for runtime tests) is not process work, and its residue files. Its residue is the tail such PRs leave: a fail-open branch, an unprobed guard arm, a "tune it if it proves noisy" watch, the nits at a review-round cap. That tail's only trigger is the next touch of the same file — the do-it-now case above, arriving late — so a task for it is pool weight no query surfaces. The default inverts "file it, no trigger needed" on measurement, not taste: process areas produced ~44% of four weeks of filings from ~28% of the pool, 14 of the rows the 2026-09-04 rule-out pass consolidated (`doc-90`, `doc-91`) were exactly these review tails, and net growth held near +36 a week against 60–70 closed (TASK-888 carries the numbers). File it only when it earns `medium` or above on the priority axis: `medium` for a cost measured rather than hypothesized, `high` for a prod-correctness or data-rights dimension.
+
+In the PR body: a `## Residue` section, one line per item — what it is, its file in backticks, and exactly one disposition: **fixed** here, **declined** with the technical reason (the ruled-out bar below applies unchanged — merit, not effort; "pre-existing" is never the reason), or **filed** as `TASK-N` with the sentence that earns it `medium` or above. A residue line names no future PR and no trigger. Two boundaries: the owner-call boundary in § Ruling an item out fails closed here too — if declining feels wrong, that is the `medium` signal, file it — and the default covers process work only; runtime residue files per the bullets above.
 
 ## Staleness — aging escalates, it never deletes
 
@@ -84,6 +90,8 @@ Items are **never** deleted by calendar. The digest's oldest-20 surface exists s
 - **done** (shipped — `-s Done`, archive later; git is the archive for markdown entries);
 - **genuinely obsolete** — the code path, file, or condition it references no longer exists. Verify by grep before removing, not by date; or
 - **ruled out** — a deliberate decision that we are not going to do this. Rationale goes in the removing commit, never a tombstone entry (`00-critical.md` § Always Leave Code Better Than You Found It).
+
+**Removing or renumbering a tracker doc has a gate cost — pay it in the same commit.** `pnpm ops backlog` resolves every backticked `doc-N` mention across `backlog/**`, `tracker/tasks/**`, and `tracker/docs/**` against the live `tracker/docs/` filenames, reading RAW markdown — backticks are the reference convention, so fenced code blocks are scanned too, and a made-up id in an example fails the gate. Deleting a doc turns each historical mention into a CI failure: grep for the id first, and rewrite those mentions to prose in the removing commit (mechanism: `checkDocIdRefs` in `packages/tooling/src/dev/backlogLint.ts`).
 
 ### Ruling an item out
 
@@ -115,11 +123,11 @@ Items are **never** deleted by calendar. The digest's oldest-20 surface exists s
 
 ## Out-of-Scope Items Must Be Tracked
 
-Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in a concrete destination — a tracker task or the appropriate `backlog/**/*.md` file. Applies to plans, PRs, code reviews, and ad-hoc work.
+Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in a concrete destination — a tracker task or the appropriate `backlog/**/*.md` file, or, for low-priority residue of process work only, the PR body's `## Residue` section (§ The process-residue default). Applies to plans, PRs, code reviews, and ad-hoc work.
 
-**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes.** A `// TODO: migrate this later` comment does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a task before the current work closes.
+**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes.** A `// TODO: migrate this later` comment does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a task before the current work closes. One scoped exception: low-priority residue of process work lives in the PR body's `## Residue` section by design (§ The process-residue default) — that section is its tracking surface, and a `TODO` comment still is not.
 
-**The promise ledger — file at the moment of utterance.** Any in-flight "I'll do X later / after this PR / when the release is done" — in chat, a plan, or a PR description — must land in a tracker task or the appropriate backlog file THE MOMENT it is said, not at session end. A promise that exists only in chat prose does not exist: it dies at the next compaction. The session-end gates below are the backstop, not the mechanism.
+**The promise ledger — file at the moment of utterance.** Any in-flight "I'll do X later / after this PR / when the release is done" — in chat, a plan, or a PR description — must land in a tracker task or the appropriate backlog file THE MOMENT it is said, not at session end — or, for low-priority residue of process work, in the PR body's `## Residue` section, the same exception as above. A promise that exists only in chat prose does not exist: it dies at the next compaction. The session-end gates below are the backstop, not the mechanism.
 
 ### Two types of "out of scope" — only one needs tracking
 
@@ -154,17 +162,18 @@ Both gates pair with the session-end workflow in the `/tzurot-docs` skill.
 
 Clear the **admission bar** above first — same-file/diff work is done now, and a named cross-file batch is filed as the batch. Only what survives that gets a destination below, by size/granularity:
 
-| If the item is...                                           | Goes to...                                                  |
-| ----------------------------------------------------------- | ----------------------------------------------------------- |
-| Fixable in the work that surfaced it                        | **Nowhere — do it now** (admission bar above)               |
-| Active production bug                                       | `now.md` › 🚨 Production Issues                             |
-| Needed this week                                            | `now.md` › 🎯 Current Focus (max 3)                         |
-| Small (<~2hr), independent — and you'll actually do it soon | `now.md` › ⚡ Quick Wins (max 5) — it's simply next in line |
-| Small, one sentence — everything else                       | `tracker/` task (`pnpm tracker task create`)                |
-| Part of the active epic                                     | `active-epic.md` (slice detail → `cold/epic-log.md`)        |
-| A single feature needing scoping                            | idea doc (`pnpm tracker doc create 'Idea: …'`)              |
-| A multi-phase initiative                                    | theme doc (`'Theme: …'`) + bullet in `cold/queue.md`        |
-| Arrived mid-session, no time to triage                      | `now.md` › 📥 Untriaged (max 10), route later               |
+| If the item is...                                           | Goes to...                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| Fixable in the work that surfaced it                        | **Nowhere — do it now** (admission bar above)                      |
+| Active production bug                                       | `now.md` › 🚨 Production Issues                                    |
+| Needed this week                                            | `now.md` › 🎯 Current Focus (max 3)                                |
+| Small (<~2hr), independent — and you'll actually do it soon | `now.md` › ⚡ Quick Wins (max 5) — it's simply next in line        |
+| Small, one sentence — everything else                       | `tracker/` task (`pnpm tracker task create`)                       |
+| Low-priority residue of process work                        | The PR body's `## Residue` section (§ The process-residue default) |
+| Part of the active epic                                     | `active-epic.md` (slice detail → `cold/epic-log.md`)               |
+| A single feature needing scoping                            | idea doc (`pnpm tracker doc create 'Idea: …'`)                     |
+| A multi-phase initiative                                    | theme doc (`'Theme: …'`) + bullet in `cold/queue.md`               |
+| Arrived mid-session, no time to triage                      | `now.md` › 📥 Untriaged (max 10), route later                      |
 
 ### Promoting a theme to Active Epic
 
