@@ -117,6 +117,20 @@ describe('OpenRouterFetch', () => {
     expect(result.status).toBe(200);
     const text = await result.text();
     expect(text).toBe('not valid json');
+
+    // The failed parse is named rather than swallowed, so a body that never
+    // arrived is distinguishable from one that arrived malformed. `bodyChars`
+    // is the field carrying that distinction: the body text DID arrive here,
+    // all 14 characters of `not valid json`, and only the parse failed.
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 200,
+        errName: 'SyntaxError',
+        bodyMs: expect.any(Number),
+        bodyChars: 14,
+      }),
+      'Custom fetch body inspection failed — passing the response through'
+    );
   });
 
   it('should recover valid content from 400 response', async () => {
@@ -609,7 +623,19 @@ describe('OpenRouterFetch', () => {
       const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
 
       expect(result.status).toBe(200);
-      expect(mockLogger.warn).not.toHaveBeenCalled();
+      // Scoped to the surfacing message rather than to `warn` as a whole: warn has
+      // two producers (the surfacing branch and the body-inspection diagnostic),
+      // and this case pins only the surfacing branch.
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'OpenRouter returned 200 with an error body and no choices — synthesizing error status'
+      );
+      // The positive half, so the case cannot pass vacuously if the surfacing
+      // message text drifts: the warn that did fire is the body-inspection line.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ errName: 'SyntaxError' }),
+        'Custom fetch body inspection failed — passing the response through'
+      );
     });
 
     it('strips flagged_input as a no-op when body.error has no metadata object', async () => {
@@ -637,6 +663,142 @@ describe('OpenRouterFetch', () => {
       // @langchain/openai's converter builds generations from `choices ?? []`,
       // so a null choices array is empty there too.
       expect(result.status).toBe(403);
+    });
+  });
+
+  describe('body-arrival timing diagnostic', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** A chat-completions-shaped 200 body, the same shape the pass-through cases use. */
+    const okBody = {
+      choices: [{ message: { content: 'Hello world' } }],
+    };
+
+    it('logs how long the body took to arrive and parse after the headers', async () => {
+      const customFetch = createFetch();
+
+      const response = mockResponse(okBody, 200);
+      // The clone is the only thing parseClonedBody reads, so advancing the
+      // fake clock inside its `text()` simulates a body that lags its headers.
+      response.clone = (): Response =>
+        ({
+          text: async (): Promise<string> => {
+            vi.advanceTimersByTime(1234);
+            return JSON.stringify(okBody);
+          },
+        }) as unknown as Response;
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(response);
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 200,
+          bodyMs: 1234,
+          bodyChars: JSON.stringify(okBody).length,
+        }),
+        'Custom fetch body parsed'
+      );
+      expect(result).toBe(response);
+    });
+
+    it('names an abort mid-body and passes the original response through', async () => {
+      const customFetch = createFetch();
+
+      const response = mockResponse(okBody, 200);
+      // The prod specimen: headers arrived, then the caller's timeout fired
+      // while the body was still streaming.
+      response.clone = (): Response =>
+        ({
+          text: (): Promise<string> =>
+            Promise.reject(new DOMException('This operation was aborted', 'AbortError')),
+        }) as unknown as Response;
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(response);
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 200,
+          errName: 'AbortError',
+          bodyMs: expect.any(Number),
+        }),
+        'Custom fetch body inspection failed — passing the response through'
+      );
+      // No body text arrived at all, so `bodyChars` is absent rather than 0 —
+      // that is the half of the distinction the malformed-JSON case cannot
+      // show. `objectContaining` treats an undefined expectation as a wildcard,
+      // so the field is read off the recorded call instead.
+      const warnCall = mockLogger.warn.mock.calls.find(
+        ([, message]) =>
+          message === 'Custom fetch body inspection failed — passing the response through'
+      );
+      const fields = warnCall?.[0] as Record<string, unknown>;
+      expect(fields.bodyChars).toBeUndefined();
+      // The SDK's own read is what surfaces the abort to the caller; the
+      // inspection hands back the untouched original rather than masking it.
+      expect(result).toBe(response);
+    });
+
+    it('falls back to the typeof when a non-Error value rejects the body read', async () => {
+      const customFetch = createFetch();
+
+      const response = mockResponse(okBody, 200);
+      // A rejection that is not an Error at all — `err.name` does not exist, so
+      // the log has nothing to name the failure with except the value's type.
+      response.clone = (): Response =>
+        ({
+          text: (): Promise<string> => Promise.reject('boom'),
+        }) as unknown as Response;
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(response);
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 200, errName: 'string' }),
+        'Custom fetch body inspection failed — passing the response through'
+      );
+      expect(result).toBe(response);
+    });
+
+    it('logs the body-parsed line on the 400 recovery path too', async () => {
+      const customFetch = createFetch();
+
+      // The 400-recovery fixture shape: a client error whose body still carries
+      // usable content. The timing line has to fire on this path as well —
+      // the ok path is not the only caller of parseClonedBody.
+      const recoveredBody = {
+        choices: [{ message: { content: 'recovered' } }],
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(recoveredBody, 400));
+
+      const result = await customFetch('https://api.test.com/v1/chat', { method: 'GET' });
+
+      // Pinned to the exact serialized length rather than any-number: the
+      // helper measures the text `mockResponse` handed to `new Response`, so a
+      // wrong-but-numeric length would otherwise pass.
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 400,
+          bodyChars: JSON.stringify(recoveredBody).length,
+        }),
+        'Custom fetch body parsed'
+      );
+      // Same synthesized-200 outcome the dedicated recovery case asserts.
+      expect(result.status).toBe(200);
+      const body = (await result.json()) as Record<string, unknown>;
+      const choices = body.choices as Array<{ message: { content: string } }>;
+      expect(choices[0].message.content).toBe('recovered');
     });
   });
 
