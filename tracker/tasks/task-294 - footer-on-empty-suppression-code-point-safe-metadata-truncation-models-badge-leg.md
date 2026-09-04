@@ -1,10 +1,10 @@
 ---
 id: TASK-294
 title: 'Browse polish: footer-on-empty, code-point truncation, badge legend'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-18 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-04 23:21'
 labels:
   - 'origin:review'
   - 'area:bot-client'
