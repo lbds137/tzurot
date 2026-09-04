@@ -31,8 +31,17 @@ export function getEmbedColor(payload: DiagnosticPayload): number {
  * Length truncation → ⚠️
  * Content filter blocked → ⛔
  * Upstream provider failed mid-generation → ❌
- * Unknown sentinel → ❓
- * Anything else → no decoration
+ * Unknown sentinel → ❔
+ * Anything else → rendered as an inert code span
+ *
+ * The decorated arms match our own `FINISH_REASONS` constants by exact string
+ * equality, so each one interpolates that constant rather than provider text, and
+ * is left bare. The default arm is the one carrying provider-controlled text, and
+ * the Response field interpolates this return value straight into a Discord-parsed
+ * embed field — so it goes through `toInertCodeSpan`, the same treatment the Error
+ * field's message already gets — including that field's 200-character truncation
+ * before wrapping, because the provider controls this string's length and
+ * discord.js rejects an oversized field value when the embed is built.
  */
 export function formatFinishReason(reason: string): string {
   switch (reason) {
@@ -50,7 +59,7 @@ export function formatFinishReason(reason: string): string {
     case FINISH_REASONS.UNKNOWN:
       return `${reason} ❔`;
     default:
-      return reason;
+      return `${toInertCodeSpan(reason.substring(0, 200))}${reason.length > 200 ? '...' : ''}`;
   }
 }
 
