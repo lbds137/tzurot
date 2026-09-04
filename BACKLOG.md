@@ -53,14 +53,14 @@ Theme and idea content lives in the tracker doc store (`tracker/docs/` — `Them
 
 ## Where does a new item go? (filing decision-tree)
 
-**First, the admission bar.** If the work belongs to **this same file or diff** ("next time we touch this"), **do it now** in the work that surfaced it — it's colocated and small by construction. If it's a **named batch across files** ("next tooling-DRY pass"), file the _batch_ as a theme-doc phase or an idea doc and make this item one of its members — search the tracker (`task list --search` + `doc search`) first so you join an existing entry instead of fragmenting. Everything else small gets filed as a task, **no trigger required** — trigger-gating is retired as a filing rule; `Promote when:` is optional annotation. Full rule: [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § The admission bar.
+**First, the admission bar.** If the work belongs to **this same file or diff** ("next time we touch this"), **do it now** in the work that surfaced it — it's colocated and small by construction. If it's a **named batch across files** ("next tooling-DRY pass"), file the _batch_ as a theme-doc phase or an idea doc and make this item one of its members — search the tracker (`task list --search` + `doc search`) first so you join an existing entry instead of fragmenting. Everything else small gets filed as a task, **no trigger required** — trigger-gating is retired as a filing rule; `Promote when:` is optional annotation. One inversion: **low-priority residue of process work** (a hook, skill, rule, tooling, or CI PR) is dispositioned in that PR body's `## Residue` section, not filed, unless it earns `medium` or above. Full rule: [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § The admission bar.
 
 Then file by **size/granularity**:
 
 1. **Active production bug?** → `now.md` › 🚨 Production Issues (fix before features)
 2. **Working on it this week?** → `now.md` › 🎯 Current Focus (max 3)
 3. **Small (<~2hr), independent, and you'll actually do it soon?** → `now.md` › ⚡ Quick Wins (max 5) — it's simply next in line
-4. **Small, one sentence — everything else?** → `tracker/` task (`pnpm tracker task create`)
+4. **Small, one sentence — everything else?** → `tracker/` task (`pnpm tracker task create`) — unless it is low-priority residue of process work, which goes in that PR body's `## Residue` section (the inversion above)
 5. **Part of the active epic?** → update `active-epic.md` (slice detail → `cold/epic-log.md`)
 6. **A single feature that needs scoping (a paragraph)?** → tracker idea doc (`pnpm tracker doc create 'Idea: …'`)
 7. **A multi-phase initiative (its own epic)?** → tracker theme doc (`'Theme: …'`) + a bullet in `cold/queue.md`

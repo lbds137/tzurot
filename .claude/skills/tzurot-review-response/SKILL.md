@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-09-03'
+lastUpdated: '2026-09-04'
 ---
 
 # Review-Response Iteration
@@ -70,6 +70,8 @@ Do-it-now sends the finding back through **rule 1**, not around it: a trivial-sh
 **Grep for the batch before creating it.** Different PRs surface the same pass repeatedly ("next tooling-DRY pass" appears from whichever file the reviewer happened to be reading), so a rule that files a fresh section each time reproduces the fragmentation it was written to fix, one rung higher. Search the doc store (`pnpm tracker doc search <term>`) and the tracker (`pnpm tracker task list --search <term> --plain`) for the pass by name AND by the module it sweeps; if a theme-doc phase or idea doc already owns it, **add this finding as a member** and say which entry you joined. Only create a new one when the search is genuinely empty.
 
 **Backlog candidate** is the honest deferral. File it at the granularity-appropriate destination (a one-line follow-up → a tracker task via `pnpm tracker task create`, with any promote-when as an annotation in the description; a larger parked idea → a tracker idea doc via `pnpm tracker doc create`), capturing both the concern and the criterion. (A trigger is optional metadata on the item, never a filing gate — per `06-backlog.md` § The admission bar.)
+
+**On a process-work PR, a low-priority backlog candidate is not filed.** `06-backlog.md` § The process-residue default puts the residue of hook, skill, rule, tooling, and CI PRs (substance under `.claude/`, `.husky/`, `packages/tooling/`, `.github/`, tracker/backlog/docs bookkeeping riding along, no runtime or test-infra file touched) into the PR body's `## Residue` section — fixed here, declined with the technical reason, or filed only when it earns `medium` or above. In the round summary it lands under Backlog candidates tagged `[residue]` with that disposition, so the routing stays checkable; the fails-closed owner-call boundary from § Ruling an item out applies unchanged, and "if declining feels wrong, file it" is the `medium` signal.
 
 **Dismissed** closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
 
@@ -207,6 +209,7 @@ The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST ap
 
 - A **do-it-now** item lands under Auto-applied or Asks depending on its shape, tagged `[do-it-now:trivial]` / `[do-it-now:semantic]` with the reviewer's deferral quoted — that pairing is the whole justification for fixing it here instead of filing it, so it belongs in the report.
 - A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme-doc phase or idea doc now owns the pass.
+- A **residue** item (process-work PR, low priority) lands under Backlog candidates tagged `[residue]` with its PR-body disposition — declined with the reason, or filed with the sentence that earns it `medium` or above.
 
 **A correction EDITS the original sentence; it does not annotate it.** A round
 that falsifies a claim usually produces two edits — the code fix, reported
@@ -301,7 +304,7 @@ Before each round's consolidated message:
 
 - [ ] Every review item classified against trivial / non-trivial / unknown (rule 1)
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
-- [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks
+- [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks; on a process-work PR a low-priority Backlog candidate becomes a `[residue]` line in the PR body instead of a task
 - [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)
 - [ ] Every auto-applied fixup commit has a green package-level test run (rule 3)
 - [ ] Round-N message contains all four sections, even empty ones (rule 4)
@@ -313,4 +316,4 @@ Before each round's consolidated message:
 - **`00-critical.md`** § "Merge Approval" governs the merge gate (standing authorization for feature/fix PRs once truly ready; the release PR always needs explicit approval). This procedure governs iteration _before_ that gate; nothing here loosens it.
 - **`00-critical.md`** "NEVER modify tests to make them pass" remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
 - **`05-tooling.md`** PR-monitoring step 4 delegates to this skill.
-- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are filed as tracker tasks (or the appropriate `backlog/**/*.md` file) per rule 4's "Backlog candidates" section.
+- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are filed as tracker tasks (or the appropriate `backlog/**/*.md` file) per rule 4's "Backlog candidates" section — except low-priority process-work residue, which `06-backlog.md` § The process-residue default keeps in the PR body.

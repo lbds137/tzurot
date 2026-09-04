@@ -210,7 +210,7 @@ One-person project. Make the cleanest change, even if breaking.
 
 **Never dismiss issues as "pre-existing" or "out of scope."** If you discover a problem while working in an area — missing tests, coverage gaps, code smells, unclear naming, stale comments — fix it. "Pre-existing" is not a reason to ignore something; it's an explanation of how it got there.
 
-The only exception: fixing it would significantly expand the PR's scope and risk unrelated bugs. Deferring requires a stated strong reason (different mechanism, no production evidence, risky breadth) — "pre-existing," "harmless," and "could be a follow-up" are non-reasons. If deferred, write the backlog entry immediately. Declined ideas get NO tombstone in docs or backlog — the decline rationale lives in the PR/commit that declined them.
+The only exception: fixing it would significantly expand the PR's scope and risk unrelated bugs. Deferring requires a stated strong reason (different mechanism, no production evidence, risky breadth) — "pre-existing," "harmless," and "could be a follow-up" are non-reasons. If deferred, write the backlog entry immediately — with one scoped exception, low-priority residue of process work, whose disposition lives in the PR body (`06-backlog.md` § The process-residue default). Declined ideas get NO tombstone in docs or backlog — the decline rationale lives in the PR/commit that declined them.
 
 ### Verify Before Accepting External Feedback
 
