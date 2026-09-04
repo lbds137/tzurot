@@ -55,8 +55,8 @@ CONSUMERS
 ---------
     .claude/hooks/lossy-pipe-guard.sh
     .claude/hooks/develop-code-commit-guard.sh
-    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted only — no
-                                        executed_segments. Unlike
+    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted_indexed only —
+                                        no executed_segments. Unlike
                                         cwd-drift-guard below, this consumer's
                                         WHOLE purpose is the higher-stakes case
                                         (a refusal, not a warning), so a
@@ -221,6 +221,110 @@ def strip_quoted(text):
         # must NOT match: `git\<newline>commit` splices to `gitcommit`, one
         # token.
     return "".join(out)
+
+
+# Private-use-area codepoints (never emitted by ordinary command text), so a
+# placeholder cannot collide with characters a caller might legitimately be
+# scanning. "Never emitted by ordinary text" is not the same as "cannot
+# appear", though, so `strip_quoted_indexed` REFUSES any input that already
+# contains either codepoint: a literal one therefore never reaches a view or
+# an index count at all. In a view a stray occurrence is indistinguishable
+# from a real placeholder, and a caller that locates a token's values by
+# COUNTING placeholders before that token then reads a shifted index for every
+# LATER token — not merely a wrong value in the token the stray sits in, which
+# is the narrower case this comment used to reason about.
+#
+# `resolve_placeholders` still leaves a SURPLUS placeholder in the token
+# rather than raising. Behind that refusal it is defence in depth, for a
+# caller that builds its own view instead of taking one from
+# `strip_quoted_indexed`: the token then fails the caller's allowlist match
+# and the caller OVER-reports a non-allowlisted path. That is the fail-open
+# direction board-commit-branch-gate.sh already documents for scan trouble: a
+# widened file set can only ever make a commit PASS, never wrongly block one.
+# Not assumed — still pinned by the surplus-placeholder case in
+# shellQuotes.test.ts.
+QUOTED_SPAN = "\ue000"
+ESCAPED_BLANK = "\ue001"
+
+
+def strip_quoted_indexed(text):
+    """Like `strip_quoted`, but RESOLVABLE: each quoted span becomes
+    `QUOTED_SPAN` and each backslash-escaped space/tab outside quotes becomes
+    `ESCAPED_BLANK`, so a caller that splits the view on whitespace keeps
+    every bash word whole and can map each placeholder back to its value.
+
+    Returns `(view, values)` with `values[i]` the value of the i-th quoted
+    span in `text` order. `None` on TWO conditions: an unterminated quote,
+    exactly as `strip_quoted`; and a `text` that ALREADY contains
+    `QUOTED_SPAN` or `ESCAPED_BLANK`, for the reason in the comment above
+    them. Escaped separators/quotes still become `Q` — same set, same reason
+    as `strip_quoted`; a continuation still contributes nothing.
+
+    One deliberate difference from `strip_quoted`, which emits a REAL space
+    for an escaped blank: here it is a non-whitespace placeholder, so a regex
+    that requires `\\s` between two words no longer matches across it. That
+    matches bash, where `git\\ commit` is ONE word and runs no commit — the
+    old literal space was an over-arm. Pinned by "an escaped blank between
+    git and commit is one word, not a commit" in
+    .claude/hooks/board-commit-branch-gate.probe.sh.
+
+    A second function rather than a change to `strip_quoted`: `strip_quoted`'s
+    `S` output is pinned by packages/tooling/src/dev/shellQuotes.test.ts and
+    read by three other hooks, so its output shape is a contract this
+    function must not disturb.
+    """
+    # A private-use codepoint already in the INPUT is indistinguishable from a
+    # placeholder in the view and would shift every LATER token's value index,
+    # so the caller gets the same signal an unterminated quote gives it and
+    # falls back to the raw text.
+    if QUOTED_SPAN in text or ESCAPED_BLANK in text:
+        return None
+    out = []
+    values = []
+    for kind, payload in _scan_events(text):
+        if kind == "char":
+            out.append(payload)
+        elif kind == "quoted":
+            out.append(QUOTED_SPAN)
+            values.append(payload)
+        elif kind == "escape":
+            if payload in "\"'|&;":
+                out.append("Q")
+            elif payload in " \t":
+                out.append(ESCAPED_BLANK)
+            else:
+                out.append(payload)
+        elif kind == "unterminated":
+            return None
+    return "".join(out), values
+
+
+def resolve_placeholders(token, values, next_index):
+    """Return `(resolved, index)`: `token` with each `QUOTED_SPAN` replaced by
+    `values[next_index]`, `values[next_index + 1]`, … in order, and each
+    `ESCAPED_BLANK` replaced by a real space; `index` is `next_index` advanced
+    past the last value consumed.
+
+    The caller finds `next_index` for a token by counting `QUOTED_SPAN`
+    characters in the view BEFORE that token's start.
+
+    A surplus placeholder — more than `len(values) - next_index` remaining —
+    is left in place rather than raising: see the module comment on
+    `QUOTED_SPAN` for why leaving it is the correct fail-open direction here.
+    """
+    out = []
+    for ch in token:
+        if ch == QUOTED_SPAN:
+            if next_index < len(values):
+                out.append(values[next_index])
+                next_index += 1
+            else:
+                out.append(ch)
+        elif ch == ESCAPED_BLANK:
+            out.append(" ")
+        else:
+            out.append(ch)
+    return "".join(out), next_index
 
 
 def substitution_spans(text):

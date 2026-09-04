@@ -76,6 +76,37 @@ assert_cmd() {
   fi
 }
 
+# assert_add_cmd <expected-exit> <command> <label> — a feature-branch fixture
+# with the board file, src/a.ts and a space-bearing src path all PRESENT but
+# NOTHING staged, so the add pathspec is the only source of the assessed file
+# set. assert_cmd is the wrong fixture for these: it stages tracker/ first, and
+# that staged set alone already blocks — every case below would pass whatever
+# the pathspec parsing did. Same nothing-staged shape as "a global flag on git
+# add no longer hides its pathspec". The files are created so the fixture is a
+# real specimen, not because the hook reads them: with nothing staged and no
+# `.`/`-A` in the add, the assessed set is built from the command TEXT alone,
+# and these cases would decide identically on an empty tree.
+assert_add_cmd() {
+  local expected="$1" cmd="$2" label="$3" dir actual
+  dir=$(make_repo feat/x)
+  mkdir -p "$dir/tracker/tasks" "$dir/src"
+  echo t > "$dir/tracker/tasks/task-1 - probe.md"
+  echo x > "$dir/src/a.ts"
+  echo x > "$dir/src/my file.ts"
+  (
+    cd "$dir" || exit 99
+    jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+      | "$HOOK" >/dev/null 2>&1
+  )
+  actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
 # --- blocking shape: board-only staged set on a feature branch -------------
 DIR=$(make_repo feat/x)
 mkdir -p "$DIR/tracker/tasks"
@@ -605,6 +636,14 @@ assert_cmd 2 'my-git commit -m msg' \
 assert_cmd 2 "$(printf 'git\u00a0commit -m msg')" \
   'a non-breaking space between git and commit is detected'
 
+# The mirror: a backslash-ESCAPED blank is not whitespace to bash \u2014 `git\ commit`
+# is one word that runs no commit \u2014 and the resolvable view keeps it as a
+# non-whitespace placeholder, so COMMIT_RE's `\s+` does not bridge it. The
+# plain scanner emitted a real space here and over-armed; this pins the
+# bash-faithful verdict so a future "fix" cannot quietly put the space back.
+assert_cmd 0 'git\ commit -m msg' \
+  'an escaped blank between git and commit is one word, not a commit'
+
 # The same flag-value consumption on the `git add` half. Nothing is staged here,
 # so the add pathspec is the ONLY source of the assessed file set — an add
 # invocation missed because of its global flag left the set empty and passed.
@@ -933,6 +972,143 @@ if [ "$actual" -eq 2 ]; then
 else
   printf 'FAIL  (exit %d, expected 2)  a flag with a value-shaped next token still matches via backtracking (git add)\n' "$actual"
   FAILURES=$((FAILURES + 1))
+fi
+
+# --- QUOTED/ESCAPED add pathspecs (resolvable-view regression) -------------
+# At base (before strip_quoted_indexed/resolve_placeholders), a QUOTED
+# pathspec scanned through the view as `git add S`, so `add_args` was `['S']`
+# — one non-board token, read as non-board, PASSING a board-only add — and the
+# ESCAPED spelling (`tracker/tasks/task-1\ -\ probe.md`) split on whitespace
+# into `['tracker/tasks/task-1', '-', 'probe.md']`, whose last piece
+# (`probe.md`) is also non-board and PASSED. Both measured against the
+# pre-fix hook. Both reached exit 0 through different tokens; both are fixed
+# by the resolvable view these cases pin against.
+
+# P1 — double-quoted board pathspec must resolve back to the real path and
+# block. Compare "compound add+commit of board files blocks" (the existing
+# `git add tracker/` directory-form case, unquoted) — that stays green
+# unmodified, so this is the quoted-pathspec form of the same shape, not a
+# duplicate of it.
+assert_add_cmd 2 'git add "tracker/tasks/task-1 - probe.md" && git commit -m msg' \
+  'double-quoted board pathspec with a space resolves and blocks'
+
+# P2 — single-quoted board pathspec, same resolution path.
+assert_add_cmd 2 'git add '"'"'tracker/tasks/task-1 - probe.md'"'"' && git commit -m msg' \
+  'single-quoted board pathspec with a space resolves and blocks'
+
+# P3 — backslash-escaped spaces in an unquoted pathspec. The fixture file
+# exists under that exact name (tracker/tasks/task-1 - probe.md).
+assert_add_cmd 2 'git add tracker/tasks/task-1\ -\ probe.md && git commit -m msg' \
+  'backslash-escaped board pathspec resolves and blocks'
+
+# P4 — pins what P1 does not: an EARLIER quoted span (the echo argument)
+# before the add, so the index mapping is exercised end to end. A resolver
+# that always took the FIRST span in the view — rather than counting
+# QUOTED_SPAN occurrences before each token's own offset — would resolve the
+# add's pathspec to "hello world" instead of the real board path.
+assert_add_cmd 2 'echo "hello world" && git add "tracker/tasks/task-1 - probe.md" && git commit -m "board note"' \
+  'a quoted span before the add does not shift the pathspec resolution'
+
+# P5 — pins the non-over-block direction: resolution must not turn a quoted
+# NON-board path into a board path. src/my file.ts exists and is not staged,
+# so only the add's own pathspec decides this.
+assert_add_cmd 0 'git add "src/my file.ts" && git commit -m msg' \
+  'a quoted non-board pathspec with a space still resolves as non-board'
+
+# P6 — a quoted board path beside an unquoted code path in the SAME add is a
+# MIXED commit and passes, same as the two-add compound cases above but
+# within one invocation's argument span.
+assert_add_cmd 0 'git add "tracker/tasks/task-1 - probe.md" src/a.ts && git commit -m msg' \
+  'a quoted board pathspec beside an unquoted code pathspec passes as mixed'
+
+# P6b — TWO adds, each carrying its own quoted space-bearing pathspec: the
+# second add's value index must continue past the first add's span, not
+# restart at it. Board then code, so the set is mixed and passes; resolving
+# the second add to the FIRST span's value would still read board-only and
+# block, which is the failure this row would show.
+assert_add_cmd 0 'git add "tracker/tasks/task-1 - probe.md" && git add "src/my file.ts" && git commit -m msg' \
+  'two adds with their own quoted pathspecs resolve independently'
+
+# P7 — a LITERAL placeholder codepoint (U+E000) in the command, ahead of the
+# add. strip_quoted_indexed refuses any input already carrying one: in the
+# view it is indistinguishable from a real placeholder, and the index for a
+# token is a COUNT of placeholders before it, so a stray one would shift the
+# resolved value of every LATER pathspec — P4's shape, but silently wrong
+# instead of correct. Refusing routes the gate to its raw-text fallback
+# (measured: field 1 comes back SCAN_FAILED), and in the raw view the pathspec
+# token still carries its quote characters, so it does not match the board
+# allowlist, the commit is not board-ONLY, and the gate PASSES. Measured
+# exit 0. That is the documented fail-open direction the unterminated-quote
+# fallback already takes, and it is named in the hook's Detection-gaps header.
+#
+# Written as an ESCAPE for the same reason as the NBSP cases above — a raw
+# private-use character is invisible on screen — but as the codepoint's UTF-8
+# BYTES (\xee\x80\x80 = U+E000) rather than printf's `\u` form: the `\u`
+# spelling is itself liable to be normalised into a raw character in transit
+# through an editing tool, which is precisely the invisibility being avoided.
+assert_add_cmd 0 "$(printf 'echo \xee\x80\x80 && git add "tracker/tasks/task-1 - probe.md" && git commit -m msg')" \
+  'a literal placeholder codepoint falls back to the raw text and passes'
+
+# --- (?i)-slice guard under -O / PYTHONOPTIMIZE (Item B) --------------------
+# Pins the `if not COMMIT_RE.pattern.startswith("(?i)"): raise SystemExit(...)`
+# guard's message under BOTH normal and `-O`/PYTHONOPTIMIZE python execution,
+# so a future accidental use of `assert` for this guard (which `-O` compiles
+# out entirely) is caught rather than silently degrading to the WHOLE gate
+# going fail-open with no indication beyond a mass probe failure.
+GUARD_WORK=$(mktemp -d "$WORK/guardcheck.XXXXXX")
+cp "$HOOK" "$GUARD_WORK/board-commit-branch-gate.sh"
+ln -s "$SCRIPT_DIR/lib" "$GUARD_WORK/lib"
+MUTANT="$GUARD_WORK/board-commit-branch-gate.sh"
+# Mutate ONLY the COMMIT_RE = re.compile( line's `(?i)` to `(?im)`, on the
+# temp copy — never the real file. `(` and `)` are literal in a BRE sed
+# pattern; `?` is literal too, so no escaping is needed for it.
+sed -i '/^COMMIT_RE = re.compile(/s/(?i)/(?im)/' "$MUTANT"
+# Verify the mutation landed on EXACTLY the COMMIT_RE line, and that ADD_RE
+# and BYPASS_RE were not touched: the diff between the unmutated hook and the
+# mutant must be exactly one changed line, and that line must be COMMIT_RE's.
+MUTATION_DIFF=$(diff "$HOOK" "$MUTANT" || true)
+MUTATION_CHANGED_LINES=$(printf '%s\n' "$MUTATION_DIFF" | grep -c '^[<>]' || true)
+COMMIT_RE_CHANGED=$(printf '%s\n' "$MUTATION_DIFF" | grep -c '^> COMMIT_RE = re.compile(r"(?im)' || true)
+if [ "$MUTATION_CHANGED_LINES" -ne 2 ] || [ "$COMMIT_RE_CHANGED" -ne 1 ]; then
+  printf 'FAIL  (mutation did not apply as expected)  (?i)-guard mutation setup\n'
+  FAILURES=$((FAILURES + 1))
+else
+  GUARD_DIR=$(make_repo feat/x)
+  mkdir -p "$GUARD_DIR/tracker/tasks"
+  echo t > "$GUARD_DIR/tracker/tasks/task-1 - probe.md"
+  git -C "$GUARD_DIR" add tracker/
+
+  GUARD_ERR_1=$(mktemp "$WORK/guarderr1.XXXXXX")
+  (
+    cd "$GUARD_DIR" || exit 99
+    PYTHONOPTIMIZE=1 jq -n '{tool_name:"Bash",tool_input:{command:"git commit -m msg"}}' \
+      | PYTHONOPTIMIZE=1 "$MUTANT" >/dev/null 2>"$GUARD_ERR_1"
+  )
+  actual=$?
+  if [ "$actual" -eq 0 ] && grep -qF \
+    'COMMIT_RE no longer opens with the literal 4-char (?i) the slice below assumes' \
+    "$GUARD_ERR_1"; then
+    printf 'PASS  (exit %d)  (?i)-guard message under PYTHONOPTIMIZE=1\n' "$actual"
+  else
+    printf 'FAIL  (exit %d, expected 0 with the guard message on stderr)  (?i)-guard message under PYTHONOPTIMIZE=1\n' "$actual"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  GUARD_ERR_2=$(mktemp "$WORK/guarderr2.XXXXXX")
+  (
+    cd "$GUARD_DIR" || exit 99
+    jq -n '{tool_name:"Bash",tool_input:{command:"git commit -m msg"}}' \
+      | "$MUTANT" >/dev/null 2>"$GUARD_ERR_2"
+  )
+  actual=$?
+  if [ "$actual" -eq 0 ] && grep -qF \
+    'COMMIT_RE no longer opens with the literal 4-char (?i) the slice below assumes' \
+    "$GUARD_ERR_2"; then
+    printf 'PASS  (exit %d)  (?i)-guard message without PYTHONOPTIMIZE\n' "$actual"
+  else
+    printf 'FAIL  (exit %d, expected 0 with the guard message on stderr)  (?i)-guard message without PYTHONOPTIMIZE\n' "$actual"
+    FAILURES=$((FAILURES + 1))
+  fi
 fi
 
 echo

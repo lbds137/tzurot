@@ -554,3 +554,149 @@ describe('shell_quotes.executed_segments', () => {
     expect(segments(['bash -c'])[0]).toEqual(['bash -c']);
   });
 });
+
+/**
+ * `strip_quoted_indexed` and `resolve_placeholders` exist beside `strip_quoted`
+ * rather than replacing it: `strip_quoted`'s `S` placeholder erases a quoted
+ * span's value, which is exactly right for a structural scan (a caller that
+ * only asks "is this a `git commit`?") but wrong for a caller that must
+ * recover a real PATHSPEC from the view — board-commit-branch-gate.sh's `git
+ * add` extraction needs the actual quoted path back, not a token that reads
+ * as "some string was here". `strip_quoted` itself was not simply changed to
+ * carry values, because its `S` output is a pinned contract read by three
+ * hooks (see the CASES describe block above) — a second function keeps that
+ * contract untouched while adding the one extra capability one caller needs.
+ */
+const QUOTED_SPAN = '\u{e000}';
+const ESCAPED_BLANK = '\u{e001}';
+
+/** [label, input, expected [view, values] or null] */
+const INDEXED_CASES: readonly (readonly [string, string, [string, string[]] | null])[] = [
+  [
+    'a double-quoted span becomes one placeholder carrying its value',
+    'git commit -m "hello"',
+    [`git commit -m ${QUOTED_SPAN}`, ['hello']],
+  ],
+  [
+    'a single-quoted span becomes one placeholder carrying its value',
+    "git commit -m 'hello'",
+    [`git commit -m ${QUOTED_SPAN}`, ['hello']],
+  ],
+  [
+    'two spans resolve to values in TEXT order',
+    'echo "a" "b"',
+    [`echo ${QUOTED_SPAN} ${QUOTED_SPAN}`, ['a', 'b']],
+  ],
+  [
+    'a backslash-escaped space outside quotes becomes ESCAPED_BLANK',
+    'git\\ commit',
+    [`git${ESCAPED_BLANK}commit`, []],
+  ],
+  [
+    'an escaped pipe outside quotes is still Q, same as strip_quoted',
+    'git commit -m x\\|tail',
+    ['git commit -m xQtail', []],
+  ],
+  ['an unterminated quote returns null, same as strip_quoted', 'git commit -m "oops', null],
+  // A literal placeholder codepoint in the INPUT is refused outright rather
+  // than scanned: in the view it would be indistinguishable from a real
+  // placeholder, so a caller counting placeholders before a token would read a
+  // shifted value index for every later token. Same null signal — and so the
+  // same raw-text fallback — as an unterminated quote.
+  [
+    'a literal QUOTED_SPAN codepoint outside quotes returns null',
+    `echo ${QUOTED_SPAN} && git add "a b"`,
+    null,
+  ],
+  [
+    'a literal ESCAPED_BLANK codepoint outside quotes returns null',
+    `echo ${ESCAPED_BLANK} && git add "a b"`,
+    null,
+  ],
+];
+
+describe('shell_quotes.strip_quoted_indexed', () => {
+  const results = evalAll<[string, string[]] | null>(
+    'strip_quoted_indexed',
+    INDEXED_CASES.map(([, input]) => input)
+  );
+
+  for (const [index, [label, input, expected]] of INDEXED_CASES.entries()) {
+    it(label, () => {
+      expect(results[index], `input: ${JSON.stringify(input)}`).toEqual(expected);
+    });
+  }
+});
+
+/**
+ * `resolve_placeholders` takes three arguments, so `evalAll` (built for
+ * single-argument helpers) does not fit — this follows the shape of
+ * `openerGroups` and `spansMatchGitCommit` above, each building its own
+ * script for a non-single-argument call.
+ */
+function resolvePlaceholders(
+  cases: readonly (readonly [string, string[], number])[]
+): [string, number][] {
+  const script = [
+    'import json, sys',
+    'sys.path.insert(0, sys.argv[1])',
+    'from shell_quotes import resolve_placeholders',
+    'cases = json.load(sys.stdin)',
+    'json.dump([list(resolve_placeholders(c[0], c[1], c[2])) for c in cases], sys.stdout)',
+  ].join('\n');
+  // runPython's signature is typed for the (much more common) single-string-
+  // per-case callers above; the JSON boundary itself doesn't care what shape
+  // each case is, so the cast just satisfies TypeScript.
+  return runPython<[string, number][]>(script, cases as unknown as readonly string[]);
+}
+
+/** [label, token, values, next_index, expected [resolved, index]] */
+const PLACEHOLDER_CASES: readonly (readonly [
+  string,
+  string,
+  string[],
+  number,
+  [string, number],
+])[] = [
+  [
+    'round-trips a token holding TWO placeholders, index advances by two',
+    `${QUOTED_SPAN} ${QUOTED_SPAN}`,
+    ['a', 'b'],
+    0,
+    ['a b', 2],
+  ],
+  [
+    'a token with no placeholder is returned unchanged, index unchanged',
+    'plain',
+    ['a'],
+    0,
+    ['plain', 0],
+  ],
+  [
+    // Pins the fail-open direction the lib docstring names: a surplus
+    // placeholder (more requested than remain) is left in the output rather
+    // than raising, and the index clamps at len(values) instead of
+    // overshooting it.
+    'a surplus placeholder (more than remaining values) is left in place, index clamped at len(values)',
+    `${QUOTED_SPAN}${QUOTED_SPAN}`,
+    ['a'],
+    0,
+    [`a${QUOTED_SPAN}`, 1],
+  ],
+  ['ESCAPED_BLANK resolves to a real space', `a${ESCAPED_BLANK}b`, [], 0, ['a b', 0]],
+];
+
+describe('shell_quotes.resolve_placeholders', () => {
+  const results = resolvePlaceholders(
+    PLACEHOLDER_CASES.map(([, token, values, nextIndex]) => [token, values, nextIndex])
+  );
+
+  for (const [index, [label, token, values, nextIndex, expected]] of PLACEHOLDER_CASES.entries()) {
+    it(label, () => {
+      expect(
+        results[index],
+        `token: ${JSON.stringify(token)}, values: ${JSON.stringify(values)}, next_index: ${nextIndex}`
+      ).toEqual(expected);
+    });
+  }
+});
