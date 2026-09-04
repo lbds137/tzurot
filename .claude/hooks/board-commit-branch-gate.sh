@@ -48,6 +48,21 @@
 #     needs `executed_segments` (lib/shell_quotes.py), which is a scan-surface
 #     change with its own probes and bypass-count analysis, not a documentation
 #     fix.
+#   - a pathspec whose quoted value contains a NEWLINE splits the line-oriented
+#     pathspec field into two bogus tokens and passes — accepted, not a
+#     habitual shape.
+#   - a pathspec whose resolved value starts with a DASH (`git add "-x.md"`)
+#     is dropped by the flag skip below, quoted or not — git itself needs a
+#     `--` before such a path, and no board filename starts with one.
+#   - a command carrying a LITERAL placeholder codepoint (U+E000 / U+E001)
+#     anywhere makes `strip_quoted_indexed` refuse the scan outright, so the
+#     gate assesses the RAW text: an add pathspec's quote characters are then
+#     part of its token, the token misses the board allowlist, and a board-only
+#     commit passes. Deliberate — refusing is what stops a stray codepoint
+#     shifting the resolved value of every LATER pathspec, and the fallback is
+#     the same fail-open direction the unterminated-quote case already takes
+#     (probe case: "a literal placeholder codepoint falls back to the raw text
+#     and passes"). Ordinary command text never contains these codepoints.
 #
 # Deliberate OVER-arming — the opposite direction, and therefore listed apart
 # from the gaps rather than among them. The shared commit pattern's `\b` left
@@ -126,21 +141,23 @@ import re
 import sys
 
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted
+from shell_quotes import strip_quoted_indexed, resolve_placeholders, QUOTED_SPAN
 
 cmd = os.environ.get("GUARD_CMD", "")
 cmd = re.sub(r"\$\(cat <<'?\"?(\w+)'?\"?.*?\n\1\s*\)", "MSG", cmd, flags=re.S)
 cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=re.S)
-# strip_quoted returns None on an UNTERMINATED quote (and on `$'...'` with an
-# escaped \', which its single-quote branch cannot know is not a terminator).
-# Scanning the literal text "None" matched no `git ... commit`, so the commit
-# count came back 0 and the WHOLE gate went silently inert on any such command
-# — runtime-confirmed against the canonical blocking fixture. Fall back to the
-# raw command, which is what the module's docstring tells callers to do and
-# what all three sibling hooks already did. Over-arming is the recoverable
-# direction here: blocking still requires every captured file to be a board
-# file, so a code commit passes regardless (probe case: "an unterminated quote
-# does not disarm the gate").
+# strip_quoted_indexed returns None on an UNTERMINATED quote (and on `$'...'`
+# with an escaped \', which its single-quote branch cannot know is not a
+# terminator; and on a command already carrying a literal QUOTED_SPAN or
+# ESCAPED_BLANK codepoint, which would otherwise shift the value index of
+# every add pathspec after it). Scanning the literal text "None" matched no
+# `git ... commit`, so the commit count came back 0 and the WHOLE gate went
+# silently inert on any such command — runtime-confirmed against the
+# canonical blocking fixture. Fall back to the raw command, which is what
+# the module's docstring tells callers to do and what all three sibling hooks
+# already did. Over-arming is the recoverable direction here: blocking still
+# requires every captured file to be a board file, so a code commit passes
+# regardless (probe case: "an unterminated quote does not disarm the gate").
 #
 # But the raw text is exactly what the bypass check must NOT run against — its
 # whole safety argument is that quoted spans are gone, so a commit MESSAGE
@@ -149,8 +166,12 @@ cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=
 # the raw text (the recoverable direction for detection), while the bypass
 # fails closed (the recoverable direction for an escape hatch). Each half
 # fails toward the harmless outcome for what it governs.
-scanned = strip_quoted(cmd)
-view = cmd if scanned is None else scanned
+scanned = strip_quoted_indexed(cmd)
+if scanned is None:
+    view = cmd
+    values = []
+else:
+    view, values = scanned
 
 # What counts as a commit invocation, defined ONCE — and spelled identically to
 # the copies in `develop-code-commit-guard.sh` and `lossy-pipe-guard.sh`. All
@@ -260,10 +281,13 @@ ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*"
 # slice silently mis-embedding a wrong prefix (or re.compile throwing deep
 # inside a `SCAN=$(...) || exit 0` that swallows any python failure, which
 # would degrade to the WHOLE gate going fail-open on every invocation with no
-# indication beyond a mass probe failure).
-assert COMMIT_RE.pattern.startswith("(?i)"), (
-    "COMMIT_RE no longer opens with the literal 4-char (?i) the slice below assumes"
-)
+# indication beyond a mass probe failure). An `if`/`raise` rather than a bare
+# `assert`: an `assert` is compiled out entirely under `-O`/`PYTHONOPTIMIZE`,
+# and a guard against a silent fail-open must not itself be conditionally
+# absent — the one interpreter mode where the check would matter most is
+# exactly the one where `assert` disappears.
+if not COMMIT_RE.pattern.startswith("(?i)"):
+    raise SystemExit("COMMIT_RE no longer opens with the literal 4-char (?i) the slice below assumes")
 BYPASS_RE = re.compile(
     r"(?:^|[;&|])\s*"
     + ASSIGNMENTS
@@ -308,21 +332,37 @@ commits = list(COMMIT_RE.finditer(view))
 bypassed = sum(1 for _ in BYPASS_RE.finditer(view))
 autostage = any(AUTOSTAGE_RE.search(segment_after(m.end())) is not None for m in commits)
 add_args = []
+# `re.finditer(r"\S+", …)` rather than `.split()`: the token's OFFSET in the
+# view is what locates its placeholders below, and `.split()` throws that
+# away. `\S+` selects the identical tokens `.split()` did — both are
+# Unicode-whitespace-aware — so the NBSP handling elsewhere in the scan is
+# unchanged. The index for a token is the number of `QUOTED_SPAN` characters
+# in the view BEFORE that token, so a span appearing earlier in the command
+# (an unrelated quoted argument) cannot be mistaken for this token's value.
+# Under the raw fallback (unterminated quote) `values` is empty and the view
+# holds no placeholders, so this reduces to the old plain split.
 for m in ADD_RE.finditer(view):
-    add_args.extend(segment_after(m.end()).split())
+    seg_start = m.end()
+    for tok in re.finditer(r"\S+", segment_after(seg_start)):
+        start = seg_start + tok.start()
+        resolved, _ = resolve_placeholders(
+            tok.group(), values, view.count(QUOTED_SPAN, 0, start)
+        )
+        add_args.append(resolved)
 
-# OUTPUT CONTRACT — five fields, one per line, in this order:
+# OUTPUT CONTRACT — five fields: fields 1-4 are one line each and read with
+# plain `read`. Field 5 is the REMAINDER — one add pathspec per line, printed
+# last — because a pathspec can legitimately contain spaces (a fixture path
+# like `src/my file.ts`), so a whitespace-joined field could not be re-split
+# without re-introducing the word-splitting this parsing exists to avoid.
 #   1  SCAN_OK | SCAN_FAILED   2  commit count   3  bypassed count
-#   4  auto-stage 0|1          5  add pathspecs, whitespace-joined
-# Every field is a single line by construction. The pathspecs are joined with
-# spaces rather than newlines because the caller re-splits them on whitespace
-# anyway, which keeps the contract positional — no multi-line field has to be
-# printed last, and the caller can read the fields with plain `read`.
+#   4  auto-stage 0|1          5  add pathspecs, one per line (remainder)
 print("SCAN_OK" if scanned is not None else "SCAN_FAILED")
 print(len(commits))
 print(bypassed)
 print(1 if autostage else 0)
-print(" ".join(add_args))
+for path in add_args:
+    print(path)
 PYEOF2
 ) || exit 0
 # `$(…)` strips trailing newlines, so an empty pathspec field is simply absent
@@ -338,7 +378,7 @@ ADD_ARGS=""
   read -r COMMIT_COUNT
   read -r BYPASSED_COUNT
   read -r AUTOSTAGE
-  read -r ADD_ARGS
+  ADD_ARGS=$(cat)
 } <<< "$SCAN"
 
 # Pre-filter: an actual `git [global-flags] commit` invocation, not any command
@@ -405,19 +445,21 @@ fi
 if [ -n "$ADD_ARGS" ]; then
   # ADD_ARGS holds the tokens after EVERY `git add` up to that add's command
   # separator (ADD_RE is scanned with finditer, so a two-add compound
-  # contributes both pathspecs, not just the last). Drop flags here. A bare
-  # `.`/`-A`/`-u` falls back to the full dirty set — over-inclusion can only
-  # WIDEN the file set, and a widened set that gains a non-board file PASSES,
-  # the fail-open direction.
+  # contributes both pathspecs, not just the last), one bash word per line —
+  # unsplit, so a pathspec containing a space arrives whole rather than as two
+  # bogus tokens. Drop flags here. A bare `.`/`-A`/`-u` falls back to the full
+  # dirty set — over-inclusion can only WIDEN the file set, and a widened set
+  # that gains a non-board file PASSES, the fail-open direction.
   NEED_DIRTY=0
   ADD_PATHS=""
-  for tok in $ADD_ARGS; do
+  while IFS= read -r tok; do
+    [ -z "$tok" ] && continue
     case "$tok" in
       -A | -u | --update | --all | .) NEED_DIRTY=1 ;;
       -*) : ;;
       *) ADD_PATHS=$(printf '%s\n%s' "$ADD_PATHS" "$tok") ;;
     esac
-  done
+  done <<< "$ADD_ARGS"
   if [ "$NEED_DIRTY" = 1 ]; then
     # Known gap, accepted: a porcelain rename line yields "old -> new" as one
     # token, which reads as non-board and PASSES — the fail-open direction.
