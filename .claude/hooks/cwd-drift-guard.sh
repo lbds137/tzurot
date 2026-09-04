@@ -152,7 +152,10 @@ normalize_path() {
 EFFECTIVE_CWD="$SHELL_CWD"
 CD_UNRESOLVED=0
 CMD_HEAD=$(printf '%s' "$CMD" | sed -E 's/^[[:space:]]+//')
-if printf '%s' "$CMD_HEAD" | grep -qE '^cd[[:space:]]'; then
+# grep DRAINS rather than `-q`-quits: under pipefail an early exit kills the
+# producer with SIGPIPE and a real match reports as failure. Full reasoning
+# lives above the resolver in pr-body-ref-gate.sh.
+if printf '%s' "$CMD_HEAD" | grep -E '^cd[[:space:]]' >/dev/null; then
   CD_TARGET=$(printf '%s' "$CMD_HEAD" \
     | sed -E 's/^cd[[:space:]]+//; s/[[:space:]]*[|&;].*$//; s/[[:space:]]+$//')
   case "$CD_TARGET" in
