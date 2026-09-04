@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.216 — "drain batches 2–3: hooks residue closed, the hysteresis test's cost, `/inspect` finish reason inert" (6 PRs / 2 runtime / 46 range files, no migrations, merged 2026-09-04 ~18:40Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.217 — "the shrink release: the process-residue default, drain batches A1 and A2" (3 PRs / 2 runtime / 350 range files, most of them the TASK-888 tracker archives; no migrations; merged 2026-09-04 ~23:40Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.215 — "ceiling extractions + review residue + the first drain batch + the vision body-timing diagnostic" (13 PRs / 4 runtime, 2026-09-04 ~11:40Z).
+> **Previous**: v3.0.0-beta.216 — "drain batches 2–3: hooks residue closed, the hysteresis test's cost, `/inspect` finish reason inert" (6 PRs / 2 runtime / 46 range files, 2026-09-04 ~18:40Z).
 
 ---
 
