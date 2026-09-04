@@ -495,8 +495,9 @@ export function stripMarkdownDelimiters(value: string): string {
  * (see `codeSpanDetection.ts`, which models this same property for its own
  * scanning purposes), so a newline inside the content would terminate the
  * span early and let anything after it — e.g. a masked link — render live,
- * defeating the whole point of this helper. The known call site feeds this a
- * 200-char truncated one-line diagnostic, so collapsing to one line costs no
+ * defeating the whole point of this helper. Each call site feeds this a
+ * one-line diagnostic already truncated to 200 characters (the /inspect
+ * error message and finish reason), so collapsing to one line costs no
  * information there; a fenced code block was considered and rejected as
  * having the wrong visual weight in an embed field.
  *

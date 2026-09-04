@@ -125,10 +125,27 @@ describe('formatFinishReason', () => {
     expect(formatFinishReason('unknown')).toBe('unknown ❔');
   });
 
-  it('passes through unrecognized reasons unchanged', () => {
+  it('renders an unrecognized reason as an inert code span', () => {
     expect(formatFinishReason('weird_provider_specific_reason')).toBe(
-      'weird_provider_specific_reason'
+      '`weird_provider_specific_reason`'
     );
+  });
+
+  it('renders a masked link in an unrecognized reason inert, brackets and URL intact', () => {
+    expect(formatFinishReason('[click](https://example.invalid/x)')).toBe(
+      '`[click](https://example.invalid/x)`'
+    );
+  });
+
+  it('strips a backtick from an unrecognized reason so the span stays closed', () => {
+    expect(formatFinishReason('back`tick')).toBe('`backtick`');
+  });
+
+  it('truncates an oversized unrecognized reason to 200 chars, ellipsis outside the span', () => {
+    expect(formatFinishReason('x'.repeat(300))).toBe(`\`${'x'.repeat(200)}\`...`);
+  });
+  it('renders an unrecognized reason of exactly 200 chars whole, with no ellipsis', () => {
+    expect(formatFinishReason('y'.repeat(200))).toBe(`\`${'y'.repeat(200)}\``);
   });
 });
 
