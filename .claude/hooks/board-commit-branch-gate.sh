@@ -25,6 +25,14 @@
 # Fail-open on everything else: not a Bash tool call, no git commit in the
 # command, not a repo, any git error. A broken gate must not block commits.
 #
+# WRAPPER UNWRAPPING: a `bash -c "…"` / `sh -c "…"` / `eval "…"` wrapper hands
+# its string argument to a shell as a command bash actually runs, so the scan
+# unwraps each wrapper invocation and assesses its inner string as a command in
+# its own right — recursively, to a nesting depth of three
+# (`MAX_WRAPPER_DEPTH` in lib/shell_quotes.py). Deeper nesting is left as the
+# placeholder text the quote strip produced for it, an under-arm at a nesting
+# depth no habitual command shape reaches.
+#
 # KNOWN GAPS, named rather than hidden. They fail in OPPOSITE directions, and
 # that is deliberate: a missed DETECTION lets a commit through, while a missed
 # BYPASS only refuses an escape hatch. Each half fails toward the harmless
@@ -37,17 +45,10 @@
 #   - a porcelain rename under -a/--all reads as one non-board token (below).
 #   - `chore/release-*` matches ANY branch with that prefix, not only real
 #     release-cut branches — accepted wideness, same fail-open direction.
-#   - a `bash -c "…"` / `sh -c "…"` / `eval "…"` wrapper around the whole
-#     compound is not narrowed, it is INVISIBLE: the wrapper's string argument
-#     is a quoted span, so strip_quoted erases it along with everything inside
-#     — COMMIT_RE never sees a `git ... commit` token at all and the gate exits
-#     0 before the branch/allowlist checks run, on every feature branch,
-#     runtime-confirmed. This is the gate's own named threat model (the
-#     habitual `git add tracker/ && git commit` shape) run through a wrapper
-#     that changes nothing about intent. Open, tracked as TASK-879 — fixing it
-#     needs `executed_segments` (lib/shell_quotes.py), which is a scan-surface
-#     change with its own probes and bypass-count analysis, not a documentation
-#     fix.
+#   - a wrapper nested FOUR or more levels deep is not unwrapped (WRAPPER
+#     UNWRAPPING above stops at three), so a compound inside it is never
+#     assessed and passes — accepted, no habitual shape nests that deep (probe
+#     case: "a fourth wrapper level is left as a placeholder and passes").
 #   - a pathspec whose quoted value contains a NEWLINE splits the line-oriented
 #     pathspec field into two bogus tokens and passes — accepted, not a
 #     habitual shape.
@@ -102,6 +103,13 @@
 #     the count comparison spuriously refuses a bypass that was carried. A
 #     deliberate, narrower BLOCK than "no phantom present" would give — the
 #     safe direction, never a false grant.
+#   - a bypass prefix on the WRAPPER itself (`TZUROT_ALLOW_BOARD_ON_FEATURE=1
+#     bash -c "git commit …"`) really would export the variable into the inner
+#     shell, but the gate refuses it: the outer text carries the assignment
+#     and no commit, the inner text carries the commit and no prefix, so the
+#     bypassed count lands below the commit count and the comparison blocks.
+#     The documented form is the prefix on the `git commit` itself. Pinned by
+#     a probe case.
 # The threat model is the habitual mis-commit shape (plain `git add tracker/
 # && git commit`, 3 observed incidents) — exotic spellings are not written by
 # accident, mirroring lossy-pipe-guard's stated boundary.
@@ -141,37 +149,15 @@ import re
 import sys
 
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted_indexed, resolve_placeholders, QUOTED_SPAN
+from shell_quotes import (
+    strip_quoted_indexed,
+    resolve_placeholders,
+    wrapped_command_strings,
+    QUOTED_SPAN,
+    MAX_WRAPPER_DEPTH,
+)
 
 cmd = os.environ.get("GUARD_CMD", "")
-cmd = re.sub(r"\$\(cat <<'?\"?(\w+)'?\"?.*?\n\1\s*\)", "MSG", cmd, flags=re.S)
-cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=re.S)
-# strip_quoted_indexed returns None on an UNTERMINATED quote (and on `$'...'`
-# with an escaped \', which its single-quote branch cannot know is not a
-# terminator; and on a command already carrying a literal QUOTED_SPAN or
-# ESCAPED_BLANK codepoint, which would otherwise shift the value index of
-# every add pathspec after it). Scanning the literal text "None" matched no
-# `git ... commit`, so the commit count came back 0 and the WHOLE gate went
-# silently inert on any such command — runtime-confirmed against the
-# canonical blocking fixture. Fall back to the raw command, which is what
-# the module's docstring tells callers to do and what all three sibling hooks
-# already did. Over-arming is the recoverable direction here: blocking still
-# requires every captured file to be a board file, so a code commit passes
-# regardless (probe case: "an unterminated quote does not disarm the gate").
-#
-# But the raw text is exactly what the bypass check must NOT run against — its
-# whole safety argument is that quoted spans are gone, so a commit MESSAGE
-# cannot spoof the token. So the scan's success is reported on the first line
-# and the bypass is refused outright when it failed: detection still arms on
-# the raw text (the recoverable direction for detection), while the bypass
-# fails closed (the recoverable direction for an escape hatch). Each half
-# fails toward the harmless outcome for what it governs.
-scanned = strip_quoted_indexed(cmd)
-if scanned is None:
-    view = cmd
-    values = []
-else:
-    view, values = scanned
 
 # What counts as a commit invocation, defined ONCE — and spelled identically to
 # the copies in `develop-code-commit-guard.sh` and `lossy-pipe-guard.sh`. All
@@ -305,50 +291,109 @@ BYPASS_RE = re.compile(
 )
 
 
-def segment_after(end):
-    """Text from `end` to the next command separator — one invocation's args."""
-    seg = view[end:]
-    # `\n` is a command separator in bash exactly like `;`/`&`/`|`, but was
-    # missing here: a compound like `git add board.md\ngit commit -m x` let
-    # the `git add` match's segment run FORWARD past the newline into the
-    # next line's tokens (misread as bogus pathspecs), and
-    # `git commit -m x\ngit branch -a` let the commit match's segment run
-    # forward into the next line's `-a`, misread as that commit's own
-    # auto-stage flag — both misattribution shapes runtime-confirmed (probe
-    # cases: "newline-joined add + commit" pathspec leak, and "newline-joined
-    # commit + `git branch -a`" auto-stage leak).
-    stop = re.search(r"[;&|\n]", seg)
-    return seg[: stop.start()] if stop is not None else seg
+def scan(text, depth):
+    # Applied to the HEREDOC-STRIPPED `text`, not the original: a heredoc body
+    # is inert data, so a wrapper written inside one is not a command bash
+    # runs, and stripping first keeps it from being unwrapped below. At depth
+    # 0 this leaves the view identical to what the scan produced before this
+    # function existed, so the existing verdicts are untouched.
+    text = re.sub(r"\$\(cat <<'?\"?(\w+)'?\"?.*?\n\1\s*\)", "MSG", text, flags=re.S)
+    text = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", text, flags=re.S)
+    # strip_quoted_indexed returns None on an UNTERMINATED quote (and on `$'...'`
+    # with an escaped \', which its single-quote branch cannot know is not a
+    # terminator; and on a command already carrying a literal QUOTED_SPAN or
+    # ESCAPED_BLANK codepoint, which would otherwise shift the value index of
+    # every add pathspec after it). Scanning the literal text "None" matched no
+    # `git ... commit`, so the commit count came back 0 and the WHOLE gate went
+    # silently inert on any such command — runtime-confirmed against the
+    # canonical blocking fixture. Fall back to the raw command, which is what
+    # the module's docstring tells callers to do and what all three sibling hooks
+    # already did. Over-arming is the recoverable direction here: blocking still
+    # requires every captured file to be a board file, so a code commit passes
+    # regardless (probe case: "an unterminated quote does not disarm the gate").
+    #
+    # But the raw text is exactly what the bypass check must NOT run against — its
+    # whole safety argument is that quoted spans are gone, so a commit MESSAGE
+    # cannot spoof the token. So the scan's success is reported on the first line
+    # and the bypass is refused outright when it failed: detection still arms on
+    # the raw text (the recoverable direction for detection), while the bypass
+    # fails closed (the recoverable direction for an escape hatch). Each half
+    # fails toward the harmless outcome for what it governs.
+    scanned = strip_quoted_indexed(text)
+    if scanned is None:
+        view = text
+        values = []
+    else:
+        view, values = scanned
+
+    def segment_after(end):
+        """Text from `end` to the next command separator — one invocation's args."""
+        seg = view[end:]
+        # `\n` is a command separator in bash exactly like `;`/`&`/`|`, but was
+        # missing here: a compound like `git add board.md\ngit commit -m x` let
+        # the `git add` match's segment run FORWARD past the newline into the
+        # next line's tokens (misread as bogus pathspecs), and
+        # `git commit -m x\ngit branch -a` let the commit match's segment run
+        # forward into the next line's `-a`, misread as that commit's own
+        # auto-stage flag — both misattribution shapes runtime-confirmed (probe
+        # cases: "newline-joined add + commit" pathspec leak, and "newline-joined
+        # commit + `git branch -a`" auto-stage leak).
+        stop = re.search(r"[;&|\n]", seg)
+        return seg[: stop.start()] if stop is not None else seg
+
+    matches = list(COMMIT_RE.finditer(view))
+    commits = len(matches)
+    # Finding ONE bypass is not enough: the hook exits for the WHOLE tool call, so a
+    # single prefixed commit would waive the check for every OTHER commit beside it
+    # (`git commit -m unrelated && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m
+    # doc`). Every other gap in this file degrades toward BLOCKING; that one would
+    # degrade toward granting. So the count is reported and the caller requires
+    # EVERY invocation to carry the prefix (probe case: "a bypass on one commit does
+    # not waive a bypass-free commit beside it").
+    bypassed = sum(1 for _ in BYPASS_RE.finditer(view))
+    autostage = any(AUTOSTAGE_RE.search(segment_after(m.end())) is not None for m in matches)
+    add_args = []
+    # `re.finditer(r"\S+", …)` rather than `.split()`: the token's OFFSET in the
+    # view is what locates its placeholders below, and `.split()` throws that
+    # away. `\S+` selects the identical tokens `.split()` did — both are
+    # Unicode-whitespace-aware — so the NBSP handling elsewhere in the scan is
+    # unchanged. The index for a token is the number of `QUOTED_SPAN` characters
+    # in the view BEFORE that token, so a span appearing earlier in the command
+    # (an unrelated quoted argument) cannot be mistaken for this token's value.
+    # Under the raw fallback (unterminated quote) `values` is empty and the view
+    # holds no placeholders, so this reduces to the old plain split.
+    for m in ADD_RE.finditer(view):
+        seg_start = m.end()
+        for tok in re.finditer(r"\S+", segment_after(seg_start)):
+            start = seg_start + tok.start()
+            resolved, _ = resolve_placeholders(
+                tok.group(), values, view.count(QUOTED_SPAN, 0, start)
+            )
+            add_args.append(resolved)
+
+    scan_ok = scanned is not None
+
+    # A `bash -c` / `sh -c` / `eval` wrapper hands its string argument to a
+    # shell as a command, so each unwrapped inner string is assessed as a
+    # command in its own right, to a depth of MAX_WRAPPER_DEPTH.
+    if depth < MAX_WRAPPER_DEPTH:
+        for inner in wrapped_command_strings(text):
+            inner_ok, inner_commits, inner_bypassed, inner_autostage, inner_add = scan(
+                inner, depth + 1
+            )
+            # A failed strip anywhere refuses the bypass, which is the
+            # existing fail-closed direction for the escape hatch; detection
+            # still arms on that level's raw text regardless.
+            scan_ok = scan_ok and inner_ok
+            commits += inner_commits
+            bypassed += inner_bypassed
+            autostage = autostage or inner_autostage
+            add_args.extend(inner_add)
+
+    return scan_ok, commits, bypassed, autostage, add_args
 
 
-commits = list(COMMIT_RE.finditer(view))
-# Finding ONE bypass is not enough: the hook exits for the WHOLE tool call, so a
-# single prefixed commit would waive the check for every OTHER commit beside it
-# (`git commit -m unrelated && TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m
-# doc`). Every other gap in this file degrades toward BLOCKING; that one would
-# degrade toward granting. So the count is reported and the caller requires
-# EVERY invocation to carry the prefix (probe case: "a bypass on one commit does
-# not waive a bypass-free commit beside it").
-bypassed = sum(1 for _ in BYPASS_RE.finditer(view))
-autostage = any(AUTOSTAGE_RE.search(segment_after(m.end())) is not None for m in commits)
-add_args = []
-# `re.finditer(r"\S+", …)` rather than `.split()`: the token's OFFSET in the
-# view is what locates its placeholders below, and `.split()` throws that
-# away. `\S+` selects the identical tokens `.split()` did — both are
-# Unicode-whitespace-aware — so the NBSP handling elsewhere in the scan is
-# unchanged. The index for a token is the number of `QUOTED_SPAN` characters
-# in the view BEFORE that token, so a span appearing earlier in the command
-# (an unrelated quoted argument) cannot be mistaken for this token's value.
-# Under the raw fallback (unterminated quote) `values` is empty and the view
-# holds no placeholders, so this reduces to the old plain split.
-for m in ADD_RE.finditer(view):
-    seg_start = m.end()
-    for tok in re.finditer(r"\S+", segment_after(seg_start)):
-        start = seg_start + tok.start()
-        resolved, _ = resolve_placeholders(
-            tok.group(), values, view.count(QUOTED_SPAN, 0, start)
-        )
-        add_args.append(resolved)
+scan_ok, commit_count, bypassed_count, autostage, add_args = scan(cmd, 0)
 
 # OUTPUT CONTRACT — five fields: fields 1-4 are one line each and read with
 # plain `read`. Field 5 is the REMAINDER — one add pathspec per line, printed
@@ -357,9 +402,9 @@ for m in ADD_RE.finditer(view):
 # without re-introducing the word-splitting this parsing exists to avoid.
 #   1  SCAN_OK | SCAN_FAILED   2  commit count   3  bypassed count
 #   4  auto-stage 0|1          5  add pathspecs, one per line (remainder)
-print("SCAN_OK" if scanned is not None else "SCAN_FAILED")
-print(len(commits))
-print(bypassed)
+print("SCAN_OK" if scan_ok else "SCAN_FAILED")
+print(commit_count)
+print(bypassed_count)
 print(1 if autostage else 0)
 for path in add_args:
     print(path)

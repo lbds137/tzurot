@@ -242,6 +242,14 @@ else
     "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sh -c 'pnpm tracker doc create x'\"},\"cwd\":\"$WT_ROOT/packages/x\"}"
   check 2 "tracker mutation wrapped in eval from a worktree root" \
     "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"eval \\\"pnpm tracker task edit 42 -s Done\\\"\"},\"cwd\":\"$WT_ROOT\"}"
+  # An env-assignment PREFIX does not consume command position: bash applies it
+  # to the wrapper, so the wrapper is still a wrapper and its argument is still
+  # a command. Read as the command name instead, the assignment hid every
+  # wrapper standing behind one and this refusal silently stopped happening —
+  # the same shape as the unprefixed `bash -c` case above, which is why the two
+  # are asserted together rather than this one standing alone.
+  check 2 "tracker mutation wrapped in an assignment-prefixed bash -c" \
+    "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"FOO=1 bash -c \\\"pnpm tracker task create Title\\\"\"},\"cwd\":\"$WT_ROOT\"}"
   # The command half of the wrapper cases, isolated: unwrapping must not turn
   # every `bash -c` into a block. A read-only query inside the wrapper is still
   # read-only.
