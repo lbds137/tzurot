@@ -3,9 +3,10 @@ id: TASK-877
 title: >-
   Dispatch specs should require one canary per behavioural claim the PR body
   will make
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-03 12:05'
+updated_date: '2026-09-04 08:57'
 labels:
   - 'area:skills'
   - 'size:S'
@@ -45,4 +46,10 @@ Acceptance: the spec template asks for one canary per behavioural claim; the rep
 ### Items 1–4 SHIPPED (PR #2321); only acceptance clause 5 remains
 
 The spec template derives canaries from the claim set (item 1), the report lists claim/canary pairs and every verified-claim names its command (item 3), the inner worker never sources git state from loaded context (item 2), and 00-critical carries the scenario-does-not-verify-mechanism mirror (item 4). Clause 5 — a spec written FROM the amended template on a real unit produces a fully paired claim set — is an observation to make on the next real dispatch, not something this PR could supply (the one paired example predates the amendment). Close this task on that observation; note the unit and its claim/canary pairs here when it happens.
+
+### Clause 5 OBSERVED on TASK-642 (PR #2322) — closing
+
+The first real unit dispatched from the amended template. The spec carried a twelve-claim table (K1–K12) written before any code, each row naming the probe cases it rests on and the mutation that falsifies it; the orchestrator applied every mutation, recorded which cases reddened, and restored the hook with an md5 proof. Pairs as measured: K1 identifier class → cases 1, 8, 9, 10, 17; K2 quote kind → 2 (the spec predicted 2 and 16; the report split off K2b, dropping the quote-walking prefix → 16 only); K3 -F check → 3, 4; K4 identifier requirement → 6; K5 lookbehind → 7; K6 rg and git grep alternation → 8, 9; K7 segment split → 10 (the spec predicted 15; the report showed 15 is double-protected by its own -F and corrected the hook comment to say that half is unpinned); K8 command-position check → 11, 15; K10 tool_name → 13; K11 bypass → 14; the round-2 double-quoted-run alternative → 18, 19 only. Three entries were scoped down rather than canaried, each saying so: K4b (a plain trailing anchor is pinned by the trigger structure, the input has no backslash), K9 (a scope decision, not a mechanism), K12 (rc-2 fall-through is structurally mirrored from the model hook and not probe-able).
+
+Both halves of the clause held: every entry names its falsifying mutation, and where a prediction was wider than its mutation (K2, K7) the report narrowed the claim instead of the canary. The main-loop diff read still found a real miss the claim set did not cover (a double-quoted flag value before the pattern), which became the round-2 claim with its own canary — the mechanism catches unpaired claims, not absent ones.
 <!-- SECTION:DESCRIPTION:END -->
