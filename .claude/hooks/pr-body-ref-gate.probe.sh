@@ -44,6 +44,41 @@ make_repo() {
   printf '%s' "$repo"
 }
 
+# Fixture repo whose origin/develop tracker listing runs far past the 64 KB
+# pipe buffer, with the referenced id sorting near the TOP of it — the shape
+# that makes the resolver's pipeline race observable. `git ls-tree -r
+# --name-only` sorts by path bytes and ` ` (0x20) precedes `0` (0x30), so
+# `task-100 ` sorts ahead of every generated `task-1000 `+ filler and the real
+# task-100 lands on row 2 of the listing. 800 filler files x a 150-char name
+# gives a ~144 KB listing; the measurement behind that number is in the case
+# comment below.
+make_repo_large() {
+  local repo="$TMPDIR_PROBE/$1"
+  mkdir -p "$repo/tracker/tasks" "$repo/tracker/archive/tasks" "$repo/tracker/docs"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email probe@example.invalid
+  git -C "$repo" config user.name probe
+  echo "task" >"$repo/tracker/tasks/task-100 - Real Task.md"
+  echo "archived" >"$repo/tracker/archive/tasks/task-112 - Archived Task.md"
+  echo "doc" >"$repo/tracker/docs/doc-11 - Theme Doc.md"
+  local pad
+  pad=$(printf 'a%.0s' {1..150})
+  local i=0
+  while [ "$i" -lt 800 ]; do
+    echo "filler" >"$repo/tracker/tasks/task-$((1000 + i)) - $pad.md"
+    # The doc listing is a SEPARATE pipeline in the resolver with the same
+    # shape, so it gets the same treatment: filler ids start at 2000 so that
+    # `doc-11 ` still sorts to the top (`1` < `2`; note `doc-1000 ` would have
+    # sorted AHEAD of it, which is why the doc fillers do not start at 1000).
+    echo "filler" >"$repo/tracker/docs/doc-$((2000 + i)) - $pad.md"
+    i=$((i + 1))
+  done
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm init
+  git -C "$repo" update-ref refs/remotes/origin/develop HEAD
+  printf '%s' "$repo"
+}
+
 # Fixture repo with origin/develop but no tracker/ dir at all (empty-listing
 # fail-open case).
 make_repo_no_tracker() {
@@ -96,6 +131,22 @@ run_hook_with_path() { # $1=path_prefix $2=repo $3=cmd
   CLAIM_ACK_SEQ_PATH=$((CLAIM_ACK_SEQ_PATH + 1))
   local ack_file="$TMPDIR_PROBE/claim-ack-path-seq-$CLAIM_ACK_SEQ_PATH"
   OUT=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && PATH="$path_prefix:$PATH" PR_BODY_CLAIM_ACK_FILE="$ack_file" "$HOOK") 2>&1)
+  RC=$?
+}
+
+# Like run_hook, but reads the COMMAND from a file instead of passing it as an
+# argument. An inline --body makes the command as large as the body, and Linux
+# caps a single argv entry at 128 KB (MAX_ARG_STRLEN) whatever total ARG_MAX
+# allows — below the command-detection pipeline's own SIGPIPE knee, so a
+# past-the-buffer command cannot be passed to jq as an argument at all.
+# `--rawfile` reads it from disk, removing that ceiling.
+CLAIM_ACK_SEQ_CMDFILE=0
+run_hook_cmd_file() { # $1=repo $2=file holding the command text
+  local repo="$1"
+  local cmd_file="$2"
+  CLAIM_ACK_SEQ_CMDFILE=$((CLAIM_ACK_SEQ_CMDFILE + 1))
+  local ack_file="$TMPDIR_PROBE/claim-ack-cmdfile-seq-$CLAIM_ACK_SEQ_CMDFILE"
+  OUT=$(jq -n --rawfile c "$cmd_file" '{tool_name:"Bash",tool_input:{command:$c}}' | (cd "$repo" && PR_BODY_CLAIM_ACK_FILE="$ack_file" "$HOOK") 2>&1)
   RC=$?
 }
 
@@ -514,5 +565,144 @@ assert_pass "whole-token-quoted -f \"body=…\" is a documented fail-open miss"
 # the command string the hook receives.
 run_hook "$REPO" 'gh api -X PATCH repos/o/r/pulls/$N -f body="This is guaranteed to work."'
 assert_pass "shell-variable PR number is a documented fail-open miss"
+
+# ---- Case aa: early-sorting id on a listing past the pipe buffer -----------
+# The resolver feeds the whole tracker listing into grep through a pipe. With
+# `grep -q` the consumer exits on the first match while `printf` still has
+# bytes to write, `printf` dies of SIGPIPE, and `set -o pipefail` turns a
+# MATCH into a failed pipeline — so a resolvable id is reported MISSING. This
+# case is the regression pin for the drained form.
+#
+# The fixture size was MEASURED against the `-q` resolver rather than guessed,
+# 20 runs per size: 27 KB listing -> 0/20 blocked; 90 KB (about the real
+# repo's own listing) -> 1/20, which is the roughly-1-percent rate that made
+# this so hard to reproduce in the field; 112 KB -> 20/20; 144 KB -> 20/20 on
+# two independent trials. make_repo_large builds the 144 KB size, past the
+# knee with margin, so restoring `-q` reddens this case on the FIRST run
+# instead of probabilistically. The ten runs below cost well under a second.
+#
+# The body says "Filed as" rather than "Closes" for a reason unrelated to this
+# gate: "Closes TASK-100 …" is itself an uncited claim-shaped line, so it is
+# blocked by the claim-shape rule before the reference resolver ever runs, and
+# could never pass regardless of the pipeline fix. Case 1 uses the same shape.
+REPO_LARGE=$(make_repo_large large)
+large_rc=0
+large_out=""
+for _ in $(seq 1 10); do
+  run_hook "$REPO_LARGE" 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-100 for the follow-up."'
+  if [ "$RC" != 0 ]; then
+    large_rc="$RC"
+    large_out="$OUT"
+    break
+  fi
+done
+RC="$large_rc"
+OUT="$large_out"
+assert_pass "early-sorting TASK-100 resolves on a past-the-pipe-buffer listing (10 runs)"
+
+# ---- Case bb: the drain must not turn a genuine miss into a pass -----------
+# Same large fixture, an id that is genuinely absent from the listing.
+# Draining changes only WHICH process reports the pipeline's status, never
+# whether the id matched; this assertion is what pins that, so it needs no
+# canary of its own.
+run_hook "$REPO_LARGE" 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up."'
+assert_blocks "unresolved id on a past-the-pipe-buffer listing still blocks" "task-99999"
+
+# ---- Case cc: the doc resolver is the same pipeline, so it gets the same pin
+# The doc branch runs its own copy of the resolver pipeline over DOC_LIST and
+# is vulnerable to exactly the same SIGPIPE race. Without this case the doc
+# fix would be covered only by symmetry with the task fix — restoring `-q` on
+# the doc line alone would redden nothing — so the same large fixture carries
+# a past-the-buffer doc listing with doc-11 sorting to the top of it.
+doc_rc=0
+doc_out=""
+for _ in $(seq 1 10); do
+  run_hook "$REPO_LARGE" 'gh pr create --base develop --title "feat: x" --body "Filed as doc-11 for the follow-up."'
+  if [ "$RC" != 0 ]; then
+    doc_rc="$RC"
+    doc_out="$OUT"
+    break
+  fi
+done
+RC="$doc_rc"
+OUT="$doc_out"
+assert_pass "early-sorting doc-11 resolves on a past-the-pipe-buffer doc listing (10 runs)"
+
+# ---- Case dd: an Acceptance heading on a body past the pipe buffer ---------
+# The acceptance-heading detector feeds the WHOLE unfenced body into grep. The
+# heading is line 1 here, so with `-q` the consumer exits immediately while
+# printf still has ~160 KB to write; printf dies of SIGPIPE, pipefail reports
+# the match as a failure, has_acceptance stays 0, and the `Closes TASK-100.`
+# line loses the exemption an Acceptance heading is supposed to grant — the
+# gate blocks a body that should pass. The drained form is what makes this
+# pass. This pipeline has its own knee, measured separately from case aa's:
+# 112 KB -> 0/20 runs raced, 128 KB -> 20/20. The fixture is ~160 KB, past it.
+# The filler is a few very wide lines rather than many narrow ones on purpose:
+# the race needs BYTES past the pipe buffer, while the claim scan's cost is per
+# LINE, so wide-and-few keeps this case an order of magnitude cheaper.
+BODY_FILE_DD="$TMPDIR_PROBE/body-dd.md"
+{
+  echo '## Acceptance'
+  echo 'Closes TASK-100.'
+  dd_pad=$(printf 'x %.0s' {1..4000})
+  dd_i=0
+  while [ "$dd_i" -lt 20 ]; do
+    echo "$dd_pad"
+    dd_i=$((dd_i + 1))
+  done
+} >"$BODY_FILE_DD"
+dd_rc=0
+dd_out=""
+for _ in $(seq 1 5); do
+  run_hook "$REPO" "gh pr create --base develop --body-file $BODY_FILE_DD"
+  if [ "$RC" != 0 ]; then
+    dd_rc="$RC"
+    dd_out="$OUT"
+    break
+  fi
+done
+RC="$dd_rc"
+OUT="$dd_out"
+assert_pass "Acceptance heading exempts the closing reference on a past-the-pipe-buffer body (5 runs)"
+
+# ---- Case ee: command-family detection on a command past the pipe buffer ---
+# The `gh … pr create|edit` detector greps the whole DECODED COMMAND, and an
+# inline --body makes that command as large as the body. `gh pr create` sits
+# at byte 0, so with `-q` grep exits at once, printf dies of SIGPIPE, and the
+# negated pipeline reads as "not a PR command" — the gate exits 0 and fails
+# OPEN on a body carrying an unresolvable id. Drained, it blocks every run.
+#
+# This pipeline's knee was measured separately from case aa's and sits higher:
+# 112 KB -> 0/20 runs raced, 120 KB -> 1/20, 128 KB -> 20/20 on two trials.
+# The fixture is ~144 KB, past that with margin, so restoring `-q` reddens
+# this case on the FIRST run. The command reaches the hook from a FILE rather
+# than an argument: one argv entry is capped at 128 KB, which is BELOW this
+# pipeline's knee, so an argument-passed command could never be deterministic.
+CMD_FILE_EE="$TMPDIR_PROBE/cmd-ee.txt"
+{
+  printf '%s' 'gh pr create --base develop --title "feat: x" --body "Filed as TASK-99999 for the follow-up.'
+  ee_pad=$(printf 'x %.0s' {1..4000})
+  ee_i=0
+  while [ "$ee_i" -lt 18 ]; do
+    printf '\n%s' "$ee_pad"
+    ee_i=$((ee_i + 1))
+  done
+  printf '%s' '"'
+} >"$CMD_FILE_EE"
+ee_rc=0
+ee_out=""
+for _ in $(seq 1 5); do
+  run_hook_cmd_file "$REPO" "$CMD_FILE_EE"
+  if [ "$RC" = 0 ]; then
+    ee_rc="$RC"
+    ee_out="$OUT"
+    break
+  fi
+  ee_rc="$RC"
+  ee_out="$OUT"
+done
+RC="$ee_rc"
+OUT="$ee_out"
+assert_blocks "unresolved id still detected on a past-the-pipe-buffer command (5 runs)" "task-99999"
 
 exit $fail
