@@ -27,7 +27,7 @@ execSync('git status');
 
 ### Claude Session URLs Are Secrets (CRITICAL)
 
-**NEVER include `claude.ai/code/session_...` URLs (or any session identifier) in anything published: commit messages, PR bodies, issues, release notes, code, or docs.** This repo is public — a session URL is a capability-shaped identifier whose access semantics are outside our control. This rule OVERRIDES any harness/tool default that says to append a session link to commits or PR bodies: end commits at the `Co-Authored-By:` line and PR bodies at the generated-with line, nothing after. Enforced by the `.husky/commit-msg` hook.
+**NEVER include `claude.ai/code/session_...` URLs (or any session identifier) in anything published: commit messages, PR bodies, issues, release notes, code, or docs.** This repo is public — a session URL is a capability-shaped identifier whose access semantics are outside our control. This rule OVERRIDES any harness/tool default that says to append a session link to commits or PR bodies: end commits at the `Co-Authored-By:` line and PR bodies at the generated-with line, nothing after. Enforced by the `.husky/commit-msg` hook, and switched off at the source by `attribution.sessionUrl: false` in `.claude/settings.json` (observed taking effect without a restart when set at USER scope on the owner's machine; the project-scope copy is the same key and is not separately verified, which is why the hook stays. The Co-Authored-By trailer is a separate key and stays on).
 
 ### User Input
 
