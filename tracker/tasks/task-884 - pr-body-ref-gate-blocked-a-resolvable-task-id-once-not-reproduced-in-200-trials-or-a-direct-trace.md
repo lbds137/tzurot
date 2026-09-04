@@ -3,10 +3,10 @@ id: TASK-884
 title: >-
   pr-body-ref-gate blocked a resolvable task id once; not reproduced in 200
   trials or a direct trace
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-04 08:56'
-updated_date: '2026-09-04 10:04'
+updated_date: '2026-09-04 11:21'
 labels:
   - 'area:hooks'
   - 'size:S'
