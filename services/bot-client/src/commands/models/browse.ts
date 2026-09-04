@@ -18,6 +18,7 @@ import {
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { modelsBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
@@ -65,7 +66,7 @@ const VALID_SORTS: readonly ModelSort[] = ['default', 'price', 'recent'];
 
 /** Button label + emoji per sort (shown for the sort you'd switch TO). */
 const SORT_DISPLAY: Record<ModelSort, { label: string; emoji: string }> = {
-  default: { label: 'Sort: usable first', emoji: '🔀' },
+  default: { label: 'Sort: usable first', emoji: '↕️' },
   price: { label: 'Sort: cheapest', emoji: '💰' },
   recent: { label: 'Sort: newest', emoji: '🆕' },
 };
@@ -354,10 +355,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, ...parsed }, 'Failed to load model browse page');
-    await interaction.followUp({
-      content: renderSpec(classifyGatewayFailure(error, 'page', { operation: 'read' })),
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpBrowsePageFailure(interaction, error);
   }
 }
 

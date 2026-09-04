@@ -32,6 +32,7 @@ import { ENTITY_EMOJI, entityTitle } from '@tzurot/common-types/constants/uxVoca
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { channelBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -467,6 +468,7 @@ export async function handleBrowsePagination(
 
     if (!result.ok) {
       logger.warn({ userId }, 'Failed to fetch channels for pagination');
+      await followUpBrowsePageFailure(interaction, result);
       return;
     }
 
@@ -502,6 +504,6 @@ export async function handleBrowsePagination(
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, userId, page, filter, sort }, 'Failed to load browse page');
-    // Keep existing content on error
+    await followUpBrowsePageFailure(interaction, error);
   }
 }

@@ -49,6 +49,7 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
+import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 
 const logger = createLogger('persona-browse');
 
@@ -234,6 +235,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
     if (!result.ok) {
       logger.warn({ userId, error: result.error }, 'Failed to fetch personas for pagination');
+      await followUpBrowsePageFailure(interaction, result);
       return;
     }
 
@@ -241,7 +243,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, userId: interaction.user.id }, 'Failed to load browse page');
-    // Keep existing content on error
+    await followUpBrowsePageFailure(interaction, error);
   }
 }
 

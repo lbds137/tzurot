@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import { MessageFlags, type ChatInputCommandInteraction, type ButtonInteraction } from 'discord.js';
 import {
   handleBrowseVoices,
   handleVoiceBrowsePagination,
@@ -306,6 +306,7 @@ describe('isVoiceBrowseInteraction', () => {
 describe('handleVoiceBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  const mockFollowUp = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -318,6 +319,7 @@ describe('handleVoiceBrowsePagination', () => {
       user: { id: 'user-123', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
+      followUp: mockFollowUp,
     } as unknown as ButtonInteraction;
   }
 
@@ -371,7 +373,7 @@ describe('handleVoiceBrowsePagination', () => {
     });
   });
 
-  it('should keep existing content on fetch exception', async () => {
+  it('leaves the current page in place on a fetch exception', async () => {
     stub.listVoices.mockRejectedValue(new Error('Network error'));
 
     await handleVoiceBrowsePagination(
@@ -379,7 +381,22 @@ describe('handleVoiceBrowsePagination', () => {
     );
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    // Should NOT call editReply — keeps existing content visible
+    // The visible page is left intact; the user is told via followUp (asserted below).
     expect(mockEditReply).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user (followUp) when page load fails', async () => {
+    stub.listVoices.mockRejectedValue(new Error('Network error'));
+
+    await handleVoiceBrowsePagination(
+      createMockButtonInteraction('voice-voices::browse::1::all::')
+    );
+
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 });

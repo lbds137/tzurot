@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ButtonInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 
@@ -329,6 +329,7 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  const mockFollowUp = vi.fn();
   let stub: StubClient;
 
   beforeEach(async () => {
@@ -351,6 +352,7 @@ describe('handleBrowsePagination', () => {
       },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
+      followUp: mockFollowUp,
     } as unknown as ButtonInteraction;
   }
 
@@ -484,7 +486,7 @@ describe('handleBrowsePagination', () => {
     });
   });
 
-  it('should handle API error silently (keep existing content)', async () => {
+  it('leaves the current page in place when the API errors', async () => {
     stub.listUserChannels.mockResolvedValue(err(500, 'Internal error'));
 
     const mockInteraction = createMockButtonInteraction('channel::browse::1::current::date::');
@@ -492,6 +494,12 @@ describe('handleBrowsePagination', () => {
 
     expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockEditReply).not.toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 
   it('should handle unexpected errors gracefully', async () => {
@@ -502,6 +510,20 @@ describe('handleBrowsePagination', () => {
     await expect(handleBrowsePagination(mockInteraction, 'guild-123')).resolves.not.toThrow();
 
     expect(mockEditReply).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user (followUp) when page load fails', async () => {
+    stub.listUserChannels.mockRejectedValue(new Error('Network error'));
+
+    const mockInteraction = createMockButtonInteraction('channel::browse::1::current::date::');
+    await handleBrowsePagination(mockInteraction, 'guild-123');
+
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 });
 

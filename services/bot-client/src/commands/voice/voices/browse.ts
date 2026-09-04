@@ -14,6 +14,7 @@ import {
 import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
 import { renderSpec } from '../../../ux/render/render.js';
+import { followUpBrowsePageFailure } from '../../../utils/browse/pageLoadFailure.js';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -225,6 +226,6 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, userId, page: parsed.page }, 'Failed to load browse page');
-    // Keep existing content on error (same pattern as character browse)
+    await followUpBrowsePageFailure(interaction, error);
   }
 }

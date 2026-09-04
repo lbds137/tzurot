@@ -255,6 +255,78 @@ describe('handleTestKey', () => {
     }
   );
 
+  it('should render the scoped-key embed for MISSING_PERMISSIONS, not "API Key Invalid"', async () => {
+    // The provider accepted the key but rejected its SCOPE — this is a
+    // different failure mode than a bad/rejected key and must not send the
+    // user to replace a key that already works.
+    stub.testWalletKey.mockResolvedValue(
+      makeOk(
+        mockTestWalletKeyResponse({
+          valid: false,
+          provider: AIProvider.OpenRouter,
+          error: 'Missing scope: models.read',
+          errorCode: 'MISSING_PERMISSIONS',
+        })
+      )
+    );
+
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: '⚠️ API Key Valid — Missing Permissions',
+            // Forwarded verbatim from the gateway — never re-parsed.
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Details',
+                value: 'Missing scope: models.read',
+              }),
+            ]),
+          }),
+        }),
+      ],
+    });
+    expect(mockEditReply).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.arrayContaining([
+          expect.objectContaining({
+            data: expect.objectContaining({ title: '❌ API Key Invalid' }),
+          }),
+        ]),
+      })
+    );
+  });
+
+  it.each(['INVALID_KEY', 'QUOTA_EXCEEDED'] as const)(
+    'should still render "API Key Invalid" for %s',
+    async errorCode => {
+      stub.testWalletKey.mockResolvedValue(
+        makeOk(
+          mockTestWalletKeyResponse({
+            valid: false,
+            provider: AIProvider.OpenRouter,
+            error: 'Validation failed',
+            errorCode,
+          })
+        )
+      );
+
+      const context = createMockContext('openrouter');
+      await handleTestKey(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({ title: '❌ API Key Invalid' }),
+          }),
+        ],
+      });
+    }
+  );
+
   it('should map a 429 rate-limit to a retry message, not "API Key Invalid"', async () => {
     stub.testWalletKey.mockResolvedValue(makeErr(429, 'Too many API key operations'));
 
