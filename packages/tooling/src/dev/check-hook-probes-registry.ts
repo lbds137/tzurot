@@ -81,6 +81,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/dispatch-spec-ledger-gate.probe.sh',
   },
   {
+    hook: '.claude/hooks/grep-escaped-dollar-guard.sh',
+    probe: '.claude/hooks/grep-escaped-dollar-guard.probe.sh',
+  },
+  {
     hook: '.claude/hooks/lossy-pipe-guard.sh',
     probe: '.claude/hooks/lossy-pipe-guard.probe.sh',
   },
