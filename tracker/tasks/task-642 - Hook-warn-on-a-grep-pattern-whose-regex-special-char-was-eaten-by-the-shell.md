@@ -1,9 +1,10 @@
 ---
 id: TASK-642
 title: 'Hook: warn on a grep pattern whose regex-special char was eaten by the shell'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 12:27'
+updated_date: '2026-09-04 10:44'
 labels:
   - 'area:hooks'
   - 'size:S'
