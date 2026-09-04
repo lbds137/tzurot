@@ -3,10 +3,10 @@ id: TASK-888
 title: >-
   Batched rule-out pass over the priority-low pool, plus the process-residue
   admission default
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-04 11:58'
-updated_date: '2026-09-04 19:57'
+updated_date: '2026-09-04 21:37'
 labels:
   - 'area:backlog'
   - 'size:M'
