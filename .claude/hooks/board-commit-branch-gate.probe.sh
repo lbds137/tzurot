@@ -905,18 +905,13 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
-# KNOWN GAP, pinning CURRENT (broken) behavior, NOT desired behavior: a
-# `bash -c "…"` wrapper around the whole board-only compound is not merely
-# narrowed like a substitution would be, it makes the compound INVISIBLE —
-# strip_quoted erases the wrapper's whole string argument as one quoted span,
-# so COMMIT_RE never sees a `git ... commit` token and the gate exits 0 on a
-# feature branch where the unwrapped compound blocks (exit 2). This is the
-# gate's own named threat model (`git add tracker/ && git commit`) run
-# through a wrapper, and it is TRACKED AS TASK-879, not fixed here — see
-# board-commit-branch-gate.sh's KNOWN GAPS block. When TASK-879 lands
-# (executed_segments-based wrapper unwrapping), FLIP this assertion to
-# `-eq 2` rather than deleting the case — it should then pin the fixed
-# behavior instead of the gap.
+# A `bash -c "…"` wrapper around the whole board-only compound is not
+# narrowed like a substitution would be — its string argument is a command
+# bash actually runs, so the scan unwraps it and assesses the inner compound
+# as a command in its own right. The board-only compound blocks exactly as
+# it does unwrapped (exit 2), matching the gate's own named threat model
+# (`git add tracker/ && git commit`) run through a wrapper that changes
+# nothing about intent.
 DIR=$(make_repo feat/x)
 mkdir -p "$DIR/tracker/tasks"
 echo t > "$DIR/tracker/tasks/task-1 - probe.md"
@@ -928,12 +923,96 @@ git -C "$DIR" add tracker/
     | "$HOOK" >/dev/null 2>&1
 )
 actual=$?
-if [ "$actual" -eq 0 ]; then
-  printf 'PASS  (exit 0)  bash -c wrapper around a board-only compound evades the gate entirely (KNOWN GAP, TASK-879, not a desired behavior)\n'
+if [ "$actual" -eq 2 ]; then
+  printf 'PASS  (exit 2)  bash -c wrapper around a board-only compound blocks like the unwrapped compound\n'
 else
-  printf 'FAIL  (exit %d, expected 0)  bash -c wrapper around a board-only compound evades the gate entirely (KNOWN GAP, TASK-879, not a desired behavior)\n' "$actual"
+  printf 'FAIL  (exit %d, expected 2)  bash -c wrapper around a board-only compound blocks like the unwrapped compound\n' "$actual"
   FAILURES=$((FAILURES + 1))
 fi
+
+# --- WRAPPER UNWRAPPING (bash -c / sh -c / eval) ---
+# These pin the recursive unwrap in board-commit-branch-gate.sh's scan() and
+# shell_quotes.wrapped_command_strings — each command reaches command
+# position through zero or more nested wrappers before being assessed.
+
+assert_cmd 2 'sh -c "git add tracker/ && git commit -m msg"' \
+  'sh -c wrapper around a board-only compound blocks'
+
+assert_cmd 2 'eval "git add tracker/ && git commit -m msg"' \
+  'eval wrapper around a board-only compound blocks'
+
+assert_cmd 2 'bash -lc "git add tracker/ && git commit -m msg"' \
+  'a short-option cluster ending in -c is still a wrapper'
+
+# Unwrapping must not OVER-block: a mixed inner compound (board + code) is
+# ordinary feature work. Nothing is staged so the add pathspecs are the only
+# source of the assessed set.
+assert_add_cmd 0 'bash -c "git add tracker/ src/a.ts && git commit -m msg"' \
+  'a wrapper around a MIXED inner compound still passes'
+
+# The discriminating negative: echo does not EXECUTE its argument, so the
+# wrapper-shaped text inside it stays inert prose. tracker/ IS staged
+# (assert_cmd) on purpose — a wrongly-armed scan WOULD block here, so this
+# case actually pins something; an inert case with nothing staged would be
+# trivially exit 0 regardless.
+assert_cmd 0 'echo "bash -c '"'"'git add tracker/ && git commit -m x'"'"'"' \
+  'a wrapper quoted inside echo is not at command position and stays inert'
+
+assert_cmd 0 'bash -c "TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m msg"' \
+  'a bypass prefix on the inner commit is recognised through the wrapper'
+
+# ACCEPTED, deliberately-pinned refusal in the fail-safe direction, not a bug:
+# the prefix and the commit land on opposite sides of the wrapper boundary, so
+# the counts land on opposite sides too and the comparison blocks. Do not
+# relax the count comparison to make this pass as 0.
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 bash -c "git commit -m msg"' \
+  'a bypass prefix on the wrapper is refused, not honoured'
+
+# The generic, actually-dangerous shape beside the bypass-token spelling
+# above: ANY leading env-assignment, not just the bypass token, would
+# otherwise hide the wrapper behind it and defeat the whole unwrap.
+assert_cmd 2 'FOO=1 bash -c "git add tracker/ && git commit -m msg"' \
+  'an unrelated env-assignment prefix does not hide the wrapper'
+
+# The counts must SUM across the wrapper boundary rather than be decided at
+# one level: an outer bypassed commit beside an inner unbypassed one must
+# still block on the inner commit's account.
+assert_cmd 2 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m outer && bash -c "git commit -m inner"' \
+  'an outer-only bypass does not waive the wrapped commit beside it'
+
+assert_cmd 0 'TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m outer && bash -c "TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit -m inner"' \
+  'an outer and an inner commit each carrying the prefix pass together'
+
+assert_cmd 2 'bash -c "sh -c '"'"'git add tracker/ && git commit -m msg'"'"'"' \
+  'a wrapper nested inside a wrapper is still unwrapped'
+
+# The MAX_WRAPPER_DEPTH boundary at the HOOK's own scan() recursion. The lib
+# side is pinned separately (shellQuotes.test.ts, "stops recursing at the depth
+# cap" over executed_segments), but scan() is a second, independent recursion
+# with its own `depth < MAX_WRAPPER_DEPTH` check, so the boundary needs its own
+# exit-code pin here. Depth 0 is the command itself, so the innermost compound
+# below sits at depth 3 and is still assessed: the check runs at depth 2 and
+# admits the recursion into depth 3.
+assert_cmd 2 'bash -c "sh -c '"'"'bash -c \"git add tracker/ && git commit -m msg\"'"'"'"' \
+  'three nested wrappers still unwrap to the board-only compound'
+
+# One level deeper the compound lands at depth 4, where the check refuses to
+# recurse, so it stays the placeholder text the quote strip produced for it —
+# the gate counts no commit and passes. This pins the under-arm the hook
+# header's WRAPPER UNWRAPPING paragraph documents; it is NOT a desired
+# behaviour, only a nesting depth no habitual command shape reaches. tracker/
+# IS staged (assert_cmd), so the pass is the depth cap and not an empty
+# assessed file set — with the cap lifted this same fixture blocks. If
+# MAX_WRAPPER_DEPTH is ever raised, this is the case to move: its expectation
+# becomes 2 and a case one level deeper takes over the placeholder half.
+assert_cmd 0 'bash -c "sh -c '"'"'bash -c \"sh -c \\\"git add tracker/ && git commit -m msg\\\"\"'"'"'"' \
+  'a fourth wrapper level is left as a placeholder and passes'
+
+# The quoted-pathspec resolution must survive unwrapping, which is why each
+# recursion level builds its own indexed strip_quoted_indexed view rather than
+# reusing a pre-stripped executed_segments segment.
+assert_add_cmd 2 'bash -c '"'"'git add "tracker/tasks/task-1 - probe.md" && git commit -m msg'"'" \
+  'a quoted space-bearing board pathspec inside a wrapper resolves and blocks'
 
 # --- Backtracking-reliance pins ---------------------------------------------
 # COMMIT_RE and ADD_RE's shared flag-consuming group has an optional trailing

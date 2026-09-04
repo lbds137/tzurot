@@ -556,6 +556,43 @@ describe('shell_quotes.executed_segments', () => {
 });
 
 /**
+ * `wrapped_command_strings` is exercised directly, not only through
+ * `executed_segments`, because it has a second caller: board-commit-branch-gate.sh
+ * consumes it straight, not `executed_segments`. That gate needs the RAW,
+ * unquoted inner string rather than `executed_segments`' already quote-stripped
+ * segments, so it can build its own resolvable view per level.
+ */
+function wrapperArgs(inputs: readonly string[]): string[][] {
+  return evalAll<string[]>('wrapped_command_strings', inputs);
+}
+
+describe('shell_quotes.wrapped_command_strings', () => {
+  it.each([
+    ['bash -c', 'bash -c "inner cmd"'],
+    ['sh -c', "sh -c 'inner cmd'"],
+    ['eval', 'eval "inner cmd"'],
+  ])('returns the unquoted argument of a %s invocation', (_label, cmd) => {
+    expect(wrapperArgs([cmd])[0]).toEqual(['inner cmd']);
+  });
+
+  it('recognizes a wrapper only at command position', () => {
+    // `bash` here is a word being printed, not a shell being run, so nothing
+    // is unwrapped.
+    expect(wrapperArgs(['echo bash -c "inner cmd"'])[0]).toEqual([]);
+  });
+
+  it('does not let a leading env-assignment hide the wrapper behind it', () => {
+    // Pins bash's own rule: an assignment prefix leaves the NEXT word at
+    // command position, so the wrapper after it is still a wrapper.
+    expect(wrapperArgs(['FOO=1 bash -c "inner cmd"'])[0]).toEqual(['inner cmd']);
+  });
+
+  it('skips more than one leading assignment before the wrapper', () => {
+    expect(wrapperArgs(['FOO=1 BAR=2 sh -c "inner cmd"'])[0]).toEqual(['inner cmd']);
+  });
+});
+
+/**
  * `strip_quoted_indexed` and `resolve_placeholders` exist beside `strip_quoted`
  * rather than replacing it: `strip_quoted`'s `S` placeholder erases a quoted
  * span's value, which is exactly right for a structural scan (a caller that
