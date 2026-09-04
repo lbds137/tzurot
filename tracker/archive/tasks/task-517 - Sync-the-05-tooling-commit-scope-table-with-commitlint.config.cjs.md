@@ -4,6 +4,7 @@ title: Sync the 05-tooling commit-scope table with commitlint.config.cjs
 status: To Do
 assignee: []
 created_date: '2026-08-11 00:53'
+updated_date: '2026-09-04 19:42'
 labels:
   - 'area:process'
   - 'size:S'
@@ -20,3 +21,13 @@ Why: PR #2059 review noticed .claude/rules/05-tooling.md lists six commit scopes
 What: regenerate the table from commitlint.config.cjs (or replace the enumeration with a pointer to the config as the source of truth plus the few most-used scopes). Rules edits are review-gated — ride the next .claude/rules PR.
 Acceptance: the rules table and the config cannot disagree (pointer form), or the table matches the config exactly with a note naming the config as canonical.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:42
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. shipped: 05-tooling.md carries the pointer form the acceptance asked for (1b2344c3c).
+---
+<!-- COMMENTS:END -->

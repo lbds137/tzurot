@@ -4,6 +4,7 @@ title: Inspect view for stored vision descriptions
 status: To Do
 assignee: []
 created_date: '2026-08-20 01:52'
+updated_date: '2026-09-04 19:42'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -24,3 +25,13 @@ Scope note: this is debugging ergonomics, NOT a standalone /describe capability 
 
 Acceptance: from a message that had an image described, the owner can reach the description via /inspect without reading the whole system prompt.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:42
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. shipped: /inspect shows per-attachment vision descriptions with model attribution (243885238, formatAttachmentEntry wired into extendedViews.ts).
+---
+<!-- COMMENTS:END -->

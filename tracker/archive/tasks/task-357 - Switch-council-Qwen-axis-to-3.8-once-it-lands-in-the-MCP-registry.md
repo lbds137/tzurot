@@ -4,7 +4,7 @@ title: Switch council Qwen axis to 3.8 once it lands in the MCP registry
 status: To Do
 assignee: []
 created_date: '2026-07-30 12:06'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-09-04 19:42'
 labels:
   - 'size:S'
   - 'area:docs'
@@ -22,3 +22,13 @@ Note the registry DOES carry preview variants (qwen/qwen3.6-max-preview exists),
 Fix shape: one-line swap of the Qwen entry in .claude/skills/tzurot-council-mcp/SKILL.md (two sites: the task table + the avoid-R1 paragraph). Review-gated per 00-critical (skills are load-bearing).
 Promote when: `mcp__council__list_models --provider qwen` lists a 3.8 id. Owner raised this 2026-07-30.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:42
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. shipped: the council roster names qwen/qwen3.8-max at both cited sites (a549c2186); zero qwen3.7 references remain.
+---
+<!-- COMMENTS:END -->
