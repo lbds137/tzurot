@@ -91,3 +91,18 @@ refinements, all evidence-gated.
 The items live in `tracker/tasks/` as the authoritative text; this file is the
 scope index. When a phase is picked up, mark its tasks Done per
 `06-backlog`'s session-end removal gate rather than duplicating them here.
+
+## Superseded tasks (2026-09-04 pass)
+
+Ten tracker rows whose content this file **already carries by content** — several with the same date and wording as the task — so they are archived rather than re-bulleted, and each id below points at the bullet that holds it. Verified before archiving: `grep -ci cacheKeyId` on this file → 4, i.e. the Phase 1 spine is present, not merely adjacent. The selection cost is the point rather than a regret: an `area:ai-worker size:S state:ready` query stops offering these individually, which is exactly what Phase 1's own "they share a fix; taking one alone re-opens the others" says should happen.
+
+- **TASK-80** → Phase 1, `cacheKeyId` optionality — making it required in `InvokeWithRetryOptions` so every call site states an identity
+- **TASK-82** → Phase 1, `tryResolveUserKey` has no negative-cache sentinel
+- **TASK-151** → Phase 1, the SAME `tryResolveUserKey` bullet — it is the second of the "two rows filed separately" that bullet names (2026-04-27 and 2026-06-17), described from the vision-routing angle, and it is archived as a **duplicate of TASK-82**, which is earlier and carries the PR #925 invariant test
+- **TASK-239** → Phase 2, usage-history weighting so habitual light users get more headroom
+- **TASK-240** → Phase 2, sybil / alt-account dilution guard (`N` is inflatable by cheap alts)
+- **TASK-241** → Phase 2, the z.ai key half of the fair-share + owner-first headroom
+- **TASK-242** → Phase 2, `tryConsume` pipelining (up to 10 sequential Redis round-trips)
+- **TASK-244** → Phase 2, N-comment accuracy + the redundant `resolveSystemKey` call
+- **TASK-269** → Phase 3, BYOK extraction billing — the bullet preserves the recorded promote-when verbatim ("a normal, non-backfill week shows extraction consuming a significant share of the coding-plan quota") along with the consent-disclosure dependency
+- **TASK-63** → Phase 3, vision system-fallback daily cap → runtime admin-settings knob
