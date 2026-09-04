@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-26 21:49'
+updated_date: '2026-09-04 19:45'
 labels:
   - 'area:redis'
   - 'size:M'
@@ -26,3 +27,13 @@ Also note the current posture already covers part of the motivation: every facto
 
 Acceptance: either a recorded decision not to build it, with the technical reason, or a breaker with a named consumer that demonstrably changes behaviour under a degraded-Redis test.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:45
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. ruled out on merit (C6): a Redis circuit breaker that 03-database.md § Redis counters (plain incr/expire, fail-open, no reflexive machinery) has already declined; every counter path is fail-open by design. Reverse deliberately with a demonstrated failure, not by re-filing.
+---
+<!-- COMMENTS:END -->
