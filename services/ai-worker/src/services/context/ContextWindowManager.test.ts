@@ -537,12 +537,19 @@ describe('ContextWindowManager', () => {
     });
 
     it('HYSTERESIS / HEAD STABILITY — the shipped head is stable across tail appends, then jumps by a whole chunk', () => {
-      const budget = Math.round(measuresFor(buildEntries(60)).reduce((a, b) => a + b, 0) * 0.5);
+      // `measureHistoryEntryTokens` renders one entry with no history-entry set
+      // (`historyTokenMeasure.ts`), and `buildEntries` fills each field from its
+      // own index, so a single pass over the longest fixture supplies every
+      // prefix the loop needs rather than re-tokenizing one per iteration.
+      const MAX_EXTRA = 25;
+      const allEntries = buildEntries(60 + MAX_EXTRA);
+      const allMeasures = measuresFor(allEntries);
+      const budget = Math.round(allMeasures.slice(0, 60).reduce((a, b) => a + b, 0) * 0.5);
 
       const cuts: { cFinal: number; oldestShippedId: string | undefined }[] = [];
-      for (let extra = 0; extra <= 25; extra++) {
-        const entries = buildEntries(60 + extra);
-        const measures = measuresFor(entries);
+      for (let extra = 0; extra <= MAX_EXTRA; extra++) {
+        const entries = allEntries.slice(0, 60 + extra);
+        const measures = allMeasures.slice(0, 60 + extra);
         const cut = computeEvictionCut(measures, budget);
         cuts.push({
           cFinal: cut.cFinal,
