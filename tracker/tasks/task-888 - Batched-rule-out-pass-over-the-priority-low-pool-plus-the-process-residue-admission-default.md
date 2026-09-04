@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-04 11:58'
+updated_date: '2026-09-04 19:57'
 labels:
   - 'area:backlog'
   - 'size:M'
@@ -26,3 +27,13 @@ Acceptance: every priority-low task open at the start of the pass appears exactl
 
 Note: assistant-generated process work, owner-approved 2026-09-04; counts against the session net.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:57
+---
+HALF (1) DONE 2026-09-04. Acceptance ledger: (a) every priority-low task open at pass start (285) appears exactly once in the digest with a keep or rule-out line — verified by comm against the pool map, zero missing, zero duplicated; (b) every owner ruling landed on the task file (155 keep comments, 20 retarget/narrowing comments, 13 ruling comments, 130 archive comments) or the archiving commit body (four archive classes, each naming every item and reason); (c) the 06-backlog amendment is half (2), still open — this task stays To Do until it merges; (d) net: 130 archived (11 verified exits, 14 admission-bar, 4 owner rule-outs, 101 superseded into 14 docs: doc-89..96 new, doc-74 widened, doc-3/4/8 grown, doc-18/21/50 pointed) vs 155 kept; pool 285 to 140 low, 432 to 302 open; 15 promoted out of low. Weekly filed-vs-closed re-measured at close (git adds vs +status: Done flips, W31 import week excluded): W32 95/113, W33 137/82, W34 120/63, W35 78/29 — net about +36 per week, the July order; the cut buys about a month, which is why half (2) is the lever. Digest delivered as a private artifact; the reader spec, merit spec and docs spec live under docs/local/dispatch (gitignored).
+---
+<!-- COMMENTS:END -->
