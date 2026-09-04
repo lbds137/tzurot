@@ -4,7 +4,7 @@ title: Reconsider hard-fail vs soft-error for attachment download failures
 status: To Do
 assignee: []
 created_date: '2026-04-24 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-09-04 19:41'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +22,13 @@ Reconsider hard-fail vs soft-error for attachment download failures
 
 **Why:** PR #889 changed semantics: old `AttachmentStorageService.downloadAndStore` used `Promise.allSettled` and returned the original Discord CDN URL as fallback on per-attachment failure (soft-error; job continued with broken URL); new `DownloadAttachmentsStep.downloadAll` throws on any failure and fails the whole job (hard-fail). New behavior is arguably more correct (old soft-error handed LLM a dead URL that produced weird responses), but it's a visible user-facing change — transient CDN hiccups that were previously silent now produce classified async errors. **Watch-item**: if users report "attachments dropped without warning" → "job failed visibly" complaints, reconsider partial-failure soft-error (continue with successful attachments, surface non-fatal warning for failed ones). **Fix shape when needed**: change `downloadAll` to keep partial successes, attach failure metadata to generation context, surface "couldn't load N of M attachments" notice. **Why deferred today**: no observed user complaints; visible errors easier to diagnose than silent corruption. Surfaced 2026-04-24 by PR #889 Round 5 claude-review. Deferred 2026-04-24.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:41
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. shipped: partial-success plus non-fatal warning landed in ae7a99bef; the step throws only when every attachment fails and there is no text.
+---
+<!-- COMMENTS:END -->

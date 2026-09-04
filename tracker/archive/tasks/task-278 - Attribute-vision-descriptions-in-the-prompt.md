@@ -4,7 +4,7 @@ title: Attribute vision descriptions in the prompt
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:42'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +22,13 @@ Attribute vision descriptions in the prompt — personas think the USER wrote th
 
 **Why:** The description reads as user prose because structurally it IS user-message content — boundaries and attribution must both be explicit.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:42
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. shipped: OUTPUT_CONSTRAINTS frames image, sticker and file descriptions as platform-generated across all three render paths (8d2031e19), pinned in snapshot tests.
+---
+<!-- COMMENTS:END -->
