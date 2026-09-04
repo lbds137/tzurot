@@ -220,6 +220,8 @@ Automated reviewers can be wrong. Check schema/source/tests before implementing 
 
 **Verifying the mechanism is not verifying the scenario.** Confirming a finding's mechanism in the source says nothing about whether each listed trigger actually reaches it. Check every trigger separately and drop the ones that don't hold before repeating the scenario anywhere.
 
+**Verifying a scenario is not verifying the mechanism.** A passing fixture pins the case it ran, not the property the sentence beside it claims. A claim that generalizes from one fixture to a mechanism — "cannot", "always", "is symmetric", "is safe" — needs a second fixture varying the next property, or a sentence scoped to the fixture actually run. The tell is mechanism language resting on single-scenario evidence. The code-comment form of the same rule is `02-code-standards.md` § A Comment That Asserts Behavior Is a Claim.
+
 ### Don't Present Speculation as Fact
 
 When making claims about causation, origin, intent, or history, distinguish between what you **observed** (tool output, file contents, git log, schema, test results) and what you **infer**. Only state claims as fact when you have direct evidence; otherwise name it as a hypothesis ("without more data I can't tell whether X or Y"), or say "I don't know" and propose concrete verification steps.

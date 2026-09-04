@@ -89,6 +89,10 @@ The dispatch prompt's non-negotiable contract points:
   tree and dispatching against that SHA works without any push.
 - **The inner worker's first action is `pwd` PLUS an assertion that the path
   contains `.claude/worktrees/`** — not a bare "confirm pwd".
+- **The inner worker never sources git state from loaded context** — branch,
+  modified files, base SHA come only from a command it just ran; the harness
+  injects a session-start snapshot that is stale by hours, and workers have
+  reported it as current.
 - **Instruct the inner worker to end its turn with its report as its final
   text and make NO `SendMessage` attempt** — the orchestrator receives the
   Agent tool result directly.
@@ -114,7 +118,14 @@ The dispatch prompt's non-negotiable contract points:
   a plain range answers all three before they are asked.
 - **Verification gates enumerated as exact commands** with the instruction to
   capture verbatim tails, run sequentially, and never run repo-wide heavy
-  commands. Canaries (Core Principle 9) named in the spec get run and reported.
+  commands. Canaries (Core Principle 9) are DERIVED from the claim set, not
+  chosen by taste: for every behavior the PR body will assert as fixed or
+  pinned, the spec names the mutation that falsifies it. A claim with no
+  canary is the signal the claim is unverified — give it one or scope the
+  sentence down. A canary pins the case it runs, not the general property: a
+  body claim broader than its canary gets a second canary varying the next
+  property, or a sentence scoped to the fixture actually run. Named canaries
+  get run and reported.
 
 When the orchestrator reports, Fable's side is unchanged in substance from
 § When the worker reports, plus the transfer shape that keeps gates out of the
@@ -188,7 +199,7 @@ a gap the worker will fill by guessing.
    parallel (`05-tooling.md` § Resource Constraints).
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
-   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary.
+   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs (§ Nested dispatch).
 8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this
@@ -198,6 +209,11 @@ a gap the worker will fill by guessing.
 9. **Report requirements** — deviations flagged, verbatim verification tails,
    survivor-grep results. Git-state claims (current branch, base SHA,
    porcelain status) appear as pasted command output, never restated prose.
+   The same holds for every claim of having verified, confirmed, or measured
+   something — in the spec, the report, and the PR body alike: the sentence
+   names the command whose output is the evidence, or it is not a
+   verification claim. The report lists claim/canary pairs so the main loop
+   can see an unpaired claim before the PR body is written.
    The report also **declares the delegation shape**
    ("no inner worker — I judged the unit small enough" is a valid answer;
    silence is not) and carries **transfer notes**: tiers the worktree could
