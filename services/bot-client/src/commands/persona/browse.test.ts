@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import {
   handleBrowse,
   handleBrowsePagination,
@@ -159,6 +160,7 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  const mockFollowUp = vi.fn();
   let stub: PersonaClientStub;
 
   beforeEach(() => {
@@ -174,6 +176,7 @@ describe('handleBrowsePagination', () => {
       user: { id: '123456789', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
+      followUp: mockFollowUp,
     } as unknown as Parameters<typeof handleBrowsePagination>[0];
   }
 
@@ -207,6 +210,12 @@ describe('handleBrowsePagination', () => {
 
     expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockEditReply).not.toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 
   it('keeps the existing view when the pagination fetch throws', async () => {
@@ -216,6 +225,19 @@ describe('handleBrowsePagination', () => {
 
     expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockEditReply).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user (followUp) when page load fails', async () => {
+    stub.listPersonas.mockRejectedValue(new Error('Network error'));
+
+    await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::all::name::'));
+
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.any(String),
+      })
+    );
   });
 });
 

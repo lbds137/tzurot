@@ -20,7 +20,7 @@ import { renderSpec } from '../../../ux/render/render.js';
 
 const logger = createLogger('settings-apikey-test');
 
-/** The ❌ embed for a key the provider actually rejected (invalid / permissions / quota). */
+/** The ❌ embed for a key the provider actually rejected (invalid / quota). */
 function buildKeyInvalidEmbed(provider: AIProvider, error: string): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(DISCORD_COLORS.ERROR)
@@ -37,6 +37,30 @@ function buildKeyInvalidEmbed(provider: AIProvider, error: string): EmbedBuilder
         '• Check if your key is still valid\n' +
         '• Ensure you have credits/quota remaining\n' +
         '• Use `/settings apikey set` to update your key',
+      inline: false,
+    })
+    .setTimestamp();
+}
+
+/** The ⚠️ embed for a key the provider ACCEPTED but that is under-scoped. */
+function buildKeyScopedEmbed(provider: AIProvider, error: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(DISCORD_COLORS.WARNING)
+    .setTitle('⚠️ API Key Valid — Missing Permissions')
+    .setDescription(
+      `Your **${getProviderDisplayName(provider)}** API key authenticated, but it lacks permissions this bot needs.`
+    )
+    .addFields({
+      name: 'Details',
+      value: error,
+      inline: false,
+    })
+    .addFields({
+      name: '💡 What to do',
+      value:
+        '• Grant the permissions above to this key in your provider dashboard\n' +
+        '• Or create a new key with those permissions and run `/settings apikey set`\n' +
+        '• Then run `/settings apikey test` again',
       inline: false,
     })
     .setTimestamp();
@@ -94,6 +118,15 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
               `Couldn't verify your **${getProviderDisplayName(provider)}** key — the provider didn't respond normally (${data.error ?? 'no details'}). Your key wasn't judged invalid.`
             )
           ),
+        });
+        return;
+      }
+
+      // The provider accepted the key and rejected only its SCOPE — rendering
+      // "Invalid" here sends the user to replace a working key.
+      if (data.errorCode === 'MISSING_PERMISSIONS') {
+        await context.editReply({
+          embeds: [buildKeyScopedEmbed(provider, data.error ?? 'Validation failed')],
         });
         return;
       }

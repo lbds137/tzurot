@@ -180,27 +180,28 @@ MUST go through CommandHandler.
 
 **ALWAYS check for existing utilities before implementing:**
 
-| Pattern                 | Shared Utility                  | Location                                        |
-| ----------------------- | ------------------------------- | ----------------------------------------------- |
-| Browse pagination       | `createBrowseCustomIdHelpers`   | `utils/browse/customIdFactory.ts`               |
-| Browse buttons          | `buildBrowseButtons`            | `utils/browse/buttonBuilder.ts`                 |
-| Browse truncation       | `truncateForSelect`             | `utils/browse/truncation.ts`                    |
-| Dashboard builder       | `buildDashboardEmbed`           | `utils/dashboard/DashboardBuilder.ts`           |
-| Dashboard modals        | `buildSectionModal`             | `utils/dashboard/ModalFactory.ts`               |
-| Dashboard sessions      | `initSessionManager`            | `utils/dashboard/SessionManager.ts`             |
-| Dashboard messages      | `DASHBOARD_MESSAGES`            | `utils/dashboard/messages.ts`                   |
-| Dashboard close         | `handleDashboardClose`          | `utils/dashboard/closeHandler.ts`               |
-| Dashboard refresh       | `createRefreshHandler`          | `utils/dashboard/refreshHandler.ts`             |
-| Dashboard delete        | `buildDeleteConfirmation`       | `utils/dashboard/deleteConfirmation.ts`         |
-| Dashboard perms         | `checkEditPermission`           | `utils/dashboard/permissionChecks.ts`           |
-| Session helpers         | `fetchOrCreateSession`          | `utils/dashboard/sessionHelpers.ts`             |
-| Dashboard select menu   | `handleDashboardSectionSelect`  | `utils/dashboard/genericSelectMenuHandler.ts`   |
-| Dashboard modal merge   | `extractAndMergeSectionValues`  | `utils/dashboard/modalHelpers.ts`               |
-| Interaction error reply | `replyError`                    | `utils/dashboard/replyError.ts`                 |
-| Personality autocomp    | `handlePersonalityAutocomplete` | `utils/autocomplete/`                           |
-| Persona autocomplete    | `handlePersonaAutocomplete`     | `utils/autocomplete/`                           |
-| List sorting            | `createListComparator`          | `utils/listSorting.ts`                          |
-| Round-trip contract     | `DASHBOARDS` registry           | `utils/dashboard/updateSchemaRoundTrip.test.ts` |
+| Pattern                  | Shared Utility                  | Location                                        |
+| ------------------------ | ------------------------------- | ----------------------------------------------- |
+| Browse pagination        | `createBrowseCustomIdHelpers`   | `utils/browse/customIdFactory.ts`               |
+| Browse buttons           | `buildBrowseButtons`            | `utils/browse/buttonBuilder.ts`                 |
+| Browse truncation        | `truncateForSelect`             | `utils/browse/truncation.ts`                    |
+| Browse page-load failure | `followUpBrowsePageFailure`     | `utils/browse/pageLoadFailure.ts`               |
+| Dashboard builder        | `buildDashboardEmbed`           | `utils/dashboard/DashboardBuilder.ts`           |
+| Dashboard modals         | `buildSectionModal`             | `utils/dashboard/ModalFactory.ts`               |
+| Dashboard sessions       | `initSessionManager`            | `utils/dashboard/SessionManager.ts`             |
+| Dashboard messages       | `DASHBOARD_MESSAGES`            | `utils/dashboard/messages.ts`                   |
+| Dashboard close          | `handleDashboardClose`          | `utils/dashboard/closeHandler.ts`               |
+| Dashboard refresh        | `createRefreshHandler`          | `utils/dashboard/refreshHandler.ts`             |
+| Dashboard delete         | `buildDeleteConfirmation`       | `utils/dashboard/deleteConfirmation.ts`         |
+| Dashboard perms          | `checkEditPermission`           | `utils/dashboard/permissionChecks.ts`           |
+| Session helpers          | `fetchOrCreateSession`          | `utils/dashboard/sessionHelpers.ts`             |
+| Dashboard select menu    | `handleDashboardSectionSelect`  | `utils/dashboard/genericSelectMenuHandler.ts`   |
+| Dashboard modal merge    | `extractAndMergeSectionValues`  | `utils/dashboard/modalHelpers.ts`               |
+| Interaction error reply  | `replyError`                    | `utils/dashboard/replyError.ts`                 |
+| Personality autocomp     | `handlePersonalityAutocomplete` | `utils/autocomplete/`                           |
+| Persona autocomplete     | `handlePersonaAutocomplete`     | `utils/autocomplete/`                           |
+| List sorting             | `createListComparator`          | `utils/listSorting.ts`                          |
+| Round-trip contract      | `DASHBOARDS` registry           | `utils/dashboard/updateSchemaRoundTrip.test.ts` |
 
 **Never reimplement these patterns locally.**
 
