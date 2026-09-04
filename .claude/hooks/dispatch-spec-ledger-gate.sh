@@ -61,7 +61,14 @@
 # phantom-script walk fails open once more, on token SHAPE: a token carrying
 # `@`, `/` or `=` is never treated as a script name, so a repeated `--filter`
 # selector, a path argument and a glued `--flag=value` are all passed over
-# rather than mistaken for the script.
+# rather than mistaken for the script. A value-taking flag NOT in the table
+# below whose value happens to equal a declared script still rescues the
+# hit — the table names the flags known to take a separate-word value; any
+# other value-taking flag falls back to the shape rule and can slip through.
+# And the outer capture recognises only `--filter`/`-F` as the ENTRY flag
+# before a selector, so an invocation whose sole selector rides
+# `--filter-prod` never becomes a hit at all — invisible, not merely
+# fail-open on its value.
 
 set -uo pipefail
 
@@ -323,6 +330,15 @@ while IFS= read -r HIT; do
     continue
   fi
 
+  # pnpm flags that take a SEPARATE-WORD value, so the `case " $X " in
+  # *" $TOK "*)` idiom already used below can match one. Values glued with
+  # `=` are already normalized to the spaced form above (`--filter=`, `-F=`)
+  # or stay glued to their flag, so the whole `--flag=value` token is one
+  # `-*` token the arm below skips outright — only the separate-word
+  # form needs this table. An unlisted value-taking flag reopens the class
+  # for its own value only — fail-open, named in the header.
+  VALUE_TAKING_FLAGS='--filter -F --filter-prod --changed-files-ignore-pattern --test-pattern -C --dir --reporter --workspace-concurrency --loglevel --resume-from'
+
   # Pass 2 — decide whether the invocation names a script the selected packages
   # can actually run. A flag (`--silent`, `-r`) or the literal `run` is skipped;
   # a pnpm SUBCOMMAND means the hit names no script at all, so the whole hit is
@@ -332,15 +348,36 @@ while IFS= read -r HIT; do
   #
   # The first bare word matching the union settles it: the command runs, so the
   # hit passes. Only when NO token matches does the first unmatched bare word
-  # become the reported phantom. Scanning on past a non-match is what makes a
-  # flag's separate-word value harmless: it is unmatched, but the real script
-  # later in the command still rescues the hit.
+  # become the reported phantom. The value-taking-flag table above is what
+  # keeps a LISTED flag's separate-word value from being read at all: the
+  # SKIP_VALUE latch below skips it structurally, so it can neither rescue the
+  # hit (by matching a declared script) nor abort it (by matching a subcommand
+  # keyword). Scanning on past a non-match is what still protects an UNLISTED
+  # flag's value — unmatched, but the real script later in the command still
+  # rescues the hit.
   FOUND_DECLARED=""
   FILTER_SCRIPT=""
   IS_SUBCOMMAND=""
+  SKIP_VALUE=""
   for TOK in "${FILTER_TOKENS[@]}"; do
+    if [ -n "$SKIP_VALUE" ]; then
+      SKIP_VALUE=""
+      case "$TOK" in
+        # A flag where a value was expected is parsed as a flag, matching
+        # pnpm (probed live with a file-writing script: `--reporter --silent
+        # sayhi` ran it silently, while `--reporter sayhi x` consumed sayhi as
+        # the value and ran nothing) — fall through to normal handling.
+        -*) ;;
+        *) continue ;;
+      esac
+    fi
     case "$TOK" in
-      "" | -* | run) continue ;;
+      "" | -* | run)
+        case " $VALUE_TAKING_FLAGS " in
+          *" $TOK "*) SKIP_VALUE=1 ;;
+        esac
+        continue
+        ;;
       exec | add | install | remove | update | dlx | list | why | outdated)
         IS_SUBCOMMAND=1
         break

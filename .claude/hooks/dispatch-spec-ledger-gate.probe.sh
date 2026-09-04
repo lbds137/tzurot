@@ -391,6 +391,100 @@ run_iso 2 "phantom pnpm script" "a phantom after a separate-word flag value stil
   "$FIXTURE" worktree \
   "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe --reporter default typecheck`.')"
 
+# --- case 15g3: a listed flag's value equal to a DECLARED script -----------
+# FIX pin (blocks exit 0 at base — the bug): the value must not rescue the
+# phantom that follows it.
+run_iso 2 "phantom pnpm script" "a listed flag's value equal to a declared script does not rescue the phantom after it" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe --reporter test typecheck`.')"
+
+# --- case 15g4: a listed flag's value equal to a SUBCOMMAND keyword --------
+# FIX pin (blocks exit 0 at base — the bug): the value must not abort the
+# check as though the command were that subcommand.
+run_iso 2 "phantom pnpm script" "a listed flag's value equal to a subcommand keyword does not abort the check" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe --reporter list typecheck`.')"
+
+# --- case 15g5: two listed flags, then a real declared script --------------
+# REGRESSION pin (already passes exit 0 at base): the normal rescue path must
+# survive the latch — two listed flags in a row still leave the declared
+# script reachable. It does NOT pin over-skipping: a latch that swallowed the
+# script too would leave the walk with no candidate at all, which fails OPEN
+# to the same exit 0 this case asserts. Over-skipping is caught instead by the
+# plain phantom cases above (13, 14j, 14k, 15f2, 15g2 and others all go red).
+run_iso 0 - "two listed flags each skip only their own value; the real script after them still rescues" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe --loglevel debug --reporter test lint`.')"
+
+# --- case 15g6: a flag sitting in the value position of another flag -------
+# REGRESSION pin (already blocks exit 2 at base): the phantom after a
+# flag-in-value-position must still be found. The swallow itself is invisible
+# here — an UNLISTED flag like `--silent` is skipped either way, so the
+# verdict is the same whether or not the latch honours the `-*` exemption.
+# 15g7 below is the case that actually pins the exemption.
+run_iso 2 "phantom pnpm script" "a flag sitting in value position is not swallowed, and the phantom after it is still found" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe --reporter --silent typecheck`.')"
+
+# --- case 15g7: a LISTED flag in the value position of another listed flag --
+# The pin for the latch's `-*` exemption, and the only case that fails without
+# it: swallowing the second `--reporter` as the first one's value would leave
+# `test` unskipped, and that declared script would then rescue the `typecheck`
+# phantom — a real command escaping the check. `--silent` in 15g6 cannot show
+# this, because an unlisted flag is skipped either way.
+run_iso 2 "phantom pnpm script" "a listed flag in value position is not swallowed, so the phantom is still caught" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe --reporter --reporter test typecheck`.')"
+
+# --- case 15g8: every table entry skips its value ----------------------------
+# One row per flag, so a typo in the hook's table reddens exactly that flag's
+# own row. The cases above exercise only `--reporter` and `--loglevel`, so
+# without this loop a typo in any other entry would leave all of them green.
+#
+# `test` is a DECLARED script sitting in the flag's value slot: skipping it as
+# the value is what leaves `typecheck` as the phantom. A flag the table no
+# longer names does NOT skip its value, so `test` rescues the hit and that
+# flag's row goes red — which is the whole assertion.
+#
+# `-C` and `--dir` deliberately get the bare word `test` here. Case 15h gives
+# `-C` a PATH, and the `*/*` shape rule skips a path whether or not the table
+# lists the flag, so 15h cannot see a typo in either entry.
+#
+# The list is RESTATED here rather than read out of the hook, and that choice
+# is the whole point of the case. A loop driven by the hook's own table is
+# blind to exactly the typo it exists to catch: mistyping an entry also
+# retypes the loop's own iteration variable, so the generated case asks about
+# the TYPO rather than about the flag, and every row stays green. Measured,
+# not assumed — the read-from-hook form scored 0 red rows against the
+# `--workspace-concurrenc` canary, where this form scores its own row red.
+#
+# The restatement is kept honest by the agreement assertion below rather than
+# by a comment telling a reader to run a grep by hand.
+PROBE_FLAGS='--filter -F --filter-prod --changed-files-ignore-pattern --test-pattern -C --dir --reporter --workspace-concurrency --loglevel --resume-from'
+
+# The other direction: a flag ADDED to the hook's table with no row here would
+# leave the probe silently under-covering. Silent on success so the case count
+# stays one row per flag; loud, with both lists, on any drift — including the
+# empty read that would otherwise run zero cases and still report every other
+# case PASS.
+HOOK_FLAGS=$(grep -o "VALUE_TAKING_FLAGS='[^']*'" "$HOOK")
+HOOK_FLAGS=${HOOK_FLAGS#VALUE_TAKING_FLAGS=\'}
+HOOK_FLAGS=${HOOK_FLAGS%\'}
+if [ "$HOOK_FLAGS" != "$PROBE_FLAGS" ]; then
+  printf 'FAIL  (setup)  VALUE_TAKING_FLAGS drift\n        hook:  %s\n        probe: %s\n' \
+    "$HOOK_FLAGS" "$PROBE_FLAGS"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# Unquoted on purpose: the list is space-separated and each entry is a flag
+# token, so word splitting is the parse and no entry can glob.
+# shellcheck disable=SC2086 -- intentional word splitting over the flag list
+for FLAG in $PROBE_FLAGS; do
+  run_iso 2 "phantom pnpm script" "table entry ${FLAG} skips its value: a declared script there does not rescue the phantom" \
+    "$FIXTURE" worktree \
+    "$(inline_prompt ledger "Gate: \`pnpm --filter @tzurot/probe ${FLAG} test typecheck\`.")"
+done
+
 # --- case 15h: a path-shaped flag value is never a script name ---------------
 run_iso 0 - "a path-shaped flag value is not mistaken for the script" \
   "$FIXTURE" worktree \
