@@ -1,10 +1,10 @@
 ---
 id: TASK-398
 title: Heal-on-read re-describes history stickers with no stickerVisionEnabled gate
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 00:52'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-04 21:44'
 labels:
   - 'area:ai-worker'
   - 'size:S'
