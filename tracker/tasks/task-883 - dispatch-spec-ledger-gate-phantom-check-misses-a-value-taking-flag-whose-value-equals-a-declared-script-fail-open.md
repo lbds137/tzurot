@@ -3,9 +3,10 @@ id: TASK-883
 title: >-
   dispatch-spec-ledger-gate: phantom check misses a value-taking flag whose
   value equals a declared script (fail-open)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-04 02:13'
+updated_date: '2026-09-04 14:11'
 labels:
   - 'area:hooks'
   - 'size:S'

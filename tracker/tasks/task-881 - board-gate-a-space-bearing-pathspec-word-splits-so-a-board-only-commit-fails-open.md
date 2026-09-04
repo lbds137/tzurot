@@ -3,9 +3,10 @@ id: TASK-881
 title: >-
   board-gate: a space-bearing pathspec word-splits, so a board-only commit fails
   open
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-03 21:56'
+updated_date: '2026-09-04 14:11'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -14,8 +15,6 @@ dependencies: []
 priority: high
 ordinal: 879000
 ---
-
-
 
 ## Description
 
