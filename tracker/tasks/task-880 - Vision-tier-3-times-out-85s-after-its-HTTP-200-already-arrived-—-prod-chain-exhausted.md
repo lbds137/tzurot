@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-03 21:41'
+updated_date: '2026-09-04 10:04'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:ready'
+  - 'state:observable'
 dependencies: []
 priority: high
 ordinal: 878000
@@ -37,5 +38,6 @@ GROUNDING 2026-09-04, before any code. Two findings.
 2. THE CODE CANNOT CURRENTLY DISTINGUISH THE TWO REMAINING HYPOTHESES. Both trySurfaceOkErrorBody and tryRecoverErrorContent wrap the clone parse in a bare catch that returns null, so an AbortError thrown by clone.json() when the 90 s timer fires mid-body is swallowed, the original response is handed back, and the SDK's own body read then throws the AbortError the log shows. That sequence is consistent with (A) an upstream body stall — the provider or OpenRouter sent 200 headers early and the body never completed (whether OpenRouter emits headers before the upstream body completes on non-streaming requests is UNVERIFIED; not probed, would need a live call) — and with (B) a downstream consumer stall after a complete body. Only a timing line at body-complete separates them.
 
 Fix shape, sharpened: ship the diagnostic as permanent observability (feat, not debug) in OpenRouterFetch.ts — one info line after a successful clone parse carrying elapsed ms since the fetch resolved and the parsed body length, and a warn in each catch carrying the error name and the same elapsed ms instead of swallowing silently. Unit test pins both lines (the existing JSON-parse-failure case is the fixture for the catch path). No behaviour change. On the next occurrence: a warn naming AbortError at ~85 s means (A), body never arrived; an info line followed by the gap means (B), look at LangChain/SDK response handling. Decide the real fix only from that observation.
-<!-- SECTION:DESCRIPTION:END -->
 
+STEP 1 SHIPPED — PR 2323, merged to develop at 7783c95fb. The custom fetch now reads the clone as text once for both inspections and logs Custom fetch body parsed with bodyMs (elapsed since the headers) and bodyChars, or Custom fetch body inspection failed with errName and bodyChars (a number when text arrived but did not parse, absent when the read itself rejected). No behaviour change; 32 cases in OpenRouterFetch.test.ts, full ai-worker suite green. This task is now a WATCH: the next vision-tier timeout in prod is read by those two lines on the tier that timed out. A warn naming AbortError with bodyChars absent at about 85 s after the headers is hypothesis A (the body never arrived — upstream or OpenRouter stall behind early 200 headers); a parsed line and then the gap is hypothesis B (a downstream stall after a complete body; look at LangChain/SDK response handling). Decide the fix from that reading, not before. Remaining open questions: whether OpenRouter sends 200 headers before the upstream body completes on non-streaming calls (unverified), and the owner-visible chain-diversity finding above, which is a product call.
+<!-- SECTION:DESCRIPTION:END -->
