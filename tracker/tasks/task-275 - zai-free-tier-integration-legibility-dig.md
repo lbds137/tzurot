@@ -4,7 +4,7 @@ title: z.ai free-tier integration legibility dig
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:ai-worker'
   - 'area:docs'
@@ -23,3 +23,13 @@ z.ai free-tier integration legibility dig — Owner-flagged 2026-07-15 after an 
 
 **Why:** A feature a careful reader can't find is a feature the next refactor breaks.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. The resolver's `getSystemApiKey(ZaiCoding)` comment still reads as an unqualified denial ("No system fallback for z.ai Coding Plan — every user must bring their own... Callers wanting OpenRouter fallthrough... see ProviderRouter.resolveRoute") with NO cross-reference to `ZaiFreeTierAdmission`, which bypasses this resolver entirely for admitted guests. The two mechanisms still don't reference each other — the dig/cross-documentation hasn't happened. Evidence: `sed -n '319,336p' services/ai-worker/src/services/ApiKeyResolver.ts` → comment names only `ProviderRouter.resolveRoute`, never `ZaiFreeTierAdmission` or `guestModeOverrides`.
+---
+<!-- COMMENTS:END -->

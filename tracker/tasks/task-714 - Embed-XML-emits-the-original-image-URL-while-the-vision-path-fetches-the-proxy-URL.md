@@ -1,11 +1,12 @@
 ---
 id: TASK-714
 title: >-
-  Embed XML emits the original image URL while the vision path fetches the proxy
-  URL
+  Probe whether anything downstream fetches the embed-XML original image URL
+  before aligning it to proxyURL
 status: To Do
 assignee: []
 created_date: '2026-08-21 15:00'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -28,3 +29,13 @@ What to decide: whether the embed XML should carry the proxy URL (matching what 
 
 Acceptance: the choice is made with its reason recorded, applied to both the image and thumbnail slots, and pinned by a test asserting which URL reaches the XML for an externally-hosted embed.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C2): probe once, then decide. Add one log line on the consuming path to establish whether anything downstream fetches the embed-XML image URL; no fix on an unconfirmed mechanism (00-critical.md, code-reading is not runtime verification). Retitled; state:ready.
+---
+<!-- COMMENTS:END -->

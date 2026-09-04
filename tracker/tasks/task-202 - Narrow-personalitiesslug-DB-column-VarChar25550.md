@@ -4,13 +4,13 @@ title: Narrow personalities.slug DB column VarChar(255)→(50)
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:tooling'
   - 'area:db'
   - 'area:docs'
   - 'size:S'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 202000
@@ -24,3 +24,13 @@ Narrow `personalities.slug` DB column VarChar(255)→(50) — Code now guarantee
 
 **Why:** Schema permits what code forbids; drift is invisible until an out-of-band write bypasses the app layer.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): TRIGGER FIRED TWICE without riding along: add_personality_tags (2026-08-09) and add_roster_blurb_columns (2026-08-19) both touched personalities and neither narrowed slug. Opportunistic ride-along does not work for this row; schedule it as its own migration. Promoted to state:ready.
+---
+<!-- COMMENTS:END -->

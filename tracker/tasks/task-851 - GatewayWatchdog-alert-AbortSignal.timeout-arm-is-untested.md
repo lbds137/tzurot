@@ -4,6 +4,7 @@ title: GatewayWatchdog alert AbortSignal.timeout arm is untested
 status: To Do
 assignee: []
 created_date: '2026-09-01 13:30'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +23,13 @@ Fix shape: a real-timer integration-style test (short custom timeout, a fetchFn 
 
 Acceptance: the timeout arm has a test or a recorded runtime verification, and the hedge in the code comment is updated to cite it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed still unverified — the code comment explicitly discloses the timeout arm as unverified by any test. Evidence: `sed -n '220,245p' services/bot-client/src/services/GatewayWatchdog.ts` → comment: "the timeout arm is unverified here," `AbortSignal.timeout(WATCHDOG_THRESHOLDS.ALERT_TIMEOUT_MS)` unchanged.
+---
+<!-- COMMENTS:END -->

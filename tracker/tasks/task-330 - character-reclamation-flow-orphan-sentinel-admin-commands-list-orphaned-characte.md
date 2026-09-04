@@ -4,7 +4,7 @@ title: Character reclamation flow + orphan-sentinel admin commands
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:bot-client'
   - 'area:api-gateway'
@@ -23,3 +23,13 @@ Surfaced 2026-07-26 (retention Phase 3 planning, owner call) — **character rec
 
 **Why:** Building admin surfaces for an empty bucket is speculative; the provenance column already captures everything reclamation needs, so deferral loses nothing.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Promote trigger (`charactersReHomed > 0` on a real purge) hasn't fired — no admin surface exists yet, and none is needed while the bucket stays empty. Semantics are already locked in the Phase-2 doc, so this is pure watch. Evidence: `grep -rln "originalOwnerDiscordId" services/bot-client/src services/api-gateway/src` → only `services/api-gateway/src/services/retention/reHome.ts`; `grep -rn "orphan" services/bot-client/src/commands/admin` → no hits. No admin/reclaim command group exists.
+---
+<!-- COMMENTS:END -->

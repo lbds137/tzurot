@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 00:59'
-updated_date: '2026-08-04 13:49'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'size:S'
   - 'area:ai-worker'
@@ -31,3 +31,13 @@ ordinal: 384000
 
 **Ride-along when this is picked up:** `.claude/rules/03-database.md`'s cache table lists `Voice Transcript | VoiceTranscriptCache.ts | - | Custom (in-memory)`. That row is wrong on both the TTL and the tier — it is Redis-backed with a 1h TTL. Rules files are review-gated, so the correction needs a PR.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): NARROWED. The 03-database.md cache-table ride-along already shipped (VoiceTranscriptCache row corrected). Remaining: wire VoiceTranscriptCache into storedReferenceHydrator.ts, which still takes only visionCache.
+---
+<!-- COMMENTS:END -->

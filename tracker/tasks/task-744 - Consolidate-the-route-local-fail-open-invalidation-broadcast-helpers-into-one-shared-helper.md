@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-23 12:28'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -32,3 +33,13 @@ channel/{activate,deactivate}.ts, admin/dbSync.ts, and the older inline
 stt/tts/model-override + AccountEraserService copies. Re-derive the count by
 grep before claiming it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `broadcastPersonaInvalidation`/`broadcastChannelActivationInvalidation` are still separately defined in `channel/activate.ts`, `channel/deactivate.ts`, `persona/crud.ts`, and `persona/override.ts` — no shared helper exists anywhere under `services/api-gateway/src/utils/`. Real, growing duplication (the task's own member-addition note puts the count at ~10 sites); a genuine DRY debt with the 2-callback-ceiling test already passed by the reviewer's sketch. Evidence: `git grep -ln "broadcastPersonaInvalidation\|broadcastChannelActivationInvalidation" services/api-gateway/src` → 4 per-file copies, no consolidated helper file found under `utils/`.
+---
+<!-- COMMENTS:END -->

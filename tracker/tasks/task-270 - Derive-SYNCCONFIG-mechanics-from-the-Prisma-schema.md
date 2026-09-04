@@ -4,7 +4,7 @@ title: Derive SYNC_CONFIG mechanics from the Prisma schema
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:db'
   - 'size:M'
@@ -22,3 +22,13 @@ Derive SYNC_CONFIG mechanics from the Prisma schema — Every new-tables PR trip
 
 **Why:** Same philosophy as the queued "derive serialize field sets from Zod" theme — decisions stay manual, mechanics derive.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `SYNC_CONFIG` in `syncTables.ts:108` is still a hand-written `Record<SyncTableName, TableSyncConfig>` with no DMMF-derived pk/timestamps/uuidColumns — the manual-hard-coding problem the owner flagged is unchanged. Evidence: `git grep -n "SYNC_CONFIG\s*=\|DMMF" services/api-gateway/src/services/sync` → only the hand-written object; no DMMF import anywhere in the sync service tree.
+---
+<!-- COMMENTS:END -->

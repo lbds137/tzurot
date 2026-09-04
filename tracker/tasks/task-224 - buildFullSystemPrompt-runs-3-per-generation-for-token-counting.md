@@ -4,7 +4,7 @@ title: buildFullSystemPrompt runs 3× per generation for token counting
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +22,13 @@ ordinal: 224000
 
 **Why:** Pure perf; no user-visible behavior at stake today. Surfaced 2026-07-07 (dated from git history).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): RETARGET. buildFullSystemPrompt is now PromptBuilder.buildSystemMessage (zero hits for the old name outside tracker). The pattern survives: ContentBudgetManager.ts calls it from two budget-fitting sites plus the final assembly. Trigger unchanged: CPU profiling showing it hot.
+---
+<!-- COMMENTS:END -->

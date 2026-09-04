@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-29 19:17'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -30,3 +31,13 @@ Acceptance: both stores trip their cap on actual serialized byte size; the two i
 
 Provenance: reviewer-raised on PR 2253, deferred there with the divergence reason stated — counts against the drain net.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed both sites still use `raw.length` (UTF-16 code units) against `MAX_ENTRY_BYTES`, exactly as filed. Evidence: `grep -n "MAX_ENTRY_BYTES\|raw.length" services/bot-client/src/services/SingleJobPersistence.ts services/bot-client/src/services/MultiTagPersistence.ts` → both still guard with `raw.length > MAX_ENTRY_BYTES`.
+---
+<!-- COMMENTS:END -->

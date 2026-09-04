@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 22:39'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +23,13 @@ Why: (1) ~20 commands guard autocompleted values with isAutocompleteErrorSentine
 
 Source: 2026-08-12 review, tags F5/F7 CONFIRMED.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed — `chimeInTag.ts` and `randomPick.ts` are absent from every file that calls `isAutocompleteErrorSentinel`; submitting the autocomplete error choice still yields the confusing generic message. Evidence: `grep -rln "isAutocompleteErrorSentinel" services/bot-client/src --include=*.ts | grep -v test` → 23 files, none named `chimeInTag.ts`, `randomPick.ts`, or `chimeIn` execute.
+---
+<!-- COMMENTS:END -->

@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-05 12:50'
-updated_date: '2026-08-05 13:28'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:ai-worker'
   - 'area:db'
@@ -33,3 +33,13 @@ Mechanism sharpened by #1974 review round 3 (verified against ApiKeyResolver sou
 
 Promise.all half SHIPPED in #1975 (merged 2026-08-05; concurrency + isolation both test-pinned). Remaining scope: the negative-result cache decision only, gated on the observable above.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): NARROWED. The Promise.all half shipped in #1975. Remaining: the negative-result-cache decision; ApiKeyResolver.cacheResult runs only on success branches, the NoApiKeyAvailableError path writes nothing. Gated on the pool-saturation observable.
+---
+<!-- COMMENTS:END -->

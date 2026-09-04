@@ -4,7 +4,7 @@ title: Feedback gate values are code constants
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:common-types'
   - 'area:docs'
@@ -24,3 +24,13 @@ Feedback gate values are code constants — runtime-config them on second retune
 
 **Why:** One retune is a constant edit; two is a knob wanting a dashboard.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Promote-when is "the second retune request." `FEEDBACK_LIMITS` has only ever been touched by its introducing commit — no retune has happened once, let alone twice. Evidence: `git log --oneline -S "FEEDBACK_LIMITS" -- packages/common-types` → single commit (`7aa4d1ea1`, the feature that introduced it).
+---
+<!-- COMMENTS:END -->

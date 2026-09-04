@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-10 11:30'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -28,3 +29,13 @@ Two same-file members from the #2039 round-3 review ride this touch (each too sm
 Acceptance: a 6+ chunk report delivers completely under the webhook rate limit; whitespace-only report is a no-post degrade; postChunk fails fast on a hung fetch; existing degrade/trailer tests stay green.
 Promote when: the weekly report starts chunking past ~4 chunks (visible in the "Posted N chunk(s)" log line in the weekly-audit workflow), or a 429 appears in the workflow log.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): NARROWED. Two of three items shipped in 8c481e088 (429 retry honouring Retry-After; whitespace-only chunk degrade). Remaining: postChunk's bare fetch has no AbortController timeout, so a hung request eats the full 30-minute job timeout.
+---
+<!-- COMMENTS:END -->

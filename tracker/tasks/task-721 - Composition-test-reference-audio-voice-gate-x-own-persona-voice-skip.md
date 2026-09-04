@@ -4,6 +4,7 @@ title: 'Composition test: reference-audio voice gate x own-persona-voice skip'
 status: To Do
 assignee: []
 created_date: '2026-08-21 23:14'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -24,3 +25,13 @@ Acceptance: the intersection is pinned by a test that fails if either gate is re
 
 Promote when: any real bug report exercises the voice-gate/persona-skip intersection.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `jobChainOrchestrator.test.ts` still has separate `describe` blocks for "own-persona-voice reference skips audio dispatch" and "non-voice reference audio skips STT dispatch" but no single test combining both conditions on one reference. Weak keep — the two gates are independent booleans that "compose by inspection," so if this vanished nothing breaks today; it only pays off if a future refactor couples the two checks. Evidence: `grep -n "describe(\|it(" services/api-gateway/src/utils/jobChainOrchestrator.test.ts | grep -i "voice\|persona\|audio"` → distinct describe blocks at lines 1028 and 1169, no combined case.
+---
+<!-- COMMENTS:END -->

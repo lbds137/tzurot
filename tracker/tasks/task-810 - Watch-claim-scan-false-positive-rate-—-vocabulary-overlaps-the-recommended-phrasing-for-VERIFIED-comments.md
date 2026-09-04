@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-29 01:43'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -32,3 +33,13 @@ Fix shape if tuning happens: add the external-actor verbs as a limb. CARE, and t
 
 Acceptance: a disposition recorded (earning its keep as-is / tuned with the co-render probe case added / escalated to owner), covering BOTH directions — the FP rate and whether the external-actor-behaviour limb is worth its FP cost.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Explicitly mid-data-collection per the task's own text (one data point from PR 2249 recorded, both a false-positive-side and false-negative-side observation, acceptance criteria not yet met — no disposition recorded). Evidence: Full file read — the task's most recent entry is a data point, not a closing disposition.
+---
+<!-- COMMENTS:END -->

@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 22:38'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +23,13 @@ Why: (1) OWN_VOICE_DESCRIPTION ("The character’s own voice message...") is per
 
 Source: 2026-08-12 review, ai-worker LOW-3 PLAUSIBLE / LOW-6 CONFIRMED-mechanism.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. both confirmed findings still present — `OWN_VOICE_DESCRIPTION` is still persona-agnostic prose ("The character's own voice message"), and `redactOwnVoiceTranscript` still rebuilds a fixed field list rather than spread-and-override. Evidence: `sed -n '1,40p' services/ai-worker/src/services/voice/ownVoiceGuard.ts` → both shapes unchanged from the description.
+---
+<!-- COMMENTS:END -->

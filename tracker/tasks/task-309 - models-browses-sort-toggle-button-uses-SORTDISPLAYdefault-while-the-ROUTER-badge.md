@@ -4,14 +4,14 @@ title: /models browse sort-toggle emoji collides with the ROUTER badge
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'origin:review'
   - 'area:bot-client'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 309000
 ---
 
@@ -25,3 +25,19 @@ Surfaced 2026-07-20 (#1744 PR body + r2 review observation) — `/models browse`
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): swap the sort-toggle glyph to the up-down arrows emoji (U+2195) in SORT_DISPLAY; lands at the next models-browse touch.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Owner already decided the fix (swap to U+2195) on 2026-08-14; it just hasn't been built yet — this is a scheduled one-line change, not a re-litigation. Evidence: `sed -n '67,71p' services/bot-client/src/commands/models/browse.ts` → `SORT_DISPLAY.default.emoji` is still `🔀`, not yet swapped.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

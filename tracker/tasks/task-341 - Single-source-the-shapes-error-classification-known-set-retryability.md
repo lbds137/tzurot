@@ -4,6 +4,7 @@ title: Single-source the shapes error classification (known-set + retryability)
 status: To Do
 assignee: []
 created_date: '2026-07-28 14:00'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +23,13 @@ Fix shape: one registry colocated with the error classes — e.g. a Map/array of
 
 Promote when: the next shapes error type is added, or the next touch of classifyShapesError.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost it prevents (asymmetric miss: a new error class omitted from `isNonRetryable` silently burns BullMQ retry attempts). Still two independently-maintained lists. Evidence: `git grep -n isKnownShapesError services/ai-worker/src` and read `shapesErrors.ts:121-131` → `isKnownShapesError` is still a hand-enumerated `instanceof` chain, no shared registry with `classifyShapesError`.
+---
+<!-- COMMENTS:END -->

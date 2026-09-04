@@ -4,7 +4,7 @@ title: 'Classifier: plain-Error wrapper throws lose the transport kind'
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'origin:review'
   - 'area:bot-client'
@@ -23,3 +23,13 @@ Classifier: plain-Error wrapper throws lose the transport kind — `classifyGate
 
 **Why:** Consistency of the classifier's carrier matrix.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `classifyGatewayFailure` (`ux/catalog/classify.ts:150`) still has its plain-`Error` branch (`instanceof Error` check at line 188) that collapses to `gatewayRejection` without reaching `specForKind`. Widely used (~70+ call sites across commands). Real cost prevented: inconsistent error rendering (e.g. read timeouts flattened). Promote-when (PR-D3 natural rider) hasn't landed yet. Evidence: `git grep -n "export function classifyGatewayFailure"` and the `instanceof Error` branch both confirmed present and unchanged.
+---
+<!-- COMMENTS:END -->

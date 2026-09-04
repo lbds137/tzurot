@@ -4,7 +4,7 @@ title: Refresh sticker/poll descriptions when a message is edited
 status: To Do
 assignee: []
 created_date: '2026-07-30 04:47'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'size:S'
   - 'area:bot-client'
@@ -21,3 +21,13 @@ Why: Sticker/poll descriptions are rendered into the message content at fetch/pe
 Fix shape: confirm whether the sync diff's content comparison sees the rendered description (it compares against the Discord snapshot text, which does NOT include the bracket lines) — if the two forms differ, the diff may either no-op forever or thrash. Decide: render descriptions in the sync path too, or exclude the bracket lines from the comparison.
 Promote when: a poll question is edited and the character quotes the old one, OR the sync diff shows repeated no-op churn on sticker/poll rows. Surfaced 2026-07-30 by PR #1868 round-5 review (explicitly flagged out of scope).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Trigger (a poll question edited + character quoting stale text, or repeated no-op churn) hasn't been observed; the underlying sync-diff content-comparison question is still unresolved in code. Evidence: `grep -n "content" services/bot-client/src/services/channelFetcher/SyncExecutor.ts` → only a raw `content: m.content` field; no rendered-description-aware comparison found.
+---
+<!-- COMMENTS:END -->

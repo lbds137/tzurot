@@ -4,7 +4,7 @@ title: Re-verify /shapes import + /shapes export end-to-end after beta.126
 status: To Do
 assignee: []
 created_date: '2026-05-30 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-09-04 19:35'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -27,3 +27,13 @@ Recommendation: Keep filed — the task's promote-when is exactly "next time at 
 
 Decision 2026-09-02 (owner): keep filed until the next desktop session with shapes.inc auth.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:35
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Task already carries an explicit 2026-09-02 owner decision: "keep filed until the next desktop session with shapes.inc auth." Nothing to re-litigate; the trigger (next desktop session with shapes.inc cookie access) hasn't happened. Evidence: `cat` of the task file — Decision line dated 2026-09-02 present verbatim in the description.
+---
+<!-- COMMENTS:END -->

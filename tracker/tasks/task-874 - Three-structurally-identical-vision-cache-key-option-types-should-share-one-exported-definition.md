@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-03 02:09'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -26,3 +27,13 @@ Fix shape: export VisionCacheKeyOptions from VisionDescriptionCache.ts, import i
 
 Acceptance: one exported type, the two local duplicates deleted, ai-worker typecheck and test suites green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost it prevents (three names for one cache-identity concept that can drift independently); all three module-private interfaces are still separately declared exactly as described, freshly filed (2026-09-03) from a real PR review finding. Evidence: `grep -n "interface DescribeGateKeyOptions\|interface SingleFlightKeyOptions\|interface VisionCacheKeyOptions" services/ai-worker/src/services/multimodal/visionDescribeGates.ts services/ai-worker/src/services/multimodal/visionSingleFlight.ts services/ai-worker/src/services/VisionDescriptionCache.ts` → all three interfaces present, none exported/shared.
+---
+<!-- COMMENTS:END -->

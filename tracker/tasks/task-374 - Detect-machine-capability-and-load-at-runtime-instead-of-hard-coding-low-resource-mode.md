@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-31 01:50'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'size:M'
   - 'area:tooling'
@@ -29,3 +29,13 @@ Acceptance: heavy commands pick their own concurrency from measured capability; 
 
 Note: low priority and explicitly a side project - do not let it preempt product work.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `LOW_RESOURCE_MODE` is still a hand-set, prose-documented flag (vitest.config.ts, package.json's `test:low-mem`), not derived from measured capability — the owner-stated cost (portability tax + can't react to actual load) still applies. Cross-reference: open tracker task TASK-829 (not in this list) independently hit the same OOM class and explicitly names this task as one candidate fix — worth the owner knowing these two are the same underlying seam even though only one is in this digest. Evidence: `grep -rn "LOW_RESOURCE_MODE" package.json vitest.config.ts` → still the sole mechanism (env flag read by vitest.config.ts maxWorkers logic); `git grep -rn "LOW_RESOURCE_MODE" .claude/rules` → 0 (the always-loaded rule prose has actually already been trimmed away, reducing but not eliminating the "prose the reader must recall" problem — the mechanism itself is still manual).
+---
+<!-- COMMENTS:END -->

@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-28 22:56'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -28,3 +29,13 @@ Also record the process-lifetime bound already written into the OCCURRENCE_TTL_M
 
 Acceptance: the three caches appear in the inventory with their tier and TTL, and the doc states whether it aims to be exhaustive.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed still absent from the inventory doc; doc-only fix, cheap, and the review noted the underlying sweep gap (nothing catches unlisted module-level caches) is worth closing too. Evidence: `grep -n "ErrorChannelReporter\|windowCache\|historyCache\|occurrenceCache" docs/reference/architecture/durability-tiers.md` → no hits. Positive control: `grep -n "forwardedOriginCache" docs/reference/architecture/durability-tiers.md` → line 65, confirming the grep shape finds real entries when present.
+---
+<!-- COMMENTS:END -->

@@ -4,12 +4,13 @@ title: Duplicate-name roster note is gated to character-bearing rosters only
 status: To Do
 assignee: []
 created_date: '2026-08-18 19:58'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:ai-worker'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 662000
 ---
 
@@ -34,3 +35,19 @@ Acceptance: the decision is recorded either way; if widened, the humans-only dup
 
 Widen — drop the characters.length > 0 conjunct so the duplicate-name note fires for pure-human rosters too. Rationale: the two-humans collision is real (TASK-528), the cost is ~30 CACHED S1 tokens and only in channels that actually carry a collision, and misattribution is the failure class the beta.205 theme exists to kill. Per the task's fix shape: update the byte-identity test to expect the note in the two-humans case (not delete it), and add a release-notes line since existing channels' prompts change.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. owner explicitly decided 2026-08-20 to widen (drop the `characters.length > 0` conjunct so the note fires for pure-human name collisions too), citing TASK-528 as evidence the scenario is real. The code still has the gate in place — the decided fix has not been implemented. Evidence: `grep -n "characters.length > 0" services/ai-worker/src/services/prompt/ParticipantFormatter.ts` → line 208, `buildRosterNotes` still gates the duplicate-name note on `characters.length > 0`.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

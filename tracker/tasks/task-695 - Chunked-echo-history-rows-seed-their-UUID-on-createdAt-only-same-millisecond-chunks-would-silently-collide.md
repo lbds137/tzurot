@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-20 03:51'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -26,3 +27,13 @@ Fix shape: sweep for any consumer that RE-derives this UUID from the tuple indep
 
 Acceptance: either the seed includes a per-message discriminator with the consumer sweep documented, or the derivation site carries the deliberate-acceptance rationale; the diverged-replay log line distinguishes a genuine retry from a dropped-chunk collision either way.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `generateConversationHistoryUuid` (`deterministicUuid.ts:240-251`) still seeds on `(channelId, personalityId, userId, createdAt-ms)` with no `discordMessageId`, and the chunked `/chat` echo path still produces N rows per turn distinguished only by chunk timestamp — the same-millisecond collision (silent chunk-drop) is unresolved. Real, if low-probability, data-loss edge case with no consumer-sweep done yet. Evidence: `sed -n '240,251p' packages/common-types/src/utils/deterministicUuid.ts` → seed string has no message-id component.
+---
+<!-- COMMENTS:END -->

@@ -4,13 +4,13 @@ title: Retire the manual AUTO_DEPLOY_COMMANDS boolean
 status: To Do
 assignee: []
 created_date: '2026-06-28 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:tooling'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 183000
 ---
 
@@ -24,3 +24,19 @@ Retire the manual `AUTO_DEPLOY_COMMANDS` boolean — derive command-registration
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): build BOTH halves - env-derived enablement plus manifest-hash change-detection. The open question is ANSWERED mechanically: local .env and Railway dev decode to the SAME Discord application id (1377494140757086342), so local dev shares the dev app and the local opt-out guard is required.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:35
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Owner already decided the fix shape (2026-08-14: build both env-derived enablement + hash-based change detection; local dev confirmed to share the prod Discord app id, so the local opt-out guard is required) — not yet built, footgun still live. Evidence: `git grep -n "AUTO_DEPLOY_COMMANDS" services/bot-client/src` → `index.ts:505` still gates registration on the hand-set boolean.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

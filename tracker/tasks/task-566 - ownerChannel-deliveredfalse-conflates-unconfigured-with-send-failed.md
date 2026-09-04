@@ -4,6 +4,7 @@ title: ownerChannel delivered=false conflates unconfigured with send-failed
 status: To Do
 assignee: []
 created_date: '2026-08-12 22:38'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +23,13 @@ Fix shape: distinguish unconfigured (arm cooldown or skip the check) from send-f
 
 Source: 2026-08-12 review, bot-client F3 CONFIRMED / F4 PLAUSIBLE.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Still true — `postOwnerChannelEmbed` returns `false` for both the permanent unconfigured case and transient send failures, so an unconfigured deploy would re-run the full gateway check every tick forever. Evidence: `sed -n '1,50p' services/bot-client/src/utils/ownerChannel.ts` → both the `channelId === undefined` early return and the `catch` block return `false` with no distinguishing signal.
+---
+<!-- COMMENTS:END -->

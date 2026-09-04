@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-30 04:22'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -28,3 +29,13 @@ Fix shape: strengthen the existing routing test to assert the constructed routed
 
 Raised by review on PR 2256 and deferred on merit rather than on origin: the assumption holds by construction today, the finding is additive test coverage, and the PR was at the review-round cap. Not a defect in current behaviour.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed — the routed-model-arm test only asserts substrings (`→`, `(routed)`), not the constructed URL or provider pairing, exactly as the task states. The underlying architectural invariant (router aliases are OpenRouter-only) still holds, so no live bug, but nothing would catch a violation. Evidence: `sed -n '128,143p' services/bot-client/src/services/DiscordResponseSender.test.ts` → the routed-arm test asserts only `toContain('→')` and `toContain('(routed)')`.
+---
+<!-- COMMENTS:END -->

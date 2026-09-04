@@ -4,6 +4,7 @@ title: Pin the markStale/confirmDelivery jobId overlap in discardRecoveredEntry
 status: To Do
 assignee: []
 created_date: '2026-08-26 12:55'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -26,3 +27,13 @@ Acceptance: the documented overlap is pinned by an assertion, so a future change
 
 Origin: PR #2228 round-7 review, non-blocking coverage nit. Deferred because the PR had reached the 6-round review cap and the underlying safety is independently established (both operations are idempotent and best-effort).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed still a coverage gap — the existing test's own comment states the two slots deliberately differ so it "could not show that stale-marking and delivery-confirmation select DIFFERENT slots," i.e. it sidesteps exactly the overlap case the task wants pinned. Evidence: `sed -n '648,725p' services/bot-client/src/services/multiTagRecoveryHelpers.test.ts` → `buildSnapshot()` uses distinct jobIds (`job-delivered` completed, `job-pending` pending) with no fixture where one jobId is both pending-on-disk and in `deliveredJobIds`.
+---
+<!-- COMMENTS:END -->

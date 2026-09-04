@@ -4,7 +4,7 @@ title: Mistral slot quota empirical verification
 status: To Do
 assignee: []
 created_date: '2026-05-02 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:docs'
   - 'area:voice'
@@ -28,3 +28,13 @@ Recommendation: Keep filed — the task's promote-when has two halves (PR 2 in p
 
 Decision 2026-09-02 (owner): keep filed until the promote-when fires (PR 2 in prod 2+ weeks without eviction AND a keep-or-remove decision pending).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Explicit owner decision recorded in the task itself (2026-09-02): "keep filed until the promote-when fires." Both promote-when halves (PR 2 in prod 2+ weeks without eviction firing AND a keep-or-remove decision pending) are unmet per the recorded recommendation. Evidence: `cat` of full task file — decision note dated 2026-09-02 present below the description.
+---
+<!-- COMMENTS:END -->

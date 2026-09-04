@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-31 03:06'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'size:S'
   - 'area:ai-worker'
@@ -27,3 +27,13 @@ Observable to check: after the fix reaches prod, look at ai-worker logs for "Ope
 
 Outcome (b) is the valuable one. If it never fires with quoted=false over a reasonable window, that is positive evidence the head-anchor assumption is correct, and worth recording in the task before closing.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. the observable log line is still present and reachable; task explicitly states this is permanent observability, not scaffolding to sweep. Outcome (b), the valuable one, is still unresolved. Evidence: `git grep -n "Opening thinking tag mid-response\|logDeclinedMidResponseTag" services/ai-worker/src` → both present in `thinkingExtraction.ts` (lines 390-404, 548).
+---
+<!-- COMMENTS:END -->

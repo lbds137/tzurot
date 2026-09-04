@@ -4,13 +4,13 @@ title: 'Railway ops tooling: sanctioned token + GraphQL ops the CLI lacks'
 status: To Do
 assignee: []
 created_date: '2026-06-17 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:tooling'
   - 'size:M'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 62000
 ---
 
@@ -24,3 +24,19 @@ Railway ops tooling — sanctioned token access + GraphQL ops the CLI lacks
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): PROJECT-SCOPED token - owner provisions RAILWAY_API_TOKEN once (narrowest blast radius); wrap variableDelete first, then other CLI-missing ops.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Owner already decided the design (2026-08-14, project-scoped token, wrap `variableDelete` first) but it isn't built — deleting a Railway env var still has no in-band path. Evidence: `git grep -n "variableDelete\|RAILWAY_API_TOKEN" packages/tooling/src docs/reference/RAILWAY_CLI_REFERENCE.md` → no results.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

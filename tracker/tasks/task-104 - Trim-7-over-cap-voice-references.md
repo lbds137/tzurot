@@ -4,7 +4,7 @@ title: Trim 7 over-cap voice references
 status: To Do
 assignee: []
 created_date: '2026-05-13 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-09-04 19:35'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -27,3 +27,13 @@ Recommendation: Keep filed until you have the trimmed clips — the task states 
 
 Decision 2026-09-02 (owner): keep filed; the remaining step is the owner re-uploading trimmed clips, then one audit run.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:35
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Owner already ruled on this 2026-09-02 ("keep filed; remaining step is the owner re-uploading trimmed clips, then one audit run") — no code work remains, this row just confirms the decision stands. Evidence: `cat` of the task file shows the 2026-09-02 owner decision appended below the original description.
+---
+<!-- COMMENTS:END -->

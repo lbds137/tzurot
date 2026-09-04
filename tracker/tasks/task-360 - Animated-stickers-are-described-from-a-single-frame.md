@@ -4,7 +4,7 @@ title: Animated stickers are described from a single frame
 status: To Do
 assignee: []
 created_date: '2026-07-30 15:51'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'size:M'
   - 'area:ai-worker'
@@ -52,3 +52,13 @@ before flipping it (an animated GIF materialised at full frame count can be
 far larger than the single-frame equivalent, and the aggregate-payload guard
 is sized for stills).
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost (misdescribed animated stickers/GIFs); mechanism is pinned (`sharp(buffer)` without `{ animated: true }`), fix shape is concrete, just not yet applied. Evidence: `grep -n "sharp(buffer" services/ai-worker/src/utils/attachmentFetch.ts` → both calls still omit `{ animated: true }`.
+---
+<!-- COMMENTS:END -->

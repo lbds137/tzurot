@@ -4,7 +4,7 @@ title: chat_log role legend ships in every prompt charged to no budget
 status: To Do
 assignee: []
 created_date: '2026-08-06 23:46'
-updated_date: '2026-08-07 16:23'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -30,3 +30,13 @@ Fix shape: include the rendered legend in the wrapper-overhead reservation at Co
 
 Surfaced 2026-08-06 by the Phase-2 windowing grounding sweep.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost it prevents (an off-by-one that becomes a real bug the moment trimming actually binds, per TASK-447's dependency). `wrapperOverhead` at the history-selection site still charges only the bare `<chat_log></chat_log>` tags, not the ~80-token role legend. Evidence: `grep -n "wrapperOverhead = realMessagesEnabled" services/ai-worker/src/services/context/ContextWindowManager.ts` → still `countTextTokens('<chat_log>\n</chat_log>')`, no legend-length term; could not conclusively verify the flag-on base-token path in this pass — flagging as inconclusive rather than asserted-fixed.
+---
+<!-- COMMENTS:END -->

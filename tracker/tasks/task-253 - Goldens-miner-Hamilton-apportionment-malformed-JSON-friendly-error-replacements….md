@@ -4,7 +4,7 @@ title: 'Goldens miner: Hamilton apportionment + malformed-JSON friendly error'
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'origin:review'
   - 'area:tooling'
@@ -23,3 +23,13 @@ Goldens miner: Hamilton apportionment + malformed-JSON friendly error + `replace
 
 **Why:** Corpus-integrity guard for future mines; current corpus verified unaffected.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `stratifySample`'s global `slice(0, sampleSize)` truncation is still present and still unreachable with the current corpus (as the task itself already verified) — a real risk for the next re-mine with a different imbalance, correctly filed as a guard rather than fixed pre-emptively. Evidence: `git grep -n "stratifySample" packages/tooling/src` → lives in `mine-goldens.ts`; `grep -n "slice(0, sampleSize)" packages/tooling/src/memory/mine-goldens.ts` → line 86, unchanged.
+---
+<!-- COMMENTS:END -->

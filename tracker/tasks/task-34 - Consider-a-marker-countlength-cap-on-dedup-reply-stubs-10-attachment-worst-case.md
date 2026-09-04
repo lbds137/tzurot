@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
-updated_date: '2026-08-14 22:45'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'origin:review'
   - 'area:ai-worker'
@@ -32,3 +32,13 @@ Consider a per-attachment cap on dedup reply-stubs (10-attachment worst case)
 
 **Promote when**: attachment-heavy stubs observed bloating prompts. Surfaced 2026-07-01 (PR #1431 post-squash review); mechanism restated 2026-07-31 (#1882).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): RETARGET. Same rewrite as TASK-61: the cap, if wanted, goes in RenderableReference.ts (dedupeReference/renderReference). Keep the task's own re-measure-first step as step one; the owner call on prompt shape follows the measurement.
+---
+<!-- COMMENTS:END -->

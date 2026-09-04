@@ -1,14 +1,16 @@
 ---
 id: TASK-18
-title: Tombstone LWW same-ms create-then-delete tie
+title: >-
+  Document the accepted same-millisecond create-then-delete LWW tie in
+  syncTables.ts (owner ruling)
 status: To Do
 assignee: []
 created_date: '2026-07-11 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:db'
   - 'size:S'
-  - 'state:observable'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 18000
@@ -22,3 +24,13 @@ Surfaced 2026-07-11 — tombstone LWW uses wall-clock TIMESTAMP(3) only; a same-
 
 **Why:** Wall-clock ties are the one hole in LWW deletion semantics.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C11): accept the same-millisecond create-then-delete tie and document it in syncTables.ts (a comment naming the window and why no sequence column). Watch retired into a doc task; retitled; state:ready size:S.
+---
+<!-- COMMENTS:END -->

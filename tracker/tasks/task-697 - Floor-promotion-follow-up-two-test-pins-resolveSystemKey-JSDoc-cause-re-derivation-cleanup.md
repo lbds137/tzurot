@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-20 04:52'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -30,3 +31,13 @@ Why: #2155 round-5 review, four non-blocking items deferred at the round cap (th
 
 Acceptance: both tests land and canary red on the obvious mutations; the JSDoc names both consumers; the runner no longer re-derives the floor for logging.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. at least item 3 (JSDoc) confirmed still stale — `resolveSystemKey`'s JSDoc still describes only the forced-entity-swap use, even though `resolveRetryCredentials`'s guest non-OpenRouter arm is a second caller. Did not exhaustively re-verify items 1/2/4 (new test pins, floor-cause re-derivation) in this pass but found no evidence they landed either. Evidence: `sed -n '50,59p' services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts` → JSDoc on `resolveSystemKey` still says "for the forced-entity-swap path (credit-exhausted BYOK)" only; `grep -n resolveSystemKey` same file → also called at lines 454/460 inside `resolveRetryCredentials`, unmentioned in the doc.
+---
+<!-- COMMENTS:END -->
