@@ -4,6 +4,7 @@ title: Speaker disambiguation degrades silently when discordUsername is missing
 status: To Do
 assignee: []
 created_date: '2026-08-17 05:00'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: emit a warn from buildDisambiguatedDisplayName (or its caller in Prom
 
 Acceptance: a collision with no discordUsername produces exactly one warn carrying personalityId and no user-identifying fields, pinned by a unit test.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost (a name-colliding speaker renders indistinguishable from the character, with no diagnostic anywhere on the production path). `buildDisambiguatedDisplayName` still has no warn/log path for the collision-with-no-username case. Evidence: `sed -n '1,50p' services/ai-worker/src/services/prompt/MessageFormatters.ts` → function still silently falls back to `activePersonaName` with no logger call.
+---
+<!-- COMMENTS:END -->

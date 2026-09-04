@@ -4,7 +4,7 @@ title: 'release:* CLI-wiring layer is untested'
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:tooling'
   - 'origin:review'
@@ -23,3 +23,13 @@ release:* CLI-wiring layer is untested — `commands.test.ts` covers no `release
 
 **Why:** Coverage of the one new-logic bit (the guard) + the pre-existing release-wiring gap.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed gap still real — `commands.test.ts` has zero coverage of any `release:*` subcommand, including the `--notes-file` required-flag guard the task calls out. Evidence: `grep -n "release" packages/tooling/src/commands/commands.test.ts` → 0 matches.
+---
+<!-- COMMENTS:END -->

@@ -4,6 +4,7 @@ title: 'Research: GitHub stacked PRs vs our rebase-only sequential-PR workflow'
 status: To Do
 assignee: []
 created_date: '2026-08-09 19:38'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:process'
   - 'size:S'
@@ -24,3 +25,13 @@ RESEARCH DONE 2026-08-12 (changelog read: github.blog/changelog/2026-07-30-stack
 
 Promote when: the next doc-60-shaped multi-PR feature chain is scheduled AND stacked PRs have reached GA.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. The research half of this task is done and the "NOT YET" recommendation was already delivered to the owner (recorded in the task body, 2026-08-12) — but the task itself names a specific, unmet future trigger ("the next doc-60-shaped multi-PR chain scheduled AND stacked PRs reached GA") for the remaining scratch-repo-probe work. That's a normal named-trigger KEEP, not leftover research debt. Evidence: task body's own "RESEARCH DONE 2026-08-12 … RECOMMENDATION DELIVERED … NOT YET" section; no evidence GA has been reached or a new multi-PR chain has been scheduled since.
+---
+<!-- COMMENTS:END -->

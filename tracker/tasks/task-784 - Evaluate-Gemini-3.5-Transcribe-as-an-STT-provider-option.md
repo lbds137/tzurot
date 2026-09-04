@@ -4,12 +4,13 @@ title: Evaluate Gemini 3.5 Transcribe as an STT provider option
 status: To Do
 assignee: []
 created_date: '2026-08-27 14:25'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:voice'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 784000
 ---
 
@@ -24,3 +25,13 @@ Fix shape: evaluation, not adoption — compare against the current STT path (us
 
 Acceptance: a written recommendation (adopt as provider option / watch / rule out) with pricing and a quality spot-check, recorded here or in a linked idea doc.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C13): run the evaluation; promoted to priority medium. Deliverable is the written recommendation (pricing plus a quality spot-check), no code.
+---
+<!-- COMMENTS:END -->

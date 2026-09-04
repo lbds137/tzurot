@@ -4,7 +4,7 @@ title: 'Broadcast dry-run should count, not sweep'
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'origin:review'
   - 'area:api-gateway'
@@ -23,3 +23,13 @@ Broadcast dry-run should count, not sweep — `handleBroadcast`'s dry-run calls 
 
 **Why:** Correct-but-lazy beats clever-but-divergent while the audience fits in one page.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `handleBroadcast`'s dry-run branch in `admin/broadcast.ts` still calls the full `resolveEligibleRecipients` cursor sweep just to report `eligibleCount` + a 10-name sample — no dedicated count query. All three ride-alongs are also still open: the real-send path still loops `addValidatedJob` per batch (not the batched `addValidatedJobs` helper), `defaultLabel` still truncates to the minute (`slice(0, 16)`, no seconds), and `[...allowlist]` is still spread INSIDE `resolveEligibleRecipients`'s per-page `for(;;)` loop rather than hoisted out. Evidence: `sed -n '30,55p' services/api-gateway/src/routes/admin/broadcast.ts` → dry-run calls the full sweep; `sed -n '67,100p' services/api-gateway/src/services/releaseBroadcast.ts` → allowlist spread is inside the loop; `grep -n addValidatedJob services/api-gateway/src/services/releaseBroadcast.ts` → still singular per-batch call.
+---
+<!-- COMMENTS:END -->

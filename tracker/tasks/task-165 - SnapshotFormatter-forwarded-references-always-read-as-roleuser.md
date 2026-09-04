@@ -4,7 +4,7 @@ title: SnapshotFormatter forwarded references always read as role="user"
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-09-04 19:35'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -42,3 +42,13 @@ find a wrong role there.
 sticker-awareness gap in `SnapshotFormatter` (TASK-359) is not blocked by this
 limitation — the data is present, we simply don't read it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:35
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Re-verified 2026-07-30 already (recorded on the task) against discord.js 14.27.0 — `MessageSnapshot` still carries no `author`/`applicationId`/`webhookId`. I re-confirmed the installed version is still 14.27.0 (unchanged since that check), so the blocker still holds. Hard Discord-API limitation with no code-side fix available; genuinely blocked, not a stale watch. Evidence: `grep '"version"' services/bot-client/node_modules/discord.js/package.json` and `package.json` → both `14.27.0`, same version the task's 2026-07-30 note verified against.
+---
+<!-- COMMENTS:END -->

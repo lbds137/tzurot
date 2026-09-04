@@ -4,7 +4,7 @@ title: 'Vision single-flight loser: re-check negative cache after fall-through'
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +22,13 @@ Surfaced 2026-07-12 — single-flight loser skips the negative-cache re-check af
 
 **Why:** Cheap short-circuit for the same-model failure case.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Premise still holds — `describeImage` in `visionDescribeGates.ts` calls `checkNegativeCache` before `enterSingleFlight`, but the fall-through branch (`flight.coalesced === null`) returns `{ kind: 'proceed', flight }` with no re-check. Cheap, bounded fix; real (if small) cost prevented (doomed duplicate provider calls). Evidence: `sed -n '240,330p' services/ai-worker/src/services/multimodal/visionDescribeGates.ts` → confirmed no re-check after fall-through.
+---
+<!-- COMMENTS:END -->

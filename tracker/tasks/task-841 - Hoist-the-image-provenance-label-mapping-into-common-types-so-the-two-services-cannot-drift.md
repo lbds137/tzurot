@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-31 14:23'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:common-types'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: a small common-types helper (utils or constants, media/attachment dom
 
 Acceptance: one source of truth for the precedence AND the label vocabulary; the must-stay-in-step comments in both services deleted; no wrapper re-export files; existing header tests stay green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. The duplication is still exactly as described — `pickImageHeader` (ai-worker) and `pickImageKind` (bot-client) independently implement the same three-way mapping, synced only by cross-referencing doc comments, no shared common-types helper exists. Evidence: `git grep -n "pickImageHeader\|pickImageKind" services/ai-worker/src/services/RAGUtils.ts services/bot-client/src/utils/attachmentPlaceholders.ts` → both still locally defined, comments still say "Must match RAGUtils' `pickImageHeader`."
+---
+<!-- COMMENTS:END -->

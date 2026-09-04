@@ -1,9 +1,12 @@
 ---
 id: TASK-505
-title: MultimodalProcessor fallback-vision test flaked at 5s timeout on CI
+title: >-
+  MultimodalProcessor fallback-vision test flake: promote on a second occurrence
+  (no timer in the exercised path)
 status: To Do
 assignee: []
 created_date: '2026-08-10 13:42'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -20,3 +23,13 @@ Why: unit-tests (ai-worker) went red on PR #2046 (an api-gateway-only diff) — 
 Fix shape: read the test for a real-timer wait on the fallback/retry path (missing fake timers, or a genuine retry delay reaching the runner); pin with vi.useFakeTimers or raise the per-test timeout only if the delay is intrinsic.
 Acceptance: the test cannot hit the 5s wall under fake timers; no further CI flakes on untouched-package PRs.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C4): leave filed as a watch. No setTimeout, retry or backoff exists anywhere in the exercised path, so the proposed fake-timer fix is a probable non-fix; one occurrence, cleared on rerun. Promote on a second occurrence; do not archive on a negative grep alone.
+---
+<!-- COMMENTS:END -->

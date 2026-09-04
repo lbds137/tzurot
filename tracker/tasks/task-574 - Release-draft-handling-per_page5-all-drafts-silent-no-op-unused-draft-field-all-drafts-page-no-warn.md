@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 22:38'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: check the draft field; warn on zero-published-in-page.
 
 Source: 2026-08-12 review, health F6/F7 PLAUSIBLE + gateway LOW-3 CONFIRMED-mechanism.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Item 2 (declared-but-unread `draft` field) is confirmed still open in the now-shared `newestPublishedRelease` helper; item 1's tradeoff is now documented in a comment but functionally unchanged. Evidence: `sed -n '1,40p' packages/common-types/src/schemas/github/release.ts` → `newestPublishedRelease` filters purely on `published_at`; `draft` is declared on `GitHubReleaseSchema` but never read in the filter.
+---
+<!-- COMMENTS:END -->

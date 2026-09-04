@@ -4,7 +4,7 @@ title: buildSentinelPersonality type-safety hardening
 status: To Do
 assignee: []
 created_date: '2026-05-16 00:00'
-updated_date: '2026-08-14 01:04'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +22,13 @@ ordinal: 98000
 
 **Why:** `MultiTagRecovery.buildSentinelPersonality` returns a `Partial<LoadedPersonality>` shape cast via `as unknown as LoadedPersonality` — only `id`/`slug`/`displayName`/`name` are populated. The deliverError path consumes those four fields; any future caller touching other fields (e.g., `llmConfig`, `systemPrompt`) will silently observe `undefined` rather than receive a type error. **Fix shape**: replace the cast with a discriminated-union sentinel type (e.g., `LoadedPersonality | { __sentinel: true; id, slug, displayName, name }`) so consumers must explicitly handle the sentinel case, OR change `LoadedPersonality` itself to make the four "always-present" fields non-optional and the rest optional + add an `isSentinel` discriminator. **Promote when**: a downstream caller of recovery-rebuilt slots needs to access a non-sentinel field of `LoadedPersonality` (next refactor of `SlotDeliveryService` or any extension to `deliverError`). Surfaced 2026-05-16 PR #1034.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `multiTagRecoveryHelpers.ts:42` still returns the sentinel via `as unknown as LoadedPersonality` cast, only 4 fields populated. Trigger (a downstream caller reading a non-sentinel field) hasn't fired — deliverError still only consumes id/slug/displayName/name. Evidence: `git grep -n "function buildSentinelPersonality"` → `multiTagRecoveryHelpers.ts:42`, cast confirmed at line 48.
+---
+<!-- COMMENTS:END -->

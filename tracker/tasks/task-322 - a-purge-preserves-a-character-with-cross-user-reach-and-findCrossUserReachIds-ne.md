@@ -4,7 +4,7 @@ title: Purge over-retains ex-public private characters (owner-accepted dispositi
 status: To Do
 assignee: []
 created_date: '2026-07-25 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -22,3 +22,13 @@ Surfaced 2026-07-25, **DISPOSITIONED 2026-07-25 (owner)** — a purge preserves 
 
 **Why:** Live, deliberate behaviour of the shipped purge — kept on the board as a disposition, not a defect.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `findCrossUserReachIds`/`countCrossUserReach` in `crossUserReach.ts` still never checks `isPublic` — confirmed by reading the query's four UNION arms (memories/history/facts/personality_owners), none reference `is_public`. This is an ALREADY-dispositioned deliberate behavior (owner accepted the over-retention 2026-07-25) kept filed only as a watch for a future measured-count or Phase-3-reclamation trigger, not an open defect. Evidence: `sed -n '1,88p' services/api-gateway/src/services/retention/crossUserReach.ts` → no `isPublic`/`is_public` reference anywhere in the query or its four arms.
+---
+<!-- COMMENTS:END -->

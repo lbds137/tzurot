@@ -4,7 +4,7 @@ title: Feedback dedupe check-then-insert can race under concurrency
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:redis'
   - 'origin:review'
@@ -24,3 +24,13 @@ Feedback dedupe check-then-insert can race under concurrency — The intake's ne
 
 **Why:** Abuse-gate surface, not billing/integrity — the cap bounds the damage to noise.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `feedback.ts` still does `findFirst` then `create` with no transaction/lock, exactly the described TOCTOU shape. Evidence: `grep -n "findFirst\|\.create(" services/api-gateway/src/routes/user/feedback.ts` → lines 113/127, sequential, no `$transaction`.
+---
+<!-- COMMENTS:END -->

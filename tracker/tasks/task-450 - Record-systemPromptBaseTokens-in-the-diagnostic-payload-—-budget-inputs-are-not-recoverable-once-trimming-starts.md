@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-06 23:46'
-updated_date: '2026-08-07 16:23'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:ai-worker'
   - 'area:observability'
@@ -39,3 +39,13 @@ Bonus: with historyTokensFetched present, headroom-to-trimming becomes directly 
 
 Surfaced 2026-08-06 by the Phase-2 windowing analysis.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost (budget-headroom analysis becomes impossible exactly when it matters, and already cost real analyst time per the task). `DiagnosticTokenBudget`'s type still has no `systemPromptBaseTokens` field. Evidence: `grep -n "systemPromptTokens\|currentMessageTokens\|systemPromptBaseTokens" services/ai-worker/src/services/diagnostics/DiagnosticTypes.ts` → only `systemPromptTokens` and `currentMessageTokens` present; no base/pre-memory/fetched fields.
+---
+<!-- COMMENTS:END -->

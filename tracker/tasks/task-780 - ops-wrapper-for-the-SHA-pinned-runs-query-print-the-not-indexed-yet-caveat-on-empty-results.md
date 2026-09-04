@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-27 01:20'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: add pnpm ops gh:runs-for-sha (default HEAD, --sha override) wrapping 
 
 Acceptance: empty result within the freshness window prints the caveat; empty result on an old commit does not; populated results pass through unchanged; unit test covers all three.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed no such wrapper exists yet — the exact failure mode it would prevent (an empty `actions/runs?head_sha=...` result misread as "review workflow never dispatched") is documented as having recurred once already after the doc-only fix, costing two CI cycles and an owner escalation. Evidence: `git grep -n "runs-for-sha" packages/tooling/src` → 0 matches.
+---
+<!-- COMMENTS:END -->

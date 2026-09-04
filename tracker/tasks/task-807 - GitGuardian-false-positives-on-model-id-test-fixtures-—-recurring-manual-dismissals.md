@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-29 00:04'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:ci'
   - 'size:S'
@@ -24,3 +25,13 @@ What: a .gitguardian.yaml exists at repo root — evaluate adding a paths-ignore
 
 Acceptance: the next scan of a test file carrying a model-id string raises no incident, or the approach is ruled out with the reason recorded and the recurring-dismissal cost accepted explicitly.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): REWRITTEN AROUND THE CONFIRMED FINDING. .gitguardian.yaml has excluded **/*.test.ts since 0ce9091e2 (2026-01-05), eight months before the 2026-08-27 incident that still fired on a .test.ts file. Local path exclusion does not suppress GitGuardian dashboard incidents; the fix is on the dashboard/policy side, not the config file.
+---
+<!-- COMMENTS:END -->

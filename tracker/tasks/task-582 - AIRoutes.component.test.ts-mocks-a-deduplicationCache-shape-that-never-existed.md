@@ -4,6 +4,7 @@ title: AIRoutes.component.test.ts mocks a deduplicationCache shape that never ex
 status: To Do
 assignee: []
 created_date: '2026-08-13 11:13'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: correct the mock to export getDeduplicationCache returning an object 
 
 Acceptance: the mock shape matches the real module, and a happy-path /generate case can be added to the component file without touching the mock. Source: PR 2085 review round 3, Low.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `AIRoutes.component.test.ts:51` still mocks `deduplicationCache: { get, set }` while `generate.ts:11,76` imports and calls `getDeduplicationCache()` (with `.reserve`/`.release`). Confirmed inert today (every `/generate` case in that file fails schema validation before reaching the dedup line) and confirmed as a landmine for the next happy-path case added there. Evidence: `sed -n '50,56p' services/api-gateway/src/routes/ai/AIRoutes.component.test.ts` vs. `grep -n getDeduplicationCache services/api-gateway/src/routes/ai/generate.ts` → mock shape and real import diverge exactly as described.
+---
+<!-- COMMENTS:END -->

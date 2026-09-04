@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-19 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'origin:review'
   - 'area:bot-client'
@@ -25,3 +25,13 @@ Surfaced 2026-07-19 (#1711 r2 + #1713/#1714 reviews; items a–c SHIPPED in #171
 
 **Why:** Two implementations of one operation with different hardening levels is a temporary state — the first real non-text consumer is the forcing function.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): NARROWED. Items a-c shipped in #1714. Remaining: non-text field validation and submission-path convergence; modalHelpers.ts still uses the blanket-catch extractModalValues. Trigger unchanged: the first non-text modal field.
+---
+<!-- COMMENTS:END -->

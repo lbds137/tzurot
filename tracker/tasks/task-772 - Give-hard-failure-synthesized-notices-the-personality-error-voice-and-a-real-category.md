@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-25 18:38'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: the tracker context available in the legacy branch carries personalit
 
 Acceptance: a hard-failed single-tag turn renders the personality error voice when one is configured; the owner report carries a non-unknown category or a recorded decision that unknown is correct; both pinned by seam tests.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed unaddressed — `buildSyntheticFailure` still builds a bare `{ requestId, success: false, error }` with no `personalityErrorMessage` or real category threaded through. Evidence: `sed -n '43,52p' services/bot-client/src/services/JobFailureListener.ts` → no `personalityErrorMessage` or `errorInfo` field in the synthesized `LLMGenerationResult`.
+---
+<!-- COMMENTS:END -->

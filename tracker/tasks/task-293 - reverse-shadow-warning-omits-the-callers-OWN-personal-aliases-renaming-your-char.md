@@ -4,7 +4,7 @@ title: reverse-shadow warning skips the caller-owned personal aliases
 status: To Do
 assignee: []
 created_date: '2026-07-18 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'origin:review'
   - 'area:api-gateway'
@@ -23,3 +23,13 @@ Surfaced 2026-07-18 (#1702 r2 observation) — reverse-shadow warning omits the 
 
 **Why:** Caller's own data — the privacy rationale doesn't apply to it; two-line query addition.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `findShadowedGlobalAliases` (`helpers.ts:212`) still queries only `userId: null` rows — no second query over the caller's own `userId`-scoped aliases. Renaming a character to match your own personal alias still silently kills it with no proactive nudge. Cheap, well-scoped fix (two-line query addition per the task's own estimate), no privacy concern for the caller's own data. Evidence: `sed -n '212,227p' services/api-gateway/src/routes/user/personality/helpers.ts` → `where: { userId: null, alias: { in: [name, slug], ... } }`, no caller-scoped query.
+---
+<!-- COMMENTS:END -->

@@ -4,7 +4,7 @@ title: 'Export v2 leftovers: raw usage logs + avatar binaries on request'
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -22,3 +22,13 @@ Export v2 leftovers: raw usage logs + avatar binaries on request — The account
 
 **Why:** Disclosed exclusions with zero demand yet; the ZIP layout keeps the door open.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. watch with a named trigger ("a user asks"); the disclosed exclusion and ZIP shape that makes it cheap are both still true and unchanged. Weak keep — if it vanished, nothing breaks and nobody would notice until someone actually asks. Evidence: `git grep -n avatar services/ai-worker/src/jobs/AccountExportAssembler.ts` → `omit: { avatarData: true, voiceReferenceData: true }` (line 270) and the disclosure string at line 107 are both present, unchanged.
+---
+<!-- COMMENTS:END -->

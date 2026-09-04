@@ -4,7 +4,7 @@ title: Notification-eligibility refinements beyond the deliberate-use gate
 status: To Do
 assignee: []
 created_date: '2026-07-17 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:api-gateway'
   - 'size:M'
@@ -27,3 +27,13 @@ Recommendation: Neither yet — keep filed, because the task records both as pro
 
 Decision 2026-09-02 (owner): keep the shipped deliberate-use gate as the whole rule; revisit only on post-blast feedback that the audience is still too broad.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. task already carries an explicit owner decision recorded 2026-09-02: keep the shipped deliberate-use gate as the whole rule, revisit only on post-blast feedback that the audience is still too broad. Nothing to re-derive from code — this is a live, correctly-dispositioned watch, not stale. Evidence: task file's own "Decision 2026-09-02 (owner)" note (read via `cat`, the file's full body — this is exactly the "rulings from earlier passes live as notes" case the spec calls out).
+---
+<!-- COMMENTS:END -->

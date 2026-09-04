@@ -4,12 +4,12 @@ title: 'Allowlist-path perf polish (#1650 r3 nit, item 2 of 2)'
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'origin:review'
-  - 'area:bot-client'
   - 'size:S'
   - 'state:observable'
+  - 'area:common-types'
 dependencies: []
 priority: low
 ordinal: 272000
@@ -23,3 +23,13 @@ Allowlist-path perf polish (#1650 r3 nit, item 2 of 2) — ~~(1) `atLimit` compu
 
 **Why:** Not-yet-hot path — polish, not a defect.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): NARROWED and relabelled. Item 1 shipped in #1662. Item 2's helper getOutboundDmAllowlist now lives in packages/common-types/src/utils/outboundDmAllowlist.ts and still re-parses env on every call; area label corrected to common-types.
+---
+<!-- COMMENTS:END -->

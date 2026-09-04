@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-16 20:43'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -22,3 +23,13 @@ Why: two low-severity review observations on the save-time warnings PR, routed h
 
 Acceptance: log message distinguishes malformed-entry from cache-outage; warning text stays correct for a hypothetical non-GLM best-effort entry (pin with a test).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. both nits still open. (1) `OpenRouterModelCache` still fires the generic `'Cache unavailable for lookup'` warn on the throwing path (confirmed by its own test name), no distinct wording for a single malformed catalog entry. (2) `thinkingValidation.ts:66` still hardcodes `"best-effort on GLM-5.x models"` even though `ZaiThinkingOffSupport` is provider-agnostic. Low-severity polish, routed here at a review round cap. Evidence: `grep -n "Cache unavailable for lookup" services/api-gateway/src/services/OpenRouterModelCache.test.ts`; `grep -n "GLM-5.x" services/api-gateway/src/utils/thinkingValidation.ts`.
+---
+<!-- COMMENTS:END -->

@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-31 13:59'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: split into two constraint elements — the general provenance rule, a
 
 Acceptance: a recorded decision — split shipped with the pins updated, or ruled out with the eval evidence in the removing commit.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. no eval or split has been done; the constraint is still one dense sentence with the link-preview carve-out sitting mid-sentence, exactly as described. Evidence: `git grep -n "not participant-shared\|Link preview" services/ai-worker/src/services/prompt/HardcodedConstraints.ts` → single `<constraint>` block (line 124) still carries the general provenance rule and the link-preview carve-out together.
+---
+<!-- COMMENTS:END -->

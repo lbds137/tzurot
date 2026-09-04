@@ -4,7 +4,7 @@ title: 'PipelineStep.status: ''error'' reachable via per-step try/catch'
 status: To Do
 assignee: []
 created_date: '2026-04-25 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -24,3 +24,13 @@ ordinal: 77000
 
 **Freshness-check 2026-08-02**: trigger has NOT fired. `recordPostProcessing` (DiagnosticCollector.ts:424) still builds the same four steps from pure string diffs; no post-processing step performs I/O. The window's thinkingExtraction changes were all string ops, and PR #1896 removed a step (`filterDuplicateReferences`) rather than adding one. Stays filed as-is.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): RETARGET. DiagnosticCollector.ts moved (last touched 2026-09-02). Re-verified: recordPostProcessing still builds four pure string-diff steps with no I/O, so the dependent trigger (a post-processing step doing real I/O) stays unfired.
+---
+<!-- COMMENTS:END -->

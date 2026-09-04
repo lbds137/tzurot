@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-13 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -24,3 +24,13 @@ Settings dashboard page-jump select (7 pages via prev/next is walkable but click
 
 **Why:** UX polish gated on real friction; mechanism supports it cheaply.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `settingsButtonBuilders.ts` still builds only a ◀ Prev / indicator / Next ▶ row (no page-jump select). Deliberately deferred UX polish; promote-when (owner friction report, or an 8th page) hasn't fired. Evidence: `git grep -n "◀\|▶"` in `utils/dashboard/settings/settingsButtonBuilders.ts` → confirmed prev/next-only row, comment at line 111-112 describes exactly this shape.
+---
+<!-- COMMENTS:END -->

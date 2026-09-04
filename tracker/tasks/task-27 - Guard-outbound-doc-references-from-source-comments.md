@@ -4,7 +4,7 @@ title: 'Guard: outbound doc references from source comments'
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -22,3 +22,13 @@ Surfaced 2026-07-03 — Guard: outbound doc references from source comments. `gu
 
 **Why:** A deleted/moved doc silently 404s every code comment citing it; one was a runtime error-message string.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. No guard exists yet that verifies doc paths cited in `packages/*/src`/`services/*/src` comments resolve; `guard:claude-content-refs` is scoped to `.claude/` only. Real cost: a deleted doc silently 404s a comment or runtime error string. Evidence: `find packages/tooling/src/dev -iname "*content-refs*"` → none exists outside `check-claude-content-refs.ts` (audits/, `.claude`-scoped); no source-comment doc-ref guard found.
+---
+<!-- COMMENTS:END -->

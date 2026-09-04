@@ -4,7 +4,7 @@ title: Extract the duplicated seededTimestamp test helper
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
-updated_date: '2026-08-17 13:48'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:conversation-history'
   - 'area:testing'
@@ -12,7 +12,7 @@ labels:
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 318000
 ---
 
@@ -30,3 +30,13 @@ Fix shape for both members together: one shared component-test helper module cov
 
 State moved `dependent` → `ready`: the original trigger was "a third file needs the helper, or a shared test-utils consolidation pass touches these files," and #2124 touched all four.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): Self-recorded trigger fired (#2124, 2026-08-17). Promoted to priority medium for the next tooling/test drain batch.
+---
+<!-- COMMENTS:END -->

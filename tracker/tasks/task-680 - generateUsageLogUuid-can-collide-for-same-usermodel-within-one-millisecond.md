@@ -4,6 +4,7 @@ title: generateUsageLogUuid can collide for same user+model within one milliseco
 status: To Do
 assignee: []
 created_date: '2026-08-19 13:13'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:db'
   - 'size:S'
@@ -54,3 +55,13 @@ was built on the false sync premise above.
 
 Raised in the PR #2149 round-2 review and flagged again in round 3 as untracked; filed here because a PR-body mention is not a destination.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Per the task's own 2026-08-19 correction, the fix shape narrowed to "adopt AIJobProcessor's retry-with-fresh-timestamp pattern" for the two loop-writing callers — neither `FactExtractionService.logExtractionUsage` nor `rosterBlurbSweep.logUsage` has that retry loop; both are still single-shot try/catch fail-soft writes. Evidence: `sed -n '246,271p' services/ai-worker/src/jobs/rosterBlurbSweep.ts` and `sed -n '297,330p' services/ai-worker/src/services/extraction/FactExtractionService.ts` → both single-attempt, no retry; contrast with `AIJobProcessor.ts:415-435`'s `for (attempt = 1; attempt <= maxRetries...)` loop, which the two callers still lack.
+---
+<!-- COMMENTS:END -->

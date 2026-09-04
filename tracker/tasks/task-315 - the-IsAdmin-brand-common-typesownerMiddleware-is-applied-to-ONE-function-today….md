@@ -1,15 +1,15 @@
 ---
 id: TASK-315
-title: IsAdmin brand covers one function; extend or retire
+title: Add a lint rule for the IsAdmin brand now that asIsAdmin has 9 call sites
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:common-types'
   - 'origin:review'
   - 'size:S'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 315000
@@ -23,3 +23,13 @@ Surfaced 2026-07-22 (#1757 review) — the `IsAdmin` brand (common-types/ownerMi
 
 **Why:** One branded param today is enough; generalize when a second consumer proves the pattern.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): TRIGGER FIRED. asIsAdmin grew from 1 to 9 call sites across the character command family (browse, create, dashboard x2, dashboardActions, dashboardButtons, edit, sectionContext, viewEdit). Promoted to state:ready and retitled to the lint-rule half; the second-entity half stays unfired.
+---
+<!-- COMMENTS:END -->

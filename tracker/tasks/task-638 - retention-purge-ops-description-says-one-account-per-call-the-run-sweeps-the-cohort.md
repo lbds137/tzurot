@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-17 01:52'
+updated_date: '2026-09-04 19:38'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: reword the command description (registration site in packages/tooling
 
 Acceptance: --help and OPS_CLI_REFERENCE describe the sweep behavior accurately; guard:ops-doc passes.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed the misleading description is still live and unedited — a real operator-facing correctness defect (already caused one operator to plan 18 unnecessary separate invocations). Evidence: `git grep -n "one account per call" packages/tooling/src` → `retention.ts:48`, `.command('retention:purge', 'ERASE the purge-eligible cohort, one account per call')`, unchanged.
+---
+<!-- COMMENTS:END -->

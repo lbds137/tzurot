@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 22:38'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -24,3 +25,13 @@ Fix shape: per-config-snapshot re-arm (reset the flag when the pair becomes vali
 
 Source: 2026-08-12 review, ai-worker LOW-5 CONFIRMED (deliberate tradeoff, triage cost noted).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost (a standing misconfiguration goes permanently silent after log retention rolls). `warnedInvertedWindowBounds` is still a process-lifetime flag with no re-arm. Evidence: `grep -n warnedInvertedWindowBounds services/ai-worker/src/services/FreeTierRequestQuota.ts` → set once at line 139/262, never reset.
+---
+<!-- COMMENTS:END -->

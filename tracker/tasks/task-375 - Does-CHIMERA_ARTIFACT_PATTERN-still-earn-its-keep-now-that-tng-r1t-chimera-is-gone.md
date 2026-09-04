@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-31 02:17'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'size:S'
   - 'area:ai-worker'
@@ -96,3 +96,13 @@ is the handler for the case the orphan path declines.
 retires the pattern and its three tests (outcome (a)); any occurrence names the
 model that still justifies it (outcome (b)).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. named trigger (one prod release of the `Chimera stutter artifact stripped` log instrumentation) is in progress but not yet resolved per the task's own notes; question two (orphan `</think>`) was already answered KEEP with evidence recorded in the task, question one is still open. Real cost if removed wrongly: garbage fragments leaking into replies. Evidence: `git grep -n "CHIMERA_ARTIFACT_PATTERN\|Chimera stutter artifact stripped" services/ai-worker/src` → both still present in `thinkingExtraction.ts` (lines 325, 480); prod-log grep for the instrumentation's own evidence sweep is out of scope for this read-only pass.
+---
+<!-- COMMENTS:END -->

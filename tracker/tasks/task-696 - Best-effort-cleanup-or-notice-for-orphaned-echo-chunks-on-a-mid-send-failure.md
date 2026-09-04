@@ -4,6 +4,7 @@ title: Best-effort cleanup or notice for orphaned echo chunks on a mid-send fail
 status: To Do
 assignee: []
 created_date: '2026-08-20 03:51'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +23,13 @@ Fix shape: on a later-chunk send failure, best-effort delete the already-posted 
 
 Acceptance: a mid-send failure leaves the channel either clean or carrying an explained artifact, pinned by a test on the cleanup path.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C10): edit a truncation notice onto the last posted chunk on a mid-send failure; never delete already-posted chunks. state:ready.
+---
+<!-- COMMENTS:END -->

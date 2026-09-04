@@ -4,14 +4,14 @@ title: Decide + document an unambiguous TS file-naming convention
 status: To Do
 assignee: []
 created_date: '2026-06-18 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:common-types'
   - 'area:process'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 57000
 ---
 
@@ -25,3 +25,19 @@ Decide + document an unambiguous TS file-naming convention
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): kebab-case + a structure-test lint so new files self-enforce; NO renames of existing camelCase stragglers.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. The owner already DECIDED (kebab-case + a structure-test lint, no renames) per the note on the task itself, but the decision was never executed — `structure.test.ts` has no naming lint, and the standing naming doc still contradicts the decision by showing a kebab-case file as an example under "camelCase or descriptive." Evidence: `git grep -n "kebab" packages/common-types/src/structure.test.ts` → no match; `sed -n '255,310p' docs/reference/standards/FOLDER_STRUCTURE.md` → "Type Definitions / Format: camelCase or descriptive" with example `api-types.ts` (kebab), unreconciled with the DECIDED note.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

@@ -4,13 +4,13 @@ title: Heal-on-read re-describes history stickers with no stickerVisionEnabled g
 status: To Do
 assignee: []
 created_date: '2026-08-02 00:52'
-updated_date: '2026-08-14 22:31'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:ai-worker'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 398000
 ---
 
@@ -33,3 +33,19 @@ ordinal: 398000
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): option (b) - leave heal-on-read ungated and state the decision in the stickerVisionGate module doc; revisit only if the switch is flipped and spend does not drop.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. owner already decided (2026-08-14, option b: leave ungated) but the task's own acceptance criterion — the `stickerVisionGate` module doc "stops listing this as a known ungated path and states the decision instead" — is unmet. Small, concrete, already-decided doc update remains. Evidence: `sed -n '40,48p' packages/common-types/src/services/stickerVisionGate.ts` → doc still reads "Whether it should be gated is a genuinely separate question... tracked rather than silently included here," not the recorded decision.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

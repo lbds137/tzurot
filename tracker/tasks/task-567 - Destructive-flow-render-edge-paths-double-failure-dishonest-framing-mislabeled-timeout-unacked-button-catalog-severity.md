@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 22:38'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +23,13 @@ Why: four residual edge paths in the #2050/#2053 area. (1) When the applied-phas
 
 Source: 2026-08-12 review, bot-client F5/F6/F7/F8, all CONFIRMED mechanism.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. All four confirmed-mechanism findings still reproduce in current source. Evidence: `grep -n "timed out\|awaitMessageComponent" services/bot-client/src/commands/memory/batchDelete.ts` → the generic `catch` still renders "confirmation timed out" for any rejection; `grep -n "destructiveApplied" services/bot-client/src/ux/catalog/catalog.ts` → `destructiveApplied` still lives under `CATALOG.error.*` with `severity: 'success'`.
+---
+<!-- COMMENTS:END -->

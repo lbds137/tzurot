@@ -4,7 +4,7 @@ title: pnpm.overrides bounding follow-up (undershoot direction)
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:tooling'
   - 'origin:review'
@@ -23,3 +23,13 @@ Surfaced 2026-07-23 (#1773 review, non-blocking) — bounding the pnpm.overrides
 
 **Why:** The bounding sweep trades one silent-drift failure for another; detection closes the new gap the same way #1768 closed the old one.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `security:advisories` still has no distinct "advisory fix crosses an override ceiling" case — the detection gap the bounding sweep opened is still open. Evidence: `git grep -n "override ceiling\|crosses an override" packages/tooling/src` → 0 matches.
+---
+<!-- COMMENTS:END -->

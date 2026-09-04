@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-28 23:24'
-updated_date: '2026-09-02 14:49'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -39,3 +39,13 @@ Owner question: Now that item 1 is answered (keep personality.name), should this
 Recommendation: Relabel to state:ready and schedule items 2-4 — the task's own text marks item 1 ANSWERED and describes the remainder as agent-callable, so nothing left in it is waiting on an owner decision.
 Resolved 2026-09-02: relabelled state:ready in the PR that introduced this convention; item 1 was answered by the owner on 2026-08-28 and items 2-4 are agent-callable.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): NARROWED. Item 1 answered by the owner 2026-08-28 (keep name). Acceptance is items 2-4: ReportableJobResult export, model composed before sanitize, combined sanitize+clamp test case. All three confirmed still open.
+---
+<!-- COMMENTS:END -->

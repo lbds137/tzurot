@@ -4,7 +4,7 @@ title: 'Sync-config completeness test: harden the schemaTableNames parser'
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:db'
   - 'origin:review'
@@ -23,3 +23,13 @@ Surfaced 2026-07-20 (#1733 review observation) — the sync-config completeness 
 
 **Why:** Documented assumption; the fix trades the fast pure-regex test for DMMF robustness — only worth it if the assumption actually breaks.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `schemaTableNames()` in `syncTables.test.ts` is still a regex over `schema.prisma` assuming unindented closing braces, with the same documented fragility comment — no DMMF-based rewrite or brace-count sanity assertion has been added. Evidence: `sed -n '1,50p' services/api-gateway/src/services/sync/config/syncTables.test.ts` → `matchAll(/\bmodel\s+(\w+)\s*\{([\s\S]*?)\n\}/g)`, unchanged.
+---
+<!-- COMMENTS:END -->

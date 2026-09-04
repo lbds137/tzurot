@@ -4,6 +4,7 @@ title: 'backlogLint: no check spans origin live tasks and the LOCAL archive'
 status: To Do
 assignee: []
 created_date: '2026-08-12 13:33'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -26,3 +27,13 @@ Fix shape (needs design): distinguish the two states, most likely by asking whet
 
 Acceptance: either the gap is closed with a check that does not fire on an un-rebased branch, or it is ruled out on merit with the delayed-catch argument recorded.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed the gap is still open — only `checkOriginIdCollisions` (local vs. origin-live) and `checkArchivedTasksStillLive` (local-live vs. local-archive) exist; nothing spans origin-live vs. local-archive. The task itself flags this needs a design step (not a one-liner), which is why it's still unresolved rather than a sign it should drop. Evidence: `git grep -n "checkOriginIdCollisions\|checkArchivedTasksStillLive" packages/tooling/src` → both functions present in `backlogLint.ts`, no third combined check.
+---
+<!-- COMMENTS:END -->

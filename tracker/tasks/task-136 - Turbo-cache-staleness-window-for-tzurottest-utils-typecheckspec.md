@@ -4,7 +4,7 @@ title: 'Turbo cache-staleness window for @tzurot/test-utils typecheck:spec'
 status: To Do
 assignee: []
 created_date: '2026-06-03 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-09-04 19:35'
 labels:
   - 'area:common-types'
   - 'area:testing'
@@ -37,3 +37,13 @@ cache, so this is not adjacent to that work — it is a prerequisite of it.
 **TASK-675 is blocked on this.** Do not enable a persistent cache with this
 open.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:35
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. This task explicitly blocks another open, active task (TASK-675, "CI discards turbo cache every run; persisting it is blocked on TASK-136") — a named, currently-live dependency, not a stale trigger. CI still doesn't persist the Turbo cache, so the masking condition TASK-136 relies on for safety is unchanged, but the blocker relationship is real and current. Evidence: `pnpm tracker task view TASK-675 --plain` → title itself names the block on TASK-136, still To Do, `state:ready`; `git grep -n "actions/cache\|TURBO_TOKEN" .github/workflows/*.yml` → no match (cache still not persisted in CI).
+---
+<!-- COMMENTS:END -->

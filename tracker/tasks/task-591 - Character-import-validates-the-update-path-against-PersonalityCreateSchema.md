@@ -4,6 +4,7 @@ title: Character import validates the update path against PersonalityCreateSchem
 status: To Do
 assignee: []
 created_date: '2026-08-13 18:56'
+updated_date: '2026-09-04 19:39'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -24,3 +25,13 @@ Acceptance: the update path is validated against PersonalityUpdateSchema, with a
 
 Source: 2026-08-13 claude-review round 3 on PR #2090 (TASK-565), non-blocking observation 1.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:39
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C9): ownership wins. Branch on checkExistingCharacter first, then validate against the schema that applies (Create vs Update), so a non-owner sees the ownership error rather than a field error. state:ready.
+---
+<!-- COMMENTS:END -->

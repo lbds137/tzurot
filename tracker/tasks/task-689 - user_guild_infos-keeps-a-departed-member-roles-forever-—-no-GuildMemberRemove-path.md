@@ -6,13 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-19 23:47'
-updated_date: '2026-08-20 14:41'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:bot-client'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 689000
 ---
 
@@ -33,3 +33,19 @@ Acceptance: a decision is recorded here with its reason.
 
 (a) accept for now — the history window is short and roles are rarely load-bearing — with (b) as the eventual fix: a GuildMemberRemove handler that deletes the row through a new internal endpoint, mirroring the record path (bot-client stays Prisma-free). (c) rejected: reintroduces the vanish-flicker TASK-651 removed. This task now tracks the (b) implementation; state flipped owner->ready, priority low to reflect 'eventual'.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Owner already decided (2026-08-20) on option (b) — a `GuildMemberRemove` handler deleting the row via a new internal endpoint — but it hasn't been built. Evidence: `grep -rn "guildMemberRemove\|GuildMemberRemove" services/bot-client/src --include=*.ts | grep -v test` → no hits anywhere in bot-client.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

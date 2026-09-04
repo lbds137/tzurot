@@ -4,7 +4,7 @@ title: Align the three direct pagination handlers (memory browse et al)
 status: To Do
 assignee: []
 created_date: '2026-07-18 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'origin:review'
   - 'area:bot-client'
@@ -23,3 +23,13 @@ Surfaced 2026-07-18 (#1710 r1, the stale-page race) — the three direct paginat
 
 **Why:** The builder fix makes the race benign; the fallback routing would make it invisible.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Confirmed: `handleBrowsePagination` (browse.ts), and by the same pattern `handleFactsPagination`/`handleSearchPagination`, fetch the requested page raw; `fetchPageWithEmptyFallback` is imported and used ONLY inside the refresh-after-delete/back helpers (`refreshBrowseList` at line 386), not the direct pagination handlers themselves. Source fix (routing all three through the fallback) still not done. See cluster note with TASK-247 above. Evidence: `sed -n '282,400p' memory/browse.ts` — `fetchPageWithEmptyFallback` call is inside `refreshBrowseList`, well after `handleBrowsePagination`'s own raw-fetch block.
+---
+<!-- COMMENTS:END -->

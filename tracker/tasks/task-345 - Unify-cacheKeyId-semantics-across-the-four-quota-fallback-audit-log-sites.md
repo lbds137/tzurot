@@ -4,7 +4,7 @@ title: Unify cacheKeyId semantics across the four quota-fallback audit-log sites
 status: To Do
 assignee: []
 created_date: '2026-07-28 21:59'
-updated_date: '2026-07-28 21:59'
+updated_date: '2026-09-04 19:36'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -23,3 +23,13 @@ Fix shape: a small design call, then a mechanical sweep — either standardize o
 
 Acceptance: all four audit sites agree on the field vocabulary; the JSDoc on logQuotaFallbackAudit states which identity the field carries.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:36
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. real cost (log forensics can't rely on one vocabulary). All four `logQuotaFallbackAudit` call sites still exist and the JSDoc on the function still doesn't state which identity `cacheKeyId` carries. Evidence: `git grep -n logQuotaFallbackAudit services/ai-worker/src` → 4 call sites (`AuthStep.ts:311`, `autoPromotionFallback.ts:210`, `quotaFallbackRunner.ts:205,587`); read `quotaFallback.ts:457-472` → JSDoc still just "one structured audit line per fire," no vocabulary note.
+---
+<!-- COMMENTS:END -->

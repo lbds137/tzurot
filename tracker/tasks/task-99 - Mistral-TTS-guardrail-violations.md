@@ -4,13 +4,13 @@ title: Mistral TTS guardrail violations
 status: To Do
 assignee: []
 created_date: '2026-05-13 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-09-04 19:40'
 labels:
   - 'area:voice'
   - 'size:M'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 99000
 ---
 
@@ -24,3 +24,19 @@ Mistral TTS guardrail violations — bot-owner-visible notice
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): build at the next MistralTtsClient touch - typed MistralGuardrailError with userNotice threaded through the dispatcher attempt-notice.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:38
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Owner-decided (2026-08-14) to build at the next `MistralTtsClient.ts` touch. No `MistralGuardrailError` class exists yet, and `git log` shows zero commits to that file since the decision date — the trigger hasn't fired. Evidence: `git grep -n "MistralGuardrailError\|code === 1920"` → no hits; `git log --oneline --since=2026-08-14 -- '**/MistralTtsClient.ts'` → empty.
+---
+
+author: digest-pass
+created: 2026-09-04 19:40
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
+---
+<!-- COMMENTS:END -->

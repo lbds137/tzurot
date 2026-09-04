@@ -4,7 +4,7 @@ title: Extract shared env-scoped-op preamble across ops commands
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-08-14 01:04'
+updated_date: '2026-09-04 19:37'
 labels:
   - 'area:tooling'
   - 'area:db'
@@ -25,3 +25,13 @@ Surfaced 2026-07-22 — extract the shared env-scoped-op preamble (`validateEnvi
 
 **Members added 2026-08-16 (PR #2120 review, claude-review round 2):** (a) `requireProductionConfirmation`'s banner hardcodes "on PRODUCTION" even for local/dev runs — make the gate env-aware when it centralizes into `beginEnvScopedOp` (the PR body's "clean fix"); (b) the dev-consequence banner shape (chalk.red.bold heading + red body + confirm-message suffix) is now duplicated between `retention/purge.ts` `approveDestructivePurge` and the inline block in `retention/notify.ts` — consolidate when a third destructive/outward-facing command appears; (c) cosmetic follow-on of (a): the composed dev confirmation reads "…via DEV, propagating by sync on PRODUCTION" — two colliding location references, resolved by the env-aware banner.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:37
+---
+Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Real cost prevented — each new env-scoped command clones a ~12-line preamble and bumps the CPD baseline (already happened once for retention-backfill). A 0-callback extraction, still unbuilt. Evidence: `git grep -n "beginEnvScopedOp" packages/tooling` → no results, helper doesn't exist yet.
+---
+<!-- COMMENTS:END -->
