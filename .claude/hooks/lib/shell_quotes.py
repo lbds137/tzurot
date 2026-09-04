@@ -55,19 +55,15 @@ CONSUMERS
 ---------
     .claude/hooks/lossy-pipe-guard.sh
     .claude/hooks/develop-code-commit-guard.sh
-    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted_indexed only —
-                                        no executed_segments. Unlike
-                                        cwd-drift-guard below, this consumer's
-                                        WHOLE purpose is the higher-stakes case
-                                        (a refusal, not a warning), so a
-                                        `bash -c` / `sh -c` / `eval` wrapper
-                                        does not merely narrow detection the
-                                        way substitution-blindness does — it
-                                        defeats the gate entirely: a board/doc
-                                        commit that would block unwrapped
-                                        passes clean when wrapped, on any
-                                        feature branch. Open gap, tracked as
-                                        TASK-879, not fixed here.)
+    .claude/hooks/board-commit-branch-gate.sh   (strip_quoted_indexed PLUS
+                                        wrapped_command_strings — deliberately
+                                        NOT executed_segments. This consumer
+                                        re-scans each unwrapped inner string
+                                        with its OWN indexed view, at every
+                                        level, because it has to resolve add
+                                        pathspecs back to real paths, which
+                                        executed_segments' pre-stripped
+                                        segments cannot give it.)
     .claude/hooks/cwd-drift-guard.sh   (strip_quoted for its drift checks, plus
                                         executed_segments for its tracker-write
                                         refusal — it stays substitution-blind
@@ -77,10 +73,12 @@ CONSUMERS
 A THIRD THING strip_quoted DOES NOT SEE, distinct from the substitution case
 above: a WRAPPER's string argument. `bash -c "…"`, `sh -c "…"` and `eval "…"`
 hand their argument to a shell as a command, so the strip that correctly makes
-`echo "…"` inert erases a real invocation. `executed_segments` is the answer,
-and it is a separate function rather than a change to strip_quoted because the
-distinction is not about quoting at all — it is about which COMMANDS execute
-their arguments.
+`echo "…"` inert erases a real invocation. There are two answers, depending on
+what the caller needs: `executed_segments` for a caller that just wants
+scan-ready segments, `wrapped_command_strings` for a caller that needs the
+raw inner string to scan its own way. Both are separate functions rather than
+a change to strip_quoted because the distinction is not about quoting at all
+— it is about which COMMANDS execute their arguments.
 
 Behaviour is pinned by packages/tooling/src/dev/shellQuotes.test.ts, which runs
 this module directly, plus each consumer's own .probe.sh.
@@ -553,13 +551,24 @@ _DASH_C = re.compile(r"^-[A-Za-z]*c$")
 # position. `(` is included because `(cmd)` and `$(cmd)` both start one.
 _WORD_SEPARATORS = ";&|\n()"
 
+# A leading env-assignment word (`VAR=value`) does NOT consume command
+# position: bash runs `VAR=1 bash -c "…"` with the assignment applied to the
+# wrapper, so the wrapper is still a wrapper and its string argument is still
+# a command. Reading the assignment word itself as the command name hid every
+# wrapper standing behind one — measured, `FOO=1 bash -c "git add tracker/ &&
+# git commit -m x"` yielded no segments at all, so a blocking consumer saw
+# nothing to assess. Spelled to match the assignment class the consuming
+# hooks' own bypass patterns already use (`ASSIGNMENTS` in
+# board-commit-branch-gate.sh).
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
 # Recursion bound for wrappers nested inside wrappers, matching the intent of
 # `extract`'s cap in pr-merge-review-check.sh: a fixed ceiling so a pathological
 # input cannot recurse without end. Depth 0 is the command itself, so three
 # levels of wrapper get unwrapped and a fourth is left as the placeholder text
-# `strip_quoted` produced for it — an under-arm at a nesting depth no habitual
-# command shape reaches.
-_MAX_WRAPPER_DEPTH = 3
+# the caller's own quote strip produced for it — an under-arm at a nesting
+# depth no habitual command shape reaches.
+MAX_WRAPPER_DEPTH = 3
 
 
 def _words(text):
@@ -574,7 +583,7 @@ def _words(text):
     Deliberately NOT a general tokenizer: it knows quoting (via the shared
     scanner) and unquoted whitespace and separators, and nothing else.
     Redirections, assignments, and expansions are left as ordinary words —
-    `_wrapped_command_strings` only needs to recognize a command name, a flag,
+    `wrapped_command_strings` only needs to recognize a command name, a flag,
     and the word after it.
 
     An unterminated quote ends the scan where it opens, so the trailing text is
@@ -621,7 +630,7 @@ def _words(text):
     return words
 
 
-def _wrapped_command_strings(text):
+def wrapped_command_strings(text):
     """Return the argument of every wrapper invocation in `text`, unquoted.
 
     A wrapper is recognized only at COMMAND POSITION — the start of `text` or
@@ -634,6 +643,16 @@ def _wrapped_command_strings(text):
     that is exact, and for the multi-argument form it under-arms only a target
     split ACROSS argument boundaries — deliberate construction, outside the
     habitual-shapes threat model this module's consumers state.
+
+    PUBLIC because a second caller needs it directly: board-commit-branch-gate.sh
+    wants the RAW, unquoted inner string rather than `executed_segments`' already
+    quote-stripped segments — it builds its own resolvable `strip_quoted_indexed`
+    view per level so a quoted pathspec inside a wrapper still resolves back to
+    a real path, which a pre-stripped segment cannot supply.
+
+    A leading env-assignment word (`VAR=value`, one or more) is skipped rather
+    than treated as the command: bash still runs the WORD AFTER it at command
+    position, so `FOO=1 bash -c "…"` is still a wrapper invocation.
     """
     words = _words(text)
     found = []
@@ -646,6 +665,11 @@ def _wrapped_command_strings(text):
             i += 1
             continue
         if at_command_position:
+            # Does NOT clear `at_command_position` — the assignment prefixes
+            # the NEXT word, which is the command bash actually runs.
+            if _ASSIGNMENT.match(word):
+                i += 1
+                continue
             name = word.rsplit("/", 1)[-1]
             if name == "eval":
                 i += 1
@@ -682,7 +706,7 @@ def executed_segments(text):
     the same strip erases `bash -c "pnpm tracker task create x"`, where the
     identical characters are a command bash runs. The strip cannot tell those
     apart on its own — only knowing which commands EXECUTE a string argument
-    can, which is what `_wrapped_command_strings` supplies.
+    can, which is what `wrapped_command_strings` supplies.
 
     A caller scans every returned segment, so a target anywhere in the chain is
     seen. `echo` is not a wrapper, so its argument stays a placeholder and the
@@ -696,7 +720,7 @@ def executed_segments(text):
     consumers' threat model is habitual command shapes, and `substitution_spans`
     covers the substitution half for the callers that want it.
 
-    Recursion stops at `_MAX_WRAPPER_DEPTH`; see that constant.
+    Recursion stops at `MAX_WRAPPER_DEPTH`; see that constant.
 
     Pinned by the wrapper cases in packages/tooling/src/dev/shellQuotes.test.ts
     and by the wrapped-tracker-mutation fixtures in
@@ -711,8 +735,8 @@ def _executed_segments(text, depth):
     # every consumer that is the over-arming direction, the same one
     # `substitution_spans_matching` takes for a broken span.
     segments = [text if scanned is None else scanned]
-    if depth >= _MAX_WRAPPER_DEPTH:
+    if depth >= MAX_WRAPPER_DEPTH:
         return segments
-    for inner in _wrapped_command_strings(text):
+    for inner in wrapped_command_strings(text):
         segments.extend(_executed_segments(inner, depth + 1))
     return segments
