@@ -3,9 +3,10 @@ id: TASK-879
 title: >-
   board-commit-branch-gate: a bash -c / sh -c / eval wrapper evades the gate
   entirely
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-03 20:25'
+updated_date: '2026-09-04 17:25'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -28,4 +29,3 @@ Fix shape: scan executed_segments in addition to strip_quoted, mirroring what cw
 
 Acceptance: bash -c, sh -c and eval wrapping of the canonical blocking compound each block (exit 2); the unwrapped cases and the whole existing probe suite stay green; each new case has a demonstrated failing mutation. Reproduction fixtures are in the 2319 round-4 verification, and the shape is one line: bash -c with a quoted git add plus git commit compound.
 <!-- SECTION:DESCRIPTION:END -->
-
