@@ -41,4 +41,8 @@ Two instances, one PR, both caught by review. Round 2: I tested whether the embe
 Fix shape for this item specifically: one clause in 00-critical section Verify Before Accepting External Feedback stating the mirror direction beside the existing sentence, plus a line in the spec template canary section saying a canary pins the case it runs and not the general property, so a body claim broader than the canary is scoped down or given a second canary. Same surface and same root as the three above, so it rides the same PR rather than being filed separately.
 
 Acceptance: the spec template asks for one canary per behavioural claim; the report requirements surface claim/canary pairs; the inner-worker block forbids sourcing git state from loaded context; 00-critical states the scenario-does-not-verify-mechanism direction beside its existing inverse; a spec written from the amended template on a real unit produces a claim set where every entry names its falsifying mutation and no entry claims more than its mutation covers.
+
+### Items 1–4 SHIPPED (PR #2321); only acceptance clause 5 remains
+
+The spec template derives canaries from the claim set (item 1), the report lists claim/canary pairs and every verified-claim names its command (item 3), the inner worker never sources git state from loaded context (item 2), and 00-critical carries the scenario-does-not-verify-mechanism mirror (item 4). Clause 5 — a spec written FROM the amended template on a real unit produces a fully paired claim set — is an observation to make on the next real dispatch, not something this PR could supply (the one paired example predates the amendment). Close this task on that observation; note the unit and its claim/canary pairs here when it happens.
 <!-- SECTION:DESCRIPTION:END -->
