@@ -601,8 +601,10 @@ with the losing side's objections as binding constraints:
   wire is unobservable (the 2026-08-21 probe pinned wire-level acceptance on
   both providers; a wire-shape contract test is buildable, internal merge is
   not) — rollout watch item. /inspect id-tag redaction for non-owner viewers
-  is a separate owner-taste item (filed), explicitly NOT a substitute for the
-  transform (obscurity must not be load-bearing). Two build-time residuals,
+  has shipped: the whole diagnostic payload routes through
+  `maskHeaderIdTags` for viewers who are not the bot owner, and bot-owner
+  views stay byte-exact — explicitly NOT a substitute for the transform
+  (obscurity must not be load-bearing). Two build-time residuals,
   both accepted at review: the transform matches only the TIMESTAMPED header
   form — a body line typed as bare `[Name]` is untouched, because that shape
   is far too generic to hunt (ordinary bracketed prose would be mangled) and

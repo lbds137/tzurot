@@ -14,9 +14,9 @@ import {
 import type { ViewContext } from './viewContext.js';
 
 /** Owner context — character internals are visible (existing test behavior) */
-const OWNER_CTX: ViewContext = { canViewCharacter: true };
+const OWNER_CTX: ViewContext = { canViewCharacter: true, isBotOwner: true };
 /** Non-owner context — character internals are redacted */
-const NON_OWNER_CTX: ViewContext = { canViewCharacter: false };
+const NON_OWNER_CTX: ViewContext = { canViewCharacter: false, isBotOwner: false };
 
 function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPayload {
   return {

@@ -34,6 +34,7 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { formatRelativeTimeDelta } from '@tzurot/common-types/utils/dateFormatting';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type UserClient } from '@tzurot/clients';
 import { defineContextMenuCommand } from '../utils/defineCommand.js';
 import { clientsFor } from '../utils/gatewayClients.js';
@@ -44,6 +45,7 @@ import {
   type DebugViewResult,
 } from './inspect/views.js';
 import { computeViewContext } from './inspect/viewContext.js';
+import { payloadForViewer, maskHeaderIdTags } from './inspect/maskHeaderIdTags.js';
 import { renderViewResult } from './inspect/index.js';
 import { CATALOG } from '../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../ux/catalog/classify.js';
@@ -70,7 +72,8 @@ const NO_TRACE_FOR_MESSAGE = 'No reasoning content was captured for this message
  */
 async function lookupPersistedReasoning(
   messageId: string,
-  userClient: UserClient
+  userClient: UserClient,
+  maskTags: boolean
 ): Promise<DebugViewResult | null> {
   const result = await userClient.getMessageReasoning(messageId);
 
@@ -81,7 +84,9 @@ async function lookupPersistedReasoning(
     throw new Error(`Reasoning history lookup failed: ${result.status} ${result.error}`);
   }
 
-  const view = buildReasoningTextView(result.data.thinkingContent, NO_TRACE_FOR_MESSAGE);
+  const thinking = result.data.thinkingContent;
+  const shown = maskTags && typeof thinking === 'string' ? maskHeaderIdTags(thinking) : thinking;
+  const view = buildReasoningTextView(shown, NO_TRACE_FOR_MESSAGE);
 
   // Age is worth stating on THIS tier specifically. Tier 2 runs only after the
   // diagnostic lookup missed, and expiry at 7d is the usual reason (a log that
@@ -128,7 +133,11 @@ export default defineContextMenuCommand({
         // The diagnostic aged out (7d) or never existed. Fall through to the
         // persisted trace, which outlives it — this is the whole point of the
         // second tier.
-        const persisted = await lookupPersistedReasoning(interaction.targetId, userClient);
+        const persisted = await lookupPersistedReasoning(
+          interaction.targetId,
+          userClient,
+          !isBotOwner(interaction.user.id)
+        );
         if (persisted !== null) {
           await renderViewResult(interaction, persisted);
           logger.info(
@@ -148,9 +157,12 @@ export default defineContextMenuCommand({
       // Built against the right-clicking user because every view builder takes
       // the same third argument. buildReasoningView does not read it (its
       // parameter is `_ctx`), so access control here rests entirely on the
-      // gateway's server-side per-user filtering in the lookup above.
+      // gateway's server-side per-user filtering in the lookup above. The
+      // payload is routed through the viewer seam before rendering, same as
+      // /inspect's own dispatch sites.
       const viewContext = computeViewContext(log, interaction.user.id);
-      const viewResult = buildReasoningView(log.data, log.requestId, viewContext);
+      const data = payloadForViewer(log.data, viewContext);
+      const viewResult = buildReasoningView(data, log.requestId, viewContext);
       await renderViewResult(interaction, viewResult);
 
       logger.info(

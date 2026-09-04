@@ -17,6 +17,7 @@ import type {
   RecentDiagnosticLogsResponse,
 } from '@tzurot/common-types/schemas/api/diagnostic';
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import {
   fetchRecentLogs,
@@ -49,6 +50,13 @@ const clientsForMock = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return { ...actual, isBotOwner: (id: string) => id === 'owner-123' };
+});
 
 function createMockLog(overrides: Partial<DiagnosticLogSummary> = {}): DiagnosticLogSummary {
   return {
@@ -399,6 +407,51 @@ describe('handleBrowseLogSelection', () => {
         content: expect.stringContaining('Diagnostic log not found'),
       })
     );
+  });
+
+  it('masks the header id tag in the Error field for a non-owner', async () => {
+    const stub = createStubClient();
+    const payload = createMockDiagnosticPayload();
+    payload.error = {
+      message: 'upstream call failed for [Vlad (id:deadbeef)]',
+      category: ApiErrorCategory.UNKNOWN,
+      failedAtStage: 'llmInvocation',
+    };
+    const log: DiagnosticLogResponse = {
+      log: {
+        id: 'log-uuid',
+        requestId: 'req-uuid-0',
+        triggerMessageId: null,
+        personalityId: 'p-1',
+        userId: 'u-1',
+        guildId: 'g-1',
+        channelId: 'c-1',
+        model: 'test',
+        provider: 'test',
+        durationMs: 100,
+        createdAt: '2026-02-09T12:00:00Z',
+        data: payload,
+      },
+    };
+    stub.getDiagnosticByRequestId.mockResolvedValue(ok(log));
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+
+    const interaction = {
+      customId: 'inspect::browse-select::0::all::',
+      values: ['req-uuid-0'],
+      user: { id: 'regular-user-456' },
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('discord.js').StringSelectMenuInteraction;
+
+    await handleBrowseLogSelection(interaction);
+
+    const callArgs = vi.mocked(interaction.editReply).mock.calls[0][0] as {
+      embeds: { data: { fields?: { name: string; value: string }[] } }[];
+    };
+    const errorField = callArgs.embeds[0].data.fields?.find(f => f.name.includes('Error'));
+    expect(errorField?.value).not.toContain('deadbeef');
+    expect(errorField?.value).toContain('(id:····)');
   });
 });
 

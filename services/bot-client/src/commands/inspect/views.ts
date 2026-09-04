@@ -7,6 +7,10 @@
  * internals (system prompt, memory previews) when the inspecting user does
  * not own the personality the diagnostic log was generated against. See
  * `viewContext.ts` for the ownership-resolution logic.
+ *
+ * The payload each builder receives has already been masked for the viewer
+ * at the dispatch site (`maskHeaderIdTags.ts`'s `payloadForViewer`), so the
+ * builders here don't need their own header-id-tag handling.
  */
 
 import {

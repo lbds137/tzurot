@@ -9,6 +9,11 @@
  * the original /inspect invocation). This is the defense-in-depth path —
  * ephemeral replies already prevent other users from seeing the buttons,
  * but each click still re-evaluates ownership against the clicker.
+ *
+ * The context also carries the bot-owner bit on its own (`isBotOwner`),
+ * separate from `canViewCharacter` — it gates header-id-tag masking at the
+ * dispatch seam in `maskHeaderIdTags.ts`, which is a different axis than
+ * character-internal redaction (see that field's doc comment).
  */
 
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -35,6 +40,15 @@ export interface ViewContext {
    *   not a write path that forgot to call the resolver.
    */
   canViewCharacter: boolean;
+
+  /**
+   * True if the inspecting user is the BOT owner (not the personality
+   * owner). Gates header-id-tag masking in `maskHeaderIdTags.ts`'s
+   * `payloadForViewer`: a character owner who is not the bot owner still
+   * gets a masked payload, because this bit — not `canViewCharacter` —
+   * is the one that decides.
+   */
+  isBotOwner: boolean;
 }
 
 /**
@@ -47,9 +61,8 @@ export interface ViewContext {
  */
 export function computeViewContext(log: DiagnosticLog, inspectorDiscordId: string): ViewContext {
   const ownerDiscordId = log.data.meta.personalityOwnerDiscordId;
+  const botOwner = isBotOwner(inspectorDiscordId);
   const canViewCharacter =
-    isBotOwner(inspectorDiscordId) ||
-    ownerDiscordId === undefined ||
-    ownerDiscordId === inspectorDiscordId;
-  return { canViewCharacter };
+    botOwner || ownerDiscordId === undefined || ownerDiscordId === inspectorDiscordId;
+  return { canViewCharacter, isBotOwner: botOwner };
 }
