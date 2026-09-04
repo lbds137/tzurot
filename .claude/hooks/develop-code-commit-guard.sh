@@ -275,7 +275,10 @@ fi
 # gated files are TRACKED package.json files whose full diff vs HEAD
 # touches nothing but "version" lines; anything else falls through to
 # the block.
-if ! printf '%s\n' "$GATED_FILES" | grep -qvE '(^|/)package\.json$'; then
+# grep DRAINS rather than `-q`-quits: under pipefail an early exit kills the
+# producer with SIGPIPE and a real match reports as failure. Full reasoning
+# lives above the resolver in pr-body-ref-gate.sh.
+if ! printf '%s\n' "$GATED_FILES" | grep -vE '(^|/)package\.json$' >/dev/null; then
   VERSION_ONLY=1
   while IFS= read -r f; do
     if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
@@ -285,7 +288,7 @@ if ! printf '%s\n' "$GATED_FILES" | grep -qvE '(^|/)package\.json$'; then
     # without the |$ alternative it would be invisible to the check.
     CHANGED=$(git diff HEAD -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
     if [ -z "$CHANGED" ] \
-      || printf '%s\n' "$CHANGED" | grep -qvE '^[+-][[:space:]]*"version":'; then
+      || printf '%s\n' "$CHANGED" | grep -vE '^[+-][[:space:]]*"version":' >/dev/null; then
       VERSION_ONLY=0; break
     fi
   done <<< "$GATED_FILES"

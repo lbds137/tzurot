@@ -74,7 +74,10 @@ PATTERN="^(${TOKENS}|${CHAIN}|${SELECTOR}|${RECS})${SUFFIX}\$"
 
 # printf, not echo: a prompt that IS a flag-shaped token ("-n") would vanish
 # into bash's builtin echo as an option rather than data.
-if ! printf '%s\n' "$PROMPT" | grep -qiE "$PATTERN"; then
+# grep DRAINS rather than `-q`-quits: under pipefail an early exit kills the
+# producer with SIGPIPE and a real match reports as failure. Full reasoning
+# lives above the resolver in pr-body-ref-gate.sh.
+if ! printf '%s\n' "$PROMPT" | grep -iE "$PATTERN" >/dev/null; then
     exit 0
 fi
 

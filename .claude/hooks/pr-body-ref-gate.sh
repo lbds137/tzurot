@@ -204,19 +204,19 @@ CMD=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "")
 # ANDed greps (gh api / -X|--method PATCH / pulls/N) rather than one regex,
 # so the PATCH and path tokens can appear in either order in the command.
 IS_PATCH_PR_API=0
-if printf '%s' "$CMD" | grep -qiE 'gh[[:space:]]+api' &&
-  printf '%s' "$CMD" | grep -qiE -- '(-X|--method)[[:space:]=]*PATCH' &&
-  printf '%s' "$CMD" | grep -qiE 'pulls/[0-9]+'; then
+if printf '%s' "$CMD" | grep -iE 'gh[[:space:]]+api' >/dev/null &&
+  printf '%s' "$CMD" | grep -iE -- '(-X|--method)[[:space:]=]*PATCH' >/dev/null &&
+  printf '%s' "$CMD" | grep -iE 'pulls/[0-9]+' >/dev/null; then
   IS_PATCH_PR_API=1
 fi
-if ! printf '%s' "$CMD" | grep -qiE '(gh([[:space:]]+[^[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|edit))|(ops[[:space:]]+gh:pr-edit)' &&
+if ! printf '%s' "$CMD" | grep -iE '(gh([[:space:]]+[^[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|edit))|(ops[[:space:]]+gh:pr-edit)' >/dev/null &&
   [ "$IS_PATCH_PR_API" -ne 1 ]; then
   exit 0
 fi
 
 # Require --body/--body-file, or (for the PATCH form) a -f/-F/--field body=
 # argument, on the decoded command.
-if ! printf '%s' "$CMD" | grep -qE -- '--body(-file)?\b|(-f|-F|--field)[[:space:]]+body='; then
+if ! printf '%s' "$CMD" | grep -E -- '--body(-file)?\b|(-f|-F|--field)[[:space:]]+body=' >/dev/null; then
   exit 0
 fi
 
@@ -392,11 +392,24 @@ while IFS= read -r id; do
   case "$id" in
     task-*)
       [ -z "$TASK_LIST" ] && continue
-      printf '%s\n' "$TASK_LIST" | grep -qiF -- "/${id} " && continue
+      # `-q` is exactly the wrong flag under `set -o pipefail` when the
+      # producer can outlive the consumer. The listing runs past the 64 KB
+      # pipe buffer, so `grep -q` exits on a match while `printf` still has
+      # bytes to write; `printf` dies of SIGPIPE (141), pipefail reports the
+      # pipeline as failed even though the id MATCHED, and a perfectly
+      # resolvable id lands in MISSING and blocks a correct body. It favours
+      # ids that sort EARLY, since a late match lets `printf` finish first.
+      # Letting grep DRAIN its input instead makes the status grep's alone;
+      # the cost is one full read of a ~100 KB listing, nothing next to the
+      # `git ls-tree` that produced it. Pinned by the probe's large-listing
+      # pass case, whose fixture is sized so the `-q` form fails every run.
+      # Every pipe-fed grep in this file is drained for the same reason, the
+      # body and command producers included.
+      printf '%s\n' "$TASK_LIST" | grep -iF -- "/${id} " >/dev/null && continue
       ;;
     doc-*)
       [ -z "$DOC_LIST" ] && continue
-      printf '%s\n' "$DOC_LIST" | grep -qiF -- "/${id} " && continue
+      printf '%s\n' "$DOC_LIST" | grep -iF -- "/${id} " >/dev/null && continue
       ;;
     *)
       continue
@@ -490,7 +503,7 @@ run_claim_scan() {
   # closing `Closes TASK-N` line must still count. Case-insensitive so a
   # lowercase `## acceptance` heading counts the same as `## Acceptance`.
   local has_acceptance=0
-  if printf '%s' "$unfenced" | grep -qiE '^[[:space:]]*##+[[:space:]]*Acceptance'; then
+  if printf '%s' "$unfenced" | grep -iE '^[[:space:]]*##+[[:space:]]*Acceptance' >/dev/null; then
     has_acceptance=1
   fi
 
@@ -498,24 +511,24 @@ run_claim_scan() {
   local flagged_lines=""
   local line
   while IFS= read -r line; do
-    if printf '%s' "$line" | grep -qE '^[[:space:]]*>'; then continue; fi
+    if printf '%s' "$line" | grep -E '^[[:space:]]*>' >/dev/null; then continue; fi
     # A heading is a section label, not a claim — "## Verified, and how"
     # names what the section covers rather than asserting something is true.
-    if printf '%s' "$line" | grep -qE '^[[:space:]]*#{1,6}[[:space:]]'; then
+    if printf '%s' "$line" | grep -E '^[[:space:]]*#{1,6}[[:space:]]' >/dev/null; then
       continue
     fi
 
-    if ! printf '%s' "$line" | grep -qiE "$CLAIM_SHAPE_CORE_REGEX|$CLAIM_SHAPE_PR_BODY_EXTRA_REGEX"; then
+    if ! printf '%s' "$line" | grep -iE "$CLAIM_SHAPE_CORE_REGEX|$CLAIM_SHAPE_PR_BODY_EXTRA_REGEX" >/dev/null; then
       continue
     fi
-    if printf '%s' "$line" | grep -qiE "$CLAIM_CITE_EXEMPT_REGEX"; then
+    if printf '%s' "$line" | grep -iE "$CLAIM_CITE_EXEMPT_REGEX" >/dev/null; then
       continue
     fi
     # Closing-reference narrowing: a bare `closes TASK-N`/`closes doc-N`
     # line is exempt once the body carries an Acceptance heading — the
     # heading is the cite for a closing reference's own claim (the item is
     # actually done).
-    if [ "$has_acceptance" -eq 1 ] && printf '%s' "$line" | grep -qiE '\bcloses?:? (TASK|doc)-[0-9]+'; then
+    if [ "$has_acceptance" -eq 1 ] && printf '%s' "$line" | grep -iE '\bcloses?:? (TASK|doc)-[0-9]+' >/dev/null; then
       continue
     fi
 
