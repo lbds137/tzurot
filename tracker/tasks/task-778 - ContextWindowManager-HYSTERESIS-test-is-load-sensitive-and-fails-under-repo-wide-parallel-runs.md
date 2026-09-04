@@ -3,9 +3,10 @@ id: TASK-778
 title: >-
   ContextWindowManager HYSTERESIS test is load-sensitive and fails under
   repo-wide parallel runs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-26 23:25'
+updated_date: '2026-09-04 16:41'
 labels:
   - 'area:ai-worker'
   - 'size:S'
