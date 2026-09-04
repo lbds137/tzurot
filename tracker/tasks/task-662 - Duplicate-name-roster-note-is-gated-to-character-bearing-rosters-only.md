@@ -1,10 +1,10 @@
 ---
 id: TASK-662
 title: Duplicate-name roster note is gated to character-bearing rosters only
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 19:58'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-04 21:43'
 labels:
   - 'area:ai-worker'
   - 'size:S'
