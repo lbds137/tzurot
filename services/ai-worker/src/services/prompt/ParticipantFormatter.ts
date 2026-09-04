@@ -93,13 +93,15 @@ function rosterCollidesWithCharacter(
 /**
  * Do two roster entries render under the same name?
  *
- * Covers human↔character and character↔character collisions, which arrived
- * with the sibling entries: before them the roster held one entity kind drawn
- * from one id space, and the only collision worth a note was against the
- * responder's own name. A human and a sibling character sharing a display name
- * is exactly the situation the existing note's guidance — bind by from_id,
- * never by name — was written for, so the trigger is widened rather than the
- * advice rewritten.
+ * Covers human↔human, human↔character, and character↔character collisions.
+ * The character-involving pair arrived with the sibling entries: before them
+ * the roster held one entity kind drawn from one id space, and the only
+ * collision worth a note was against the responder's own name. A human and a
+ * sibling character sharing a display name is exactly the situation the
+ * existing note's guidance — bind by from_id, never by name — was written
+ * for, so the trigger was widened rather than the advice rewritten; the same
+ * reasoning covers two humans sharing a name, since names are compared in one
+ * pass across both kinds below.
  *
  * Names are compared across BOTH kinds in one pass; the id spaces differ, but
  * the model reads only the rendered name, which is the thing that collides.
@@ -184,28 +186,28 @@ function buildRosterNotes(
   // one is "two of them share EACH OTHER's". Both can fire; they describe
   // different confusions and neither implies the other.
   //
-  // Gated on characters being PRESENT, which is a scope decision rather than a
-  // logical one. Two humans sharing a display name is a real, pre-existing
-  // situation this note would also help with — but firing it there would change
-  // the prompt of every existing pure-human channel, and "a humans-only roster
-  // is byte-identical to before" is an invariant this change tests and claims.
-  // Widening it to the humans-only case is its own decision with its own
-  // per-turn cost; TASK-662 carries it.
-  // The two arms gate DIFFERENTLY on purpose. Flag-off keeps the historical
-  // characters-present scope: firing on a humans-only roster would change the
-  // prompt of every existing pure-human channel, an invariant that arm still
-  // tests and claims (widening it is TASK-662's own decision). Flag-on gates
-  // on the tag map instead — the header id-tag mechanism fires for ANY
-  // rendered-name collision, human-human included, so the note explaining it
-  // must fire exactly when the tags do, and a flag-on prompt carries no
-  // byte-parity claim for the flag-off arm's invariant to protect.
+  // Fires on ANY rendered-name collision in the roster, humans-only rosters
+  // included. Two humans sharing a display name create the same confusion as
+  // a human/character or character/character collision, and the note's
+  // advice — bind by from_id, never by name — is the same answer either way,
+  // so the trigger is no longer scoped to character-bearing rosters.
+  //
+  // Widening it deliberately changes the rendered prompt of existing
+  // pure-human channels that happen to contain a name collision: that is the
+  // intended effect, not a regression. The humans-only byte-parity claim now
+  // holds only for rosters with no duplicate name.
+  //
+  // The two arms still gate DIFFERENTLY, but both now cover human↔human.
+  // Flag-on gates on the header id-tag map — the mechanism fires for ANY
+  // rendered-name collision, so the note explaining it must fire exactly when
+  // the tags do. Flag-off gates on the rendered-name predicate directly.
   if (realMessagesEnabled) {
     if (headerIdTags.size > 0) {
       notes.push(
         '<note>Two or more entries in the roster above share a name. Names are not unique here — headers for the same-named speakers carry an (id:xxxx) tag; match it to the participant ids above.</note>'
       );
     }
-  } else if (characters.length > 0 && rosterHasDuplicateNames(participants, characters)) {
+  } else if (rosterHasDuplicateNames(participants, characters)) {
     notes.push(
       '<note>Two entries in the roster above share a name. Names are not unique here — bind identity by from_id, never by name.</note>'
     );

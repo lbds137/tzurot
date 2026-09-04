@@ -982,12 +982,12 @@ describe('sibling AI characters in the roster', () => {
     expect(result).toContain('share a name');
   });
 
-  it('leaves a humans-only roster untouched even when two humans share a name', () => {
-    // The byte-identity claim for humans-only rosters has to hold for the
-    // DUPLICATE case too, not just the single-participant case — the original
-    // test used one human, so the duplicate check could not fire either way and
-    // proved nothing about it. Widening the note to pure-human channels is
-    // TASK-662, deliberately not this change.
+  it('fires the duplicate-name note on a humans-only roster when two humans share a name', () => {
+    // The note is deliberately not scoped to character-bearing rosters: two
+    // humans sharing a rendered name get the same bind-by-from_id advice as a
+    // human/character or character/character collision. Passing `[]` vs
+    // omitting `characters` is still the same input either way, so that
+    // equivalence still holds.
     const twoSameName = new Map<string, ParticipantInfo>([
       ['persona-1', { personaName: 'Emily', content: 'a', isActive: true, personaId: 'persona-1' }],
       [
@@ -999,7 +999,9 @@ describe('sibling AI characters in the roster', () => {
     expect(formatParticipantsContext(twoSameName, 'Lilith', [])).toBe(
       formatParticipantsContext(twoSameName, 'Lilith')
     );
-    expect(formatParticipantsContext(twoSameName, 'Lilith')).not.toContain('share a name');
+    expect(formatParticipantsContext(twoSameName, 'Lilith')).toContain(
+      '<note>Two entries in the roster above share a name. Names are not unique here — bind identity by from_id, never by name.</note>'
+    );
   });
 
   it('stays silent when every roster name is distinct', () => {
@@ -1518,9 +1520,8 @@ describe('header id-tag notes (TASK-726)', () => {
 
   it('flag-ON human-human collision (no characters): the mechanism note still fires', () => {
     // The tag MAP fires for any rendered-name collision, characters or not —
-    // so the note explaining the tags must too. The characters-present gate
-    // is the FLAG-OFF arm's scope decision only (its byte-parity invariant
-    // for pure-human channels; TASK-662 owns widening that arm).
+    // so the note explaining the tags must too. Both arms now cover
+    // human↔human: this pins the flag-on side of that coverage.
     const participants = new Map([
       [
         'p1',
@@ -1558,10 +1559,10 @@ describe('header id-tag notes (TASK-726)', () => {
   });
 
   it('a zero-width confusable now collides where it previously would not have', () => {
-    // A sibling character must ALSO be present: `rosterHasDuplicateNames` is
-    // gated on `characters.length > 0` (the humans-only carve-out, pinned
-    // elsewhere in this file) — this test is about the NORMALIZATION, not
-    // about widening that gate.
+    // About the NORMALIZATION: a zero-width space must not defeat the name
+    // comparison. The sibling character in the fixture is incidental — the
+    // predicate compares names across both participants and characters in
+    // one pass, so it would collide here with or without Kai present.
     const participants = new Map<string, ParticipantInfo>([
       ['persona-1', { personaName: 'Lila', content: 'a', isActive: true, personaId: 'persona-1' }],
       [

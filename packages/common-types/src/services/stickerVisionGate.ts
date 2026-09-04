@@ -40,11 +40,13 @@
  * gate, check whether the list is already filtered upstream; before adding a
  * vision CALLER, check whether its list is.
  *
- * **Known ungated path**: `ragVisionAuth.enrichRagHistory` re-describes
- * attachments already stored in conversation history (heal-on-read). Whether it
- * should be gated is a genuinely separate question — that spend re-derives a
- * description already paid for once rather than describing a newly-arrived
- * sticker — so it is tracked rather than silently included here.
+ * **`ragVisionAuth.enrichRagHistory` is not gated, by design.** It re-describes
+ * attachments already stored in conversation history (heal-on-read) — it
+ * re-derives a description the system already paid for and then lost (cache
+ * expiry, an older row, a failed write), rather than authorising new spend on
+ * a newly-arrived sticker. One consequence: switching sticker vision off does
+ * not retroactively degrade history the system already described. Revisit
+ * only if the switch is flipped in prod and spend does not drop.
  *
  * This list is the current state, not a proof of exhaustiveness. Re-derive it
  * when a render path is added, and derive it from where JOBS are created, not
