@@ -159,5 +159,8 @@
     ],
     "deny": []
   },
-  "enableAllProjectMcpServers": false
+  "enableAllProjectMcpServers": false,
+  "attribution": {
+    "sessionUrl": false
+  }
 }
