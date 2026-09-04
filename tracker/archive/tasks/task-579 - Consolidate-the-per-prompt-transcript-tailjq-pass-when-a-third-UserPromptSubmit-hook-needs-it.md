@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 23:18'
-updated_date: '2026-08-14 01:04'
+updated_date: '2026-09-04 19:44'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -23,3 +23,13 @@ Why: context-size-reminder.sh and queued-message-receipt.sh each run their own t
 
 Acceptance: named trigger only - at the third transcript-reading UserPromptSubmit hook, one tail+jq pass total.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:44
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. admission bar (06-backlog.md: there is deliberately no state for the-only-trigger-is-next-time-someone-touches-this; a task in it should never have been filed). The trigger event and the need are the same diff: the third UserPromptSubmit transcript hook copies one of the two.
+---
+<!-- COMMENTS:END -->

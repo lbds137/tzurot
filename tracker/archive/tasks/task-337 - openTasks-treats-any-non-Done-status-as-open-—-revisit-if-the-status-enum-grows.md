@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-28 01:53'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-09-04 19:44'
 labels:
   - 'area:backlog'
   - 'size:S'
@@ -23,3 +23,13 @@ Why: trackerTasks.ts openTasks() filters status.toLowerCase() !== 'done', so eve
 Fix shape: teach openTasks() the closed-status set alongside the config change, and decide how a cancelled status interacts with the ruled-out exit (today: archive + removing commit).
 Promote when: backlog.config.yml statuses change. Surfaced by PR #1823 round-2 review.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:44
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. admission bar (06-backlog.md: there is deliberately no state for the-only-trigger-is-next-time-someone-touches-this; a task in it should never have been filed). The trigger event and the need are the same diff: a fourth status is added in backlog.config.yml next to the code that reads it.
+---
+<!-- COMMENTS:END -->

@@ -4,7 +4,7 @@ title: Share arm-name constants if a third fold-eval glue script appears
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-09-04 19:44'
 labels:
   - 'origin:review'
   - 'area:tooling'
@@ -23,3 +23,13 @@ Share arm-name constants if a third fold-eval glue script appears — `ARMS`/`DE
 
 **Why:** Two copies is fine; three is a registry.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: digest-pass
+created: 2026-09-04 19:44
+---
+Pass 2026-09-04 (TASK-888 half 1), owner ruling: ARCHIVED. admission bar (06-backlog.md: there is deliberately no state for the-only-trigger-is-next-time-someone-touches-this; a task in it should never have been filed). The trigger event and the need are the same diff: the third fold-eval glue script copies one of the two.
+---
+<!-- COMMENTS:END -->
