@@ -1,9 +1,10 @@
 ---
 id: TASK-853
 title: ContextWindowManager hysteresis test times out under full-suite CPU contention
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 14:03'
+updated_date: '2026-09-04 16:41'
 labels:
   - 'area:ai-worker'
   - 'size:S'

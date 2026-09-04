@@ -3,9 +3,10 @@ id: TASK-873
 title: >-
   ContextWindowManager hysteresis test has thin timeout headroom and flakes
   under parallel test load
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-03 02:03'
+updated_date: '2026-09-04 16:41'
 labels:
   - 'area:ai-worker'
   - 'size:S'
