@@ -136,6 +136,52 @@ function synthesizeErrorStatus(
 const UNMAPPED_ERROR_BODY_STATUS = 502;
 
 /**
+ * Parse a clone of the body so the caller's own read is untouched, and log how
+ * long the body took to arrive and parse relative to the headers. The custom
+ * fetch's "received response" line fires on headers alone; this is the only
+ * line that says the body completed. A rejected parse — malformed JSON, or an
+ * AbortError when the caller's timeout fires mid-body — is logged with its
+ * name rather than swallowed, so a timeout can be attributed to the body
+ * never arriving versus a stall after it did. Both lines are asserted in
+ * `OpenRouterFetch.test.ts`.
+ *
+ * `bodyChars` is undefined when the read itself rejected and a number when the
+ * body arrived but did not parse, which is the field that separates a body that
+ * never arrived from one that arrived malformed. Implementation note: the clone
+ * is read as TEXT and that text is parsed, rather than calling `json()` — per
+ * the Fetch standard's `json()` definition that is the same single read, not a
+ * second one (not probed here), and it is what makes the length measurable.
+ */
+async function parseClonedBody(
+  response: Response,
+  fetchedAt: number
+): Promise<Record<string, unknown> | null> {
+  let text: string | undefined;
+  try {
+    text = await response.clone().text();
+    const body: unknown = JSON.parse(text);
+    logger.info(
+      { status: response.status, bodyMs: Date.now() - fetchedAt, bodyChars: text.length },
+      'Custom fetch body parsed'
+    );
+    return typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null;
+  } catch (err) {
+    logger.warn(
+      {
+        status: response.status,
+        bodyMs: Date.now() - fetchedAt,
+        // undefined when the text read itself rejected (the body never fully
+        // arrived); a number when the body arrived but did not parse.
+        bodyChars: text?.length,
+        errName: err instanceof Error ? err.name : typeof err,
+      },
+      'Custom fetch body inspection failed — passing the response through'
+    );
+    return null;
+  }
+}
+
+/**
  * Turn an HTTP-200 body that carries an `error` object and no `choices` into a
  * real error response — the mirror image of {@link tryRecoverErrorContent}.
  *
@@ -167,10 +213,15 @@ const UNMAPPED_ERROR_BODY_STATUS = 502;
  * SDK and `logger.ts` at write time). Both halves are asserted by the same
  * suite.
  */
-async function trySurfaceOkErrorBody(response: Response): Promise<Response | null> {
+async function trySurfaceOkErrorBody(
+  response: Response,
+  fetchedAt: number
+): Promise<Response | null> {
   try {
-    const clone = response.clone();
-    const body = (await clone.json()) as Record<string, unknown>;
+    const body = await parseClonedBody(response, fetchedAt);
+    if (body === null) {
+      return null;
+    }
 
     // Absent, null, or present-but-empty are the three shapes that mean "no
     // generations" — @langchain/openai's chat-completions converter builds from
@@ -248,10 +299,15 @@ async function trySurfaceOkErrorBody(response: Response): Promise<Response | nul
  * would treat the actual response as chain-of-thought and surface it as
  * `thinkingContent` rather than user-visible content.
  */
-async function tryRecoverErrorContent(response: Response): Promise<Response | null> {
+async function tryRecoverErrorContent(
+  response: Response,
+  fetchedAt: number
+): Promise<Response | null> {
   try {
-    const clone = response.clone();
-    const body = (await clone.json()) as Record<string, unknown>;
+    const body = await parseClonedBody(response, fetchedAt);
+    if (body === null) {
+      return null;
+    }
     const choices = body.choices;
     if (!Array.isArray(choices) || choices.length === 0) {
       return null;
@@ -320,15 +376,19 @@ async function tryRecoverErrorContent(response: Response): Promise<Response | nu
  * `text/event-stream`, so that gate is what keeps either from consuming a
  * stream — asserted by the `text/event-stream` case in `OpenRouterFetch.test.ts`.
  */
-async function recoverResponse(response: Response, contentType: string | null): Promise<Response> {
+async function recoverResponse(
+  response: Response,
+  contentType: string | null,
+  fetchedAt: number
+): Promise<Response> {
   if (contentType?.includes('application/json') !== true) {
     return response;
   }
   if (response.ok) {
-    return (await trySurfaceOkErrorBody(response)) ?? response;
+    return (await trySurfaceOkErrorBody(response, fetchedAt)) ?? response;
   }
   if (response.status >= 400 && response.status < 500) {
-    return (await tryRecoverErrorContent(response)) ?? response;
+    return (await tryRecoverErrorContent(response, fetchedAt)) ?? response;
   }
   return response;
 }
@@ -360,6 +420,10 @@ export function createOpenRouterFetch(
     logger.info({ url: urlStr, method: init?.method }, 'Custom fetch intercepting request');
 
     const response = await fetch(url, init);
+    // `Date.now()` rather than `performance.now()`: vitest's fake timers fake
+    // `Date` by default and leave `performance` real, so the body-timing test
+    // can advance the clock deterministically (probed, not assumed).
+    const fetchedAt = Date.now();
 
     // RESPONSE: Recover usable content from 400-class JSON error responses.
     const contentType = response.headers.get('content-type');
@@ -372,6 +436,6 @@ export function createOpenRouterFetch(
       'Custom fetch received response'
     );
 
-    return recoverResponse(response, contentType);
+    return recoverResponse(response, contentType, fetchedAt);
   };
 }
