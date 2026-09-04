@@ -1,9 +1,10 @@
 ---
 id: TASK-882
 title: 'board-gate: the (?i)-prefix assert is compiled out under python -O'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-03 21:56'
+updated_date: '2026-09-04 14:11'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -12,8 +13,6 @@ dependencies: []
 priority: medium
 ordinal: 880000
 ---
-
-
 
 ## Description
 
