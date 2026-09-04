@@ -6,6 +6,7 @@
  */
 
 import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { HEADER_ID_TAG_WIDTHS } from '@tzurot/common-types/constants/headerIdTags';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { StructuredHistoryEntry } from './conversationTypes.js';
 
@@ -388,15 +389,26 @@ function hexOf(id: string): string {
  * group extends together — a 4-char clash between two of five ids means all
  * five get 8-char tags, not just the clashing pair, so a single header
  * format holds across the whole group.
+ *
+ * Trial widths are every entry of `HEADER_ID_TAG_WIDTHS` except the last —
+ * the last width (32, the whole hex string) is never a distinguishing
+ * PREFIX to try, it's the fallback below when no shorter prefix disambiguates.
  */
 function assignGroupTags(ids: readonly string[]): ReadonlyMap<string, string> {
   const hexes = ids.map(hexOf);
-  for (const len of [4, 8]) {
+  for (const len of HEADER_ID_TAG_WIDTHS.slice(0, -1)) {
     const prefixes = hexes.map(h => h.slice(0, len));
     if (new Set(prefixes).size === prefixes.length) {
       return new Map(ids.map((id, i) => [id, prefixes[i]]));
     }
   }
+  // Whole-hex fallback: for a UUID id, `hexOf` yields exactly 32 hex chars —
+  // the last entry of HEADER_ID_TAG_WIDTHS — pinned by
+  // "falls back to the FULL hex id when even 8 chars collide" in
+  // participantUtils.test.ts. Returns the WHOLE hex string rather than
+  // slicing it to that width: an id whose hex happens to be longer than 32
+  // chars must not be silently truncated here, since that would change
+  // behavior for a case this function was never asked to handle.
   return new Map(ids.map((id, i) => [id, hexes[i]]));
 }
 

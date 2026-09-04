@@ -92,4 +92,27 @@ describe('computeViewContext', () => {
     // Empty string !== NON_OWNER_DISCORD_ID, and admin is false; so redact.
     expect(ctx.canViewCharacter).toBe(false);
   });
+
+  it('sets isBotOwner:true for the bot owner', () => {
+    mockIsBotOwner.mockReturnValue(true);
+    const log = buildLog(OWNER_DISCORD_ID);
+    const ctx = computeViewContext(log, ADMIN_DISCORD_ID);
+    expect(ctx.isBotOwner).toBe(true);
+  });
+
+  it('sets isBotOwner:false for a personality owner who is not the bot owner', () => {
+    mockIsBotOwner.mockReturnValue(false);
+    const log = buildLog(OWNER_DISCORD_ID);
+    const ctx = computeViewContext(log, OWNER_DISCORD_ID);
+    expect(ctx.canViewCharacter).toBe(true);
+    expect(ctx.isBotOwner).toBe(false);
+  });
+
+  it('sets both canViewCharacter:false and isBotOwner:false for an unrelated user', () => {
+    mockIsBotOwner.mockReturnValue(false);
+    const log = buildLog(OWNER_DISCORD_ID);
+    const ctx = computeViewContext(log, NON_OWNER_DISCORD_ID);
+    expect(ctx.canViewCharacter).toBe(false);
+    expect(ctx.isBotOwner).toBe(false);
+  });
 });

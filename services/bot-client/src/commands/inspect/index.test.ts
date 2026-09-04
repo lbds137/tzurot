@@ -11,6 +11,7 @@ import { makeErr } from '../../test/gatewayClientStubs.js';
 import { MessageFlags } from 'discord.js';
 import type { DiagnosticLogResponse } from '@tzurot/common-types/schemas/api/diagnostic';
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import { InspectCustomIds } from './customIds.js';
 import { DebugViewType } from './types.js';
@@ -567,5 +568,159 @@ describe('handleSelectMenu', () => {
     await inspectCommand.handleSelectMenu!(interaction);
 
     expect(handleBrowseLogSelection).toHaveBeenCalledWith(interaction);
+  });
+});
+
+describe('header id-tag masking at dispatch', () => {
+  function createTaggedPayload(): DiagnosticPayload {
+    const payload = createMockDiagnosticPayload();
+    payload.assembledPrompt.messages = [
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: '[Vlad (id:deadbeef) — 12:00] hi' },
+    ];
+    return payload;
+  }
+
+  function extractAttachmentJson(interaction: { editReply: ReturnType<typeof vi.fn> }): string {
+    const editArg = interaction.editReply.mock.calls[0][0] as {
+      files: { attachment: Buffer | string }[];
+    };
+    return editArg.files[0].attachment.toString();
+  }
+
+  it('masks the header id tag in the Full JSON view for a non-owner (select menu)', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', createTaggedPayload())
+    );
+    const interaction = {
+      customId: InspectCustomIds.selectMenu('test-req-123'),
+      values: [DebugViewType.FullJson],
+      user: { id: 'regular-user-456' },
+      deferred: false,
+      replied: false,
+      editReply: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+      deferReply: vi.fn().mockImplementation(function (this: { deferred: boolean }) {
+        this.deferred = true;
+        return Promise.resolve(undefined);
+      }),
+    } as unknown as import('discord.js').StringSelectMenuInteraction;
+
+    await inspectCommand.handleSelectMenu!(interaction);
+
+    const json = extractAttachmentJson(
+      interaction as unknown as { editReply: ReturnType<typeof vi.fn> }
+    );
+    expect(json).not.toContain('deadbeef');
+    expect(json).toContain('(id:····)');
+  });
+
+  it('keeps the header id tag byte-exact for the bot owner (select menu)', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', createTaggedPayload())
+    );
+    const interaction = {
+      customId: InspectCustomIds.selectMenu('test-req-123'),
+      values: [DebugViewType.FullJson],
+      user: { id: 'owner-123' },
+      deferred: false,
+      replied: false,
+      editReply: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+      deferReply: vi.fn().mockImplementation(function (this: { deferred: boolean }) {
+        this.deferred = true;
+        return Promise.resolve(undefined);
+      }),
+    } as unknown as import('discord.js').StringSelectMenuInteraction;
+
+    await inspectCommand.handleSelectMenu!(interaction);
+
+    const json = extractAttachmentJson(
+      interaction as unknown as { editReply: ReturnType<typeof vi.fn> }
+    );
+    expect(json).toContain('deadbeef');
+  });
+
+  it('masks the header id tag in the Full JSON view for a non-owner (button)', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', createTaggedPayload())
+    );
+    const interaction = {
+      customId: InspectCustomIds.button('test-req-123', DebugViewType.FullJson),
+      user: { id: 'regular-user-456' },
+      deferReply: vi.fn().mockResolvedValue(undefined),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('discord.js').ButtonInteraction;
+
+    await inspectCommand.handleButton!(interaction);
+
+    const json = extractAttachmentJson(
+      interaction as unknown as { editReply: ReturnType<typeof vi.fn> }
+    );
+    expect(json).not.toContain('deadbeef');
+    expect(json).toContain('(id:····)');
+  });
+
+  it('keeps the header id tag byte-exact for the bot owner (button)', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', createTaggedPayload())
+    );
+    const interaction = {
+      customId: InspectCustomIds.button('test-req-123', DebugViewType.FullJson),
+      user: { id: 'owner-123' },
+      deferReply: vi.fn().mockResolvedValue(undefined),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('discord.js').ButtonInteraction;
+
+    await inspectCommand.handleButton!(interaction);
+
+    const json = extractAttachmentJson(
+      interaction as unknown as { editReply: ReturnType<typeof vi.fn> }
+    );
+    expect(json).toContain('deadbeef');
+  });
+
+  function createErrorTaggedPayload(): DiagnosticPayload {
+    const payload = createMockDiagnosticPayload();
+    payload.error = {
+      message: 'upstream call failed for [Vlad (id:deadbeef)]',
+      category: ApiErrorCategory.UNKNOWN,
+      failedAtStage: 'llmInvocation',
+    };
+    return payload;
+  }
+
+  function extractErrorFieldValue(context: DeferredCommandContext): string | undefined {
+    const editArg = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { fields?: { name: string; value: string }[] } }[];
+    };
+    return editArg.embeds[0].data.fields?.find(f => f.name.includes('Error'))?.value;
+  }
+
+  it('masks the header id tag in the Error field for a non-owner (execute)', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', createErrorTaggedPayload())
+    );
+    const context = createMockContext('test-req-123', 'regular-user-456');
+    await inspectCommand.execute(context);
+
+    const value = extractErrorFieldValue(context);
+    expect(value).not.toContain('deadbeef');
+    expect(value).toContain('(id:····)');
+  });
+
+  it('keeps the Error field byte-exact for the bot owner (execute)', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', createErrorTaggedPayload())
+    );
+    const context = createMockContext('test-req-123', 'owner-123');
+    await inspectCommand.execute(context);
+
+    const value = extractErrorFieldValue(context);
+    expect(value).toContain('deadbeef');
   });
 });

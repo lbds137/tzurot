@@ -35,10 +35,17 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-function makeInteraction(): MessageContextMenuCommandInteraction {
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return { ...actual, isBotOwner: (id: string) => id === 'owner-123' };
+});
+
+function makeInteraction(userId = 'user-1'): MessageContextMenuCommandInteraction {
   return {
     targetId: '123456789012345678',
-    user: { id: 'user-1' },
+    user: { id: userId },
     editReply: vi.fn().mockResolvedValue(undefined),
   } as unknown as MessageContextMenuCommandInteraction;
 }
@@ -104,5 +111,33 @@ describe('Inspect Message context-menu command', () => {
     // Read classification: never claims a change may still be applying
     expect(content).not.toContain('may still');
     expect(content.length).toBeGreaterThan(0);
+  });
+
+  it('masks header id tags in the payload handed to buildDiagnosticEmbed for a non-owner', async () => {
+    resolveMock.mockResolvedValue({
+      success: true,
+      log: {
+        requestId: 'req-1',
+        personalityId: 'pers-1',
+        data: {
+          postProcessing: { thinkingContent: 'thoughts' },
+          error: {
+            message: 'upstream call failed for [Vlad (id:deadbeef)]',
+            category: 'unknown',
+            failedAtStage: 'llmInvocation',
+          },
+        },
+      },
+    });
+    const interaction = makeInteraction('regular-user-456');
+
+    await inspectMessageCommand.execute(interaction);
+
+    const { buildDiagnosticEmbed } = await import('./inspect/embed.js');
+    const payloadArg = vi.mocked(buildDiagnosticEmbed).mock.calls[0][0] as {
+      error: { message: string };
+    };
+    expect(payloadArg.error.message).toContain('(id:····)');
+    expect(payloadArg.error.message).not.toContain('deadbeef');
   });
 });

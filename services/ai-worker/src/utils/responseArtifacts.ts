@@ -26,6 +26,7 @@
  */
 
 import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { buildHeaderIdTagPattern } from '@tzurot/common-types/constants/headerIdTags';
 import { replaceOutsideCodeMarkup } from '@tzurot/common-types/utils/codeSpanDetection';
 import { findLeadingMentionsEnd, stripLeadingMentions } from '@tzurot/common-types/utils/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -317,13 +318,9 @@ export function stripResponseArtifacts(content: string, personalityName: string)
 }
 
 /**
- * The id-tag shapes the platform actually emits. `assignGroupTags` in
- * `participantUtils.ts` cuts a tag from `hexOf(id)` — the id lowercased with
- * hyphens REMOVED — at 4 chars, then 8, then the whole 32-char hex string. So
- * the full form is hyphen-free hex, not a hyphenated UUID. Bounded to exactly
- * those three widths: an unbounded `(id:...)` would delete a character's
- * legitimate parenthetical. Case-insensitive because this hunts a MODEL's echo
- * of the format, and an echo is not bound to the platform's casing.
+ * The id-tag shapes the platform actually emits — see
+ * `@tzurot/common-types/constants/headerIdTags` for the width table and the
+ * producer it derives from.
  *
  * Leading whitespace is absorbed with the tag: the platform renders a tag as
  * ` (id:xxxx)` after a name, so deleting the tag alone would leave a double
@@ -332,7 +329,10 @@ export function stripResponseArtifacts(content: string, personalityName: string)
  * rather than unbounded because an open-ended quantifier before a literal is
  * quadratic on long whitespace runs (regexp/no-super-linear-move).
  */
-const ID_TAG_PATTERN = /[ \t]{0,3}\(id:(?:[0-9a-f]{4}|[0-9a-f]{8}|[0-9a-f]{32})\)/gi;
+// Module-scope cache is safe only because the sole consumer is `String.replace`,
+// which resets `lastIndex` before scanning; a `.test()`/`.exec()` loop on this
+// shared `g` instance would reintroduce the hazard the builder's doc names.
+const ID_TAG_PATTERN = new RegExp(`[ \\t]{0,3}${buildHeaderIdTagPattern().source}`, 'gi');
 
 /**
  * Strip the real-message form's own vocabulary out of model output: LEADING
