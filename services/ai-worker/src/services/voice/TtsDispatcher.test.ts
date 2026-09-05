@@ -37,7 +37,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 });
 
 import { dispatchTts, TtsDispatchError, type TtsProviderRegistry } from './TtsDispatcher.js';
-import { MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
+import { MistralGuardrailError, MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
 
 // ===== Test fixtures ========================================================
 
@@ -864,6 +864,29 @@ describe('dispatchTts — diagnostic notices', () => {
     ]);
   });
 
+  it('attaches a guardrail notice when MistralGuardrailError causes fallback', async () => {
+    const mistral = makeProvider('mistral', {
+      prepare: vi.fn(async () => {
+        throw new MistralGuardrailError('{"code":1920}', 1920);
+      }),
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hello',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(result.providerUsed).toBe('self-hosted');
+    expect(result.usedFallback).toBe(true);
+    expect(result.notices).toEqual([
+      `Mistral refused to voice this reply under its guardrail policy (code 1920) for "${baseCtx.slug}"; Mistral was skipped.`,
+    ]);
+  });
+
   it('omits notices on the happy path (no fallback)', async () => {
     const mistral = makeProvider('mistral');
     const selfHosted = makeProvider('self-hosted');
@@ -897,6 +920,11 @@ describe('dispatchTts — diagnostic notices', () => {
       {
         label: 'MistralReferenceAudioTooLongError → notice',
         error: () => new MistralReferenceAudioTooLongError(40.0, 30),
+        expectsNotice: true,
+      },
+      {
+        label: 'MistralGuardrailError → notice',
+        error: () => new MistralGuardrailError('{"code":1920}', 1920),
         expectsNotice: true,
       },
       {

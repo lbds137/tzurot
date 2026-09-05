@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MistralTtsProvider } from './MistralTtsProvider.js';
 import {
   MistralApiError,
+  MistralGuardrailError,
   MistralReferenceAudioTooLongError,
   MISTRAL_MAX_REFERENCE_AUDIO_SEC,
 } from '../MistralTtsClient.js';
@@ -548,6 +549,38 @@ describe('MistralTtsProvider', () => {
     it('throws when byokKey is missing', async () => {
       await expect(provider.prepare({ slug: 'emily' })).rejects.toThrow(/byokKey/);
     });
+
+    it('emits structured `mistral.guardrailViolation` event and does not cache on guardrail refusal', async () => {
+      // Same deterministic-not-cached outcome as the generic 400 test above,
+      // but pins the structured event a future refactor could silently drop
+      // if this branch collapsed back into the generic `isDeterministicFailure`
+      // path (mirrors the referenceAudioTooLong event-pinning test).
+      mockedListVoices.mockResolvedValue(okList([]));
+      mockedCloneVoice.mockRejectedValueOnce(new MistralGuardrailError('{"code":1920}', 1920));
+
+      await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toBeInstanceOf(
+        MistralGuardrailError
+      );
+
+      const warnCall = mockLoggerWarn.mock.calls.find(
+        call => (call[0] as Record<string, unknown>)?.event === 'mistral.guardrailViolation'
+      );
+      expect(warnCall).toBeDefined();
+      const meta = warnCall![0] as Record<string, unknown>;
+      expect(meta.slug).toBe('emily');
+      expect(meta.code).toBe(1920);
+
+      // Second attempt: cache is NOT populated, so it tries again — matches
+      // the generic deterministic branch's not-cached outcome.
+      mockedCloneVoice.mockResolvedValueOnce({
+        id: 'v-recovered',
+        name: 'tzurot-emily',
+        userId: 'u',
+      });
+      const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
+      expect(handle).toMatchObject({ id: 'v-recovered' });
+      expect(mockedListVoices).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('eviction mutex', () => {
@@ -663,6 +696,24 @@ describe('MistralTtsProvider', () => {
       ).rejects.toBeInstanceOf(MistralApiError);
 
       // Next prepare hits cache, no new listVoices call
+      const handle2 = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
+      expect(handle2).toMatchObject({ id: 'voice-uuid' });
+      expect(mockedListVoices).toHaveBeenCalledTimes(1);
+    });
+
+    it('rethrows MistralGuardrailError from the speech call without touching the voice cache', async () => {
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-uuid', name: 'tzurot-emily', userId: 'u' }])
+      );
+      const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
+
+      mockedTTS.mockRejectedValueOnce(new MistralGuardrailError('{"code":1920}', 1920));
+      await expect(
+        provider.synthesize('x', handle, { slug: 'emily', byokKey: 'sk' })
+      ).rejects.toBeInstanceOf(MistralGuardrailError);
+
+      // Next prepare hits cache, no new listVoices call — a guardrail refusal
+      // is not a stale-voice signal.
       const handle2 = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       expect(handle2).toMatchObject({ id: 'voice-uuid' });
       expect(mockedListVoices).toHaveBeenCalledTimes(1);
