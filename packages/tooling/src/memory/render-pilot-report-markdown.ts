@@ -79,6 +79,16 @@ function voiceTableMarkdown(voice: Record<RenderArm, VoiceArmStats>): string {
   return [header, divider, ...rows].join('\n');
 }
 
+/** Counts only, per `ReportJson.callFailures`'s own no-error-text contract. */
+function callFailuresLine(callFailures: Record<string, number>): string {
+  const nonZero = Object.entries(callFailures).filter(([, count]) => count > 0);
+  if (nonZero.length === 0) {
+    return 'Failed model calls by stage: none';
+  }
+  const parts = nonZero.map(([stage, count]) => `${stage}=${String(count)}`);
+  return `Failed model calls by stage: ${parts.join(', ')}`;
+}
+
 function usageTableMarkdown(usage: UsageStat[]): string {
   if (usage.length === 0) {
     return '_(no usage recorded)_';
@@ -99,6 +109,8 @@ export function buildReportSectionMarkdown(title: string, json: ReportJson): str
     `## ${title}`,
     '',
     `Dropped malformed questions: ${String(json.droppedMalformedQuestions)}`,
+    '',
+    callFailuresLine(json.callFailures),
     '',
     '### Answers by arm',
     '',

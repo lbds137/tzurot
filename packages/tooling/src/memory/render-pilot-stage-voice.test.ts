@@ -152,6 +152,7 @@ describe('runReportStage', () => {
       ],
       summaries: [],
       facts: [],
+      failures: [],
     });
 
     return runReportStage(ctx, corpus).then(() => {

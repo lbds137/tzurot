@@ -19,7 +19,7 @@ import {
 import {
   callOpenRouter,
   requireApiKey,
-  runWithConcurrency,
+  runWithConcurrencySettled,
   clearStageUsage,
 } from './render-pilot-llm.js';
 import {
@@ -40,8 +40,11 @@ import {
   shouldRunStage,
   logUsage,
   selectWindowRows,
+  partitionSettled,
+  reportStageFailures,
   type RenderPilotOptions,
   type SlugContext,
+  type StageCallFailure,
 } from './render-pilot-shared.js';
 import {
   loadSummaryByRowId,
@@ -89,7 +92,11 @@ async function answerOneQuestionArm(
       temperature: 0.7,
       // Cap sits above observed production reply lengths so the length
       // metric this stage measures is not clipped by its own cap.
-      maxTokens: 600,
+      // Cap must leave headroom for a reasoning model's thinking tokens, which are
+      // emitted before any content: a live run at a tight cap came back
+      // finish_reason "length" with no content at all. The thinking-first ordering
+      // is inferred from that finish_reason, not separately probed.
+      maxTokens: 4000,
     },
     ac.apiKey
   );
@@ -104,6 +111,18 @@ async function answerOneQuestionArm(
     tailTokens: countTextTokens(archive),
     truncated: result.finishReason === 'length',
   };
+}
+
+/** On-disk shape of the answers stage cache file. */
+export interface AnswersStageFile {
+  answers: AnswerStageRecord[];
+  failures: StageCallFailure[];
+}
+
+/** Read the cached answers stage file, defaulting to empty when absent. */
+export function loadAnswersStageFile(outDir: string, slug: string): AnswersStageFile {
+  const file = readStageFile<AnswersStageFile>(stagePath(outDir, slug, 'answers'));
+  return file ?? { answers: [], failures: [] };
 }
 
 /** For every (row, question, arm), render the window and answer in-character. */
@@ -130,6 +149,7 @@ export async function runAnswersStage(
   const ac: AnswerCallContext = { ctx, options, corpus, summaryByRowId, personaBlock, apiKey };
 
   const tasks: (() => Promise<AnswerStageRecord>)[] = [];
+  const meta: { rowId: string; arm: RenderArm }[] = [];
   for (const question of questions) {
     const centerIndex = sortedRows.findIndex(r => r.id === question.rowId);
     if (centerIndex === -1) {
@@ -138,10 +158,14 @@ export async function runAnswersStage(
     const windowRows = selectWindowRows(sortedRows, centerIndex, options.window);
     for (const arm of ARMS) {
       tasks.push(() => answerOneQuestionArm(ac, question, windowRows, arm));
+      meta.push({ rowId: question.rowId, arm });
     }
   }
-  const results = await runWithConcurrency(tasks, options.concurrency);
-  writeStageFile(path, results);
+  const settled = await runWithConcurrencySettled(tasks, options.concurrency);
+  const { values, failures } = partitionSettled(settled, index => meta[index]);
+  reportStageFailures('answers', failures);
+  const file: AnswersStageFile = { answers: values, failures };
+  writeStageFile(path, file);
 }
 
 interface JudgeCallContext {
@@ -149,6 +173,36 @@ interface JudgeCallContext {
   options: RenderPilotOptions;
   apiKey: string;
   displayName: string;
+}
+
+/**
+ * The shared judge request: identical model/temperature/cap/JSON-mode shape and
+ * usage logging for all three judge families, so only the prompts differ.
+ */
+async function callJudge(
+  jc: JudgeCallContext,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
+  const result = await callOpenRouter(
+    {
+      model: jc.options.judgeModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0,
+      // Cap must leave headroom for a reasoning model's thinking tokens, which are
+      // emitted before any content: a live run at a tight cap came back
+      // finish_reason "length" with no content at all. The thinking-first ordering
+      // is inferred from that finish_reason, not separately probed.
+      maxTokens: 2000,
+      jsonMode: true,
+    },
+    jc.apiKey
+  );
+  logUsage(jc.ctx, 'judge', jc.options.judgeModel, result);
+  return result.content;
 }
 
 async function judgeAnswer(
@@ -166,21 +220,8 @@ async function judgeAnswer(
     referenceAnswer: answer.referenceAnswer,
     reply: answer.reply,
   });
-  const result = await callOpenRouter(
-    {
-      model: jc.options.judgeModel,
-      messages: [
-        { role: 'system', content: JUDGE_ANSWER_SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0,
-      maxTokens: 400,
-      jsonMode: true,
-    },
-    jc.apiKey
-  );
-  logUsage(jc.ctx, 'judge', jc.options.judgeModel, result);
-  return parseAnswerJudgement(result.content);
+  const content = await callJudge(jc, JUDGE_ANSWER_SYSTEM_PROMPT, userMessage);
+  return parseAnswerJudgement(content);
 }
 
 async function judgeSummary(
@@ -196,21 +237,8 @@ async function judgeSummary(
     referenced: row.split.referenced,
     summary,
   });
-  const result = await callOpenRouter(
-    {
-      model: jc.options.judgeModel,
-      messages: [
-        { role: 'system', content: JUDGE_SUMMARY_SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0,
-      maxTokens: 400,
-      jsonMode: true,
-    },
-    jc.apiKey
-  );
-  logUsage(jc.ctx, 'judge', jc.options.judgeModel, result);
-  return parseSummaryJudgement(result.content);
+  const content = await callJudge(jc, JUDGE_SUMMARY_SYSTEM_PROMPT, userMessage);
+  return parseSummaryJudgement(content);
 }
 
 async function judgeFacts(
@@ -225,21 +253,8 @@ async function judgeFacts(
     referenced: row.split.referenced,
     factStatements: row.facts.map(f => f.statement),
   });
-  const result = await callOpenRouter(
-    {
-      model: jc.options.judgeModel,
-      messages: [
-        { role: 'system', content: JUDGE_FACTS_SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0,
-      maxTokens: 400,
-      jsonMode: true,
-    },
-    jc.apiKey
-  );
-  logUsage(jc.ctx, 'judge', jc.options.judgeModel, result);
-  return parseFactsJudgement(result.content);
+  const content = await callJudge(jc, JUDGE_FACTS_SYSTEM_PROMPT, userMessage);
+  return parseFactsJudgement(content);
 }
 
 /** One unit of judge work, tagged so a single task list can carry all three families. */
@@ -294,13 +309,13 @@ async function judgeOneFactsRow(jc: JudgeCallContext, row: CorpusRow): Promise<F
  * Build the single task list covering every judge call for this slug (per-answer,
  * per-row summary, per-row facts) so the whole stage runs under ONE concurrency
  * pool — three separate pools would triple the effective in-flight bound.
+ * `meta` runs parallel to `tasks` — the rowId each task's failure would be attributed to.
  */
 function buildJudgeTasks(
   jc: JudgeCallContext,
   corpus: CorpusResult
-): (() => Promise<JudgeTaskResult>)[] {
-  const answers =
-    readStageFile<AnswerStageRecord[]>(stagePath(jc.ctx.outDir, jc.ctx.slug, 'answers')) ?? [];
+): { tasks: (() => Promise<JudgeTaskResult>)[]; meta: { rowId: string }[] } {
+  const { answers } = loadAnswersStageFile(jc.ctx.outDir, jc.ctx.slug);
   const rowById = new Map(corpus.rows.map(r => [r.id, r]));
   const summaryByRowId = loadSummaryByRowId(jc.ctx.outDir, jc.ctx.slug);
 
@@ -317,7 +332,11 @@ function buildJudgeTasks(
     record: await judgeOneFactsRow(jc, row),
   }));
 
-  return [...answerTasks, ...summaryTasks, ...factsTasks];
+  const rowMeta = corpus.rows.map(r => ({ rowId: r.id }));
+  return {
+    tasks: [...answerTasks, ...summaryTasks, ...factsTasks],
+    meta: [...answers.map(a => ({ rowId: a.rowId })), ...rowMeta, ...rowMeta],
+  };
 }
 
 /** Judge every cached answer, plus the two render-level judgements (arm S, arm F). */
@@ -338,7 +357,10 @@ export async function runJudgeStage(
     displayName: corpus.personality.displayName,
   };
 
-  const results = await runWithConcurrency(buildJudgeTasks(jc, corpus), options.concurrency);
+  const { tasks, meta } = buildJudgeTasks(jc, corpus);
+  const settled = await runWithConcurrencySettled(tasks, options.concurrency);
+  const { values: results, failures } = partitionSettled(settled, index => meta[index]);
+  reportStageFailures('judge', failures);
 
   const answerRecords: AnswerRecord[] = [];
   const summaryJudgeRecords: SummaryJudgeRecord[] = [];
@@ -356,5 +378,6 @@ export async function runJudgeStage(
     answers: answerRecords,
     summaries: summaryJudgeRecords,
     facts: factsRecords,
+    failures,
   });
 }

@@ -212,6 +212,7 @@ describe('buildReportJson', () => {
       voice: [],
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     }) as {
       arms: {
         V: { correctnessRate: number; correctnessByBasis: { assistant: number; user: number } };
@@ -269,6 +270,7 @@ describe('buildReportJson', () => {
       voice: [],
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     });
     expect(json.arms.V.n).toBe(3);
     expect(json.arms.V.unjudged).toBe(1);
@@ -324,6 +326,7 @@ describe('buildReportJson', () => {
       voice: [],
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     });
     expect(json.arms.V.truncatedRate).toBeCloseTo(1 / 3, 5);
   });

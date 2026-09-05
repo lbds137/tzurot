@@ -15,7 +15,7 @@ import {
 import {
   callOpenRouter,
   requireApiKey,
-  runWithConcurrency,
+  runWithConcurrencySettled,
   clearStageUsage,
   type ChatMessage,
 } from './render-pilot-llm.js';
@@ -33,8 +33,11 @@ import {
   writeStageFile,
   shouldRunStage,
   logUsage,
+  partitionSettled,
+  reportStageFailures,
   type RenderPilotOptions,
   type SlugContext,
+  type StageCallFailure,
 } from './render-pilot-shared.js';
 
 export interface QuestionRecord {
@@ -58,7 +61,11 @@ async function callSummarizer(
   messages: ChatMessage[]
 ): Promise<SummarizerCallResult> {
   const result = await callOpenRouter(
-    { model: options.summaryModel, messages, temperature: 0.2, maxTokens: 200, jsonMode: true },
+    // Cap must leave headroom for a reasoning model's thinking tokens, which are
+    // emitted before any content: a live run at a tight cap came back
+    // finish_reason "length" with no content at all. The thinking-first ordering
+    // is inferred from that finish_reason, not separately probed.
+    { model: options.summaryModel, messages, temperature: 0.2, maxTokens: 3000, jsonMode: true },
     apiKey
   );
   logUsage(ctx, 'summaries', options.summaryModel, result);
@@ -107,6 +114,12 @@ async function summarizeOneRow(
   };
 }
 
+/** On-disk shape of the summaries stage cache file. */
+export interface SummariesStageFile {
+  summaries: (SummaryRecord & { rowId: string })[];
+  failures: StageCallFailure[];
+}
+
 /** D4: one summarizer call per row, with a length-triggered retry. */
 export async function runSummariesStage(
   ctx: SlugContext,
@@ -120,8 +133,13 @@ export async function runSummariesStage(
   clearStageUsage(ctx.usageLogPath, 'summaries');
   const apiKey = ctx.apiKey ?? requireApiKey();
   const tasks = corpus.rows.map(row => () => summarizeOneRow(ctx, options, corpus, row, apiKey));
-  const results = await runWithConcurrency(tasks, options.concurrency);
-  writeStageFile(path, results);
+  const settled = await runWithConcurrencySettled(tasks, options.concurrency);
+  const { values, failures } = partitionSettled(settled, index => ({
+    rowId: corpus.rows[index].id,
+  }));
+  reportStageFailures('summaries', failures);
+  const file: SummariesStageFile = { summaries: values, failures };
+  writeStageFile(path, file);
 }
 
 async function generateQuestionsForRow(
@@ -147,7 +165,11 @@ async function generateQuestionsForRow(
         { role: 'user', content: userMessage },
       ],
       temperature: 0.3,
-      maxTokens: 500,
+      // Cap must leave headroom for a reasoning model's thinking tokens, which are
+      // emitted before any content: a live run at a tight cap came back
+      // finish_reason "length" with no content at all. The thinking-first ordering
+      // is inferred from that finish_reason, not separately probed.
+      maxTokens: 2000,
       jsonMode: true,
     },
     apiKey
@@ -162,6 +184,7 @@ export interface QuestionsStageFile {
   questions: QuestionRecord[];
   /** Malformed question entries dropped by parseQuestionsResponse, summed across every row. */
   droppedMalformed: number;
+  failures: StageCallFailure[];
 }
 
 /** One question-generator call per row, run by the judge-model family. */
@@ -179,10 +202,15 @@ export async function runQuestionsStage(
   const tasks = corpus.rows.map(
     row => () => generateQuestionsForRow(ctx, options, corpus, row, apiKey)
   );
-  const perRow = await runWithConcurrency(tasks, options.concurrency);
+  const settled = await runWithConcurrencySettled(tasks, options.concurrency);
+  const { values: perRow, failures } = partitionSettled(settled, index => ({
+    rowId: corpus.rows[index].id,
+  }));
+  reportStageFailures('questions', failures);
   const file: QuestionsStageFile = {
     questions: perRow.flatMap(r => r.questions),
     droppedMalformed: perRow.reduce((sum, r) => sum + r.dropped, 0),
+    failures,
   };
   writeStageFile(path, file);
 }
@@ -193,14 +221,23 @@ export function loadQuestionsStageFile(outDir: string, slug: string): QuestionsS
     readStageFile<QuestionsStageFile>(stagePath(outDir, slug, 'questions')) ?? {
       questions: [],
       droppedMalformed: 0,
+      failures: [],
+    }
+  );
+}
+
+/** Read the cached summaries stage file, defaulting to empty when absent. */
+export function loadSummariesStageFile(outDir: string, slug: string): SummariesStageFile {
+  return (
+    readStageFile<SummariesStageFile>(stagePath(outDir, slug, 'summaries')) ?? {
+      summaries: [],
+      failures: [],
     }
   );
 }
 
 /** Read the cached summaries stage output, keyed by row id (empty map when absent). */
 export function loadSummaryByRowId(outDir: string, slug: string): Map<string, SummaryRecord> {
-  const summaries =
-    readStageFile<(SummaryRecord & { rowId: string })[]>(stagePath(outDir, slug, 'summaries')) ??
-    [];
+  const { summaries } = loadSummariesStageFile(outDir, slug);
   return new Map(summaries.map(s => [s.rowId, s]));
 }

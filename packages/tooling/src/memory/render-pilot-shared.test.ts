@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { SettledResult } from './render-pilot-llm.js';
 import {
   stagePath,
   readStageFile,
@@ -9,6 +10,8 @@ import {
   shouldRunStage,
   logUsage,
   selectWindowRows,
+  partitionSettled,
+  reportStageFailures,
   type RenderPilotOptions,
 } from './render-pilot-shared.js';
 
@@ -103,6 +106,60 @@ describe('logUsage', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('partitionSettled', () => {
+  it('collects successful values in order, with failed indices simply absent', () => {
+    const results: SettledResult<string>[] = [
+      { ok: true, value: 'a' },
+      { ok: false, error: 'boom' },
+      { ok: true, value: 'c' },
+    ];
+    const { values, failures } = partitionSettled(results);
+    expect(values).toEqual(['a', 'c']);
+    expect(failures).toEqual([{ index: 1, error: 'boom' }]);
+  });
+
+  it('attaches describe metadata to a failure, omitting rowId/arm keys entirely when absent', () => {
+    const results: SettledResult<string>[] = [
+      { ok: false, error: 'e0' },
+      { ok: false, error: 'e1' },
+    ];
+    const { failures } = partitionSettled(results, index =>
+      index === 0 ? { rowId: 'm1', arm: 'V' } : undefined
+    );
+    expect(failures[0]).toEqual({ index: 0, rowId: 'm1', arm: 'V', error: 'e0' });
+    expect(failures[1]).toEqual({ index: 1, error: 'e1' });
+    expect('rowId' in failures[1]).toBe(false);
+    expect('arm' in failures[1]).toBe(false);
+  });
+});
+
+describe('reportStageFailures', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('prints nothing when there are no failures', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    reportStageFailures('summaries', []);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('prints one count-only line naming the stage, without leaking error text', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    reportStageFailures('summaries', [
+      { index: 0, error: 'SENTINEL-should-not-appear' },
+      { index: 1, error: 'SENTINEL-should-not-appear' },
+      { index: 2, error: 'SENTINEL-should-not-appear' },
+    ]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [line] = spy.mock.calls[0] as [string];
+    expect(line).toBe(
+      '[render-pilot] stage summaries: 3 call(s) failed — see stage-summaries.json'
+    );
+    expect(line).not.toContain('SENTINEL-should-not-appear');
   });
 });
 

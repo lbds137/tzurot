@@ -8,7 +8,7 @@ import {
   requireApiKey,
   appendUsageRecord,
   clearStageUsage,
-  runWithConcurrency,
+  runWithConcurrencySettled,
   stripThinkingBlocks,
 } from './render-pilot-llm.js';
 
@@ -104,6 +104,24 @@ describe('callOpenRouter', () => {
     });
   });
 
+  it('sends response_format only when jsonMode is requested', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('{}')));
+    await callOpenRouter(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, jsonMode: true },
+      'sk-test'
+    );
+    const [, jsonModeInit] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const jsonModeBody = JSON.parse(jsonModeInit.body as string) as Record<string, unknown>;
+    expect(jsonModeBody.response_format).toEqual({ type: 'json_object' });
+
+    mockFetch.mockClear();
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('{}')));
+    await callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test');
+    const [, noJsonModeInit] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const noJsonModeBody = JSON.parse(noJsonModeInit.body as string) as Record<string, unknown>;
+    expect(noJsonModeBody).not.toHaveProperty('response_format');
+  });
+
   it('defaults finishReason to null when absent or not a string', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi')));
     const result = await callOpenRouter(
@@ -119,6 +137,52 @@ describe('callOpenRouter', () => {
       callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
     ).rejects.toThrow(/unexpected/);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws an exhausted-budget error naming the model when finish_reason is "length" and content is empty', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse(200, {
+        model: 'z-ai/glm-5.3',
+        choices: [{ message: {}, finish_reason: 'length' }],
+        usage: { prompt_tokens: 5, completion_tokens: 200 },
+      })
+    );
+    await expect(
+      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+    ).rejects.toThrow(/exhausted the token budget/);
+    await expect(
+      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+    ).rejects.toThrow(/z-ai\/glm-5\.3/);
+  });
+
+  it('throws the exhausted-budget error with no model artifact when the model field is absent', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse(200, {
+        choices: [{ message: {}, finish_reason: 'length' }],
+        usage: { prompt_tokens: 5, completion_tokens: 200 },
+      })
+    );
+    let message = '';
+    try {
+      await callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test');
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toMatch(/exhausted the token budget/);
+    expect(message).not.toMatch(/undefined/);
+    expect(message).not.toMatch(/null/);
+  });
+
+  it('throws the ordinary shape-mismatch error when content is empty and finish_reason is not "length"', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse(200, {
+        choices: [{ message: {}, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 5, completion_tokens: 1 },
+      })
+    );
+    await expect(
+      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+    ).rejects.toThrow(/did not carry choices\[0\]\.message\.content/);
   });
 
   it('throws loudly when content is empty and reasoning carries the whole reply (never silently promotes)', async () => {
@@ -285,7 +349,7 @@ describe('clearStageUsage', () => {
   });
 });
 
-describe('runWithConcurrency', () => {
+describe('runWithConcurrencySettled', () => {
   it('runs every task and preserves result order regardless of completion order', async () => {
     const deferred = [0, 1, 2].map(() => {
       let resolve: (value: number) => void = () => {};
@@ -295,12 +359,16 @@ describe('runWithConcurrency', () => {
       return { promise, resolve };
     });
     const tasks = deferred.map(d => () => d.promise);
-    const resultPromise = runWithConcurrency(tasks, 3);
+    const resultPromise = runWithConcurrencySettled(tasks, 3);
     // Resolve out of completion order — index 2 first, then 0, then 1.
     deferred[2].resolve(3);
     deferred[0].resolve(1);
     deferred[1].resolve(2);
-    await expect(resultPromise).resolves.toEqual([1, 2, 3]);
+    await expect(resultPromise).resolves.toEqual([
+      { ok: true, value: 1 },
+      { ok: true, value: 2 },
+      { ok: true, value: 3 },
+    ]);
   });
 
   it('never runs more than `concurrency` tasks at once', async () => {
@@ -319,7 +387,7 @@ describe('runWithConcurrency', () => {
           });
         })
     );
-    const promise = runWithConcurrency(tasks, 2);
+    const promise = runWithConcurrencySettled(tasks, 2);
     for (let i = 0; i < tasks.length; i++) {
       while (resolvers.length <= i) {
         await Promise.resolve();
@@ -328,5 +396,19 @@ describe('runWithConcurrency', () => {
     }
     await promise;
     expect(maxInFlight).toBeLessThanOrEqual(2);
+  });
+
+  it('records a rejection at its own index without sinking the other tasks', async () => {
+    const tasks = [
+      () => Promise.resolve('a'),
+      () => Promise.reject(new Error('boom')),
+      () => Promise.resolve('c'),
+    ];
+    const results = await runWithConcurrencySettled(tasks, 3);
+    expect(results).toEqual([
+      { ok: true, value: 'a' },
+      { ok: false, error: 'boom' },
+      { ok: true, value: 'c' },
+    ]);
   });
 });

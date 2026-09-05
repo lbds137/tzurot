@@ -192,6 +192,17 @@ async function runSlug(
   }
 }
 
+/** Sum each stage's failure count across every character's `callFailures` map. */
+function sumCallFailures(inputs: ReportBuildInput[]): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const input of inputs) {
+    for (const [stage, count] of Object.entries(input.callFailures)) {
+      totals[stage] = (totals[stage] ?? 0) + count;
+    }
+  }
+  return totals;
+}
+
 /**
  * Concatenate every character's raw records into one pooled `ReportBuildInput`
  * — NEVER average the per-character rates, which would weight a 5-row
@@ -207,6 +218,7 @@ export function poolReportInputs(inputs: ReportBuildInput[]): ReportBuildInput {
     voice: inputs.flatMap(i => i.voice),
     usage: inputs.flatMap(i => i.usage),
     droppedMalformedQuestions: inputs.reduce((sum, i) => sum + i.droppedMalformedQuestions, 0),
+    callFailures: sumCallFailures(inputs),
   };
 }
 

@@ -81,6 +81,8 @@ export interface ReportBuildInput {
   usage: UsageAggregateInput[];
   /** Malformed question entries dropped by parseQuestionsResponse, summed across rows. */
   droppedMalformedQuestions: number;
+  /** Failed model calls per stage name — a count only, deliberately carrying no error text. */
+  callFailures: Record<string, number>;
 }
 
 export interface ArmAnswerStats {
@@ -142,4 +144,6 @@ export interface ReportJson {
   voice: Record<RenderArm, VoiceArmStats>;
   usage: UsageStat[];
   droppedMalformedQuestions: number;
+  /** Failed model calls per stage name — a count only, deliberately carrying no error text. */
+  callFailures: Record<string, number>;
 }
