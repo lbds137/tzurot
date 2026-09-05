@@ -126,6 +126,25 @@ railway login --2fa-code 123456
 export RAILWAY_TOKEN="your-token-here"
 ```
 
+### Railway API Token (`TZUROT_RAILWAY_API_TOKEN`)
+
+`RAILWAY_TOKEN` and `RAILWAY_API_TOKEN` are **the Railway CLI's own**
+authentication variables — setting `RAILWAY_API_TOKEN` to an unrelated value
+breaks `railway status --json` with `Unauthorized. Please login with
+\`railway login\``, while an unrelated variable set the same way returns
+normal JSON (probed). tzurot's own variable is deliberately named
+`TZUROT_RAILWAY_API_TOKEN` so it can never collide with that CLI-owned name.
+
+`TZUROT_RAILWAY_API_TOKEN` is what tzurot uses for direct calls to Railway's
+**public GraphQL API**, for the handful of operations the CLI does not
+expose (variable deletion is the first one — `pnpm ops deploy:var-delete`).
+
+It should be a **project-scoped** token, minted in the Railway dashboard
+(Project Settings → Tokens) — the narrowest blast radius available. It lives
+only in a developer's local `.env`: it is never set as a variable on a
+Railway service, and never committed. `pnpm ops` reads it transiently at
+call time and never logs it.
+
 ### Check Current User
 
 ```bash
@@ -295,7 +314,16 @@ See "Shared Variables" section below for details.
 
 ### ❌ DELETE Variables
 
-**NOT SUPPORTED** via CLI. Use Railway web dashboard:
+**NOT SUPPORTED** via CLI. tzurot wraps Railway's public GraphQL API instead:
+
+```bash
+pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY
+pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY
+```
+
+Requires `TZUROT_RAILWAY_API_TOKEN` (see "Railway API Token" above) and a linked,
+logged-in checkout: even `--dry-run` resolves ids through `railway status --json`
+before it stops. The dashboard remains the manual fallback:
 
 1. Go to project dashboard
 2. Navigate to service
