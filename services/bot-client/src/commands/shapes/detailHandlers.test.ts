@@ -217,7 +217,7 @@ describe('handleDetailImport', () => {
 describe('handleDetailExport', () => {
   it('should start export and show detail view on success', async () => {
     stub.startShapesExport.mockResolvedValue(
-      makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' })
+      makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'zip', status: 'pending' })
     );
 
     const interaction = createMockButtonInteraction('shapes::detail-export', 'slug:test-slug');
@@ -229,7 +229,7 @@ describe('handleDetailExport', () => {
 
   it('should show fallback message when detail refresh fails after successful export', async () => {
     stub.startShapesExport.mockResolvedValue(
-      makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' })
+      makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'zip', status: 'pending' })
     );
 
     mockEditReply

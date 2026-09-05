@@ -131,4 +131,9 @@ describe('buildShapesExportFiles', () => {
     const files = buildShapesExportFiles(payloadWithPersonalization);
     expect(files['README.md']).toContain('**User personalization:** Yes');
   });
+
+  it('README heading carries the raw slug even when it is not filename-safe', () => {
+    const files = buildShapesExportFiles({ ...basePayload, sourceSlug: 'odd slug' });
+    expect(files['README.md']).toContain('# Shapes.inc Export: odd slug');
+  });
 });
