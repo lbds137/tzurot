@@ -26,7 +26,7 @@ _Focus: a character that has talked for months should sound like its card, not l
 
 ### Phase 2 — the protocol directive (database edit)
 
-- [ ] Add a `Voice Fidelity` directive beside `Structural Variety` in `characterDirectives`: voice comes from the card, history shows what was said not how to sound, accumulated register is drift. Weaker than the anchor (cached prefix, far from generation) and free. Owner applies the wording; the agent drafts it.
+- [ ] Add a `Voice Fidelity` directive beside `Structural Variety` in `characterDirectives`: voice comes from the card, history shows what was said not how to sound, accumulated register is drift. Weaker than the anchor (cached prefix, far from generation) and free. Owner applies the wording; the agent drafts it. **Proposed text (2026-09-05; the directives column is a JSON `characterDirectives: string[]`, rendered as `<directive>` items by `PersonalityFieldsFormatter.ts`)**: `Voice Fidelity: Your voice comes from your character definition (traits, tone, examples), never from your own earlier replies. Conversation history and memories record what you said and did; they are not a style reference. Pet names, running metaphors, sign-offs, and habitual structures that grew in past replies but are absent from your definition are drift: drop them. Match the register, energy, and reply length your definition describes.`
 
 ### Phase 3 — memory archive format (inside `doc-8`, the re-opened epic)
 
