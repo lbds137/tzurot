@@ -31,6 +31,7 @@ const mockHandleUndo = vi.fn();
 const mockHandleStats = vi.fn();
 const mockHandlePurgeHistory = vi.fn();
 const mockParsePurgeSlugFromFooter = vi.fn();
+const mockHasChannelWidePurgePermission = vi.fn((..._args: unknown[]) => true);
 vi.mock('./clear.js', () => ({
   handleClear: (...args: unknown[]) => mockHandleClear(...args),
 }));
@@ -43,6 +44,19 @@ vi.mock('./stats.js', () => ({
 vi.mock('./purge.js', () => ({
   handlePurgeHistory: (...args: unknown[]) => mockHandlePurgeHistory(...args),
   parsePurgeSlugFromFooter: (...args: unknown[]) => mockParsePurgeSlugFromFooter(...args),
+  // Real implementation kept — a plain-value mock returning a fixed answer
+  // would defeat the routing tests below, which rely on it discriminating
+  // 'history-purge' from 'history-purge-all' from anything else.
+  purgeScopeForOperation: (operation: string) => {
+    if (operation === 'history-purge') return 'own';
+    if (operation === 'history-purge-all') return 'everyone';
+    return null;
+  },
+  hasChannelWidePurgePermission: (...args: unknown[]) =>
+    mockHasChannelWidePurgePermission(
+      ...(args as Parameters<typeof mockHasChannelWidePurgePermission>)
+    ),
+  CHANNEL_WIDE_PURGE_ACTION: 'purge everyone’s conversation history in this channel',
 }));
 
 // Mock autocomplete handlers
@@ -154,13 +168,15 @@ describe('History Command Definition', () => {
     expect(statsSubcommand).toBeDefined();
   });
 
-  it('should have purge subcommand without profile option', () => {
+  it('should have purge subcommand without profile option, plus a scope option', () => {
     const json = data.toJSON();
     const purgeSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'purge') as
-      { options?: Array<{ name: string }> } | undefined;
+      { options?: Array<{ name: string; required?: boolean }> } | undefined;
     expect(purgeSubcommand).toBeDefined();
-    expect(purgeSubcommand?.options).toHaveLength(1);
+    expect(purgeSubcommand?.options).toHaveLength(2);
     expect(purgeSubcommand?.options?.[0]?.name).toBe('character');
+    expect(purgeSubcommand?.options?.[1]?.name).toBe('scope');
+    expect(purgeSubcommand?.options?.[1]?.required).toBe(false);
   });
 
   // Note: category is now injected by CommandHandler based on folder structure
@@ -209,6 +225,62 @@ function purgeParentMessage(footerText: string | undefined = 'slug:lilith'): {
 describe('handleModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHasChannelWidePurgePermission.mockReturnValue(true);
+  });
+
+  it('denies a history-purge-all modal submit without Manage Messages (stale-confirm re-check)', async () => {
+    mockHasChannelWidePurgePermission.mockReturnValue(false);
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
+    // Wired so the handler COULD proceed: without it, dropping the gate makes
+    // this test fail on an unmocked clientsFor throw rather than on its own
+    // assertions, which would not prove the gate is what stops the delete.
+    const hardDeleteHistory = vi.fn();
+    clientsForMock.mockReturnValue({ userClient: { hardDeleteHistory } });
+
+    const mockReply = vi.fn();
+    const mockInteraction = {
+      customId: 'history::destructive::modal_submit::history-purge-all::channel-123',
+      user: { id: '123456789' },
+      message: purgeParentMessage(),
+      reply: mockReply,
+    };
+
+    await handleModal(mockInteraction as never);
+
+    expect(mockReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('purge') })
+    );
+    expect(mockHandleDestructiveModalSubmit).not.toHaveBeenCalled();
+    expect(hardDeleteHistory).not.toHaveBeenCalled();
+  });
+
+  it('routes a history-purge-all modal submit with Manage Messages to hardDeleteHistory with scope: everyone', async () => {
+    mockHasChannelWidePurgePermission.mockReturnValue(true);
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
+    const hardDeleteHistory = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { success: true, deletedCount: 3, message: 'Deleted' },
+    });
+    clientsForMock.mockReturnValue({ userClient: { hardDeleteHistory } });
+
+    const mockInteraction = {
+      customId: 'history::destructive::modal_submit::history-purge-all::channel-123',
+      user: { id: '123456789' },
+      message: purgeParentMessage(),
+      reply: vi.fn(),
+    };
+
+    await handleModal(mockInteraction as never);
+
+    expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
+    const callback = mockHandleDestructiveModalSubmit.mock.calls[0][2] as () => Promise<unknown>;
+    await callback();
+
+    expect(hardDeleteHistory).toHaveBeenCalledWith({
+      personalitySlug: 'lilith',
+      channelId: 'channel-123',
+      scope: 'everyone',
+    });
   });
 
   it('should handle modal submit for history purge', async () => {
@@ -321,6 +393,7 @@ describe('handleModal', () => {
       expect(hardDeleteHistory).toHaveBeenCalledWith({
         personalitySlug: 'lilith',
         channelId: 'channel-123',
+        scope: 'own',
       });
       expect(result.success).toBe(true);
       expect(result.successEmbed).toBeDefined();
@@ -497,5 +570,34 @@ describe('handleButton', () => {
 
     expect(mockHandleDestructiveCancel).not.toHaveBeenCalled();
     expect(mockHandleDestructiveConfirmButton).not.toHaveBeenCalled();
+  });
+
+  it('routes the history-purge-all cancel button', async () => {
+    const mockInteraction = {
+      customId: 'history::destructive::cancel_button::history-purge-all::channel-123',
+    };
+
+    await handleButton(mockInteraction as never);
+
+    expect(mockHandleDestructiveCancel).toHaveBeenCalledWith(
+      mockInteraction,
+      'History purge cancelled.'
+    );
+  });
+
+  it('routes the history-purge-all confirm button', async () => {
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
+
+    const mockInteraction = {
+      customId: 'history::destructive::confirm_button::history-purge-all::channel-123',
+      message: purgeParentMessage(),
+    };
+
+    await handleButton(mockInteraction as never);
+
+    expect(mockHandleDestructiveConfirmButton).toHaveBeenCalledWith(
+      mockInteraction,
+      expect.objectContaining({ confirmationPhrase: 'DELETE LILITH' })
+    );
   });
 });
