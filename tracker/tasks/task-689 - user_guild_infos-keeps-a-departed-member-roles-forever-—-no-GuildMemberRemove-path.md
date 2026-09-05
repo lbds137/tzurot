@@ -3,10 +3,10 @@ id: TASK-689
 title: >-
   user_guild_infos keeps a departed member roles forever — no GuildMemberRemove
   path
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 23:47'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 04:54'
 labels:
   - 'area:bot-client'
   - 'size:S'
