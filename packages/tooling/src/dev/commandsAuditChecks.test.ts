@@ -215,6 +215,31 @@ describe('commandsAuditChecks: subcommand-naming', () => {
     expect(findings.some(f => f.detail.includes('list'))).toBe(true);
     expect(findings.some(f => f.detail.includes('frobnicate'))).toBe(true);
   });
+
+  it('accepts the /deny scope nouns under the add/remove groups', () => {
+    const scopes = ['everywhere', 'server', 'this-server', 'channel', 'character'];
+    const group = (name: string) => ({
+      type: 2,
+      name,
+      description: `${name} a denial`,
+      options: scopes.map(scope => ({ type: 1, name: scope, description: `Scope: ${scope}` })),
+    });
+    const findings = runChecks(
+      manifest([
+        command({
+          name: 'deny',
+          category: 'Character',
+          description: 'Manage denials by scope',
+          data: {
+            name: 'deny',
+            description: 'Manage denials by scope',
+            options: [group('add'), group('remove')],
+          },
+        }),
+      ])
+    ).filter(f => f.rule === 'subcommand-naming');
+    expect(findings).toEqual([]);
+  });
 });
 
 describe('commandsAuditChecks: option-name-drift', () => {
