@@ -112,7 +112,7 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
       return;
     }
     if (action === 'detail-export') {
-      await handleDetailExport(interaction, parsed.exportFormat);
+      await handleDetailExport(interaction);
       return;
     }
     if (action === 'detail-refresh') {

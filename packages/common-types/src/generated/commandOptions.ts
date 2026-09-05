@@ -625,11 +625,10 @@ export const shapesImportOptions = defineTypedOptions({
 });
 
 /**
- * /shapes export <slug, format>
+ * /shapes export <slug>
  */
 export const shapesExportOptions = defineTypedOptions({
   slug: { type: 'string', required: true },
-  format: { type: 'string', required: false },
 });
 
 // =============================================================================

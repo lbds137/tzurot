@@ -194,8 +194,6 @@ export interface ShapesImportJobResult {
 // Export Job Types (BullMQ payloads)
 // ============================================================================
 
-const exportFormatEnum = z.enum(['json', 'markdown']);
-
 /**
  * Shapes Export Job Data Schema
  * SINGLE SOURCE OF TRUTH for shapes export job payloads
@@ -210,8 +208,6 @@ export const shapesExportJobDataSchema = z.object({
   sourceSlug: z.string().min(1),
   /** ExportJob record ID for status tracking */
   exportJobId: z.string().uuid(),
-  /** Export format */
-  format: exportFormatEnum,
 });
 
 /**
@@ -237,8 +233,6 @@ export interface ShapesExportJobData {
   sourceSlug: string;
   /** ExportJob record ID for status tracking */
   exportJobId: string;
-  /** Export format */
-  format: 'json' | 'markdown';
 }
 
 /** Result returned by the shapes export job */

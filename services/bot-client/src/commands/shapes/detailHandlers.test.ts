@@ -220,11 +220,8 @@ describe('handleDetailExport', () => {
       makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' })
     );
 
-    const interaction = createMockButtonInteraction(
-      'shapes::detail-export::json',
-      'slug:test-slug'
-    );
-    await handleDetailExport(interaction, 'json');
+    const interaction = createMockButtonInteraction('shapes::detail-export', 'slug:test-slug');
+    await handleDetailExport(interaction);
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
     expect(mockEditReply).toHaveBeenCalled();
@@ -239,11 +236,8 @@ describe('handleDetailExport', () => {
       .mockRejectedValueOnce(new Error('Discord API error'))
       .mockResolvedValueOnce(undefined);
 
-    const interaction = createMockButtonInteraction(
-      'shapes::detail-export::json',
-      'slug:test-slug'
-    );
-    await handleDetailExport(interaction, 'json');
+    const interaction = createMockButtonInteraction('shapes::detail-export', 'slug:test-slug');
+    await handleDetailExport(interaction);
 
     expect(mockEditReply).toHaveBeenCalledTimes(2);
     const fallbackArgs = mockEditReply.mock.calls[1][0];
@@ -308,7 +302,6 @@ describe('handleImportConfirm', () => {
       command: 'shapes',
       action: 'import-confirm',
       importType: 'full',
-      exportFormat: undefined,
     });
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
@@ -329,7 +322,6 @@ describe('handleImportConfirm', () => {
       command: 'shapes',
       action: 'import-confirm',
       importType: 'full',
-      exportFormat: undefined,
     });
 
     expect(mockEditReply).toHaveBeenCalledTimes(1);
@@ -359,7 +351,6 @@ describe('handleImportConfirm', () => {
       command: 'shapes',
       action: 'import-confirm',
       importType: 'full',
-      exportFormat: undefined,
     });
 
     expect(mockEditReply).toHaveBeenCalledTimes(2);
@@ -375,7 +366,6 @@ describe('handleImportConfirm', () => {
       command: 'shapes',
       action: 'import-confirm',
       importType: 'full',
-      exportFormat: undefined,
     });
 
     expect(mockUpdate).toHaveBeenCalledWith(

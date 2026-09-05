@@ -153,12 +153,9 @@ export async function handleDetailImport(
 }
 
 /** Handle export button from detail view — start export immediately */
-export async function handleDetailExport(
-  interaction: ButtonInteraction,
-  exportFormat: string | undefined
-): Promise<void> {
+export async function handleDetailExport(interaction: ButtonInteraction): Promise<void> {
   const { slug, sort } = parseSlugFromFooter(interaction);
-  if (slug === undefined || exportFormat === undefined) {
+  if (slug === undefined) {
     await interaction.update({
       content: INVALID_STATE_MSG,
       embeds: [],
@@ -167,10 +164,9 @@ export async function handleDetailExport(
     return;
   }
 
-  const format: 'json' | 'markdown' = exportFormat === 'markdown' ? 'markdown' : 'json';
   const userId = interaction.user.id;
 
-  const success = await startExport(interaction, userId, { slug, format });
+  const success = await startExport(interaction, userId, { slug });
   if (success) {
     // Show detail view with updated job status
     try {

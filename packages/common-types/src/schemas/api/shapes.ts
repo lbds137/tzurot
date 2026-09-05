@@ -123,19 +123,19 @@ export const ListShapesImportJobsResponseSchema = z.object({
 /**
  * Request body for `POST /user/shapes/export`. Note the field is `slug`
  * (not `sourceSlug` — asymmetric with import; the handler uses this name).
- * Format defaults to `'json'` server-side when omitted.
  */
 export const StartShapesExportInputSchema = z.object({
   // `.trim()` is load-bearing for the same reason as the import schema —
   // the handler does `.toLowerCase()` without re-trimming.
   slug: z.string().trim().min(1),
-  format: z.enum(['json', 'markdown']).optional(),
 });
 
 export const StartShapesExportResponseSchema = z.object({
   success: z.literal(true),
   exportJobId: z.string(),
   sourceSlug: z.string(),
+  // The route stamps 'zip' on every export (pinned by the create test in
+  // services/api-gateway/src/routes/user/shapes/export.test.ts).
   format: z.string(),
   status: z.string(),
   downloadUrl: z.string(),
