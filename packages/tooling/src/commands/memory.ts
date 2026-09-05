@@ -214,6 +214,64 @@ function registerAttachmentGoldensCommand(cli: CAC): void {
     );
 }
 
+const RENDER_PILOT_MODELS_DESC = ' (OpenRouter model id; required — no default, model ids drift)';
+
+/** The three-arm memory-render pilot (D0): renders + evals V/F/S archives for a fixed cast. */
+function registerRenderPilotCommand(cli: CAC): void {
+  cli
+    .command(
+      'memory:render-pilot',
+      'Three-arm memory-archive render pilot (V/F/S) — see memory-archive-format.md D0'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--personality <slugs>', 'Personality slug(s), comma-separated (required)')
+    .option('--answer-model <model>', `Model answering in-character${RENDER_PILOT_MODELS_DESC}`)
+    .option(
+      '--judge-model <model>',
+      `Model generating questions + judging${RENDER_PILOT_MODELS_DESC}`
+    )
+    .option('--summary-model <model>', `Model producing arm-S summaries${RENDER_PILOT_MODELS_DESC}`)
+    .option('--largest <n>', 'Largest-by-chars rows to sample (default 20)')
+    .option('--latest <n>', 'Most-recent rows to sample (default 20)')
+    .option('--questions-per-row <n>', 'Golden questions per row (default 2)')
+    .option('--window <n>', 'Rows per rendered archive window (default 10)')
+    .option('--voice-window <n>', 'Rows in the voice-probe archive (default 20)')
+    .option('--triggers-file <path>', 'JSON {"triggers": [string]} for the voice probe')
+    .option('--markers-file <path>', 'JSON {"markers": [string]} for voice marker-hit counting')
+    .option(OUT_OPTION, 'Output dir (default reports/render-pilot — gitignored)')
+    .option(
+      '--stage <name>',
+      'corpus|summaries|questions|answers|judge|voice|report|all (default all)'
+    )
+    .option('--concurrency <n>', 'Max in-flight model calls (default 4)')
+    .option('--dry-run', 'Run only the corpus stage and print stats + a token estimate')
+    .action(
+      async (options: {
+        env?: Environment;
+        personality?: string;
+        answerModel?: string;
+        judgeModel?: string;
+        summaryModel?: string;
+        largest?: string;
+        latest?: string;
+        questionsPerRow?: string;
+        window?: string;
+        voiceWindow?: string;
+        triggersFile?: string;
+        markersFile?: string;
+        out?: string;
+        stage?: string;
+        concurrency?: string;
+        dryRun?: boolean;
+      }) => {
+        const { buildRenderPilotOptions } = await import('../memory/render-pilot-cli.js');
+        const renderPilotOptions = buildRenderPilotOptions(options);
+        const { runRenderPilot } = await import('../memory/render-pilot.js');
+        await runRenderPilot(renderPilotOptions);
+      }
+    );
+}
+
 /** The conversation-goldens miner — its own registrar so registerGoldensCommands stays under the line cap. */
 function registerConversationGoldensCommand(cli: CAC): void {
   cli
@@ -301,6 +359,7 @@ export function registerMemoryCommands(cli: CAC): void {
   registerGoldensCommands(cli);
   registerConversationGoldensCommand(cli);
   registerAttachmentGoldensCommand(cli);
+  registerRenderPilotCommand(cli);
 
   // Cleanup duplicate memories
   cli
