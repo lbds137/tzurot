@@ -53,7 +53,9 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 |            | `delete` `purge`                                   | Memory management operations                                          |
 |            | `fresh` (`enable` `disable` `status`)              | Fresh-start mode — replies stop using memories of you (they are kept) |
 |            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)                                          |
-| `/history` | `clear` `stats` `undo` `purge`                     | Conversation history management                                       |
+| `/history` | `clear` `stats` `undo` `purge` (`scope`)           | Conversation history management                                       |
+
+> **`/history purge` scope**: deletes only your own conversation history with the character in that channel by default; `scope: Everyone's` deletes every user's, and needs the **Manage Messages** permission in that channel (or bot owner). Long-term memories derived from the deleted turns are retired too, with pinned memories kept.
 
 ## Settings & Tools
 
