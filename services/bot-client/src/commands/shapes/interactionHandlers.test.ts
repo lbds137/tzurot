@@ -284,7 +284,7 @@ describe('handleShapesButton', () => {
         makeOk({
           exportJobId: 'exp-1',
           sourceSlug: 'test-slug',
-          format: 'json',
+          format: 'zip',
           status: 'pending',
         })
       );
@@ -295,7 +295,7 @@ describe('handleShapesButton', () => {
               id: 'exp-1',
               sourceSlug: 'test-slug',
               status: 'pending',
-              format: 'json',
+              format: 'zip',
               fileName: null,
               fileSizeBytes: null,
               createdAt: '2026-02-16T00:00:00Z',

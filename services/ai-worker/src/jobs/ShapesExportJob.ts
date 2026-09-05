@@ -19,7 +19,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
 import { buildShapesExportFiles } from './ShapesExportFiles.js';
-import { zipTextFiles } from './exportZip.js';
+import { sanitizeFileStem, zipTextFiles } from './exportZip.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
 import { claimShapesFetchSlot, handleShapesJobError } from './shapesJobHelpers.js';
 
@@ -87,7 +87,7 @@ export async function processShapesExportJob(
     const files = buildShapesExportFiles(exportPayload);
     const fileData = zipTextFiles(files);
     const fileSizeBytes = fileData.length;
-    const safeSlug = sourceSlug.replace(/[^\w.-]/g, '_');
+    const safeSlug = sanitizeFileStem(sourceSlug);
     const fileName = `shapes-export-${safeSlug}-${new Date().toISOString().slice(0, 10)}.zip`;
 
     // 6. Store result in ExportJob

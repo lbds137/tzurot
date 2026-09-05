@@ -42,7 +42,7 @@ import {
  * Filename stem from user-controlled text (persona names, slugs).
  *
  * Byte-identical to `sanitizeFileStem` in
- * `services/ai-worker/src/jobs/AccountExportFiles.ts` — deliberately a
+ * `services/ai-worker/src/jobs/exportZip.ts` — deliberately a
  * SECOND implementation of that rule rather than an import (this package
  * has no dependency on ai-worker). A divergence between the two surfaces as
  * a manifest finding in the export-path smoke (an expected path the real

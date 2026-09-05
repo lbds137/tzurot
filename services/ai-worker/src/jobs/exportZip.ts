@@ -1,8 +1,9 @@
 /**
- * Export ZIP Helper
+ * Export ZIP Helpers
  *
  * Turns a path → text-content map (as built by AccountExportFiles.ts and
- * ShapesExportFiles.ts) into a ZIP archive's raw bytes.
+ * ShapesExportFiles.ts) into a ZIP archive's raw bytes, and sanitizes
+ * user-controlled text into filename-safe stems.
  */
 
 import { zipSync, strToU8 } from 'fflate';
@@ -13,4 +14,15 @@ export function zipTextFiles(files: Record<string, string>): Uint8Array<ArrayBuf
     zipEntries[path] = strToU8(content);
   }
   return zipSync(zipEntries);
+}
+
+/**
+ * Filename stem from user-controlled text (persona names, slugs).
+ *
+ * The archive filenames in AccountExportJob and ShapesExportJob use it too,
+ * so one rule names every export path.
+ */
+export function sanitizeFileStem(stem: string): string {
+  const sanitized = stem.replace(/[^\w.-]/g, '_');
+  return sanitized === '' ? 'unnamed' : sanitized;
 }
