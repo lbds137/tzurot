@@ -169,6 +169,17 @@ describe('processAccountExportJob', () => {
     expect(final.fileName).not.toMatch(/[/!\s]/);
   });
 
+  it('falls back to an unnamed stem when the username is empty', async () => {
+    const payload = makePayload();
+    payload.profile = { ...payload.profile, username: '' };
+    assembleMock.mockResolvedValue(payload);
+
+    await processAccountExportJob(makeJob(), mockPrisma);
+
+    const final = (mockPrisma.exportJob.update as ReturnType<typeof vi.fn>).mock.calls[1][0].data;
+    expect(final.fileName).toMatch(/^tzurot-account-export-unnamed-\d{4}-\d{2}-\d{2}\.zip$/);
+  });
+
   it('re-throws on non-final attempts so BullMQ actually retries (row stays in_progress)', async () => {
     assembleMock.mockRejectedValue(new Error('transient pool timeout'));
 

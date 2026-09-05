@@ -127,6 +127,24 @@ describe('Account Export Routes', () => {
       expect(body.downloadUrl).not.toContain(body.exportJobId);
     });
 
+    it('resets every completion column, fileData included, when a re-export reuses the row', async () => {
+      await callStart();
+
+      expect(mockTxExportJob.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            fileContent: null,
+            fileData: null,
+            fileName: null,
+            fileSizeBytes: null,
+            errorMessage: null,
+            startedAt: null,
+            completedAt: null,
+          }),
+        })
+      );
+    });
+
     it('409s while an account export is already active, without enqueueing', async () => {
       mockTxExportJob.findFirst.mockResolvedValueOnce({ status: 'in_progress' });
       const { res } = await callStart();

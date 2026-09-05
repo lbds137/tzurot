@@ -107,6 +107,7 @@ async function createExportJobOrConflict(
         format: EXPORT_FORMAT,
         downloadToken,
         fileContent: null,
+        fileData: null,
         fileName: null,
         fileSizeBytes: null,
         errorMessage: null,

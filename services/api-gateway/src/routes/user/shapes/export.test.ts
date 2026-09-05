@@ -181,6 +181,27 @@ describe('Shapes Export Routes', () => {
       expect(body.downloadUrl).toMatch(/\/exports\/[0-9a-f]{64}$/);
       expect(body.downloadUrl).not.toContain(body.exportJobId);
     });
+
+    it('resets every completion column, fileData included, when a re-export reuses the row', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({ id: 'cred-id' });
+      mockTxExportJob.findFirst.mockResolvedValue(null);
+
+      await callExportHandler({ slug: 'Test-Shape' });
+
+      expect(mockTxExportJob.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            fileContent: null,
+            fileData: null,
+            fileName: null,
+            fileSizeBytes: null,
+            errorMessage: null,
+            startedAt: null,
+            completedAt: null,
+          }),
+        })
+      );
+    });
   });
 
   describe('GET /api/user/shapes/export/jobs (list export history)', () => {

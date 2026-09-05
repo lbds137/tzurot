@@ -5,7 +5,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatExportAsJson,
-  formatExportAsMarkdown,
+  formatConfigSection,
+  formatMemoriesSection,
+  formatStoriesSection,
   formatUserPersonalizationSection,
   type ExportPayload,
 } from './ShapesExportFormatters.js';
@@ -72,37 +74,40 @@ describe('ShapesExportFormatters', () => {
     });
   });
 
-  describe('formatExportAsMarkdown', () => {
-    it('should include export timestamp', () => {
-      const result = formatExportAsMarkdown(basePayload);
-      expect(result).toContain('Exported from shapes.inc on 2026-02-16');
-    });
-
+  // formatExportAsMarkdown was removed as production-dead (no caller outside
+  // its own test); the ZIP export (ShapesExportFiles.ts) is the product now.
+  // Its old assertions are ported here onto the per-section formatters it was
+  // built from. The old "export timestamp" and "stats footer" assertions are
+  // not ported — they're covered by the README assertions in
+  // ShapesExportFiles.test.ts (exportedAt and counts).
+  describe('formatConfigSection', () => {
     it('should include shape name as heading', () => {
-      const result = formatExportAsMarkdown(basePayload);
+      const result = formatConfigSection(basePayload.config, basePayload.sourceSlug);
       expect(result).toContain('# Test Shape');
     });
 
     it('should include system prompt', () => {
-      const result = formatExportAsMarkdown(basePayload);
-      expect(result).toContain('## System Prompt');
-      expect(result).toContain('You are Test Shape.');
+      const result = formatConfigSection(basePayload.config, basePayload.sourceSlug);
+      expect(result.join('\n')).toContain('## System Prompt');
+      expect(result.join('\n')).toContain('You are Test Shape.');
     });
 
     it('should include character info', () => {
-      const result = formatExportAsMarkdown(basePayload);
-      expect(result).toContain('## Character Info');
-      expect(result).toContain('Character info here');
+      const result = formatConfigSection(basePayload.config, basePayload.sourceSlug);
+      expect(result.join('\n')).toContain('## Character Info');
+      expect(result.join('\n')).toContain('Character info here');
     });
 
     it('should include personality traits', () => {
-      const result = formatExportAsMarkdown(basePayload);
-      expect(result).toContain('### Personality Traits');
-      expect(result).toContain('Brave and kind');
+      const result = formatConfigSection(basePayload.config, basePayload.sourceSlug);
+      expect(result.join('\n')).toContain('### Personality Traits');
+      expect(result.join('\n')).toContain('Brave and kind');
     });
+  });
 
+  describe('formatMemoriesSection', () => {
     it('should include memories as numbered headings without senders', () => {
-      const result = formatExportAsMarkdown(basePayload);
+      const result = formatMemoriesSection(basePayload.memories).join('\n');
       expect(result).toContain('## Memories');
       expect(result).toContain('1 conversation memories');
       expect(result).toContain('### Memory #1');
@@ -113,66 +118,50 @@ describe('ShapesExportFormatters', () => {
     });
 
     it('should number multiple memories sequentially', () => {
-      const multiMemPayload: ExportPayload = {
-        ...basePayload,
-        memories: [
-          {
-            id: 'mem-1',
-            shape_id: 'shape-id',
-            senders: ['user1'],
-            result: 'First memory.',
-            metadata: { start_ts: 1000, end_ts: 2000, created_at: 1700000000, senders: ['user1'] },
-          },
-          {
-            id: 'mem-2',
-            shape_id: 'shape-id',
-            senders: ['user2'],
-            result: 'Second memory.',
-            metadata: { start_ts: 3000, end_ts: 4000, created_at: 1700100000, senders: ['user2'] },
-          },
-        ],
-        stats: { ...basePayload.stats, memoriesCount: 2 },
-      };
-      const result = formatExportAsMarkdown(multiMemPayload);
+      const memories = [
+        {
+          id: 'mem-1',
+          shape_id: 'shape-id',
+          senders: ['user1'],
+          result: 'First memory.',
+          metadata: { start_ts: 1000, end_ts: 2000, created_at: 1700000000, senders: ['user1'] },
+        },
+        {
+          id: 'mem-2',
+          shape_id: 'shape-id',
+          senders: ['user2'],
+          result: 'Second memory.',
+          metadata: { start_ts: 3000, end_ts: 4000, created_at: 1700100000, senders: ['user2'] },
+        },
+      ];
+      const result = formatMemoriesSection(memories).join('\n');
       expect(result).toContain('### Memory #1');
       expect(result).toContain('### Memory #2');
       expect(result).toContain('First memory.');
       expect(result).toContain('Second memory.');
     });
 
+    it('returns an empty array on empty input', () => {
+      expect(formatMemoriesSection([])).toEqual([]);
+    });
+  });
+
+  describe('formatStoriesSection', () => {
     it('should include stories section with title when available', () => {
-      const payloadWithTitle = {
-        ...basePayload,
-        stories: [{ ...basePayload.stories[0], title: 'My Story Title' }],
-      };
-      const result = formatExportAsMarkdown(payloadWithTitle);
+      const stories = [{ ...basePayload.stories[0], title: 'My Story Title' }];
+      const result = formatStoriesSection(stories).join('\n');
       expect(result).toContain('## Knowledge Base');
       expect(result).toContain('### My Story Title');
       expect(result).toContain('Once upon a time...');
     });
 
     it('should fall back to story_type when title is missing', () => {
-      const result = formatExportAsMarkdown(basePayload);
+      const result = formatStoriesSection(basePayload.stories).join('\n');
       expect(result).toContain('### (general)');
     });
 
-    it('should include stats footer', () => {
-      const result = formatExportAsMarkdown(basePayload);
-      expect(result).toContain('Memories: 1');
-      expect(result).toContain('Stories: 1');
-      expect(result).toContain('User Personalization: No');
-    });
-
-    it('should omit empty sections', () => {
-      const emptyPayload = {
-        ...basePayload,
-        memories: [],
-        stories: [],
-        stats: { ...basePayload.stats, memoriesCount: 0, storiesCount: 0 },
-      };
-      const result = formatExportAsMarkdown(emptyPayload);
-      expect(result).not.toContain('## Memories');
-      expect(result).not.toContain('## Knowledge Base');
+    it('returns an empty array on empty input', () => {
+      expect(formatStoriesSection([])).toEqual([]);
     });
   });
 
@@ -181,19 +170,42 @@ describe('ShapesExportFormatters', () => {
       expect(formatUserPersonalizationSection(null)).toEqual([]);
     });
 
-    it('returns an empty array when there is no backstory', () => {
-      expect(
-        formatUserPersonalizationSection({ preferred_name: 'Sam', pronouns: 'they/them' } as never)
-      ).toEqual([]);
+    it('returns the heading and bullets, with no backstory paragraph, when only name and pronouns are present', () => {
+      const result = formatUserPersonalizationSection({
+        backstory: '',
+        preferred_name: 'Sam',
+        pronouns: 'they/them',
+      });
+      expect(result).toEqual([
+        '## User Personalization',
+        '',
+        '- **Preferred name:** Sam',
+        '- **Pronouns:** they/them',
+        '',
+      ]);
     });
 
-    it('returns the section lines when a backstory is present', () => {
+    it('returns the heading, bullets, and backstory paragraph when all three fields are present', () => {
       const result = formatUserPersonalizationSection({
         backstory: 'A long history together.',
         preferred_name: 'Sam',
         pronouns: 'they/them',
       });
-      expect(result).toEqual(['## User Personalization', '', 'A long history together.', '']);
+      expect(result).toEqual([
+        '## User Personalization',
+        '',
+        '- **Preferred name:** Sam',
+        '- **Pronouns:** they/them',
+        '',
+        'A long history together.',
+        '',
+      ]);
+    });
+
+    it('returns an empty array when every field is an empty string', () => {
+      expect(
+        formatUserPersonalizationSection({ backstory: '', preferred_name: '', pronouns: '' })
+      ).toEqual([]);
     });
   });
 });
