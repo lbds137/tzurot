@@ -52,6 +52,8 @@ export interface StaleDebugResult {
   totalDebugCommits: number;
   /** Commits whose added lines survive at HEAD, oldest first. */
   liveCommits: LiveDebugCommit[];
+  /** `Retires-debug` trailer values that resolved to no debug commit. */
+  ignoredRetireValues: string[];
   status: 'ok' | 'warn' | 'fail';
 }
 
@@ -101,25 +103,100 @@ function parseDebugLog(raw: string): { sha: string; committedAtMs: number; subje
     .filter(commit => /^debug[:(]/.test(commit.subject));
 }
 
+/** Commit trailer by which a human declares a debug commit's scaffolding retired. */
+const RETIRES_DEBUG_TRAILER = 'Retires-debug';
+
+/** A trailer value that can name a commit: a bare 7-40 char hex prefix. */
+const RETIRES_DEBUG_VALUE = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Collect every `Retires-debug` trailer value in history.
+ *
+ * The placeholder was probed against the installed git: a present key renders
+ * its value, an absent key renders empty. The MULTI-value join is deliberately
+ * not relied on — it was not probed — so this splits the whole output on any
+ * whitespace instead. A retirement value is a bare hex token by construction,
+ * so whitespace splitting recovers every value whether git joins two of them
+ * with the separator, with a newline, or emits them on separate lines. Commas
+ * are accepted as separators too, so a hand-typed `sha1, sha2` list resolves
+ * both values instead of leaving a trailing comma on the first.
+ */
+function parseRetireTrailers(raw: string): string[] {
+  return raw.split(/[\s,]+/).filter(token => token.length > 0);
+}
+
+/**
+ * True for a line that cannot itself carry instrumentation: a comment line, a
+ * closer-only line (`}`, `});`, `);`, `],`), or a single-line import.
+ *
+ * Instrumentation is a statement. A surviving import with no surviving call
+ * site fails lint as unused; a surviving comment or closing brace executes
+ * nothing. Neither can be live scaffolding on its own, so counting them makes
+ * a fix commit that absorbed a probe's imports and doc-comment structure flag
+ * forever. This drops ONLY lines that cannot execute — a multi-line call whose
+ * argument lines are identifiers still counts. `export` is deliberately absent:
+ * an export can carry a statement.
+ *
+ * Pinned by the 'ignores surviving comment, closer, and import lines',
+ * 'still counts a surviving statement among structural lines',
+ * 'does not treat an export line as structural', and 'does not mistake an
+ * identifier starting with "import" for an import block' cases in
+ * stale-debug-audit.test.ts.
+ */
+function isStructuralLine(trimmed: string): boolean {
+  if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+    return true;
+  }
+  if (/^[\])};,]+$/.test(trimmed)) {
+    return true;
+  }
+  return /^import[\s{]/.test(trimmed);
+}
+
 /**
  * Count surviving lines per owning SHA token for one file at HEAD.
  * `git blame -l -s` prefixes each line with the 40-char SHA — EXCEPT
  * boundary commits, where a `^` replaces the first column and the SHA is
  * truncated to 39 chars to keep the width. Tokens are therefore matched by
  * prefix against full SHAs, not by equality.
+ *
+ * Ownership counts STATEMENT lines only: blank, comment, closer-only, and
+ * import lines are skipped (see `isStructuralLine`), so a fix commit that
+ * absorbed a probe's scaffolding does not flag forever.
  */
 function blameOwnership(runGit: GitRunner, file: string): Map<string, number> {
   const ownership = new Map<string, number>();
   const raw = runGit(['blame', '-l', '-s', 'HEAD', '--', file]);
+  let inImportBlock = false;
   for (const line of raw.split('\n')) {
     const match = /^\^?([0-9a-f]{7,40})\s+\d+\)(.*)$/.exec(line);
     if (match === null) {
       continue;
     }
+    const trimmed = match[2].trim();
     // A surviving BLANK line is not scaffolding — blame attributes blanks to
     // whoever introduced them, and an otherwise-complete removal that leaves
     // one behind would flag forever (permanent false positive).
-    if (match[2].trim().length === 0) {
+    if (trimmed.length === 0) {
+      continue;
+    }
+    if (inImportBlock) {
+      // Member lines of a multi-line import, and the `} from '…';` line that
+      // closes it, are skipped with the block itself.
+      if (trimmed.includes(' from ')) {
+        inImportBlock = false;
+      }
+      continue;
+    }
+    // An import KEYWORD that names no source yet opens a multi-line block. The
+    // `[\s{]` matters: a bare prefix test also fires on an identifier such as
+    // `importedCount = compute(`, which would swallow every following line. A
+    // trailing `;` means a complete side-effect import, not a block opener.
+    if (/^import[\s{]/.test(trimmed) && !trimmed.includes(' from ') && !trimmed.endsWith(';')) {
+      inImportBlock = true;
+      continue;
+    }
+    if (isStructuralLine(trimmed)) {
       continue;
     }
     ownership.set(match[1], (ownership.get(match[1]) ?? 0) + 1);
@@ -218,6 +295,47 @@ function isMissingPathError(error: unknown): boolean {
 }
 
 /**
+ * Resolve a possibly-abbreviated token to a full SHA from a known set.
+ * Blame tokens are boundary-truncated to 39 chars and trailer values are
+ * hand-typed prefixes, so both resolve by prefix rather than equality.
+ */
+function resolveShaByPrefix(shas: Set<string>, token: string): string | undefined {
+  for (const sha of shas) {
+    if (sha.startsWith(token)) {
+      return sha;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Split trailer values into the debug SHAs they retire and the values that
+ * named nothing. An unresolvable value is inert rather than fatal — but it is
+ * REPORTED, so a typo'd SHA is visible instead of silently retiring nothing.
+ * Pinned by 'reports a trailer naming a non-debug commit as ignored' in
+ * stale-debug-audit.test.ts.
+ */
+function resolveRetirements(
+  debugShas: Set<string>,
+  tokens: string[]
+): { retiredShas: Set<string>; ignoredValues: string[] } {
+  const retiredShas = new Set<string>();
+  const ignoredValues: string[] = [];
+  for (const token of tokens) {
+    const normalized = token.toLowerCase();
+    const sha = RETIRES_DEBUG_VALUE.test(normalized)
+      ? resolveShaByPrefix(debugShas, normalized)
+      : undefined;
+    if (sha === undefined) {
+      ignoredValues.push(token);
+      continue;
+    }
+    retiredShas.add(sha);
+  }
+  return { retiredShas, ignoredValues };
+}
+
+/**
  * Blame every touched file once and invert the ownership: which debug SHAs
  * still own lines at HEAD, and where. Files deleted (or renamed away) at
  * HEAD have no surviving lines by definition — blame throws for them and the
@@ -230,14 +348,6 @@ function collectSurvivors(
   debugShas: Set<string>
 ): Map<string, { file: string; lines: number }[]> {
   const survivorsBySha = new Map<string, { file: string; lines: number }[]>();
-  const resolveDebugSha = (token: string): string | undefined => {
-    for (const sha of debugShas) {
-      if (sha.startsWith(token)) {
-        return sha;
-      }
-    }
-    return undefined;
-  };
   for (const file of touchedFiles) {
     let ownership: Map<string, number>;
     try {
@@ -253,7 +363,7 @@ function collectSurvivors(
       throw error;
     }
     for (const [token, lines] of ownership) {
-      const sha = resolveDebugSha(token);
+      const sha = resolveShaByPrefix(debugShas, token);
       if (sha === undefined) {
         continue;
       }
@@ -294,14 +404,33 @@ export function findStaleDebugCommits(options: StaleDebugOptions = {}): StaleDeb
 
   const logRaw = runGit(['log', `--grep=${DEBUG_SUBJECT_GREP}`, '--format=%H|%ct|%s', 'HEAD']);
   const debugCommits = parseDebugLog(logRaw);
+
+  // An explicit retirement declaration excludes a debug commit from the
+  // surviving-lines check entirely; it still counts toward the history total.
+  const trailerRaw = runGit([
+    'log',
+    `--format=%(trailers:key=${RETIRES_DEBUG_TRAILER},valueonly,separator=%x20)`,
+    'HEAD',
+  ]);
+  const { retiredShas, ignoredValues } = resolveRetirements(
+    new Set(debugCommits.map(c => c.sha)),
+    parseRetireTrailers(trailerRaw)
+  );
+
   if (debugCommits.length === 0) {
-    return { totalDebugCommits: 0, liveCommits: [], status: 'ok' };
+    return {
+      totalDebugCommits: 0,
+      liveCommits: [],
+      ignoredRetireValues: ignoredValues,
+      status: 'ok',
+    };
   }
 
-  const { addingShas, touchedFiles } = selectAddingCommits(runGit, debugCommits);
+  const trackedCommits = debugCommits.filter(c => !retiredShas.has(c.sha));
+  const { addingShas, touchedFiles } = selectAddingCommits(runGit, trackedCommits);
   const survivorsBySha = collectSurvivors(runGit, touchedFiles, addingShas);
 
-  const liveCommits: LiveDebugCommit[] = debugCommits
+  const liveCommits: LiveDebugCommit[] = trackedCommits
     .filter(c => survivorsBySha.has(c.sha))
     .map(c => {
       const ageDays = Math.floor((nowMs - c.committedAtMs) / MS_PER_DAY);
@@ -320,6 +449,7 @@ export function findStaleDebugCommits(options: StaleDebugOptions = {}): StaleDeb
   return {
     totalDebugCommits: debugCommits.length,
     liveCommits,
+    ignoredRetireValues: ignoredValues,
     status: anyStale ? 'fail' : liveCommits.length > 0 ? 'warn' : 'ok',
   };
 }
@@ -330,33 +460,46 @@ export interface StaleDebugCliOptions extends StaleDebugOptions {
   noFail?: boolean;
 }
 
+/**
+ * Print the human-readable findings block: either the all-clear line, or one
+ * stanza per live debug commit followed by the remove-it hint when any of them
+ * is past the age threshold.
+ */
+function reportLiveCommits(result: StaleDebugResult, maxAgeDays: number): void {
+  if (result.liveCommits.length === 0) {
+    console.log(
+      `✅ No live debug scaffolding (${result.totalDebugCommits} debug commits in history, all fully removed)`
+    );
+    return;
+  }
+  console.log(
+    `Found ${result.liveCommits.length} debug commit(s) with surviving lines ` +
+      `(${result.totalDebugCommits} total in history; stale threshold ${maxAgeDays}d):\n`
+  );
+  for (const commit of result.liveCommits) {
+    const marker = commit.stale ? '❌ STALE' : '⚠️  live';
+    console.log(`${marker}  ${commit.sha.slice(0, 9)}  ${commit.ageDays}d  ${commit.subject}`);
+    for (const { file, lines } of commit.survivingFiles) {
+      console.log(`           ${lines} line(s) still in ${file}`);
+    }
+  }
+  if (result.status === 'fail') {
+    console.log(
+      `\nScaffolding older than ${maxAgeDays}d is presumed forgotten — remove it with a ` +
+        `\`debug(<scope>): remove …\` commit, or re-justify it in place.`
+    );
+  }
+}
+
 /** CLI wrapper: human report, optional JSONL summary line, exit-code contract. */
 export function runStaleDebugAudit(options: StaleDebugCliOptions = {}): StaleDebugResult {
   const maxAgeDays = options.maxAgeDays ?? STALE_DEBUG_MAX_AGE_DAYS;
   const result = findStaleDebugCommits(options);
 
-  if (result.liveCommits.length === 0) {
-    console.log(
-      `✅ No live debug scaffolding (${result.totalDebugCommits} debug commits in history, all fully removed)`
-    );
-  } else {
-    console.log(
-      `Found ${result.liveCommits.length} debug commit(s) with surviving lines ` +
-        `(${result.totalDebugCommits} total in history; stale threshold ${maxAgeDays}d):\n`
-    );
-    for (const commit of result.liveCommits) {
-      const marker = commit.stale ? '❌ STALE' : '⚠️  live';
-      console.log(`${marker}  ${commit.sha.slice(0, 9)}  ${commit.ageDays}d  ${commit.subject}`);
-      for (const { file, lines } of commit.survivingFiles) {
-        console.log(`           ${lines} line(s) still in ${file}`);
-      }
-    }
-    if (result.status === 'fail') {
-      console.log(
-        `\nScaffolding older than ${maxAgeDays}d is presumed forgotten — remove it with a ` +
-          `\`debug(<scope>): remove …\` commit, or re-justify it in place.`
-      );
-    }
+  reportLiveCommits(result, maxAgeDays);
+
+  for (const value of result.ignoredRetireValues) {
+    console.log(`ignored ${RETIRES_DEBUG_TRAILER} value "${value}": not a debug commit`);
   }
 
   if (options.summary === true) {

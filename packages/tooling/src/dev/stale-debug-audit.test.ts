@@ -28,10 +28,14 @@ function fakeGit(responses: {
   diffTree?: Record<string, string>;
   blame?: Record<string, string>;
   shallow?: boolean;
+  trailers?: string;
 }): GitRunner {
   return (args: string[]): string => {
     if (args[0] === 'rev-parse') {
       return responses.shallow === true ? 'true\n' : 'false\n';
+    }
+    if (args[0] === 'log' && args.some(arg => arg.startsWith('--format=%(trailers'))) {
+      return responses.trailers ?? '';
     }
     if (args[0] === 'log') {
       return responses.log ?? '';
@@ -60,7 +64,12 @@ afterEach(() => {
 describe('findStaleDebugCommits', () => {
   it('returns ok when history has no debug commits', () => {
     const result = findStaleDebugCommits({ runGit: fakeGit({ log: '' }), nowMs: NOW_MS });
-    expect(result).toEqual({ totalDebugCommits: 0, liveCommits: [], status: 'ok' });
+    expect(result).toEqual({
+      totalDebugCommits: 0,
+      liveCommits: [],
+      ignoredRetireValues: [],
+      status: 'ok',
+    });
   });
 
   it('drops grep body-matches whose SUBJECT is not debug-typed', () => {
@@ -74,7 +83,12 @@ describe('findStaleDebugCommits', () => {
       }),
     });
 
-    expect(result).toEqual({ totalDebugCommits: 0, liveCommits: [], status: 'ok' });
+    expect(result).toEqual({
+      totalDebugCommits: 0,
+      liveCommits: [],
+      ignoredRetireValues: [],
+      status: 'ok',
+    });
   });
 
   it('flags a debug commit whose lines survive past the threshold as stale/fail', () => {
@@ -214,6 +228,116 @@ describe('findStaleDebugCommits', () => {
     expect(result.liveCommits).toEqual([]);
   });
 
+  it('ignores surviving comment, closer, and import lines (structural survivors are not scaffolding)', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add probe whose scaffolding a fix absorbed`,
+        diffTree: { [SHA_ADD]: '12\t0\ta.ts\n' },
+        blame: {
+          'a.ts': [
+            `${SHA_OTHER}   1) const real = 1;`,
+            `${SHA_ADD}   2) import {`,
+            `${SHA_ADD}   3)   getFirstSnapshot,`,
+            `${SHA_ADD}   4)   isForwardedMessage,`,
+            `${SHA_ADD}   5) } from './forwarded.js';`,
+            `${SHA_ADD}   6) /**`,
+            `${SHA_ADD}   7)  * Doc words the fix rewrote around.`,
+            `${SHA_ADD}   8)  */`,
+            `${SHA_ADD}   9) // a trailing note`,
+            `${SHA_ADD}  10) }`,
+            `${SHA_ADD}  11) });`,
+            `${SHA_ADD}  12) );`,
+          ].join('\n'),
+        },
+      }),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.liveCommits).toEqual([]);
+  });
+
+  it('does not mistake an identifier starting with "import" for an import block', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add a probe beside an import-like identifier`,
+        diffTree: { [SHA_ADD]: '4\t0\ta.ts\n' },
+        blame: {
+          'a.ts': [
+            `${SHA_OTHER}   1) const real = 1;`,
+            `${SHA_ADD}   2) importedCount = compute(`,
+            `${SHA_ADD}   3)   1,`,
+            `${SHA_ADD}   4) );`,
+            `${SHA_ADD}   5) logger.info('probe');`,
+          ].join('\n'),
+        },
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.liveCommits).toHaveLength(1);
+    expect(result.liveCommits[0]).toMatchObject({
+      sha: SHA_ADD,
+      survivingFiles: [{ file: 'a.ts', lines: 3 }],
+    });
+  });
+
+  it('still counts a surviving statement among structural lines', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add probe with one live statement left`,
+        diffTree: { [SHA_ADD]: '12\t0\ta.ts\n' },
+        blame: {
+          'a.ts': [
+            `${SHA_OTHER}   1) const real = 1;`,
+            `${SHA_ADD}   2) import {`,
+            `${SHA_ADD}   3)   getFirstSnapshot,`,
+            `${SHA_ADD}   4) } from './forwarded.js';`,
+            `${SHA_ADD}   5) /**`,
+            `${SHA_ADD}   6)  * Doc words.`,
+            `${SHA_ADD}   7)  */`,
+            `${SHA_ADD}   8) // a trailing note`,
+            `${SHA_ADD}   9)   logger.info({ probe: true }, 'x');`,
+            `${SHA_ADD}  10) }`,
+            `${SHA_ADD}  11) });`,
+          ].join('\n'),
+        },
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.liveCommits).toHaveLength(1);
+    expect(result.liveCommits[0]).toMatchObject({
+      sha: SHA_ADD,
+      survivingFiles: [{ file: 'a.ts', lines: 1 }],
+    });
+  });
+
+  it('does not treat an export line as structural', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add an exported probe flag`,
+        diffTree: { [SHA_ADD]: '4\t0\ta.ts\n' },
+        blame: {
+          'a.ts': [
+            `${SHA_OTHER}   1) const real = 1;`,
+            `${SHA_ADD}   2) export const probe = 1;`,
+          ].join('\n'),
+        },
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.liveCommits).toHaveLength(1);
+    expect(result.liveCommits[0]).toMatchObject({
+      sha: SHA_ADD,
+      survivingFiles: [{ file: 'a.ts', lines: 1 }],
+    });
+  });
+
   it('treats a file deleted at HEAD as no surviving lines (blame throws)', () => {
     const result = findStaleDebugCommits({
       nowMs: NOW_MS,
@@ -291,6 +415,116 @@ describe('findStaleDebugCommits', () => {
     expect(result.status).toBe('warn');
     expect(result.liveCommits[0].stale).toBe(false);
   });
+
+  it('stops tracking a debug commit whose full SHA a later trailer retires', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add probe a fix later absorbed`,
+        diffTree: { [SHA_ADD]: '5\t0\ta.ts\n' },
+        blame: { 'a.ts': `${SHA_ADD} 1) probe('still here');` },
+        trailers: SHA_ADD,
+      }),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.liveCommits).toEqual([]);
+    expect(result.totalDebugCommits).toBe(1);
+    expect(result.ignoredRetireValues).toEqual([]);
+  });
+
+  it('resolves a retirement trailer given only a 9-char SHA prefix', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add probe a fix later absorbed`,
+        diffTree: { [SHA_ADD]: '5\t0\ta.ts\n' },
+        blame: { 'a.ts': `${SHA_ADD} 1) probe('still here');` },
+        trailers: SHA_ADD.slice(0, 9),
+      }),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.liveCommits).toEqual([]);
+    expect(result.ignoredRetireValues).toEqual([]);
+  });
+
+  it('reports a trailer naming a non-debug commit as ignored and keeps the finding', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add probe a fix later absorbed`,
+        diffTree: { [SHA_ADD]: '5\t0\ta.ts\n' },
+        blame: { 'a.ts': `${SHA_ADD} 1) probe('still here');` },
+        trailers: SHA_OTHER,
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.liveCommits).toHaveLength(1);
+    expect(result.ignoredRetireValues).toEqual([SHA_OTHER]);
+  });
+
+  it('retires only the debug commit its trailer names, not a sibling', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: [
+          `${SHA_ADD}|${epochDaysAgo(30)}|debug: add the retired probe`,
+          `${SHA_REMOVE}|${epochDaysAgo(30)}|debug: add the still-tracked probe`,
+        ].join('\n'),
+        diffTree: { [SHA_ADD]: '5\t0\ta.ts\n', [SHA_REMOVE]: '5\t0\tb.ts\n' },
+        blame: {
+          'a.ts': `${SHA_ADD} 1) probe('retired');`,
+          'b.ts': `${SHA_REMOVE} 1) probe('tracked');`,
+        },
+        trailers: SHA_ADD,
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.liveCommits).toHaveLength(1);
+    expect(result.liveCommits[0].sha).toBe(SHA_REMOVE);
+    expect(result.ignoredRetireValues).toEqual([]);
+  });
+
+  it('resolves an uppercase trailer value against the lowercase SHA', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(30)}|debug: add probe a fix later absorbed`,
+        diffTree: { [SHA_ADD]: '5\t0\ta.ts\n' },
+        blame: { 'a.ts': `${SHA_ADD} 1) probe('still here');` },
+        trailers: SHA_ADD.slice(0, 9).toUpperCase(),
+      }),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.liveCommits).toEqual([]);
+    expect(result.ignoredRetireValues).toEqual([]);
+  });
+
+  it('accepts comma-separated trailer values', () => {
+    const result = findStaleDebugCommits({
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: [
+          `${SHA_ADD}|${epochDaysAgo(30)}|debug: add the retired probe`,
+          `${SHA_REMOVE}|${epochDaysAgo(30)}|debug: add the other retired probe`,
+        ].join('\n'),
+        diffTree: { [SHA_ADD]: '5\t0\ta.ts\n', [SHA_REMOVE]: '5\t0\tb.ts\n' },
+        blame: {
+          'a.ts': `${SHA_ADD} 1) probe('retired');`,
+          'b.ts': `${SHA_REMOVE} 1) probe('also retired');`,
+        },
+        trailers: `${SHA_ADD}, ${SHA_REMOVE}`,
+      }),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.liveCommits).toEqual([]);
+    expect(result.ignoredRetireValues).toEqual([]);
+  });
 });
 
 describe('runStaleDebugAudit', () => {
@@ -338,5 +572,32 @@ describe('runStaleDebugAudit', () => {
     runStaleDebugAudit({ nowMs: NOW_MS, runGit: fakeGit({ log: '' }) });
 
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it('prints an informational line for a trailer value naming no debug commit', () => {
+    const captured: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      captured.push(args.map(a => String(a)).join(' '));
+    });
+
+    runStaleDebugAudit({
+      noFail: true,
+      nowMs: NOW_MS,
+      runGit: fakeGit({
+        log: `${SHA_ADD}|${epochDaysAgo(20)}|debug: add probe`,
+        diffTree: { [SHA_ADD]: '3\t0\ta.ts\n' },
+        blame: { 'a.ts': `${SHA_ADD} 1) probe();` },
+        trailers: SHA_OTHER,
+      }),
+    });
+
+    expect(captured.some(line => line.includes(`ignored Retires-debug value "${SHA_OTHER}"`))).toBe(
+      true
+    );
+    expect(
+      captured.some(
+        line => line === `ignored Retires-debug value "${SHA_OTHER}": not a debug commit`
+      )
+    ).toBe(true);
   });
 });

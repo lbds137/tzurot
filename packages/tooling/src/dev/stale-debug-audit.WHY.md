@@ -64,6 +64,48 @@ token grep remains the first line of defense, and rename-following
 (`git log --follow` per file) would multiply the tool's git traffic for a rare
 case. Revisit if a renamed survivor is ever caught by hand.
 
+## Structural survivors
+
+A cleanup PR can absorb a probe's scaffolding — its imports, its doc-comment
+structure — into a fix without ever landing a `debug:` remove commit. `git
+blame` keeps the debug SHA on every line the fix commit did not itself
+rewrite, so a naive line count never clears: the finding is permanent even
+though nothing live remains.
+
+Ownership therefore counts STATEMENT lines only. Blank, comment, closer-only,
+and import lines — including every member of a multi-line import block — are
+skipped, because none of them can be live instrumentation on their own: an
+unused import fails lint, and a comment or a lone closing brace executes
+nothing.
+
+This is not exhaustive. A debug commit whose surviving lines are genuine
+statements that the fix itself now owns is indistinguishable, mechanically,
+from live scaffolding — nothing here can tell the two apart. The filter is
+also textual, not AST-aware: a line inside a template literal that happens to
+begin with `//` or `import ` is dropped like a real one. Accepted — this
+project's probes are logger calls, and the false negative needs a probe that
+embeds source text in a string.
+
+That residual is closed by an explicit declaration rather than another
+heuristic: a commit trailer, `Retires-debug: <sha>`, naming the debug commit
+whose surviving lines are the fix's own. It is a human judgement recorded
+durably in git — the right shape for a judgement no rule can make.
+
+Two cases need the trailer. One is a `fix`/`feat` commit that absorbs a probe
+rather than removing it in a dedicated `debug:` remove commit. The other is a
+probe already absorbed somewhere back in history — the trailer may be carried
+by ANY later commit, because the absorbing commit is immutable once merged.
+The ordinary lifecycle needs no trailer at all: a `debug:` remove commit is
+net-deleting, and the net-direction filter above already excludes it. Git
+reads trailers from a message's FINAL paragraph only — a `Retires-debug:` line
+above the generated-with footer is body text, and `git interpret-trailers
+--parse` will not list it; that command is the probe when a trailer seems
+ignored.
+
+The two mechanisms divide the work cleanly. The structural-line filter drops
+lines that cannot execute at all. The trailer retires a commit whose
+surviving lines DO execute but belong to the fix, not to the probe.
+
 ## Decay check
 
 The canary synthesizes a throwaway git repo with a backdated `debug(scope): add`
