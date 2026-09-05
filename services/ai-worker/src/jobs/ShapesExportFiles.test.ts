@@ -132,8 +132,60 @@ describe('buildShapesExportFiles', () => {
     expect(files['README.md']).toContain('**User personalization:** Yes');
   });
 
+  it('produces the user-personalization pair when only preferred_name/pronouns are set, with README "Yes"', () => {
+    const payload: ExportPayload = {
+      ...basePayload,
+      userPersonalization: { backstory: '', preferred_name: 'Sam', pronouns: 'they/them' },
+      stats: { ...basePayload.stats, hasUserPersonalization: true },
+    };
+    const files = buildShapesExportFiles(payload);
+    expect(files['user-personalization.json']).toBeDefined();
+    expect(files['user-personalization.md']).toBeDefined();
+    expect(files['user-personalization.md']).toContain('- **Preferred name:** Sam');
+    expect(files['user-personalization.md']).toContain('- **Pronouns:** they/them');
+    expect(files['README.md']).toContain('**User personalization:** Yes');
+  });
+
+  it('omits the user-personalization pair when every field is an empty string, with README "No"', () => {
+    const payload: ExportPayload = {
+      ...basePayload,
+      userPersonalization: { backstory: '', preferred_name: '', pronouns: '' },
+      stats: { ...basePayload.stats, hasUserPersonalization: true },
+    };
+    const files = buildShapesExportFiles(payload);
+    expect(files['user-personalization.json']).toBeUndefined();
+    expect(files['user-personalization.md']).toBeUndefined();
+    expect(files['README.md']).toContain('**User personalization:** No');
+  });
+
   it('README heading carries the raw slug even when it is not filename-safe', () => {
     const files = buildShapesExportFiles({ ...basePayload, sourceSlug: 'odd slug' });
     expect(files['README.md']).toContain('# Shapes.inc Export: odd slug');
+  });
+
+  it('omits memories.md and knowledge-base.md for empty collections but keeps their .json', () => {
+    const payload: ExportPayload = {
+      ...basePayload,
+      memories: [],
+      stories: [],
+      stats: { ...basePayload.stats, memoriesCount: 0, storiesCount: 0 },
+    };
+    const files = buildShapesExportFiles(payload);
+    expect(Object.keys(files).sort()).toEqual(
+      [
+        'README.md',
+        'config.json',
+        'config.md',
+        'memories.json',
+        'knowledge-base.json',
+        'export.json',
+      ].sort()
+    );
+    expect(files['memories.json']).toBe('[]');
+    expect(files['knowledge-base.json']).toBe('[]');
+    expect(files['memories.md']).toBeUndefined();
+    expect(files['knowledge-base.md']).toBeUndefined();
+    expect(files['README.md']).toContain('**Memories:** 0');
+    expect(files['README.md']).toContain('**Stories:** 0');
   });
 });
