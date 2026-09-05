@@ -1,10 +1,10 @@
 ---
 id: TASK-273
 title: 'Shapes export: retrofit the ZIP/multi-file shape from export v2'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 16:19'
 labels:
   - 'area:ai-worker'
   - 'size:M'
