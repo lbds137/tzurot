@@ -26,10 +26,16 @@ on:
 permissions:
   contents: read
   # The security-surface section counts open Dependabot PRs (gh pr list) and
-  # alerts (gh api). Without a token, gh exits with its set-GH_TOKEN hint and
-  # the section degrades to "unavailable".
+  # alerts (gh api), and the deletion-safety section reads repo settings.
+  # No Actions-token scope covers the Dependabot-alerts read (`security-events`
+  # is code and secret scanning only), and the Actions token never carries
+  # admin, so those two rows report "unavailable" under github.token. The audit
+  # step prefers the WEEKLY_AUDIT_GH_TOKEN secret (a read-only fine-grained PAT:
+  # Dependabot alerts, Administration, Metadata) and falls back to github.token
+  # while the secret is unset, so this job never breaks on a missing secret. A
+  # fine-grained PAT carries a mandatory expiry and GitHub mails the owner
+  # before it lapses; a lapsed one falls back the same way, visibly.
   pull-requests: read
-  security-events: read
 
 jobs:
   audit-health:
@@ -94,7 +100,7 @@ jobs:
       - name: Run audit-health aggregator
         id: health
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.WEEKLY_AUDIT_GH_TOKEN || github.token }}
         # Capture the report for the Discord step; the aggregator's exit code
         # still fails the job so a red run is visible in the Actions UI.
         run: |
