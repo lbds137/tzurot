@@ -1262,6 +1262,22 @@
                 "name": "character",
                 "description": "Which character",
                 "required": true
+              },
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Just mine",
+                    "value": "own"
+                  },
+                  {
+                    "name": "Everyone's (needs Manage Messages)",
+                    "value": "everyone"
+                  }
+                ],
+                "name": "scope",
+                "description": "Whose history to delete (defaults to just yours)",
+                "required": false
               }
             ]
           }

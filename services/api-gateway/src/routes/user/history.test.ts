@@ -804,6 +804,62 @@ describe('/user/history routes', () => {
           deletedCount: 15,
           personaId: TEST_PERSONA_ID,
           message: 'Permanently deleted 15 messages from conversation history.',
+          scope: 'own',
+        })
+      );
+    });
+
+    it('deletes only the calling persona when scope is omitted (three-arg call)', async () => {
+      mockClearHistory.mockResolvedValue(15);
+
+      const handler = buildHandler(handleHardDeleteHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        channelId: TEST_CHANNEL_ID,
+      });
+
+      await handler(req, res);
+
+      expect(mockClearHistory.mock.calls[0]).toHaveLength(3);
+      expect(mockClearHistory).toHaveBeenCalledWith(
+        TEST_CHANNEL_ID,
+        TEST_PERSONALITY_ID,
+        TEST_PERSONA_ID
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: 'own',
+          personaId: TEST_PERSONA_ID,
+        })
+      );
+    });
+
+    it('deletes every user’s history for scope: everyone (two-arg call, no persona filter)', async () => {
+      mockClearHistory.mockResolvedValue(40);
+
+      const handler = buildHandler(handleHardDeleteHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        channelId: TEST_CHANNEL_ID,
+        scope: 'everyone',
+      });
+
+      await handler(req, res);
+
+      expect(mockClearHistory).toHaveBeenCalledWith(TEST_CHANNEL_ID, TEST_PERSONALITY_ID);
+      expect(mockClearHistory.mock.calls[0]).toHaveLength(2);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          deletedCount: 40,
+          personaId: null,
+          scope: 'everyone',
         })
       );
     });

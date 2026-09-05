@@ -294,10 +294,11 @@ export const historyStatsOptions = defineTypedOptions({
 });
 
 /**
- * /history purge <character>
+ * /history purge <character, scope>
  */
 export const historyPurgeOptions = defineTypedOptions({
   character: { type: 'string', required: true },
+  scope: { type: 'string', required: false },
 });
 
 // =============================================================================

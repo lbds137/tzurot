@@ -34,6 +34,13 @@ export const HardDeleteHistorySchema = z.object({
   personalitySlug: z.string().min(1, PERSONALITY_SLUG_REQUIRED),
   channelId: z.string().min(1, 'channelId is required'),
   personaId: z.string().optional(),
+  /**
+   * Whose history to delete. 'own' (the default) deletes only the caller's
+   * persona's rows; 'everyone' deletes every user's rows for this character in
+   * this channel. Discord permissions are not visible here — bot-client owns
+   * the authorization for 'everyone' (see the route's design note).
+   */
+  scope: z.enum(['own', 'everyone']).default('own'),
 });
 
 // ============================================================================
@@ -111,6 +118,11 @@ export const MessageReasoningResponseSchema = z.object({
 export const HardDeleteHistoryResponseSchema = z.object({
   success: z.literal(true),
   deletedCount: z.number().int().nonnegative(),
-  personaId: z.string(),
+  /**
+   * The persona whose history was deleted. NULL means the purge was
+   * channel-wide (`scope: 'everyone'`) — no single persona describes it.
+   */
+  personaId: z.string().nullable(),
   message: z.string(),
+  scope: z.enum(['own', 'everyone']),
 });

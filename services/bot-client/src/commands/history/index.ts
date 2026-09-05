@@ -11,6 +11,7 @@
 
 import {
   SlashCommandBuilder,
+  MessageFlags,
   type AutocompleteInteraction,
   type ButtonInteraction,
   type ModalSubmitInteraction,
@@ -26,7 +27,13 @@ import type {
 import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
-import { handlePurgeHistory, parsePurgeSlugFromFooter } from './purge.js';
+import {
+  handlePurgeHistory,
+  parsePurgeSlugFromFooter,
+  purgeScopeForOperation,
+  hasChannelWidePurgePermission,
+  CHANNEL_WIDE_PURGE_ACTION,
+} from './purge.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 import {
@@ -39,13 +46,11 @@ import {
 import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
+import { renderSpec } from '../../ux/render/render.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
 
 const logger = createLogger('history-command');
 
-// The wire token deliberately differs from the 'purge' subcommand name: it
-// replaced the historical 'hard-delete' token at the rename, and namespacing
-// it as 'history-purge' keeps destructive operations globally distinct.
-const HISTORY_PURGE_OPERATION = 'history-purge';
 const PERSONA_OPTION_DESCRIPTION = 'Which persona (defaults to your active persona)';
 
 /**
@@ -78,14 +83,15 @@ function buildPurgeOperation(
   userClient: UserClient,
   userId: string,
   personalitySlug: string,
-  channelId: string
+  channelId: string,
+  scope: 'own' | 'everyone'
 ): () => Promise<DestructiveOperationResult> {
   return async (): Promise<DestructiveOperationResult> => {
-    const result = await userClient.hardDeleteHistory({ personalitySlug, channelId });
+    const result = await userClient.hardDeleteHistory({ personalitySlug, channelId, scope });
 
     if (!result.ok) {
       logger.error(
-        { userId, personalitySlug, channelId, error: result.error },
+        { userId, personalitySlug, channelId, scope, error: result.error },
         'History-purge API failed'
       );
       return {
@@ -99,14 +105,20 @@ function buildPurgeOperation(
 
     const { deletedCount } = result.data;
 
-    logger.info({ userId, personalitySlug, channelId, deletedCount }, 'History-purge completed');
+    logger.info(
+      { userId, personalitySlug, channelId, scope, deletedCount },
+      'History-purge completed'
+    );
 
     return {
       success: true,
       successEmbed: createSuccessEmbed(
         'History Deleted',
-        `Permanently deleted **${deletedCount}** message${deletedCount === 1 ? '' : 's'} ` +
-          `from your conversation history with **${personalitySlug}** in this channel.`
+        scope === 'everyone'
+          ? `Permanently deleted **${deletedCount}** message${deletedCount === 1 ? '' : 's'} ` +
+              `from **all users’** conversation history with **${personalitySlug}** in this channel.`
+          : `Permanently deleted **${deletedCount}** message${deletedCount === 1 ? '' : 's'} ` +
+              `from your conversation history with **${personalitySlug}** in this channel.`
       ),
     };
   };
@@ -126,7 +138,8 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
       return;
     }
 
-    if (parsed.operation === HISTORY_PURGE_OPERATION && parsed.action === 'modal_submit') {
+    const scope = purgeScopeForOperation(parsed.operation);
+    if (scope !== null && parsed.action === 'modal_submit') {
       // channelId rides the customId; the slug rides the warning embed's
       // footer (too long for the customId budget — see handlePurgeHistory).
       const channelId = parsed.entityId;
@@ -141,12 +154,26 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
         });
         return;
       }
+
+      // Authority has to hold at the SUBMIT, not just at the invocation: a
+      // moderator demoted between the warning and the typed phrase must not
+      // complete a channel-wide delete. The check reads the same
+      // channel-scoped source the invocation used, so the two can't disagree.
+      if (scope === 'everyone' && !hasChannelWidePurgePermission(interaction)) {
+        await interaction.reply({
+          content: renderSpec(CATALOG.error.permissionDenied(CHANNEL_WIDE_PURGE_ACTION)),
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
       const { userClient } = clientsFor(interaction);
       const executeOperation = buildPurgeOperation(
         userClient,
         interaction.user.id,
         personalitySlug,
-        channelId
+        channelId,
+        scope
       );
       // Expected phrase derives from the same helper the warning/modal used,
       // so display and validation can't drift.
@@ -225,7 +252,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return;
     }
 
-    if (parsed.operation === HISTORY_PURGE_OPERATION) {
+    if (purgeScopeForOperation(parsed.operation) !== null) {
       if (parsed.action === 'cancel_button') {
         await handleDestructiveCancel(interaction, 'History purge cancelled.');
         return;
@@ -323,6 +350,16 @@ export default defineCommand({
             .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('scope')
+            .setDescription('Whose history to delete (defaults to just yours)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Just mine', value: 'own' },
+              { name: "Everyone's (needs Manage Messages)", value: 'everyone' }
+            )
         )
     ),
   execute,

@@ -292,6 +292,14 @@ function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
 /**
  * Handle DELETE /api/user/history/hard-delete
  * Permanently delete conversation history
+ *
+ * Authorization for `scope: 'everyone'` lives in bot-client, not here: the
+ * gateway cannot see Discord channel permissions. Every request to this router
+ * is service-authenticated (`requireServiceAuth` is applied app-wide in
+ * `services/api-gateway/src/index.ts`), and bot-client is its only caller, so
+ * the check sits where the permission data is. The channel-wide case is logged
+ * at info with `{ scope, channelId, personalityId, discordUserId }` so the
+ * delete is auditable from the gateway side regardless.
  */
 function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
   const { prisma, retentionService } = deps;
@@ -304,7 +312,7 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
       return sendZodError(res, parseResult.error);
     }
 
-    const { personalitySlug, channelId, personaId: explicitPersonaId } = parseResult.data;
+    const { personalitySlug, channelId, personaId: explicitPersonaId, scope } = parseResult.data;
 
     const context = await resolveHistoryContext(
       prisma,
@@ -318,7 +326,20 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
 
     const { userId, personalityId, personaId } = context;
 
-    const deletedCount = await retentionService.clearHistory(channelId, personalityId, personaId);
+    if (scope === 'everyone') {
+      logger.info(
+        { scope, channelId, personalityId, discordUserId },
+        'Channel-wide history purge requested'
+      );
+    }
+
+    // A channel-wide purge omits the persona filter entirely —
+    // `clearHistory` adds `personaId` to the where-clause only when one is
+    // given, so two arguments IS the every-user delete.
+    const deletedCount =
+      scope === 'everyone'
+        ? await retentionService.clearHistory(channelId, personalityId)
+        : await retentionService.clearHistory(channelId, personalityId, personaId);
 
     const now = new Date();
     await prisma.userPersonaHistoryConfig.upsert({
@@ -340,6 +361,7 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
         personalitySlug,
         channelId,
         personaId: personaId.substring(0, 8),
+        scope,
         deletedCount,
       },
       'Hard delete completed'
@@ -350,8 +372,9 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
       {
         success: true,
         deletedCount,
-        personaId,
+        personaId: scope === 'everyone' ? null : personaId,
         message: `Permanently deleted ${deletedCount} message${deletedCount === 1 ? '' : 's'} from conversation history.`,
+        scope,
       },
       StatusCodes.OK
     );

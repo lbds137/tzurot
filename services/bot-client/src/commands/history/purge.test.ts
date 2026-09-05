@@ -25,6 +25,12 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
+const mockIsBotOwner = vi.fn((_discordId: string) => false);
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
+  isBotOwner: (...args: unknown[]) =>
+    mockIsBotOwner(...(args as Parameters<typeof mockIsBotOwner>)),
+}));
+
 // Mock the Tier-B destructive confirmation module
 const mockBuildDestructiveWarning = vi.fn();
 const mockCreateHardDeleteConfig = vi.fn(() => ({
@@ -43,6 +49,7 @@ vi.mock('../../utils/confirmation/confirmDestructive.js', () => ({
 describe('handlePurgeHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsBotOwner.mockReturnValue(false);
     mockBuildDestructiveWarning.mockReturnValue({
       embeds: [{ data: { title: 'Delete History' } }],
       components: [{ data: {} }],
@@ -54,15 +61,22 @@ describe('handlePurgeHistory', () => {
    */
   function createMockContext(
     personalitySlug: string = 'lilith',
-    channelId: string = 'channel-123'
+    channelId: string = 'channel-123',
+    options: { scope?: string; hasManageMessages?: boolean } = {}
   ): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
+    const { scope, hasManageMessages = false } = options;
 
     return {
       interaction: {
+        user: { id: '123456789' },
+        memberPermissions: {
+          has: vi.fn(() => hasManageMessages),
+        },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'character') return personalitySlug;
+            if (name === 'scope') return scope ?? null;
             return null;
           }),
           getBoolean: vi.fn(() => null),
@@ -156,6 +170,58 @@ describe('handlePurgeHistory', () => {
     expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
+
+  describe('scope: everyone', () => {
+    it('denies the channel-wide purge without Manage Messages or bot-owner status', async () => {
+      const context = createMockContext('lilith', 'channel-123', {
+        scope: 'everyone',
+        hasManageMessages: false,
+      });
+
+      await handlePurgeHistory(context);
+
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('permission'),
+      });
+      expect(mockCreateHardDeleteConfig).not.toHaveBeenCalled();
+      expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
+    });
+
+    it('allows the channel-wide purge with Manage Messages, building the ALL-users copy', async () => {
+      const context = createMockContext('lilith', 'channel-123', {
+        scope: 'everyone',
+        hasManageMessages: true,
+      });
+
+      await handlePurgeHistory(context);
+
+      expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'history-purge-all',
+          entityId: 'channel-123',
+        })
+      );
+      const call = mockCreateHardDeleteConfig.mock.calls[0] as unknown as [
+        { additionalWarning: string },
+      ];
+      expect(call[0].additionalWarning).toContain('ALL users’');
+      expect(mockBuildDestructiveWarning).toHaveBeenCalled();
+    });
+
+    it('allows the channel-wide purge for the bot owner even without Manage Messages', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+      const context = createMockContext('lilith', 'channel-123', {
+        scope: 'everyone',
+        hasManageMessages: false,
+      });
+
+      await handlePurgeHistory(context);
+
+      expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ operation: 'history-purge-all' })
+      );
     });
   });
 });

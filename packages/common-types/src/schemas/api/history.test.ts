@@ -115,6 +115,38 @@ describe('History API Input Schema Tests', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it('defaults scope to own when omitted', () => {
+      const result = HardDeleteHistorySchema.safeParse({
+        personalitySlug: 'lilith',
+        channelId: '123456789012345678',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.scope).toBe('own');
+      }
+    });
+
+    it('accepts scope: everyone', () => {
+      const result = HardDeleteHistorySchema.safeParse({
+        personalitySlug: 'lilith',
+        channelId: '123456789012345678',
+        scope: 'everyone',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.scope).toBe('everyone');
+      }
+    });
+
+    it('rejects an unrecognized scope value', () => {
+      const result = HardDeleteHistorySchema.safeParse({
+        personalitySlug: 'lilith',
+        channelId: '123456789012345678',
+        scope: 'admins',
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('HistoryStatsQuerySchema', () => {
@@ -265,6 +297,7 @@ describe('History API Input Schema Tests', () => {
         deletedCount: 42,
         personaId: 'p1',
         message: 'Permanently deleted 42 messages.',
+        scope: 'own' as const,
       };
       expect(HardDeleteHistoryResponseSchema.safeParse(data).success).toBe(true);
     });
@@ -275,6 +308,7 @@ describe('History API Input Schema Tests', () => {
         deletedCount: 0,
         personaId: 'p1',
         message: 'Permanently deleted 0 messages.',
+        scope: 'own' as const,
       };
       expect(HardDeleteHistoryResponseSchema.safeParse(data).success).toBe(true);
     });
@@ -285,8 +319,20 @@ describe('History API Input Schema Tests', () => {
         deletedCount: -1,
         personaId: 'p1',
         message: 'msg',
+        scope: 'own' as const,
       };
       expect(HardDeleteHistoryResponseSchema.safeParse(data).success).toBe(false);
+    });
+
+    it('accepts a null personaId for a channel-wide purge', () => {
+      const data = {
+        success: true as const,
+        deletedCount: 7,
+        personaId: null,
+        message: 'Permanently deleted 7 messages.',
+        scope: 'everyone' as const,
+      };
+      expect(HardDeleteHistoryResponseSchema.safeParse(data).success).toBe(true);
     });
   });
 
