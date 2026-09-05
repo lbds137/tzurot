@@ -1,4 +1,10 @@
-## 🏗 Active Epic: Follow-Up Pool Drain (`doc-7`)
+## 🏗 Active Epic: Memory System Overhaul re-entry (`doc-8`) — via Character Voice Drift (`doc-97`)
+
+_Re-entered 2026-09-05 by owner call at the beta.218 cut ("none of the other work matters if I feel like I'm losing touch with my characters"). Focus: a character that has talked for months sounds like its card. **Current phase: `doc-97` Phase 1 — the `voice_anchor` V-tier section** (grounded; the 🚢 plan in `now.md` carries the target, ordering, headroom, and validation instrument), then Phase 2 (the `Voice Fidelity` directive, owner-applied), then the re-entry design pass in Linked Intent Development format (owner ruling 2026-09-05: LID starts THERE, not at the anchor), which decides Phase 3 — the memory-archive format (assistant side as a third-person summary; write-time vs render-time; backfill is back on the table) — and re-reads the July design inputs in `doc-8`. Sequencing ruling 2026-09-05: the anchor precedes the prompt-caching Phase 2 (`doc-17`, below) because it is a bounded V-tier addition that moves no history; Phase 2 stays queued behind it, not cancelled. Governing artifact and the phase table at park: `pnpm tracker doc view doc-8`. Evidence and the measured drift curve: `doc-97`._
+
+---
+
+## 🔁 Standing background unit (not the epic): Follow-Up Pool Drain (`doc-7`)
 
 _Made OFFICIAL 2026-08-31 (roadmap ratification — it was the de-facto standing unit since 2026-08-01). Full scope + per-batch rate log in tracker `doc-7`; the selection heuristic that works is **same-origin, same-module clusters** (cluster open tasks by surfacing PR number). Batches 1–10 shipped. Remaining clusters at the 2026-08-02 displacement: `#1317` (159–162), `#1323` (167–169), `#1321` (163–165), `#1119` (131–133), `#1035` (100–102). Boundary reminder: rule-outs are owner-gated and fail closed (`06-backlog.md` § Ruling an item out). A themed drain batch rides EVERY release train (roadmap balance mechanism, `cold/queue.md`)._
 
@@ -6,7 +12,7 @@ _Made OFFICIAL 2026-08-31 (roadmap ratification — it was the de-facto standing
 
 ## ⏸ PAUSED after Phases 0+1: Provider Prompt Caching (`doc-17`) — Phase 2 queued at the head of roadmap Phase B
 
-_Focus: restructure prompt assembly so the prefix is stable enough for provider-side prompt caching — spend is input-token-dominated, and caching discounts exactly that side. Owner-picked 2026-08-02; Phases 0+1 shipped and paying (0.62 prod cache-hit measured); Phase 2 (history extraction, ~58% of the measured request) is designed, unblocked, and sequenced BEFORE memory re-entry because both restructure the same prompt/history seams._
+_Focus: restructure prompt assembly so the prefix is stable enough for provider-side prompt caching — spend is input-token-dominated, and caching discounts exactly that side. Owner-picked 2026-08-02; Phases 0+1 shipped and paying (0.62 prod cache-hit measured); Phase 2 (history extraction, ~58% of the measured request) is designed and unblocked; it was sequenced BEFORE memory re-entry because both restructure the same prompt/history seams, and the owner re-sequenced it on 2026-09-05 to run AFTER the `doc-97` voice anchor (a V-tier addition that moves no history) — queued, not cancelled._
 
 **Design ACCEPTED 2026-07-05** → [`docs/proposals/backlog/prompt-assembly-architecture.md`](../docs/proposals/backlog/prompt-assembly-architecture.md) (stability tiers S0/S1/H/V, verified per-provider cache matrix). **Corrected phasing measured 2026-08-01** (doc-17: prod req `456ec221` section table + council pass): Phase 0 alone buys ~0 (+72 tokens — datetime precedes the buster); caching is strictly sequential, so history extraction can't pay before the V-hoist; un-stranding the 2,604-token cross-persona `<protocol>` is most of Phase 1's win (ceiling ~15% of the measured request; the remaining 58% is `<chat_log>`, Phase 2's). **The z.ai coding endpoint caches implicitly** — 97.6% hit measured on a shared prefix (`usage.prompt_tokens_details.cached_tokens`), so the dominant prod route pays with no markers.
 

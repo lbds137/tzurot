@@ -11,6 +11,8 @@ _Focus: implement the ACCEPTED memory architecture — typed memories (episode/f
 
 **Parked 2026-07-17** (owner re-sequence: Platform-Portable UX Layer promoted to active epic). The park lands at a natural pause: everything buildable was built and shipped; what remains is either awaiting an owner re-measure or evidence-gated. Was active epic 2026-07-06 → 2026-07-17.
 
+**RE-ENTERED 2026-09-05 as the active epic** (owner call at the beta.218 cut, via `doc-97` Character voice drift — "none of the other work matters if I feel like I'm losing touch with my characters"). The re-entry trigger that actually fired was neither of the three below: it was the owner's felt loss of a character's voice, measured as a register collapse in the memory archive (`doc-97` § Evidence). Rulings: the `doc-97` voice anchor ships first and precedes the prompt-caching Phase 2 (`doc-17`); the LID pilot format starts at THIS theme's re-entry design pass, not at the anchor; **backfill of existing rows is back on the table** (supersedes the "no bulk re-extraction" posture below for the archive-format question — decide at the design pass); model-parameter experiments only if absolutely necessary. `active-epic.md` carries the live phase; this doc stays the design record.
+
 **Governing artifact**: [`docs/proposals/backlog/memory-architecture.md`](../../docs/proposals/backlog/memory-architecture.md) (ACCEPTED 2026-07-05; owner-signed; full-trio council). The eval harness (§3.9) is the load-bearing gate — it refuted three plausible builds in a row (RRF, fold, composite scoring), exactly as designed.
 
 ### Re-entry triggers (what un-parks this)
