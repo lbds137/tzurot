@@ -89,6 +89,13 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'forget', // memory: retroactive/incognito deletion, distinct from `delete`
   'auth', // shapes: third-party integration sign-in
   'logout', // shapes: third-party integration sign-out
+  // /deny scope nouns: the verb is the add/remove GROUP, the subcommand names
+  // WHERE the denial applies (scope-first, so illegal combos are inexpressible)
+  'everywhere',
+  'server',
+  'this-server',
+  'channel',
+  'character',
 ]);
 
 // Catches placeholder/meta-note descriptions. `todo`/`tbd`/`xxx` are virtually
