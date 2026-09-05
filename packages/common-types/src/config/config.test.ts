@@ -306,6 +306,16 @@ describe('config', () => {
       ).toBe('https://gateway.example');
     });
 
+    it('parses RAILWAY_ENVIRONMENT_NAME when set and treats empty/unset as undefined', () => {
+      expect(envSchema.parse({}).RAILWAY_ENVIRONMENT_NAME).toBeUndefined();
+      expect(
+        envSchema.parse({ RAILWAY_ENVIRONMENT_NAME: '' }).RAILWAY_ENVIRONMENT_NAME
+      ).toBeUndefined();
+      expect(
+        envSchema.parse({ RAILWAY_ENVIRONMENT_NAME: 'production' }).RAILWAY_ENVIRONMENT_NAME
+      ).toBe('production');
+    });
+
     it('should transform ENABLE_HEALTH_SERVER correctly', () => {
       const enabled = envSchema.parse({ ENABLE_HEALTH_SERVER: 'true' });
       expect(enabled.ENABLE_HEALTH_SERVER).toBe(true);
