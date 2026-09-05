@@ -1,10 +1,10 @@
 ---
 id: TASK-730
 title: 'Inspect: redact header id tags for non-owner viewers'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:47'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 03:00'
 labels:
   - 'area:bot-client'
   - 'size:S'
