@@ -144,6 +144,18 @@ export class ServiceClient {
     });
   }
 
+  async removeGuildMemberInfo(input: z.input<typeof ROUTE_MANIFEST.removeGuildMemberInfo.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.removeGuildMemberInfo.output>>> {
+    const fullPath = '/api/internal/guild-member-info';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.removeGuildMemberInfo.output,
+    });
+  }
+
   async stampUserActivity(input: z.input<typeof ROUTE_MANIFEST.stampUserActivity.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.stampUserActivity.output>>> {
     const fullPath = '/api/internal/users/activity';
     return callGateway({

@@ -6,6 +6,8 @@ import {
   DmSessionSetResponseSchema,
   GuildMemberInfoRecordRequestSchema,
   GuildMemberInfoRecordResponseSchema,
+  GuildMemberInfoRemoveRequestSchema,
+  GuildMemberInfoRemoveResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
   RecordCommandEventRequestSchema,
@@ -212,6 +214,41 @@ describe('GuildMemberInfoRecordRequestSchema and GuildMemberInfoRecordResponseSc
   it('response reports whether a user row matched', () => {
     expect(GuildMemberInfoRecordResponseSchema.safeParse({ recorded: false }).success).toBe(true);
     expect(GuildMemberInfoRecordResponseSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('GuildMemberInfoRemoveRequestSchema and GuildMemberInfoRemoveResponseSchema', () => {
+  const valid = {
+    guildId: '123456789012345678',
+    discordUserId: '987654321098765432',
+  };
+
+  it('request accepts a valid guild/user pair', () => {
+    expect(GuildMemberInfoRemoveRequestSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('request rejects a non-snowflake guild id', () => {
+    expect(
+      GuildMemberInfoRemoveRequestSchema.safeParse({ ...valid, guildId: 'not-a-snowflake' }).success
+    ).toBe(false);
+  });
+
+  it('request rejects a non-snowflake discord user id', () => {
+    expect(
+      GuildMemberInfoRemoveRequestSchema.safeParse({ ...valid, discordUserId: 'not-a-snowflake' })
+        .success
+    ).toBe(false);
+  });
+
+  it('request rejects a missing discordUserId', () => {
+    const { discordUserId: _discordUserId, ...withoutUserId } = valid;
+    expect(GuildMemberInfoRemoveRequestSchema.safeParse(withoutUserId).success).toBe(false);
+  });
+
+  it('response reports whether a row was removed', () => {
+    expect(GuildMemberInfoRemoveResponseSchema.safeParse({ deleted: false }).success).toBe(true);
+    expect(GuildMemberInfoRemoveResponseSchema.safeParse({ deleted: true }).success).toBe(true);
+    expect(GuildMemberInfoRemoveResponseSchema.safeParse({}).success).toBe(false);
   });
 });
 

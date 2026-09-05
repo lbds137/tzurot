@@ -1402,10 +1402,11 @@ model SecretRotation {
 /// personas in the same channel must render the same roles under both, and
 /// `guildMemberUpdate` identifies the human.
 ///
-/// No code path expires a row: `guildMemberInfoStore` exposes only a record and
-/// a read, so a row changes only when a newer observation overwrites it. A TTL
-/// would reintroduce the same flicker on a slower clock. Rows do cascade away
-/// with their user.
+/// No clock expires a row: a row changes only when a newer observation
+/// overwrites it, or an explicit event says the membership ended (a
+/// `guildMemberRemove`, deleted through `guildMemberInfoStore`, or the FK
+/// cascade when the user row itself goes). A TTL over these rows would
+/// reintroduce the same flicker on a slower clock.
 model UserGuildInfo {
   userId       String    @map("user_id") @db.Uuid
   /// Discord guild (server) snowflake this membership is scoped to.

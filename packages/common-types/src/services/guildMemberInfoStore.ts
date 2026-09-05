@@ -11,12 +11,12 @@
  *
  * Two properties make that stop, and both are load-bearing:
  *
- * - **Write-through, with no expiry path.** This module exports exactly two
- *   operations — record and read — so the only way a row changes is a newer
- *   observation overwriting it. A TTL would be the same flicker on a slower
- *   clock, which is why adding one here would be a regression rather than
- *   housekeeping. (The row does still disappear if its USER row does: the FK
- *   cascades. That is deletion of the subject, not expiry of the value.)
+ * - **Write-through, with no expiry path.** A row changes only two ways: a
+ *   newer observation overwriting it, or an explicit event saying the
+ *   membership ENDED (a `guildMemberRemove`, or the FK cascade when the
+ *   user row itself goes). Nothing here removes a row on a clock. A TTL
+ *   would be the same flicker on a slower clock, which is why adding one
+ *   here would be a regression rather than housekeeping.
  * - **Empty observations do not write.** Discord hands back an empty member on
  *   a cache miss, and storing that would clobber a good row with the very
  *   absence this module exists to paper over — see {@link isEmptyGuildInfo}.
@@ -117,6 +117,39 @@ export async function recordGuildMemberInfos(
       'Failed to record guild member info; rendering falls back to the live fetch'
     );
   }
+}
+
+/**
+ * Remove one user's stored membership for one guild, in response to an
+ * explicit end-of-membership event (a `guildMemberRemove`).
+ *
+ * Deliberately does NOT fail soft, unlike the record and read operations in
+ * this module. Those fail soft because they sit on the generation hot path,
+ * where a database problem should degrade one turn's rendering rather than
+ * fail the turn. This one is a one-shot reaction to a departure event that
+ * nothing retries (the reporter is fire-and-forget): a swallowed failure is
+ * permanent staleness with no signal, and the route built on this function
+ * defines `deleted: false` to mean "no such row" — returning that on a
+ * database error would make the contract a lie. Let the error propagate; the
+ * gateway's `asyncHandler` turns it into a 500 and bot-client's
+ * fire-and-forget catch logs it.
+ *
+ * A missing row is an ordinary no-op returning 0 — this uses `deleteMany`,
+ * not `delete`, so absence is not an exception. "Nothing to delete" is a
+ * normal outcome, not a failure: a member the record path never observed
+ * has no row to begin with.
+ */
+export async function deleteGuildMemberInfo(
+  prisma: PrismaClient,
+  guildId: string,
+  userId: string
+): Promise<number> {
+  if (guildId === '' || userId === '') {
+    return 0;
+  }
+
+  const { count } = await prisma.userGuildInfo.deleteMany({ where: { userId, guildId } });
+  return count;
 }
 
 /**
