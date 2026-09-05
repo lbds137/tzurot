@@ -39,6 +39,7 @@ import {
   mistralListVoices,
   mistralTTS,
   MistralApiError,
+  MistralGuardrailError,
   MistralReferenceAudioTooLongError,
   MistralVoiceListUnavailableError,
   MISTRAL_MAX_REFERENCE_AUDIO_SEC,
@@ -255,6 +256,17 @@ export class MistralTtsProvider implements TtsProvider {
             'Mistral voice list unavailable — cached for 5 min, no clone attempted'
           );
           return reason;
+        }
+        if (error instanceof MistralGuardrailError) {
+          // Same deterministic-not-cached outcome as the generic branch
+          // below, but with a structured event so log consumers can route
+          // this distinct case (mirrors the referenceAudioTooLong /
+          // voiceListUnavailable branches above).
+          logger.warn(
+            { event: 'mistral.guardrailViolation', slug, code: error.code, reason },
+            'Mistral guardrail refused the voice clone (deterministic — not cached)'
+          );
+          return null;
         }
         if (error instanceof MistralApiError && error.isRateLimited) {
           // Rate-limited (429) is transient but too granular for a 5-min

@@ -101,6 +101,10 @@ export interface MistralCloneOptions {
 // Errors
 // ============================================================================
 
+/** Mistral's content-guardrail error code, as observed in a production 403
+ *  response body (`{"type":"guardrail_violation","code":1920}`). */
+const MISTRAL_GUARDRAIL_CODE = 1920;
+
 export class MistralTimeoutError extends TimeoutError {
   constructor(timeoutMs: number, endpoint: string, cause: Error) {
     super(timeoutMs, `Mistral ${endpoint}`, cause);
@@ -232,6 +236,58 @@ export class MistralReferenceAudioTooLongError extends Error {
   readonly isTransient = false;
 }
 
+/**
+ * Mistral's content guardrail refused to synthesize the request — a policy
+ * block, not a credential or transport problem. Does NOT extend
+ * `MistralApiError` because `MistralApiError.isAuthError` treats 403 as an
+ * auth failure, which would mislabel a content-policy refusal.
+ *
+ * `isTransient = false`: the refusal is deterministic from the input text,
+ * so it falls through the dispatcher's fallback chain like any other attempt
+ * error and is not negative-cached — re-running the same input would hit the
+ * same guardrail again.
+ *
+ * `code` is the response body's own `code` when present, falling back to
+ * `MISTRAL_GUARDRAIL_CODE` when the body matched only on `type`.
+ *
+ * `message` deliberately excludes the raw body: this error is logged through
+ * the `err` serializer on every fallback, which copies every enumerable own
+ * property except a handled set (`extractEnumerableProps` in
+ * `packages/common-types/src/utils/logger.ts`), and a guardrail body may
+ * describe the flagged text (not verified whether Mistral's guardrail bodies
+ * echo user text). `detail` is defined as a non-enumerable own property below
+ * so that serializer cannot pick it up — it stays off every `{ err }` log
+ * line while remaining readable by code that names it directly.
+ *
+ * The user-facing notice this carries is pinned by the dispatcher test
+ * `'attaches a guardrail notice when MistralGuardrailError causes fallback'`
+ * in `TtsDispatcher.test.ts`.
+ */
+export class MistralGuardrailError extends Error {
+  readonly status = 403;
+  readonly code: number | string;
+  /** Raw response body text, for logs. Non-enumerable — see class doc. */
+  declare readonly detail: string;
+  readonly userNotice: string;
+
+  constructor(detail: string, observedCode?: number | string) {
+    const code = observedCode ?? MISTRAL_GUARDRAIL_CODE;
+    super(`Mistral guardrail violation (code ${code})`);
+    this.name = 'MistralGuardrailError';
+    this.code = code;
+    Object.defineProperty(this, 'detail', {
+      value: detail,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+    this.userNotice = `Mistral refused to voice this reply under its guardrail policy (code ${code})`;
+    Object.setPrototypeOf(this, MistralGuardrailError.prototype);
+  }
+
+  readonly isTransient = false;
+}
+
 // ============================================================================
 // Request body builders (isolated for API volatility per plan section 5)
 // ============================================================================
@@ -347,6 +403,50 @@ async function readResponseError(response: globalThis.Response): Promise<string>
   }
 }
 
+/** Parses a 403 response body for Mistral's guardrail-violation signal —
+ *  either the numeric/string error code or the `type` discriminator. Returns
+ *  `null` when the body doesn't match either signal, else an object carrying
+ *  the body's own `code` as observed (`undefined` when the body has no
+ *  `code` field or carries one that is not a number or string). */
+function parseGuardrailBody(detail: string): { code: number | string | undefined } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(detail);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null;
+  }
+  const record = parsed as Record<string, unknown>;
+  // not verified: Mistral's error `code` has been reported as both a number
+  // and a string in the wider ecosystem, and the single logged production
+  // sample does not settle which — compare as a string so either shape matches.
+  const isGuardrail =
+    String(record.code) === String(MISTRAL_GUARDRAIL_CODE) || record.type === 'guardrail_violation';
+  if (!isGuardrail) {
+    return null;
+  }
+  const code = record.code;
+  return { code: typeof code === 'number' || typeof code === 'string' ? code : undefined };
+}
+
+/** Classify a non-ok Mistral response into the right error type. Isolated so
+ *  every call site (speech, clone, list, delete) shares one classification
+ *  point rather than each independently checking for the guardrail shape. */
+async function mistralErrorFromResponse(
+  response: globalThis.Response
+): Promise<MistralApiError | MistralGuardrailError> {
+  const detail = await readResponseError(response);
+  if (response.status === 403) {
+    const guardrailBody = parseGuardrailBody(detail);
+    if (guardrailBody !== null) {
+      return new MistralGuardrailError(detail, guardrailBody.code);
+    }
+  }
+  return new MistralApiError(response.status, detail);
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -370,7 +470,7 @@ export async function mistralTTS(opts: MistralTTSOptions): Promise<MistralTTSRes
   });
 
   if (!response.ok) {
-    throw new MistralApiError(response.status, await readResponseError(response));
+    throw await mistralErrorFromResponse(response);
   }
 
   const json = (await response.json()) as { audio_data?: string };
@@ -408,7 +508,7 @@ export async function mistralCloneVoice(opts: MistralCloneOptions): Promise<Mist
   });
 
   if (!response.ok) {
-    throw new MistralApiError(response.status, await readResponseError(response));
+    throw await mistralErrorFromResponse(response);
   }
 
   const json = (await response.json()) as { id?: string; name?: string; user_id?: string | null };
@@ -444,7 +544,7 @@ async function fetchVoicesPage(apiKey: string, offset: number): Promise<MistralV
   );
 
   if (!response.ok) {
-    throw new MistralApiError(response.status, await readResponseError(response));
+    throw await mistralErrorFromResponse(response);
   }
 
   const json = (await response.json()) as {
@@ -537,7 +637,7 @@ export async function mistralDeleteVoice(voiceId: string, apiKey: string): Promi
   });
 
   if (!response.ok) {
-    throw new MistralApiError(response.status, await readResponseError(response));
+    throw await mistralErrorFromResponse(response);
   }
 
   logger.info({ voiceId }, 'Mistral voice deleted');

@@ -7,6 +7,7 @@ import {
   mistralListVoices,
   mistralDeleteVoice,
   MistralApiError,
+  MistralGuardrailError,
   MistralReferenceAudioTooLongError,
   MistralResponseShapeError,
   MistralTimeoutError,
@@ -32,6 +33,18 @@ function jsonResponse(status: number, body: unknown): globalThis.Response {
     status,
     text: async () => JSON.stringify(body),
     json: async () => body,
+    headers: new Headers(),
+  } as unknown as globalThis.Response;
+}
+
+function textResponse(status: number, body: string): globalThis.Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body,
+    json: async () => {
+      throw new SyntaxError('not json');
+    },
     headers: new Headers(),
   } as unknown as globalThis.Response;
 }
@@ -184,6 +197,72 @@ describe('mistralTTS', () => {
       MistralTimeoutError
     );
   });
+
+  it('throws MistralGuardrailError on 403 with numeric guardrail code', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(403, {
+        object: 'error',
+        type: 'guardrail_violation',
+        message: 'Request blocked by guardrail policy',
+        code: 1920,
+      })
+    );
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralGuardrailError);
+    await expect(promise).rejects.toMatchObject({
+      userNotice: 'Mistral refused to voice this reply under its guardrail policy (code 1920)',
+    });
+    // Message deliberately excludes the raw body (which is where "guardrail
+    // policy" text lived) — see `MistralGuardrailError`'s class doc.
+    await expect(promise).rejects.toThrow(/guardrail violation/);
+  });
+
+  it('throws MistralGuardrailError on 403 with a STRING guardrail code and no type', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(403, { code: '1920' }));
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralGuardrailError);
+    await expect(promise).rejects.toMatchObject({ code: '1920' });
+    await expect(promise).rejects.toMatchObject({
+      userNotice: 'Mistral refused to voice this reply under its guardrail policy (code 1920)',
+    });
+  });
+
+  it("reports the response's own code when the type matched with a different code", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(403, { object: 'error', type: 'guardrail_violation', code: 9999 })
+    );
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralGuardrailError);
+    await expect(promise).rejects.toMatchObject({ code: 9999 });
+    await expect(promise).rejects.toMatchObject({
+      userNotice: 'Mistral refused to voice this reply under its guardrail policy (code 9999)',
+    });
+  });
+
+  it('falls back to 1920 when the body has type but no code', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(403, { object: 'error', type: 'guardrail_violation' })
+    );
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralGuardrailError);
+    await expect(promise).rejects.toMatchObject({ code: 1920 });
+  });
+
+  it('throws MistralApiError (not MistralGuardrailError) on 403 with a non-JSON body', async () => {
+    mockFetch.mockResolvedValueOnce(textResponse(403, 'Forbidden'));
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralApiError);
+    await expect(promise).rejects.toMatchObject({ isAuthError: true });
+  });
+
+  it('throws MistralApiError (not MistralGuardrailError) on 403 with a different error code', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(403, { object: 'error', type: 'invalid_request', code: 2000 })
+    );
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralApiError);
+    await expect(promise).rejects.not.toBeInstanceOf(MistralGuardrailError);
+  });
 });
 
 // ===== mistralCloneVoice ====================================================
@@ -248,6 +327,25 @@ describe('mistralCloneVoice', () => {
         apiKey: 'k',
       })
     ).rejects.toBeInstanceOf(MistralApiError);
+  });
+
+  it('throws MistralGuardrailError on 403 guardrail response (shared classifier, non-speech endpoint)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(403, {
+        object: 'error',
+        type: 'guardrail_violation',
+        message: 'Request blocked by guardrail policy',
+        code: 1920,
+      })
+    );
+    await expect(
+      mistralCloneVoice({
+        name: 'x',
+        audioBuffer: Buffer.from([0]),
+        contentType: 'audio/wav',
+        apiKey: 'k',
+      })
+    ).rejects.toBeInstanceOf(MistralGuardrailError);
   });
 });
 
@@ -460,5 +558,42 @@ describe('MistralReferenceAudioTooLongError', () => {
     expect(tooLong).toBeInstanceOf(MistralReferenceAudioTooLongError);
     expect(tooLong).not.toBeInstanceOf(MistralApiError);
     expect(tooLong).not.toBeInstanceOf(MistralResponseShapeError);
+  });
+});
+
+// ===== MistralGuardrailError =================================================
+
+describe('MistralGuardrailError', () => {
+  it('carries userNotice, code, status, and detail on the instance', () => {
+    const err = new MistralGuardrailError('{"code":1920}');
+    expect(err.userNotice).toBe(
+      'Mistral refused to voice this reply under its guardrail policy (code 1920)'
+    );
+    expect(err.code).toBe(1920);
+    expect(err.status).toBe(403);
+    expect(err.detail).toBe('{"code":1920}');
+    expect(err.message).not.toContain('{"code":1920}');
+  });
+
+  it('flags as non-transient (deterministic from input — retry would fail again)', () => {
+    expect(new MistralGuardrailError('{"code":1920}').isTransient).toBe(false);
+  });
+
+  it('is a separate class from MistralApiError (instanceof discrimination, both directions)', () => {
+    const guardrail = new MistralGuardrailError('{"code":1920}');
+    expect(guardrail).not.toBeInstanceOf(MistralApiError);
+    expect(new MistralApiError(403, '')).not.toBeInstanceOf(MistralGuardrailError);
+  });
+
+  it('keeps the raw body off enumerable properties so the shared err serializer cannot log it', () => {
+    // The err serializer (extractEnumerableProps in common-types/utils/logger.ts)
+    // copies enumerable own properties, so a non-enumerable descriptor is what
+    // actually keeps `detail` out of `{ err }` log lines.
+    const err = new MistralGuardrailError('{"code":1920}');
+    expect(Object.getOwnPropertyDescriptor(err, 'detail')?.enumerable).toBe(false);
+    expect(Object.keys(err)).not.toContain('detail');
+    expect(Object.keys(err)).toContain('code');
+    expect(Object.keys(err)).toContain('userNotice');
+    expect(err.detail).toBe('{"code":1920}');
   });
 });
