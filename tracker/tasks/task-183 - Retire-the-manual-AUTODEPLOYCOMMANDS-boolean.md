@@ -1,10 +1,10 @@
 ---
 id: TASK-183
 title: Retire the manual AUTO_DEPLOY_COMMANDS boolean
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-28 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 06:56'
 labels:
   - 'area:tooling'
   - 'size:S'
