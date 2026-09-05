@@ -163,6 +163,15 @@ distinction is lifecycle.
 still live on a branch (empty = clean). Older forgotten scaffolding is caught by
 `pnpm ops dev:stale-debug` (blame-based, weekly `ops health`).
 
+When a `fix`/`feat` commit removes a probe instead of a dedicated `debug:`
+remove commit, it carries the trailer `Retires-debug: <sha>` so
+`dev:stale-debug` stops tracking that probe; a later commit may carry the
+trailer for a probe that was already absorbed. Git parses trailers from the
+message's FINAL paragraph only, so the line goes beside `Co-Authored-By`,
+below the generated-with line (probe: `git log -1 --format=%B | git
+interpret-trailers --parse`). One SHA per line is the tested form; several on
+one line, space- or comma-separated, also resolve.
+
 ### PR Monitoring (automatic — do not wait to be asked)
 
 **Whenever you create a PR or push commits to an open PR, arm a `Monitor` that waits for CI to finish and then reports on new reviewer comments.** Don't wait for the user to ask whether CI passed or whether a review landed.

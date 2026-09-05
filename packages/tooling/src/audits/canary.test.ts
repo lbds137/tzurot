@@ -353,4 +353,60 @@ describe('audit-canary: dev:stale-debug', () => {
       await rm(tmp, { recursive: true, force: true });
     }
   });
+
+  it('stops flagging a surviving probe once a later commit retires it by trailer', async () => {
+    const { mkdtemp, writeFile, rm, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { execFileSync } = await import('node:child_process');
+
+    const tmp = await mkdtemp(join(tmpdir(), 'stale-debug-retire-canary-'));
+    const git = (args: string[], env?: Record<string, string>): void => {
+      execFileSync('git', args, {
+        cwd: tmp,
+        stdio: 'pipe',
+        env: { ...process.env, ...env },
+      });
+    };
+    const gitOut = (args: string[]): string =>
+      execFileSync('git', args, { cwd: tmp, stdio: 'pipe', encoding: 'utf-8' }).trim();
+
+    try {
+      git(['init', '--initial-branch=main']);
+      git(['config', 'user.email', 'canary@test.invalid']);
+      git(['config', 'user.name', 'Canary']);
+
+      await writeFile(join(tmp, 'app.ts'), 'export const app = 1;\n');
+      git(['add', '.']);
+      git(['commit', '-m', 'feat: base']);
+
+      const probeContent = await readFile(
+        resolve(FIXTURES_ROOT, 'dev-stale-debug/stale-probe-content.txt'),
+        'utf-8'
+      );
+      await writeFile(join(tmp, 'probe.ts'), probeContent);
+      git(['add', '.']);
+      const backdate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      git(['commit', '-m', 'debug(canary): add stale probe scaffolding'], {
+        GIT_AUTHOR_DATE: backdate,
+        GIT_COMMITTER_DATE: backdate,
+      });
+      const debugSha = gitOut(['rev-parse', 'HEAD']);
+
+      // The scaffolding stays in the tree; only the declaration is added.
+      await writeFile(join(tmp, 'app.ts'), 'export const app = 2;\n');
+      git(['add', '.']);
+      git(['commit', '-m', `fix(canary): absorb the probe\n\nRetires-debug: ${debugSha}`]);
+
+      const { findStaleDebugCommits } = await import('../dev/stale-debug-audit.js');
+      const result = findStaleDebugCommits({ repoRoot: tmp });
+
+      expect(result.status).toBe('ok');
+      expect(result.liveCommits).toEqual([]);
+      expect(result.totalDebugCommits).toBe(1);
+      expect(result.ignoredRetireValues).toEqual([]);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
 });
