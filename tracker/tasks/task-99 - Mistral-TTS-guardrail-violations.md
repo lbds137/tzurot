@@ -1,10 +1,10 @@
 ---
 id: TASK-99
 title: Mistral TTS guardrail violations
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-13 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 08:28'
 labels:
   - 'area:voice'
   - 'size:M'
