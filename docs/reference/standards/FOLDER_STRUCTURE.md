@@ -286,13 +286,13 @@ import { formatTimezone } from './utils.js';
 
 ### Type Definitions
 
-**Format**: camelCase or descriptive
+**Format**: kebab-case file names, for `packages/common-types/src/types/` only (lint-enforced by `structure.test.ts`, which checks the file name, not the directory path; existing camelCase files there are grandfathered by name, not renamed). Other `types/` directories follow the conventions of the sections above.
 
 ✅ **Good Examples:**
 
 - `api-types.ts`
 - `discord.ts`
-- `schemas.ts`
+- `gateway-context.ts`
 
 ### Test Files
 

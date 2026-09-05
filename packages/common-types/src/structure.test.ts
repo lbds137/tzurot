@@ -23,6 +23,13 @@
  *
  * If you broaden the dirs scanned below, broaden the matching inputs in
  * turbo.json (and vice versa). Keep them in lockstep.
+ *
+ * This file also enforces a naming convention for type definition files under
+ * packages/common-types/src/types/: new files use kebab-case (lowercase
+ * alphanumeric segments separated by single hyphens). A closed grandfather
+ * list exempts a handful of pre-existing non-kebab-case files.
+ *
+ * - See GRANDFATHERED_TYPE_FILE_STEMS below for the exempted stems.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -195,6 +202,18 @@ function findSourceFiles(dirs: string[]): string[] {
   return results;
 }
 
+// Type-directory naming policy: this list is closed. An entry is removed
+// only when its file is renamed to kebab-case; entries are never added.
+// New files placed under packages/common-types/src/types/ use kebab-case
+// from the start.
+const GRANDFATHERED_TYPE_FILE_STEMS = new Set([
+  'sttProvider',
+  'configResolution',
+  'conversationMessage',
+  'personaResolution',
+  'schemas/rawEnvelope',
+]);
+
 describe('Project Structure', () => {
   it('ensures every source file has a corresponding test file', () => {
     const dirs = [
@@ -239,6 +258,54 @@ describe('Project Structure', () => {
         '',
         'To fix: Create a corresponding .test.ts file for each source file.',
         'To exclude: Add the pattern to EXCLUDE_PATTERNS in structure.test.ts',
+      ].join('\n');
+
+      expect.fail(errorMessage);
+    }
+  });
+
+  it('type definition files under packages/common-types/src/types use kebab-case', () => {
+    const typesDir = path.join(PROJECT_ROOT, 'packages/common-types/src/types');
+    const kebabCasePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    const entries = fs.readdirSync(typesDir, { recursive: true }) as string[];
+
+    const violations: string[] = [];
+    const nonKebabStems = new Set<string>();
+
+    for (const entry of entries) {
+      if (!entry.endsWith('.ts')) continue;
+
+      const fullPath = path.join(typesDir, entry);
+      if (!fs.statSync(fullPath).isFile()) continue;
+
+      const relativePath = path.relative(typesDir, fullPath);
+      const dir = path.dirname(relativePath);
+      const basename = path.basename(relativePath, '.ts');
+      const stem = basename.replace(/\.(test|spec|d)$/, '');
+      const stemPath = (dir === '.' ? stem : path.join(dir, stem)).split(path.sep).join('/');
+      const reportPath = relativePath.split(path.sep).join('/');
+
+      if (!kebabCasePattern.test(stem)) nonKebabStems.add(stemPath);
+      if (kebabCasePattern.test(stem) || GRANDFATHERED_TYPE_FILE_STEMS.has(stemPath)) {
+        continue;
+      }
+
+      violations.push(reportPath);
+    }
+
+    // The list is closed: an entry whose file was renamed or removed is stale and must go.
+    const staleGrandfathers = [...GRANDFATHERED_TYPE_FILE_STEMS].filter(s => !nonKebabStems.has(s));
+    expect(staleGrandfathers, 'grandfathered stems whose file was renamed or removed').toEqual([]);
+
+    if (violations.length > 0) {
+      const errorMessage = [
+        `The following ${violations.length} type definition file(s) under packages/common-types/src/types are not kebab-case:`,
+        '',
+        ...violations.map(f => `  - types/${f}`),
+        '',
+        'To fix: rename to kebab-case (lowercase alphanumeric segments separated by single hyphens).',
+        'See docs/reference/standards/FOLDER_STRUCTURE.md § Type Definitions.',
+        'Renaming an existing file is not the fix for a grandfathered name — new files simply use kebab-case.',
       ].join('\n');
 
       expect.fail(errorMessage);
