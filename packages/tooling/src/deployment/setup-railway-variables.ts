@@ -89,13 +89,6 @@ const BOT_CLIENT_VARIABLES: VariableConfig[] = [
   { key: 'DISCORD_TOKEN', description: 'Discord bot token', isSecret: true, required: true },
   { key: 'DISCORD_CLIENT_ID', description: 'Discord client ID', isSecret: false, required: true },
   {
-    key: 'AUTO_DEPLOY_COMMANDS',
-    description: 'Auto-deploy slash commands',
-    isSecret: false,
-    required: false,
-    defaultValue: 'true',
-  },
-  {
     key: 'AUTO_TRANSCRIBE_VOICE',
     description: 'Auto-transcribe voice messages',
     isSecret: false,

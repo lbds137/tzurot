@@ -11,9 +11,10 @@ import {
 } from './utils/gatewayServiceCalls.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { handleCommandWithContext } from './handlers/commandDispatch.js';
-import { closeRedis } from './redis.js';
+import { closeRedis, redis } from './redis.js';
 import { armBootWatchdog } from './utils/bootWatchdog.js';
 import { deployCommands } from './utils/deployCommands.js';
+import { shouldAutoRegisterCommands } from './utils/commandRegistrationGate.js';
 import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
 import { deliverJobResult, type JobResultDeliveryDeps } from './services/deliverJobResult.js';
 import { registerGuildMemberInfoReporter } from './services/GuildMemberInfoReporter.js';
@@ -501,18 +502,22 @@ async function start(): Promise<void> {
       'Configuration:'
     );
 
-    // Auto-deploy commands if enabled
-    if (envConfig.AUTO_DEPLOY_COMMANDS === 'true') {
-      logger.info('Auto-deploying slash commands...');
+    // Register slash commands on boot — on Railway only, and only when the set changed
+    if (shouldAutoRegisterCommands(envConfig)) {
+      logger.info('Auto-registering slash commands...');
       try {
-        await deployCommands(true); // Always deploy globally in production
+        await deployCommands(true, redis); // Always deploy globally in production
         logger.info('Slash commands deployed successfully');
       } catch (error) {
         logger.warn({ err: error }, 'Failed to deploy commands, but continuing startup...');
       }
+    } else {
+      logger.info(
+        'Slash-command auto-registration is off outside Railway (RAILWAY_ENVIRONMENT_NAME unset or empty) — use pnpm deploy-commands to register from a shell'
+      );
     }
     // Marks "past the command-deploy step", not "deploy succeeded": it fires
-    // the same way when auto-deploy is disabled or when deployCommands failed
+    // the same way when registration is off (local run) or when deployCommands failed
     // and was caught above — the phase is a sequence position for the
     // deadline log, never a success claim.
     bootWatchdog.notePhase('commands-deployed');

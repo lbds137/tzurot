@@ -50,10 +50,6 @@ export const envSchema = z.object({
   DISCORD_TOKEN: optionalNonEmptyString(), // Only required for bot-client
   DISCORD_CLIENT_ID: optionalDiscordId(),
   GUILD_ID: optionalDiscordId(), // Optional - for dev/testing command deployment
-  AUTO_DEPLOY_COMMANDS: z
-    .enum(['true', 'false'])
-    .optional()
-    .or(z.literal('').transform(() => undefined)), // 'true' to auto-deploy slash commands on bot startup
   AUTO_TRANSCRIBE_VOICE: z
     .enum(['true', 'false'])
     .optional()
@@ -149,6 +145,14 @@ export const envSchema = z.object({
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  /**
+   * Injected by Railway on every deployed environment (dev and prod); never
+   * set by hand and absent from a local run. bot-client uses its presence
+   * to decide whether to auto-register slash commands on boot — local and
+   * Railway dev share one Discord application id, so a local run must not
+   * register commands and clobber the dev deploy's command set.
+   */
+  RAILWAY_ENVIRONMENT_NAME: optionalNonEmptyString(),
 
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
@@ -277,7 +281,6 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     DISCORD_TOKEN: undefined,
     DISCORD_CLIENT_ID: undefined,
     GUILD_ID: undefined,
-    AUTO_DEPLOY_COMMANDS: undefined,
     AUTO_TRANSCRIBE_VOICE: undefined,
     EXTRACTION_DAILY_LIMIT: 100,
     ZAI_CODING_API_KEY: undefined,
@@ -312,6 +315,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
 
     // Environment
     NODE_ENV: 'test',
+    RAILWAY_ENVIRONMENT_NAME: undefined,
 
     // Logging
     LOG_LEVEL: 'error', // Quiet logs in tests
