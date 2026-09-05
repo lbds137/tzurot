@@ -39,6 +39,7 @@ import { handleReleaseBroadcastPending, handleReleaseBroadcastDeliveries } from 
 import { handleReleaseBroadcastReconcile } from '../internal/releaseReconcile.js';
 import { handleSetDmSession } from '../internal/dmSessionSet.js';
 import { handleRecordGuildMemberInfo } from '../internal/guildMemberInfoRecord.js';
+import { handleRemoveGuildMemberInfo } from '../internal/guildMemberInfoRemove.js';
 import { handleStampUserActivity } from '../internal/usersActivity.js';
 import { handleLookupPersonalityFromMessage } from '../user/conversationLookup.js';
 import { handlePersistAssistantMessage } from '../internal/conversationAssistantMessage.js';
@@ -126,6 +127,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/internal/release-broadcast/reconcile', handleReleaseBroadcastReconcile(deps));
   app.post('/api/internal/channel/dm-session/set', handleSetDmSession(deps));
   app.post('/api/internal/guild-member-info', handleRecordGuildMemberInfo(deps));
+  app.delete('/api/internal/guild-member-info', handleRemoveGuildMemberInfo(deps));
   app.post('/api/internal/users/activity', handleStampUserActivity(deps));
   app.get('/api/internal/conversation/message-personality', handleLookupPersonalityFromMessage(deps));
   app.post('/api/internal/conversation/assistant-message', handlePersistAssistantMessage(deps));

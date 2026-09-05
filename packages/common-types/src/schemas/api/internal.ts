@@ -100,6 +100,30 @@ export const GuildMemberInfoRecordResponseSchema = z.object({
 });
 
 // ============================================================================
+// DELETE /internal/guild-member-info
+// Removes a user's stored membership when they leave a guild. Called by
+// bot-client's `guildMemberRemove` listener. This is deletion on an explicit
+// end-of-membership event, not expiry: a TTL over these rows would
+// reintroduce the render flicker the table exists to stop.
+// ============================================================================
+
+export const GuildMemberInfoRemoveRequestSchema = z.object({
+  guildId: DiscordSnowflakeSchema,
+  discordUserId: DiscordSnowflakeSchema,
+});
+
+export const GuildMemberInfoRemoveResponseSchema = z.object({
+  /**
+   * False is the ORDINARY outcome, not an error — either no user row matched
+   * the Discord id (the vast majority of guild members have never used the
+   * bot, and this endpoint must not provision one), or the user row exists
+   * but no membership was ever observed for that guild. A database failure
+   * is NOT this value; it surfaces as a 500.
+   */
+  deleted: z.boolean(),
+});
+
+// ============================================================================
 // GET /internal/conversation/message-personality (reclassified from /user/*)
 // Looks up the personality that owns a given Discord message ID. Used by
 // bot-client's reply-resolution path to route reply targeting correctly.

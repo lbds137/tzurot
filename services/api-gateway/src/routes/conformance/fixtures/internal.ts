@@ -189,6 +189,23 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
       }),
   },
 
+  removeGuildMemberInfo: {
+    // Seeds through the record route itself rather than a hand-written insert,
+    // so the row this deletes is the one the real write path produces. The
+    // actor has a user row, so this drives the `deleted: true` arm — the one
+    // that actually removes something.
+    seed: async ctx => {
+      await ctx.call('post', '/api/internal/guild-member-info', {
+        guildId: '830000000000000009',
+        discordUserId: ctx.actorDiscordId,
+        info: { roles: ['Conformance Departing'], displayColor: '#00FF00' },
+      });
+      return {
+        body: { guildId: '830000000000000009', discordUserId: ctx.actorDiscordId },
+      };
+    },
+  },
+
   lookupPersonalityFromMessage: {
     seed: async ctx => {
       const personality = await createPersonality(ctx, 'conf-message-lookup');

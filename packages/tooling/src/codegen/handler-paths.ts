@@ -150,6 +150,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   setDmSession: '../internal/dmSessionSet.js',
   recordCommandEvent: '../internal/telemetryCommandEvent.js',
   recordGuildMemberInfo: '../internal/guildMemberInfoRecord.js',
+  removeGuildMemberInfo: '../internal/guildMemberInfoRemove.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
   persistAssistantMessage: '../internal/conversationAssistantMessage.js',
   persistUserMessage: '../internal/conversationUserMessage.js',
