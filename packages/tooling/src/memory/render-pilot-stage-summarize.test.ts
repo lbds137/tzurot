@@ -115,10 +115,10 @@ describe('render-pilot summarize/questions stages', () => {
     expect(request.model).toBe('s');
     expect(request.messages[1].content).toContain('Alice: hi');
 
-    const result = readStageFile<{ rowId: string; summary: string }[]>(
+    const result = readStageFile<{ summaries: { rowId: string; summary: string }[] }>(
       stagePath(dir, 'nova', 'summaries')
     );
-    expect(result).toEqual([
+    expect(result?.summaries).toEqual([
       expect.objectContaining({ rowId: 'm1', summary: 'Alice greeted Nova.' }),
     ]);
   });
@@ -141,11 +141,11 @@ describe('render-pilot summarize/questions stages', () => {
       });
     await runSummariesStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
     expect(callOpenRouterMock).toHaveBeenCalledTimes(2);
-    const result = readStageFile<{ summary: string; state: string }[]>(
+    const result = readStageFile<{ summaries: { summary: string; state: string }[] }>(
       stagePath(dir, 'nova', 'summaries')
     );
-    expect(result?.[0].summary).toBe('short one');
-    expect(result?.[0].state).toBe('regenerated');
+    expect(result?.summaries[0].summary).toBe('short one');
+    expect(result?.summaries[0].state).toBe('regenerated');
 
     // Canary (F3): the tighten retry must show the model its own over-length
     // draft — dropping the interpolation in buildTightenMessage reddens this.
@@ -158,8 +158,40 @@ describe('render-pilot summarize/questions stages', () => {
     expect(tightenMessage).toContain('word word word');
   });
 
+  it('records a failed summarizer call without sinking the other rows, and writes it to the stage file', async () => {
+    const corpus = makeCorpus();
+    corpus.rows.push({ ...corpus.rows[0], id: 'm2', subjectName: 'Bob' });
+    callOpenRouterMock.mockImplementation((request: { messages: { content: string }[] }) => {
+      if (request.messages[1].content.includes('Bob')) {
+        return Promise.reject(new Error('exhausted the token budget'));
+      }
+      return Promise.resolve({
+        content: '{"summary": "Alice greeted Nova."}',
+        promptTokens: 10,
+        completionTokens: 5,
+        latencyMs: 10,
+        attempts: 1,
+      });
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await runSummariesStage(ctx, baseOptions({ outDir: dir }), corpus);
+
+    const result = readStageFile<{
+      summaries: { rowId: string }[];
+      failures: { index: number; rowId?: string; error: string }[];
+    }>(stagePath(dir, 'nova', 'summaries'));
+    expect(result?.summaries).toEqual([expect.objectContaining({ rowId: 'm1' })]);
+    expect(result?.failures).toEqual([
+      { index: 1, rowId: 'm2', error: 'exhausted the token budget' },
+    ]);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('stage summaries: 1 call(s) failed')
+    );
+    logSpy.mockRestore();
+  });
+
   it('skips a cached stage under --stage all', async () => {
-    writeStageFile(stagePath(dir, 'nova', 'summaries'), []);
+    writeStageFile(stagePath(dir, 'nova', 'summaries'), { summaries: [], failures: [] });
     await runSummariesStage(ctx, baseOptions({ outDir: dir, stage: 'all' }), makeCorpus());
     expect(callOpenRouterMock).not.toHaveBeenCalled();
   });

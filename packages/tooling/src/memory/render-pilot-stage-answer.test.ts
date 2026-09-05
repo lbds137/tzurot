@@ -111,8 +111,10 @@ describe('render-pilot answer/judge stages', () => {
       const [request] = call as [{ model: string }];
       expect(request.model).toBe('answer-model');
     }
-    const results = readStageFile<{ arm: string }[]>(stagePath(dir, 'nova', 'answers'));
-    expect(results?.map(r => r.arm).sort()).toEqual(['F', 'S', 'V']);
+    const results = readStageFile<{ answers: { arm: string }[] }>(
+      stagePath(dir, 'nova', 'answers')
+    );
+    expect(results?.answers.map(r => r.arm).sort()).toEqual(['F', 'S', 'V']);
   });
 
   // Canary (F4): flipping `result.finishReason === 'length'` at the write
@@ -127,8 +129,10 @@ describe('render-pilot answer/judge stages', () => {
       finishReason: 'length',
     });
     await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
-    const results = readStageFile<{ truncated: boolean }[]>(stagePath(dir, 'nova', 'answers'));
-    expect(results?.every(r => r.truncated === true)).toBe(true);
+    const results = readStageFile<{ answers: { truncated: boolean }[] }>(
+      stagePath(dir, 'nova', 'answers')
+    );
+    expect(results?.answers.every(r => r.truncated === true)).toBe(true);
   });
 
   it('marks an answer not truncated when finishReason is "stop"', async () => {
@@ -141,31 +145,39 @@ describe('render-pilot answer/judge stages', () => {
       finishReason: 'stop',
     });
     await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
-    const results = readStageFile<{ truncated: boolean }[]>(stagePath(dir, 'nova', 'answers'));
-    expect(results?.every(r => r.truncated === false)).toBe(true);
+    const results = readStageFile<{ answers: { truncated: boolean }[] }>(
+      stagePath(dir, 'nova', 'answers')
+    );
+    expect(results?.answers.every(r => r.truncated === false)).toBe(true);
   });
 
   it('judges answers, summaries, and facts using the judge model', async () => {
-    writeStageFile(stagePath(dir, 'nova', 'answers'), [
-      {
-        rowId: 'm1',
-        question: 'q',
-        referenceAnswer: 'a',
-        basis: 'assistant',
-        arm: 'V',
-        reply: 'reply text',
-        tailTokens: 5,
-      },
-    ]);
-    writeStageFile(stagePath(dir, 'nova', 'summaries'), [
-      {
-        rowId: 'm1',
-        summary: 'a summary',
-        tokens: 10,
-        state: 'within_soft',
-        hasFirstPerson: false,
-      },
-    ]);
+    writeStageFile(stagePath(dir, 'nova', 'answers'), {
+      answers: [
+        {
+          rowId: 'm1',
+          question: 'q',
+          referenceAnswer: 'a',
+          basis: 'assistant',
+          arm: 'V',
+          reply: 'reply text',
+          tailTokens: 5,
+        },
+      ],
+      failures: [],
+    });
+    writeStageFile(stagePath(dir, 'nova', 'summaries'), {
+      summaries: [
+        {
+          rowId: 'm1',
+          summary: 'a summary',
+          tokens: 10,
+          state: 'within_soft',
+          hasFirstPerson: false,
+        },
+      ],
+      failures: [],
+    });
     callOpenRouterMock.mockResolvedValue({
       content:
         '{"correct": true, "faithful": true, "unsupported_claims": [], "missing_commitments": [], "dangling_reference": false}',
@@ -176,8 +188,13 @@ describe('render-pilot answer/judge stages', () => {
     });
     await runJudgeStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
     for (const call of callOpenRouterMock.mock.calls) {
-      const [request] = call as [{ model: string }];
+      const [request] = call as [
+        { model: string; temperature: number; maxTokens: number; jsonMode: boolean },
+      ];
       expect(request.model).toBe('judge-model');
+      expect(request.temperature).toBe(0);
+      expect(request.maxTokens).toBe(2000);
+      expect(request.jsonMode).toBe(true);
     }
     const result = readStageFile<{ answers: unknown[]; summaries: unknown[]; facts: unknown[] }>(
       stagePath(dir, 'nova', 'judge')
@@ -199,9 +216,8 @@ describe('render-pilot answer/judge stages', () => {
       ...corpus.rows[0],
       id: `m${String(i)}`,
     }));
-    writeStageFile(
-      stagePath(dir, 'nova', 'answers'),
-      corpus.rows.map(row => ({
+    writeStageFile(stagePath(dir, 'nova', 'answers'), {
+      answers: corpus.rows.map(row => ({
         rowId: row.id,
         question: 'q',
         referenceAnswer: 'a',
@@ -209,18 +225,19 @@ describe('render-pilot answer/judge stages', () => {
         arm: 'V' as const,
         reply: 'reply text',
         tailTokens: 5,
-      }))
-    );
-    writeStageFile(
-      stagePath(dir, 'nova', 'summaries'),
-      corpus.rows.map(row => ({
+      })),
+      failures: [],
+    });
+    writeStageFile(stagePath(dir, 'nova', 'summaries'), {
+      summaries: corpus.rows.map(row => ({
         rowId: row.id,
         summary: 'a summary',
         tokens: 10,
         state: 'within_soft',
         hasFirstPerson: false,
-      }))
-    );
+      })),
+      failures: [],
+    });
 
     let inFlight = 0;
     let maxInFlight = 0;

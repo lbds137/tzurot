@@ -417,6 +417,7 @@ export function buildReportJson(input: ReportBuildInput): ReportJson {
     >,
     usage: usageStats(input.usage),
     droppedMalformedQuestions: input.droppedMalformedQuestions,
+    callFailures: input.callFailures,
   };
 }
 

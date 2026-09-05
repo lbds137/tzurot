@@ -72,6 +72,7 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
       voice,
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     });
     const jsonText = JSON.stringify(json);
     expect(jsonText).not.toContain(SENTINEL);
@@ -90,6 +91,7 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
       voice: [],
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     });
     const markdown = buildReportMarkdown({
       perCharacter: { nova: json, luna: json },
@@ -138,10 +140,42 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
       ],
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     });
     const markdown = buildReportMarkdown({ perCharacter: {}, pooled: json });
     expect(markdown).toContain('Truncated');
     expect(markdown).toContain('100.0%');
+  });
+
+  it('renders the failed-model-calls-by-stage line, counts only', () => {
+    const withFailures = buildReportJson({
+      characterName: 'Nova',
+      answers: [],
+      summaries: [],
+      summaryJudgements: [],
+      facts: [],
+      voice: [],
+      usage: [],
+      droppedMalformedQuestions: 0,
+      callFailures: { summaries: 2, judge: 1, voice: 0 },
+    });
+    const markdown = buildReportMarkdown({ perCharacter: {}, pooled: withFailures });
+    expect(markdown).toContain('Failed model calls by stage: summaries=2, judge=1');
+    expect(markdown).not.toContain('voice=0');
+
+    const withoutFailures = buildReportJson({
+      characterName: 'Nova',
+      answers: [],
+      summaries: [],
+      summaryJudgements: [],
+      facts: [],
+      voice: [],
+      usage: [],
+      droppedMalformedQuestions: 0,
+      callFailures: {},
+    });
+    const noneMarkdown = buildReportMarkdown({ perCharacter: {}, pooled: withoutFailures });
+    expect(noneMarkdown).toContain('Failed model calls by stage: none');
   });
 });
 

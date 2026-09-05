@@ -8,6 +8,7 @@ import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
 import { parseIntFlag } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
+import type { RawRenderPilotOptions } from '../memory/render-pilot-cli.js';
 
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
@@ -245,31 +246,12 @@ function registerRenderPilotCommand(cli: CAC): void {
     )
     .option('--concurrency <n>', 'Max in-flight model calls (default 4)')
     .option('--dry-run', 'Run only the corpus stage and print stats + a token estimate')
-    .action(
-      async (options: {
-        env?: Environment;
-        personality?: string;
-        answerModel?: string;
-        judgeModel?: string;
-        summaryModel?: string;
-        largest?: string;
-        latest?: string;
-        questionsPerRow?: string;
-        window?: string;
-        voiceWindow?: string;
-        triggersFile?: string;
-        markersFile?: string;
-        out?: string;
-        stage?: string;
-        concurrency?: string;
-        dryRun?: boolean;
-      }) => {
-        const { buildRenderPilotOptions } = await import('../memory/render-pilot-cli.js');
-        const renderPilotOptions = buildRenderPilotOptions(options);
-        const { runRenderPilot } = await import('../memory/render-pilot.js');
-        await runRenderPilot(renderPilotOptions);
-      }
-    );
+    .action(async (options: RawRenderPilotOptions) => {
+      const { buildRenderPilotOptions } = await import('../memory/render-pilot-cli.js');
+      const renderPilotOptions = buildRenderPilotOptions(options);
+      const { runRenderPilot } = await import('../memory/render-pilot.js');
+      await runRenderPilot(renderPilotOptions);
+    });
 }
 
 /** The conversation-goldens miner — its own registrar so registerGoldensCommands stays under the line cap. */

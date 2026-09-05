@@ -17,7 +17,7 @@ import { renderArmNotes } from './render-pilot-archive.js';
 import {
   callOpenRouter,
   requireApiKey,
-  runWithConcurrency,
+  runWithConcurrencySettled,
   clearStageUsage,
 } from './render-pilot-llm.js';
 import {
@@ -27,7 +27,6 @@ import {
   hasThirdPersonSelfReference,
   countMarkerHits,
   type AnswerRecord,
-  type SummaryRecord,
   type SummaryJudgeRecord,
   type FactsRecord,
   type VoiceRecord,
@@ -42,10 +41,18 @@ import {
   writeStageFile,
   shouldRunStage,
   logUsage,
+  partitionSettled,
+  reportStageFailures,
   type RenderPilotOptions,
   type SlugContext,
+  type StageCallFailure,
 } from './render-pilot-shared.js';
-import { loadSummaryByRowId, loadQuestionsStageFile } from './render-pilot-stage-summarize.js';
+import {
+  loadSummaryByRowId,
+  loadSummariesStageFile,
+  loadQuestionsStageFile,
+} from './render-pilot-stage-summarize.js';
+import { loadAnswersStageFile } from './render-pilot-stage-answer.js';
 
 const ARMS: RenderArm[] = ['V', 'F', 'S'];
 
@@ -77,7 +84,11 @@ async function answerVoiceTrigger(
       // Cap and temperature sit above/at observed production values so the
       // length metric this stage measures is not clipped by its own cap.
       temperature: 1.0,
-      maxTokens: 1200,
+      // Cap must leave headroom for a reasoning model's thinking tokens, which are
+      // emitted before any content: a live run at a tight cap came back
+      // finish_reason "length" with no content at all. The thinking-first ordering
+      // is inferred from that finish_reason, not separately probed.
+      maxTokens: 6000,
     },
     vc.apiKey
   );
@@ -133,13 +144,17 @@ export async function runVoiceStage(
   };
 
   const tasks: (() => Promise<VoiceRecord>)[] = [];
+  const meta: { arm: RenderArm }[] = [];
   for (const trigger of options.triggers) {
     for (const arm of ARMS) {
       tasks.push(() => answerVoiceTrigger(vc, trigger, arm));
+      meta.push({ arm });
     }
   }
-  const results = await runWithConcurrency(tasks, options.concurrency);
-  writeStageFile(path, { n: results.length, replies: results });
+  const settled = await runWithConcurrencySettled(tasks, options.concurrency);
+  const { values, failures } = partitionSettled(settled, index => meta[index]);
+  reportStageFailures('voice', failures);
+  writeStageFile(path, { n: values.length, replies: values, failures });
 }
 
 function readUsageLog(path: string): UsageAggregateInput[] {
@@ -170,12 +185,18 @@ export function buildReportInputForSlug(ctx: SlugContext, corpus: CorpusResult):
     answers: AnswerRecord[];
     summaries: SummaryJudgeRecord[];
     facts: FactsRecord[];
+    failures?: StageCallFailure[];
   }>(stagePath(ctx.outDir, ctx.slug, 'judge'));
-  const summaries =
-    readStageFile<SummaryRecord[]>(stagePath(ctx.outDir, ctx.slug, 'summaries')) ?? [];
-  const voice = readStageFile<{ replies: VoiceRecord[] }>(stagePath(ctx.outDir, ctx.slug, 'voice'));
+  const { summaries, failures: summaryFailures } = loadSummariesStageFile(ctx.outDir, ctx.slug);
+  const voice = readStageFile<{ replies: VoiceRecord[]; failures?: StageCallFailure[] }>(
+    stagePath(ctx.outDir, ctx.slug, 'voice')
+  );
   const usage = readUsageLog(ctx.usageLogPath);
-  const { droppedMalformed } = loadQuestionsStageFile(ctx.outDir, ctx.slug);
+  const { droppedMalformed, failures: questionFailures } = loadQuestionsStageFile(
+    ctx.outDir,
+    ctx.slug
+  );
+  const { failures: answerFailures } = loadAnswersStageFile(ctx.outDir, ctx.slug);
 
   return {
     characterName: corpus.personality.displayName,
@@ -186,6 +207,13 @@ export function buildReportInputForSlug(ctx: SlugContext, corpus: CorpusResult):
     voice: voice?.replies ?? [],
     usage,
     droppedMalformedQuestions: droppedMalformed,
+    callFailures: {
+      summaries: summaryFailures.length,
+      questions: questionFailures.length,
+      answers: answerFailures.length,
+      judge: judgeOutput?.failures?.length ?? 0,
+      voice: voice?.failures?.length ?? 0,
+    },
   };
 }
 
@@ -194,10 +222,7 @@ export async function runReportStage(ctx: SlugContext, corpus: CorpusResult): Pr
   const reportInput = buildReportInputForSlug(ctx, corpus);
   writeStageFile(stagePath(ctx.outDir, ctx.slug, 'report'), reportInput);
 
-  const summariesWithRowId =
-    readStageFile<(SummaryRecord & { rowId: string })[]>(
-      stagePath(ctx.outDir, ctx.slug, 'summaries')
-    ) ?? [];
+  const { summaries: summariesWithRowId } = loadSummariesStageFile(ctx.outDir, ctx.slug);
   const sortedRows = [...corpus.rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const spotCheckRows = pickEvenlySpaced(sortedRows, 10, 10).map(row => ({
     id: row.id,
