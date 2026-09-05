@@ -104,6 +104,9 @@ export async function processShapesExportJob(
           memoriesCount: fetchResult.stats.memoriesCount,
           storiesCount: fetchResult.stats.storiesCount,
           pagesTraversed: fetchResult.stats.pagesTraversed,
+          // Records that shapes.inc returned a personalization row. The README's
+          // Yes/No follows whether any field carried text, so the two may differ
+          // on an all-empty row; nothing renders this field today.
           hasUserPersonalization: fetchResult.userPersonalization !== null,
           files: Object.keys(files).length,
         },

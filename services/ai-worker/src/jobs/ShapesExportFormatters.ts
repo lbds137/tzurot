@@ -1,9 +1,10 @@
 /**
  * Shapes Export Formatters
  *
- * Formats shapes.inc export data as JSON or Markdown.
- * Moved from bot-client to ai-worker since export formatting now
- * happens in the async job processor, not the Discord command.
+ * Formats shapes.inc export data as JSON, plus per-section Markdown
+ * formatters consumed by ShapesExportFiles.ts to build the ZIP's
+ * `.json`/`.md` file pairs. Moved from bot-client to ai-worker since export
+ * formatting now happens in the async job processor, not the Discord command.
  */
 
 import {
@@ -130,39 +131,30 @@ export function formatStoriesSection(stories: ShapesIncStory[]): string[] {
   return lines;
 }
 
-/** User-personalization section: empty when unset or when it has no backstory. */
+/** User-personalization section: empty when unset or when no field carries text. */
 export function formatUserPersonalizationSection(
   userPersonalization: ShapesIncUserPersonalization | null
 ): string[] {
   if (userPersonalization === null) {
     return [];
   }
+  const preferredName = configString(userPersonalization, 'preferred_name');
+  const pronouns = configString(userPersonalization, 'pronouns');
   const backstory = configString(userPersonalization, 'backstory');
-  if (backstory === undefined) {
+  if (preferredName === undefined && pronouns === undefined && backstory === undefined) {
     return [];
   }
-  return ['## User Personalization', '', backstory, ''];
-}
 
-export function formatExportAsMarkdown(data: ExportPayload): string {
-  const lines: string[] = [];
-
-  lines.push(`> Exported from shapes.inc on ${data.exportedAt}`, '');
-  lines.push(...formatConfigSection(data.config, data.sourceSlug));
-
-  lines.push(...formatUserPersonalizationSection(data.userPersonalization));
-
-  lines.push(...formatStoriesSection(data.stories));
-  lines.push(...formatMemoriesSection(data.memories));
-
-  // Stats footer
-  lines.push(
-    '---',
-    '',
-    `Memories: ${String(data.stats.memoriesCount)} | ` +
-      `Stories: ${String(data.stats.storiesCount)} | ` +
-      `User Personalization: ${data.stats.hasUserPersonalization ? 'Yes' : 'No'}`
-  );
-
-  return lines.join('\n');
+  const lines = ['## User Personalization', ''];
+  if (preferredName !== undefined) {
+    lines.push(`- **Preferred name:** ${preferredName}`);
+  }
+  if (pronouns !== undefined) {
+    lines.push(`- **Pronouns:** ${pronouns}`);
+  }
+  if (backstory !== undefined) {
+    lines.push('', backstory);
+  }
+  lines.push('');
+  return lines;
 }

@@ -156,7 +156,6 @@ describe('ShapesExportJob', () => {
         'memories.json',
         'memories.md',
         'knowledge-base.json',
-        'knowledge-base.md',
         'export.json',
       ].sort()
     );

@@ -19,8 +19,9 @@ export function zipTextFiles(files: Record<string, string>): Uint8Array<ArrayBuf
 /**
  * Filename stem from user-controlled text (persona names, slugs).
  *
- * The archive filenames in AccountExportJob and ShapesExportJob use it too,
- * so one rule names every export path.
+ * The archive filenames in AccountExportJob and ShapesExportJob, and every
+ * per-entity stem inside the account export's file map (`AccountExportFiles.ts`),
+ * go through it, so one rule names every export path.
  */
 export function sanitizeFileStem(stem: string): string {
   const sanitized = stem.replace(/[^\w.-]/g, '_');
