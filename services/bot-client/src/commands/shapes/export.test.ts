@@ -78,7 +78,6 @@ describe('handleExport', () => {
 
     expect(stub.startShapesExport).toHaveBeenCalledWith({
       slug: 'test-character',
-      format: 'json',
     });
 
     const lastCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];

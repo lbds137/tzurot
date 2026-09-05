@@ -87,7 +87,7 @@ export const userShapesFixtures: Record<string, ConformanceEntry> = {
     seed: async ctx => {
       await seedShapesCredential(ctx);
     },
-    body: { slug: 'conf-export-shape', format: 'json' },
+    body: { slug: 'conf-export-shape' },
   },
 
   listShapesExportJobs: {

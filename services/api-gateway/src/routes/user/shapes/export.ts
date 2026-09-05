@@ -39,6 +39,9 @@ const logger = createLogger('shapes-export');
 /** Export jobs expire after 24 hours */
 const EXPORT_EXPIRY_HOURS = 24;
 
+/** Exports always ship as a single ZIP archive of per-section JSON + Markdown files. */
+const EXPORT_FORMAT = 'zip';
+
 interface CreateOrConflictResult {
   exportJobId: string;
   /** The random public-download token, minted for a freshly created/reset job. */
@@ -51,24 +54,22 @@ interface CreateOrConflictResult {
  * Without a transaction, two concurrent requests can both pass findFirst
  * and the second upsert silently resets the first job's status.
  *
- * Note: The UUID is deterministic on (userId, slug, service, format), so
- * re-exports for the same shape+format upsert the same row — this replaces
- * any previous completed/failed export, invalidating its download URL.
- * Only active (pending/in_progress) exports of the same format trigger a 409.
- * Different formats (json vs markdown) get distinct UUIDs and can run concurrently.
+ * Note: The UUID is deterministic on (userId, slug, service, 'zip'), so a
+ * re-export for the same shape upserts the same row — this replaces any
+ * previous completed/failed export, invalidating its download URL. An
+ * active (pending/in_progress) export triggers a 409 instead.
  */
 async function createExportJobOrConflict(
   prisma: PrismaClient,
   userId: string,
   normalizedSlug: string,
-  format: string,
   expiresAt: Date
 ): Promise<CreateOrConflictResult> {
   const exportJobId = generateExportJobUuid(
     userId,
     normalizedSlug,
     IMPORT_SOURCES.SHAPES_INC,
-    format
+    EXPORT_FORMAT
   );
   // Fresh random token on every (re)creation — a previously-shared download
   // URL stops working the moment the export is re-run.
@@ -80,7 +81,7 @@ async function createExportJobOrConflict(
         userId,
         sourceSlug: normalizedSlug,
         sourceService: IMPORT_SOURCES.SHAPES_INC,
-        format,
+        format: EXPORT_FORMAT,
         status: { in: ['pending', 'in_progress'] },
       },
     });
@@ -97,13 +98,13 @@ async function createExportJobOrConflict(
         sourceSlug: normalizedSlug,
         sourceService: IMPORT_SOURCES.SHAPES_INC,
         status: 'pending',
-        format,
+        format: EXPORT_FORMAT,
         downloadToken,
         expiresAt,
       },
       update: {
         status: 'pending',
-        format,
+        format: EXPORT_FORMAT,
         downloadToken,
         fileContent: null,
         fileName: null,
@@ -130,12 +131,9 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
     if (parsed === null) {
       return;
     }
-    const { slug, format: formatRaw } = parsed;
+    const { slug } = parsed;
     // slug is already trimmed at the schema layer (StartShapesExportInputSchema).
     const normalizedSlug = slug.toLowerCase();
-    // Schema constrains `format` to `'json' | 'markdown' | undefined`;
-    // default to `'json'` when omitted.
-    const format = formatRaw ?? 'json';
 
     const userId = resolveProvisionedUserId(req);
 
@@ -166,7 +164,6 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
         prisma,
         userId,
         normalizedSlug,
-        format,
         expiresAt
       ));
     } catch (error: unknown) {
@@ -174,7 +171,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
       // in case migration state drifts or concurrent requests race past the transaction
       if (isPrismaUniqueConstraintError(error)) {
         logger.warn(
-          { discordUserId, sourceSlug: normalizedSlug, format },
+          { discordUserId, sourceSlug: normalizedSlug },
           'P2002 unique constraint — treating as conflict'
         );
         return sendError(
@@ -201,7 +198,6 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
       userId,
       sourceSlug: normalizedSlug,
       exportJobId,
-      format,
     };
 
     // Non-deterministic suffix: the DB-level transaction in createExportJobOrConflict
@@ -219,10 +215,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
       jobOptions: { jobId, attempts: 5, backoff: { type: 'exponential', delay: 5_000 } },
     });
 
-    logger.info(
-      { discordUserId, sourceSlug: normalizedSlug, format, exportJobId },
-      'Export job created'
-    );
+    logger.info({ discordUserId, sourceSlug: normalizedSlug, exportJobId }, 'Export job created');
 
     const downloadUrl = buildExportDownloadUrl(downloadToken);
 
@@ -232,7 +225,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
         success: true,
         exportJobId,
         sourceSlug: normalizedSlug,
-        format,
+        format: EXPORT_FORMAT,
         status: 'pending',
         downloadUrl,
       },

@@ -122,27 +122,12 @@ describe('Shapes API Contract Tests', () => {
   });
 
   describe('StartShapesExportInputSchema', () => {
-    it('accepts slug only (format optional)', () => {
+    it('accepts slug only', () => {
       expect(StartShapesExportInputSchema.safeParse({ slug: 'alice' }).success).toBe(true);
-    });
-
-    it('accepts both known format values', () => {
-      expect(StartShapesExportInputSchema.safeParse({ slug: 'a', format: 'json' }).success).toBe(
-        true
-      );
-      expect(
-        StartShapesExportInputSchema.safeParse({ slug: 'a', format: 'markdown' }).success
-      ).toBe(true);
     });
 
     it('rejects empty slug', () => {
       expect(StartShapesExportInputSchema.safeParse({ slug: '' }).success).toBe(false);
-    });
-
-    it('rejects unknown format', () => {
-      expect(StartShapesExportInputSchema.safeParse({ slug: 'a', format: 'csv' }).success).toBe(
-        false
-      );
     });
   });
 

@@ -159,7 +159,7 @@ describe('Shapes Export Routes', () => {
             sourceSlug: 'test-shape',
             sourceService: 'shapes_inc',
             status: 'pending',
-            format: 'json',
+            format: 'zip',
             // A random token is persisted for the public download URL.
             downloadToken: expect.stringMatching(/^[0-9a-f]{64}$/),
           }),
@@ -168,12 +168,11 @@ describe('Shapes Export Routes', () => {
 
       expect(mockQueue.add).toHaveBeenCalledWith(
         'shapes-export',
-        expect.objectContaining({
-          sourceSlug: 'test-shape',
-          format: 'json',
-        }),
+        expect.objectContaining({ sourceSlug: 'test-shape' }),
         expect.objectContaining({ jobId: expect.any(String) })
       );
+      const enqueuedJobData = mockQueue.add.mock.calls[0][1] as Record<string, unknown>;
+      expect(enqueuedJobData).not.toHaveProperty('format');
 
       expect(res.status).toHaveBeenCalledWith(202);
       const createJsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
@@ -181,23 +180,6 @@ describe('Shapes Export Routes', () => {
       // Download URL carries the random token, never the deterministic job id.
       expect(body.downloadUrl).toMatch(/\/exports\/[0-9a-f]{64}$/);
       expect(body.downloadUrl).not.toContain(body.exportJobId);
-    });
-
-    it('should accept markdown format', async () => {
-      mockPrisma.userCredential.findFirst.mockResolvedValue({ id: 'cred-id' });
-      mockTxExportJob.findFirst.mockResolvedValue(null);
-
-      const { res } = await callExportHandler({ slug: 'test-shape', format: 'markdown' });
-
-      expect(mockTxExportJob.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({
-            format: 'markdown',
-          }),
-        })
-      );
-
-      expect(res.status).toHaveBeenCalledWith(202);
     });
   });
 

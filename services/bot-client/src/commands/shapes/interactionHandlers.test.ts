@@ -308,10 +308,7 @@ describe('handleShapesButton', () => {
         })
       );
 
-      const interaction = createMockButtonInteraction(
-        'shapes::detail-export::json',
-        'slug:test-slug'
-      );
+      const interaction = createMockButtonInteraction('shapes::detail-export', 'slug:test-slug');
       await handleShapesButton(interaction);
 
       expect(mockUpdate).toHaveBeenCalledTimes(1);

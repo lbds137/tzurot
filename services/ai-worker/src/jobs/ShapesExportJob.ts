@@ -4,8 +4,8 @@
  * BullMQ job handler that orchestrates async data export from shapes.inc:
  * 1. Decrypt session cookie from UserCredential
  * 2. Fetch data from shapes.inc via ShapesDataFetcher
- * 3. Format as JSON or Markdown
- * 4. Store formatted content in ExportJob.fileContent (PostgreSQL TEXT)
+ * 3. Build the per-section file map (JSON + Markdown) and ZIP it
+ * 4. Store the archive in ExportJob.fileData (BYTEA)
  * 5. Update ExportJob status with results
  */
 
@@ -18,7 +18,8 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
-import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
+import { buildShapesExportFiles } from './ShapesExportFiles.js';
+import { zipTextFiles } from './exportZip.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
 import { claimShapesFetchSlot, handleShapesJobError } from './shapesJobHelpers.js';
 
@@ -42,9 +43,9 @@ export async function processShapesExportJob(
   deps: ShapesExportJobDeps
 ): Promise<ShapesExportJobResult> {
   const { prisma, fetchGate } = deps;
-  const { userId, sourceSlug, exportJobId, format } = job.data;
+  const { userId, sourceSlug, exportJobId } = job.data;
 
-  logger.info({ jobId: job.id, sourceSlug, format, exportJobId }, 'Starting export');
+  logger.info({ jobId: job.id, sourceSlug, exportJobId }, 'Starting export');
 
   // 1. Mark export as in_progress
   await prisma.exportJob.update({
@@ -83,21 +84,19 @@ export async function processShapesExportJob(
       },
     };
 
-    const fileContent =
-      format === 'markdown'
-        ? formatExportAsMarkdown(exportPayload)
-        : formatExportAsJson(exportPayload);
-
-    const fileSizeBytes = Buffer.byteLength(fileContent, 'utf8');
-    const fileExtension = format === 'markdown' ? 'md' : 'json';
-    const fileName = `${sourceSlug}-export.${fileExtension}`;
+    const files = buildShapesExportFiles(exportPayload);
+    const fileData = zipTextFiles(files);
+    const fileSizeBytes = fileData.length;
+    const safeSlug = sourceSlug.replace(/[^\w.-]/g, '_');
+    const fileName = `shapes-export-${safeSlug}-${new Date().toISOString().slice(0, 10)}.zip`;
 
     // 6. Store result in ExportJob
     await prisma.exportJob.update({
       where: { id: exportJobId },
       data: {
         status: 'completed',
-        fileContent,
+        fileContent: null,
+        fileData,
         fileName,
         fileSizeBytes,
         completedAt: new Date(),
@@ -106,6 +105,7 @@ export async function processShapesExportJob(
           storiesCount: fetchResult.stats.storiesCount,
           pagesTraversed: fetchResult.stats.pagesTraversed,
           hasUserPersonalization: fetchResult.userPersonalization !== null,
+          files: Object.keys(files).length,
         },
       },
     });

@@ -5,7 +5,7 @@
  * The export runs in the background via ai-worker. Users check
  * progress with /shapes status and download via the provided link.
  *
- * startExport() is also called by the detail view's export buttons
+ * startExport() is also called by the detail view's export button
  * (interactionHandlers.ts) for button-triggered exports.
  */
 
@@ -25,7 +25,6 @@ const logger = createLogger('shapes-export');
 
 export interface ExportParams {
   slug: string;
-  format: 'json' | 'markdown';
 }
 
 /**
@@ -39,7 +38,7 @@ export async function startExport(
   userId: string,
   params: ExportParams
 ): Promise<boolean> {
-  const { slug, format } = params;
+  const { slug } = params;
 
   await interaction.update({
     content: '',
@@ -47,13 +46,13 @@ export async function startExport(
       new EmbedBuilder()
         .setColor(DISCORD_COLORS.WARNING)
         .setTitle('\u23F3 Starting Export...')
-        .setDescription(`Exporting **${slug}** as ${format.toUpperCase()}...`),
+        .setDescription(`Exporting **${slug}**...`),
     ],
     components: [],
   });
 
   const { userClient } = clientsFor(interaction);
-  const result = await userClient.startShapesExport({ slug, format });
+  const result = await userClient.startShapesExport({ slug });
 
   if (!result.ok) {
     let message: string;
@@ -72,7 +71,7 @@ export async function startExport(
     return false;
   }
 
-  logger.info({ userId, slug, format }, 'Export job started (detail)');
+  logger.info({ userId, slug }, 'Export job started (detail)');
   return true;
 }
 
@@ -88,12 +87,10 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
     return;
   }
   const slug = rawSlug.trim().toLowerCase();
-  const formatRaw = context.interaction.options.getString('format') ?? 'json';
-  const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await userClient.startShapesExport({ slug, format });
+    const result = await userClient.startShapesExport({ slug });
 
     if (!result.ok) {
       await handleExportError(context, result, slug);
@@ -104,7 +101,7 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('\uD83D\uDCE4 Export Started')
       .setDescription(
-        `Exporting **${slug}** from shapes.inc as ${format.toUpperCase()}.\n\n` +
+        `Exporting **${slug}** from shapes.inc.\n\n` +
           'This runs in the background and may take several minutes ' +
           'for characters with many memories.\n\n' +
           'Use `/shapes status` to check progress and get the download link.'
@@ -113,7 +110,7 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, slug, format }, 'Export job started');
+    logger.info({ userId, slug }, 'Export job started');
   } catch (error) {
     logger.error({ err: error, userId, slug }, 'Unexpected error starting export');
     await context.editReply({
