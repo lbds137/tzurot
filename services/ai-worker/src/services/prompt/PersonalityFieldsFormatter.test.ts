@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { formatPersonalityFields } from './PersonalityFieldsFormatter.js';
+import { formatPersonalityFields, resolveDisplayName } from './PersonalityFieldsFormatter.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Mock logger
@@ -52,6 +52,23 @@ function createMinimalPersonality(overrides: Partial<LoadedPersonality> = {}): L
 }
 
 describe('PersonalityFieldsFormatter', () => {
+  describe('resolveDisplayName', () => {
+    it('returns displayName when non-empty', () => {
+      const personality = createMinimalPersonality({
+        name: 'testbot',
+        displayName: 'Fancy Test Bot',
+      });
+
+      expect(resolveDisplayName(personality)).toBe('Fancy Test Bot');
+    });
+
+    it('falls back to name when displayName is absent or empty', () => {
+      const personality = createMinimalPersonality({ name: 'TestBot', displayName: '' });
+
+      expect(resolveDisplayName(personality)).toBe('TestBot');
+    });
+  });
+
   describe('formatPersonalityFields', () => {
     it('should format display name (falling back to name)', () => {
       const personality = createMinimalPersonality({ name: 'TestBot' });

@@ -104,7 +104,7 @@ interface FieldDef {
 }
 
 /** Personality fields to format as XML sections (in order) */
-const PERSONALITY_FIELDS: FieldDef[] = [
+export const PERSONALITY_FIELDS: FieldDef[] = [
   { key: 'characterInfo', tag: 'character_info' },
   { key: 'personalityTraits', tag: 'personality_traits' },
   { key: 'personalityTone', tag: 'personality_tone' },
@@ -119,12 +119,23 @@ const PERSONALITY_FIELDS: FieldDef[] = [
 /**
  * Format a single personality field as XML if it has content
  */
-function formatField(personality: LoadedPersonality, field: FieldDef): string | null {
+export function formatField(personality: LoadedPersonality, field: FieldDef): string | null {
   const value = personality[field.key];
   if (typeof value === 'string' && value.length > 0) {
     return `<${field.tag}>${escapeXmlContent(value)}</${field.tag}>`;
   }
   return null;
+}
+
+/**
+ * Resolve the personality's display identity: `displayName` when set, else
+ * `name`. Shared by {@link formatPersonalityFields} (the `<display_name>`
+ * card field) and `VoiceAnchorFormatter` (the voice-anchor lead-in/drift note).
+ */
+export function resolveDisplayName(personality: LoadedPersonality): string {
+  return personality.displayName !== undefined && personality.displayName.length > 0
+    ? personality.displayName
+    : personality.name;
 }
 
 /**
@@ -144,10 +155,7 @@ export function formatPersonalityFields(
   discordUsername?: string
 ): { persona: string; protocol: string } {
   // Identity - who they are (display name or name)
-  const displayName =
-    personality.displayName !== undefined && personality.displayName.length > 0
-      ? personality.displayName
-      : personality.name;
+  const displayName = resolveDisplayName(personality);
 
   // Build persona sections from all defined fields
   const personaSections: string[] = [

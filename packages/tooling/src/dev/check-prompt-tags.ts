@@ -62,6 +62,8 @@ const CHARACTER_FIELD =
   'Persona field inside author-controlled <character>; value escapeXmlContent-escaped, section boundary protected.';
 const PROTOCOL_FIELD =
   'Protocol field inside author-controlled <protocol>; value escapeXmlContent-escaped, section boundary protected.';
+const VOICE_ANCHOR_FIELD =
+  'Persona field inside author-controlled <character> and the volatile <voice_anchor>; value escapeXmlContent-escaped, both section boundaries protected.';
 
 export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   // Hardcoded system text — no user content ever interpolated.
@@ -107,14 +109,14 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   // would also break the outer escapeXmlContent pass that re-wraps persona/protocol.)
   display_name: CHARACTER_FIELD,
   character_info: CHARACTER_FIELD,
-  personality_traits: CHARACTER_FIELD,
-  personality_tone: CHARACTER_FIELD,
+  personality_traits: VOICE_ANCHOR_FIELD,
+  personality_tone: VOICE_ANCHOR_FIELD,
   personality_age: CHARACTER_FIELD,
   personality_appearance: CHARACTER_FIELD,
   personality_likes: CHARACTER_FIELD,
   personality_dislikes: CHARACTER_FIELD,
   conversational_goals: CHARACTER_FIELD,
-  conversational_examples: CHARACTER_FIELD,
+  conversational_examples: VOICE_ANCHOR_FIELD,
   permissions: PROTOCOL_FIELD,
   permitted: PROTOCOL_FIELD,
   character_directives: PROTOCOL_FIELD,
