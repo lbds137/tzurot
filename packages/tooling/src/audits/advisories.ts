@@ -236,8 +236,9 @@ function findPackageJsonFiles(rootDir: string): string[] {
 
 /**
  * Enumerate open Dependabot advisories, enriched with the direct/transitive
- * split. Never throws — the alerts API is unreadable in CI (the token lacks
- * `security-events` scope) and in local checkouts without `gh` auth, and the
+ * split. Never throws — the alerts API is unreadable under the Actions token
+ * (no workflow scope grants the Dependabot-alerts read; `security-events` is
+ * code and secret scanning only) and in local checkouts without `gh` auth, and the
  * caller (health report, preflight) must degrade rather than break.
  */
 export function collectOpenAdvisories(rootDir: string): AdvisorySurface {
