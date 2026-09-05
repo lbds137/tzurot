@@ -23,6 +23,7 @@ import { extractCharacterParticipants } from '../jobs/utils/participantUtils.js'
 import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
 import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
+import { formatVoiceAnchor } from './prompt/VoiceAnchorFormatter.js';
 import {
   formatEnvironmentContext,
   formatCurrentLocationLine,
@@ -445,11 +446,21 @@ ${formatCurrentLocationLine(context.environment)}
     // here; the system message never carries them.
     const referencesContext = options.referencedMessagesFormatted ?? '';
 
+    // Restates the character's card register (traits/tone/examples) nearest
+    // the generation point, rendered LAST so it sits closest to the live
+    // turn. Cache-neutral: the V tier is uncached every request, unlike the
+    // system message's copies of these same fields. Pinned by the ordering
+    // test ("orders the volatile prefix context → facts → memories →
+    // references → voice_anchor") and the cacheability-invariant test
+    // ("keeps every V-tier tag OUT of the system message").
+    const voiceAnchor = formatVoiceAnchor(personality);
+
     const sections: PromptSection[] = [
       { id: 'context', tier: 'V', render: () => contextSection },
       { id: 'facts', tier: 'V', render: () => factsContext },
       { id: 'memory_archive', tier: 'V', render: () => memoryContext },
       { id: 'contextual_references', tier: 'V', render: () => referencesContext },
+      { id: 'voice_anchor', tier: 'V', render: () => voiceAnchor },
     ];
 
     const { text, descriptions } = layoutSections(sections);

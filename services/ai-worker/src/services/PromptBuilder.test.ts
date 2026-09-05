@@ -846,7 +846,7 @@ describe('PromptBuilder', () => {
         expect(participants).toBeLessThan(chatLog);
       });
 
-      it('orders the volatile prefix context → facts → memories → references', () => {
+      it('orders the volatile prefix context → facts → memories → references → voice_anchor', () => {
         const guildEnvironment: DiscordEnvironment = {
           type: 'guild',
           guild: { id: 'guild-1', name: 'Test Server' },
@@ -881,15 +881,47 @@ describe('PromptBuilder', () => {
         const factsPos = prefix.indexOf('<facts');
         const memoriesPos = prefix.indexOf('<memory_archive');
         const referencesPos = prefix.indexOf('<contextual_references>');
+        const anchorPos = prefix.indexOf('<voice_anchor>');
 
         expect(contextPos).toBe(0);
         expect(contextPos).toBeLessThan(factsPos);
         expect(factsPos).toBeLessThan(memoriesPos);
         expect(memoriesPos).toBeLessThan(referencesPos);
+        // voice_anchor renders LAST, nearest the generation point.
+        expect(referencesPos).toBeLessThan(anchorPos);
+        expect(prefix.trimEnd().endsWith('</voice_anchor>')).toBe(true);
         // Location and the roster moved to the system message; neither may
         // re-appear here, where they would churn the volatile container.
         expect(prefix).not.toContain('<location');
         expect(prefix).not.toContain('<participants>');
+      });
+
+      it('omits <voice_anchor> entirely when traits/tone/examples are all absent', () => {
+        const personalityNoVoiceFields: LoadedPersonality = {
+          ...minimalPersonality,
+          personalityTraits: '',
+          personalityTone: '',
+          conversationalExamples: '',
+        };
+
+        const { prefix } = buildContainers({ personality: personalityNoVoiceFields });
+
+        expect(prefix).not.toContain('voice_anchor');
+      });
+
+      it('omits empty voice_anchor fields (no empty tags) while keeping a set one', () => {
+        const personalityToneOnly: LoadedPersonality = {
+          ...minimalPersonality,
+          personalityTraits: '',
+          personalityTone: 'Casual',
+          conversationalExamples: '',
+        };
+
+        const { prefix } = buildContainers({ personality: personalityToneOnly });
+
+        expect(prefix).toContain('<personality_tone>Casual</personality_tone>');
+        expect(prefix).not.toContain('<personality_traits>');
+        expect(prefix).not.toContain('<conversational_examples>');
       });
 
       it('renders <current_location> inside <context>, after <datetime>', () => {
@@ -979,6 +1011,21 @@ describe('PromptBuilder', () => {
         // OUTPUT_CONSTRAINTS legitimately NAMES <contextual_references> in its
         // scaffolding ban list, so assert on the references PAYLOAD instead.
         expect(system).not.toContain('Referenced content');
+        expect(system).not.toContain('<voice_anchor>');
+      });
+
+      it('places <voice_anchor> in the human message content, never in contentForStorage', () => {
+        const prefix = promptBuilder.buildVolatilePrefix({
+          personality: minimalPersonality,
+          context: minimalContext,
+        });
+
+        const result = promptBuilder.buildHumanMessage('Hello there', [], {
+          volatilePrefix: prefix,
+        });
+
+        expect(result.message.content as string).toContain('<voice_anchor>');
+        expect(result.contentForStorage).not.toContain('<voice_anchor>');
       });
 
       it('should have properly closed XML tags', () => {

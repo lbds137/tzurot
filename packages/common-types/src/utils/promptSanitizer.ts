@@ -43,6 +43,11 @@ export const PROTECTED_TAGS = [
   'memory_archive',
   'participants',
   'contextual_references',
+  // Volatile-tier section boundary in the human message enclosing
+  // author-authored personality-card text (traits/tone/examples) — an
+  // escaping closing tag would reach top-level human-message scope, same
+  // boundary class as contextual_references.
+  'voice_anchor',
   'chat_log',
   'system_identity',
   'character',
