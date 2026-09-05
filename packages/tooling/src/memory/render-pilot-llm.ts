@@ -104,6 +104,7 @@ function sleep(ms: number): Promise<void> {
 interface RawOpenRouterResponse {
   choices?: { message?: { content?: unknown; reasoning?: unknown }; finish_reason?: unknown }[];
   usage?: { prompt_tokens?: unknown; completion_tokens?: unknown };
+  model?: unknown;
 }
 
 interface ParsedCompletionBody {
@@ -112,6 +113,28 @@ interface ParsedCompletionBody {
   completionTokens: number;
   reasoningBlocksStripped: number;
   finishReason: string | null;
+}
+
+/**
+ * The `choices[0].message.content` field is missing or not a string. When
+ * `finish_reason` is `"length"`, the budget was exhausted before any content
+ * was produced — a reasoning model spends `max_tokens` on internal thinking
+ * before emitting a reply, so a tight cap can leave zero tokens for output.
+ * Split out of {@link parseCompletionBody} to keep its complexity in bounds.
+ */
+function throwMissingContentError(rawBody: string, parsed: RawOpenRouterResponse): never {
+  if (parsed.choices?.[0]?.finish_reason === 'length') {
+    const modelClause = typeof parsed.model === 'string' ? ` for model "${parsed.model}"` : '';
+    throw new Error(
+      `OpenRouter exhausted the token budget${modelClause} before producing any content ` +
+        `(finish_reason: "length") — reasoning models spend max_tokens on internal ` +
+        `thinking before emitting a reply, so a tight cap can leave zero tokens for ` +
+        `output: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
+    );
+  }
+  throw new Error(
+    `OpenRouter response did not carry choices[0].message.content: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
+  );
 }
 
 /**
@@ -130,9 +153,7 @@ function parseCompletionBody(rawBody: string): ParsedCompletionBody {
   }
   const rawContent = parsed.choices?.[0]?.message?.content;
   if (typeof rawContent !== 'string') {
-    throw new Error(
-      `OpenRouter response did not carry choices[0].message.content: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
-    );
+    throwMissingContentError(rawBody, parsed);
   }
   const promptTokens = parsed.usage?.prompt_tokens;
   const completionTokens = parsed.usage?.completion_tokens;
@@ -302,15 +323,20 @@ export function clearStageUsage(usageLogPath: string, stage: string): void {
   writeFileSync(usageLogPath, kept.length === 0 ? '' : `${kept.join('\n')}\n`);
 }
 
+/** One task's outcome from {@link runWithConcurrencySettled}: never a rejection. */
+export type SettledResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
 /**
- * Run `tasks` with at most `concurrency` in flight at once. No new
- * dependency — a small manual promise pool.
+ * Run `tasks` with at most `concurrency` in flight at once, never rejecting —
+ * a single failed call must not sink the whole stage's `Promise.all`. Each
+ * task's rejection is caught inside its worker and recorded at that task's
+ * own index, so the caller can partition successes from failures afterward.
  */
-export async function runWithConcurrency<T>(
+export async function runWithConcurrencySettled<T>(
   tasks: (() => Promise<T>)[],
   concurrency: number
-): Promise<T[]> {
-  const results: T[] = new Array<T>(tasks.length);
+): Promise<SettledResult<T>[]> {
+  const results: SettledResult<T>[] = new Array<SettledResult<T>>(tasks.length);
   let nextIndex = 0;
 
   async function worker(): Promise<void> {
@@ -320,7 +346,14 @@ export async function runWithConcurrency<T>(
       if (index >= tasks.length) {
         return;
       }
-      results[index] = await tasks[index]();
+      try {
+        results[index] = { ok: true, value: await tasks[index]() };
+      } catch (error) {
+        results[index] = {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
     }
   }
 

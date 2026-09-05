@@ -219,6 +219,7 @@ function fakeReportInput(overrides: Partial<ReportBuildInput> = {}): ReportBuild
     voice: [],
     usage: [],
     droppedMalformedQuestions: 0,
+    callFailures: {},
     ...overrides,
   };
 }
@@ -256,6 +257,13 @@ describe('poolReportInputs', () => {
     // Pooling raw records must instead reflect the true weighted total: 5/45.
     expect(pooled.answers).toHaveLength(45);
     expect(pooled.answers.filter(a => a.correct)).toHaveLength(5);
+  });
+
+  it('sums callFailures per stage across characters', () => {
+    const a = fakeReportInput({ callFailures: { summaries: 2, judge: 1 } });
+    const b = fakeReportInput({ callFailures: { summaries: 1, voice: 3 } });
+    const pooled = poolReportInputs([a, b]);
+    expect(pooled.callFailures).toEqual({ summaries: 3, judge: 1, voice: 3 });
   });
 });
 

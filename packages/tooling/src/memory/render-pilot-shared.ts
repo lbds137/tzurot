@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Environment } from '../utils/env-runner.js';
-import { appendUsageRecord } from './render-pilot-llm.js';
+import { appendUsageRecord, type SettledResult } from './render-pilot-llm.js';
 
 export type RenderPilotStage =
   'corpus' | 'summaries' | 'questions' | 'answers' | 'judge' | 'voice' | 'report' | 'all';
@@ -101,6 +101,59 @@ export function logUsage(
     reasoningBlocksStripped: result.reasoningBlocksStripped,
     timestamp: new Date().toISOString(),
   });
+}
+
+/** One fanned-out model call that failed, tagged with enough context to locate it without its error text. */
+export interface StageCallFailure {
+  index: number;
+  rowId?: string;
+  arm?: string;
+  error: string;
+}
+
+/**
+ * Split a `runWithConcurrencySettled` result into successful values (in
+ * order, failed indices simply absent) and {@link StageCallFailure} records.
+ * `describe` supplies whatever locating metadata (`rowId`/`arm`) the caller's
+ * task list carries at that index — omitted entirely when absent, never
+ * emitted as `undefined`.
+ */
+export function partitionSettled<T>(
+  results: SettledResult<T>[],
+  describe?: (index: number) => { rowId?: string; arm?: string } | undefined
+): { values: T[]; failures: StageCallFailure[] } {
+  const values: T[] = [];
+  const failures: StageCallFailure[] = [];
+  results.forEach((result, index) => {
+    if (result.ok) {
+      values.push(result.value);
+      return;
+    }
+    const meta = describe?.(index);
+    const failure: StageCallFailure = { index, error: result.error };
+    if (meta?.rowId !== undefined) {
+      failure.rowId = meta.rowId;
+    }
+    if (meta?.arm !== undefined) {
+      failure.arm = meta.arm;
+    }
+    failures.push(failure);
+  });
+  return { values, failures };
+}
+
+/**
+ * Log one count-only line when a stage had failures — deliberately no error
+ * text, since a failure's message carries a 300-char body preview that may
+ * include model output, and stdout must stay free of that.
+ */
+export function reportStageFailures(stage: string, failures: StageCallFailure[]): void {
+  if (failures.length === 0) {
+    return;
+  }
+  console.log(
+    `[render-pilot] stage ${stage}: ${String(failures.length)} call(s) failed — see stage-${stage}.json`
+  );
 }
 
 /**

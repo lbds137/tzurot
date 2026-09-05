@@ -6,6 +6,24 @@
  * here so the orchestration stage in `render-pilot.ts` stays thin.
  */
 
+/** The two speaker lines of one exchange, plus the referenced-content block when present. */
+function verbatimExchangeLines(input: {
+  subjectName: string;
+  displayName: string;
+  userText: string;
+  assistantText: string;
+  referenced: string | null;
+}): string[] {
+  const lines = [
+    `${input.subjectName}: ${input.userText}`,
+    `${input.displayName}: ${input.assistantText}`,
+  ];
+  if (input.referenced !== null) {
+    lines.push('', `[Referenced content: ${input.referenced}]`);
+  }
+  return lines;
+}
+
 /** D4 contract: the arm-S summarizer system prompt. */
 export const SUMMARIZER_SYSTEM_PROMPT = `You summarize one past exchange between a user and a character, in the third person, for the character's own memory archive.
 
@@ -63,12 +81,8 @@ export function buildSummarizerUserMessage(input: SummarizerMessageInput): strin
     `Character: ${input.displayName}`,
     `User: ${input.subjectName}`,
     '',
-    `${input.subjectName}: ${input.userText}`,
-    `${input.displayName}: ${input.assistantText}`,
+    ...verbatimExchangeLines(input),
   ];
-  if (input.referenced !== null) {
-    lines.push('', `[Referenced content: ${input.referenced}]`);
-  }
   return lines.join('\n');
 }
 
@@ -104,12 +118,8 @@ export function buildQuestionUserMessage(input: QuestionMessageInput): string {
     `User: ${input.subjectName}`,
     `Questions to produce: ${String(input.questionsPerRow)}`,
     '',
-    `${input.subjectName}: ${input.userText}`,
-    `${input.displayName}: ${input.assistantText}`,
+    ...verbatimExchangeLines(input),
   ];
-  if (input.referenced !== null) {
-    lines.push('', `[Referenced content: ${input.referenced}]`);
-  }
   return lines.join('\n');
 }
 
@@ -136,14 +146,7 @@ export interface JudgeAnswerMessageInput {
 }
 
 export function buildJudgeAnswerUserMessage(input: JudgeAnswerMessageInput): string {
-  const lines = [
-    `Verbatim exchange:`,
-    `${input.subjectName}: ${input.userText}`,
-    `${input.displayName}: ${input.assistantText}`,
-  ];
-  if (input.referenced !== null) {
-    lines.push('', `[Referenced content: ${input.referenced}]`);
-  }
+  const lines = [`Verbatim exchange:`, ...verbatimExchangeLines(input)];
   lines.push(
     '',
     `Question asked: ${input.question}`,
@@ -174,14 +177,7 @@ export interface JudgeSummaryMessageInput {
 }
 
 export function buildJudgeSummaryUserMessage(input: JudgeSummaryMessageInput): string {
-  const lines = [
-    'Verbatim exchange:',
-    `${input.subjectName}: ${input.userText}`,
-    `${input.displayName}: ${input.assistantText}`,
-  ];
-  if (input.referenced !== null) {
-    lines.push('', `[Referenced content: ${input.referenced}]`);
-  }
+  const lines = ['Verbatim exchange:', ...verbatimExchangeLines(input)];
   lines.push('', `Summary: ${input.summary}`);
   return lines.join('\n');
 }
@@ -205,14 +201,7 @@ export interface JudgeFactsMessageInput {
 }
 
 export function buildJudgeFactsUserMessage(input: JudgeFactsMessageInput): string {
-  const lines = [
-    'Verbatim exchange:',
-    `${input.subjectName}: ${input.userText}`,
-    `${input.displayName}: ${input.assistantText}`,
-  ];
-  if (input.referenced !== null) {
-    lines.push('', `[Referenced content: ${input.referenced}]`);
-  }
+  const lines = ['Verbatim exchange:', ...verbatimExchangeLines(input)];
   lines.push(
     '',
     input.factStatements.length > 0

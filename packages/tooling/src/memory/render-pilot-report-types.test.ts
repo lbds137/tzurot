@@ -75,6 +75,7 @@ describe('render-pilot report types', () => {
       voice: [],
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     } satisfies ReportBuildInput;
     expect(input.characterName).toBe('Nova');
   });
@@ -119,6 +120,7 @@ describe('render-pilot report types', () => {
       voice: { V: voiceStats, F: voiceStats, S: voiceStats },
       usage: [],
       droppedMalformedQuestions: 0,
+      callFailures: {},
     } satisfies ReportJson;
     expect(report.character).toBe('Nova');
   });
