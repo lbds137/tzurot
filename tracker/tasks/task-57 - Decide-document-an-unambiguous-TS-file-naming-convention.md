@@ -1,10 +1,10 @@
 ---
 id: TASK-57
 title: Decide + document an unambiguous TS file-naming convention
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-18 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 07:18'
 labels:
   - 'area:common-types'
   - 'area:process'
