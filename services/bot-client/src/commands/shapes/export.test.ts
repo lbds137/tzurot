@@ -67,7 +67,7 @@ describe('handleExport', () => {
         success: true,
         exportJobId: 'job-uuid-123',
         sourceSlug: 'test-character',
-        format: 'json',
+        format: 'zip',
         status: 'pending',
         downloadUrl: 'https://gateway.example.com/exports/job-uuid-123',
       })

@@ -20,15 +20,9 @@ function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-/** Filename-safe rendering of user-controlled text (the source slug). */
-function sanitizeFileStem(stem: string): string {
-  const sanitized = stem.replace(/[^\w.-]/g, '_');
-  return sanitized === '' ? 'unnamed' : sanitized;
-}
-
 function buildReadme(payload: ExportPayload): string {
   return [
-    `# Shapes.inc Export: ${sanitizeFileStem(payload.sourceSlug)}`,
+    `# Shapes.inc Export: ${payload.sourceSlug}`,
     '',
     `Exported: ${payload.exportedAt}`,
     '',

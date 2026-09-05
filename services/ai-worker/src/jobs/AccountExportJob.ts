@@ -20,7 +20,7 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { assembleAccountExport } from './AccountExportAssembler.js';
 import { buildAccountExportFiles } from './AccountExportFiles.js';
-import { zipTextFiles } from './exportZip.js';
+import { sanitizeFileStem, zipTextFiles } from './exportZip.js';
 
 const logger = createLogger('AccountExportJob');
 
@@ -46,7 +46,7 @@ export async function processAccountExportJob(
 
     const username =
       typeof payload.profile.username === 'string' ? payload.profile.username : 'user';
-    const safeUsername = username.replace(/[^\w.-]/g, '_');
+    const safeUsername = sanitizeFileStem(username);
     const fileName = `tzurot-account-export-${safeUsername}-${new Date().toISOString().slice(0, 10)}.zip`;
 
     await prisma.exportJob.update({

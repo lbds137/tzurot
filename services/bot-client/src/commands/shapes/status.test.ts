@@ -177,7 +177,7 @@ describe('handleStatus', () => {
             id: 'export-1',
             sourceSlug: 'test-char',
             status: 'completed',
-            format: 'json',
+            format: 'zip',
             fileName: 'test-char-export.json',
             fileSizeBytes: 1048576,
             createdAt: '2026-02-16T00:00:00.000Z',

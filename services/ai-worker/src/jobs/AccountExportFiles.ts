@@ -23,15 +23,10 @@ import {
   formatProfileMd,
   formatUsageSummaryMd,
 } from './AccountExportMarkdown.js';
+import { sanitizeFileStem } from './exportZip.js';
 
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
-}
-
-/** Filename stem from user-controlled text (persona names, slugs). */
-function sanitizeFileStem(stem: string): string {
-  const sanitized = stem.replace(/[^\w.-]/g, '_');
-  return sanitized === '' ? 'unnamed' : sanitized;
 }
 
 function groupByPersonality<T extends { personalityId: string }>(rows: T[]): Map<string, T[]> {
