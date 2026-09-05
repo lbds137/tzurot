@@ -52,7 +52,7 @@ import {
 import { TtsProviderError } from '@tzurot/common-types/services/tts/TtsProviderError';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
+import { MistralGuardrailError, MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
 
 const logger = createLogger('TtsDispatcher');
 
@@ -106,9 +106,10 @@ export interface DispatchResult {
    * Diagnostic notices accumulated during the fallback walk — typically
    * "configured-primary-was-skipped-because-X" cases worth surfacing to
    * the bot owner so they know a personality silently degraded. Empty/undefined
-   * on the happy path. Currently populated only for
-   * `MistralReferenceAudioTooLongError` (reference >30s skips the clone),
-   * but the field is generic so future "primary skipped" diagnostics can use it.
+   * on the happy path. Currently populated for
+   * `MistralReferenceAudioTooLongError` (reference >30s skips the clone) and
+   * `MistralGuardrailError` (content guardrail refused the request), but the
+   * field is generic so future "primary skipped" diagnostics can use it.
    */
   notices?: string[];
 }
@@ -390,6 +391,11 @@ function buildAttemptNotice(error: unknown, ctx: TtsContext): string | undefined
     // could continue to ElevenLabs or be empty. Hardcoding "falling back to
     // self-hosted" would be wrong in either of those cases.
     return `Voice reference for "${ctx.slug}" is ${error.durationSec.toFixed(1)}s, exceeding Mistral's ${error.limitSec.toFixed(1)}s limit. Mistral was skipped; consider re-uploading a shorter reference.`;
+  }
+  if (error instanceof MistralGuardrailError) {
+    // Same "name the skipped provider, never the fallback target" reasoning
+    // as the branch above.
+    return `${error.userNotice} for "${ctx.slug}"; Mistral was skipped.`;
   }
   return undefined;
 }
