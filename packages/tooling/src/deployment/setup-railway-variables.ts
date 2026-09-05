@@ -10,6 +10,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import { checkRailwayCli, getRailwayEnvName, type Environment } from '../utils/env-runner.js';
+import { confirmPrompt } from '../utils/confirm.js';
 
 /* eslint-disable sonarjs/cognitive-complexity -- CLI orchestrator: env file parsing → variable validation → confirmation prompt → Railway API calls with diff output */
 
@@ -372,24 +373,6 @@ function applyVariables(
 }
 
 /**
- * Prompt for confirmation before applying changes
- */
-async function confirmChanges(railwayEnv: string): Promise<boolean> {
-  const confirmRl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise(resolve => {
-    console.log(chalk.yellow(`⚠  This will set variables in Railway ${railwayEnv} environment`));
-    confirmRl.question('Continue? (yes/no): ', answer => {
-      confirmRl.close();
-      resolve(answer.toLowerCase() === 'yes');
-    });
-  });
-}
-
-/**
  * Print summary after completion
  */
 function printSummary(railwayEnv: string, dryRun: boolean): void {
@@ -445,7 +428,9 @@ export async function setupRailwayVariables(options: SetupOptions): Promise<void
 
   // Confirmation
   if (!yes && !dryRun) {
-    const confirmed = await confirmChanges(railwayEnv);
+    const confirmed = await confirmPrompt(
+      `⚠  This will set variables in Railway ${railwayEnv} environment`
+    );
     if (!confirmed) {
       console.log('Aborted.');
       return;

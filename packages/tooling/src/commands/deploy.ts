@@ -9,6 +9,16 @@ import { UsageError } from '../utils/errors.js';
 
 const ENV_OPTION = '--env <env>';
 
+/** Shared message for the repeated dev/prod `--env` check below. */
+const ENV_DEV_PROD_ERROR = '--env must be "dev" or "prod"';
+
+/** Throws `UsageError` unless `env` is one of the two Railway-backed environments. */
+function assertDevProdEnv(env: string): asserts env is 'dev' | 'prod' {
+  if (env !== 'dev' && env !== 'prod') {
+    throw new UsageError(ENV_DEV_PROD_ERROR);
+  }
+}
+
 /**
  * Default `maintenance --drain-timeout`, in seconds. Named so the cac option
  * default and the post-parse fallback cannot drift apart.
@@ -57,6 +67,55 @@ function registerMaintenanceCommand(cli: CAC): void {
     );
 }
 
+function registerVarDeleteCommand(cli: CAC): void {
+  cli
+    .command('deploy:var-delete', 'Delete a Railway environment variable (the CLI cannot)')
+    .option(ENV_OPTION, 'Target environment (dev or prod)', { default: 'dev' })
+    .option('--service <service>', 'Service name whose variable to delete (or --shared, not both)')
+    .option('--shared', 'Delete a shared (project-level) variable instead of a service variable', {
+      default: false,
+    })
+    .option('--name <name>', 'Variable key to delete')
+    .option(
+      '--dry-run',
+      'Show what would be deleted without calling the API (still reads railway status)',
+      { default: false }
+    )
+    .option('--yes, -y', 'Skip the confirmation prompt', { default: false })
+    .example('pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY --dry-run')
+    .example('pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY')
+    .action(
+      async (options: {
+        env: string;
+        service?: string;
+        shared: boolean;
+        name?: string;
+        dryRun: boolean;
+        yes: boolean;
+      }) => {
+        assertDevProdEnv(options.env);
+        const name = options.name === undefined ? '' : String(options.name);
+        if (name.length === 0) {
+          throw new UsageError('--name <KEY> is required');
+        }
+        const hasService = options.service !== undefined;
+        // Equal means both set or neither set — exactly one of the two is required.
+        if (hasService === options.shared) {
+          throw new UsageError('pass exactly one of --service <name> or --shared');
+        }
+
+        const { runVarDelete } = await import('../deployment/var-delete.js');
+        await runVarDelete({
+          env: options.env,
+          service: options.shared ? null : String(options.service),
+          name,
+          dryRun: options.dryRun,
+          yes: options.yes,
+        });
+      }
+    );
+}
+
 export function registerDeployCommands(cli: CAC): void {
   cli.command('deploy:dev', 'Deploy to Railway development environment').action(async () => {
     const { deployDev } = await import('../deployment/deploy-dev.js');
@@ -79,9 +138,7 @@ export function registerDeployCommands(cli: CAC): void {
     .option('--dry-run', 'Show what would be set without making changes', { default: false })
     .option('--yes, -y', 'Skip confirmation prompts', { default: false })
     .action(async (options: { env: string; dryRun: boolean; yes: boolean }) => {
-      if (options.env !== 'dev' && options.env !== 'prod') {
-        throw new UsageError('--env must be "dev" or "prod"');
-      }
+      assertDevProdEnv(options.env);
 
       const { setupRailwayVariables } = await import('../deployment/setup-railway-variables.js');
       await setupRailwayVariables({
@@ -90,6 +147,8 @@ export function registerDeployCommands(cli: CAC): void {
         yes: options.yes,
       });
     });
+
+  registerVarDeleteCommand(cli);
 
   registerMaintenanceCommand(cli);
 
@@ -124,9 +183,7 @@ export function registerDeployCommands(cli: CAC): void {
         since?: string;
         follow?: boolean;
       }) => {
-        if (options.env !== 'dev' && options.env !== 'prod') {
-          throw new UsageError('--env must be "dev" or "prod"');
-        }
+        assertDevProdEnv(options.env);
 
         const { fetchLogs } = await import('../deployment/logs.js');
         await fetchLogs({
