@@ -39,4 +39,9 @@ created: 2026-09-04 19:40
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER-DECIDED, UNBUILT (Shape 14). Carries a recorded owner decision; only implementation remains. Promoted to priority medium so it runs in one of the two decided-work drain batches rather than waiting on an opportunistic trigger that has not fired.
 ---
+author: close-out
+created: 2026-09-05 17:45
+---
+Merged as #2345 (2026-09-05, six review rounds, the last at the cap with both findings declined for reasons in the PR body). The command is `pnpm ops deploy:var-delete`; the variable is `TZUROT_RAILWAY_API_TOKEN` because the Railway CLI reads `RAILWAY_API_TOKEN` as its own login (probed). STAYS OPEN until the owner mints the project-scoped token into the local `.env` and runs the first real delete (`AUTO_DEPLOY_COMMANDS` on both bot-client services, dev then prod) — that run is the first live test of the endpoint and mutation shape. Carried from round 6: after that run, tighten `!data.variableDelete` to a strict `!== true` and pin the observed response shape with a Zod schema mirroring `railway-status.ts`; writing it against an unobserved shape is a guess.
+---
 <!-- COMMENTS:END -->
