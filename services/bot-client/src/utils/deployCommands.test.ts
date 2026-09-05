@@ -9,9 +9,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { Routes } from 'discord.js';
 import validCommandFixture, { TO_JSON_SENTINEL } from './fixtures/validCommand.js';
 import * as noDefaultExportFixture from './fixtures/noDefaultExport.js';
+import { deployedCommandsKey, type DeployedCommandsStore } from './commandRegistrationGate.js';
 
 const { mockPut, mockSetToken, mockLogger, mockGetConfig } = vi.hoisted(() => ({
   mockPut: vi.fn(),
@@ -191,6 +193,87 @@ describe('deployCommands', () => {
 
       await expect(deployCommands(false)).rejects.toThrow('Discord API rejected the deploy');
       expect(mockLogger.error).toHaveBeenCalledWith({ err: apiError }, 'Error deploying commands');
+    });
+  });
+
+  describe('change detection (hash store)', () => {
+    function makeStore(): {
+      get: ReturnType<typeof vi.fn<DeployedCommandsStore['get']>>;
+      set: ReturnType<typeof vi.fn<DeployedCommandsStore['set']>>;
+    } {
+      return { get: vi.fn(), set: vi.fn() };
+    }
+
+    it('skips the PUT when the stored hash matches the body', async () => {
+      const store = makeStore();
+      const canonicalBody = [EXPECTED_VALID_JSON].map(command => JSON.stringify(command)).sort();
+      const expectedHash = createHash('sha256').update(JSON.stringify(canonicalBody)).digest('hex');
+      store.get.mockResolvedValue(expectedHash);
+
+      await deployCommands(false, store);
+
+      expect(mockPut).not.toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ count: 1 }),
+        'Slash commands unchanged since the last registration; skipping'
+      );
+    });
+
+    it('registers and stores the new hash when the body changed', async () => {
+      const store = makeStore();
+      store.get.mockResolvedValue('stale-hash');
+
+      await deployCommands(false, store);
+
+      const canonicalBody = [EXPECTED_VALID_JSON].map(command => JSON.stringify(command)).sort();
+      const expectedHash = createHash('sha256').update(JSON.stringify(canonicalBody)).digest('hex');
+      const expectedKey = deployedCommandsKey('client-id-123', {
+        global: false,
+        guildId: 'guild-id-456',
+      });
+
+      expect(mockPut).toHaveBeenCalledTimes(1);
+      expect(store.set).toHaveBeenCalledWith(expectedKey, expectedHash);
+    });
+
+    it('registers when the hash store read rejects', async () => {
+      const store = makeStore();
+      store.get.mockRejectedValue(new Error('redis unavailable'));
+
+      await deployCommands(false, store);
+
+      expect(mockPut).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Could not read the last-registered command hash; registering anyway'
+      );
+    });
+
+    it('resolves when the hash store write rejects after a successful PUT', async () => {
+      const store = makeStore();
+      store.get.mockResolvedValue(null);
+      store.set.mockRejectedValue(new Error('redis unavailable'));
+
+      await expect(deployCommands(false, store)).resolves.toBeUndefined();
+
+      expect(mockPut).toHaveBeenCalledTimes(1);
+    });
+
+    it('keys the global scope differently from the guild scope for the same client id', async () => {
+      const store = makeStore();
+      store.get.mockResolvedValue(null);
+
+      await deployCommands(true, store);
+      const globalKey = store.set.mock.calls[0][0] as string;
+
+      store.get.mockClear();
+      store.set.mockClear();
+      mockPut.mockClear();
+
+      await deployCommands(false, store);
+      const guildKey = store.set.mock.calls[0][0] as string;
+
+      expect(globalKey).not.toBe(guildKey);
     });
   });
 });
