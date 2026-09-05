@@ -2554,22 +2554,6 @@
                 "description": "The shapes.inc character username/slug",
                 "required": true,
                 "max_length": 100
-              },
-              {
-                "type": 3,
-                "choices": [
-                  {
-                    "name": "JSON",
-                    "value": "json"
-                  },
-                  {
-                    "name": "Markdown",
-                    "value": "markdown"
-                  }
-                ],
-                "name": "format",
-                "description": "Export format (default: json)",
-                "required": false
               }
             ]
           },

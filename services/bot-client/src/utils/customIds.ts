@@ -530,8 +530,6 @@ interface ShapesParseResult {
   action: string;
   /** Import type for detail-import or import-confirm actions */
   importType?: string;
-  /** Export format for detail-export action */
-  exportFormat?: string;
 }
 
 export const ShapesCustomIds = {
@@ -546,8 +544,8 @@ export const ShapesCustomIds = {
   // --- Detail view actions (slug is in embed footer, not custom ID) ---
   /** Import button from detail view — encodes import type */
   detailImport: (importType: string) => `shapes::detail-import::${importType}` as const,
-  /** Export button from detail view — encodes format */
-  detailExport: (format: string) => `shapes::detail-export::${format}` as const,
+  /** Export button from detail view */
+  detailExport: () => 'shapes::detail-export' as const,
   /** Refresh job status in detail view */
   detailRefresh: () => 'shapes::detail-refresh' as const,
   /** Back to browse list from detail view */
@@ -577,12 +575,6 @@ export const ShapesCustomIds = {
     // Detail import: shapes::detail-import::importType
     if (action === 'detail-import') {
       result.importType = parts[2];
-      return result;
-    }
-
-    // Detail export: shapes::detail-export::format
-    if (action === 'detail-export') {
-      result.exportFormat = parts[2];
       return result;
     }
 

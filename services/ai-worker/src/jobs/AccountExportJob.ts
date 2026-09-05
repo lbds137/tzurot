@@ -12,7 +12,6 @@
  */
 
 import type { Job } from 'bullmq';
-import { zipSync, strToU8 } from 'fflate';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type AccountExportJobData,
@@ -21,6 +20,7 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { assembleAccountExport } from './AccountExportAssembler.js';
 import { buildAccountExportFiles } from './AccountExportFiles.js';
+import { zipTextFiles } from './exportZip.js';
 
 const logger = createLogger('AccountExportJob');
 
@@ -41,11 +41,7 @@ export async function processAccountExportJob(
     const payload = await assembleAccountExport(prisma, userId);
     const files = buildAccountExportFiles(payload);
 
-    const zipEntries: Record<string, Uint8Array> = {};
-    for (const [path, content] of Object.entries(files)) {
-      zipEntries[path] = strToU8(content);
-    }
-    const fileData = zipSync(zipEntries);
+    const fileData = zipTextFiles(files);
     const fileSizeBytes = fileData.length;
 
     const username =

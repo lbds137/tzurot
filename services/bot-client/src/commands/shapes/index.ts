@@ -7,7 +7,7 @@
  * - /shapes logout - Remove stored credentials
  * - /shapes browse - Browse owned shapes with sort and detail view
  * - /shapes import <slug> - Import a shapes.inc character
- * - /shapes export <slug> - Export character data as JSON
+ * - /shapes export <slug> - Export character data as a ZIP archive
  * - /shapes status - View credential status and import history
  */
 
@@ -106,12 +106,6 @@ export default defineCommand({
             // and discord.js THROWS at build time on the over-limit result.
             .setMaxLength(100)
             .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-          option
-            .setName('format')
-            .setDescription('Export format (default: json)')
-            .addChoices({ name: 'JSON', value: 'json' }, { name: 'Markdown', value: 'markdown' })
         )
     )
     .addSubcommand(subcommand =>

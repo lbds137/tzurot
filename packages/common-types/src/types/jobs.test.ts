@@ -1194,24 +1194,11 @@ describe('BullMQ Job Contract Tests', () => {
       userId: '550e8400-e29b-41d4-a716-446655440000',
       sourceSlug: 'test-shape',
       exportJobId: '660e8400-e29b-41d4-a716-446655440000',
-      format: 'json',
     };
 
-    it('should validate a valid json export job', () => {
+    it('should validate a valid export job', () => {
       const result = shapesExportJobDataSchema.safeParse(validJobData);
       expect(result.success).toBe(true);
-    });
-
-    it('should validate a markdown export job', () => {
-      const mdJob: ShapesExportJobData = { ...validJobData, format: 'markdown' };
-      const result = shapesExportJobDataSchema.safeParse(mdJob);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject job with invalid format', () => {
-      const invalidJob = { ...validJobData, format: 'csv' };
-      const result = shapesExportJobDataSchema.safeParse(invalidJob);
-      expect(result.success).toBe(false);
     });
 
     it('should reject job with non-UUID userId', () => {

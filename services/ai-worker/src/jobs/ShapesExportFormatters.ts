@@ -64,7 +64,10 @@ function configString(config: Record<string, unknown>, key: string): string | un
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function formatConfigSection(config: ShapesIncPersonalityConfig, sourceSlug: string): string[] {
+export function formatConfigSection(
+  config: ShapesIncPersonalityConfig,
+  sourceSlug: string
+): string[] {
   // ShapesIncPersonalityConfig has [key: string]: unknown, so Record access is safe
   const rec = config as Record<string, unknown>;
   const lines: string[] = [];
@@ -95,7 +98,7 @@ function formatConfigSection(config: ShapesIncPersonalityConfig, sourceSlug: str
   return lines;
 }
 
-function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
+export function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
   if (memories.length === 0) {
     return [];
   }
@@ -113,7 +116,7 @@ function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
   return lines;
 }
 
-function formatStoriesSection(stories: ShapesIncStory[]): string[] {
+export function formatStoriesSection(stories: ShapesIncStory[]): string[] {
   if (stories.length === 0) {
     return [];
   }
@@ -127,19 +130,27 @@ function formatStoriesSection(stories: ShapesIncStory[]): string[] {
   return lines;
 }
 
+/** User-personalization section: empty when unset or when it has no backstory. */
+export function formatUserPersonalizationSection(
+  userPersonalization: ShapesIncUserPersonalization | null
+): string[] {
+  if (userPersonalization === null) {
+    return [];
+  }
+  const backstory = configString(userPersonalization, 'backstory');
+  if (backstory === undefined) {
+    return [];
+  }
+  return ['## User Personalization', '', backstory, ''];
+}
+
 export function formatExportAsMarkdown(data: ExportPayload): string {
   const lines: string[] = [];
 
   lines.push(`> Exported from shapes.inc on ${data.exportedAt}`, '');
   lines.push(...formatConfigSection(data.config, data.sourceSlug));
 
-  // User personalization
-  if (data.userPersonalization !== null) {
-    const backstory = configString(data.userPersonalization, 'backstory');
-    if (backstory !== undefined) {
-      lines.push('## User Personalization', '', backstory, '');
-    }
-  }
+  lines.push(...formatUserPersonalizationSection(data.userPersonalization));
 
   lines.push(...formatStoriesSection(data.stories));
   lines.push(...formatMemoriesSection(data.memories));

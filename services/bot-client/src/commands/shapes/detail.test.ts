@@ -108,11 +108,10 @@ describe('buildShapeDetailEmbed', () => {
     expect(components).toHaveLength(2);
 
     const row1Buttons = components[0].components as { data: { custom_id: string } }[];
-    expect(row1Buttons).toHaveLength(4);
+    expect(row1Buttons).toHaveLength(3);
     expect(row1Buttons[0].data.custom_id).toBe('shapes::detail-import::full');
     expect(row1Buttons[1].data.custom_id).toBe('shapes::detail-import::memory_only');
-    expect(row1Buttons[2].data.custom_id).toBe('shapes::detail-export::json');
-    expect(row1Buttons[3].data.custom_id).toBe('shapes::detail-export::markdown');
+    expect(row1Buttons[2].data.custom_id).toBe('shapes::detail-export');
 
     const row2Buttons = components[1].components as { data: { custom_id: string } }[];
     expect(row2Buttons).toHaveLength(2);

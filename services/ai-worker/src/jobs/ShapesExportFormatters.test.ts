@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   formatExportAsJson,
   formatExportAsMarkdown,
+  formatUserPersonalizationSection,
   type ExportPayload,
 } from './ShapesExportFormatters.js';
 
@@ -172,6 +173,27 @@ describe('ShapesExportFormatters', () => {
       const result = formatExportAsMarkdown(emptyPayload);
       expect(result).not.toContain('## Memories');
       expect(result).not.toContain('## Knowledge Base');
+    });
+  });
+
+  describe('formatUserPersonalizationSection', () => {
+    it('returns an empty array when userPersonalization is null', () => {
+      expect(formatUserPersonalizationSection(null)).toEqual([]);
+    });
+
+    it('returns an empty array when there is no backstory', () => {
+      expect(
+        formatUserPersonalizationSection({ preferred_name: 'Sam', pronouns: 'they/them' } as never)
+      ).toEqual([]);
+    });
+
+    it('returns the section lines when a backstory is present', () => {
+      const result = formatUserPersonalizationSection({
+        backstory: 'A long history together.',
+        preferred_name: 'Sam',
+        pronouns: 'they/them',
+      });
+      expect(result).toEqual(['## User Personalization', '', 'A long history together.', '']);
     });
   });
 });

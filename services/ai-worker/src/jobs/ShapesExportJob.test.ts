@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
+import { unzipSync, strFromU8 } from 'fflate';
 import type {
   ShapesExportJobData,
   ShapesDataFetchResult,
@@ -54,12 +55,6 @@ vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
   }),
 }));
 
-// Mock formatters
-vi.mock('./ShapesExportFormatters.js', () => ({
-  formatExportAsMarkdown: vi.fn().mockReturnValue('# Export markdown content'),
-  formatExportAsJson: vi.fn().mockReturnValue('{"exported": true}'),
-}));
-
 const mockPrisma = {
   exportJob: {
     update: vi.fn().mockResolvedValue({}),
@@ -86,7 +81,6 @@ function createMockJob(
       userId: 'user-uuid-123',
       sourceSlug: 'test-shape',
       exportJobId: 'export-job-uuid-123',
-      format: 'json',
       ...overrides,
     },
   } as Job<ShapesExportJobData>;
@@ -128,7 +122,7 @@ describe('ShapesExportJob', () => {
     mockFetchShapeData.mockResolvedValue(mockFetchResult);
   });
 
-  it('should complete a JSON export successfully', async () => {
+  it('should complete an export successfully, storing a real ZIP archive', async () => {
     const job = createMockJob();
     const result = await processShapesExportJob(job, { prisma: mockPrisma as never });
 
@@ -144,30 +138,30 @@ describe('ShapesExportJob', () => {
         data: expect.objectContaining({ status: 'in_progress' }),
       })
     );
-    expect(mockPrisma.exportJob.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'completed',
-          fileContent: expect.any(String),
-          fileName: 'test-shape-export.json',
-        }),
-      })
+
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    const finalData = updateCalls[1][0].data;
+    expect(finalData.status).toBe('completed');
+    expect(finalData.fileContent).toBeNull();
+    expect(finalData.fileData).toBeInstanceOf(Uint8Array);
+    expect(finalData.fileName).toMatch(/^shapes-export-[\w.-]+-\d{4}-\d{2}-\d{2}\.zip$/);
+
+    const unzipped = unzipSync(finalData.fileData as Uint8Array);
+    const entryNames = Object.keys(unzipped).sort();
+    expect(entryNames).toEqual(
+      [
+        'README.md',
+        'config.json',
+        'config.md',
+        'memories.json',
+        'memories.md',
+        'knowledge-base.json',
+        'knowledge-base.md',
+        'export.json',
+      ].sort()
     );
-  });
-
-  it('should use markdown formatter when format is markdown', async () => {
-    const job = createMockJob({ format: 'markdown' });
-    const result = await processShapesExportJob(job, { prisma: mockPrisma as never });
-
-    expect(result.success).toBe(true);
-
-    expect(mockPrisma.exportJob.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          fileName: 'test-shape-export.md',
-        }),
-      })
-    );
+    expect(strFromU8(unzipped['memories.md'])).toContain('A conversation summary');
+    expect(finalData.exportMetadata.files).toBe(entryNames.length);
   });
 
   it('should mark job as failed when no credentials found', async () => {

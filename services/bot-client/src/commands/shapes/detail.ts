@@ -62,15 +62,9 @@ function buildDetailButtons(): ActionRowBuilder<ButtonBuilder>[] {
     .setEmoji('\uD83D\uDCE5')
     .setStyle(ButtonStyle.Primary);
 
-  const exportJsonBtn = new ButtonBuilder()
-    .setCustomId(ShapesCustomIds.detailExport('json'))
-    .setLabel('JSON')
-    .setEmoji('\uD83D\uDCE4')
-    .setStyle(ButtonStyle.Secondary);
-
-  const exportMdBtn = new ButtonBuilder()
-    .setCustomId(ShapesCustomIds.detailExport('markdown'))
-    .setLabel('Markdown')
+  const exportBtn = new ButtonBuilder()
+    .setCustomId(ShapesCustomIds.detailExport())
+    .setLabel('Export')
     .setEmoji('\uD83D\uDCE4')
     .setStyle(ButtonStyle.Secondary);
 
@@ -88,12 +82,7 @@ function buildDetailButtons(): ActionRowBuilder<ButtonBuilder>[] {
     .setStyle(ButtonStyle.Secondary);
 
   return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      importFullBtn,
-      importMemoryBtn,
-      exportJsonBtn,
-      exportMdBtn
-    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(importFullBtn, importMemoryBtn, exportBtn),
     new ActionRowBuilder<ButtonBuilder>().addComponents(refreshBtn, backBtn),
   ];
 }

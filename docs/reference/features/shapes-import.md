@@ -2,7 +2,7 @@
 
 Tzurot can import a character (personality config, memories, stories, user
 personalization) from [shapes.inc](https://shapes.inc), or export that data as
-a JSON/Markdown file you keep. The tool exists so shapes.inc users can exercise
+a ZIP you keep, with a JSON and a Markdown file per section. The tool exists so shapes.inc users can exercise
 data-portability rights they already have — you harvest a session cookie from
 your own logged-in browser session, and the worker uses it on your behalf.
 
@@ -13,9 +13,10 @@ your own logged-in browser session, and the worker uses it on your behalf.
    is encrypted at rest).
 2. `/shapes import` or `/shapes export` — an async job fetches your shape's
    config, memories (paginated), stories, and user personalization.
-3. Exports land as a downloadable file. The **JSON export is the raw API
-   payload** — every field shapes.inc returned is preserved, including fields
-   Tzurot doesn't surface, so you can round-trip your data into other tools.
+3. Exports land as a downloadable ZIP: a README, a `.json`/`.md` pair per
+   section, and `export.json`, which is **the raw API payload** — every field
+   shapes.inc returned is preserved, including fields Tzurot doesn't surface,
+   so you can round-trip your data into other tools.
 
 The fetcher is deliberately polite: 1 second between requests, a global cap on
 simultaneous fetch jobs, and no browser automation, IP rotation, or
