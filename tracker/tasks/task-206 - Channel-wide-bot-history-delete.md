@@ -1,10 +1,10 @@
 ---
 id: TASK-206
 title: Channel-wide bot-history delete
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-05 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-09-05 15:40'
 labels:
   - 'area:jobs'
   - 'area:conversation-history'
