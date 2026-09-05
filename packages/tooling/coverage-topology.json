@@ -1906,6 +1906,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:removeGuildMemberInfo",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "DELETE /guild-member-info",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:removePersonalityAlias",
       "kind": "http-route",
       "producer": "client",

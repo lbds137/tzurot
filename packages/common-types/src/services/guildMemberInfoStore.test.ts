@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  deleteGuildMemberInfo,
   getGuildMemberInfos,
   isEmptyGuildInfo,
   recordGuildMemberInfos,
@@ -10,6 +11,7 @@ interface MockPrisma {
   userGuildInfo: {
     upsert: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
   };
   $transaction: ReturnType<typeof vi.fn>;
 }
@@ -19,6 +21,7 @@ function createPrisma(): MockPrisma {
     userGuildInfo: {
       upsert: vi.fn(op => op),
       findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     // The real client executes the array it is handed; mirroring that keeps the
     // upsert arguments observable without pretending a transaction happened.
@@ -128,6 +131,56 @@ describe('recordGuildMemberInfos', () => {
         { userId: USER, info: { roles: ['Admin'] } },
       ])
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('deleteGuildMemberInfo', () => {
+  let prisma: MockPrisma;
+
+  beforeEach(() => {
+    prisma = createPrisma();
+  });
+
+  it('deletes on the composite key', async () => {
+    const result = await deleteGuildMemberInfo(asClient(prisma), GUILD, USER);
+
+    expect(prisma.userGuildInfo.deleteMany).toHaveBeenCalledWith({
+      where: { userId: USER, guildId: GUILD },
+    });
+    expect(result).toBe(1);
+  });
+
+  it('is a no-op when there was no row to delete', async () => {
+    prisma.userGuildInfo.deleteMany.mockResolvedValue({ count: 0 });
+
+    const result = await deleteGuildMemberInfo(asClient(prisma), GUILD, USER);
+
+    expect(result).toBe(0);
+  });
+
+  it('skips the query entirely for an empty guild id', async () => {
+    const result = await deleteGuildMemberInfo(asClient(prisma), '', USER);
+
+    expect(prisma.userGuildInfo.deleteMany).not.toHaveBeenCalled();
+    expect(result).toBe(0);
+  });
+
+  it('skips the query entirely for an empty user id', async () => {
+    const result = await deleteGuildMemberInfo(asClient(prisma), GUILD, '');
+
+    expect(prisma.userGuildInfo.deleteMany).not.toHaveBeenCalled();
+    expect(result).toBe(0);
+  });
+
+  it('does NOT swallow a database error, unlike its fail-soft siblings', async () => {
+    // Deliberate divergence: this is a one-shot reaction to a departure event
+    // that nothing retries, so a swallowed failure would be
+    // permanent, silent staleness rather than a degraded turn.
+    prisma.userGuildInfo.deleteMany.mockRejectedValue(new Error('connection refused'));
+
+    await expect(deleteGuildMemberInfo(asClient(prisma), GUILD, USER)).rejects.toThrow(
+      'connection refused'
+    );
   });
 });
 

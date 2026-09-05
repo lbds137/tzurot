@@ -41,6 +41,8 @@ import {
   DmSessionSetResponseSchema,
   GuildMemberInfoRecordRequestSchema,
   GuildMemberInfoRecordResponseSchema,
+  GuildMemberInfoRemoveRequestSchema,
+  GuildMemberInfoRemoveResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
   RecordCommandEventRequestSchema,
@@ -228,6 +230,28 @@ export const internalRoutes = {
     id: 'recordGuildMemberInfo',
     input: GuildMemberInfoRecordRequestSchema,
     output: GuildMemberInfoRecordResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * DELETE /api/internal/guild-member-info
+   * Bot-client reports a `guildMemberRemove` so the departed member's stored
+   * membership stops rendering in `<participants>`. Deletion on an explicit
+   * end-of-membership event, never a clock: a TTL over these rows would
+   * reintroduce the flicker the table exists to stop. This request's identity
+   * rides in the JSON body rather than the path, deliberately: it carries the
+   * same `guildId` + `discordUserId` identity pair the record route takes,
+   * rather than splitting a composite key across the path. `callGateway`
+   * (`clients/transport.ts`) serializes a body for every method with no
+   * DELETE special-case, so this costs nothing extra at the transport layer.
+   */
+  removeGuildMemberInfo: {
+    audience: 'internal',
+    method: 'delete',
+    path: '/guild-member-info',
+    id: 'removeGuildMemberInfo',
+    input: GuildMemberInfoRemoveRequestSchema,
+    output: GuildMemberInfoRemoveResponseSchema,
     serviceOnly: true,
   },
 
