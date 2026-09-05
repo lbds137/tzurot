@@ -14,6 +14,10 @@ vi.mock('../deployment/logs.js', () => ({
   fetchLogs: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../deployment/var-delete.js', () => ({
+  runVarDelete: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('maintenance --drain-timeout validation', () => {
   let cli: ReturnType<typeof cac>;
 
@@ -87,5 +91,72 @@ describe('maintenance --drain-timeout validation', () => {
       'status',
       expect.objectContaining({ drainTimeoutSec: 120 })
     );
+  });
+});
+
+describe('deploy:var-delete validation', () => {
+  let cli: ReturnType<typeof cac>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cli = cac('test');
+    registerDeployCommands(cli);
+  });
+
+  async function runVarDeleteCli(args: string[]): Promise<void> {
+    cli.parse(['node', 'test', 'deploy:var-delete', ...args], { run: false });
+    await (cli.runMatchedCommand() as Promise<void>);
+  }
+
+  it('rejects an --env that is neither dev nor prod', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await expect(
+      runVarDeleteCli(['--env', 'staging', '--name', 'SOME_KEY', '--shared'])
+    ).rejects.toThrow('--env must be "dev" or "prod"');
+    expect(runVarDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing --name', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await expect(runVarDeleteCli(['--env', 'dev', '--shared'])).rejects.toThrow(
+      '--name <KEY> is required'
+    );
+    expect(runVarDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects when neither --service nor --shared is given', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await expect(runVarDeleteCli(['--env', 'dev', '--name', 'SOME_KEY'])).rejects.toThrow(
+      'pass exactly one of --service <name> or --shared'
+    );
+    expect(runVarDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects when both --service and --shared are given', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await expect(
+      runVarDeleteCli(['--env', 'dev', '--name', 'SOME_KEY', '--service', 'bot-client', '--shared'])
+    ).rejects.toThrow('pass exactly one of --service <name> or --shared');
+    expect(runVarDelete).not.toHaveBeenCalled();
+  });
+
+  it('maps --shared to service: null', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await runVarDeleteCli(['--env', 'dev', '--name', 'SOME_KEY', '--shared']);
+
+    expect(runVarDelete).toHaveBeenCalledWith(expect.objectContaining({ service: null }));
+  });
+
+  it('maps --service bot-client to service: "bot-client"', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await runVarDeleteCli(['--env', 'dev', '--name', 'SOME_KEY', '--service', 'bot-client']);
+
+    expect(runVarDelete).toHaveBeenCalledWith(expect.objectContaining({ service: 'bot-client' }));
   });
 });

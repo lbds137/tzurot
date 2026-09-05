@@ -382,6 +382,7 @@ describe('findContentRefs (against real repo)', () => {
       'deploy:dev',
       'deploy:setup-vars',
       'deploy:update-gateway',
+      'deploy:var-delete',
       'deploy:verify',
       'dev:dead-files',
       'dev:focus',

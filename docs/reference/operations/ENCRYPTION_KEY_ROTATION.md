@@ -75,7 +75,8 @@ current key.
 ### Stage 3 — finalize
 
 Re-verifies, then clears `PREVIOUS` on both services (set to `""` — the Railway
-CLI cannot delete variables, and the runtime treats empty as unset) and stamps
+CLI cannot delete variables, the runtime treats empty as unset, and the
+`deploy:var-delete` wrapper is a separate, confirm-gated step by design) and stamps
 the ledger. It **refuses to finalize** while any row still fails to decrypt with
 the current key, and equally if a read hit the 50,000-row cap, since a capped
 sweep cannot prove completeness.
