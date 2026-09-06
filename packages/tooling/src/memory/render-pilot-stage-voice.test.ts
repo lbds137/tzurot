@@ -4,13 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CorpusResult } from './render-pilot-corpus.js';
 import type { RenderPilotOptions, SlugContext } from './render-pilot-shared.js';
+import type { CompletionResult } from './render-pilot-llm.js';
 
-const { callOpenRouterMock } = vi.hoisted(() => ({ callOpenRouterMock: vi.fn() }));
+const { callChatCompletionMock } = vi.hoisted(() => ({ callChatCompletionMock: vi.fn() }));
 
 vi.mock('./render-pilot-llm.js', async () => {
   const actual =
     await vi.importActual<typeof import('./render-pilot-llm.js')>('./render-pilot-llm.js');
-  return { ...actual, callOpenRouter: callOpenRouterMock, requireApiKey: () => 'sk-test' };
+  return { ...actual, callChatCompletion: callChatCompletionMock, requireApiKey: () => 'sk-test' };
 });
 
 import { runVoiceStage, runReportStage } from './render-pilot-stage-voice.js';
@@ -70,6 +71,9 @@ function baseOptions(overrides: Partial<RenderPilotOptions> = {}): RenderPilotOp
     stage: 'all',
     concurrency: 4,
     dryRun: false,
+    glmProvider: 'zai-coding',
+    summaryThinking: 'disabled',
+    answerThinking: 'high',
     ...overrides,
   };
 }
@@ -84,9 +88,9 @@ describe('runVoiceStage', () => {
       slug: 'nova',
       outDir: dir,
       usageLogPath: join(dir, 'nova', 'usage.jsonl'),
-      apiKey: 'sk-test',
+      apiKeys: { openrouter: 'sk-test', 'zai-coding': 'sk-test' },
     };
-    callOpenRouterMock.mockReset();
+    callChatCompletionMock.mockReset();
   });
 
   afterEach(() => {
@@ -94,16 +98,19 @@ describe('runVoiceStage', () => {
   });
 
   it('runs n = triggers x 3 arms calls using the answer model, recording n in the output', async () => {
-    callOpenRouterMock.mockResolvedValue({
+    callChatCompletionMock.mockResolvedValue({
       content: 'a reply, darling!',
       promptTokens: 10,
       completionTokens: 5,
       latencyMs: 10,
       attempts: 1,
-    });
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
     await runVoiceStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
-    expect(callOpenRouterMock).toHaveBeenCalledTimes(6);
-    for (const call of callOpenRouterMock.mock.calls) {
+    expect(callChatCompletionMock).toHaveBeenCalledTimes(6);
+    for (const call of callChatCompletionMock.mock.calls) {
       const [request] = call as [{ model: string }];
       expect(request.model).toBe('answer-model');
     }
@@ -112,6 +119,50 @@ describe('runVoiceStage', () => {
     );
     expect(result?.n).toBe(6);
     expect(result?.replies[0].markerHits).toBe(1);
+  });
+
+  // Wiring pin: the voice stage must forward options.glmProvider to the
+  // call's `provider` field, not a hardcoded value. Asserting only the
+  // default ('zai-coding') would also pass against a hardcoded
+  // `provider: 'zai-coding'` — vary the option and check both values track
+  // it. The voice stage never sends a `thinking` setting at all, so that
+  // stays undefined regardless of glmProvider.
+  it('forwards glmProvider to the voice call when set to zai-coding, with no thinking setting', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply, darling!',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
+    await runVoiceStage(ctx, baseOptions({ outDir: dir, glmProvider: 'zai-coding' }), makeCorpus());
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ provider: string; thinking?: string }];
+      expect(request.provider).toBe('zai-coding');
+      expect(request.thinking).toBeUndefined();
+    }
+  });
+
+  it('forwards glmProvider to the voice call when set to openrouter, with no thinking setting', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply, darling!',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'openrouter',
+    } satisfies CompletionResult);
+    await runVoiceStage(ctx, baseOptions({ outDir: dir, glmProvider: 'openrouter' }), makeCorpus());
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ provider: string; thinking?: string }];
+      expect(request.provider).toBe('openrouter');
+      expect(request.thinking).toBeUndefined();
+    }
   });
 });
 
@@ -125,7 +176,7 @@ describe('runReportStage', () => {
       slug: 'nova',
       outDir: dir,
       usageLogPath: join(dir, 'nova', 'usage.jsonl'),
-      apiKey: 'sk-test',
+      apiKeys: { openrouter: 'sk-test', 'zai-coding': 'sk-test' },
     };
   });
 

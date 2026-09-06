@@ -1,7 +1,8 @@
 /**
- * OpenRouter chat-completions client for the render pilot: retry on any
- * transient failure (429/5xx, network errors, timeouts), a bounded timeout
- * per call, a small promise pool for concurrency, and a per-call usage log.
+ * Chat-completions client for the render pilot: retry on any transient
+ * failure (429/5xx, network errors, timeouts), a bounded timeout per call, a
+ * small promise pool for concurrency, and a per-call usage log. Routes each
+ * call to OpenRouter or the z.ai coding plan via `render-pilot-provider.js`.
  *
  * The response shape (`choices[0].message.content` + `usage.{prompt_tokens,
  * completion_tokens}`) is an external claim this worktree cannot probe live
@@ -12,8 +13,16 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { UsageError } from '../utils/errors.js';
+import {
+  providerEnvVar,
+  providerUrl,
+  providerHeaders,
+  providerModelId,
+  thinkingBody,
+  type RenderPilotProvider,
+  type ThinkingSetting,
+} from './render-pilot-provider.js';
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // One sleep between each pair of attempts, so MAX_ATTEMPTS derives from the
 // backoff schedule's length rather than being tracked separately.
 const BACKOFF_MS = [2000, 6000] as const;
@@ -65,6 +74,8 @@ export interface CompletionRequest {
   temperature: number;
   maxTokens: number;
   jsonMode?: boolean;
+  provider: RenderPilotProvider;
+  thinking?: ThinkingSetting;
 }
 
 export interface CompletionResult {
@@ -76,6 +87,7 @@ export interface CompletionResult {
   reasoningBlocksStripped: number;
   /** `choices[0].finish_reason`, or `null` when absent or not a string. `'length'` signals truncation (mirrors ai-worker's `FINISH_REASONS.LENGTH`). */
   finishReason: string | null;
+  provider: RenderPilotProvider;
 }
 
 export interface UsageRecord {
@@ -87,13 +99,15 @@ export interface UsageRecord {
   attempts: number;
   reasoningBlocksStripped: number;
   timestamp: string;
+  provider: RenderPilotProvider;
 }
 
-/** Read the OpenRouter API key from the environment, or throw a UsageError naming it. */
-export function requireApiKey(): string {
-  const key = process.env.OPENROUTER_API_KEY;
+/** Read `provider`'s API key from the environment, or throw a UsageError naming its variable. */
+export function requireApiKey(provider: RenderPilotProvider): string {
+  const envVar = providerEnvVar(provider);
+  const key = process.env[envVar];
   if (key === undefined || key.length === 0) {
-    throw new UsageError('OPENROUTER_API_KEY is not set — required for any non-dry-run stage');
+    throw new UsageError(`${envVar} is not set — required for any non-dry-run stage`);
   }
   return key;
 }
@@ -104,9 +118,31 @@ function sleep(ms: number): Promise<void> {
 }
 
 interface RawOpenRouterResponse {
-  choices?: { message?: { content?: unknown; reasoning?: unknown }; finish_reason?: unknown }[];
+  choices?: {
+    message?: { content?: unknown; reasoning?: unknown; reasoning_content?: unknown };
+    finish_reason?: unknown;
+  }[];
   usage?: { prompt_tokens?: unknown; completion_tokens?: unknown };
   model?: unknown;
+}
+
+/** A human-readable name for `provider`, for error messages that must point the operator at the right dashboard. */
+function providerLabel(provider: RenderPilotProvider): string {
+  return provider === 'openrouter' ? 'OpenRouter' : 'z.ai coding plan';
+}
+
+/**
+ * Whether the response put its whole reply in a reasoning field instead of
+ * `content` — either OpenRouter's `reasoning` or z.ai's `reasoning_content`
+ * (the coding plan returns the trace under that name, not `reasoning`).
+ */
+function reasoningCarriesWholeReply(parsed: RawOpenRouterResponse): boolean {
+  const message = parsed.choices?.[0]?.message;
+  const rawReasoning =
+    typeof message?.reasoning === 'string' && message.reasoning.length > 0
+      ? message.reasoning
+      : message?.reasoning_content;
+  return typeof rawReasoning === 'string' && rawReasoning.length > 0;
 }
 
 interface ParsedCompletionBody {
@@ -125,44 +161,50 @@ interface ParsedCompletionBody {
  * a tight cap can leave zero tokens for output. Split out of
  * {@link parseCompletionBody} to keep its complexity in bounds.
  */
-function throwMissingContentError(rawBody: string, parsed: RawOpenRouterResponse): never {
+function throwMissingContentError(
+  rawBody: string,
+  parsed: RawOpenRouterResponse,
+  provider: RenderPilotProvider
+): never {
+  const label = providerLabel(provider);
   if (parsed.choices?.[0]?.finish_reason === 'length') {
     const modelClause = typeof parsed.model === 'string' ? ` for model "${parsed.model}"` : '';
     throw new Error(
-      `OpenRouter exhausted the token budget${modelClause} before producing any content ` +
+      `${label} exhausted the token budget${modelClause} before producing any content ` +
         `(finish_reason: "length") — reasoning models spend max_tokens on internal ` +
         `thinking before emitting a reply, so a tight cap can leave zero tokens for ` +
         `output: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
     );
   }
   throw new Error(
-    `OpenRouter response did not carry choices[0].message.content: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
+    `${label} response did not carry choices[0].message.content: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
   );
 }
 
 /**
- * Parse one OpenRouter response body. Deterministic parse failures (bad JSON,
- * a missing field) throw and are NOT retried by the caller — retrying a
+ * Parse one chat-completions response body. Deterministic parse failures (bad
+ * JSON, a missing field) throw and are NOT retried by the caller — retrying a
  * shape mismatch just triples the spend for the same wrong answer.
  */
-function parseCompletionBody(rawBody: string): ParsedCompletionBody {
+function parseCompletionBody(rawBody: string, provider: RenderPilotProvider): ParsedCompletionBody {
+  const label = providerLabel(provider);
   let parsed: RawOpenRouterResponse;
   try {
     parsed = JSON.parse(rawBody) as RawOpenRouterResponse;
   } catch {
     throw new Error(
-      `OpenRouter response was not valid JSON: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
+      `${label} response was not valid JSON: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
     );
   }
   const rawContent = parsed.choices?.[0]?.message?.content;
   if (typeof rawContent !== 'string') {
-    throwMissingContentError(rawBody, parsed);
+    throwMissingContentError(rawBody, parsed, provider);
   }
   const promptTokens = parsed.usage?.prompt_tokens;
   const completionTokens = parsed.usage?.completion_tokens;
   if (typeof promptTokens !== 'number' || typeof completionTokens !== 'number') {
     throw new Error(
-      `OpenRouter response did not carry usage.{prompt_tokens,completion_tokens}: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
+      `${label} response did not carry usage.{prompt_tokens,completion_tokens}: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
     );
   }
 
@@ -170,19 +212,18 @@ function parseCompletionBody(rawBody: string): ParsedCompletionBody {
   const finishReason = typeof rawFinishReason === 'string' ? rawFinishReason : null;
 
   const { content, reasoningBlocksStripped } = stripThinkingBlocks(rawContent);
-  const rawReasoning = parsed.choices?.[0]?.message?.reasoning;
-  if (content.length === 0 && typeof rawReasoning === 'string' && rawReasoning.length > 0) {
+  if (content.length === 0 && reasoningCarriesWholeReply(parsed)) {
     // Production PROMOTES reasoning to content in this case (some free-tier
-    // GLM variants put the whole response in `reasoning` —
+    // GLM variants put the whole response in `reasoning`/`reasoning_content` —
     // docs/reference/REASONING_MODEL_FORMATS.md). For a measurement pilot a
     // silent promotion would corrupt the arm under test, so this throws
     // loudly instead of quietly substituting reasoning text for content.
     throw new Error(
-      `OpenRouter response returned its whole reply in choices[0].message.reasoning, not content: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
+      `${label} response returned its whole reply in the reasoning field, not content: ${rawBody.slice(0, RAW_BODY_PREVIEW_CHARS)}`
     );
   }
 
-  throwIfExhaustedByLength(content, finishReason, rawBody, parsed);
+  throwIfExhaustedByLength(content, finishReason, rawBody, parsed, provider);
 
   return { content, promptTokens, completionTokens, reasoningBlocksStripped, finishReason };
 }
@@ -198,10 +239,11 @@ function throwIfExhaustedByLength(
   content: string,
   finishReason: string | null,
   rawBody: string,
-  parsed: RawOpenRouterResponse
+  parsed: RawOpenRouterResponse,
+  provider: RenderPilotProvider
 ): void {
   if (content.trim().length === 0 && finishReason === 'length') {
-    throwMissingContentError(rawBody, parsed);
+    throwMissingContentError(rawBody, parsed, provider);
   }
 }
 
@@ -210,13 +252,13 @@ function isRetryableStatus(status: number): boolean {
 }
 
 /**
- * One OpenRouter call, retried up to {@link MAX_ATTEMPTS} times on 429/5xx
- * responses AND on network-level failures (a rejected `fetch`, an
+ * One chat-completions call, retried up to {@link MAX_ATTEMPTS} times on
+ * 429/5xx responses AND on network-level failures (a rejected `fetch`, an
  * `AbortError` from the timeout) — a single dropped connection must not
  * kill an entire ~2,000-call pilot run. A body-shape parse failure is
  * deterministic and is NOT retried; it propagates immediately.
  */
-export async function callOpenRouter(
+export async function callChatCompletion(
   request: CompletionRequest,
   apiKey: string
 ): Promise<CompletionResult> {
@@ -236,6 +278,7 @@ export async function callOpenRouter(
         attempts: attempt,
         reasoningBlocksStripped: parsed.reasoningBlocksStripped,
         finishReason: parsed.finishReason,
+        provider: request.provider,
       };
     } catch (error) {
       if (error instanceof CompletionParseError) {
@@ -254,7 +297,9 @@ export async function callOpenRouter(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('OpenRouter call failed after retries');
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`${providerLabel(request.provider)} call failed after retries`);
 }
 
 /** Tags a deterministic body-shape parse failure so the retry loop can rethrow it immediately instead of retrying. */
@@ -277,27 +322,23 @@ async function attemptOnce(
   apiKey: string,
   signal: AbortSignal
 ): Promise<ParsedCompletionBody> {
-  const response = await fetch(OPENROUTER_URL, {
+  const response = await fetch(providerUrl(request.provider), {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://github.com/lbds137/tzurot',
-      'X-Title': 'tzurot render pilot',
-    },
+    headers: providerHeaders(request.provider, apiKey),
     body: JSON.stringify({
-      model: request.model,
+      model: providerModelId(request.provider, request.model),
       messages: request.messages,
       temperature: request.temperature,
       max_tokens: request.maxTokens,
       ...(request.jsonMode === true ? { response_format: { type: 'json_object' } } : {}),
+      ...thinkingBody(request.provider, request.thinking),
     }),
     signal,
   });
 
   if (!response.ok) {
     const bodyText = await response.text();
-    const message = `OpenRouter returned ${String(response.status)}: ${bodyText.slice(0, RAW_BODY_PREVIEW_CHARS)}`;
+    const message = `${providerLabel(request.provider)} returned ${String(response.status)}: ${bodyText.slice(0, RAW_BODY_PREVIEW_CHARS)}`;
     if (isRetryableStatus(response.status)) {
       throw new Error(message);
     }
@@ -306,7 +347,7 @@ async function attemptOnce(
 
   const bodyText = await response.text();
   try {
-    return parseCompletionBody(bodyText);
+    return parseCompletionBody(bodyText, request.provider);
   } catch (parseError) {
     throw new CompletionParseError(parseError);
   }

@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Environment } from '../utils/env-runner.js';
 import { appendUsageRecord, type SettledResult } from './render-pilot-llm.js';
+import type { RenderPilotProvider, ThinkingSetting } from './render-pilot-provider.js';
 
 export type RenderPilotStage =
   'corpus' | 'summaries' | 'questions' | 'answers' | 'judge' | 'voice' | 'report' | 'all';
@@ -29,6 +30,10 @@ export interface RenderPilotOptions {
   stage: RenderPilotStage;
   concurrency: number;
   dryRun: boolean;
+  /** Provider carrying the GLM answer/summary/voice calls — OpenRouter or the flat-rate z.ai coding plan. */
+  glmProvider: RenderPilotProvider;
+  summaryThinking: ThinkingSetting;
+  answerThinking: ThinkingSetting;
 }
 
 /** Stage execution order; `corpus` always runs first and is handled by the caller. */
@@ -47,7 +52,8 @@ export interface SlugContext {
   slug: string;
   outDir: string;
   usageLogPath: string;
-  apiKey: string | null;
+  /** Resolved API key per provider — `null` when that provider's stages don't run this pass (dry run, corpus/report-only, or the other provider's stages). */
+  apiKeys: Record<RenderPilotProvider, string | null>;
 }
 
 export function stagePath(outDir: string, slug: string, stage: string): string {
@@ -89,6 +95,7 @@ export function logUsage(
     latencyMs: number;
     attempts: number;
     reasoningBlocksStripped: number;
+    provider: RenderPilotProvider;
   }
 ): void {
   appendUsageRecord(ctx.usageLogPath, {
@@ -100,6 +107,7 @@ export function logUsage(
     attempts: result.attempts,
     reasoningBlocksStripped: result.reasoningBlocksStripped,
     timestamp: new Date().toISOString(),
+    provider: result.provider,
   });
 }
 

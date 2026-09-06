@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
 import { UsageError } from '../utils/errors.js';
 import {
-  callOpenRouter,
+  callChatCompletion,
   requireApiKey,
   appendUsageRecord,
   clearStageUsage,
@@ -28,24 +29,41 @@ function okBody(content: string, extra: Record<string, unknown> = {}): Record<st
 }
 
 describe('requireApiKey', () => {
-  const original = process.env.OPENROUTER_API_KEY;
+  const originalOpenRouter = process.env.OPENROUTER_API_KEY;
+  const originalZai = process.env.ZAI_CODING_API_KEY;
   afterEach(() => {
-    if (original === undefined) {
+    if (originalOpenRouter === undefined) {
       delete process.env.OPENROUTER_API_KEY;
     } else {
-      process.env.OPENROUTER_API_KEY = original;
+      process.env.OPENROUTER_API_KEY = originalOpenRouter;
+    }
+    if (originalZai === undefined) {
+      delete process.env.ZAI_CODING_API_KEY;
+    } else {
+      process.env.ZAI_CODING_API_KEY = originalZai;
     }
   });
 
-  it('throws UsageError naming the variable when unset', () => {
+  it('throws UsageError naming OPENROUTER_API_KEY when unset for openrouter', () => {
     delete process.env.OPENROUTER_API_KEY;
-    expect(() => requireApiKey()).toThrow(UsageError);
-    expect(() => requireApiKey()).toThrow(/OPENROUTER_API_KEY/);
+    expect(() => requireApiKey('openrouter')).toThrow(UsageError);
+    expect(() => requireApiKey('openrouter')).toThrow(/OPENROUTER_API_KEY/);
   });
 
-  it('returns the key when set', () => {
+  it('returns the OpenRouter key when set', () => {
     process.env.OPENROUTER_API_KEY = 'sk-test';
-    expect(requireApiKey()).toBe('sk-test');
+    expect(requireApiKey('openrouter')).toBe('sk-test');
+  });
+
+  it('throws UsageError naming ZAI_CODING_API_KEY when unset for zai-coding', () => {
+    delete process.env.ZAI_CODING_API_KEY;
+    expect(() => requireApiKey('zai-coding')).toThrow(UsageError);
+    expect(() => requireApiKey('zai-coding')).toThrow(/ZAI_CODING_API_KEY/);
+  });
+
+  it('returns the zai-coding key when set', () => {
+    process.env.ZAI_CODING_API_KEY = 'zai-test';
+    expect(requireApiKey('zai-coding')).toBe('zai-test');
   });
 });
 
@@ -69,7 +87,7 @@ describe('stripThinkingBlocks', () => {
   });
 });
 
-describe('callOpenRouter', () => {
+describe('callChatCompletion', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -85,12 +103,13 @@ describe('callOpenRouter', () => {
 
   it('parses a successful response into content + usage + finishReason', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
-    const result = await callOpenRouter(
+    const result = await callChatCompletion(
       {
         model: 'test-model',
         messages: [{ role: 'user', content: 'hello' }],
         temperature: 0,
         maxTokens: 10,
+        provider: 'openrouter',
       },
       'sk-test'
     );
@@ -106,8 +125,15 @@ describe('callOpenRouter', () => {
 
   it('sends response_format only when jsonMode is requested', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('{}')));
-    await callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10, jsonMode: true },
+    await callChatCompletion(
+      {
+        model: 'm',
+        messages: [],
+        temperature: 0,
+        maxTokens: 10,
+        jsonMode: true,
+        provider: 'openrouter',
+      },
       'sk-test'
     );
     const [, jsonModeInit] = mockFetch.mock.calls[0] as [string, RequestInit];
@@ -116,7 +142,10 @@ describe('callOpenRouter', () => {
 
     mockFetch.mockClear();
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('{}')));
-    await callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test');
+    await callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+      'sk-test'
+    );
     const [, noJsonModeInit] = mockFetch.mock.calls[0] as [string, RequestInit];
     const noJsonModeBody = JSON.parse(noJsonModeInit.body as string) as Record<string, unknown>;
     expect(noJsonModeBody).not.toHaveProperty('response_format');
@@ -124,8 +153,8 @@ describe('callOpenRouter', () => {
 
   it('defaults finishReason to null when absent or not a string', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi')));
-    const result = await callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const result = await callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     expect(result.finishReason).toBeNull();
@@ -134,7 +163,10 @@ describe('callOpenRouter', () => {
   it('throws with the first 300 chars of the raw body on a shape mismatch, without retrying', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { unexpected: 'shape' }));
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/unexpected/);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
@@ -148,10 +180,16 @@ describe('callOpenRouter', () => {
       })
     );
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/exhausted the token budget/);
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/z-ai\/glm-5\.3/);
   });
 
@@ -164,7 +202,10 @@ describe('callOpenRouter', () => {
     );
     let message = '';
     try {
-      await callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test');
+      await callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      );
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
     }
@@ -181,7 +222,10 @@ describe('callOpenRouter', () => {
       })
     );
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/did not carry choices\[0\]\.message\.content/);
   });
 
@@ -193,7 +237,10 @@ describe('callOpenRouter', () => {
       })
     );
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/reasoning/);
   });
 
@@ -203,14 +250,17 @@ describe('callOpenRouter', () => {
   it('throws an exhausted-budget error when content is empty and finish_reason is "length"', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('', { finish_reason: 'length' })));
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/exhausted the token budget/);
   });
 
   it('resolves with empty content when finish_reason is "stop" (a legitimate, if odd, empty reply)', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, okBody('', { finish_reason: 'stop' })));
-    const result = await callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const result = await callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     expect(result.content).toBe('');
@@ -219,8 +269,8 @@ describe('callOpenRouter', () => {
   // Canary: mutating MAX_ATTEMPTS (or the retry-eligibility check) must redden this test.
   it('retries a 429 exactly 3 attempts total, then throws', async () => {
     mockFetch.mockResolvedValue(jsonResponse(429, { error: 'rate limited' }));
-    const promise = callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const promise = callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     const assertion = expect(promise).rejects.toThrow(/429/);
@@ -232,7 +282,10 @@ describe('callOpenRouter', () => {
   it('does not retry a non-retryable 4xx', async () => {
     mockFetch.mockResolvedValue(jsonResponse(400, { error: 'bad request' }));
     await expect(
-      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
+        'sk-test'
+      )
     ).rejects.toThrow(/400/);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
@@ -241,8 +294,8 @@ describe('callOpenRouter', () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse(503, { error: 'busy' }))
       .mockResolvedValueOnce(jsonResponse(200, okBody('ok')));
-    const promise = callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const promise = callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     await vi.runAllTimersAsync();
@@ -259,8 +312,8 @@ describe('callOpenRouter', () => {
       .mockRejectedValueOnce(new Error('network down'))
       .mockRejectedValueOnce(new Error('network down again'))
       .mockResolvedValueOnce(jsonResponse(200, okBody('ok')));
-    const promise = callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const promise = callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     await vi.runAllTimersAsync();
@@ -272,8 +325,8 @@ describe('callOpenRouter', () => {
 
   it('rejects a fetch that fails on all 3 attempts with the last network error', async () => {
     mockFetch.mockRejectedValue(new Error('network down'));
-    const promise = callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const promise = callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     const assertion = expect(promise).rejects.toThrow(/network down/);
@@ -287,8 +340,8 @@ describe('callOpenRouter', () => {
   it('sleeps exactly [2000, 6000] between the three retry attempts', async () => {
     const spy = vi.spyOn(globalThis, 'setTimeout');
     mockFetch.mockResolvedValue(jsonResponse(429, { error: 'rate limited' }));
-    const promise = callOpenRouter(
-      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+    const promise = callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'openrouter' },
       'sk-test'
     );
     const assertion = expect(promise).rejects.toThrow(/429/);
@@ -298,6 +351,100 @@ describe('callOpenRouter', () => {
     const delays = spy.mock.calls.map(c => c[1]);
     expect(delays.filter(d => d !== 120_000)).toEqual([2000, 6000]);
     spy.mockRestore();
+  });
+});
+
+describe('callChatCompletion — zai-coding provider routing', () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('sends the zai-coding request to the coding-plan URL with the bare model id and no thinking key', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
+    await callChatCompletion(
+      {
+        model: 'z-ai/glm-5.3',
+        messages: [],
+        temperature: 0,
+        maxTokens: 10,
+        provider: 'zai-coding',
+      },
+      'zai-test'
+    );
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${AI_ENDPOINTS.ZAI_CODING_BASE_URL}/chat/completions`);
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.model).toBe('glm-5.3');
+    expect(body).not.toHaveProperty('thinking');
+    const headers = init.headers as Record<string, string>;
+    expect(headers).not.toHaveProperty('HTTP-Referer');
+    expect(headers).not.toHaveProperty('X-Title');
+  });
+
+  it('sends the thinking body for a zai-coding call that requests it', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
+    await callChatCompletion(
+      {
+        model: 'glm-5.3',
+        messages: [],
+        temperature: 0,
+        maxTokens: 10,
+        provider: 'zai-coding',
+        thinking: 'high',
+      },
+      'zai-test'
+    );
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body).toMatchObject({ thinking: { type: 'enabled' }, reasoning_effort: 'high' });
+  });
+
+  it('throws with a "z.ai coding plan" label naming the provider on a shape mismatch', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { unexpected: 'shape' }));
+    await expect(
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'zai-coding' },
+        'zai-test'
+      )
+    ).rejects.toThrow(/z\.ai coding plan response did not carry/);
+  });
+
+  // Canary: reasoning_content is the coding-plan's field name for the
+  // reasoning trace (never `reasoning`) — a promotion check that only reads
+  // `reasoning` would miss a whole-reply-in-reasoning failure on this provider.
+  it('throws loudly when content is empty and reasoning_content carries the whole reply', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse(200, {
+        choices: [
+          { message: { content: '', reasoning_content: 'the whole answer ended up here' } },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 3 },
+      })
+    );
+    await expect(
+      callChatCompletion(
+        { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'zai-coding' },
+        'zai-test'
+      )
+    ).rejects.toThrow(/reasoning/);
+  });
+
+  it('echoes the request provider on the result', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
+    const result = await callChatCompletion(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10, provider: 'zai-coding' },
+      'zai-test'
+    );
+    expect(result.provider).toBe('zai-coding');
   });
 });
 
@@ -315,6 +462,7 @@ describe('appendUsageRecord', () => {
         attempts: 1,
         reasoningBlocksStripped: 0,
         timestamp: '2026-01-01T00:00:00.000Z',
+        provider: 'openrouter',
       });
       appendUsageRecord(path, {
         stage: 'summaries',
@@ -325,6 +473,7 @@ describe('appendUsageRecord', () => {
         attempts: 1,
         reasoningBlocksStripped: 1,
         timestamp: '2026-01-01T00:00:01.000Z',
+        provider: 'openrouter',
       });
       const lines = readFileSync(path, 'utf8').trim().split('\n');
       expect(lines).toHaveLength(2);

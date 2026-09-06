@@ -8,6 +8,7 @@ import type { Environment } from '../utils/env-runner.js';
 import { parseIntFlag } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
 import { DEFAULT_VOICE_TRIGGERS } from './render-pilot-prompts.js';
+import type { RenderPilotProvider, ThinkingSetting } from './render-pilot-provider.js';
 import type { RenderPilotOptions, RenderPilotStage } from './render-pilot.js';
 
 /** Raw CLI options as cac parses them (camelCase, all strings/booleans). */
@@ -28,6 +29,9 @@ export interface RawRenderPilotOptions {
   stage?: string;
   concurrency?: string;
   dryRun?: boolean;
+  glmProvider?: string;
+  summaryThinking?: string;
+  answerThinking?: string;
 }
 
 const VALID_STAGES = new Set<string>([
@@ -65,6 +69,35 @@ function parseStage(raw: string | undefined): RenderPilotStage {
     throw new UsageError(`--stage must be one of ${[...VALID_STAGES].join('|')}, got: '${stage}'`);
   }
   return stage as RenderPilotStage;
+}
+
+const VALID_GLM_PROVIDERS = new Set<string>(['openrouter', 'zai-coding']);
+const VALID_THINKING_SETTINGS = new Set<string>(['disabled', 'high']);
+
+/** Validate `--glm-provider`, defaulting to the flat-rate coding plan. */
+function parseGlmProvider(raw: string | undefined): RenderPilotProvider {
+  const provider = raw ?? 'zai-coding';
+  if (!VALID_GLM_PROVIDERS.has(provider)) {
+    throw new UsageError(
+      `--glm-provider must be one of ${[...VALID_GLM_PROVIDERS].join('|')}, got: '${provider}'`
+    );
+  }
+  return provider as RenderPilotProvider;
+}
+
+/** Validate a `disabled|high` thinking flag, naming it in the error so two call sites don't collide on one message. */
+function parseThinkingSetting(
+  raw: string | undefined,
+  flag: string,
+  fallback: ThinkingSetting
+): ThinkingSetting {
+  const setting = raw ?? fallback;
+  if (!VALID_THINKING_SETTINGS.has(setting)) {
+    throw new UsageError(
+      `${flag} must be one of ${[...VALID_THINKING_SETTINGS].join('|')}, got: '${setting}'`
+    );
+  }
+  return setting as ThinkingSetting;
 }
 
 /** Read a JSON `{"triggers": [string]}` or `{"markers": [string]}` file, validating the shape. */
@@ -105,5 +138,8 @@ export function buildRenderPilotOptions(raw: RawRenderPilotOptions): RenderPilot
     stage: parseStage(raw.stage),
     concurrency: parseIntFlag(raw.concurrency, '--concurrency', { min: 1 }) ?? 4,
     dryRun: raw.dryRun ?? false,
+    glmProvider: parseGlmProvider(raw.glmProvider),
+    summaryThinking: parseThinkingSetting(raw.summaryThinking, '--summary-thinking', 'disabled'),
+    answerThinking: parseThinkingSetting(raw.answerThinking, '--answer-thinking', 'high'),
   };
 }

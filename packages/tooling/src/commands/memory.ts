@@ -246,6 +246,18 @@ function registerRenderPilotCommand(cli: CAC): void {
     )
     .option('--concurrency <n>', 'Max in-flight model calls (default 4)')
     .option('--dry-run', 'Run only the corpus stage and print stats + a token estimate')
+    .option(
+      '--glm-provider <openrouter|zai-coding>',
+      'Provider for answer/summary/voice GLM calls (default zai-coding — the flat-rate coding plan)'
+    )
+    .option(
+      '--summary-thinking <disabled|high>',
+      'Extended reasoning for the summarizer call, zai-coding only (default disabled — a JSON task, and a live run exhausted its budget on reasoning for ~1/10 of the largest rows)'
+    )
+    .option(
+      '--answer-thinking <disabled|high>',
+      'Extended reasoning for in-character answer calls, zai-coding only (default high — matches the drifted character production config)'
+    )
     .action(async (options: RawRenderPilotOptions) => {
       const { buildRenderPilotOptions } = await import('../memory/render-pilot-cli.js');
       const renderPilotOptions = buildRenderPilotOptions(options);

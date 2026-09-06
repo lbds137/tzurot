@@ -34,6 +34,9 @@ function baseOptions(overrides: Partial<RenderPilotOptions> = {}): RenderPilotOp
     stage: 'all',
     concurrency: 4,
     dryRun: false,
+    glmProvider: 'zai-coding',
+    summaryThinking: 'disabled',
+    answerThinking: 'high',
     ...overrides,
   };
 }
@@ -95,15 +98,31 @@ describe('logUsage', () => {
     const dir = mkdtempSync(join(tmpdir(), 'render-pilot-shared-'));
     try {
       const usageLogPath = join(dir, 'usage.jsonl');
-      logUsage({ slug: 'nova', outDir: dir, usageLogPath, apiKey: 'k' }, 'summaries', 'model-x', {
-        promptTokens: 5,
-        completionTokens: 2,
-        latencyMs: 10,
-        attempts: 1,
-        reasoningBlocksStripped: 0,
-      });
+      logUsage(
+        {
+          slug: 'nova',
+          outDir: dir,
+          usageLogPath,
+          apiKeys: { openrouter: 'k', 'zai-coding': null },
+        },
+        'summaries',
+        'model-x',
+        {
+          promptTokens: 5,
+          completionTokens: 2,
+          latencyMs: 10,
+          attempts: 1,
+          reasoningBlocksStripped: 0,
+          provider: 'openrouter',
+        }
+      );
       const line = JSON.parse(readFileSync(usageLogPath, 'utf8').trim());
-      expect(line).toMatchObject({ stage: 'summaries', model: 'model-x', promptTokens: 5 });
+      expect(line).toMatchObject({
+        stage: 'summaries',
+        model: 'model-x',
+        promptTokens: 5,
+        provider: 'openrouter',
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
