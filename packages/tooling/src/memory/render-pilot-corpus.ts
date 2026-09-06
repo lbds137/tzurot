@@ -17,9 +17,17 @@ export interface SplitMemoryResult {
 }
 
 // The stored template is `{user}: <userMessage>\n{assistant}: <aiResponse>`
-// (LongTermMemoryService.ts), and a referenced block is appended as
-// `\n\n[Referenced content: <text>]` (MemoryPersistenceService.ts). The `]`
-// is the LAST character of the whole content when the block is present.
+// (LongTermMemoryService.ts). A live masked probe over a sampled corpus found
+// the `[Referenced content: ...]` marker inside the USER part, at its end, in
+// every sampled row that carried one — i.e. the stored shape is
+// `{user}: <userMessage>\n\n[Referenced content: <text>]\n{assistant}: <aiResponse>`.
+// This matches the code path: MemoryPersistenceService's
+// `buildContentForEmbedding` appends the block to `contentForStorage` and
+// that combined string is passed as `userMessage` into
+// LongTermMemoryService's template interpolation, i.e. the block is baked
+// into the user segment before the template is applied. The older
+// end-of-whole-content shape (`]` as the last character of the entire
+// content) is also still recognised, in case it occurs elsewhere.
 const REFERENCED_BLOCK_RE = /\n\n\[Referenced content: ([\s\S]*)\]$/;
 const USER_PREFIX = '{user}: ';
 const ASSISTANT_SEPARATOR = '\n{assistant}: ';
@@ -56,9 +64,22 @@ export function splitMemoryContent(content: string): SplitMemoryResult | null {
     return null;
   }
 
+  let user = remainder.slice(USER_PREFIX.length, separatorIndex);
+  const assistant = remainder.slice(separatorIndex + ASSISTANT_SEPARATOR.length);
+
+  // The referenced block more commonly sits at the end of the USER part
+  // rather than the end of the whole content (see comment above). Check the
+  // user part for the same anchored shape; when both are present, the
+  // user-part match wins as the single value assigned to `referenced`.
+  const userRefMatch = REFERENCED_BLOCK_RE.exec(user);
+  if (userRefMatch !== null) {
+    referenced = userRefMatch[1];
+    user = user.slice(0, userRefMatch.index);
+  }
+
   return {
-    user: remainder.slice(USER_PREFIX.length, separatorIndex),
-    assistant: remainder.slice(separatorIndex + ASSISTANT_SEPARATOR.length),
+    user,
+    assistant,
     referenced,
   };
 }

@@ -13,7 +13,7 @@ import {
   QUESTION_SYSTEM_PROMPT,
 } from './render-pilot-prompts.js';
 import {
-  callOpenRouter,
+  callChatCompletion,
   requireApiKey,
   runWithConcurrencySettled,
   clearStageUsage,
@@ -60,14 +60,22 @@ async function callSummarizer(
   apiKey: string,
   messages: ChatMessage[]
 ): Promise<SummarizerCallResult> {
-  const result = await callOpenRouter(
+  const result = await callChatCompletion(
     // Cap must leave headroom for a reasoning model's thinking tokens, which are
     // emitted before any content: a live run at a tight cap came back
     // finish_reason "length" with no content at all. The thinking-first ordering
     // is inferred from that finish_reason, not separately probed — a live run at
     // a 3000 cap still came back finish_reason "length" with no content on the
     // largest rows, so the cap is 8000.
-    { model: options.summaryModel, messages, temperature: 0.2, maxTokens: 8000, jsonMode: true },
+    {
+      model: options.summaryModel,
+      messages,
+      temperature: 0.2,
+      maxTokens: 8000,
+      jsonMode: true,
+      provider: options.glmProvider,
+      thinking: options.summaryThinking,
+    },
     apiKey
   );
   logUsage(ctx, 'summaries', options.summaryModel, result);
@@ -136,7 +144,7 @@ export async function runSummariesStage(
     return;
   }
   clearStageUsage(ctx.usageLogPath, 'summaries');
-  const apiKey = ctx.apiKey ?? requireApiKey();
+  const apiKey = ctx.apiKeys[options.glmProvider] ?? requireApiKey(options.glmProvider);
   const tasks = corpus.rows.map(row => () => summarizeOneRow(ctx, options, corpus, row, apiKey));
   const settled = await runWithConcurrencySettled(tasks, options.concurrency);
   const { values, failures } = partitionSettled(settled, index => ({
@@ -162,7 +170,7 @@ async function generateQuestionsForRow(
     referenced: row.split.referenced,
     questionsPerRow: options.questionsPerRow,
   });
-  const result = await callOpenRouter(
+  const result = await callChatCompletion(
     {
       model: options.judgeModel,
       messages: [
@@ -176,6 +184,7 @@ async function generateQuestionsForRow(
       // is inferred from that finish_reason, not separately probed.
       maxTokens: 2000,
       jsonMode: true,
+      provider: 'openrouter',
     },
     apiKey
   );
@@ -203,7 +212,7 @@ export async function runQuestionsStage(
     return;
   }
   clearStageUsage(ctx.usageLogPath, 'questions');
-  const apiKey = ctx.apiKey ?? requireApiKey();
+  const apiKey = ctx.apiKeys.openrouter ?? requireApiKey('openrouter');
   const tasks = corpus.rows.map(
     row => () => generateQuestionsForRow(ctx, options, corpus, row, apiKey)
   );

@@ -52,9 +52,45 @@ describe('buildRenderPilotOptions', () => {
       stage: 'all',
       concurrency: 4,
       dryRun: false,
+      glmProvider: 'zai-coding',
+      summaryThinking: 'disabled',
+      answerThinking: 'high',
     });
     expect(options.triggers.length).toBeGreaterThan(0);
     expect(options.markers).toEqual([]);
+  });
+
+  it('rejects an unrecognized --glm-provider value', () => {
+    expect(() => buildRenderPilotOptions(rawOptions({ glmProvider: 'bogus' }))).toThrow(
+      /--glm-provider/
+    );
+  });
+
+  it('accepts --glm-provider openrouter', () => {
+    const options = buildRenderPilotOptions(rawOptions({ glmProvider: 'openrouter' }));
+    expect(options.glmProvider).toBe('openrouter');
+  });
+
+  it('rejects an unrecognized --summary-thinking value', () => {
+    expect(() => buildRenderPilotOptions(rawOptions({ summaryThinking: 'bogus' }))).toThrow(
+      /--summary-thinking/
+    );
+  });
+
+  it('accepts --summary-thinking high', () => {
+    const options = buildRenderPilotOptions(rawOptions({ summaryThinking: 'high' }));
+    expect(options.summaryThinking).toBe('high');
+  });
+
+  it('rejects an unrecognized --answer-thinking value', () => {
+    expect(() => buildRenderPilotOptions(rawOptions({ answerThinking: 'bogus' }))).toThrow(
+      /--answer-thinking/
+    );
+  });
+
+  it('accepts --answer-thinking disabled', () => {
+    const options = buildRenderPilotOptions(rawOptions({ answerThinking: 'disabled' }));
+    expect(options.answerThinking).toBe('disabled');
   });
 
   it('rejects a non-integer numeric flag', () => {

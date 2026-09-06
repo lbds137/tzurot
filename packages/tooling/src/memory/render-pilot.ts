@@ -12,6 +12,7 @@ import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { getPrismaForEnv } from './prisma-env.js';
 import { buildCorpus, type CorpusResult } from './render-pilot-corpus.js';
 import { requireApiKey } from './render-pilot-llm.js';
+import type { RenderPilotProvider } from './render-pilot-provider.js';
 import { buildSummarizerUserMessage, buildQuestionUserMessage } from './render-pilot-prompts.js';
 import { renderArmNotes } from './render-pilot-archive.js';
 import { runSummariesStage, runQuestionsStage } from './render-pilot-stage-summarize.js';
@@ -255,17 +256,47 @@ export function writeAggregateReport(outDir: string, slugs: string[]): void {
   writeFileSync(summaryMdPath, buildReportMarkdown(pooledReport));
 }
 
+/**
+ * Resolve each provider's API key up front, once per run — never per stage,
+ * per slug, or per call. A provider is resolved only when this run actually
+ * reaches a stage that calls it; a dry run or a corpus/report-only run
+ * resolves neither, so a plan-only GLM run never demands `OPENROUTER_API_KEY`
+ * and vice versa. `glmProvider` may itself be `'openrouter'`, in which case
+ * one resolution serves both roles.
+ */
+function resolveApiKeys(options: RenderPilotOptions): Record<RenderPilotProvider, string | null> {
+  const keys: Record<RenderPilotProvider, string | null> = { openrouter: null, 'zai-coding': null };
+  if (options.dryRun || options.stage === 'corpus' || options.stage === 'report') {
+    return keys;
+  }
+  const needsJudgeFamily =
+    options.stage === 'questions' || options.stage === 'judge' || options.stage === 'all';
+  const needsGlmFamily =
+    options.stage === 'summaries' ||
+    options.stage === 'answers' ||
+    options.stage === 'voice' ||
+    options.stage === 'all';
+
+  if (needsJudgeFamily) {
+    keys.openrouter = requireApiKey('openrouter');
+  }
+  if (needsGlmFamily) {
+    keys[options.glmProvider] = keys[options.glmProvider] ?? requireApiKey(options.glmProvider);
+  }
+  return keys;
+}
+
 /** Run the render pilot across every configured slug. */
 export async function runRenderPilot(options: RenderPilotOptions): Promise<void> {
   const { prisma, disconnect } = await getPrismaForEnv(options.env);
   try {
-    const apiKey = options.dryRun || options.stage === 'corpus' ? null : requireApiKey();
+    const apiKeys = resolveApiKeys(options);
     for (const slug of options.slugs) {
       const ctx: SlugContext = {
         slug,
         outDir: options.outDir,
         usageLogPath: join(options.outDir, slug, 'usage.jsonl'),
-        apiKey,
+        apiKeys,
       };
       await runSlug(ctx, options, prisma);
     }
