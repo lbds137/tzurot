@@ -21,7 +21,7 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
-import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import {
   AIProvider,
   AUTO_ROUTER_MODEL,

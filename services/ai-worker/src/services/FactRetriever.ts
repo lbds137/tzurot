@@ -20,7 +20,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { FactStore, SimilarFact } from './extraction/FactStore.js';
+import type { FactStore, SimilarFact, LinkedFact } from './extraction/FactStore.js';
 
 const logger = createLogger('FactRetriever');
 
@@ -54,6 +54,28 @@ export class FactRetriever {
       logger.warn(
         { err: error, personalityId },
         'Fact retrieval failed — returning no facts (generation degrades gracefully)'
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Active facts linked to any of `memoryIds` (memory-archive split render,
+   * A3) — ONE query regardless of how many memories are being rendered.
+   * Fail-soft like {@link retrieveFacts}: a query failure degrades to no
+   * facts, never to falling back out of split mode (D2's spirit — the switch
+   * being on means assistant prose does not come back because a query failed).
+   */
+  async retrieveLinkedFacts(memoryIds: string[], personalityId: string): Promise<LinkedFact[]> {
+    if (memoryIds.length === 0) {
+      return [];
+    }
+    try {
+      return await this.factStore.findActiveFactsBySourceMemoryIds(memoryIds, personalityId);
+    } catch (error) {
+      logger.warn(
+        { err: error, personalityId },
+        'Linked-facts retrieval failed — split render proceeds with no facts'
       );
       return [];
     }

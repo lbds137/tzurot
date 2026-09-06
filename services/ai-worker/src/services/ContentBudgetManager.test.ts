@@ -199,11 +199,34 @@ describe('ContentBudgetManager', () => {
       expect(mockContextWindowManager.selectMemoriesWithinBudget).toHaveBeenCalledWith(
         memories,
         1000,
-        undefined
+        undefined,
+        { subjectName: undefined, personalityName: 'TestBot', discordUsername: undefined }
       );
       expect(result.relevantMemories).toHaveLength(1);
       expect(result.memoryTokensUsed).toBe(50);
       expect(result.memoriesDroppedCount).toBe(1);
+    });
+
+    it('forwards the names object that sizes linked-fact placeholders to selectMemoriesWithinBudget', () => {
+      // Assert the seam argument directly — the names object reaching
+      // selectMemoriesWithinBudget must carry the same identity fields
+      // selectFacts receives, or split-note sizing can disagree with render.
+      const options = createBaseOptions();
+      options.context.activePersonaName = 'Alice';
+      options.context.discordUsername = 'alice#0001';
+
+      budgetManager.allocate(options, budgetManager.preselectHistory(options));
+
+      expect(mockContextWindowManager.selectMemoriesWithinBudget).toHaveBeenCalledWith(
+        [],
+        1000,
+        undefined,
+        expect.objectContaining({
+          subjectName: 'Alice',
+          personalityName: 'TestBot',
+          discordUsername: 'alice#0001',
+        })
+      );
     });
 
     it('should select and serialize history', () => {
@@ -379,7 +402,8 @@ describe('ContentBudgetManager', () => {
       expect(mockContextWindowManager.selectMemoriesWithinBudget).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        'America/New_York'
+        'America/New_York',
+        expect.anything()
       );
     });
 

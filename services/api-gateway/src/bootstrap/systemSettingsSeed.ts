@@ -14,7 +14,7 @@
  */
 
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
-import { buildSystemSettingsSeed } from '@tzurot/common-types/schemas/api/systemSettings';
+import { buildSystemSettingsSeed } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 

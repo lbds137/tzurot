@@ -861,6 +861,9 @@ CREATE INDEX "memory_facts_persona_id_idx" ON "memory_facts"("persona_id");
 CREATE INDEX "memory_facts_entity_tags_idx" ON "memory_facts" USING GIN ("entity_tags");
 
 -- CreateIndex
+CREATE INDEX "memory_facts_source_memory_ids_idx" ON "memory_facts" USING GIN ("source_memory_ids");
+
+-- CreateIndex
 CREATE INDEX "memory_facts_superseded_by_id_idx" ON "memory_facts"("superseded_by_id");
 
 -- CreateIndex

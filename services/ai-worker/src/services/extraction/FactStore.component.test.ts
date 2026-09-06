@@ -1,5 +1,6 @@
 /**
- * Component test: `FactStore.findSimilarActiveFacts` over REAL PGLite + pgvector.
+ * Component test: `FactStore.findSimilarActiveFacts` and
+ * `FactStore.findActiveFactsBySourceMemoryIds` over REAL PGLite + pgvector.
  *
  * The unit suite (`FactStore.test.ts`) mocks `$queryRaw`, so the actual retrieval
  * SQL — the `embedding <=>` distance, the `valid_from DESC, salience DESC`
@@ -36,7 +37,7 @@ let seq = 0;
 const nextId = (): string =>
   `5a1c0f66-0000-4000-8000-0000000000${(seq++).toString().padStart(2, '0')}`;
 
-describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
+describe('FactStore (component, PGLite)', () => {
   let pglite: PGlite;
   let prisma: PrismaClient;
   let embeddings: LocalEmbeddingService;
@@ -108,6 +109,7 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     visibility?: string;
     isLocked?: boolean;
     tier?: string;
+    sourceMemoryIds?: string[];
   }
 
   async function seedFact(opts: SeedOpts): Promise<string> {
@@ -118,9 +120,9 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     await prisma.$executeRawUnsafe(
       `INSERT INTO memory_facts
          (id, personality_id, persona_id, statement, embedding, salience, valid_from,
-          superseded_at, forgotten, visibility, is_locked, tier, created_at, updated_at)
+          superseded_at, forgotten, visibility, is_locked, tier, source_memory_ids, created_at, updated_at)
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, '${vecLiteral}'::vector, $5, $6::timestamptz,
-          $7::timestamptz, $8, $9, $10, $11, NOW(), NOW())`,
+          $7::timestamptz, $8, $9, $10, $11, $12::text[], NOW(), NOW())`,
       id,
       opts.personalityId ?? PERSONALITY,
       personaId,
@@ -131,7 +133,8 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
       opts.forgotten ?? false,
       opts.visibility ?? 'normal',
       opts.isLocked ?? false,
-      opts.tier ?? 'observed'
+      opts.tier ?? 'observed',
+      opts.sourceMemoryIds ?? []
     );
     return id;
   }
@@ -424,5 +427,71 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     const row = await prisma.memoryFact.findUnique({ where: { id: factId } });
     expect(row?.visibility).toBe('deleted'); // not revived
     expect(row?.forgotten).toBe(true);
+  });
+
+  describe('findActiveFactsBySourceMemoryIds', () => {
+    it('MEM-ARCH-007: linked facts exclude deleted, forgotten, and superseded rows', async () => {
+      const sourceMemoryId = '40000000-0000-0000-0000-000000000001';
+
+      await seedFact({
+        statement: 'the active linked fact',
+        embedText: 'the active linked fact',
+        sourceMemoryIds: [sourceMemoryId],
+      });
+      await seedFact({
+        statement: 'a cascade-deleted linked fact',
+        embedText: 'a cascade-deleted linked fact',
+        sourceMemoryIds: [sourceMemoryId],
+        visibility: 'deleted',
+      });
+      await seedFact({
+        statement: 'a forgotten linked fact',
+        embedText: 'a forgotten linked fact',
+        sourceMemoryIds: [sourceMemoryId],
+        forgotten: true,
+      });
+      await seedFact({
+        statement: 'a superseded linked fact',
+        embedText: 'a superseded linked fact',
+        sourceMemoryIds: [sourceMemoryId],
+        supersededAt: '2026-05-01T00:00:00Z',
+      });
+
+      const linked = await factStore.findActiveFactsBySourceMemoryIds(
+        [sourceMemoryId],
+        PERSONALITY
+      );
+
+      expect(linked).toHaveLength(1);
+      expect(linked[0].statement).toBe('the active linked fact');
+      expect(linked[0]).toMatchObject({
+        id: expect.any(String),
+        statement: 'the active linked fact',
+        salience: 0.5,
+        sourceMemoryIds: [sourceMemoryId],
+      });
+    });
+
+    it('short-circuits to [] for an empty memoryIds array', async () => {
+      const result = await factStore.findActiveFactsBySourceMemoryIds([], PERSONALITY);
+      expect(result).toEqual([]);
+    });
+
+    it('excludes a fact belonging to a DIFFERENT personality', async () => {
+      const sourceMemoryId = '40000000-0000-0000-0000-000000000002';
+      await seedFact({
+        statement: 'fact for personality B',
+        embedText: 'fact for personality B',
+        sourceMemoryIds: [sourceMemoryId],
+        personalityId: PERSONALITY_B,
+      });
+
+      const linked = await factStore.findActiveFactsBySourceMemoryIds(
+        [sourceMemoryId],
+        PERSONALITY
+      );
+
+      expect(linked).toEqual([]);
+    });
   });
 });

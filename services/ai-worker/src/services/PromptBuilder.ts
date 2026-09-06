@@ -20,7 +20,8 @@ import type {
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { extractCharacterParticipants } from '../jobs/utils/participantUtils.js';
-import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
+import { formatMemoriesContextWithStats, formatFactsContext } from './prompt/MemoryFormatter.js';
+import { dropFactsCoveredByArchive } from './prompt/dropFactsCoveredByArchive.js';
 import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatVoiceAnchor } from './prompt/VoiceAnchorFormatter.js';
@@ -425,21 +426,31 @@ ${escapeXmlContent(persona)}
 ${formatCurrentLocationLine(context.environment)}
 </context>`;
 
+    const names = {
+      subjectName: context.activePersonaName,
+      personalityName: personality.name,
+      discordUsername: context.discordUsername,
+    };
+
+    const relevantMemories = options.relevantMemories ?? [];
+    // @spec MEM-ARCH-008 — D10 dedup applies in split mode only
+    const isSplitTurn = relevantMemories[0]?.metadata?.archiveRender?.mode === 'split';
+    const facts = isSplitTurn
+      ? dropFactsCoveredByArchive(options.facts ?? [], relevantMemories)
+      : (options.facts ?? []);
+
     // Distilled active facts, rendered ahead of the historical archive.
     // Subject-bound to the triggering message's author — fact retrieval is
     // scoped to that persona, and unbound "the user" statements misattribute
     // in multi-user channels. Both names also resolve {user}/{assistant}
     // statement placeholders (extraction episodes are placeholder-templated).
-    const factsContext = formatFactsContext(options.facts ?? [], {
-      subjectName: context.activePersonaName,
-      personalityName: personality.name,
-      discordUsername: context.discordUsername,
-    });
+    const factsContext = formatFactsContext(facts, names);
 
     // Relevant memories from past interactions
-    const memoryContext = formatMemoriesContext(
-      options.relevantMemories ?? [],
-      context.userTimezone
+    const { text: memoryContext, summary: archiveSummary } = formatMemoriesContextWithStats(
+      relevantMemories,
+      context.userTimezone,
+      names
     );
 
     // Referenced messages (from replies and message links) — rendered ONLY
@@ -465,6 +476,8 @@ ${formatCurrentLocationLine(context.environment)}
 
     const { text, descriptions } = layoutSections(sections);
     logger.info({ sections: descriptions, total: text.length }, 'Volatile prefix composition');
+    // IDs and COUNTS only — never memory or fact text (00-critical.md § Logging).
+    logger.info(archiveSummary, 'Memory archive render composition');
     return text;
   }
 

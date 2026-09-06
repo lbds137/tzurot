@@ -7,12 +7,11 @@
 
 import { MessageFlags, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import {
-  SYSTEM_SETTINGS_REGISTRY,
-  type SystemSettings,
-} from '@tzurot/common-types/schemas/api/systemSettings';
+import type { SystemSettings } from '@tzurot/common-types/schemas/api/systemSettings';
+import { SYSTEM_SETTINGS_REGISTRY } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
+import { parseSlugList } from '../../utils/dashboard/settings/parseSlugList.js';
 import {
   type SettingsData,
   type SettingsDashboardSession,
@@ -48,9 +47,17 @@ export async function handleSystemSettingUpdate(
       return { success: false, error: `Could not read current settings: ${current.error}` };
     }
 
+    // The dashboard's SettingType.TEXT modal always yields a raw string, but a
+    // `list` control's schema field is `string[]` — coerce it the SAME way the
+    // slash setter does (parseSlugList) so the two write paths never diverge on
+    // what counts as a valid entry.
+    const meta = SYSTEM_SETTINGS_REGISTRY[settingId as keyof SystemSettings];
+    const patchValue: unknown =
+      meta?.control === 'list' && typeof newValue === 'string' ? parseSlugList(newValue) : newValue;
+
     const result = await ownerClient.updateSystemSettings({
       expectedUpdatedAt: current.data.updatedAt,
-      patch: { [settingId]: newValue },
+      patch: { [settingId]: patchValue },
     });
 
     if (!result.ok) {
@@ -69,8 +76,7 @@ export async function handleSystemSettingUpdate(
     // restart-liveness banner — mirrors the slash setter's contract. The
     // dashboard flow refreshes in place, so these ride an ephemeral followUp.
     const notices = result.data.warnings.map(warning => `⚠️ ${warning}`);
-    const liveness = SYSTEM_SETTINGS_REGISTRY[settingId as keyof SystemSettings]?.liveness;
-    if (liveness === 'restart') {
+    if (meta?.liveness === 'restart') {
       notices.push('🔄 Saved — takes effect on the next deploy/restart.');
     }
     if (notices.length > 0) {

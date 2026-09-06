@@ -52,6 +52,19 @@ export interface MemoryDocument {
     messageIds?: string[] | null;
     /** Channel the memory was formed in — scopes the dedup rescue. */
     channelId?: string | null;
+    /** The user half of the stored `{user}: … \n{assistant}: …` template, placeholder-resolved,
+     *  referenced block excluded. Stamped by `mapQueryResultToDocument`; ABSENT for legacy rows that
+     *  do not match the template — absence is meaningful (it selects the verbatim fallback render),
+     *  so never write a default here. Pinned by MEM-ARCH-006's test. */
+    userTurn?: string;
+    /** The speaker name for `userTurn` — this row's own persona, so a remembered turn keeps its own
+     *  speaker in a multi-user channel. Stamped beside `userTurn`. */
+    subjectName?: string;
+    /** Present ONLY when the split render is active for this turn (absent = verbatim mode). */
+    archiveRender?: {
+      mode: 'split';
+      linkedFacts: { id: string; statement: string; salience: number }[];
+    };
   };
 }
 
@@ -287,6 +300,22 @@ export interface PersonaLoadResult {
  */
 export interface FactForPrompt {
   statement: string;
+  /** D10 dedup key: matched against the fact ids inside surviving split
+   *  notes' `archiveRender.linkedFacts` — a fact rendered inside a note that
+   *  actually survived budget selection is dropped from the `<facts>` block
+   *  to avoid saying the same thing twice. Optional because pre-existing
+   *  fixtures omit it; a fact with no id is never dropped by D10. */
+  id?: string;
+}
+
+/** Names used to resolve `{user}`/`{assistant}` placeholders in fact statements. */
+export interface FactRenderNames {
+  /** The persona the retrieval was scoped to (the triggering message's author). */
+  subjectName?: string;
+  /** The responding personality's name (resolves `{assistant}`). */
+  personalityName?: string;
+  /** Discord username — disambiguates when the persona name collides with the personality name (episode-path parity). */
+  discordUsername?: string;
 }
 
 /**

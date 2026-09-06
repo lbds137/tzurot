@@ -10,6 +10,7 @@ import type {
   PgvectorMemoryDocument,
 } from '../services/PgvectorTypes.js';
 import { replacePromptPlaceholders } from './promptPlaceholders.js';
+import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
 
 /**
  * Embedding dimension for BGE-small-en-v1.5 model (local embeddings)
@@ -68,6 +69,14 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
     memory.owner_username
   );
 
+  // @spec MEM-ARCH-006 — unparseable rows leave the split fields undefined
+  // Split the stored `{user}: ... \n{assistant}: ...` template back into its
+  // parts for the memory-archive split render. `split` is null for legacy
+  // rows that don't match the template — both fields below stay undefined in
+  // that case (never a default), since their absence is what the split
+  // renderer reads to pick the verbatim fallback.
+  const split = splitMemoryContent(memory.content);
+
   return {
     pageContent: content,
     metadata: {
@@ -88,6 +97,17 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
       chunkGroupId: memory.chunk_group_id,
       chunkIndex: memory.chunk_index,
       totalChunks: memory.total_chunks,
+      ...(split !== null
+        ? {
+            userTurn: replacePromptPlaceholders(
+              split.user,
+              memory.persona_name,
+              memory.personality_name,
+              memory.owner_username
+            ),
+            subjectName: memory.persona_name,
+          }
+        : {}),
     },
   };
 }

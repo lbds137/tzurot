@@ -515,17 +515,22 @@ export class ContentBudgetManager {
   } {
     const { personality, context } = opts;
 
+    // Shared by both facts and split-note episodes, so the sized text resolves
+    // the same {user}/{assistant} placeholders the rendered text resolves —
+    // otherwise sizing and rendering disagree on split notes with linked facts.
+    const names = {
+      subjectName: context.activePersonaName,
+      personalityName: personality.name,
+      discordUsername: context.discordUsername,
+    };
+
     // Facts take their reserved slice FIRST; episodes get the remainder — so a
     // dense cluster of short facts can't starve verbose episodes, and vice versa.
     const { selectedFacts, factTokensUsed } = selectFacts(
       opts.facts ?? [],
       memoryBudget,
       text => this.promptBuilder.countTokens(text),
-      {
-        subjectName: context.activePersonaName,
-        personalityName: personality.name,
-        discordUsername: context.discordUsername,
-      }
+      names
     );
     const episodeBudget = Math.max(0, memoryBudget - factTokensUsed);
 
@@ -537,7 +542,8 @@ export class ContentBudgetManager {
     } = this.contextWindowManager.selectMemoriesWithinBudget(
       dedupedMemories,
       episodeBudget,
-      context.userTimezone
+      context.userTimezone,
+      names
     );
 
     if (memoriesDroppedCount > 0 || selectedFacts.length > 0) {

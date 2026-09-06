@@ -5,6 +5,7 @@
  */
 
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import { stripQuoteLines } from '@tzurot/common-types/utils/memoryContentSplit';
 import type { CorpusFact } from './render-pilot-corpus.js';
 
 /** One arm's identifier. */
@@ -17,20 +18,6 @@ export type RenderArm = 'V' | 'F' | 'S';
  */
 export function formatRenderTimestamp(createdAt: Date): string {
   return createdAt.toISOString().slice(0, 16).replace('T', ' ');
-}
-
-/** Drop `> `-prefixed quote lines from the user side (D1 council rider). */
-export function stripQuoteLines(text: string): { text: string; strippedCount: number } {
-  const lines = text.split('\n');
-  let strippedCount = 0;
-  const kept = lines.filter(line => {
-    if (line.startsWith('> ')) {
-      strippedCount += 1;
-      return false;
-    }
-    return true;
-  });
-  return { text: kept.join('\n'), strippedCount };
 }
 
 /** Mirror of production's `MEMORY_ARCHIVE_INSTRUCTION` (MemoryFormatter.ts) — pinned by test. */

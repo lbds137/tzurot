@@ -81,6 +81,63 @@ export interface MemoriesAndFactsOptions {
 }
 
 /**
+ * Stamp every retrieved memory doc's `metadata.archiveRender` for the
+ * memory-archive split render (A3/A4) — mutates `memories` in place, matching
+ * how the rest of this pipeline threads metadata through the shared doc
+ * objects. A no-op (never writes the field) unless the personality's slug is
+ * listed in `archiveSplitRenderPersonalities` — absence of the field is what
+ * the split renderer reads as verbatim mode, so this must never write a
+ * default when the switch is off.
+ */
+// @spec MEM-ARCH-010 — kill-switch read: per turn, by personality slug
+async function stampArchiveRenderMode(
+  memories: MemoryRetrievalResult['memories'],
+  personalitySlug: string,
+  personalityId: string,
+  factRetriever: FactRetriever | undefined
+): Promise<void> {
+  if (!getSystemSetting('archiveSplitRenderPersonalities').includes(personalitySlug)) {
+    return;
+  }
+  const memoryIds = memories
+    .map(doc => doc.metadata?.id)
+    .filter((id): id is string => typeof id === 'string');
+  const linkedFacts =
+    factRetriever === undefined
+      ? []
+      : await factRetriever.retrieveLinkedFacts(memoryIds, personalityId);
+
+  // A fact linked to several retrieved memories is attributed to the most
+  // relevant one only — duplicating it across notes would spend budget twice
+  // on the same statement. `memories` is already in retrieval-relevance
+  // order, so the first memory (in that order) whose sourceMemoryIds contains
+  // the fact wins it.
+  const assignedFactIds = new Set<string>();
+  const factsByMemoryId = new Map<string, { id: string; statement: string; salience: number }[]>();
+  for (const doc of memories) {
+    const docId = doc.metadata?.id;
+    if (typeof docId !== 'string') {
+      continue;
+    }
+    const docFacts: { id: string; statement: string; salience: number }[] = [];
+    for (const fact of linkedFacts) {
+      if (assignedFactIds.has(fact.id) || !fact.sourceMemoryIds.includes(docId)) {
+        continue;
+      }
+      assignedFactIds.add(fact.id);
+      docFacts.push({ id: fact.id, statement: fact.statement, salience: fact.salience });
+    }
+    factsByMemoryId.set(docId, docFacts);
+  }
+
+  for (const doc of memories) {
+    const docId = doc.metadata?.id;
+    const docFacts = typeof docId === 'string' ? (factsByMemoryId.get(docId) ?? []) : [];
+    doc.metadata = { ...doc.metadata, archiveRender: { mode: 'split', linkedFacts: docFacts } };
+  }
+}
+
+/**
  * Retrieve episodic memories and distilled facts for one generation turn —
  * facts inherit the episode retriever's scope decisions via `personaId`
  * (see {@link retrieveFactsForPrompt} for the gate semantics).
@@ -99,6 +156,13 @@ export async function retrieveMemoriesAndFacts(
     searchQuery,
     opts.context,
     opts.configOverrides
+  );
+
+  await stampArchiveRenderMode(
+    retrieval.memories,
+    opts.personality.slug,
+    opts.personality.id,
+    opts.factRetriever
   );
 
   const facts = await retrieveFactsForPrompt(

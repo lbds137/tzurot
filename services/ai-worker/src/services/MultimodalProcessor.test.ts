@@ -7,7 +7,7 @@ import { describeImage, transcribeAudio, processAttachments } from './Multimodal
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';

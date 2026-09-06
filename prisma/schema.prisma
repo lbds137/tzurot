@@ -974,6 +974,10 @@ model MemoryFact {
   @@index([personaId])
   // Tag-based lookup (slice 2 similarity-fallback entity-overlap guard)
   @@index([entityTags], type: Gin)
+  // Linked-facts lookup for the memory-archive split render: array overlap on
+  // source_memory_ids (FactStore.findActiveFactsBySourceMemoryIds), which a
+  // btree cannot serve.
+  @@index([sourceMemoryIds], type: Gin)
   @@index([supersededById])
   // NOTE: The IVFFlat vector index (idx_memory_facts_embedding) is managed outside
   // Prisma (Unsupported types can't declare VectorCosineOps) — slice-4 fact

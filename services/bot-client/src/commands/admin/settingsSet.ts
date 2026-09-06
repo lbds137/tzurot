@@ -10,12 +10,12 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
+import type { SystemSettings } from '@tzurot/common-types/schemas/api/systemSettings';
 import {
   SYSTEM_SETTINGS_KEYS,
   SYSTEM_SETTINGS_REGISTRY,
-  type SystemSettings,
   type SystemSettingMeta,
-} from '@tzurot/common-types/schemas/api/systemSettings';
+} from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -25,6 +25,7 @@ import {
   fetchVisionModels,
   formatModelChoice,
 } from '../../utils/modelAutocomplete.js';
+import { parseSlugList } from '../../utils/dashboard/settings/parseSlugList.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('AdminSettingsSet');
@@ -71,6 +72,11 @@ function coerceValue(meta: SystemSettingMeta, raw: string): CoercionResult {
     }
     case 'model':
       return { ok: true, value: raw.trim() as SystemSettings[keyof SystemSettings] };
+    case 'list':
+      return {
+        ok: true,
+        value: parseSlugList(raw) as SystemSettings[keyof SystemSettings],
+      };
   }
 }
 
@@ -78,6 +84,9 @@ function coerceValue(meta: SystemSettingMeta, raw: string): CoercionResult {
 function displayValue(value: unknown): string {
   if (value === undefined) {
     return '_(unset — serving seed/fallback)_';
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0 ? '_(none)_' : `\`${value.join(', ')}\``;
   }
   // Settings values are JSON scalars; stringify guards the object edge without
   // ever rendering '[object Object]'.
@@ -140,7 +149,7 @@ export async function handleSettingsSet(context: DeferredCommandContext): Promis
   invalidateAdminSettingsCache();
 
   const lines = [
-    `✅ **${meta.label}** updated: ${displayValue(oldValue)} → \`${String(coerced.value)}\``,
+    `✅ **${meta.label}** updated: ${displayValue(oldValue)} → ${displayValue(coerced.value)}`,
   ];
   for (const warning of result.data.warnings) {
     lines.push(`⚠️ ${warning}`);

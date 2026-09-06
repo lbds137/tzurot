@@ -11,7 +11,7 @@ import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/s
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
-import type { MemoryDocument } from '../ConversationalRAGTypes.js';
+import type { MemoryDocument, FactRenderNames } from '../ConversationalRAGTypes.js';
 import {
   type StructuredHistoryEntry,
   type ResponderIdentity,
@@ -634,13 +634,22 @@ export class ContextWindowManager {
    *
    * Delegates to MemoryBudgetManager for the actual selection logic.
    * See MemoryBudgetManager.selectMemoriesWithinBudget for details.
+   *
+   * @param names - Forwarded to the sizing pass so a split note's linked-fact
+   *   placeholders are sized resolved, matching what the render pass emits.
    */
   selectMemoriesWithinBudget(
     memories: MemoryDocument[],
     tokenBudget: number,
-    timezone?: string
+    timezone?: string,
+    names?: FactRenderNames
   ): MemorySelectionResult {
-    return this.memoryBudgetManager.selectMemoriesWithinBudget(memories, tokenBudget, timezone);
+    return this.memoryBudgetManager.selectMemoriesWithinBudget(
+      memories,
+      tokenBudget,
+      timezone,
+      names
+    );
   }
 
   /**

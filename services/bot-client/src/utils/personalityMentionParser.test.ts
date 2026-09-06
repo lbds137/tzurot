@@ -10,7 +10,7 @@ import { findPersonalityMentions, MAX_POTENTIAL_MENTIONS } from './personalityMe
 import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
-import { SYSTEM_SETTINGS_REGISTRY } from '@tzurot/common-types/schemas/api/systemSettings';
+import { SYSTEM_SETTINGS_REGISTRY } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 
 const TEST_USER_ID = 'test-user-123';
 

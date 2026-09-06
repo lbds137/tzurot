@@ -9,11 +9,19 @@ import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import { retrieveMemoriesAndFacts } from './factRetrievalHelper.js';
 import { retrieveFactsForPrompt } from './factRetrievalHelper.js';
 import type { FactRetriever } from './FactRetriever.js';
-import type { SimilarFact } from './extraction/FactStore.js';
+import type { SimilarFact, LinkedFact } from './extraction/FactStore.js';
 
-function setFlag(value: boolean): void {
+function setFlag(value: boolean, splitRenderSlugs: string[] = []): void {
   registerSystemSettings({
-    get: (key: string) => (key === 'factsInPromptEnabled' ? value : undefined),
+    get: (key: string) => {
+      if (key === 'factsInPromptEnabled') {
+        return value;
+      }
+      if (key === 'archiveSplitRenderPersonalities') {
+        return splitRenderSlugs;
+      }
+      return undefined;
+    },
   } as unknown as SystemSettingsService);
 }
 
@@ -140,5 +148,155 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
 
     expect(factRetriever.retrieveFacts).not.toHaveBeenCalled();
     expect(result.facts).toEqual([]);
+  });
+});
+
+describe('retrieveMemoriesAndFacts — archive split-render stamping (A3)', () => {
+  function memoryRetrieverWith(
+    memories: { pageContent: string; metadata: Record<string, unknown> }[]
+  ) {
+    return {
+      retrieveRelevantMemories: vi.fn().mockResolvedValue({
+        memories,
+        freshModeEnabled: false,
+        personaId: 'persona-1',
+      }),
+    } as unknown as MemoryRetriever;
+  }
+
+  // @spec MEM-ARCH-010 — kill-switch read: per turn, by personality slug
+  it('MEM-ARCH-010: stamps every retrieved doc with archiveRender when the personality slug is listed', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1' } },
+      { pageContent: 'm2', metadata: { id: 'mem-2' } },
+    ]);
+    const linked: LinkedFact[] = [
+      { id: 'f-1', statement: 'likes tea', salience: 0.9, sourceMemoryIds: ['mem-1'] },
+    ];
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue(linked),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(factRetriever.retrieveLinkedFacts).toHaveBeenCalledWith(
+      ['mem-1', 'mem-2'],
+      'personality-1'
+    );
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [{ id: 'f-1', statement: 'likes tea', salience: 0.9 }],
+    });
+    expect(result.memories[1]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [],
+    });
+  });
+
+  // @spec MEM-ARCH-007 — a fact linked to several retrieved memories renders in at most one note
+  it('MEM-ARCH-007: a fact linked to two retrieved memories is attributed to the more relevant one only', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1' } },
+      { pageContent: 'm2', metadata: { id: 'mem-2' } },
+    ]);
+    const linked: LinkedFact[] = [
+      { id: 'f-1', statement: 'likes tea', salience: 0.9, sourceMemoryIds: ['mem-1', 'mem-2'] },
+    ];
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue(linked),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [{ id: 'f-1', statement: 'likes tea', salience: 0.9 }],
+    });
+    expect(result.memories[1]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [],
+    });
+  });
+
+  // @spec MEM-ARCH-001 — verbatim mode is byte-identical when the slug is not listed
+  it('MEM-ARCH-001: stamps nothing when the personality slug is not listed (verbatim mode)', async () => {
+    setFlag(true, ['other-slug']);
+    const memoryRetriever = memoryRetrieverWith([{ pageContent: 'm1', metadata: { id: 'mem-1' } }]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn(),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(factRetriever.retrieveLinkedFacts).not.toHaveBeenCalled();
+    expect(result.memories[0]?.metadata).toEqual({ id: 'mem-1' });
+    expect('archiveRender' in (result.memories[0]?.metadata ?? {})).toBe(false);
+  });
+
+  it('splits with linkedFacts: [] when no factRetriever is wired', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([{ pageContent: 'm1', metadata: { id: 'mem-1' } }]);
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: undefined,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({ mode: 'split', linkedFacts: [] });
+  });
+
+  // @spec MEM-ARCH-011 — a linked-facts fetch failure degrades to no facts, never to verbatim
+  it('MEM-ARCH-011: stays in split mode with linkedFacts: [] when the retriever already degraded the fetch failure (see FactRetriever.test.ts for the fail-soft boundary itself)', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([{ pageContent: 'm1', metadata: { id: 'mem-1' } }]);
+    // FactRetriever.retrieveLinkedFacts is itself the fail-soft boundary
+    // (pinned in FactRetriever.test.ts): a query failure there resolves to
+    // [] rather than rejecting. Mirroring that contract here confirms the
+    // caller stays in split mode — never verbatim — on the degraded result.
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue([]),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({ mode: 'split', linkedFacts: [] });
   });
 });
