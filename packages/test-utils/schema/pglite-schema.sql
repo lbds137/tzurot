@@ -397,6 +397,15 @@ CREATE TABLE "memories" (
     "chunk_group_id" UUID,
     "chunk_index" INTEGER,
     "total_chunks" INTEGER,
+    "assistant_summary" TEXT,
+    "summary_status" VARCHAR(10),
+    "summary_attempts" INTEGER NOT NULL DEFAULT 0,
+    "summary_model" VARCHAR(255),
+    "summary_prompt_version" INTEGER,
+    "source_content_hash" VARCHAR(64),
+    "summary_requested_at" TIMESTAMP(3),
+    "summary_completed_at" TIMESTAMP(3),
+    "summary_last_error" VARCHAR(40),
 
     CONSTRAINT "memories_pkey" PRIMARY KEY ("id")
 );

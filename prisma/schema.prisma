@@ -868,6 +868,44 @@ model Memory {
   chunkGroupId         String?                @map("chunk_group_id") @db.Uuid
   chunkIndex           Int?                   @map("chunk_index")
   totalChunks          Int?                   @map("total_chunks")
+  // Memory-archive summarizer columns (memory-archive-format.md D2). All are
+  // written by raw SQL so the summarizer never bumps updated_at — `memories`
+  // is sync-tracked and reconciled last-write-wins on that column, and each
+  // environment summarizes its own rows (03-database.md § Sync-Tracked Tables).
+  /// Deferred-set: null until the archive summarizer has processed this row.
+  /// While the character's split render switch is on, a null row renders as
+  /// user turn + linked facts — never the verbatim assistant side.
+  assistantSummary     String?                @map("assistant_summary")
+  /// State machine: null = never requested; 'pending' = enqueued; 'done' =
+  /// assistant_summary is current for source_content_hash + prompt version;
+  /// 'failed' = the last billed attempt produced nothing storable (retry
+  /// allowed); 'dead' = the billed-attempt cap was reached or the row cannot
+  /// be summarized (no user/assistant template). A dead row is re-admitted
+  /// only by a content edit or a prompt-version bump.
+  summaryStatus        String?                @map("summary_status") @db.VarChar(10)
+  /// Billed summarizer attempts against the current content; zero-spend
+  /// failures (timeouts, rate limits) do not count. Reset by a content edit.
+  summaryAttempts      Int                    @default(0) @map("summary_attempts")
+  /// Deferred-set: the model setting as written at the call that produced
+  /// assistant_summary; null until the first summary is stored.
+  summaryModel         String?                @map("summary_model") @db.VarChar(255)
+  /// Deferred-set: the summarizer prompt version that produced
+  /// assistant_summary; null until stored. A value below the current constant
+  /// marks the summary stale (renders as user turn + facts, re-enqueued).
+  summaryPromptVersion Int?                   @map("summary_prompt_version")
+  /// Deferred-set: sha-256 hex of `content` the stored summary (or the
+  /// recorded failure) describes; null until the first billed attempt. A
+  /// mismatch with the live content marks the summary stale.
+  sourceContentHash    String?                @map("source_content_hash") @db.VarChar(64)
+  /// Deferred-set: when the row was last enqueued for summarization; null
+  /// until the first enqueue.
+  summaryRequestedAt   DateTime?              @map("summary_requested_at")
+  /// Deferred-set: when assistant_summary was last written; null until done.
+  summaryCompletedAt   DateTime?              @map("summary_completed_at")
+  /// Deferred-set: the error CLASS of the last failed or dead attempt
+  /// (parse_failure, overflow, first_person, no_template — never message
+  /// text); null while no failure is recorded, cleared when a summary lands.
+  summaryLastError     String?                @map("summary_last_error") @db.VarChar(40)
   persona              Persona?               @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality          Personality            @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
