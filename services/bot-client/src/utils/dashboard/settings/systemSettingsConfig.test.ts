@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SYSTEM_SETTINGS_REGISTRY,
   SYSTEM_SETTINGS_KEYS,
-} from '@tzurot/common-types/schemas/api/systemSettings';
+} from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import {
   SYSTEM_SETTINGS_DEFINITIONS,
   SYSTEM_SETTINGS_PAGES,

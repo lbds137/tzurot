@@ -331,3 +331,33 @@ describe('coerceValue integer tightening (via handleSettingsSet)', () => {
     );
   });
 });
+
+describe('coerceValue list control (via handleSettingsSet)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSystemSettings.mockResolvedValue({
+      ok: true,
+      data: { systemSettings: { archiveSplitRenderPersonalities: [] }, updatedAt: UPDATED_AT },
+    });
+    mockUpdateSystemSettings.mockResolvedValue({
+      ok: true,
+      data: { systemSettings: {}, updatedAt: UPDATED_AT, warnings: [] },
+    });
+  });
+
+  // C13: parseSlugList must split/trim/dedupe — "a, b,,a" → ['a', 'b'].
+  it('splits, trims, drops empties, and dedupes a comma-separated slug list', async () => {
+    const context = makeContext('archiveSplitRenderPersonalities', 'a, b,,a');
+    await handleSettingsSet(context);
+    expect(mockUpdateSystemSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: { archiveSplitRenderPersonalities: ['a', 'b'] } })
+    );
+  });
+
+  it('renders an empty list as "(none)" in the success message', async () => {
+    const context = makeContext('archiveSplitRenderPersonalities', '');
+    await handleSettingsSet(context);
+    const content = (context.editReply.mock.calls[0][0] as { content: string }).content;
+    expect(content).toContain('(none)');
+  });
+});

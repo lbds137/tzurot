@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatRenderTimestamp,
-  stripQuoteLines,
   renderNoteV,
   renderNoteF,
   renderNoteS,
@@ -27,18 +26,6 @@ const BASE_INPUT: RenderInput = {
 describe('formatRenderTimestamp', () => {
   it('formats as YYYY-MM-DD HH:MM', () => {
     expect(formatRenderTimestamp(new Date('2026-03-15T14:30:00.000Z'))).toBe('2026-03-15 14:30');
-  });
-});
-
-describe('stripQuoteLines', () => {
-  it('drops lines starting with "> " and counts them', () => {
-    const result = stripQuoteLines('line one\n> quoted line\nline two');
-    expect(result.text).toBe('line one\nline two');
-    expect(result.strippedCount).toBe(1);
-  });
-
-  it('leaves text with no quote lines unchanged', () => {
-    expect(stripQuoteLines('plain text').strippedCount).toBe(0);
   });
 });
 

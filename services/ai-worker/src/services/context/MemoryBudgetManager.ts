@@ -15,7 +15,7 @@ import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
-import type { MemoryDocument } from '../ConversationalRAGTypes.js';
+import type { MemoryDocument, FactRenderNames } from '../ConversationalRAGTypes.js';
 import {
   type StructuredHistoryEntry,
   collectPersonalityNames,
@@ -53,12 +53,16 @@ export class MemoryBudgetManager {
    * @param memories - Memories sorted by relevance (highest first from pgvector)
    * @param tokenBudget - Maximum tokens to use for memories
    * @param timezone - Optional timezone for timestamp formatting
+   * @param names - Names used to resolve linked-fact {user}/{assistant}
+   *   placeholders while SIZING a split note, so the sized text agrees with
+   *   what the render pass later resolves for the same note.
    * @returns Selected memories and metadata
    */
   selectMemoriesWithinBudget(
     memories: MemoryDocument[],
     tokenBudget: number,
-    timezone?: string
+    timezone?: string,
+    names?: FactRenderNames
   ): MemorySelectionResult {
     if (memories.length === 0 || tokenBudget <= 0) {
       return {
@@ -73,8 +77,12 @@ export class MemoryBudgetManager {
     let tokensUsed = 0;
     let droppedDueToSize = 0;
 
-    // Account for memory archive wrapper overhead (single source of truth in MemoryFormatter)
-    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText());
+    // Account for memory archive wrapper overhead (single source of truth in
+    // MemoryFormatter). The mode rides on the doc — all memories in one turn
+    // share it (A3 stamps all-or-none) — so the FIRST memory's mode is the
+    // wrapper the render path will actually emit.
+    const mode = memories[0]?.metadata?.archiveRender?.mode;
+    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText(mode));
     const budgetRemaining = tokenBudget - wrapperOverhead;
 
     if (budgetRemaining <= 0) {
@@ -90,7 +98,7 @@ export class MemoryBudgetManager {
     // Iterate through memories (already sorted by relevance from pgvector)
     for (const memory of memories) {
       // Count tokens for this specific memory entry
-      const memoryText = formatSingleMemory(memory, timezone);
+      const memoryText = formatSingleMemory(memory, timezone, names);
       const memoryTokens = countTextTokens(memoryText);
 
       // Check if adding this memory would exceed budget

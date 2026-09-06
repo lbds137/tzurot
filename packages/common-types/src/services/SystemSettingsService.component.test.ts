@@ -14,7 +14,7 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '../schemas/api/adminSettings.js';
-import { SYSTEM_SETTINGS_FALLBACKS } from '../schemas/api/systemSettings.js';
+import { SYSTEM_SETTINGS_FALLBACKS } from '../schemas/api/systemSettingsRegistry.js';
 import { SystemSettingsService } from './SystemSettingsService.js';
 
 describe('SystemSettingsService (component)', () => {

@@ -342,6 +342,99 @@ describe('memoryUtils', () => {
 
       expect(result.metadata?.createdAt).toBe(new Date('2024-06-15T12:30:00.000Z').getTime());
     });
+
+    // @spec MEM-ARCH-006 — unparseable rows leave userTurn/subjectName undefined
+    it('MEM-ARCH-006: stamps userTurn and subjectName, placeholder-resolved, for template-shaped content', () => {
+      const queryResult: MemoryQueryResult = {
+        id: 'mem-split',
+        content: '{user}: hello there\n{assistant}: hi, how are you?',
+        persona_id: 'p1',
+        persona_name: 'Alice',
+        owner_username: 'aliceuser',
+        personality_id: 'pers1',
+        personality_name: 'Nova',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date(),
+        distance: 0.1,
+        chunk_group_id: null,
+        chunk_index: null,
+        total_chunks: null,
+      };
+
+      const result = mapQueryResultToDocument(queryResult);
+
+      expect(result.metadata?.userTurn).toBe('hello there');
+      expect(result.metadata?.subjectName).toBe('Alice');
+    });
+
+    // @spec MEM-ARCH-005 — the referenced block is not rendered in split mode
+    it('MEM-ARCH-005: userTurn excludes the [Referenced content: ...] block', () => {
+      const queryResult: MemoryQueryResult = {
+        id: 'mem-referenced',
+        content:
+          '{user}: check this out\n\n[Referenced content: a screenshot]\n{assistant}: neat find',
+        persona_id: 'p1',
+        persona_name: 'Alice',
+        owner_username: 'aliceuser',
+        personality_id: 'pers1',
+        personality_name: 'Nova',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date(),
+        distance: 0.1,
+        chunk_group_id: null,
+        chunk_index: null,
+        total_chunks: null,
+      };
+
+      const result = mapQueryResultToDocument(queryResult);
+
+      expect(result.metadata?.userTurn).toBe('check this out');
+      expect(result.metadata?.userTurn).not.toContain('Referenced content');
+      expect(result.metadata?.userTurn).not.toContain('screenshot');
+    });
+
+    it('MEM-ARCH-006: leaves userTurn and subjectName undefined for legacy (unparseable) content', () => {
+      const queryResult: MemoryQueryResult = {
+        id: 'mem-legacy',
+        content: 'not template-shaped content at all',
+        persona_id: 'p1',
+        persona_name: 'Alice',
+        owner_username: 'aliceuser',
+        personality_id: 'pers1',
+        personality_name: 'Nova',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date(),
+        distance: 0.1,
+        chunk_group_id: null,
+        chunk_index: null,
+        total_chunks: null,
+      };
+
+      const result = mapQueryResultToDocument(queryResult);
+
+      expect(result.metadata?.userTurn).toBeUndefined();
+      expect(result.metadata?.subjectName).toBeUndefined();
+      expect('userTurn' in (result.metadata ?? {})).toBe(false);
+      expect('subjectName' in (result.metadata ?? {})).toBe(false);
+    });
   });
 
   describe('extractChunkGroups', () => {
