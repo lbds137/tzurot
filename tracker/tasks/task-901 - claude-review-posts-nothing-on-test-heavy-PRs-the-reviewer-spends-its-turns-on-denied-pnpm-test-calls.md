@@ -22,3 +22,5 @@ Why: on #2349 (a 30-file tooling PR with ~3,300 tests) the claude-review job com
 Fix shape: in .github/workflows/claude-code-review.yml either add a prompt line telling the reviewer that tests are CI-verified and it must not run them, or allow Bash(pnpm --filter * test:*) so the calls succeed. Both are workflow-sync changes and must land via a main-cut branch (guard:workflow-sync). Verify by rerunning the review on a PR that previously went silent.
 Acceptance: a PR of that shape gets a posted review on the first run; the Verify a review was posted step passes.
 <!-- SECTION:DESCRIPTION:END -->
+
+Second data point: #2350 (a 62-file runtime PR, five review rounds) — the review job completed without posting on three of its six runs; each rerun posted. The posted-review guard step now fails the job explicitly, so the silent case is at least visible.
