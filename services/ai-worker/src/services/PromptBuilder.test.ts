@@ -19,6 +19,7 @@ import type {
   DiscordEnvironment,
   ConversationContext,
   ParticipantInfo,
+  FactForPrompt,
 } from './ConversationalRAGTypes.js';
 
 // Factory function for ProcessedAttachment
@@ -704,6 +705,49 @@ describe('PromptBuilder', () => {
       it('omits the <facts> block entirely when no facts are provided', () => {
         const { prefix } = buildContainers();
         expect(prefix).not.toContain('<facts');
+      });
+
+      // @spec MEM-ARCH-008 — D10 dedup applies in split mode only
+      it('MEM-ARCH-008: leaves a fact untouched in verbatim mode even when its id would be dropped in split mode', () => {
+        const facts: FactForPrompt[] = [{ id: 'f-covered', statement: 'covered by mem-1' }];
+        const memories: MemoryDocument[] = [
+          { pageContent: 'verbatim content', metadata: { id: 'mem-1' } },
+        ];
+        const prefix = promptBuilder.buildVolatilePrefix({
+          personality: minimalPersonality,
+          context: minimalContext,
+          facts,
+          relevantMemories: memories,
+        });
+        expect(prefix).toContain('<fact>covered by mem-1</fact>');
+      });
+
+      it("drops a fact whose id matches a rendered memory's linkedFacts in split mode", () => {
+        const facts: FactForPrompt[] = [
+          { id: 'f-covered', statement: 'covered by mem-1' },
+          { id: 'f-other', statement: 'uncovered fact' },
+        ];
+        const memories: MemoryDocument[] = [
+          {
+            pageContent: '{user}: hi\n{assistant}: hello',
+            metadata: {
+              id: 'mem-1',
+              userTurn: 'hi',
+              archiveRender: {
+                mode: 'split',
+                linkedFacts: [{ id: 'f-covered', statement: 'covered by mem-1', salience: 0.5 }],
+              },
+            },
+          },
+        ];
+        const prefix = promptBuilder.buildVolatilePrefix({
+          personality: minimalPersonality,
+          context: minimalContext,
+          facts,
+          relevantMemories: memories,
+        });
+        expect(prefix).not.toContain('<fact>covered by mem-1</fact>');
+        expect(prefix).toContain('<fact>uncovered fact</fact>');
       });
 
       it('a memory forging closing tags cannot escape the archive next to the user turn', () => {

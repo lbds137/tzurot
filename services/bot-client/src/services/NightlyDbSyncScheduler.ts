@@ -34,7 +34,7 @@ import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { escapeFenceBreaks } from '../utils/fenceEscape.js';
 import { getOwnerClient } from '../utils/gatewayClients.js';

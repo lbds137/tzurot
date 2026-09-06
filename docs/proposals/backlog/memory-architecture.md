@@ -157,3 +157,13 @@ Full grounding reports in session archive. Key verified facts: mem0 v2.0 ADD-onl
 **Rebutted with evidence**: Kimi + Qwen both called LangChain JS 1.x / the 2026 Store docs "unreleased/vaporware" — fact-verified SHIPPED this session (langchain 1.5.2, @langchain/core 1.2.1 in our own package.json; JS long-term-memory docs fetched). Kimi's recall-lag objection — largely moot: the current session sits in the history window; memory covers what falls out of it. Kimi's "no framework has your taxonomy is unproven" — it is proven for the surveyed set (8 systems + roleplay ecosystem, §7); the claim is scoped to the survey, not the universe.
 
 **Honest concessions recorded**: the adjudication's cost/Claude-Code pillars downgraded to contextual (§1); the full build IS multi-quarter for a solo maintainer — hence the minimum-viable milestone + evidence gates (§5) as the structural answer rather than optimism.
+
+## LID
+
+D9 of [`memory-archive-format.md`](./memory-archive-format.md) scopes a Living
+Intent Documentation pilot over the memory-archive slices: an LLD
+([`docs/intent/memory-archive/memory-archive-design.md`](../../intent/memory-archive/memory-archive-design.md))
+and EARS requirements
+([`docs/intent/memory-archive/memory-archive-specs.md`](../../intent/memory-archive/memory-archive-specs.md)),
+with `// @spec MEM-ARCH-NNN` annotations at the control planes each
+requirement pins. Entry point: `grep -rn "MEM-ARCH-" docs/intent services packages`.

@@ -23,13 +23,15 @@ import {
 } from '@tzurot/common-types/constants/ai';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  SYSTEM_SETTINGS_REGISTRY,
   UpdateSystemSettingsRequestSchema,
   UpdateSystemSettingsResponseSchema,
   GetSystemSettingsResponseSchema,
   type SystemSettings,
-  type SystemSettingMeta,
 } from '@tzurot/common-types/schemas/api/systemSettings';
+import {
+  SYSTEM_SETTINGS_REGISTRY,
+  type SystemSettingMeta,
+} from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';

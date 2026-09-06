@@ -13,7 +13,7 @@ import {
   resetDescriptionPromptRegistration,
 } from '../DescriptionPromptService.js';
 import { AI_DEFAULTS, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
-import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import {
   registerSystemSettings,
   resetSystemSettingsRegistration,

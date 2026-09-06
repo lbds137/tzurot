@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { INTERVALS } from '../constants/timing.js';
-import { SYSTEM_SETTINGS_FALLBACKS } from '../schemas/api/systemSettings.js';
+import { SYSTEM_SETTINGS_FALLBACKS } from '../schemas/api/systemSettingsRegistry.js';
 import {
   SystemSettingsService,
   registerSystemSettings,
@@ -181,6 +181,38 @@ describe('SystemSettingsService', () => {
         SYSTEM_SETTINGS_FALLBACKS.fallbackVisionModelFree
       );
     });
+
+    it('accepts an array value for a list-control key', async () => {
+      mockFindUnique.mockResolvedValue(rowWith({ archiveSplitRenderPersonalities: ['nova'] }));
+      const service = new SystemSettingsService(prisma);
+      await service.prime();
+      expect(service.get('archiveSplitRenderPersonalities')).toEqual(['nova']);
+    });
+
+    it('returns a fresh array reference on every call (DB-backed value) — mutating one leaves the next untouched', async () => {
+      mockFindUnique.mockResolvedValue(rowWith({ archiveSplitRenderPersonalities: ['nova'] }));
+      const service = new SystemSettingsService(prisma);
+      await service.prime();
+
+      const first = service.get('archiveSplitRenderPersonalities');
+      const second = service.get('archiveSplitRenderPersonalities');
+      expect(first).toEqual(second);
+      expect(first).not.toBe(second);
+
+      first.push('mutated');
+      expect(service.get('archiveSplitRenderPersonalities')).toEqual(['nova']);
+    });
+
+    it('returns a fresh array reference on every call (fallback path) — the shared fallback constant never leaks', () => {
+      const service = new SystemSettingsService(prisma);
+      const first = service.get('archiveSplitRenderPersonalities');
+      const second = service.get('archiveSplitRenderPersonalities');
+      expect(first).toEqual(second);
+      expect(first).not.toBe(second);
+
+      first.push('mutated');
+      expect(service.get('archiveSplitRenderPersonalities')).toEqual([]);
+    });
   });
 });
 
@@ -211,6 +243,16 @@ describe('ambient accessor (registerSystemSettings / getSystemSetting)', () => {
     registerSystemSettings(service);
 
     expect(getSystemSetting('extractionBatchThreshold')).toBe(42);
+  });
+
+  it('returns a fresh array reference on every call with no instance registered — mutating one leaves the next untouched', () => {
+    const first = getSystemSetting('archiveSplitRenderPersonalities');
+    const second = getSystemSetting('archiveSplitRenderPersonalities');
+    expect(first).toEqual(second);
+    expect(first).not.toBe(second);
+
+    first.push('mutated');
+    expect(getSystemSetting('archiveSplitRenderPersonalities')).toEqual([]);
   });
 
   it('a later registration replaces the earlier one (per-process singleton semantics)', async () => {

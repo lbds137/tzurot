@@ -150,4 +150,30 @@ describe('FactStore', () => {
       await expect(store.embedStatement('x')).rejects.toThrow(/not ready/);
     });
   });
+
+  describe('findActiveFactsBySourceMemoryIds', () => {
+    it('caps the row count with a LIMIT clause of exactly 200', async () => {
+      const m = makePrisma();
+      const store = new FactStore(m.prisma, makeEmbeddingService());
+
+      await store.findActiveFactsBySourceMemoryIds(['mem-1', 'mem-2'], PERSONALITY);
+
+      const queryRawMock = m.prisma.$queryRaw as unknown as ReturnType<typeof vi.fn>;
+      expect(queryRawMock).toHaveBeenCalledTimes(1);
+      const [strings, ...values] = queryRawMock.mock.calls[0] as [
+        TemplateStringsArray,
+        ...unknown[],
+      ];
+      const joined = strings.join(' ');
+      expect(joined).toContain('LIMIT');
+      expect(values).toContain(200);
+
+      // A cap hit must keep the most salient rows, not an arbitrary DB-order
+      // slice — so ORDER BY salience DESC must run BEFORE the LIMIT clause.
+      const orderByIndex = joined.indexOf('ORDER BY salience DESC');
+      const limitIndex = joined.indexOf('LIMIT');
+      expect(orderByIndex).toBeGreaterThanOrEqual(0);
+      expect(orderByIndex).toBeLessThan(limitIndex);
+    });
+  });
 });

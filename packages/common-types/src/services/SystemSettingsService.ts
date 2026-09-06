@@ -16,12 +16,11 @@
 
 import { INTERVALS } from '../constants/timing.js';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '../schemas/api/adminSettings.js';
+import { SystemSettingsSchema, type SystemSettings } from '../schemas/api/systemSettings.js';
 import {
   SYSTEM_SETTINGS_FALLBACKS,
   SYSTEM_SETTINGS_KEYS,
-  SystemSettingsSchema,
-  type SystemSettings,
-} from '../schemas/api/systemSettings.js';
+} from '../schemas/api/systemSettingsRegistry.js';
 import { createLogger } from '../utils/logger.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 
@@ -44,7 +43,7 @@ export class SystemSettingsService {
    */
   get<K extends keyof SystemSettings>(key: K): SystemSettings[K] {
     this.kickRefreshIfStale();
-    return this.values[key] ?? SYSTEM_SETTINGS_FALLBACKS[key];
+    return copyIfArray(this.values[key] ?? SYSTEM_SETTINGS_FALLBACKS[key]);
   }
 
   /**
@@ -125,12 +124,24 @@ export function registerSystemSettings(instance: SystemSettingsService): void {
  * no instance is registered yet (boot-order tolerance, tests).
  */
 export function getSystemSetting<K extends keyof SystemSettings>(key: K): SystemSettings[K] {
-  return ambientInstance !== null ? ambientInstance.get(key) : SYSTEM_SETTINGS_FALLBACKS[key];
+  return ambientInstance !== null
+    ? ambientInstance.get(key)
+    : copyIfArray(SYSTEM_SETTINGS_FALLBACKS[key]);
 }
 
 /** Test-only: clear the ambient registration between suites. */
 export function resetSystemSettingsRegistration(): void {
   ambientInstance = null;
+}
+
+/**
+ * Callers must not be able to mutate the cached bag or the shared fallback
+ * constant by mutating a returned value in place — every `get()`/
+ * `getSystemSetting()` call returns a fresh copy for array-typed settings, so
+ * a caller's `.push()` can never leak into the next read.
+ */
+function copyIfArray<T>(value: T): T {
+  return Array.isArray(value) ? ([...value] as T) : value;
 }
 
 /**

@@ -20,6 +20,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('FactStore');
 
+/** Retrieval windows are tens of memories at 1-4 linked facts each per the pilot corpus stats, so this is headroom, not a working limit. */
+const LINKED_FACTS_QUERY_CAP = 200;
+
 /** A fact as injected into the extraction prompt's supersession context.
  * Locked and corrected-tier facts stay IN the context (so the extractor
  * doesn't re-extract duplicates) but are excluded from supersession-target
@@ -43,6 +46,14 @@ export interface SimilarFact {
   similarity: number;
   isLocked: boolean;
   tier: string;
+}
+
+/** One fact linked to a memory, keyed for the split memory-archive render. */
+export interface LinkedFact {
+  id: string;
+  statement: string;
+  salience: number;
+  sourceMemoryIds: string[];
 }
 
 /** User protections extraction must honor when resolving supersession targets:
@@ -181,6 +192,44 @@ export class FactStore {
       similarity: r.similarity,
       isLocked: r.is_locked,
       tier: r.tier,
+    }));
+  }
+
+  /**
+   * Active facts linked to any of the given memory ids, for the memory-archive
+   * split render (A3) — one query per turn, grouped by the CALLER (see
+   * `FactRetriever.retrieveLinkedFacts`). Mirrors the render-pilot's linked-facts
+   * query (`render-pilot-corpus.ts`). "Active" here means not forgotten, not
+   * superseded, and not cascade-deleted (`visibility = 'normal'`) — the same
+   * three-way filter `findSimilarActiveFacts` applies.
+   */
+  // @spec MEM-ARCH-007 — linked facts are drawn only from active (non-deleted, non-forgotten, non-superseded) rows
+  async findActiveFactsBySourceMemoryIds(
+    memoryIds: string[],
+    personalityId: string
+  ): Promise<LinkedFact[]> {
+    if (memoryIds.length === 0) {
+      return [];
+    }
+    const rows = await this.prisma.$queryRaw<
+      { id: string; statement: string; salience: number; source_memory_ids: string[] }[]
+    >`
+      SELECT id, statement, salience, source_memory_ids
+      FROM memory_facts
+      WHERE personality_id = ${personalityId}::uuid
+        AND forgotten = false
+        AND superseded_at IS NULL
+        AND visibility = 'normal'
+        AND source_memory_ids && ${memoryIds}::text[]
+      ORDER BY salience DESC
+      -- so a cap hit keeps the most salient rows rather than an arbitrary DB-order slice
+      LIMIT ${LINKED_FACTS_QUERY_CAP}
+    `;
+    return rows.map(r => ({
+      id: r.id,
+      statement: r.statement,
+      salience: r.salience,
+      sourceMemoryIds: r.source_memory_ids,
     }));
   }
 

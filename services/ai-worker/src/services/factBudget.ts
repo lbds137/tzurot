@@ -8,12 +8,8 @@
  * was extracted).
  */
 
-import {
-  formatSingleFact,
-  getFactsWrapperOverheadText,
-  type FactRenderNames,
-} from './prompt/MemoryFormatter.js';
-import type { FactForPrompt } from './ConversationalRAGTypes.js';
+import { formatSingleFact, getFactsWrapperOverheadText } from './prompt/MemoryFormatter.js';
+import type { FactForPrompt, FactRenderNames } from './ConversationalRAGTypes.js';
 
 /**
  * Reserved fact sub-budget (Phase 2 slice 4a). Facts are short/dense and would

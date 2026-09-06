@@ -13,7 +13,7 @@ import {
   SYSTEM_SETTINGS_KEYS,
   type SystemSettingMeta,
   type SystemSettingGroup,
-} from '@tzurot/common-types/schemas/api/systemSettings';
+} from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { SettingType, type SettingDefinition, type SettingsPage } from './types.js';
 
 /** Page order + labels for the registry groups (artifact D8). */
@@ -61,6 +61,7 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   nightlySyncHourUtc: '🕒',
   realMessagesEnabled: '💬',
   headerSpoofNeutralizeEnabled: '🛡️',
+  archiveSplitRenderPersonalities: '🧩',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */
@@ -129,6 +130,14 @@ function toSettingDefinition(meta: SystemSettingMeta): SettingDefinition {
         type: SettingType.TEXT,
         placeholder: 'provider/model-id',
         helpText: modelHelpText(meta),
+      };
+    case 'list':
+      return {
+        ...base,
+        type: SettingType.TEXT,
+        placeholder: 'slug-one, slug-two',
+        helpText:
+          'Comma-separated list of personality slugs. Empty means every character renders verbatim.',
       };
   }
 }
