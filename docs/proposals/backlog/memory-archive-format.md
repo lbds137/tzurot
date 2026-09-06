@@ -85,7 +85,7 @@ assistantSummary String? @map("assistant_summary")
 | Slice | Contents | Gate |
 | --- | --- | --- |
 | P — pilot | offline script over the fixed corpus: arms V / F / S, the D7 metrics, cost per row, overflow and dangling-reference rates; results into this doc | the numbers decide F-only vs S |
-| A — render split + specs | `MemoryFormatter` renders user-verbatim + (facts or summary), quoted-assistant stripping, per-note cap, instruction text (D8), the LID specs, `@spec` at the control planes, `/memory view` summary line | unit tests; snapshot; `guard:proposal-links` |
+| A — render split + specs **(SHIPPED #2350, 2026-09-06; D10 keys on rendered fact ids; the `/memory view` summary line moved to B)** | `MemoryFormatter` renders user-verbatim + (facts or summary), quoted-assistant stripping, per-note cap, instruction text (D8), the LID specs, `@spec` at the control planes, `/memory view` summary line | unit tests; snapshot; `guard:proposal-links` |
 | B — summarizer (only if S won) | schema columns, the queue with dedupe/attempt cap/rate limit/spend guard, three switches, telemetry, the prompt with worked examples | D7 (a) on the pilot corpus; fact-preservation and faithfulness thresholds set from P |
 | C — hot-first backfill + per-character flip | pre-warm sweep, lazy tail, `pnpm ops memory:summarize --personality <slug> --env dev\|prod --estimate`, the ≥95% gate | D7 (b) and (c) green on the drifted character → flip it; then the rest one at a time |
 
