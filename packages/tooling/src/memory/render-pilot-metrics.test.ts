@@ -136,6 +136,45 @@ describe('decideSummaryOutcome', () => {
     expect(result.state).toBe('overflow');
     expect(result.text).toBe('X'.repeat(500));
   });
+
+  // Canary: labeling the kept-first case 'regenerated' again must redden these two.
+  it('keeps the first candidate as over_soft when the retry is longer than the first', () => {
+    const firstText = 'first candidate distinctive text kept whole and unsliced';
+    const result = decideSummaryOutcome(
+      { text: firstText, tokens: 70 },
+      { text: 'a much longer retry text', tokens: 90 }
+    );
+    expect(result.state).toBe('over_soft');
+    expect(result.text).toBe(firstText);
+    expect(result.text.length).toBe(firstText.length);
+    expect(result.tokens).toBe(70);
+  });
+
+  it('chooses the shorter retry as regenerated when it wins', () => {
+    const result = decideSummaryOutcome(
+      { text: 'first candidate', tokens: 70 },
+      { text: 'retry', tokens: 50 }
+    );
+    expect(result.state).toBe('regenerated');
+    expect(result.text).toBe('retry');
+    expect(result.tokens).toBe(50);
+  });
+
+  it('flags overflow when there is no retry and the first exceeds the hard cap', () => {
+    const result = decideSummaryOutcome({ text: 'over hard cap', tokens: 120 }, null);
+    expect(result.state).toBe('overflow');
+  });
+
+  it('keeps the first candidate as over_soft when the retry is longer, even closer to the caps', () => {
+    const firstText = 'kept first candidate, not truncated, exact length preserved here';
+    const result = decideSummaryOutcome(
+      { text: firstText, tokens: 70 },
+      { text: 'retry text that overshot the cap', tokens: 110 }
+    );
+    expect(result.state).toBe('over_soft');
+    expect(result.text).toBe(firstText);
+    expect(result.text.length).toBe(firstText.length);
+  });
 });
 
 describe('hasFirstPerson', () => {

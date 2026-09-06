@@ -58,6 +58,11 @@ describe('splitMemoryContent', () => {
   it('returns null when the content does not start with the user prefix', () => {
     expect(splitMemoryContent('assistant: hi\n{assistant}: hi again')).toBeNull();
   });
+
+  // Canary: removing the second-separator ambiguity guard must redden this test.
+  it('returns null when the assistant separator occurs more than once (ambiguous split)', () => {
+    expect(splitMemoryContent('{user}: hello\n{assistant}: hi\n{assistant}: hi again')).toBeNull();
+  });
 });
 
 describe('resolvePlaceholders', () => {

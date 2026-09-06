@@ -203,11 +203,12 @@ export function decideSummaryOutcome(
   if (first.tokens <= SUMMARY_SOFT_CAP_TOKENS) {
     return { ...first, state: 'within_soft' };
   }
-  const chosen = retry !== null && retry.tokens <= first.tokens ? retry : first;
-  return {
-    ...chosen,
-    state: chosen.tokens <= SUMMARY_HARD_CAP_TOKENS ? 'regenerated' : 'overflow',
-  };
+  const retryWon = retry !== null && retry.tokens <= first.tokens;
+  const chosen = retryWon ? retry : first;
+  if (chosen.tokens > SUMMARY_HARD_CAP_TOKENS) {
+    return { ...chosen, state: 'overflow' };
+  }
+  return { ...chosen, state: retryWon ? 'regenerated' : 'over_soft' };
 }
 
 /** Approximate first-person detector: `\b(I|I'm|I've|me|my)\b` outside double-quoted spans. */
@@ -321,6 +322,7 @@ function summaryArmStats(
   const stateDistribution: Record<SummaryState, number> = {
     within_soft: 0,
     regenerated: 0,
+    over_soft: 0,
     overflow: 0,
   };
   for (const s of summaries) {
