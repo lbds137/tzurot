@@ -94,6 +94,8 @@ async function answerVoiceTrigger(
       // finish_reason "length" with no content at all. The thinking-first ordering
       // is inferred from that finish_reason, not separately probed.
       maxTokens: 6000,
+      // No `thinking` setting on purpose: the voice probe measures reply style
+      // under the plan's own default, where answer and summarize force one.
       provider: vc.options.glmProvider,
     },
     vc.apiKey
