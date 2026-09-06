@@ -112,7 +112,7 @@ export function estimateDryRunPlan(
   const sortedRows = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const answerWindowTokens = sortedRows.reduce((sum, _row, index) => {
     const windowRows = selectWindowRows(sortedRows, index, options.window);
-    return sum + countTextTokens(renderArmNotes('V', corpus, new Map(), windowRows));
+    return sum + countTextTokens(renderArmNotes('V', corpus, new Map(), windowRows).xml);
   }, 0);
   const answerInputTokens = answerWindowTokens * answerCallsPerRow;
 
@@ -127,7 +127,9 @@ export function estimateDryRunPlan(
 
   const voiceCalls = options.triggers.length * ANSWER_ARMS_COUNT;
   const latestWindow = sortedRows.slice(-options.voiceWindow);
-  const voiceArchiveTokens = countTextTokens(renderArmNotes('V', corpus, new Map(), latestWindow));
+  const voiceArchiveTokens = countTextTokens(
+    renderArmNotes('V', corpus, new Map(), latestWindow).xml
+  );
   const voiceInputTokens = voiceArchiveTokens * voiceCalls;
 
   return [
@@ -256,7 +258,7 @@ export function writeAggregateReport(outDir: string, slugs: string[]): void {
 export async function runRenderPilot(options: RenderPilotOptions): Promise<void> {
   const { prisma, disconnect } = await getPrismaForEnv(options.env);
   try {
-    const apiKey = options.dryRun ? null : requireApiKey();
+    const apiKey = options.dryRun || options.stage === 'corpus' ? null : requireApiKey();
     for (const slug of options.slugs) {
       const ctx: SlugContext = {
         slug,

@@ -23,6 +23,8 @@ export interface AnswerRecord {
   truncated: boolean;
   /** Raw reply text — used ONLY for local per-slug files, never read by the report builder. */
   reply: string;
+  /** Rows in this answer's window rendered as arm F instead of arm S for lacking a usable summary. Meaningful only for arm S; always 0 for arms V and F. */
+  summaryFallbackRows: number;
 }
 
 export interface SummaryRecord {
@@ -61,6 +63,8 @@ export interface VoiceRecord {
   truncated: boolean;
   /** Raw reply text — never read by the report builder. */
   reply: string;
+  /** Rows in this trigger's window rendered as arm F instead of arm S for lacking a usable summary. Meaningful only for arm S; always 0 for arms V and F. */
+  summaryFallbackRows: number;
 }
 
 export interface UsageAggregateInput {
@@ -95,6 +99,8 @@ export interface ArmAnswerStats {
   tokensInTail: { mean: number; p95: number };
   /** Over ALL rows (judged or not) — truncation is observed at answer time. */
   truncatedRate: number;
+  /** Mean of `AnswerRecord.summaryFallbackRows` — meaningful only for arm S; always 0 for arms V and F. */
+  summaryFallbackRowsMean: number;
 }
 
 export interface SummaryArmStats {
@@ -125,6 +131,8 @@ export interface VoiceArmStats {
   selfReferenceRate: number;
   markerHitsMean: number;
   truncatedRate: number;
+  /** Mean of `VoiceRecord.summaryFallbackRows` — meaningful only for arm S; always 0 for arms V and F. */
+  summaryFallbackRowsMean: number;
 }
 
 export interface UsageStat {

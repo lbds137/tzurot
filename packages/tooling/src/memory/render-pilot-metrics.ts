@@ -308,6 +308,7 @@ function armAnswerStats(records: AnswerRecord[], arm: RenderArm): ArmAnswerStats
       p95: p95(rows.map(r => r.tailTokens)),
     },
     truncatedRate: rows.length === 0 ? 0 : rows.filter(r => r.truncated).length / rows.length,
+    summaryFallbackRowsMean: mean(rows.map(r => r.summaryFallbackRows)),
   };
 }
 
@@ -373,6 +374,7 @@ function voiceArmStats(records: VoiceRecord[], arm: RenderArm): VoiceArmStats {
       rows.length === 0 ? 0 : rows.filter(r => r.thirdPersonSelfReference).length / rows.length,
     markerHitsMean: mean(rows.map(r => r.markerHits)),
     truncatedRate: rows.length === 0 ? 0 : rows.filter(r => r.truncated).length / rows.length,
+    summaryFallbackRowsMean: mean(rows.map(r => r.summaryFallbackRows)),
   };
 }
 

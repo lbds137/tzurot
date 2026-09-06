@@ -190,6 +190,46 @@ describe('render-pilot summarize/questions stages', () => {
     logSpy.mockRestore();
   });
 
+  it('requests an 8000 maxTokens budget for the summarizer call', async () => {
+    callOpenRouterMock.mockResolvedValue({
+      content: '{"summary": "Alice greeted Nova."}',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+    });
+    await runSummariesStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
+    expect(callOpenRouterMock).toHaveBeenCalledWith(
+      expect.objectContaining({ maxTokens: 8000 }),
+      'sk-test'
+    );
+  });
+
+  // Canary (F1b): a summarizer response that parses to an empty summary must
+  // fail the call rather than land in `summaries` as an empty-string record —
+  // deleting the empty-text throw in callSummarizer reddens this test.
+  it('records a summarizer response with an empty summary as a failure, not a summary record', async () => {
+    callOpenRouterMock.mockResolvedValue({
+      content: '{"summary": ""}',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await runSummariesStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
+
+    const result = readStageFile<{
+      summaries: { rowId: string }[];
+      failures: { index: number; rowId?: string; error: string }[];
+    }>(stagePath(dir, 'nova', 'summaries'));
+    expect(result?.summaries).toEqual([]);
+    expect(result?.failures).toEqual([
+      { index: 0, rowId: 'm1', error: 'summarizer returned empty content' },
+    ]);
+    logSpy.mockRestore();
+  });
+
   it('skips a cached stage under --stage all', async () => {
     writeStageFile(stagePath(dir, 'nova', 'summaries'), { summaries: [], failures: [] });
     await runSummariesStage(ctx, baseOptions({ outDir: dir, stage: 'all' }), makeCorpus());
