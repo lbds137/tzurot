@@ -116,11 +116,12 @@ interface ParsedCompletionBody {
 }
 
 /**
- * The `choices[0].message.content` field is missing or not a string. When
- * `finish_reason` is `"length"`, the budget was exhausted before any content
- * was produced — a reasoning model spends `max_tokens` on internal thinking
- * before emitting a reply, so a tight cap can leave zero tokens for output.
- * Split out of {@link parseCompletionBody} to keep its complexity in bounds.
+ * The `choices[0].message.content` field is missing or not a string, or is
+ * empty after thinking-block stripping. When `finish_reason` is `"length"`,
+ * the budget was exhausted before any content was produced — a reasoning
+ * model spends `max_tokens` on internal thinking before emitting a reply, so
+ * a tight cap can leave zero tokens for output. Split out of
+ * {@link parseCompletionBody} to keep its complexity in bounds.
  */
 function throwMissingContentError(rawBody: string, parsed: RawOpenRouterResponse): never {
   if (parsed.choices?.[0]?.finish_reason === 'length') {
@@ -163,6 +164,9 @@ function parseCompletionBody(rawBody: string): ParsedCompletionBody {
     );
   }
 
+  const rawFinishReason = parsed.choices?.[0]?.finish_reason;
+  const finishReason = typeof rawFinishReason === 'string' ? rawFinishReason : null;
+
   const { content, reasoningBlocksStripped } = stripThinkingBlocks(rawContent);
   const rawReasoning = parsed.choices?.[0]?.message?.reasoning;
   if (content.length === 0 && typeof rawReasoning === 'string' && rawReasoning.length > 0) {
@@ -176,10 +180,27 @@ function parseCompletionBody(rawBody: string): ParsedCompletionBody {
     );
   }
 
-  const rawFinishReason = parsed.choices?.[0]?.finish_reason;
-  const finishReason = typeof rawFinishReason === 'string' ? rawFinishReason : null;
+  throwIfExhaustedByLength(content, finishReason, rawBody, parsed);
 
   return { content, promptTokens, completionTokens, reasoningBlocksStripped, finishReason };
+}
+
+/**
+ * Content that survived thinking-block stripping but is still empty, with
+ * `finish_reason: "length"`, is the same exhausted-budget shape
+ * {@link throwMissingContentError} already handles for a missing/non-string
+ * `content` field — split out to keep {@link parseCompletionBody}'s
+ * complexity in bounds.
+ */
+function throwIfExhaustedByLength(
+  content: string,
+  finishReason: string | null,
+  rawBody: string,
+  parsed: RawOpenRouterResponse
+): void {
+  if (content.trim().length === 0 && finishReason === 'length') {
+    throwMissingContentError(rawBody, parsed);
+  }
 }
 
 function isRetryableStatus(status: number): boolean {

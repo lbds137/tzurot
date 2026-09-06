@@ -12,6 +12,7 @@ import {
   selectWindowRows,
   partitionSettled,
   reportStageFailures,
+  reportOrphanedQuestions,
   type RenderPilotOptions,
 } from './render-pilot-shared.js';
 
@@ -160,6 +161,28 @@ describe('reportStageFailures', () => {
       '[render-pilot] stage summaries: 3 call(s) failed — see stage-summaries.json'
     );
     expect(line).not.toContain('SENTINEL-should-not-appear');
+  });
+});
+
+describe('reportOrphanedQuestions', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('prints nothing when the count is zero', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    reportOrphanedQuestions(0);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('prints one count-only line naming the stage', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    reportOrphanedQuestions(2);
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [line] = spy.mock.calls[0] as [string];
+    expect(line).toBe(
+      '[render-pilot] stage answers: 2 orphaned question(s) skipped — regenerate stage-questions.json after changing the corpus'
+    );
   });
 });
 

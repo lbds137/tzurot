@@ -42,6 +42,7 @@ import {
   selectWindowRows,
   partitionSettled,
   reportStageFailures,
+  reportOrphanedQuestions,
   type RenderPilotOptions,
   type SlugContext,
   type StageCallFailure,
@@ -62,6 +63,8 @@ export interface AnswerStageRecord {
   tailTokens: number;
   /** `finishReason === 'length'` — the reply was cut off by the token cap. */
   truncated: boolean;
+  /** Rows in this answer's window rendered as arm F instead of arm S for lacking a usable summary. Meaningful only for arm S; always 0 for arms V and F. */
+  summaryFallbackRows: number;
 }
 
 const ARMS: RenderArm[] = ['V', 'F', 'S'];
@@ -81,7 +84,12 @@ async function answerOneQuestionArm(
   windowRows: CorpusRow[],
   arm: RenderArm
 ): Promise<AnswerStageRecord> {
-  const archive = renderArmNotes(arm, ac.corpus, ac.summaryByRowId, windowRows);
+  const { xml: archive, summaryFallbackRows } = renderArmNotes(
+    arm,
+    ac.corpus,
+    ac.summaryByRowId,
+    windowRows
+  );
   const result = await callOpenRouter(
     {
       model: ac.options.answerModel,
@@ -110,6 +118,7 @@ async function answerOneQuestionArm(
     reply: result.content,
     tailTokens: countTextTokens(archive),
     truncated: result.finishReason === 'length',
+    summaryFallbackRows,
   };
 }
 
@@ -117,12 +126,14 @@ async function answerOneQuestionArm(
 export interface AnswersStageFile {
   answers: AnswerStageRecord[];
   failures: StageCallFailure[];
+  /** Cached questions whose `rowId` was no longer in the corpus when this stage ran — skipped, not answered. */
+  orphanedQuestions: number;
 }
 
 /** Read the cached answers stage file, defaulting to empty when absent. */
 export function loadAnswersStageFile(outDir: string, slug: string): AnswersStageFile {
   const file = readStageFile<AnswersStageFile>(stagePath(outDir, slug, 'answers'));
-  return file ?? { answers: [], failures: [] };
+  return file ?? { answers: [], failures: [], orphanedQuestions: 0 };
 }
 
 /** For every (row, question, arm), render the window and answer in-character. */
@@ -150,9 +161,11 @@ export async function runAnswersStage(
 
   const tasks: (() => Promise<AnswerStageRecord>)[] = [];
   const meta: { rowId: string; arm: RenderArm }[] = [];
+  let orphanedQuestions = 0;
   for (const question of questions) {
     const centerIndex = sortedRows.findIndex(r => r.id === question.rowId);
     if (centerIndex === -1) {
+      orphanedQuestions += 1;
       continue;
     }
     const windowRows = selectWindowRows(sortedRows, centerIndex, options.window);
@@ -161,10 +174,11 @@ export async function runAnswersStage(
       meta.push({ rowId: question.rowId, arm });
     }
   }
+  reportOrphanedQuestions(orphanedQuestions);
   const settled = await runWithConcurrencySettled(tasks, options.concurrency);
   const { values, failures } = partitionSettled(settled, index => meta[index]);
   reportStageFailures('answers', failures);
-  const file: AnswersStageFile = { answers: values, failures };
+  const file: AnswersStageFile = { answers: values, failures, orphanedQuestions };
   writeStageFile(path, file);
 }
 
@@ -279,6 +293,7 @@ async function judgeOneAnswer(
     tailTokens: answer.tailTokens,
     truncated: answer.truncated,
     reply: answer.reply,
+    summaryFallbackRows: answer.summaryFallbackRows,
   };
 }
 

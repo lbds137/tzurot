@@ -157,6 +157,21 @@ export function reportStageFailures(stage: string, failures: StageCallFailure[])
 }
 
 /**
+ * Log one count-only line when the answers stage skipped cached questions
+ * whose `rowId` is no longer in the current corpus — the corpus changed
+ * (a re-run with different `--largest`/`--latest`) since the questions
+ * stage cached them.
+ */
+export function reportOrphanedQuestions(count: number): void {
+  if (count === 0) {
+    return;
+  }
+  console.log(
+    `[render-pilot] stage answers: ${String(count)} orphaned question(s) skipped — regenerate stage-questions.json after changing the corpus`
+  );
+}
+
+/**
  * Pick `windowSize` rows centered on `centerIndex` from a chronologically
  * sorted pool, alternating before/after the center (deterministic — no RNG).
  */

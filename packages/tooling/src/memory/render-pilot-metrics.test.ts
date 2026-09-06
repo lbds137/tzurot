@@ -15,6 +15,7 @@ import {
   countMarkerHits,
   buildReportJson,
   type AnswerRecord,
+  type VoiceRecord,
 } from './render-pilot-metrics.js';
 
 describe('extractJsonBlock', () => {
@@ -190,6 +191,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'x',
+        summaryFallbackRows: 0,
       },
       {
         arm: 'V',
@@ -201,6 +203,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'y',
+        summaryFallbackRows: 0,
       },
     ];
     const json = buildReportJson({
@@ -237,6 +240,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'x',
+        summaryFallbackRows: 0,
       },
       {
         arm: 'V',
@@ -248,6 +252,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'y',
+        summaryFallbackRows: 0,
       },
       {
         arm: 'V',
@@ -259,6 +264,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: true,
         reply: 'z',
+        summaryFallbackRows: 0,
       },
     ];
     const json = buildReportJson({
@@ -293,6 +299,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: true,
         reply: 'x',
+        summaryFallbackRows: 0,
       },
       {
         arm: 'V',
@@ -304,6 +311,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'y',
+        summaryFallbackRows: 0,
       },
       {
         arm: 'V',
@@ -315,6 +323,7 @@ describe('buildReportJson', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'z',
+        summaryFallbackRows: 0,
       },
     ];
     const json = buildReportJson({
@@ -329,5 +338,87 @@ describe('buildReportJson', () => {
       callFailures: {},
     });
     expect(json.arms.V.truncatedRate).toBeCloseTo(1 / 3, 5);
+  });
+
+  it('computes summaryFallbackRowsMean for the answer arm', () => {
+    const answers: AnswerRecord[] = [
+      {
+        arm: 'S',
+        basis: 'assistant',
+        judged: true,
+        correct: true,
+        faithful: true,
+        unsupportedClaims: [],
+        tailTokens: 10,
+        truncated: false,
+        reply: 'x',
+        summaryFallbackRows: 2,
+      },
+      {
+        arm: 'S',
+        basis: 'assistant',
+        judged: true,
+        correct: true,
+        faithful: true,
+        unsupportedClaims: [],
+        tailTokens: 10,
+        truncated: false,
+        reply: 'y',
+        summaryFallbackRows: 4,
+      },
+    ];
+    const json = buildReportJson({
+      characterName: 'Nova',
+      answers,
+      summaries: [],
+      summaryJudgements: [],
+      facts: [],
+      voice: [],
+      usage: [],
+      droppedMalformedQuestions: 0,
+      callFailures: {},
+    });
+    expect(json.arms.S.summaryFallbackRowsMean).toBe(3);
+  });
+
+  it('computes summaryFallbackRowsMean for the voice arm', () => {
+    const voice: VoiceRecord[] = [
+      {
+        arm: 'S',
+        chars: 10,
+        words: 2,
+        exclamationsPer100Words: 0,
+        emojiCount: 0,
+        thirdPersonSelfReference: false,
+        markerHits: 0,
+        truncated: false,
+        reply: 'x',
+        summaryFallbackRows: 1,
+      },
+      {
+        arm: 'S',
+        chars: 10,
+        words: 2,
+        exclamationsPer100Words: 0,
+        emojiCount: 0,
+        thirdPersonSelfReference: false,
+        markerHits: 0,
+        truncated: false,
+        reply: 'y',
+        summaryFallbackRows: 5,
+      },
+    ];
+    const json = buildReportJson({
+      characterName: 'Nova',
+      answers: [],
+      summaries: [],
+      summaryJudgements: [],
+      facts: [],
+      voice,
+      usage: [],
+      droppedMalformedQuestions: 0,
+      callFailures: {},
+    });
+    expect(json.voice.S.summaryFallbackRowsMean).toBe(3);
   });
 });

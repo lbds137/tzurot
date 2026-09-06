@@ -25,6 +25,7 @@ describe('render-pilot report types', () => {
       tailTokens: 10,
       truncated: false,
       reply: 'x',
+      summaryFallbackRows: 0,
     } satisfies AnswerRecord;
     expect(record.judged).toBe(true);
   });
@@ -60,6 +61,7 @@ describe('render-pilot report types', () => {
       markerHits: 0,
       truncated: false,
       reply: 'x',
+      summaryFallbackRows: 0,
     } satisfies VoiceRecord;
     expect(facts.hadFacts).toBe(true);
     expect(voice.arm).toBe('V');
@@ -90,6 +92,7 @@ describe('render-pilot report types', () => {
       unsupportedClaimsMean: 0,
       tokensInTail: { mean: 0, p95: 0 },
       truncatedRate: 0,
+      summaryFallbackRowsMean: 0,
     };
     const voiceStats = {
       n: 0,
@@ -100,6 +103,7 @@ describe('render-pilot report types', () => {
       selfReferenceRate: 0,
       markerHitsMean: 0,
       truncatedRate: 0,
+      summaryFallbackRowsMean: 0,
     };
     const report = {
       character: 'Nova',

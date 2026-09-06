@@ -64,13 +64,18 @@ async function callSummarizer(
     // Cap must leave headroom for a reasoning model's thinking tokens, which are
     // emitted before any content: a live run at a tight cap came back
     // finish_reason "length" with no content at all. The thinking-first ordering
-    // is inferred from that finish_reason, not separately probed.
-    { model: options.summaryModel, messages, temperature: 0.2, maxTokens: 3000, jsonMode: true },
+    // is inferred from that finish_reason, not separately probed — a live run at
+    // a 3000 cap still came back finish_reason "length" with no content on the
+    // largest rows, so the cap is 8000.
+    { model: options.summaryModel, messages, temperature: 0.2, maxTokens: 8000, jsonMode: true },
     apiKey
   );
   logUsage(ctx, 'summaries', options.summaryModel, result);
   const parsed = parseSummaryResponse(result.content);
   const text = parsed?.summary ?? result.content;
+  if (text.trim().length === 0) {
+    throw new Error('summarizer returned empty content');
+  }
   return { text, tokens: countTextTokens(text), parseFailed: parsed === null };
 }
 

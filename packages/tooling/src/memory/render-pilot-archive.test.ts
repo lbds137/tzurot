@@ -44,14 +44,14 @@ function makeRow(id: string, referenced: string | null = null): CorpusRow {
 describe('renderArmNotes', () => {
   it('renders arm V with the referenced block included', () => {
     const corpus = makeCorpus([makeRow('m1', 'a photo')]);
-    const xml = renderArmNotes('V', corpus, new Map(), corpus.rows);
+    const { xml } = renderArmNotes('V', corpus, new Map(), corpus.rows);
     expect(xml).toContain('[Referenced content: a photo]');
     expect(xml).toContain('<memory_archive');
   });
 
   it('renders arm F without the referenced block', () => {
     const corpus = makeCorpus([makeRow('m1', 'a photo')]);
-    const xml = renderArmNotes('F', corpus, new Map(), corpus.rows);
+    const { xml } = renderArmNotes('F', corpus, new Map(), corpus.rows);
     expect(xml).not.toContain('Referenced content');
   });
 
@@ -69,13 +69,45 @@ describe('renderArmNotes', () => {
         },
       ],
     ]);
-    const xml = renderArmNotes('S', corpus, summaryByRowId, corpus.rows);
+    const { xml, summaryFallbackRows } = renderArmNotes('S', corpus, summaryByRowId, corpus.rows);
     expect(xml).toContain('Alice said hi.');
+    expect(summaryFallbackRows).toBe(0);
   });
 
   it('joins multiple rows into one archive block', () => {
     const corpus = makeCorpus([makeRow('m1'), makeRow('m2')]);
-    const xml = renderArmNotes('V', corpus, new Map(), corpus.rows);
+    const { xml } = renderArmNotes('V', corpus, new Map(), corpus.rows);
     expect(xml.match(/<historical_note/g)).toHaveLength(2);
+  });
+
+  // D2 (docs/proposals/backlog/memory-archive-format.md): a row with no usable
+  // summary must render as arm F, not as arm S with an empty assistant turn.
+  // Canary: reverting the fallback in renderArmNotes back to a bare renderNoteS
+  // call must redden this test.
+  it('falls back to arm F when a row has no cached summary', () => {
+    const corpus = makeCorpus([makeRow('m1')]);
+    const { xml, summaryFallbackRows } = renderArmNotes('S', corpus, new Map(), corpus.rows);
+    // renderNoteF never emits a "displayName: ..." assistant line; renderNoteS always does.
+    expect(xml).not.toContain('Nova:');
+    expect(summaryFallbackRows).toBe(1);
+  });
+
+  it('does not fall back to arm F when the cached summary is present and non-empty', () => {
+    const corpus = makeCorpus([makeRow('m1')]);
+    const summaryByRowId = new Map<string, SummaryRecord>([
+      [
+        'm1',
+        {
+          tokens: 10,
+          state: 'within_soft',
+          hasFirstPerson: false,
+          parseFailed: false,
+          summary: 'Alice said hi.',
+        },
+      ],
+    ]);
+    const { xml, summaryFallbackRows } = renderArmNotes('S', corpus, summaryByRowId, corpus.rows);
+    expect(xml).toContain('Nova:');
+    expect(summaryFallbackRows).toBe(0);
   });
 });

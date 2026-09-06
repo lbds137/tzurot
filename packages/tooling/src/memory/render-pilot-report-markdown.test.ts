@@ -28,6 +28,7 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
         tailTokens: 10,
         truncated: false,
         reply: SENTINEL,
+        summaryFallbackRows: 0,
       },
     ];
     const summaries: SummaryRecord[] = [
@@ -60,6 +61,7 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
         markerHits: 0,
         truncated: false,
         reply: SENTINEL,
+        summaryFallbackRows: 0,
       },
     ];
 
@@ -120,6 +122,7 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
           tailTokens: 10,
           truncated: true,
           reply: 'x',
+          summaryFallbackRows: 0,
         },
       ],
       summaries: [],
@@ -136,6 +139,7 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
           markerHits: 0,
           truncated: true,
           reply: 'y',
+          summaryFallbackRows: 0,
         },
       ],
       usage: [],
@@ -145,6 +149,56 @@ describe('buildReportMarkdown — never leaks memory/reply/summary text', () => 
     const markdown = buildReportMarkdown({ perCharacter: {}, pooled: json });
     expect(markdown).toContain('Truncated');
     expect(markdown).toContain('100.0%');
+  });
+
+  it('renders a Summary fallback rows column in both the answers table and the voice table', () => {
+    const json = buildReportJson({
+      characterName: 'Nova',
+      answers: [
+        {
+          arm: 'S',
+          basis: 'assistant',
+          judged: true,
+          correct: true,
+          faithful: true,
+          unsupportedClaims: [],
+          tailTokens: 10,
+          truncated: false,
+          reply: 'x',
+          summaryFallbackRows: 2,
+        },
+      ],
+      summaries: [],
+      summaryJudgements: [],
+      facts: [],
+      voice: [
+        {
+          arm: 'S',
+          chars: 10,
+          words: 2,
+          exclamationsPer100Words: 0,
+          emojiCount: 0,
+          thirdPersonSelfReference: false,
+          markerHits: 0,
+          truncated: false,
+          reply: 'y',
+          summaryFallbackRows: 4,
+        },
+      ],
+      usage: [],
+      droppedMalformedQuestions: 0,
+      callFailures: {},
+    });
+    const markdown = buildReportMarkdown({ perCharacter: {}, pooled: json });
+    expect(markdown).toContain('Summary fallback rows (mean)');
+    const answersRow = markdown
+      .split('\n')
+      .find(line => line.startsWith('| S |') && line.includes('/ 10'));
+    expect(answersRow?.trim().endsWith('| 2 |')).toBe(true);
+    const voiceRow = markdown
+      .split('\n')
+      .find(line => line.startsWith('| S |') && !line.includes('/ 10'));
+    expect(voiceRow?.trim().endsWith('| 4 |')).toBe(true);
   });
 
   it('renders the failed-model-calls-by-stage line, counts only', () => {

@@ -197,6 +197,25 @@ describe('callOpenRouter', () => {
     ).rejects.toThrow(/reasoning/);
   });
 
+  // Canary (F1a): deleting the empty-content-with-"length" branch in
+  // parseCompletionBody must redden this test — an empty string is a
+  // `typeof === 'string'` content, so only this explicit check catches it.
+  it('throws an exhausted-budget error when content is empty and finish_reason is "length"', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('', { finish_reason: 'length' })));
+    await expect(
+      callOpenRouter({ model: 'm', messages: [], temperature: 0, maxTokens: 10 }, 'sk-test')
+    ).rejects.toThrow(/exhausted the token budget/);
+  });
+
+  it('resolves with empty content when finish_reason is "stop" (a legitimate, if odd, empty reply)', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('', { finish_reason: 'stop' })));
+    const result = await callOpenRouter(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+      'sk-test'
+    );
+    expect(result.content).toBe('');
+  });
+
   // Canary: mutating MAX_ATTEMPTS (or the retry-eligibility check) must redden this test.
   it('retries a 429 exactly 3 attempts total, then throws', async () => {
     mockFetch.mockResolvedValue(jsonResponse(429, { error: 'rate limited' }));
