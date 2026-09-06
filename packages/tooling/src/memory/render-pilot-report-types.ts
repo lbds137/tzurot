@@ -7,8 +7,14 @@
 
 import type { RenderArm } from './render-pilot-render.js';
 
-/** D4 summary-length classification (see `decideSummaryOutcome` in render-pilot-metrics.ts). */
-export type SummaryState = 'within_soft' | 'regenerated' | 'overflow';
+/**
+ * D4 summary-length classification (see `decideSummaryOutcome` in render-pilot-metrics.ts).
+ * - `within_soft` — the first candidate was already at or under the soft cap; no retry considered.
+ * - `regenerated` — the retry candidate was chosen (shorter than the first) and landed at or under the hard cap.
+ * - `over_soft` — the first candidate was over the soft cap but kept (no retry, or the retry wasn't shorter), and is at or under the hard cap.
+ * - `overflow` — the chosen candidate (first or retry) is still over the hard cap.
+ */
+export type SummaryState = 'within_soft' | 'regenerated' | 'over_soft' | 'overflow';
 
 export interface AnswerRecord {
   arm: RenderArm;

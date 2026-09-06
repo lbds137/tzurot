@@ -14,8 +14,10 @@ import { dirname } from 'node:path';
 import { UsageError } from '../utils/errors.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MAX_ATTEMPTS = 3;
-const BACKOFF_MS = [2000, 6000, 18000];
+// One sleep between each pair of attempts, so MAX_ATTEMPTS derives from the
+// backoff schedule's length rather than being tracked separately.
+const BACKOFF_MS = [2000, 6000] as const;
+const MAX_ATTEMPTS = BACKOFF_MS.length + 1;
 const TIMEOUT_MS = 120_000;
 const RAW_BODY_PREVIEW_CHARS = 300;
 
