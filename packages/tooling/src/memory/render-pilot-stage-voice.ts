@@ -15,7 +15,7 @@ import {
 } from './render-pilot-render.js';
 import { renderArmNotes } from './render-pilot-archive.js';
 import {
-  callOpenRouter,
+  callChatCompletion,
   requireApiKey,
   runWithConcurrencySettled,
   clearStageUsage,
@@ -79,7 +79,7 @@ async function answerVoiceTrigger(
     vc.latestWindow
   );
   const userMessage = vc.voiceAnchor.length > 0 ? `${vc.voiceAnchor}\n\n${trigger}` : trigger;
-  const result = await callOpenRouter(
+  const result = await callChatCompletion(
     {
       model: vc.options.answerModel,
       messages: [
@@ -94,6 +94,7 @@ async function answerVoiceTrigger(
       // finish_reason "length" with no content at all. The thinking-first ordering
       // is inferred from that finish_reason, not separately probed.
       maxTokens: 6000,
+      provider: vc.options.glmProvider,
     },
     vc.apiKey
   );
@@ -126,7 +127,7 @@ export async function runVoiceStage(
     return;
   }
   clearStageUsage(ctx.usageLogPath, 'voice');
-  const apiKey = ctx.apiKey ?? requireApiKey();
+  const apiKey = ctx.apiKeys[options.glmProvider] ?? requireApiKey(options.glmProvider);
   const sortedRows = [...corpus.rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const latestWindow = sortedRows.slice(-options.voiceWindow);
   const summaryByRowId = loadSummaryByRowId(ctx.outDir, ctx.slug);

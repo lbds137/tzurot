@@ -100,6 +100,9 @@ function baseOptions(dir: string, overrides: Partial<RenderPilotOptions> = {}): 
     stage: 'all',
     concurrency: 4,
     dryRun: false,
+    glmProvider: 'zai-coding',
+    summaryThinking: 'disabled',
+    answerThinking: 'high',
     ...overrides,
   };
 }
@@ -173,6 +176,53 @@ describe('runRenderPilot', () => {
     buildCorpusMock.mockRejectedValue(new Error('db down'));
     await expect(runRenderPilot(baseOptions(dir))).rejects.toThrow('db down');
     expect(disconnectMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Wiring pin: resolveApiKeys must resolve BOTH provider families for a full
+  // run — the judge family always on 'openrouter', the GLM family on
+  // whichever provider glmProvider names. requireApiKeyMock is
+  // argument-agnostic by default, so without asserting the specific argument
+  // this couldn't catch a resolveApiKeys that silently dropped a provider or
+  // resolved the wrong one.
+  it('--stage all with glmProvider zai-coding resolves both openrouter and zai-coding keys', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'all', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).toHaveBeenCalledWith('openrouter');
+    expect(requireApiKeyMock).toHaveBeenCalledWith('zai-coding');
+  });
+
+  it('--stage answers with glmProvider zai-coding resolves only zai-coding, never openrouter', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'answers', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).toHaveBeenCalledWith('zai-coding');
+    expect(requireApiKeyMock).not.toHaveBeenCalledWith('openrouter');
+  });
+
+  it('--stage summaries with glmProvider zai-coding resolves only zai-coding, never openrouter', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'summaries', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).toHaveBeenCalledWith('zai-coding');
+    expect(requireApiKeyMock).not.toHaveBeenCalledWith('openrouter');
+  });
+
+  it('--stage voice with glmProvider zai-coding resolves only zai-coding, never openrouter', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'voice', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).toHaveBeenCalledWith('zai-coding');
+    expect(requireApiKeyMock).not.toHaveBeenCalledWith('openrouter');
+  });
+
+  it('--stage judge resolves only openrouter, never zai-coding', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'judge', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).toHaveBeenCalledWith('openrouter');
+    expect(requireApiKeyMock).not.toHaveBeenCalledWith('zai-coding');
+  });
+
+  it('--stage questions resolves only openrouter, never zai-coding', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'questions', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).toHaveBeenCalledWith('openrouter');
+    expect(requireApiKeyMock).not.toHaveBeenCalledWith('zai-coding');
+  });
+
+  it('--stage report resolves neither provider', async () => {
+    await runRenderPilot(baseOptions(dir, { stage: 'report', glmProvider: 'zai-coding' }));
+    expect(requireApiKeyMock).not.toHaveBeenCalled();
   });
 });
 

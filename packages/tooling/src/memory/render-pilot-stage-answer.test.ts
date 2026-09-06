@@ -4,13 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CorpusResult } from './render-pilot-corpus.js';
 import type { RenderPilotOptions, SlugContext } from './render-pilot-shared.js';
+import type { CompletionResult } from './render-pilot-llm.js';
 
-const { callOpenRouterMock } = vi.hoisted(() => ({ callOpenRouterMock: vi.fn() }));
+const { callChatCompletionMock } = vi.hoisted(() => ({ callChatCompletionMock: vi.fn() }));
 
 vi.mock('./render-pilot-llm.js', async () => {
   const actual =
     await vi.importActual<typeof import('./render-pilot-llm.js')>('./render-pilot-llm.js');
-  return { ...actual, callOpenRouter: callOpenRouterMock, requireApiKey: () => 'sk-test' };
+  return { ...actual, callChatCompletion: callChatCompletionMock, requireApiKey: () => 'sk-test' };
 });
 
 import { runAnswersStage, runJudgeStage } from './render-pilot-stage-answer.js';
@@ -70,6 +71,9 @@ function baseOptions(overrides: Partial<RenderPilotOptions> = {}): RenderPilotOp
     stage: 'all',
     concurrency: 4,
     dryRun: false,
+    glmProvider: 'zai-coding',
+    summaryThinking: 'disabled',
+    answerThinking: 'high',
     ...overrides,
   };
 }
@@ -84,9 +88,9 @@ describe('render-pilot answer/judge stages', () => {
       slug: 'nova',
       outDir: dir,
       usageLogPath: join(dir, 'nova', 'usage.jsonl'),
-      apiKey: 'sk-test',
+      apiKeys: { openrouter: 'sk-test', 'zai-coding': 'sk-test' },
     };
-    callOpenRouterMock.mockReset();
+    callChatCompletionMock.mockReset();
     writeStageFile(stagePath(dir, 'nova', 'questions'), {
       questions: [{ rowId: 'm1', q: 'what did Nova say?', a: 'hello', basis: 'assistant' }],
       droppedMalformed: 0,
@@ -98,16 +102,19 @@ describe('render-pilot answer/judge stages', () => {
   });
 
   it('answers each question in all three arms using the answer model', async () => {
-    callOpenRouterMock.mockResolvedValue({
+    callChatCompletionMock.mockResolvedValue({
       content: 'a reply',
       promptTokens: 10,
       completionTokens: 5,
       latencyMs: 10,
       attempts: 1,
-    });
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
     await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
-    expect(callOpenRouterMock).toHaveBeenCalledTimes(3);
-    for (const call of callOpenRouterMock.mock.calls) {
+    expect(callChatCompletionMock).toHaveBeenCalledTimes(3);
+    for (const call of callChatCompletionMock.mock.calls) {
       const [request] = call as [{ model: string }];
       expect(request.model).toBe('answer-model');
     }
@@ -115,6 +122,114 @@ describe('render-pilot answer/judge stages', () => {
       stagePath(dir, 'nova', 'answers')
     );
     expect(results?.answers.map(r => r.arm).sort()).toEqual(['F', 'S', 'V']);
+  });
+
+  it('caps answer calls at 6000 tokens', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
+    await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ maxTokens: number }];
+      expect(request.maxTokens).toBe(6000);
+    }
+  });
+
+  // Wiring pin: the answers stage must forward options.glmProvider to the
+  // call's `provider` field, not a hardcoded value. Asserting only the
+  // default ('zai-coding') would also pass against a hardcoded
+  // `provider: 'zai-coding'` — vary the option and check both values track it.
+  it('forwards glmProvider to the answers call when set to zai-coding', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
+    await runAnswersStage(
+      ctx,
+      baseOptions({ outDir: dir, glmProvider: 'zai-coding' }),
+      makeCorpus()
+    );
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ provider: string }];
+      expect(request.provider).toBe('zai-coding');
+    }
+  });
+
+  it('forwards glmProvider to the answers call when set to openrouter', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'openrouter',
+    } satisfies CompletionResult);
+    await runAnswersStage(
+      ctx,
+      baseOptions({ outDir: dir, glmProvider: 'openrouter' }),
+      makeCorpus()
+    );
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ provider: string }];
+      expect(request.provider).toBe('openrouter');
+    }
+  });
+
+  // Same crux for `thinking`: vary answerThinking across both real values so
+  // a hardcoded 'high' (or 'disabled') couldn't slip through unnoticed.
+  it('forwards answerThinking to the answers call when set to disabled', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
+    await runAnswersStage(
+      ctx,
+      baseOptions({ outDir: dir, answerThinking: 'disabled' }),
+      makeCorpus()
+    );
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ thinking: string }];
+      expect(request.thinking).toBe('disabled');
+    }
+  });
+
+  it('forwards answerThinking to the answers call when set to high', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: 'a reply',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
+    await runAnswersStage(ctx, baseOptions({ outDir: dir, answerThinking: 'high' }), makeCorpus());
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ thinking: string }];
+      expect(request.thinking).toBe('high');
+    }
   });
 
   // Canary (F3): a bare `continue` on an orphaned question (no increment)
@@ -129,20 +244,23 @@ describe('render-pilot answer/judge stages', () => {
       ],
       droppedMalformed: 0,
     });
-    callOpenRouterMock.mockResolvedValue({
+    callChatCompletionMock.mockResolvedValue({
       content: 'a reply',
       promptTokens: 10,
       completionTokens: 5,
       latencyMs: 10,
       attempts: 1,
-    });
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
     logSpy.mockRestore();
 
     // Only the in-corpus question's 3 arms were answered — the orphaned
     // question generated no tasks at all.
-    expect(callOpenRouterMock).toHaveBeenCalledTimes(3);
+    expect(callChatCompletionMock).toHaveBeenCalledTimes(3);
     const results = readStageFile<{ orphanedQuestions: number }>(stagePath(dir, 'nova', 'answers'));
     expect(results?.orphanedQuestions).toBe(1);
   });
@@ -150,14 +268,16 @@ describe('render-pilot answer/judge stages', () => {
   // Canary (F4): flipping `result.finishReason === 'length'` at the write
   // site must redden this test.
   it('marks an answer truncated when finishReason is "length"', async () => {
-    callOpenRouterMock.mockResolvedValue({
+    callChatCompletionMock.mockResolvedValue({
       content: 'a reply',
       promptTokens: 10,
       completionTokens: 5,
       latencyMs: 10,
       attempts: 1,
+      reasoningBlocksStripped: 0,
       finishReason: 'length',
-    });
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
     await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
     const results = readStageFile<{ answers: { truncated: boolean }[] }>(
       stagePath(dir, 'nova', 'answers')
@@ -166,14 +286,16 @@ describe('render-pilot answer/judge stages', () => {
   });
 
   it('marks an answer not truncated when finishReason is "stop"', async () => {
-    callOpenRouterMock.mockResolvedValue({
+    callChatCompletionMock.mockResolvedValue({
       content: 'a reply',
       promptTokens: 10,
       completionTokens: 5,
       latencyMs: 10,
       attempts: 1,
+      reasoningBlocksStripped: 0,
       finishReason: 'stop',
-    });
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
     await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
     const results = readStageFile<{ answers: { truncated: boolean }[] }>(
       stagePath(dir, 'nova', 'answers')
@@ -208,16 +330,19 @@ describe('render-pilot answer/judge stages', () => {
       ],
       failures: [],
     });
-    callOpenRouterMock.mockResolvedValue({
+    callChatCompletionMock.mockResolvedValue({
       content:
         '{"correct": true, "faithful": true, "unsupported_claims": [], "missing_commitments": [], "dangling_reference": false}',
       promptTokens: 10,
       completionTokens: 5,
       latencyMs: 10,
       attempts: 1,
-    });
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'openrouter',
+    } satisfies CompletionResult);
     await runJudgeStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
-    for (const call of callOpenRouterMock.mock.calls) {
+    for (const call of callChatCompletionMock.mock.calls) {
       const [request] = call as [
         { model: string; temperature: number; maxTokens: number; jsonMode: boolean },
       ];
@@ -232,6 +357,58 @@ describe('render-pilot answer/judge stages', () => {
     expect(result?.answers).toHaveLength(1);
     expect(result?.summaries).toHaveLength(1);
     expect(result?.facts).toHaveLength(1);
+  });
+
+  // Wiring pin: the judge stage is hardcoded to 'openrouter' regardless of
+  // glmProvider — this is what keeps the judge family off the flat-rate GLM
+  // plan. Setting glmProvider to 'zai-coding' here is the point: if the judge
+  // call ever started forwarding glmProvider instead of the hardcoded value,
+  // this would be the only test to catch it.
+  it('hardcodes judge calls to openrouter even when glmProvider is zai-coding, with no thinking setting', async () => {
+    writeStageFile(stagePath(dir, 'nova', 'answers'), {
+      answers: [
+        {
+          rowId: 'm1',
+          question: 'q',
+          referenceAnswer: 'a',
+          basis: 'assistant',
+          arm: 'V',
+          reply: 'reply text',
+          tailTokens: 5,
+        },
+      ],
+      failures: [],
+    });
+    writeStageFile(stagePath(dir, 'nova', 'summaries'), {
+      summaries: [
+        {
+          rowId: 'm1',
+          summary: 'a summary',
+          tokens: 10,
+          state: 'within_soft',
+          hasFirstPerson: false,
+        },
+      ],
+      failures: [],
+    });
+    callChatCompletionMock.mockResolvedValue({
+      content:
+        '{"correct": true, "faithful": true, "unsupported_claims": [], "missing_commitments": [], "dangling_reference": false}',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'openrouter',
+    } satisfies CompletionResult);
+    await runJudgeStage(ctx, baseOptions({ outDir: dir, glmProvider: 'zai-coding' }), makeCorpus());
+    expect(callChatCompletionMock.mock.calls.length).toBeGreaterThan(0);
+    for (const call of callChatCompletionMock.mock.calls) {
+      const [request] = call as [{ provider: string; thinking?: string }];
+      expect(request.provider).toBe('openrouter');
+      expect(request.thinking).toBeUndefined();
+    }
   });
 
   // Canary (B6): the judge stage must run answer/summary/facts judgements
@@ -272,7 +449,7 @@ describe('render-pilot answer/judge stages', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const resolvers: (() => void)[] = [];
-    callOpenRouterMock.mockImplementation(
+    callChatCompletionMock.mockImplementation(
       () =>
         new Promise(resolve => {
           inFlight += 1;
@@ -286,7 +463,10 @@ describe('render-pilot answer/judge stages', () => {
               completionTokens: 5,
               latencyMs: 10,
               attempts: 1,
-            });
+              reasoningBlocksStripped: 0,
+              finishReason: null,
+              provider: 'openrouter',
+            } satisfies CompletionResult);
           });
         })
     );

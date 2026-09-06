@@ -17,7 +17,7 @@ import {
   JUDGE_FACTS_SYSTEM_PROMPT,
 } from './render-pilot-prompts.js';
 import {
-  callOpenRouter,
+  callChatCompletion,
   requireApiKey,
   runWithConcurrencySettled,
   clearStageUsage,
@@ -90,7 +90,7 @@ async function answerOneQuestionArm(
     ac.summaryByRowId,
     windowRows
   );
-  const result = await callOpenRouter(
+  const result = await callChatCompletion(
     {
       model: ac.options.answerModel,
       messages: [
@@ -104,7 +104,13 @@ async function answerOneQuestionArm(
       // emitted before any content: a live run at a tight cap came back
       // finish_reason "length" with no content at all. The thinking-first ordering
       // is inferred from that finish_reason, not separately probed.
-      maxTokens: 4000,
+      // A live run at the previous 4000 cap still exhausted it on 71 of 678
+      // answer calls, and the loss skewed toward arms F and S (observed 15
+      // and 12 for one character, versus 5 on arm V) — a cap that bites
+      // unevenly across arms biases the sample rather than merely trimming it.
+      maxTokens: 6000,
+      provider: ac.options.glmProvider,
+      thinking: ac.options.answerThinking,
     },
     ac.apiKey
   );
@@ -147,7 +153,7 @@ export async function runAnswersStage(
     return;
   }
   clearStageUsage(ctx.usageLogPath, 'answers');
-  const apiKey = ctx.apiKey ?? requireApiKey();
+  const apiKey = ctx.apiKeys[options.glmProvider] ?? requireApiKey(options.glmProvider);
   const summaryByRowId = loadSummaryByRowId(ctx.outDir, ctx.slug);
   const { questions } = loadQuestionsStageFile(ctx.outDir, ctx.slug);
   const sortedRows = [...corpus.rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -198,7 +204,7 @@ async function callJudge(
   systemPrompt: string,
   userMessage: string
 ): Promise<string> {
-  const result = await callOpenRouter(
+  const result = await callChatCompletion(
     {
       model: jc.options.judgeModel,
       messages: [
@@ -212,6 +218,7 @@ async function callJudge(
       // is inferred from that finish_reason, not separately probed.
       maxTokens: 2000,
       jsonMode: true,
+      provider: 'openrouter',
     },
     jc.apiKey
   );
@@ -368,7 +375,7 @@ export async function runJudgeStage(
   const jc: JudgeCallContext = {
     ctx,
     options,
-    apiKey: ctx.apiKey ?? requireApiKey(),
+    apiKey: ctx.apiKeys.openrouter ?? requireApiKey('openrouter'),
     displayName: corpus.personality.displayName,
   };
 
