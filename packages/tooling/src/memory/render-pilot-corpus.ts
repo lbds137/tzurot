@@ -27,7 +27,8 @@ const ASSISTANT_SEPARATOR = '\n{assistant}: ';
 /**
  * Split a stored memory's `content` back into user text, assistant text, and
  * an optional referenced-content block. Returns `null` when the content does
- * not match the stored template — the caller counts these as `unparseable`
+ * not match the stored template, OR when the separator appears more than
+ * once (ambiguous split point) — the caller counts these as `unparseable`
  * and excludes the row.
  */
 export function splitMemoryContent(content: string): SplitMemoryResult | null {
@@ -45,6 +46,13 @@ export function splitMemoryContent(content: string): SplitMemoryResult | null {
   }
   const separatorIndex = remainder.indexOf(ASSISTANT_SEPARATOR);
   if (separatorIndex === -1) {
+    return null;
+  }
+  // The stored template contains exactly one `\n{assistant}: ` separator, so
+  // a second occurrence means the content is ambiguous (typically a user
+  // message quoting the template) — the row is excluded as `unparseable`
+  // rather than mis-split at an arbitrary boundary.
+  if (remainder.includes(ASSISTANT_SEPARATOR, separatorIndex + ASSISTANT_SEPARATOR.length)) {
     return null;
   }
 

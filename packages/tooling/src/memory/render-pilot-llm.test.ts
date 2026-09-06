@@ -281,6 +281,24 @@ describe('callOpenRouter', () => {
     await assertion;
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
+
+  // Canary: setting MAX_ATTEMPTS to a literal 4 (decoupling it from
+  // BACKOFF_MS.length) must redden this test.
+  it('sleeps exactly [2000, 6000] between the three retry attempts', async () => {
+    const spy = vi.spyOn(globalThis, 'setTimeout');
+    mockFetch.mockResolvedValue(jsonResponse(429, { error: 'rate limited' }));
+    const promise = callOpenRouter(
+      { model: 'm', messages: [], temperature: 0, maxTokens: 10 },
+      'sk-test'
+    );
+    const assertion = expect(promise).rejects.toThrow(/429/);
+    await vi.runAllTimersAsync();
+    await assertion;
+    // 120_000 is the per-call abort timer's delay, armed once per attempt.
+    const delays = spy.mock.calls.map(c => c[1]);
+    expect(delays.filter(d => d !== 120_000)).toEqual([2000, 6000]);
+    spy.mockRestore();
+  });
 });
 
 describe('appendUsageRecord', () => {

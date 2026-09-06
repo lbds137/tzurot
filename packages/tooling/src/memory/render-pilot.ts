@@ -116,14 +116,15 @@ export function estimateDryRunPlan(
   }, 0);
   const answerInputTokens = answerWindowTokens * answerCallsPerRow;
 
-  // Judge stage: one call per answer, plus one per-row summary judge and one
-  // per-row facts judge — each carries roughly the verbatim episode's tokens.
+  // Judge stage: one call per answer (i.e. per question per render arm),
+  // plus one per-row summary judge and one per-row facts judge — each
+  // carries roughly the verbatim episode's tokens.
   const verbatimTokensTotal = rows.reduce(
     (sum, row) => sum + countTextTokens(row.split.user + row.split.assistant),
     0
   );
   const judgeCalls = answerCalls + rowCount + rowCount;
-  const judgeInputTokens = verbatimTokensTotal * (options.questionsPerRow + 2);
+  const judgeInputTokens = verbatimTokensTotal * (options.questionsPerRow * ANSWER_ARMS_COUNT + 2);
 
   const voiceCalls = options.triggers.length * ANSWER_ARMS_COUNT;
   const latestWindow = sortedRows.slice(-options.voiceWindow);

@@ -115,7 +115,7 @@ describe('render-pilot report types', () => {
         danglingReferenceRateOverReferenced: 0,
         danglingReferenceRateOverAll: 0,
         missingCommitmentRate: 0,
-        stateDistribution: { within_soft: 0, regenerated: 0, overflow: 0 },
+        stateDistribution: { within_soft: 0, regenerated: 0, over_soft: 0, overflow: 0 },
         firstPersonRate: 0,
         tokens: { mean: 0, p95: 0 },
         parseFailedCount: 0,

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { writeStageFile, stagePath } from './render-pilot-shared.js';
 import type { ReportBuildInput } from './render-pilot-metrics.js';
 import type { CorpusResult } from './render-pilot-corpus.js';
@@ -220,6 +221,20 @@ describe('estimateDryRunPlan', () => {
     for (const estimate of plan) {
       expect(estimate.inputTokens).toBeGreaterThan(0);
     }
+  });
+
+  // Canary (F2): dropping the ×3 answer-arms factor from the judge-stage
+  // token estimate (back to `questionsPerRow + 2`) must redden this test.
+  it('scales the judge-stage input-token estimate by questionsPerRow * answer arms + 2', () => {
+    const corpus = corpusWithRows(1);
+    const options = baseOptions('unused', { questionsPerRow: 2 });
+    const plan = estimateDryRunPlan(corpus, options);
+    const byStage = Object.fromEntries(plan.map(p => [p.stage, p]));
+
+    const verbatimTokens = countTextTokens('hello there' + 'hi, how are you?');
+    expect(verbatimTokens).toBeGreaterThan(0);
+    // 8 = questionsPerRow (2) * ANSWER_ARMS_COUNT (3) + 2 (summary judge + facts judge)
+    expect(byStage.judge.inputTokens).toBe(verbatimTokens * 8);
   });
 });
 

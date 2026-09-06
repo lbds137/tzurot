@@ -51,7 +51,7 @@ function summaryArmMarkdown(s: SummaryArmStats): string {
     `- Dangling-reference rate (over referenced rows): ${pct(s.danglingReferenceRateOverReferenced)}`,
     `- Dangling-reference rate (over all rows): ${pct(s.danglingReferenceRateOverAll)}`,
     `- Missing-commitment rate: ${pct(s.missingCommitmentRate)}`,
-    `- State distribution: within_soft=${String(s.stateDistribution.within_soft)}, regenerated=${String(s.stateDistribution.regenerated)}, overflow=${String(s.stateDistribution.overflow)}`,
+    `- State distribution: within_soft=${String(s.stateDistribution.within_soft)}, regenerated=${String(s.stateDistribution.regenerated)}, over_soft=${String(s.stateDistribution.over_soft)}, overflow=${String(s.stateDistribution.overflow)}`,
     `- First-person rate: ${pct(s.firstPersonRate)}`,
     `- Tokens mean/p95: ${num(s.tokens.mean)} / ${num(s.tokens.p95)}`,
     `- Parse-failed count: ${String(s.parseFailedCount)}`,
