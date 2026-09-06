@@ -171,4 +171,20 @@ describe('runReportStage', () => {
       expect(spotCheck).not.toContain('\\n');
     });
   });
+
+  // Canary (F5f): reverting the spot-check `renderS` value back to
+  // `renderNoteS` with an empty summary must redden this test.
+  it('renders the no-summary placeholder in the spot-check file for a row with no cached summary', async () => {
+    const corpus = makeCorpus();
+    writeStageFile(stagePath(dir, 'nova', 'judge'), {
+      answers: [],
+      summaries: [],
+      facts: [],
+      failures: [],
+    });
+    // No stage-summaries.json written at all — summaryByRowId is empty for every row.
+    await runReportStage(ctx, corpus);
+    const spotCheck = readFileSync(join(dir, 'nova', 'spot-check.md'), 'utf8');
+    expect(spotCheck).toContain('(no summary — arm S rendered as F)');
+  });
 });

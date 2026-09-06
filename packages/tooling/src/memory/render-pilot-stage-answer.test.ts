@@ -117,6 +117,36 @@ describe('render-pilot answer/judge stages', () => {
     expect(results?.answers.map(r => r.arm).sort()).toEqual(['F', 'S', 'V']);
   });
 
+  // Canary (F3): a bare `continue` on an orphaned question (no increment)
+  // must redden this test — reverting to it drops `orphanedQuestions` back
+  // to 0 while the answer count stays correct, which is exactly what the
+  // finding caught.
+  it('skips a question whose rowId is no longer in the corpus and counts it as orphaned', async () => {
+    writeStageFile(stagePath(dir, 'nova', 'questions'), {
+      questions: [
+        { rowId: 'm1', q: 'what did Nova say?', a: 'hello', basis: 'assistant' },
+        { rowId: 'gone', q: 'orphaned question', a: 'n/a', basis: 'assistant' },
+      ],
+      droppedMalformed: 0,
+    });
+    callOpenRouterMock.mockResolvedValue({
+      content: 'a reply',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await runAnswersStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
+    logSpy.mockRestore();
+
+    // Only the in-corpus question's 3 arms were answered — the orphaned
+    // question generated no tasks at all.
+    expect(callOpenRouterMock).toHaveBeenCalledTimes(3);
+    const results = readStageFile<{ orphanedQuestions: number }>(stagePath(dir, 'nova', 'answers'));
+    expect(results?.orphanedQuestions).toBe(1);
+  });
+
   // Canary (F4): flipping `result.finishReason === 'length'` at the write
   // site must redden this test.
   it('marks an answer truncated when finishReason is "length"', async () => {

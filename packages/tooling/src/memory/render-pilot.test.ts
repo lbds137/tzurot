@@ -15,6 +15,7 @@ const {
   runJudgeStageMock,
   runVoiceStageMock,
   runReportStageMock,
+  requireApiKeyMock,
 } = vi.hoisted(() => ({
   buildCorpusMock: vi.fn(),
   disconnectMock: vi.fn().mockResolvedValue(undefined),
@@ -24,13 +25,14 @@ const {
   runJudgeStageMock: vi.fn().mockResolvedValue(undefined),
   runVoiceStageMock: vi.fn().mockResolvedValue(undefined),
   runReportStageMock: vi.fn().mockResolvedValue(undefined),
+  requireApiKeyMock: vi.fn(() => 'sk-test'),
 }));
 
 vi.mock('./prisma-env.js', () => ({
   getPrismaForEnv: vi.fn().mockResolvedValue({ prisma: {}, disconnect: disconnectMock }),
 }));
 vi.mock('./render-pilot-corpus.js', () => ({ buildCorpus: buildCorpusMock }));
-vi.mock('./render-pilot-llm.js', () => ({ requireApiKey: () => 'sk-test' }));
+vi.mock('./render-pilot-llm.js', () => ({ requireApiKey: requireApiKeyMock }));
 vi.mock('./render-pilot-stage-summarize.js', () => ({
   runSummariesStage: runSummariesStageMock,
   runQuestionsStage: runQuestionsStageMock,
@@ -109,6 +111,8 @@ describe('runRenderPilot', () => {
     buildCorpusMock.mockReset();
     buildCorpusMock.mockResolvedValue(fakeCorpus());
     disconnectMock.mockClear();
+    requireApiKeyMock.mockReset();
+    requireApiKeyMock.mockReturnValue('sk-test');
     for (const mock of [
       runSummariesStageMock,
       runQuestionsStageMock,
@@ -136,6 +140,16 @@ describe('runRenderPilot', () => {
     await runRenderPilot(baseOptions(dir, { stage: 'corpus' }));
     expect(buildCorpusMock).toHaveBeenCalledTimes(1);
     expect(runSummariesStageMock).not.toHaveBeenCalled();
+  });
+
+  // Canary (F2): the corpus stage never calls a model, so it must not demand
+  // an API key — reverting the `options.stage === 'corpus'` skip reddens this.
+  it('--stage corpus does not require an API key', async () => {
+    requireApiKeyMock.mockImplementation(() => {
+      throw new Error('OPENROUTER_API_KEY is not set');
+    });
+    await expect(runRenderPilot(baseOptions(dir, { stage: 'corpus' }))).resolves.toBeUndefined();
+    expect(requireApiKeyMock).not.toHaveBeenCalled();
   });
 
   it('--stage all runs every stage in order', async () => {
@@ -237,6 +251,7 @@ describe('poolReportInputs', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'x',
+        summaryFallbackRows: 0,
       })),
     });
     const large = fakeReportInput({
@@ -250,6 +265,7 @@ describe('poolReportInputs', () => {
         tailTokens: 10,
         truncated: false,
         reply: 'y',
+        summaryFallbackRows: 0,
       })),
     });
     const pooled = poolReportInputs([small, large]);
@@ -293,6 +309,7 @@ describe('writeAggregateReport', () => {
             tailTokens: 10,
             truncated: false,
             reply: 'x',
+            summaryFallbackRows: 0,
           },
         ],
       })
@@ -311,6 +328,7 @@ describe('writeAggregateReport', () => {
             tailTokens: 10,
             truncated: false,
             reply: 'y',
+            summaryFallbackRows: 0,
           },
           {
             arm: 'V',
@@ -322,6 +340,7 @@ describe('writeAggregateReport', () => {
             tailTokens: 10,
             truncated: false,
             reply: 'z',
+            summaryFallbackRows: 0,
           },
         ],
       })
@@ -357,6 +376,7 @@ describe('writeAggregateReport', () => {
             tailTokens: 10,
             truncated: false,
             reply: SENTINEL,
+            summaryFallbackRows: 0,
           },
         ],
         summaries: [

@@ -33,11 +33,11 @@ function num(value: number): string {
 /** The per-arm answer-correctness table shared by the pooled and per-character sections. */
 function armsTableMarkdown(arms: Record<RenderArm, ArmAnswerStats>): string {
   const header =
-    '| Arm | n | Unjudged | Correctness | Correctness (assistant) | Correctness (user) | Unfaithful rate | Unsupported claims (mean) | Tail tokens mean/p95 | Truncated |';
-  const divider = '|---|---|---|---|---|---|---|---|---|---|';
+    '| Arm | n | Unjudged | Correctness | Correctness (assistant) | Correctness (user) | Unfaithful rate | Unsupported claims (mean) | Tail tokens mean/p95 | Truncated | Summary fallback rows (mean) |';
+  const divider = '|---|---|---|---|---|---|---|---|---|---|---|';
   const rows = ARMS.map(arm => {
     const s = arms[arm];
-    return `| ${arm} | ${String(s.n)} | ${String(s.unjudged)} | ${pct(s.correctnessRate)} | ${pct(s.correctnessByBasis.assistant)} | ${pct(s.correctnessByBasis.user)} | ${pct(s.unfaithfulRate)} | ${num(s.unsupportedClaimsMean)} | ${num(s.tokensInTail.mean)} / ${num(s.tokensInTail.p95)} | ${pct(s.truncatedRate)} |`;
+    return `| ${arm} | ${String(s.n)} | ${String(s.unjudged)} | ${pct(s.correctnessRate)} | ${pct(s.correctnessByBasis.assistant)} | ${pct(s.correctnessByBasis.user)} | ${pct(s.unfaithfulRate)} | ${num(s.unsupportedClaimsMean)} | ${num(s.tokensInTail.mean)} / ${num(s.tokensInTail.p95)} | ${pct(s.truncatedRate)} | ${num(s.summaryFallbackRowsMean)} |`;
   });
   return [header, divider, ...rows].join('\n');
 }
@@ -70,11 +70,11 @@ function factsArmMarkdown(f: FactsArmStats): string {
 
 function voiceTableMarkdown(voice: Record<RenderArm, VoiceArmStats>): string {
   const header =
-    '| Arm | n | Chars (mean) | Words (mean) | Exclamations/100w (mean) | Emoji (mean) | Self-reference rate | Marker hits (mean) | Truncated |';
-  const divider = '|---|---|---|---|---|---|---|---|---|';
+    '| Arm | n | Chars (mean) | Words (mean) | Exclamations/100w (mean) | Emoji (mean) | Self-reference rate | Marker hits (mean) | Truncated | Summary fallback rows (mean) |';
+  const divider = '|---|---|---|---|---|---|---|---|---|---|';
   const rows = ARMS.map(arm => {
     const v = voice[arm];
-    return `| ${arm} | ${String(v.n)} | ${num(v.charsMean)} | ${num(v.wordsMean)} | ${num(v.exclamationsPer100WordsMean)} | ${num(v.emojiCountMean)} | ${pct(v.selfReferenceRate)} | ${num(v.markerHitsMean)} | ${pct(v.truncatedRate)} |`;
+    return `| ${arm} | ${String(v.n)} | ${num(v.charsMean)} | ${num(v.wordsMean)} | ${num(v.exclamationsPer100WordsMean)} | ${num(v.emojiCountMean)} | ${pct(v.selfReferenceRate)} | ${num(v.markerHitsMean)} | ${pct(v.truncatedRate)} | ${num(v.summaryFallbackRowsMean)} |`;
   });
   return [header, divider, ...rows].join('\n');
 }

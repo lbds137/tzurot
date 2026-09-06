@@ -72,7 +72,12 @@ async function answerVoiceTrigger(
   trigger: string,
   arm: RenderArm
 ): Promise<VoiceRecord> {
-  const archive = renderArmNotes(arm, vc.corpus, vc.summaryByRowId, vc.latestWindow);
+  const { xml: archive, summaryFallbackRows } = renderArmNotes(
+    arm,
+    vc.corpus,
+    vc.summaryByRowId,
+    vc.latestWindow
+  );
   const userMessage = vc.voiceAnchor.length > 0 ? `${vc.voiceAnchor}\n\n${trigger}` : trigger;
   const result = await callOpenRouter(
     {
@@ -106,6 +111,7 @@ async function answerVoiceTrigger(
     markerHits: countMarkerHits(result.content, [...vc.options.markers]),
     truncated: result.finishReason === 'length',
     reply: result.content,
+    summaryFallbackRows,
   };
 }
 
@@ -224,11 +230,9 @@ export async function runReportStage(ctx: SlugContext, corpus: CorpusResult): Pr
 
   const { summaries: summariesWithRowId } = loadSummariesStageFile(ctx.outDir, ctx.slug);
   const sortedRows = [...corpus.rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const spotCheckRows = pickEvenlySpaced(sortedRows, 10, 10).map(row => ({
-    id: row.id,
-    createdAt: row.createdAt,
-    verbatim: `${row.subjectName}: ${row.split.user}\n${corpus.personality.displayName}: ${row.split.assistant}`,
-    renderF: renderNoteF({
+  const NO_SUMMARY_PLACEHOLDER = '(no summary — arm S rendered as F)';
+  const spotCheckRows = pickEvenlySpaced(sortedRows, 10, 10).map(row => {
+    const noteInput = {
       createdAt: new Date(row.createdAt),
       subjectName: row.subjectName,
       displayName: corpus.personality.displayName,
@@ -236,19 +240,20 @@ export async function runReportStage(ctx: SlugContext, corpus: CorpusResult): Pr
       assistantText: row.split.assistant,
       referenced: row.split.referenced,
       facts: row.facts,
-      summary: null,
-    }).xml,
-    renderS: renderNoteS({
-      createdAt: new Date(row.createdAt),
-      subjectName: row.subjectName,
-      displayName: corpus.personality.displayName,
-      userText: row.split.user,
-      assistantText: row.split.assistant,
-      referenced: row.split.referenced,
-      facts: row.facts,
-      summary: summariesWithRowId.find(s => s.rowId === row.id)?.summary ?? '',
-    }).xml,
-  }));
+    };
+    const summary = summariesWithRowId.find(s => s.rowId === row.id)?.summary ?? null;
+    const renderS =
+      summary === null || summary.trim().length === 0
+        ? NO_SUMMARY_PLACEHOLDER
+        : renderNoteS({ ...noteInput, summary }).xml;
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      verbatim: `${row.subjectName}: ${row.split.user}\n${corpus.personality.displayName}: ${row.split.assistant}`,
+      renderF: renderNoteF({ ...noteInput, summary: null }).xml,
+      renderS,
+    };
+  });
 
   writeMarkdownFile(
     join(ctx.outDir, ctx.slug, 'spot-check.md'),
