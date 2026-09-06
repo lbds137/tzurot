@@ -5,6 +5,7 @@
 > **Owner directives (verbatim, 2026-09-05)**: "none of the other work matters if I feel like I'm losing touch with my characters. backfill isn't off the table at this point" · "messing with parameters might break reasoning so I'm not inclined to try it unless absolutely necessary" · at the beta.218 cut: the voice anchor first, `doc-8` active, LID from this pass.
 > **Grounding** (2026-09-05): the drift curve on one character (`doc-97` § Evidence, 2,135 memories, aggregates only) · an Explore pass over the write path, the render path, the schema, the accepted architecture doc, `doc-8`, and the LID reference (repo `jszmajda/lid`) · a read-only prod measurement of the whole archive and of extraction-call cost (§1). Facts are marked [V] verified by read or query, [I] inferred.
 > **Council-rebuilt**: the draft's central decision (a new summary tier) was challenged by three of four panel models as unproven against a zero-pipeline alternative; §2 now starts with a pilot that measures both before anything is built (§6 records who said what).
+> **Pilot complete 2026-09-06**: §8 carries the run-4 numbers and the amendments to D3, D4, and D10 they force. Slice A is next.
 
 ## 0. The concern at the center
 
@@ -12,7 +13,7 @@ A character that has talked for months stops sounding like its card. The measure
 
 ## 1. The system as it is [V]
 
-- **Write.** `LongTermMemoryService.storeInteraction` composes `{user}: ${userMessage}\n{assistant}: ${aiResponse}` (line 61) and stores it verbatim as `memories.content`; `MemoryPersistenceService.buildContentForEmbedding` appends `[Referenced content: …]` for replies that quoted a message (lines 31–41). Called synchronously from `ConversationalRAGService.processUserMessage` (line 352). The embedding is over that whole text. No summarization exists anywhere on the write path.
+- **Write.** `LongTermMemoryService.storeInteraction` composes `{user}: ${userMessage}\n{assistant}: ${aiResponse}` (line 61) and stores it verbatim as `memories.content`; `MemoryPersistenceService.buildContentForEmbedding` appends `[Referenced content: …]` for replies that quoted a message (lines 31–41) — to the USER message before the template is applied, so the block sits at the end of the user part of `content`, not the end of the row (pilot-verified, §8.4). Called synchronously from `ConversationalRAGService.processUserMessage` (line 352). The embedding is over that whole text. No summarization exists anywhere on the write path.
 - **Read.** `MemoryFormatter.formatSingleMemory` renders `<historical_note t="…">content</historical_note>` with no per-memory cap (lines 135–158); the archive instruction calls them "summarized notes from past interactions" — they are not. Selection is a relevance knapsack in `MemoryBudgetManager` against the remaining context window. Facts render separately, in the `facts` V-tier section, from `memory_facts`.
 - **Schema.** `memories` has `content`, `embedding` (384-dim), `messageIds`, `senders`, `pool`/`canonGroupId`/`isFiction`, chunking columns, and three legacy summary markers (`isSummarized`, `originalMessageCount`, `summarizedAt`, `summaryType`) with no active writer. No column holds a summary. `memory_facts.sourceMemoryIds` links every extracted fact to the episode it came from.
 - **Extraction worker** (`jobs/factExtractionSetup.ts`): BullMQ, batched by `extractionBatchThreshold`, model from the `extractionProvider`/`extractionModel` settings, `extractionEnabled` kill switch, usage rows tagged `fact_extraction`. This is the shape any second asynchronous per-memory model call rides.
@@ -39,7 +40,7 @@ A character that has talked for months stops sounding like its card. The measure
 | F | omitted; the episode's linked facts appear beside the user turn | none (facts exist) |
 | S | a third-person summary produced offline by a script over the pilot rows | a prompt and a script, no worker |
 
-  Measured per arm (D7): rendered-prompt answer correctness on golden questions, hallucination rate, card adherence, referenced-content recall, tokens in the tail. **If F ties S, the summary tier is not built**: the shipped change is the F render plus a "commitment" fact type added to extraction (the panel's own proposal for the one thing facts miss). If S wins, D1–D5 below ship. Either way the pilot settles open call 6 on numbers rather than on the sentence the draft offered.
+  Measured per arm (D7): rendered-prompt answer correctness on golden questions, hallucination rate, card adherence, referenced-content recall, tokens in the tail. **If F ties S, the summary tier is not built**: the shipped change is the F render plus a "commitment" fact type added to extraction (the panel's own proposal for the one thing facts miss). If S wins, D1–D5 below ship. **Pilot result (§8.5): S beat F on every recall metric; D1–D5 proceed with the amendments listed there.**
 
 **D1 — Render split: user side verbatim, assistant side replaced by whichever the pilot picks (facts, or a summary).** The user's words carry the recall value the retrieval goldens are built on (31% of content); the character's prose is the loop.
 _Rejected_: summarizing both sides. _Council-added_: the user side is not automatically safe — strip quoted assistant lines from it at render (the reply-quote convention) and cap per-note user tokens at the p95 of the user half.
@@ -92,9 +93,9 @@ assistantSummary String? @map("assistant_summary")
 
 1. **Pilot-first restructure (D0)** — **CONFIRMED 2026-09-05**: run the three-arm pilot before building anything. Alternative declined: build the summarizer now and pilot it against verbatim only.
 2. **Backfill mode** — **CONFIRMED 2026-09-05**: hot-first pre-warm plus lazy tail, per-character flip. Alternative declined: one full bulk sweep (GLM's clean-cutover argument stays on record for the consolidation phase).
-3. **Referenced content** — **CONFIRMED 2026-09-05**: not rendered; the contract forces the summary to name the referent; the pilot reports the dangling-reference rate. Alternative declined: a one-line pointer (promote it if the dangling rate says so).
+3. **Referenced content** — **CONFIRMED 2026-09-05**: not rendered; the contract forces the summary to name the referent; the pilot reports the dangling-reference rate. Alternative declined: a one-line pointer (promote it if the dangling rate says so). **Pilot (§8.5, amendment 3): the clause is unproven at a 48% dangling rate; B re-measures with a validate-and-regenerate pass and may reopen this call.**
 4. **Null-summary policy once a character is switched on** — **CONFIRMED 2026-09-05** (inside the fold): render user side + facts, never verbatim. Alternative declined: a synchronous placeholder at write time.
-5. **Summary length** — **CONFIRMED 2026-09-05** (inside the fold): 60 soft / 100 hard in tokens, validate-and-regenerate. Adaptive ceiling stays available if the pilot's overflow rate wants it.
+5. **Summary length** — **CONFIRMED 2026-09-05** (inside the fold): 60 soft / 100 hard in tokens, validate-and-regenerate. Adaptive ceiling stays available if the pilot's overflow rate wants it. **Pilot (§8.5, amendment 2): caps move to 80 soft / 120 hard.**
 6. **System key pays** — confirmed 4-0 by the panel and by the owner inside the fold.
 
 ## 6. Council record (2026-09-05, four of four answered)
@@ -130,3 +131,61 @@ Panel: GLM 5.2 · Kimi K3 · Qwen 3.8 Max · DeepSeek v4 Pro, one identical adve
 ## 7. Owner pass
 
 2026-09-05, one `AskUserQuestion` batch, four questions: **confirm the folded set** → confirmed; **pilot first** (three arms before any summarizer) → confirmed; **backfill** → hot-first then lazy tail; **referenced content** → no pointer, the summary names the referent. No owner-refined decisions beyond the recommendations. Next build unit: slice P, the pilot script, as the LID pilot's first artifact (specs for the render contract come with slice A).
+
+## 8. Pilot results (slice P, run 4, 2026-09-06)
+
+**Setup.** Three characters: A (the drifted one), B (healthy control, the largest catalog rows), C (a clinical-tone card). 114 rows (the largest 20 and latest 20 per character, unioned; 6 older-shape rows excluded as unparseable). 113 golden questions per arm, generated from the verbatim episode and tagged by which side of the exchange answers them, answered in character over a 10-row window rendered in each arm. Answerer: GLM 5.3 on the coding plan, thinking high (A's production config). Summarizer: GLM 5.3 on the plan, thinking disabled. Judge and question generator: Claude Sonnet 5 via OpenRouter. Runs 1–3 were the tool's shakedown; run 3's numbers are superseded because its split never saw the referenced block (§8.4). Tool: `pnpm ops memory:render-pilot` (#2349).
+
+### 8.1 Rendered-prompt QA (D7a), pooled
+
+| Arm | Answers | Correct | Correct, assistant-side questions | Correct, user-side questions | Unfaithful replies | Archive window tokens, mean / p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| V (today) | 223 | 90.6% | 91.2% | 90.0% | 53.8% | 27,017 / 69,309 |
+| F (user + facts) | 225 | 51.8% | 29.2% | 74.8% | 74.1% | 15,986 / 38,098 |
+| S (user + summary) | 225 | 72.9% | 70.5% | 75.2% | 68.4% | 16,037 / 37,685 |
+
+Overall correctness per character, V / F / S: A 98.6 / 56.8 / 74.0 · B 91.4 / 45.7 / 68.1 · C 82.5 / 52.5 / 76.3. "Unfaithful" = the reply asserts something the verbatim episode does not support; it is high on every arm because the in-character answerer embellishes, and the arm effect (V → S) is about +15 points.
+
+### 8.2 Render-level gates
+
+| Gate | S (summaries) | F (linked facts) |
+| --- | --- | --- |
+| Faithful to the episode | 98.2% | — |
+| Missing a commitment the character made | 26.5% (A 42.1 · B 30.6 · C 7.7) | 46.5% (A 68.4 · B 58.3 · C 15.0) |
+| Dangling reference, rows with referenced content | 48.0% (A 56.5 · B 44.4 · C 38.9) | — |
+| Rows with no linked facts | — | 43.0% (A 28.9 · B 50.0 · C 50.0) |
+| Length state (D4) | within_soft 34 · regenerated 75 · over_soft 5 · overflow 0 | — |
+| Tokens, mean / p95 | 62.6 / 86 | — |
+| First-person leak | 0.9% | — |
+
+### 8.3 Voice probe (D7b), n = 15 replies per arm
+
+| Arm | Reply chars, mean | Drift-marker hits per reply (A only) | Exclamations per 100 words | Third-person self-reference |
+| --- | --- | --- | --- | --- |
+| V | 1,008 | 0.0 | 0.3 | 0% |
+| F | 777 | 0.0 | 0.1 | 0% |
+| S | 826 | 0.2 | 0.1 | 0% |
+
+Underpowered by design (pre-registered n) and run with a minimal persona block plus the shipped voice anchor, not the full production system prompt. It certifies "no regression"; it cannot show a gain.
+
+### 8.4 What the corpus and the tooling taught us
+
+- **The referenced block lives in the user part**: the stored shape is `{user}: U\n\n[Referenced content: R]\n{assistant}: A`, because the write path appends the block to the user message before templating. §1 said otherwise and is corrected. 44% of sampled rows carry one (A 61%).
+- **GLM 5.3 through OpenRouter cannot disable reasoning** ("Reasoning is mandatory for this endpoint", live-probed); the coding plan honours `thinking: disabled`. With reasoning on, a tenth of summarizer calls exhausted an 8,000-token budget on the largest rows; with it off, none failed. The answerer with reasoning on lost calls unevenly across arms in run 3 (thinner archive → longer thinking), a bias the 6,000-token budget removed in run 4 (1 failure in 677).
+- **43% of sampled rows have no linked facts.** The latest rows precede the extraction batch trigger and the largest include legacy rows. This bounds arm F and the D2 fallback alike, and slice C's sweep must report fact coverage beside summarized share.
+- **Cost.** Run 4's metered spend was ≈ $10 (judge and question calls on Sonnet 5); its 15.0M GLM prompt tokens rode the flat-rate plan. Runs 1–3 spent ≈ $40 metered on GLM before the routing was corrected. The provider of every call family is a ledger row in every model-calling spec from here on.
+
+### 8.5 Decision and amendments
+
+**S beats F on every recall metric** (overall +21 points, assistant-side +41), so per D0 the F-only path is closed and D1–D5 proceed. **S is not free**: against V it gives up ≈18 points of answer correctness (21 on assistant-side questions) and adds ≈15 points of unfaithful replies, while the archive window shrinks by ≈41%. The voice benefit the design exists for was not measurable at this n. The per-character render switch (D3) is therefore load-bearing: flip the drifted character first, hold the rest, and judge on the drift markers over a real window.
+
+Amendments carried into slices A and B:
+
+1. **D3** — the summarizer runs on the `zai-coding` provider with thinking disabled; an OpenRouter GLM route is not a valid summarizer route.
+2. **D4 length** — soft cap 60 → 80 tokens, hard 100 → 120. Run 4's mean was 63 and p95 86, and 66% of rows needed the tighten pass; B re-measures the pass rate at the new caps.
+3. **D4 referent clause is unproven** — 48% of summaries over referenced rows dangle by the judge's standard even with the block in the summarizer's input. B adds referenced-content worked examples and a validate-and-regenerate pass on the referent, and re-measures; if the rate stays above ≈30%, open call 3 (the one-line pointer) is reopened with the owner.
+4. **D10** — add the "commitment" fact type to extraction regardless (S misses a commitment on 26.5% of rows; facts render beside the note).
+5. **D2 and the dev↔prod sync** — the summary column is on a sync-tracked table; the summarizer's write must not bump `updated_at` (raw SQL, per `03-database.md` § Sync-Tracked Tables) or the summarizer runs in one environment only, so a backfill in one env cannot clobber the other's rows.
+6. **Slice C** — the pre-warm sweep reports per-character fact coverage alongside summarized share.
+
+Owner items: the 30-row human spot-check (10 rows per character, LOCAL-ONLY under `reports/render-pilot/`); amendment 3's possible reopening of open call 3.
