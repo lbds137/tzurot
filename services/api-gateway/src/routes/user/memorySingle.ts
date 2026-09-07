@@ -88,6 +88,8 @@ interface MemoryResponse {
   personalityId: string;
   personalityName: string;
   isLocked: boolean;
+  assistantSummary: string | null;
+  summaryStatus: string | null;
 }
 
 /**
@@ -100,6 +102,8 @@ function transformMemory(memory: {
   updatedAt: Date;
   personalityId: string;
   isLocked: boolean;
+  assistantSummary: string | null;
+  summaryStatus: string | null;
   personality: { name: string; displayName: string | null };
 }): MemoryResponse {
   return {
@@ -110,6 +114,8 @@ function transformMemory(memory: {
     personalityId: memory.personalityId,
     personalityName: memory.personality.displayName ?? memory.personality.name,
     isLocked: memory.isLocked,
+    assistantSummary: memory.assistantSummary,
+    summaryStatus: memory.summaryStatus,
   };
 }
 

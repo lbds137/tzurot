@@ -202,6 +202,27 @@ describe('Memory Detail', () => {
       expect(json.description?.length).toBeLessThan(4000);
       expect(json.description).toContain('Content truncated');
     });
+
+    it('MEM-ARCH-025: renders a Summary field when the memory carries one', () => {
+      const memory = createMockMemory({ assistantSummary: 'A neutral third-person summary.' });
+      const { embed } = buildDetailEmbed(memory);
+      const json = embed.toJSON();
+
+      const summaryField = json.fields?.find(f => f.name === 'Summary');
+      expect(summaryField).toBeDefined();
+      expect(summaryField?.value).toBe('A neutral third-person summary.');
+      expect(summaryField?.inline).not.toBe(true);
+    });
+
+    it('MEM-ARCH-025: omits the Summary field when there is no summary', () => {
+      for (const assistantSummary of [null, undefined, '']) {
+        const memory = createMockMemory({ assistantSummary });
+        const { embed } = buildDetailEmbed(memory);
+        const json = embed.toJSON();
+
+        expect(json.fields?.find(f => f.name === 'Summary')).toBeUndefined();
+      }
+    });
   });
 
   describe('buildDetailButtons', () => {

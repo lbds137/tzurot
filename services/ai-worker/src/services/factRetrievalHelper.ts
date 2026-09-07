@@ -15,6 +15,7 @@ import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { FactForPrompt } from './ConversationalRAGTypes.js';
 import type { MemoryRetriever, MemoryRetrievalResult } from './MemoryRetriever.js';
 import type { DiagnosticCollector } from './DiagnosticCollector.js';
+import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';
 
 const logger = createLogger('FactRetrieval');
 
@@ -78,6 +79,83 @@ export interface MemoriesAndFactsOptions {
   context: Parameters<MemoryRetriever['retrieveRelevantMemories']>[2];
   configOverrides: Parameters<MemoryRetriever['retrieveRelevantMemories']>[3];
   diagnosticCollector?: DiagnosticCollector;
+  archiveSummaryTrigger?: ArchiveSummaryTrigger;
+}
+
+/** True when this doc carries a stored summary to render (D2's arm S). */
+function docHasSummary(doc: MemoryRetrievalResult['memories'][number]): boolean {
+  const summary = doc.metadata?.assistantSummary;
+  return typeof summary === 'string' && summary.length > 0;
+}
+
+/**
+ * D2's lazy fill: every retrieved non-chunk row whose summary is missing, failed, or
+ * stale — including a `dead` row from an older prompt version — is (re)enqueued for
+ * summarization. Fire-and-forget — this
+ * rides the reply path and must never delay or fail it. Split mode only: a
+ * verbatim-mode character's rows are never rendered as summaries, so summarizing
+ * them would be spend with no reader (slice C's sweep covers pre-warm). The
+ * trigger's own `archiveSummaryEnqueueEnabled` switch gates job creation.
+ */
+// @spec MEM-ARCH-022 — retrieval-time enqueue, never awaited
+function enqueueSummaryRefreshes(
+  memories: MemoryRetrievalResult['memories'],
+  personalityId: string,
+  trigger: ArchiveSummaryTrigger | undefined
+): void {
+  if (trigger === undefined) {
+    return;
+  }
+  const memoryIds: string[] = [];
+  for (const doc of memories) {
+    const memoryId = doc.metadata?.id;
+    if (doc.metadata?.summaryRefreshEligible !== true || typeof memoryId !== 'string') {
+      continue;
+    }
+    memoryIds.push(memoryId);
+    void trigger.enqueue({ memoryId, personalityId, reason: 'retrieval' }).catch(error => {
+      logger.debug({ err: error, memoryId }, 'Archive-summary retrieval enqueue failed');
+    });
+  }
+  if (memoryIds.length > 0) {
+    // IDs and COUNTS only — never memory or summary text (00-critical.md § Logging).
+    logger.info(
+      { personalityId, refreshEnqueued: memoryIds.length, memoryIds },
+      'Archive summary retrieval re-enqueue'
+    );
+  }
+}
+
+/**
+ * Assign each linked fact to at most one memory doc — the most relevant one
+ * (first in retrieval-relevance order) whose `sourceMemoryIds` contains it. A
+ * summarized doc is skipped entirely (@spec MEM-ARCH-026): leaving its facts
+ * unassigned lets the next relevant UNsummarized memory that links them claim
+ * them, and otherwise they stay in the separate `<facts>` block. D10's dedup
+ * keys on rendered ids only, so nothing is dropped twice.
+ */
+function assignLinkedFactsByMemory(
+  memories: MemoryRetrievalResult['memories'],
+  linkedFacts: { id: string; statement: string; salience: number; sourceMemoryIds: string[] }[]
+): Map<string, { id: string; statement: string; salience: number }[]> {
+  const assignedFactIds = new Set<string>();
+  const factsByMemoryId = new Map<string, { id: string; statement: string; salience: number }[]>();
+  for (const doc of memories) {
+    const docId = doc.metadata?.id;
+    if (typeof docId !== 'string' || docHasSummary(doc)) {
+      continue;
+    }
+    const docFacts: { id: string; statement: string; salience: number }[] = [];
+    for (const fact of linkedFacts) {
+      if (assignedFactIds.has(fact.id) || !fact.sourceMemoryIds.includes(docId)) {
+        continue;
+      }
+      assignedFactIds.add(fact.id);
+      docFacts.push({ id: fact.id, statement: fact.statement, salience: fact.salience });
+    }
+    factsByMemoryId.set(docId, docFacts);
+  }
+  return factsByMemoryId;
 }
 
 /**
@@ -94,7 +172,8 @@ async function stampArchiveRenderMode(
   memories: MemoryRetrievalResult['memories'],
   personalitySlug: string,
   personalityId: string,
-  factRetriever: FactRetriever | undefined
+  factRetriever: FactRetriever | undefined,
+  archiveSummaryTrigger: ArchiveSummaryTrigger | undefined
 ): Promise<void> {
   if (!getSystemSetting('archiveSplitRenderPersonalities').includes(personalitySlug)) {
     return;
@@ -107,34 +186,25 @@ async function stampArchiveRenderMode(
       ? []
       : await factRetriever.retrieveLinkedFacts(memoryIds, personalityId);
 
-  // A fact linked to several retrieved memories is attributed to the most
-  // relevant one only — duplicating it across notes would spend budget twice
-  // on the same statement. `memories` is already in retrieval-relevance
-  // order, so the first memory (in that order) whose sourceMemoryIds contains
-  // the fact wins it.
-  const assignedFactIds = new Set<string>();
-  const factsByMemoryId = new Map<string, { id: string; statement: string; salience: number }[]>();
-  for (const doc of memories) {
-    const docId = doc.metadata?.id;
-    if (typeof docId !== 'string') {
-      continue;
-    }
-    const docFacts: { id: string; statement: string; salience: number }[] = [];
-    for (const fact of linkedFacts) {
-      if (assignedFactIds.has(fact.id) || !fact.sourceMemoryIds.includes(docId)) {
-        continue;
-      }
-      assignedFactIds.add(fact.id);
-      docFacts.push({ id: fact.id, statement: fact.statement, salience: fact.salience });
-    }
-    factsByMemoryId.set(docId, docFacts);
-  }
+  const factsByMemoryId = assignLinkedFactsByMemory(memories, linkedFacts);
 
   for (const doc of memories) {
     const docId = doc.metadata?.id;
-    const docFacts = typeof docId === 'string' ? (factsByMemoryId.get(docId) ?? []) : [];
-    doc.metadata = { ...doc.metadata, archiveRender: { mode: 'split', linkedFacts: docFacts } };
+    const summary = doc.metadata?.assistantSummary;
+    const hasSummary = docHasSummary(doc);
+    const docFacts =
+      hasSummary || typeof docId !== 'string' ? [] : (factsByMemoryId.get(docId) ?? []);
+    doc.metadata = {
+      ...doc.metadata,
+      archiveRender: {
+        mode: 'split',
+        linkedFacts: docFacts,
+        ...(hasSummary ? { assistantSummary: summary } : {}),
+      },
+    };
   }
+
+  enqueueSummaryRefreshes(memories, personalityId, archiveSummaryTrigger);
 }
 
 /**
@@ -162,7 +232,8 @@ export async function retrieveMemoriesAndFacts(
     retrieval.memories,
     opts.personality.slug,
     opts.personality.id,
-    opts.factRetriever
+    opts.factRetriever,
+    opts.archiveSummaryTrigger
   );
 
   const facts = await retrieveFactsForPrompt(

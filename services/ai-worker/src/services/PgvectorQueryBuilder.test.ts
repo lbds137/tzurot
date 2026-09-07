@@ -164,6 +164,18 @@ describe('PgvectorQueryBuilder', () => {
       expect(sqlString).toContain('LIMIT');
     });
 
+    it('includes the memory-archive summarizer columns', () => {
+      const whereConditions = [Prisma.sql`m.persona_id = ${'persona-123'}::uuid`];
+      const embeddingVector = '[0.1,0.2,0.3]';
+
+      const result = buildSimilaritySearchQuery(embeddingVector, whereConditions, 0.15, 10);
+
+      const sqlString = result.strings.join('');
+      expect(sqlString).toContain('m.assistant_summary');
+      expect(sqlString).toContain('m.summary_status');
+      expect(sqlString).toContain('m.summary_prompt_version');
+    });
+
     it('joins multiple WHERE conditions with AND', () => {
       const whereConditions = [
         Prisma.sql`m.persona_id = ${'persona-123'}::uuid`,

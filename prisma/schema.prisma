@@ -892,10 +892,12 @@ model Memory {
   /// assistant_summary; null until the first summary is stored.
   summaryModel         String?                @map("summary_model") @db.VarChar(255)
   /// Deferred-set: the summarizer prompt version that produced the stored
-  /// summary or the recorded terminal failure (`failed`/`dead`); null until
-  /// the first summary or terminal verdict is written. A value below the
-  /// current constant marks either stale (renders as user turn + facts,
-  /// re-enqueued).
+  /// summary, the recorded failure (`failed`, retry allowed), or the terminal
+  /// verdict (`dead`); null until the first summary or terminal verdict is
+  /// written. A value below the current constant marks the row stale: it is
+  /// re-enqueued at retrieval (`done` and `dead` alike), and a `done` row
+  /// keeps rendering its stored summary until the new one lands. A `failed`
+  /// row is re-enqueued at retrieval regardless of version.
   summaryPromptVersion Int?                   @map("summary_prompt_version")
   /// Deferred-set: sha-256 hex of `content` the stored summary (or the
   /// recorded failure) describes; null until the first billed attempt. A

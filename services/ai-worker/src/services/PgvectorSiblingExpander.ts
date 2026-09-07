@@ -28,6 +28,7 @@ export async function fetchChunkSiblings(
            m.canon_scope, m.summary_type, m.channel_id, m.guild_id,
            m.message_ids, m.senders, m.created_at,
            m.chunk_group_id, m.chunk_index, m.total_chunks,
+           m.assistant_summary, m.summary_status, m.summary_prompt_version,
            0::float8 as distance,
            COALESCE(persona.preferred_name, persona.name) as persona_name,
            owner.username as owner_username,
