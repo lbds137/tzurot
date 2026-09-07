@@ -1,6 +1,6 @@
-# Memory Archive: LLD — Slices A, B1 and B2
+# Memory Archive: LLD — Slices A, B1, B2 and C1
 
-Status: LIVE — slices A, B1 and B2
+Status: LIVE — slices A, B1, B2 and C1
 
 HLD: [`docs/proposals/backlog/memory-architecture.md`](../../proposals/backlog/memory-architecture.md).
 Accepted artifact (decisions D0–D10, pilot results): [`docs/proposals/backlog/memory-archive-format.md`](../../proposals/backlog/memory-archive-format.md).
@@ -288,7 +288,50 @@ this moves against is the pilot's render-level gate
 facts) and 26.5% on S. The eval is manual and paid (`pnpm eval:extraction`); no
 baseline JSON changes with this amendment.
 
-## Not in slices A/B1/B2
+## Slice C1 — the retrieval stamp
+
+**Why**: design D5's hot-first backfill orders a pre-warm sweep by how
+recently and how often a row was retrieved, and no retrieval signal existed
+anywhere in the schema — nothing recorded that a memory had ever been
+returned. The owner's ruling was to stamp retrievals rather than infer them.
+
+**What**: two additive `memories` columns — `last_retrieved_at` (nullable
+timestamp) and `retrieval_count` (integer, default 0) — written by
+`PgvectorMemoryAdapter.stampRetrieval`, called from `queryMemories` on the
+final document list after sibling expansion, when the query counts as a
+retrieval (`options.recordRetrieval !== false`). Chunk siblings are stamped
+too — they were returned.
+
+The channel-scoped waterfall stamps once on the deduplicated union of its
+two passes: `queryMemoriesWithChannelScoping` runs both passes with
+`recordRetrieval: false` so neither inner pass stamps on its own — a chunk
+sibling can straddle both passes' independent sibling expansions, and
+stamping per-pass would double-count it — then stamps once itself, after the
+waterfall returns, on the deduplicated id set of the combined results. A
+read-only measurement, such as the eval harness's `denseArm`, also passes
+`recordRetrieval: false`: it queries the live, prod-synced store to score
+retrieval quality, and a measurement must not count as a retrieval.
+
+**How it stays safe**: raw SQL, because `memories` is sync-tracked and
+reconciled by last-write-wins on `updated_at`; a Prisma client-level write
+would bump `@updatedAt` on every retrieval and let the retrieving environment
+clobber the other's edits. The write is fire-and-forget with a `.catch` — it
+is on the reply path, and a stamp is never worth a reply's latency or a
+failed retrieval. A stamp failure logs at `warn` at most once per hour and at
+`debug` otherwise, and no throw from the stamp — rejected or synchronous —
+can reach the retrieval. Both columns join `MEMORIES_SYNC_COLUMNS` and
+`last_retrieved_at` joins the `memories` `timestampColumns`, because the
+schema guard (`syncValidation.component.test.ts`) requires every live
+column to be enumerated somewhere. Slice C2 reads these columns to build the
+frequency-ordered pre-warm sweep and the ≥95% flip-gate report.
+
+The two columns are also listed in the `memories` sync config's
+`excludeColumns`, so neither value crosses the dev↔prod sync itself:
+retrieval frequency is environment-local — dev and prod serve different
+traffic — and a full-row last-write-wins copy would otherwise overwrite one
+environment's accumulated retrieval signal with the other's.
+
+## Not in slices A/B1/B2/C1
 
 Pre-warm (`reason: 'sweep'`) is still reserved in the job-data schema's
-`reason` enum but unproduced until slice C.
+`reason` enum but unproduced until slice C2.

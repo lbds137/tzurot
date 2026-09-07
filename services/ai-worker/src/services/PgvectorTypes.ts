@@ -66,6 +66,17 @@ export interface MemoryQueryOptions {
    * });
    */
   includeSiblings?: boolean;
+  /**
+   * Whether this query counts as a logical retrieval for the archive sweep's
+   * `last_retrieved_at`/`retrieval_count` stamp. Default: true.
+   *
+   * Set to `false` for:
+   * - A read-only measurement (e.g. the eval harness) that queries the live,
+   *   prod-synced store but must not count as a retrieval.
+   * - An inner pass of a multi-pass query (e.g. the channel-scoping waterfall's
+   *   per-pass calls) whose caller stamps the deduplicated union once instead.
+   */
+  recordRetrieval?: boolean;
 }
 
 /**

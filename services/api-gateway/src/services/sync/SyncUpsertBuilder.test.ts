@@ -30,7 +30,7 @@ import {
   VECTOR_SYNC_TABLES,
   type SyncExecutor,
 } from './SyncUpsertBuilder.js';
-import type { SYNC_CONFIG } from './config/syncTables.js';
+import { SYNC_CONFIG, type TableSyncConfig } from './config/syncTables.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 describe('SyncUpsertBuilder', () => {
@@ -193,5 +193,51 @@ describe('vector-table upserts — the ::vector cast crosses the SQL seam', () =
       uuidColumns: ['id'],
     });
     expect(queries[0]).not.toContain('::vector');
+  });
+});
+
+describe('MEM-ARCH-028: memories retrieval-signal columns never cross the sync', () => {
+  const capturingClient = (): { client: SyncExecutor; queries: string[] } => {
+    const queries: string[] = [];
+    const client = {
+      $executeRawUnsafe: vi.fn(async (q: string) => {
+        queries.push(q);
+        return 1;
+      }),
+      $queryRawUnsafe: vi.fn(async () => []),
+    } as unknown as SyncExecutor;
+    return { queries, client };
+  };
+
+  it('the memories upsert SQL omits last_retrieved_at and retrieval_count', async () => {
+    const memoriesConfig: TableSyncConfig = SYNC_CONFIG.memories;
+    const { client, queries } = capturingClient();
+
+    await upsertRow({
+      client,
+      tableName: 'memories',
+      row: {
+        id: 'x',
+        content: 'hello',
+        last_retrieved_at: new Date('2026-01-01T00:00:00Z'),
+        retrieval_count: 7,
+      },
+      pkField: memoriesConfig.pk,
+      uuidColumns: memoriesConfig.uuidColumns,
+      timestampColumns: memoriesConfig.timestampColumns,
+      excludeColumns: memoriesConfig.excludeColumns ?? [],
+    });
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).not.toContain('last_retrieved_at');
+    expect(queries[0]).not.toContain('retrieval_count');
+    // The columns that DO belong in the sync stay present, confirming the
+    // exclusion is scoped to the two retrieval-signal columns rather than
+    // accidentally dropping the whole row.
+    expect(queries[0]).toContain('content');
+  });
+
+  it('the memories config excludes exactly the retrieval-signal columns', () => {
+    expect(SYNC_CONFIG.memories.excludeColumns).toEqual(['last_retrieved_at', 'retrieval_count']);
   });
 });
