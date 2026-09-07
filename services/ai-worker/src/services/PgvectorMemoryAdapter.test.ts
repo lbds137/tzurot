@@ -11,6 +11,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
 import type { IEmbeddingService } from '@tzurot/embeddings';
+import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
+import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';
 
 // Mock splitTextByTokens to control chunking behavior in tests
 const mockSplitTextByTokens = vi.fn();
@@ -239,6 +241,106 @@ describe('PgvectorMemoryAdapter', () => {
       // All 4 should be the same chunkGroupId
       const uniqueGroupIds = new Set(chunkGroupIds);
       expect(uniqueGroupIds.size).toBe(1); // All have same group ID (deterministic)
+    });
+  });
+
+  describe('archive-summary trigger seam', () => {
+    const baseMetadata: MemoryMetadata = {
+      personaId: 'persona-123',
+      personalityId: 'personality-456',
+      canonScope: 'personal',
+      createdAt: Date.now(),
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockSplitTextByTokens.mockReset();
+    });
+
+    function makeTrigger(): ArchiveSummaryTrigger {
+      return { enqueue: vi.fn().mockResolvedValue(undefined) } as unknown as ArchiveSummaryTrigger;
+    }
+
+    it('C013: a non-chunked memory enqueues with the deterministic memory id', async () => {
+      const text = 'A short stored memory.';
+      mockSplitTextByTokens.mockReturnValue({
+        chunks: [text],
+        originalTokenCount: 50,
+        wasChunked: false,
+      });
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const trigger = makeTrigger();
+      const adapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService(),
+        trigger
+      );
+
+      await adapter.addMemory({ text, metadata: baseMetadata });
+
+      const expectedId = deterministicMemoryUuid(
+        baseMetadata.personaId,
+        baseMetadata.personalityId,
+        text
+      );
+      expect(trigger.enqueue).toHaveBeenCalledWith({
+        memoryId: expectedId,
+        personalityId: baseMetadata.personalityId,
+        reason: 'write',
+      });
+    });
+
+    it('C013: a chunked memory enqueues nothing', async () => {
+      const chunks = ['Chunk 1.', 'Chunk 2.'];
+      mockSplitTextByTokens.mockReturnValue({ chunks, originalTokenCount: 9000, wasChunked: true });
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const trigger = makeTrigger();
+      const adapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService(),
+        trigger
+      );
+
+      await adapter.addMemory({ text: chunks.join('\n\n'), metadata: baseMetadata });
+
+      expect(trigger.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('C-tail: addMemory resolves even when the trigger never resolves (fire-and-forget)', async () => {
+      const text = 'A short stored memory.';
+      mockSplitTextByTokens.mockReturnValue({
+        chunks: [text],
+        originalTokenCount: 50,
+        wasChunked: false,
+      });
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      // A trigger whose enqueue() never settles — if addMemory awaited it,
+      // this test would time out instead of failing cleanly.
+      const trigger = {
+        enqueue: vi.fn(() => new Promise(() => {})),
+      } as unknown as ArchiveSummaryTrigger;
+      const adapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService(),
+        trigger
+      );
+
+      await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toBeUndefined();
+      expect(trigger.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('an adapter constructed without a trigger still stores', async () => {
+      const text = 'A short stored memory.';
+      mockSplitTextByTokens.mockReturnValue({
+        chunks: [text],
+        originalTokenCount: 50,
+        wasChunked: false,
+      });
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as any, createMockEmbeddingService());
+
+      await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toBeUndefined();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
   });
 

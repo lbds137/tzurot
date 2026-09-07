@@ -203,11 +203,24 @@ export const handleUpdateMemory = (deps: RouteDeps): RequestHandler => {
     // stale-vector bug this route guards against. Schema already trims.
     const vector = await computeMemoryVector(memoryId, content);
     const [memory] = await prisma.$transaction([
+      // @spec MEM-ARCH-024
       prisma.memory.update({
         where: { id: memoryId },
         data: {
           content,
           updatedAt: new Date(),
+          // A genuine content edit invalidates the stored summary outright,
+          // and SHOULD bump updated_at — only the summarizer's own
+          // background writes must not (they use raw SQL for that reason).
+          assistantSummary: null,
+          summaryStatus: null,
+          summaryAttempts: 0,
+          summaryModel: null,
+          summaryPromptVersion: null,
+          sourceContentHash: null,
+          summaryRequestedAt: null,
+          summaryCompletedAt: null,
+          summaryLastError: null,
         },
         include: PERSONALITY_INCLUDE,
       }),

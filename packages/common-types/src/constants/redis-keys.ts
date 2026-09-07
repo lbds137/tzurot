@@ -78,6 +78,11 @@ export const CACHE_KEY_PREFIXES = {
    * `ai-worker` extraction worker (slice 2).
    */
   FACT_EXTRACTION_BUDGET: 'factextract:budget:',
+  /**
+   * GLOBAL (all characters) per-UTC-day archive-summary budget counter — the
+   * summarizer's cost tripwire. Consumers: `ai-worker` archive-summary worker.
+   */
+  ARCHIVE_SUMMARY_BUDGET: 'archivesummary:budget:',
 } as const;
 
 /**

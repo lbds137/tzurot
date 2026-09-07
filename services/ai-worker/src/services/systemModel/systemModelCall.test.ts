@@ -42,6 +42,7 @@ vi.mock('../ModelFactory.js', () => ({
 }));
 
 import { invokeSystemModel, resolveSystemModelRoute } from './systemModelCall.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import {
   registerSystemSettings,
   resetSystemSettingsRegistration,
@@ -149,6 +150,52 @@ describe('invokeSystemModel provider seam', () => {
       [[expect.objectContaining({ content: 'the actual prompt text' })]],
       { timeout: 4242 },
       undefined
+    );
+  });
+
+  it('forwards neither thinking nor maxTokens when omitted (no key present, not just undefined-valued)', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+
+    const args = createChatModelMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(Object.keys(args)).not.toContain('thinking');
+    expect(Object.keys(args)).not.toContain('maxTokens');
+  });
+
+  it('forwards thinking and maxTokens when both are supplied', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+
+    await invokeSystemModel('prompt', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 1000,
+      thinking: 'off',
+      maxTokens: 512,
+    });
+
+    expect(createChatModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ thinking: 'off', maxTokens: 512 })
+    );
+  });
+
+  it('an explicit route overrides what resolveSystemModelRoute would return', async () => {
+    setExtractionSettings({ provider: 'openrouter' });
+    getConfigMock.mockReturnValue(baseConfig);
+
+    await invokeSystemModel('prompt', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 1000,
+      route: { provider: AIProvider.ZaiCoding, apiKey: 'gate-key' },
+    });
+
+    expect(createChatModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'zai-coding',
+        apiKey: 'gate-key',
+        modelName: 'glm-5.2',
+      })
     );
   });
 

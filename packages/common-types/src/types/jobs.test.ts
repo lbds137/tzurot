@@ -27,6 +27,8 @@ import {
   type FactExtractionJobData,
   releaseBroadcastDmJobDataSchema,
   retentionNotifyDmJobDataSchema,
+  archiveSummaryJobDataSchema,
+  type ArchiveSummaryJobData,
 } from './jobs.js';
 import {
   shapesImportJobDataSchema,
@@ -183,6 +185,68 @@ describe('BullMQ Job Contract Tests', () => {
         personalityId: UUID_A,
         sourceMemoryIds: [UUID_B],
         windowStart: UUID_B,
+      };
+
+      const result = anyJobDataSchema.safeParse(job);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('Schema Validation - Archive Summary Job', () => {
+    const UUID_MEMORY = '4f9b0f66-1111-4000-8000-00000000000a';
+    const UUID_PERSONALITY = '4f9b0f66-1111-4000-8000-00000000000b';
+
+    it('should validate a valid archive summary job', () => {
+      const validJob: ArchiveSummaryJobData = {
+        requestId: 'req-archive-summary-1',
+        jobType: JobType.ArchiveSummary,
+        responseDestination: DISCORD_DESTINATION,
+        version: 1,
+        memoryId: UUID_MEMORY,
+        personalityId: UUID_PERSONALITY,
+        reason: 'write',
+      };
+
+      const result = archiveSummaryJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject a non-uuid memoryId', () => {
+      const invalidJob = {
+        requestId: 'req-archive-summary-2',
+        jobType: JobType.ArchiveSummary,
+        responseDestination: DISCORD_DESTINATION,
+        memoryId: 'not-a-uuid',
+        personalityId: UUID_PERSONALITY,
+        reason: 'write',
+      };
+
+      const result = archiveSummaryJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject an unknown reason', () => {
+      const invalidJob = {
+        requestId: 'req-archive-summary-3',
+        jobType: JobType.ArchiveSummary,
+        responseDestination: DISCORD_DESTINATION,
+        memoryId: UUID_MEMORY,
+        personalityId: UUID_PERSONALITY,
+        reason: 'unknown',
+      };
+
+      const result = archiveSummaryJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should participate in the discriminated union', () => {
+      const job = {
+        requestId: 'req-archive-summary-4',
+        jobType: JobType.ArchiveSummary,
+        responseDestination: DISCORD_DESTINATION,
+        memoryId: UUID_MEMORY,
+        personalityId: UUID_PERSONALITY,
+        reason: 'retrieval',
       };
 
       const result = anyJobDataSchema.safeParse(job);
@@ -1367,6 +1431,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.FactExtraction]: factExtractionJobDataSchema,
       [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
       [JobType.RetentionNotifyDm]: retentionNotifyDmJobDataSchema,
+      [JobType.ArchiveSummary]: archiveSummaryJobDataSchema,
     };
 
     it('should have a Zod data schema for every JobType enum value', () => {

@@ -354,6 +354,32 @@ describe('memorySingle handlers', () => {
       );
     });
 
+    it('MEM-ARCH-024: resets every summary column on a content edit', async () => {
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
+
+      await handleUpdateMemory(deps())(req, res, () => undefined);
+
+      // Exact, not `objectContaining`: a summary column added to the reset
+      // set — or dropped from it — has to be reflected here, so the reset
+      // cannot silently drift away from the schema's summary columns.
+      const updateArgs = mockPrisma.memory.update.mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      };
+      expect(updateArgs.data).toEqual({
+        content: 'new content',
+        updatedAt: expect.any(Date),
+        assistantSummary: null,
+        summaryStatus: null,
+        summaryAttempts: 0,
+        summaryModel: null,
+        summaryPromptVersion: null,
+        sourceContentHash: null,
+        summaryRequestedAt: null,
+        summaryCompletedAt: null,
+        summaryLastError: null,
+      });
+    });
+
     it('should update the updatedAt timestamp', async () => {
       const beforeUpdate = Date.now();
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });

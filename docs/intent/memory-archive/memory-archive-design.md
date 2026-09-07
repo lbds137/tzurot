@@ -1,6 +1,6 @@
-# Memory Archive: LLD — Slice A
+# Memory Archive: LLD — Slices A and B1
 
-Status: LIVE — slice A
+Status: LIVE — slices A and B1
 
 HLD: [`docs/proposals/backlog/memory-architecture.md`](../../proposals/backlog/memory-architecture.md).
 Accepted artifact (decisions D0–D10, pilot results): [`docs/proposals/backlog/memory-archive-format.md`](../../proposals/backlog/memory-archive-format.md).
@@ -102,7 +102,81 @@ quote-lines-stripped count, linked-fact count — logged as IDs/counts only
 (never memory or fact text) by `PromptBuilder.buildVolatilePrefix` beside the
 existing `'Volatile prefix composition'` line.
 
-## Not in slice A
+## Slice B1 — the summarizer (write side)
 
-`/memory view`'s summary line needs slice B's `assistant_summary` column and
-has nothing to show while only the F arm exists — deferred to slice B.
+Constructs the write half of the pilot's arm-S summarizer as a real BullMQ
+worker, wired to the memory write path. No rendering, no retrieval-time
+enqueue, no `/memory view` change — those are slice B2 (the read side).
+
+**The queue.** `archive-summary` (`ARCHIVE_SUMMARY_QUEUE_NAME`), worker-internal
+to ai-worker, separate from `fact-extraction` so a summary backlog never
+starves fact extraction. `defaultJobOptions.removeOnComplete`/`removeOnFail`
+are plain booleans, not history counts — the memory ROW is the ledger
+(`summary_status`, `summary_attempts`, `summary_last_error`), so Redis only
+needs the in-flight job set. Concurrency 1, a worker rate limiter
+(`ARCHIVE_SUMMARY_RATE_LIMIT`), and the same lock-duration/stalled-count
+posture as fact extraction.
+
+**The trigger and its deterministic jobId.** `ArchiveSummaryTrigger.enqueue`
+tail-calls after a non-chunked memory row is stored (`PgvectorMemoryAdapter`
+constructor gains an optional third param). The BullMQ jobId IS the memory's
+own id — an enqueue storm (a retried write, a future re-summarize sweep)
+dedupes to the single in-flight job for that row. Chunk rows are deliberately
+never enqueued: a chunk never matches the stored template, so it could only
+ever die as `no_template`. After a successful add, the row is stamped
+`pending` via raw SQL (a `done` row keeps its status and its live summary
+until the new one lands).
+
+**The three gates, and why each delays rather than fails.** In order: (a) the
+`archiveSummaryModelEnabled` switch off, (b) the resolved system-model route
+is not `zai-coding` (an OpenRouter route cannot disable reasoning and must
+never bill a summary — logged once per process, not once per job), (c) the
+daily budget exhausted. Each uses BullMQ's manual-delay idiom
+(`job.moveToDelayed` + `throw new DelayedError()`) so no retry attempt is
+consumed and nothing is written to the row — the event being waited on is a
+switch flip or a UTC-day rollover, not a transient failure. The budget gate
+also returns its charge before delaying, so a delayed job does not consume
+the daily cap on every hourly retry.
+
+**The per-job flow.** Load the row (one query joining `personas`/
+`personalities` for the prompt's names) → idempotence check (full sha-256 of
+`content` against `source_content_hash` + prompt version; `done`/`dead` rows
+with a matching hash and prompt version skip entirely — both terminal writers
+stamp the version, so a `dead` row is not re-billed on re-enqueue) → the
+switch and route gates → split the
+stored `{user}: … {assistant}: …` template → the budget gate → summarize →
+validate (length, first-person, dangling referents) → at most one
+regeneration pass, each referenced row getting a referent-check call before
+and after → write. The split runs BEFORE the budget gate because it is a
+zero-spend terminal check: `no_template` content is marked `dead` with no
+model call and consumes no budget at all. The switch and route gates still
+precede the split because a `dead` write must not happen while the
+summarizer is switched off or misrouted.
+
+**The raw-SQL write rule and its sync reason.** Every write to `memories`
+here uses `prisma.$executeRaw`, never `prisma.memory.update` — `memories` is
+sync-tracked and dev↔prod reconciliation is last-write-wins on `updated_at`
+(`.claude/rules/03-database.md` § Sync-Tracked Tables), so an ORM `update()`
+would let a machine-generated summary out-rank a genuine content edit made in
+the other environment. A billed failure's attempts count and resulting
+status (`failed` vs `dead` at `MAX_SUMMARY_ATTEMPTS`) are computed from the
+SAME SQL `CASE` expression, so they can never disagree under a concurrent
+write. Conversely, a genuine content edit (`api-gateway`'s memory-edit route)
+uses the ordinary Prisma `update()` and SHOULD bump `updated_at` — it resets
+every summary column, since the edited content invalidates the old summary
+outright.
+
+**The three switches.** `archiveSummaryEnqueueEnabled` (job creation),
+`archiveSummaryModelEnabled` (model calls — separate from enqueue so a
+backlog can build before any spend), and `archiveSummaryDailyCap` (global,
+all characters combined, per UTC day). All three live in the new
+`memory-archive` system-settings group alongside slice A's own
+`archiveSplitRenderPersonalities` — the per-character RENDER switch is slice
+A's, not a new setting; B1 only adds the three write-side knobs.
+
+## Not in slice A/B1
+
+`/memory view`'s summary line needs the retrieval-time enqueue and rendering
+change — deferred to slice B2, along with lazy-fill (`reason: 'retrieval'`)
+and pre-warm (`reason: 'sweep'`) enqueue paths, both already reserved in the
+job-data schema's `reason` enum but unproduced until B2.
