@@ -406,6 +406,8 @@ CREATE TABLE "memories" (
     "summary_requested_at" TIMESTAMP(3),
     "summary_completed_at" TIMESTAMP(3),
     "summary_last_error" VARCHAR(40),
+    "last_retrieved_at" TIMESTAMP(3),
+    "retrieval_count" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "memories_pkey" PRIMARY KEY ("id")
 );
