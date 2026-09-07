@@ -39,11 +39,20 @@ import type {
 const logger = createLogger('PgvectorMemoryAdapter');
 
 /**
+ * Throttle for the retrieval-stamp failure warn: a systematic failure (a
+ * bad grant, schema drift) deserves visibility, but the stamp fires on
+ * every retrieval, so an unthrottled warn would spam the log at reply
+ * traffic scale.
+ */
+const RETRIEVAL_STAMP_WARN_INTERVAL_MS = 60 * 60_000;
+
+/**
  * Adapter that provides memory retrieval and storage using pgvector
  */
 export class PgvectorMemoryAdapter {
   private prisma: PrismaClient;
   private embeddingService: IEmbeddingService;
+  private lastStampWarnAt = 0;
 
   constructor(
     prisma: PrismaClient,
@@ -80,6 +89,7 @@ export class PgvectorMemoryAdapter {
     query: string,
     options: MemoryQueryOptions
   ): Promise<PgvectorMemoryDocument[]> {
+    let documents: PgvectorMemoryDocument[];
     try {
       // Validate query input before calling OpenAI API
       if (!isValidId(query)) {
@@ -118,22 +128,12 @@ export class PgvectorMemoryAdapter {
       );
 
       const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>(sqlQuery);
-      let documents: PgvectorMemoryDocument[] = memories.map(mapQueryResultToDocument);
+      documents = memories.map(mapQueryResultToDocument);
 
       // Expand results with sibling chunks (default: true for complete memory retrieval)
       if (options.includeSiblings !== false && documents.length > 0) {
         documents = await expandWithSiblings(this.prisma, documents, options.personaId);
       }
-
-      logger.debug(
-        {
-          count: documents.length,
-          personaId: options.personaId,
-          personalityId: isValidId(options.personalityId) ? options.personalityId : 'all',
-        },
-        'Retrieved memories for query'
-      );
-      return documents;
     } catch (error) {
       logger.error(
         {
@@ -146,6 +146,26 @@ export class PgvectorMemoryAdapter {
       );
       return [];
     }
+
+    // Stamping runs outside the try/catch above: a synchronous throw from
+    // issuing the tagged-template call must never turn a successful
+    // retrieval into an empty result via the outer catch.
+    const retrievedIds = this.collectRetrievalIds(documents);
+    const shouldStamp = options.recordRetrieval !== false;
+    if (shouldStamp) {
+      this.stampRetrieval(retrievedIds);
+    }
+
+    logger.debug(
+      {
+        count: documents.length,
+        personaId: options.personaId,
+        personalityId: isValidId(options.personalityId) ? options.personalityId : 'all',
+        stampAttempted: shouldStamp ? retrievedIds.length : 0,
+      },
+      'Retrieved memories for query'
+    );
+    return documents;
   }
 
   /**
@@ -348,6 +368,70 @@ export class PgvectorMemoryAdapter {
     return updated > 0;
   }
 
+  /**
+   * @spec MEM-ARCH-028
+   * Stamp the rows a retrieval just returned, so the archive pre-warm sweep
+   * has a frequency signal to order by. Raw SQL on purpose: `memories` is a
+   * sync-tracked table reconciled dev<->prod by last-write-wins on
+   * `updated_at`, and a Prisma client-level write would auto-bump `@updatedAt`
+   * on every retrieval — making the retrieving environment win the next sync
+   * and clobber the other side's genuine edits. See `03-database.md`
+   * (Sync-Tracked Tables & `updated_at`).
+   *
+   * Fire-and-forget by design: this runs on the reply path, and a stamp is
+   * bookkeeping — never worth adding a round trip's latency to a reply, and
+   * never worth failing a retrieval over. Callers must not await it.
+   * Chunk siblings are included: they were returned, so they were retrieved.
+   *
+   * Wrapped in a synchronous try/catch too: issuing the tagged-template call
+   * itself can throw before it ever produces a promise to `.catch`, and a
+   * throw of any kind here must never propagate to the caller's retrieval.
+   */
+  private stampRetrieval(memoryIds: string[]): void {
+    if (memoryIds.length === 0) {
+      return;
+    }
+    try {
+      void this.prisma.$executeRaw`
+        UPDATE memories
+        SET last_retrieved_at = NOW(), retrieval_count = retrieval_count + 1
+        WHERE id = ANY(${memoryIds}::uuid[])
+      `.catch((err: unknown) => this.logStampFailure(err, memoryIds.length));
+    } catch (err) {
+      this.logStampFailure(err, memoryIds.length);
+    }
+  }
+
+  /**
+   * Logs a retrieval-stamp failure, throttled to at most one `warn` per
+   * `RETRIEVAL_STAMP_WARN_INTERVAL_MS` — a systematic failure (bad grant,
+   * schema drift) deserves visibility, but the stamp fires on every
+   * retrieval, so every failure logs at `debug` between warns. Never logs
+   * memory ids — counts only.
+   */
+  private logStampFailure(err: unknown, memoryCount: number): void {
+    const now = Date.now();
+    if (now - this.lastStampWarnAt >= RETRIEVAL_STAMP_WARN_INTERVAL_MS) {
+      logger.warn({ err, memoryCount }, 'Retrieval stamp tail rejected');
+      this.lastStampWarnAt = now;
+    } else {
+      logger.debug({ err, memoryCount }, 'Retrieval stamp tail rejected');
+    }
+  }
+
+  /**
+   * Collect the deduplicated set of memory ids a query's results represent,
+   * for use as the stamp's target set. Deduplication matters because the
+   * channel-scoping waterfall's two passes can both return the same chunk
+   * group via sibling expansion; stamping must count each memory once.
+   */
+  private collectRetrievalIds(documents: PgvectorMemoryDocument[]): string[] {
+    const ids = documents
+      .map(d => d.metadata?.id as string | null | undefined)
+      .filter((id): id is string => id !== undefined && id !== null);
+    return Array.from(new Set(ids));
+  }
+
   private async generateEmbedding(text: string): Promise<number[]> {
     if (!this.embeddingService.isServiceReady()) {
       throw new Error('Embedding service is not ready');
@@ -376,12 +460,29 @@ export class PgvectorMemoryAdapter {
   /**
    * Query memories with channel scoping using the "waterfall" method
    * Delegates to waterfallMemoryQuery with this.queryMemories as the query function
+   *
+   * @spec MEM-ARCH-028
+   * The waterfall runs two passes (channel-scoped, then global backfill), and
+   * each pass's sibling expansion can independently pull in the same chunk
+   * group — so stamping inside `queryMemories` per-pass would double-count a
+   * memory returned by both. Each inner pass is told not to stamp
+   * (`recordRetrieval: false`); this method stamps once, after the waterfall
+   * returns, on the deduplicated union of both passes' results.
    */
   async queryMemoriesWithChannelScoping(
     query: string,
     options: MemoryQueryOptions
   ): Promise<PgvectorMemoryDocument[]> {
-    return waterfallMemoryQuery((q, o) => this.queryMemories(q, o), query, options);
+    const combined = await waterfallMemoryQuery((q, o) => this.queryMemories(q, o), query, {
+      ...options,
+      recordRetrieval: false,
+    });
+
+    if (options.recordRetrieval !== false) {
+      this.stampRetrieval(this.collectRetrievalIds(combined));
+    }
+
+    return combined;
   }
 
   /**

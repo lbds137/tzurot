@@ -487,6 +487,69 @@ describe('PgvectorMemoryAdapter Component Test', () => {
     });
   });
 
+  describe('retrieval stamp', () => {
+    interface RetrievalStampRow {
+      last_retrieved_at: Date | null;
+      retrieval_count: number | bigint | string;
+      updated_at: Date;
+    }
+
+    async function readStampRow(): Promise<RetrievalStampRow> {
+      const rows = await prisma.$queryRaw<RetrievalStampRow[]>`
+        SELECT last_retrieved_at, retrieval_count, updated_at FROM memories
+        WHERE persona_id = ${testPersonaId}::uuid
+      `;
+      return rows[0];
+    }
+
+    // The stamp write is fire-and-forget, so the count doesn't land
+    // synchronously with the awaited queryMemories call — poll for it
+    // rather than asserting immediately after.
+    async function waitForStampedRow(): Promise<RetrievalStampRow> {
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const row = await readStampRow();
+        if (Number(row.retrieval_count) === 1) {
+          return row;
+        }
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
+      throw new Error('Retrieval stamp never landed within the poll window');
+    }
+
+    it('MEM-ARCH-028: a retrieval stamps last_retrieved_at and retrieval_count without moving updated_at', async () => {
+      const baseMetadata: MemoryMetadata = {
+        personaId: testPersonaId,
+        personalityId: testPersonalityId,
+        createdAt: Date.now(),
+        canonScope: 'personal',
+        summaryType: 'conversation',
+      };
+
+      await adapter.addMemory({
+        text: '{user}: hi\n{assistant}: hello',
+        metadata: baseMetadata,
+      });
+
+      const before = await readStampRow();
+      expect(Number(before.retrieval_count)).toBe(0);
+      expect(before.last_retrieved_at).toBeNull();
+
+      const results = await adapter.queryMemories('hi hello', {
+        personaId: testPersonaId,
+        personalityId: testPersonalityId,
+        limit: 10,
+        scoreThreshold: 0.1,
+        includeSiblings: false,
+      });
+      expect(results.length).toBeGreaterThanOrEqual(1);
+
+      const after = await waitForStampedRow();
+      expect(Number(after.retrieval_count)).toBe(1);
+      expect(after.last_retrieved_at).not.toBeNull();
+      expect(after.updated_at.getTime()).toBe(before.updated_at.getTime());
+    });
+  });
+
   describe('healthCheck', () => {
     it('should return true when database is connected', async () => {
       const healthy = await adapter.healthCheck();
