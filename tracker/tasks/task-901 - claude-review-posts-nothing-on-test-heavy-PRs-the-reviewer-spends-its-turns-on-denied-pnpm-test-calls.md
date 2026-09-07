@@ -24,3 +24,5 @@ Acceptance: a PR of that shape gets a posted review on the first run; the Verify
 <!-- SECTION:DESCRIPTION:END -->
 
 Second data point: #2350 (a 62-file runtime PR, five review rounds) — the review job completed without posting on three of its six runs; each rerun posted. The posted-review guard step now fails the job explicitly, so the silent case is at least visible.
+
+Third data point: #2351 (a 55-file runtime PR, six review rounds) — silent on three of its nine runs (the round-1, round-3, and round-5 pushes), every rerun posted, each silent run failed at the Verify a review was posted step at 2m40s to 4m54s. Three PRs in a row now; the shape is stable and the fix is the workflow-sync change above.
