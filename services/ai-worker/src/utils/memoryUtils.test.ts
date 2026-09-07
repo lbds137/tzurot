@@ -10,7 +10,7 @@ import {
   mergeSiblings,
 } from './memoryUtils.js';
 import type { MemoryMetadata, MemoryQueryResult } from '../services/PgvectorTypes.js';
-import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '../services/archiveSummary/constants.js';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 
 // Mock promptPlaceholders to avoid complex dependencies
 vi.mock('./promptPlaceholders.js', () => ({

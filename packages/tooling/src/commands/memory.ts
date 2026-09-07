@@ -301,6 +301,51 @@ function registerConversationGoldensCommand(cli: CAC): void {
     );
 }
 
+/** Archive-summary pre-warm sweep (memory-archive slice C2) — see summarize-sweep.ts. */
+function registerSummarizeSweepCommand(cli: CAC): void {
+  cli
+    .command(
+      'memory:summarize',
+      'Enqueue archive-summary pre-warm jobs for one personality and report the ≥95% flip gate (idempotent by memory id, so re-running is safe)'
+    )
+    .option('--personality <slug>', 'Personality slug (required)')
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--window <days>', 'Retrieval window in days (default 30)')
+    .option('--limit <n>', 'Cap on selected rows (default 5000)')
+    .option('--dry-run', 'Report the gate and estimate without enqueueing')
+    .option('--estimate', 'Alias for --dry-run')
+    .option('--include-cold', 'Also sweep cold (rarely/never-retrieved) rows behind the hot budget')
+    .option('--force', FORCE_OPTION_DESC)
+    .action(
+      async (options: {
+        personality?: string;
+        env?: Environment;
+        window?: string;
+        limit?: string;
+        dryRun?: boolean;
+        estimate?: boolean;
+        includeCold?: boolean;
+        force?: boolean;
+      }) => {
+        if (options.personality === undefined) {
+          throw new UsageError('--personality is required');
+        }
+        const windowDays = parsePositiveIntOption(options.window, '--window');
+        const limit = parsePositiveIntOption(options.limit, '--limit');
+        const { summarizeSweep } = await import('../memory/summarize-sweep.js');
+        await summarizeSweep({
+          env: options.env ?? 'dev',
+          personality: options.personality,
+          windowDays,
+          limit,
+          dryRun: options.dryRun === true || options.estimate === true,
+          includeCold: options.includeCold,
+          force: options.force,
+        });
+      }
+    );
+}
+
 export function registerMemoryCommands(cli: CAC): void {
   // Analyze duplicate memories
   cli
@@ -354,6 +399,7 @@ export function registerMemoryCommands(cli: CAC): void {
   registerConversationGoldensCommand(cli);
   registerAttachmentGoldensCommand(cli);
   registerRenderPilotCommand(cli);
+  registerSummarizeSweepCommand(cli);
 
   // Cleanup duplicate memories
   cli

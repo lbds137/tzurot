@@ -14,7 +14,7 @@
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Queue } from 'bullmq';
 import { JobType } from '@tzurot/common-types/constants/queue';
-import type { ArchiveSummaryJobData } from '@tzurot/common-types/types/jobs';
+import { buildArchiveSummaryJobData } from '@tzurot/common-types/types/jobs';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ArchiveSummaryTrigger');
@@ -38,15 +38,7 @@ export class ArchiveSummaryTrigger {
         return;
       }
 
-      const jobData: ArchiveSummaryJobData = {
-        requestId: `archive-summary-${input.memoryId}`,
-        jobType: JobType.ArchiveSummary,
-        responseDestination: { type: 'api' },
-        version: 1,
-        memoryId: input.memoryId,
-        personalityId: input.personalityId,
-        reason: input.reason,
-      };
+      const jobData = buildArchiveSummaryJobData(input);
 
       await this.queue.add(JobType.ArchiveSummary, jobData, {
         jobId: input.memoryId, // deterministic — dedupes a re-enqueue of the same row

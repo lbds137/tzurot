@@ -1,6 +1,6 @@
-# Memory Archive: LLD — Slices A, B1, B2 and C1
+# Memory Archive: LLD — Slices A, B1, B2, C1 and C2
 
-Status: LIVE — slices A, B1, B2 and C1
+Status: LIVE — slices A, B1, B2, C1 and C2
 
 HLD: [`docs/proposals/backlog/memory-architecture.md`](../../proposals/backlog/memory-architecture.md).
 Accepted artifact (decisions D0–D10, pilot results): [`docs/proposals/backlog/memory-archive-format.md`](../../proposals/backlog/memory-archive-format.md).
@@ -173,6 +173,8 @@ all characters combined, per UTC day). All three live in the new
 `memory-archive` system-settings group alongside slice A's own
 `archiveSplitRenderPersonalities` — the per-character RENDER switch is slice
 A's, not a new setting; B1 only adds the three write-side knobs.
+`archiveSummaryEnqueueEnabled` also gates slice C2's sweep, not just
+`ArchiveSummaryTrigger.enqueue` — see below.
 
 ## Slice B2 — the summarizer (read side)
 
@@ -331,7 +333,90 @@ retrieval frequency is environment-local — dev and prod serve different
 traffic — and a full-row last-write-wins copy would otherwise overwrite one
 environment's accumulated retrieval signal with the other's.
 
-## Not in slices A/B1/B2/C1
+## Slice C2 — the sweep and the gate
 
-Pre-warm (`reason: 'sweep'`) is still reserved in the job-data schema's
-`reason` enum but unproduced until slice C2.
+**Why**: design D5's hot-first pre-warm needs to run BEFORE a personality
+flips to split-render summaries — flipping cold turns every retrieval into a
+lazy-fill enqueue-then-render-verbatim-this-turn cycle, so the operator wants
+most of a personality's frequently-retrieved memories already summarized
+before flipping `archiveSplitRenderPersonalities`. `pnpm ops memory:summarize`
+is that pre-warm sweep plus the report that tells the operator when a
+personality is ready.
+
+**The eligibility predicate and its ai-worker twin.** `ELIGIBLE_PREDICATE`
+(`packages/tooling/src/memory/summarize-sweep-sql.ts`) is a deliberate twin of
+`summaryRefreshEligible` in `services/ai-worker/src/utils/memoryUtils.ts` —
+same non-chunk / null-or-failed / stale-done-or-dead shape — but the version
+arm is NOT byte-identical. The ai-worker twin treats any
+`summary_prompt_version !== current` as stale (so it re-admits both an older
+AND a newer prompt version than the one it knows about); the sweep predicate
+uses `<` instead, admitting only rows STALE relative to the current version.
+That divergence is deliberate: a sweep enqueueing a row stamped by a NEWER
+prompt version than the sweep's own build would re-bill a summary that is
+already current under the newer prompt — the retrieval path can afford `!==`
+because it re-enqueues one row at a time as a side effect of being read, but
+a bulk sweep must not systematically re-bill ahead of a code rollout.
+
+**Hot ordering, and the cold tail.** The hot selection
+(`buildSelectionSql('hot')`) orders by `retrieval_count DESC, last_retrieved_at
+DESC` — the two columns slice C1 added — so the sweep spends its enqueue
+budget on the rows most likely to be retrieved again before the flip. Cold
+rows (rarely or never retrieved) are swept only behind `--include-cold`, using
+the REMAINING budget after hot selection fills its share of `--limit`; a plain
+run never touches cold rows at all.
+
+**The estimate.** `estimateInputTokens` sums, per selected row,
+`SUMMARIZER_PROMPT_OVERHEAD_TOKENS` (705 — measured by calling
+`buildSummarizerPrompt` with every string field empty and `referenced: null`,
+counted with common-types' `countTextTokens`; this number moves whenever the
+summarizer prompt text changes, and it is a spend-check estimate, not a
+billing figure) plus the row's content length converted to tokens
+(`content_chars / CHARS_PER_TOKEN`) and inflated by `CONTENT_TOKEN_INFLATION`
+(1.3, for the summarizer's own template wrapping). The estimate prints before
+any enqueue call, and `--dry-run` (alias `--estimate`) enqueues nothing at
+all — the operator can see the projected spend and the gate without touching
+the queue or the row.
+
+**The report.** Alongside the estimate, the sweep prints the personality's
+summarized share over the window (`done_current / retrieved_in_window`) as the
+95% flip gate, the fact-coverage share (per §8.5 amendment 6 — how much of the
+retrieved window is also covered by a live, non-forgotten fact), and dead rows
+grouped by `summary_last_error` (a `VARCHAR(40)` error CLASS, never free text).
+Every printed line is a count or an id — never memory or summary content.
+
+**The batched pending stamp.** `PENDING_STAMP_SQL` is the sweep's twin of
+`ArchiveSummaryTrigger.enqueue`'s single-row stamp: `done` and `dead` stay
+terminal and are never re-admitted by the stamp itself. The sweep batches it
+over an array of ids (200 per statement) rather than one row per call, since a
+sweep can touch thousands of rows in one run; the trigger stays per-row
+because it fires once per stored memory.
+
+**Job options mirror the live queue.** Sweep jobs carry `SWEEP_JOB_OPTIONS` —
+`attempts`, `backoff`, `removeOnComplete`, and `removeOnFail` copied from
+`services/ai-worker/src/jobs/archiveSummarySetup.ts`'s `defaultJobOptions` —
+because the inspector `Queue` instance this command constructs applies no
+`defaultJobOptions` of its own, and BullMQ's options apply client-side per
+`Queue` instance rather than server-side per named queue.
+
+**The sweep honors the enqueue kill switch.** `archiveSummaryEnqueueEnabled`
+is the design's job-creation switch, and the sweep enqueues jobs directly
+through the inspector `Queue` rather than through
+`ArchiveSummaryTrigger.enqueue` — so it reads the switch itself, after
+printing the report and switches, and aborts before `enqueueSelected` when
+the switch reads `false`. `--force` bypasses only the prod confirmation
+prompt (§ below), never this switch — it is the owner's kill switch, not a
+run confirmation. When settings are unavailable, the switch reads as `null`
+and the sweep proceeds (fail OPEN), matching the runtime's own fail-open
+reading of an unavailable settings bag.
+
+**The report's `done` split.** What was a single `done_stale` bucket is now
+`done_older` (`summary_prompt_version < current` — re-sweepable under
+`ELIGIBLE_PREDICATE`) and `done_newer` (`summary_prompt_version > current` — a
+future prompt version this sweep must not re-bill, per the eligibility
+predicate's own `<` divergence above).
+
+**The flip stays owner-side.** This command reads system settings through
+`SystemSettingsService` (read-only) and reports whether the gate is READY, but
+it cannot write settings — the operator flips
+`archiveSplitRenderPersonalities` by hand via `/admin settings set` once the
+gate and their own judgment agree the personality is ready.
