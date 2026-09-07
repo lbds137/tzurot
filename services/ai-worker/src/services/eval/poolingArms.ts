@@ -46,6 +46,10 @@ export async function denseArm(
     personaId,
     limit: OVERFETCH,
     scoreThreshold: SCORE_FLOOR,
+    // The harness queries the live, prod-synced store to measure retrieval
+    // quality; a measurement must not count as a retrieval for the archive
+    // sweep's frequency signal.
+    recordRetrieval: false,
   });
   const seen = new Set<string>();
   const rows: RetrievedRow[] = [];

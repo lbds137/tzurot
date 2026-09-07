@@ -61,6 +61,8 @@ export const MEMORIES_SYNC_COLUMNS = [
   'summary_requested_at',
   'summary_completed_at',
   'summary_last_error',
+  'last_retrieved_at',
+  'retrieval_count',
 ] as const;
 
 /** Every memory_facts column — same explicit-list contract (and the same

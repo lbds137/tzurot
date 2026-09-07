@@ -59,6 +59,11 @@ vi.mock('@tzurot/common-types/constants/discord', async () => {
   };
 });
 
+const { mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+  mockLoggerDebug: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -67,8 +72,8 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     ...actual,
     createLogger: () => ({
       info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
+      debug: mockLoggerDebug,
+      warn: mockLoggerWarn,
       error: vi.fn(),
     }),
   };
@@ -423,6 +428,7 @@ describe('PgvectorMemoryAdapter', () => {
     it('returns empty array for an empty query string (validation short-circuit)', async () => {
       const mockPrisma = {
         $queryRaw: vi.fn(),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
@@ -445,6 +451,7 @@ describe('PgvectorMemoryAdapter', () => {
             buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
             buildQueryResultRow({ id: 'mem-2', content: 'Second memory', distance: 0.2 }),
           ]),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
@@ -474,6 +481,7 @@ describe('PgvectorMemoryAdapter', () => {
     it('returns empty array when prisma query throws (graceful degradation)', async () => {
       const mockPrisma = {
         $queryRaw: vi.fn().mockRejectedValue(new Error('Connection refused')),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
@@ -488,15 +496,254 @@ describe('PgvectorMemoryAdapter', () => {
       // memories for that turn.
       expect(result).toEqual([]);
     });
+
+    // The four tests below pin the retrieval-stamp seam: the stamp fires with
+    // the returned ids, never blocks the retrieval, survives its own
+    // rejection, and stays silent when nothing was returned.
+
+    it('MEM-ARCH-028: stamps every retrieved memory id in one UPDATE', async () => {
+      const executeRawMock = vi.fn().mockResolvedValue(undefined);
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+            buildQueryResultRow({ id: 'mem-2', content: 'Second memory', distance: 0.2 }),
+          ]),
+        $executeRaw: executeRawMock,
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const [strings, ...values] = executeRawMock.mock.calls[0] as [
+        TemplateStringsArray,
+        ...unknown[],
+      ];
+      const sql = (strings as unknown as string[]).join('');
+      expect(sql).toContain('last_retrieved_at');
+      expect(sql).toContain('retrieval_count + 1');
+      expect(values[0]).toEqual(result.map(d => d.metadata?.id));
+    });
+
+    it('MEM-ARCH-028: does not await the stamp', async () => {
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+            buildQueryResultRow({ id: 'mem-2', content: 'Second memory', distance: 0.2 }),
+          ]),
+        // Never settles — if the implementation awaited the stamp, this test
+        // would hang instead of resolving.
+        $executeRaw: vi.fn().mockReturnValue(new Promise(() => {})),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      expect(result).toHaveLength(2);
+    });
+
+    it('MEM-ARCH-028: a stamp failure never fails the retrieval', async () => {
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+          ]),
+        $executeRaw: vi.fn().mockRejectedValue(new Error('stamp exploded')),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      expect(result).toHaveLength(1);
+      // Let the rejected stamp promise's .catch tail settle so it doesn't
+      // surface as an unhandled rejection after this test completes.
+      await new Promise(resolve => setImmediate(resolve));
+    });
+
+    // Mirrors the throttle shape B1 uses for its route-error log
+    // (ArchiveSummaryProcessor's ROUTE_ERROR_LOG_INTERVAL_MS): counts only
+    // calls tagged with the stamp-failure message, since every retrieval
+    // also emits unrelated debug lines ("Querying memories...", "Retrieved
+    // memories...") that would otherwise pollute the count.
+    const STAMP_FAILURE_MESSAGE = 'Retrieval stamp tail rejected';
+    function countStampFailureCalls(mock: typeof mockLoggerWarn): number {
+      return mock.mock.calls.filter(call => call[1] === STAMP_FAILURE_MESSAGE).length;
+    }
+
+    it('MEM-ARCH-028: a stamp failure warns once per interval and logs debug in between', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      mockLoggerWarn.mockClear();
+      mockLoggerDebug.mockClear();
+
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+          ]),
+        $executeRaw: vi.fn().mockRejectedValue(new Error('stamp exploded')),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      // First rejection: no warn has fired yet on this adapter — warns.
+      await adapter.queryMemories('query one', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(countStampFailureCalls(mockLoggerWarn)).toBe(1);
+      expect(countStampFailureCalls(mockLoggerDebug)).toBe(0);
+
+      // Second rejection immediately after: still inside the interval — debug only.
+      await adapter.queryMemories('query two', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(countStampFailureCalls(mockLoggerWarn)).toBe(1);
+      expect(countStampFailureCalls(mockLoggerDebug)).toBe(1);
+
+      // Advance past the interval: warns again.
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z').getTime() + 60 * 60_000);
+      await adapter.queryMemories('query three', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(countStampFailureCalls(mockLoggerWarn)).toBe(2);
+      expect(countStampFailureCalls(mockLoggerDebug)).toBe(1);
+
+      vi.useRealTimers();
+    });
+
+    it('MEM-ARCH-028: a synchronous throw from the stamp never fails the retrieval', async () => {
+      mockLoggerWarn.mockClear();
+      mockLoggerDebug.mockClear();
+
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+          ]),
+        // Throws synchronously when the tagged-template call is issued,
+        // before it ever produces a promise to `.catch`.
+        $executeRaw: vi.fn(() => {
+          throw new Error('stamp threw synchronously');
+        }),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(countStampFailureCalls(mockLoggerWarn)).toBe(1);
+    });
+
+    it('MEM-ARCH-028: an empty result stamps nothing', async () => {
+      const executeRawMock = vi.fn().mockResolvedValue(undefined);
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([]),
+        $executeRaw: executeRawMock,
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      expect(result).toEqual([]);
+      expect(executeRawMock).not.toHaveBeenCalled();
+    });
+
+    it('MEM-ARCH-028: recordRetrieval false skips the stamp', async () => {
+      const executeRawMock = vi.fn().mockResolvedValue(undefined);
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+          ]),
+        $executeRaw: executeRawMock,
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+        recordRetrieval: false,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(executeRawMock).not.toHaveBeenCalled();
+    });
   });
 
   describe('queryMemoriesWithChannelScoping', () => {
     // Pins delegation wiring — confirms this method routes through the
     // adapter's own queryMemories rather than a separate code path.
 
+    /** Minimal row builder for this describe block — mirrors the shape
+     * `buildQueryResultRow` above builds, scoped separately since that
+     * helper lives inside the `queryMemories` describe closure. */
+    function buildRow(overrides: {
+      id: string;
+      chunk_group_id: string;
+      chunk_index: number;
+    }): unknown {
+      return {
+        id: overrides.id,
+        content: `content of ${overrides.id}`,
+        persona_id: 'persona-123',
+        persona_name: 'Test Persona',
+        owner_username: 'testuser',
+        personality_id: 'personality-456',
+        personality_name: 'Test Personality',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date('2026-04-30T12:00:00Z'),
+        distance: 0.1,
+        chunk_group_id: overrides.chunk_group_id,
+        chunk_index: overrides.chunk_index,
+        total_chunks: 3,
+      };
+    }
+
     it('delegates to waterfallMemoryQuery using its own queryMemories', async () => {
       const mockPrisma = {
         $queryRaw: vi.fn().mockResolvedValue([]),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
@@ -516,6 +763,49 @@ describe('PgvectorMemoryAdapter', () => {
 
       expect(result).toEqual([]);
       expect(queryMemoriesSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('MEM-ARCH-028: the channel-scoped waterfall stamps each memory once even when a chunk sibling straddles the passes', async () => {
+      const groupId = 'group-g';
+      const rowA = buildRow({ id: 'mem-a', chunk_group_id: groupId, chunk_index: 0 });
+      const rowB = buildRow({ id: 'mem-b', chunk_group_id: groupId, chunk_index: 1 });
+      const rowC = buildRow({ id: 'mem-c', chunk_group_id: groupId, chunk_index: 2 });
+
+      const executeRawMock = vi.fn().mockResolvedValue(undefined);
+      const queryRawMock = vi
+        .fn()
+        // Channel-scoped pass: primary search finds chunk A; sibling expansion
+        // for group G (independent of the global pass) pulls in A and B.
+        .mockResolvedValueOnce([rowA])
+        .mockResolvedValueOnce([rowA, rowB])
+        // Global backfill pass: primary search finds chunk C; sibling
+        // expansion for group G pulls in A and C — the straddle, since A was
+        // already returned by the channel pass above.
+        .mockResolvedValueOnce([rowC])
+        .mockResolvedValueOnce([rowA, rowC]);
+
+      const mockPrisma = {
+        $queryRaw: queryRawMock,
+        $executeRaw: executeRawMock,
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemoriesWithChannelScoping('test query', {
+        personaId: 'persona-123',
+        channelIds: ['123456789012345678'],
+        includeSiblings: true,
+      });
+
+      const resultIds = result.map(d => d.metadata?.id as string);
+      // Confirm the straddle actually happened in this fixture (mem-a
+      // returned by both passes) before trusting the stamp assertion below.
+      expect(new Set(resultIds).size).toBeLessThan(resultIds.length);
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const [, idsArg] = executeRawMock.mock.calls[0] as [TemplateStringsArray, string[]];
+      expect(new Set(idsArg).size).toBe(idsArg.length);
+      expect([...idsArg].sort()).toEqual(['mem-a', 'mem-b', 'mem-c']);
     });
   });
 });

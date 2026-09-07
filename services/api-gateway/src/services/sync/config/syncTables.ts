@@ -283,7 +283,16 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
       'summarized_at',
       'summary_requested_at',
       'summary_completed_at',
+      'last_retrieved_at',
     ],
+    // @spec MEM-ARCH-028
+    // Retrieval frequency is environment-local — dev and prod serve
+    // different traffic, so a last-write-wins full-row copy would overwrite
+    // one environment's accumulated retrieval signal with the other's. Both
+    // columns stay listed in MEMORIES_SYNC_COLUMNS/timestampColumns above
+    // (the schema guard requires every live column to be enumerated
+    // somewhere) but never cross the sync.
+    excludeColumns: ['last_retrieved_at', 'retrieval_count'],
   },
   memory_facts: {
     pk: 'id',

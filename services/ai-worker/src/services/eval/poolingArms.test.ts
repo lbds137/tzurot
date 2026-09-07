@@ -25,7 +25,17 @@ describe('denseArm', () => {
       personaId: 'persona-1',
       limit: OVERFETCH,
       scoreThreshold: SCORE_FLOOR,
+      recordRetrieval: false,
     });
+  });
+
+  it('MEM-ARCH-028: opts out of the retrieval stamp — the harness must not count as a retrieval', async () => {
+    const queryMemories = vi.fn().mockResolvedValue([]);
+    await denseArm({ queryMemories }, 'persona-1', 'the query');
+    expect(queryMemories).toHaveBeenCalledWith(
+      'the query',
+      expect.objectContaining({ recordRetrieval: false })
+    );
   });
 
   it('collapses chunk siblings to one candidate keyed by chunk group', async () => {
