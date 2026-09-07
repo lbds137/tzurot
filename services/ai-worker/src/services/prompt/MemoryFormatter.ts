@@ -297,12 +297,15 @@ export function formatMemoriesContextWithStats(
  * (LLMs handle negation poorly), same as the archive instruction.
  *
  * Fact retrieval is scoped to ONE persona (the author of the triggering
- * message), so every fact in the block shares that subject — but statements
- * distilled from earlier conversations often say "the user", which in a
- * multi-user channel the model naturally binds to the WRONG person (the
- * thread's most prominent human rather than the message author). Naming the
- * subject here binds the whole block. Exported for tests; the budget manager
- * accounts wrapper overhead via {@link getFactsWrapperOverheadText}.
+ * message), so the block's facts are about that person and their world — a
+ * commitment fact's grammatical subject is the character (`{assistant}
+ * promised …`), but it is still a fact about this person's world — while
+ * statements distilled from earlier conversations often say "the user",
+ * which in a multi-user channel the model naturally binds to the WRONG
+ * person (the thread's most prominent human rather than the message
+ * author). Naming the subject here binds the whole block. Exported for
+ * tests; the budget manager accounts wrapper overhead via
+ * {@link getFactsWrapperOverheadText}.
  */
 export function factsInstruction(subjectName?: string): string {
   const hasSubject = subjectName !== undefined && subjectName.length > 0;

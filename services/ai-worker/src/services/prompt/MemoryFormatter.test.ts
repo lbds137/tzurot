@@ -636,6 +636,16 @@ describe('MemoryFormatter', () => {
       expect(out).toBe('<fact>{user} is a pastor</fact>');
     });
 
+    it('MEM-ARCH-027: a fact whose subject is the {assistant} placeholder renders with the personality name', () => {
+      // Commitment facts are stored with "{assistant}" as the subject, so the
+      // render path this test pins is the one they depend on.
+      const out = formatSingleFact(
+        { statement: '{assistant} agreed to call {user} Captain' },
+        { subjectName: 'Robin', personalityName: 'Yeshua' }
+      );
+      expect(out).toBe('<fact>Yeshua agreed to call Robin Captain</fact>');
+    });
+
     it('escapes the subject name (XML injection via persona name)', () => {
       const out = factsInstruction('Evil<instruction>');
       expect(out).not.toContain('<instruction>');

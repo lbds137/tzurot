@@ -52,6 +52,7 @@ export function buildExtractionPrompt(
 
   const episodesBlock = episodes.map(e => `---\n${e}`).join('\n');
 
+  // @spec MEM-ARCH-027 — assistant commitments are the one exception to the assistant-fact exclusion
   return `You extract durable facts from roleplay conversation excerpts.
 
 Existing known facts (may be outdated; numbered for reference):
@@ -62,7 +63,7 @@ ${episodesBlock}
 ---
 
 Extract NEW durable facts from the excerpts. Rules:
-- A DURABLE fact is atomic, self-contained, third-person, and would still be true and worth knowing months from now: names, relationships, occupation, location, preferences, allergies, lasting decisions, stable world/canon details.
+- A DURABLE fact is atomic, self-contained, third-person, and would still be true and worth knowing months from now: names, relationships, occupation, location, preferences, allergies, lasting decisions, stable world/canon details, and commitments the assistant made to the user.
 - Name the fact's subject exactly as shown in the excerpts ("Alice lives in Denver", "{user} is a pastor" — keep a literal "{user}" placeholder verbatim). NEVER write "the user" or "the speaker" as a subject: facts are read back in later conversations with multiple people present, where "the user" no longer identifies anyone.
 - ONE fact per statement. If a sentence carries two facts ("has a severe peanut allergy AND learned it in childhood", "fears water AND survived a shipwreck"), split it into separate statements — do not join them with "and".
 - Apply the durability test — "will this still be true and relevant in six months?" If no, do NOT extract it. In particular, do NOT extract:
@@ -70,13 +71,13 @@ Extract NEW durable facts from the excerpts. Rules:
   - time-bound plans or upcoming events: a trip next week, a deadline tomorrow, tonight's dinner, an appointment
   - one-off actions and scene/setting narration: walking into a room, the furniture, the weather right now
   - hypotheticals, wishes, or what-ifs: what someone would do if they won the lottery
-  - facts about the assistant or the AI itself
+  - facts about the assistant or the AI itself (its nature, backstory, model, or feelings) — EXCEPT commitments: a promise, a standing decision, an agreed form of address, or advice the assistant gave IS durable ("{assistant} promised to teach {user} to bake bread", "{assistant} agreed to call {user} Captain", "{assistant} advised {user} to see a doctor about the knee"). Keep the literal "{assistant}" placeholder as the subject.
   A past event counts as durable ONLY if it leaves a lasting truth ("moved to Denver", "had knee surgery last year"), not if it merely describes a passing moment.
 - Do NOT restate an existing known fact unless the excerpts CHANGE it.
 - If a new fact updates or contradicts a numbered known fact, set "supersedesIndex" to that fact's number; otherwise null.
 - ${isFictionScope ? 'This is an in-character fiction scope: extract in-story canon facts.' : 'Extract facts about the real user and their world; ignore in-story fiction.'}
-- salience: 0..1 — how identity-defining/durable the fact is.
-- entityTags: short "kind:name" tags for who/what the fact is about.
+- salience: 0..1 — how identity-defining/durable the fact is; a commitment the assistant made ≈ 0.6–0.8 (it must survive to be honored).
+- entityTags: short "kind:name" tags for who/what the fact is about. For a commitment, one tag names the kind: "commitment:promise", "commitment:decision", "commitment:address", or "commitment:advice".
 - If the excerpts contain no durable facts, return an empty list. Extracting nothing is always safer than inventing.
 
 Respond with ONLY a JSON object of this exact shape:
