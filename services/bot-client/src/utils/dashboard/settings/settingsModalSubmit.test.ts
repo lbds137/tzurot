@@ -34,12 +34,21 @@ const NUMERIC_PLAIN_SETTING: SettingDefinition = {
   plainDisplay: true,
 };
 
+const LIST_SETTING: SettingDefinition = {
+  id: 'sysSlugList',
+  label: 'Sys Slug List',
+  emoji: '🧩',
+  description: 'A system slug list.',
+  type: SettingType.LIST,
+  plainDisplay: true,
+};
+
 const config = (): SettingsDashboardConfig => ({
   level: 'global',
   entityType: 'test-settings',
   titlePrefix: 'Test',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [...EXTENDED_CONTEXT_SETTINGS, TEXT_SETTING, NUMERIC_PLAIN_SETTING],
+  settings: [...EXTENDED_CONTEXT_SETTINGS, TEXT_SETTING, NUMERIC_PLAIN_SETTING, LIST_SETTING],
 });
 
 const sessionData = () => ({
@@ -51,6 +60,12 @@ const sessionData = () => ({
     source: 'admin',
   },
   sysThreshold: { localValue: 6, hasLocalOverride: true, effectiveValue: 6, source: 'admin' },
+  sysSlugList: {
+    localValue: ['a'],
+    hasLocalOverride: true,
+    effectiveValue: ['a'],
+    source: 'admin',
+  },
 });
 
 const session = (activeSetting: string, extra: Record<string, unknown> = {}) => ({
@@ -111,6 +126,39 @@ describe('TEXT modal path', () => {
     );
     const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
     expect(stored.data.lastRejectedInput).toEqual({ settingId: 'sysModel', value: '   ' });
+  });
+});
+
+describe('LIST modal path', () => {
+  it('reaches the update handler with [] for empty input, without a rejection followUp', async () => {
+    mockSessionManager.get.mockReturnValue(session('sysSlugList'));
+    const interaction = modal('test-settings::modal::entity-1::sysSlugList', '');
+    const updateHandler = vi.fn().mockResolvedValue({ success: true });
+
+    await handleSettingsModal(interaction as never, config(), updateHandler);
+
+    expect(updateHandler).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'sysSlugList',
+      []
+    );
+    expect(interaction.followUp).not.toHaveBeenCalled();
+  });
+
+  it('reaches the update handler with the parsed slug array for "a, b"', async () => {
+    mockSessionManager.get.mockReturnValue(session('sysSlugList'));
+    const interaction = modal('test-settings::modal::entity-1::sysSlugList', 'a, b');
+    const updateHandler = vi.fn().mockResolvedValue({ success: true });
+
+    await handleSettingsModal(interaction as never, config(), updateHandler);
+
+    expect(updateHandler).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'sysSlugList',
+      ['a', 'b']
+    );
   });
 });
 

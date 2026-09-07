@@ -105,6 +105,45 @@ describe('SettingsModalFactory', () => {
 
       expect(json.custom_id).toBe('personality-settings::modal::aurora::maxMessages');
     });
+
+    const listSetting: SettingDefinition = {
+      id: 'archiveSplitRenderPersonalities',
+      label: 'Split-Render Personalities',
+      emoji: '🧩',
+      type: SettingType.LIST,
+      description: 'Personality slugs that render verbatim.',
+      placeholder: 'slug-one, slug-two',
+    };
+
+    it('should pre-fill a LIST setting with the joined slugs', () => {
+      const modal = buildSettingEditModal('global', 'admin', listSetting, ['slug-one', 'slug-two']);
+      const input = getTextInput(modal);
+
+      expect(input.value).toBe('slug-one, slug-two');
+    });
+
+    it('sets a LIST setting modal input to max length 1000 (generous cap so a long prefill is never truncated)', () => {
+      const modal = buildSettingEditModal('global', 'admin', listSetting, ['slug-one', 'slug-two']);
+      const input = getTextInput(modal);
+
+      expect(input.max_length).toBe(1000);
+    });
+
+    const textSetting: SettingDefinition = {
+      id: 'fallbackTextModel',
+      label: 'Fallback Text Model',
+      emoji: '🛟',
+      type: SettingType.TEXT,
+      description: 'Fallback model id.',
+      placeholder: 'provider/model-id',
+    };
+
+    it('sets a TEXT setting modal input to max length 100', () => {
+      const modal = buildSettingEditModal('global', 'admin', textSetting, 'openrouter/auto');
+      const input = getTextInput(modal);
+
+      expect(input.max_length).toBe(100);
+    });
   });
 
   describe('parseNumericInput', () => {

@@ -28,6 +28,7 @@ import {
 import { buildSettingMessage, getSettingById } from './SettingsDashboardBuilder.js';
 import { storeSession, getSession } from './SettingsSessionStorage.js';
 import { parseNumericInputValue, parseDurationInputValue } from './settingsInputParser.js';
+import { parseSlugList } from './parseSlugList.js';
 import { ackUpdate } from '../../../ux/render/reply.js';
 
 const logger = createLogger('SettingsModalSubmit');
@@ -53,6 +54,11 @@ function parseModalValue(
       const trimmed = inputValue.trim();
       return trimmed.length === 0 ? { error: 'Value cannot be empty.' } : { value: trimmed };
     }
+    case SettingType.LIST:
+      // Unlike TEXT, an empty/comma-only input is a VALID list value (clears
+      // the list) rather than an error — a list setting has no "unset" state
+      // the way a model id does, so `[]` is meaningful, not missing.
+      return { value: parseSlugList(inputValue) };
     default:
       return { value: undefined, error: 'This setting is not edited via a form.' };
   }

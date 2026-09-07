@@ -24,6 +24,12 @@ export enum SettingType {
   BOOLEAN = 'boolean',
   /** Free-text string (model ids etc.) - uses modal, validated server-side */
   TEXT = 'text',
+  /**
+   * Comma-separated slug list - uses modal, parsed to a string[]. An empty
+   * list is a meaningful value ("no slugs") rather than "unset" — unlike
+   * TEXT, empty modal input is accepted and clears the list.
+   */
+  LIST = 'list',
 }
 
 /**
@@ -74,7 +80,8 @@ interface StandardSettingDefinition extends BaseSettingFields {
     | SettingType.NUMERIC
     | SettingType.DURATION
     | SettingType.BOOLEAN
-    | SettingType.TEXT;
+    | SettingType.TEXT
+    | SettingType.LIST;
   choices?: never;
 }
 

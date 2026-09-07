@@ -1,9 +1,8 @@
 /**
  * Coercion for the `list` system-setting control (comma-separated personality
- * slugs). Shared by both write paths that accept a raw string for a `list`
- * setting — the slash setter (`settingsSet.ts` `coerceValue`) and the
- * dashboard modal write path (`settingsSystemUpdate.ts`) — so the two never
- * diverge on what counts as a valid entry.
+ * slugs). Used by the slash setter (`settingsSet.ts` `coerceValue`) and by
+ * the dashboard's modal-submit path (`settingsModalSubmit.ts`), so the two
+ * never diverge on what counts as a valid entry.
  *
  * Entries are lowercased before trimming and deduping: personality slugs are
  * lowercase-only by the creation validator, and the runtime activation check
