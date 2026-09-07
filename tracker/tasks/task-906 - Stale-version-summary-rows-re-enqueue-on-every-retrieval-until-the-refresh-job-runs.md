@@ -23,3 +23,5 @@ Fix shape: for dead rows the trigger CASE may flip a stale-version dead row to p
 Acceptance: after a prompt-version bump, a hot stale-version row logs at most one retrieval re-enqueue per job lifetime; the done row keeps rendering its old summary throughout.
 Promote when: the first ARCHIVE_SUMMARY_PROMPT_VERSION bump is planned, or the Archive summary retrieval re-enqueue log line repeats for the same memoryIds.
 <!-- SECTION:DESCRIPTION:END -->
+
+Same class on the sweep side (claude-review round 6 on PR 2358): pnpm ops memory:summarize re-selects stale-version done and dead rows on every re-run until their in-flight job completes, because the sweep's pending stamp leaves done and dead untouched by design; the deterministic jobId makes each re-add a no-op, so the cost is selection noise and part of the hot budget during the drain. Whatever limiter closes the retrieval side (the summary_requested_at recency check is the natural one) should be shared with the sweep's ELIGIBLE_PREDICATE, which is that predicate's twin.
