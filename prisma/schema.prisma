@@ -912,6 +912,10 @@ model Memory {
   /// (parse_failure, overflow, first_person, no_template — never message
   /// text); null while no failure is recorded, cleared when a summary lands.
   summaryLastError     String?                @map("summary_last_error") @db.VarChar(40)
+  /// Deferred-set: when a retrieval last returned this row; null until the first retrieval after the stamp shipped. Stamped by raw SQL on the retrieval path (never bumps updated_at); the archive sweep orders by it.
+  lastRetrievedAt      DateTime?              @map("last_retrieved_at")
+  /// How many retrievals have returned this row since the stamp shipped; 0 for rows never retrieved since. Stamped by raw SQL beside last_retrieved_at.
+  retrievalCount       Int                    @default(0) @map("retrieval_count")
   persona              Persona?               @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality          Personality            @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
