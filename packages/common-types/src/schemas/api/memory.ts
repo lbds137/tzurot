@@ -155,6 +155,10 @@ export const MemoryItemSchema = z.object({
   personalityId: z.string(),
   personalityName: z.string(),
   isLocked: z.boolean(),
+  /** The stored archive summary, when the summarizer has produced one. */
+  assistantSummary: z.string().nullable().optional(),
+  /** Summarizer state for owner-side debugging via the API; the embed does not render it. */
+  summaryStatus: z.string().nullable().optional(),
 });
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>;

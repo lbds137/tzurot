@@ -116,6 +116,11 @@ export function buildDetailEmbed(memory: MemoryItem): {
         value: formatDiscordTimestamp(memory.updatedAt, 'D'),
         inline: true,
       },
+      typeof memory.assistantSummary === 'string' &&
+        memory.assistantSummary.length > 0 && {
+          name: 'Summary',
+          value: escapeMarkdown(memory.assistantSummary),
+        },
     ],
     footer: `Memory ID: ${memory.id.substring(0, 8)}...`,
   });

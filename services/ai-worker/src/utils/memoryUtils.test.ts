@@ -10,6 +10,7 @@ import {
   mergeSiblings,
 } from './memoryUtils.js';
 import type { MemoryMetadata, MemoryQueryResult } from '../services/PgvectorTypes.js';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '../services/archiveSummary/constants.js';
 
 // Mock promptPlaceholders to avoid complex dependencies
 vi.mock('./promptPlaceholders.js', () => ({
@@ -208,9 +209,39 @@ describe('memoryUtils', () => {
     });
   });
 
+  /** Shared base fixture — every field the type requires, sensible neutral
+   *  defaults (no summary) so individual tests only override what they test. */
+  function makeQueryResult(overrides: Partial<MemoryQueryResult> = {}): MemoryQueryResult {
+    return {
+      id: 'mem-1',
+      content: 'Test',
+      persona_id: 'p1',
+      persona_name: 'Persona',
+      owner_username: 'user',
+      personality_id: 'pers1',
+      personality_name: 'Personality',
+      session_id: null,
+      canon_scope: 'personal',
+      summary_type: null,
+      channel_id: null,
+      guild_id: null,
+      message_ids: null,
+      senders: null,
+      created_at: new Date(),
+      distance: 0.1,
+      chunk_group_id: null,
+      chunk_index: null,
+      total_chunks: null,
+      assistant_summary: null,
+      summary_status: null,
+      summary_prompt_version: null,
+      ...overrides,
+    };
+  }
+
   describe('mapQueryResultToDocument', () => {
     it('transforms database result to PgvectorMemoryDocument', () => {
-      const queryResult: MemoryQueryResult = {
+      const queryResult: MemoryQueryResult = makeQueryResult({
         id: 'mem-123',
         content: 'Test memory content',
         persona_id: 'persona-1',
@@ -227,10 +258,7 @@ describe('memoryUtils', () => {
         senders: ['sender-1'],
         created_at: new Date('2024-01-01T00:00:00.000Z'),
         distance: 0.15,
-        chunk_group_id: null,
-        chunk_index: null,
-        total_chunks: null,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -253,31 +281,16 @@ describe('memoryUtils', () => {
         chunkGroupId: null,
         chunkIndex: null,
         totalChunks: null,
+        // summary_status is null (default fixture) — null-status rows are refresh-eligible
+        summaryRefreshEligible: true,
       });
     });
 
     it('calculates score as 1 - distance', () => {
-      const queryResult: MemoryQueryResult = {
-        id: 'mem-1',
-        content: 'Test',
-        persona_id: 'p1',
-        persona_name: 'Persona',
-        owner_username: 'user',
-        personality_id: 'pers1',
-        personality_name: 'Personality',
-        session_id: null,
+      const queryResult: MemoryQueryResult = makeQueryResult({
         canon_scope: 'global',
-        summary_type: null,
-        channel_id: null,
-        guild_id: null,
-        message_ids: null,
-        senders: null,
-        created_at: new Date(),
         distance: 0.3,
-        chunk_group_id: null,
-        chunk_index: null,
-        total_chunks: null,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -286,27 +299,13 @@ describe('memoryUtils', () => {
     });
 
     it('handles chunked memories', () => {
-      const queryResult: MemoryQueryResult = {
+      const queryResult: MemoryQueryResult = makeQueryResult({
         id: 'mem-chunk',
         content: 'Chunk content',
-        persona_id: 'p1',
-        persona_name: 'Persona',
-        owner_username: 'user',
-        personality_id: 'pers1',
-        personality_name: 'Personality',
-        session_id: null,
-        canon_scope: 'personal',
-        summary_type: null,
-        channel_id: null,
-        guild_id: null,
-        message_ids: null,
-        senders: null,
-        created_at: new Date(),
-        distance: 0.1,
         chunk_group_id: 'group-uuid-123',
         chunk_index: 2,
         total_chunks: 5,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -316,27 +315,11 @@ describe('memoryUtils', () => {
     });
 
     it('handles string date from database', () => {
-      const queryResult: MemoryQueryResult = {
-        id: 'mem-1',
-        content: 'Test',
-        persona_id: 'p1',
-        persona_name: 'Persona',
-        owner_username: 'user',
-        personality_id: 'pers1',
-        personality_name: 'Personality',
-        session_id: null,
+      const queryResult: MemoryQueryResult = makeQueryResult({
         canon_scope: 'global',
-        summary_type: null,
-        channel_id: null,
-        guild_id: null,
-        message_ids: null,
-        senders: null,
         created_at: '2024-06-15T12:30:00.000Z',
         distance: 0.2,
-        chunk_group_id: null,
-        chunk_index: null,
-        total_chunks: null,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -345,27 +328,13 @@ describe('memoryUtils', () => {
 
     // @spec MEM-ARCH-006 — unparseable rows leave userTurn/subjectName undefined
     it('MEM-ARCH-006: stamps userTurn and subjectName, placeholder-resolved, for template-shaped content', () => {
-      const queryResult: MemoryQueryResult = {
+      const queryResult: MemoryQueryResult = makeQueryResult({
         id: 'mem-split',
         content: '{user}: hello there\n{assistant}: hi, how are you?',
-        persona_id: 'p1',
         persona_name: 'Alice',
         owner_username: 'aliceuser',
-        personality_id: 'pers1',
         personality_name: 'Nova',
-        session_id: null,
-        canon_scope: 'personal',
-        summary_type: null,
-        channel_id: null,
-        guild_id: null,
-        message_ids: null,
-        senders: null,
-        created_at: new Date(),
-        distance: 0.1,
-        chunk_group_id: null,
-        chunk_index: null,
-        total_chunks: null,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -375,28 +344,14 @@ describe('memoryUtils', () => {
 
     // @spec MEM-ARCH-005 — the referenced block is not rendered in split mode
     it('MEM-ARCH-005: userTurn excludes the [Referenced content: ...] block', () => {
-      const queryResult: MemoryQueryResult = {
+      const queryResult: MemoryQueryResult = makeQueryResult({
         id: 'mem-referenced',
         content:
           '{user}: check this out\n\n[Referenced content: a screenshot]\n{assistant}: neat find',
-        persona_id: 'p1',
         persona_name: 'Alice',
         owner_username: 'aliceuser',
-        personality_id: 'pers1',
         personality_name: 'Nova',
-        session_id: null,
-        canon_scope: 'personal',
-        summary_type: null,
-        channel_id: null,
-        guild_id: null,
-        message_ids: null,
-        senders: null,
-        created_at: new Date(),
-        distance: 0.1,
-        chunk_group_id: null,
-        chunk_index: null,
-        total_chunks: null,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -406,27 +361,13 @@ describe('memoryUtils', () => {
     });
 
     it('MEM-ARCH-006: leaves userTurn and subjectName undefined for legacy (unparseable) content', () => {
-      const queryResult: MemoryQueryResult = {
+      const queryResult: MemoryQueryResult = makeQueryResult({
         id: 'mem-legacy',
         content: 'not template-shaped content at all',
-        persona_id: 'p1',
         persona_name: 'Alice',
         owner_username: 'aliceuser',
-        personality_id: 'pers1',
         personality_name: 'Nova',
-        session_id: null,
-        canon_scope: 'personal',
-        summary_type: null,
-        channel_id: null,
-        guild_id: null,
-        message_ids: null,
-        senders: null,
-        created_at: new Date(),
-        distance: 0.1,
-        chunk_group_id: null,
-        chunk_index: null,
-        total_chunks: null,
-      };
+      });
 
       const result = mapQueryResultToDocument(queryResult);
 
@@ -434,6 +375,210 @@ describe('memoryUtils', () => {
       expect(result.metadata?.subjectName).toBeUndefined();
       expect('userTurn' in (result.metadata ?? {})).toBe(false);
       expect('subjectName' in (result.metadata ?? {})).toBe(false);
+    });
+
+    describe('MEM-ARCH-021: assistantSummary stamping', () => {
+      it('stamps assistantSummary for a done row', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'done',
+          assistant_summary: 'A neutral third-person summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.assistantSummary).toBe('A neutral third-person summary.');
+      });
+
+      it('stamps assistantSummary for a done row whose prompt version is stale', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'done',
+          assistant_summary: 'An older summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION - 1,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.assistantSummary).toBe('An older summary.');
+      });
+
+      // Each of these fixtures carries a NON-EMPTY summary on purpose: the row's
+      // status is then the only thing that can prevent the stamp, so the assertion
+      // fails if the status gate ever widens. A null summary would make these pass
+      // for the wrong reason.
+      it('does not stamp assistantSummary for a pending row', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'pending',
+          assistant_summary: 'A summary that must not render yet.',
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('does not stamp assistantSummary for a failed row', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'failed',
+          assistant_summary: 'A summary that must not render.',
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('does not stamp assistantSummary for a dead row', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'dead',
+          assistant_summary: 'A summary that must not render.',
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('does not stamp assistantSummary for a null-status row', () => {
+        const queryResult = makeQueryResult({
+          summary_status: null,
+          assistant_summary: 'A summary that must not render.',
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('does not stamp assistantSummary for a done row with an empty-string summary', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'done',
+          assistant_summary: '',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('MEM-ARCH-021: does not stamp assistantSummary for a chunk row even when its status is done', () => {
+        const queryResult = makeQueryResult({
+          chunk_group_id: '11111111-1111-4111-8111-111111111111',
+          summary_status: 'done',
+          assistant_summary: 'A summary that must not render on a chunk row.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+      });
+    });
+
+    describe('MEM-ARCH-022: summaryRefreshEligible stamping', () => {
+      it('stamps summaryRefreshEligible for a null-status row', () => {
+        const queryResult = makeQueryResult({ summary_status: null });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
+      });
+
+      it('stamps summaryRefreshEligible for a failed row', () => {
+        const queryResult = makeQueryResult({ summary_status: 'failed' });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
+      });
+
+      it('stamps summaryRefreshEligible for a done row with a stale prompt version', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'done',
+          assistant_summary: 'An older summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION - 1,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
+      });
+
+      it('MEM-ARCH-021 and MEM-ARCH-022: a done row at a stale prompt version carries BOTH stamps — the old summary renders while the refresh is enqueued', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'done',
+          assistant_summary: 'An older summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION - 1,
+          chunk_group_id: null,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.assistantSummary).toBe('An older summary.');
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
+      });
+
+      it('does not stamp summaryRefreshEligible for a pending row', () => {
+        const queryResult = makeQueryResult({ summary_status: 'pending' });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('does not stamp summaryRefreshEligible for a dead row at the current prompt version', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'dead',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+      });
+
+      // B1's processor skips a `done`/`dead` row only when its content hash AND
+      // prompt version both match the current expectations — a stale version
+      // is designed to re-admit it, and this retrieval path is the only thing
+      // that enqueues an existing row before slice C's sweep.
+      it('stamps summaryRefreshEligible for a dead row with a stale prompt version', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'dead',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION - 1,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
+      });
+
+      // A chunk row is null-status forever because the write side never
+      // enqueues it, and sibling expansion returns chunk rows on every
+      // retrieval — without this clause every retrieval would re-enqueue them.
+      it('MEM-ARCH-022: does not stamp summaryRefreshEligible for a chunk row', () => {
+        const queryResult = makeQueryResult({
+          chunk_group_id: '11111111-1111-4111-8111-111111111111',
+          summary_status: null,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('does not stamp summaryRefreshEligible for a current-version done row', () => {
+        const queryResult = makeQueryResult({
+          summary_status: 'done',
+          assistant_summary: 'A current summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+      });
     });
   });
 

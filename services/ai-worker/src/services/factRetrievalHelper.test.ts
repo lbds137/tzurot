@@ -300,3 +300,235 @@ describe('retrieveMemoriesAndFacts — archive split-render stamping (A3)', () =
     expect(result.memories[0]?.metadata?.archiveRender).toEqual({ mode: 'split', linkedFacts: [] });
   });
 });
+
+describe('retrieveMemoriesAndFacts — archive summary render + lazy enqueue (B2)', () => {
+  function memoryRetrieverWith(
+    memories: { pageContent: string; metadata: Record<string, unknown> }[]
+  ) {
+    return {
+      retrieveRelevantMemories: vi.fn().mockResolvedValue({
+        memories,
+        freshModeEnabled: false,
+        personaId: 'persona-1',
+      }),
+    } as unknown as MemoryRetriever;
+  }
+
+  function noopFactRetriever() {
+    return {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue([]),
+    };
+  }
+
+  it('MEM-ARCH-021: carries a stored summary into archiveRender and renders no linked facts for that note', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', assistantSummary: 'A neutral summary.' } },
+    ]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'f-1', statement: 'likes tea', salience: 0.9, sourceMemoryIds: ['mem-1'] },
+        ]),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [],
+      assistantSummary: 'A neutral summary.',
+    });
+  });
+
+  it('MEM-ARCH-026: a fact linked to a summarized memory is not attributed to it and flows to the next unsummarized memory that links it', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', assistantSummary: 'A neutral summary.' } },
+      { pageContent: 'm2', metadata: { id: 'mem-2' } },
+    ]);
+    const linked: LinkedFact[] = [
+      { id: 'f-1', statement: 'likes tea', salience: 0.9, sourceMemoryIds: ['mem-1', 'mem-2'] },
+    ];
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue(linked),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [],
+      assistantSummary: 'A neutral summary.',
+    });
+    expect(result.memories[1]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [{ id: 'f-1', statement: 'likes tea', salience: 0.9 }],
+    });
+  });
+
+  it('MEM-ARCH-026: a fact linked ONLY to a summarized memory is attributed to no note', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', assistantSummary: 'A neutral summary.' } },
+      { pageContent: 'm2', metadata: { id: 'mem-2' } },
+    ]);
+    const linked: LinkedFact[] = [
+      { id: 'f-1', statement: 'likes tea', salience: 0.9, sourceMemoryIds: ['mem-1'] },
+    ];
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue(linked),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      linkedFacts: [],
+      assistantSummary: 'A neutral summary.',
+    });
+    expect(result.memories[1]?.metadata?.archiveRender).toEqual({ mode: 'split', linkedFacts: [] });
+  });
+
+  it("MEM-ARCH-022: enqueues every refresh-eligible doc with reason 'retrieval'", async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', summaryRefreshEligible: true } },
+      { pageContent: 'm2', metadata: { id: 'mem-2', summaryRefreshEligible: true } },
+    ]);
+    const factRetriever = noopFactRetriever();
+    const trigger = { enqueue: vi.fn().mockResolvedValue(undefined) };
+
+    await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+      archiveSummaryTrigger: trigger as never,
+    });
+
+    expect(trigger.enqueue).toHaveBeenCalledWith({
+      memoryId: 'mem-1',
+      personalityId: 'personality-1',
+      reason: 'retrieval',
+    });
+    expect(trigger.enqueue).toHaveBeenCalledWith({
+      memoryId: 'mem-2',
+      personalityId: 'personality-1',
+      reason: 'retrieval',
+    });
+    expect(trigger.enqueue).toHaveBeenCalledTimes(2);
+  });
+
+  it('MEM-ARCH-022: enqueues nothing for docs without the eligibility flag', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([{ pageContent: 'm1', metadata: { id: 'mem-1' } }]);
+    const factRetriever = noopFactRetriever();
+    const trigger = { enqueue: vi.fn().mockResolvedValue(undefined) };
+
+    await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+      archiveSummaryTrigger: trigger as never,
+    });
+
+    expect(trigger.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('MEM-ARCH-022: enqueues nothing in verbatim mode', async () => {
+    setFlag(true, ['other-slug']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', summaryRefreshEligible: true } },
+    ]);
+    const factRetriever = noopFactRetriever();
+    const trigger = { enqueue: vi.fn().mockResolvedValue(undefined) };
+
+    await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+      archiveSummaryTrigger: trigger as never,
+    });
+
+    expect(trigger.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('MEM-ARCH-022: does not await the enqueue', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', summaryRefreshEligible: true } },
+    ]);
+    const factRetriever = noopFactRetriever();
+    // A never-resolving promise: if the call were awaited, this test would hang.
+    const trigger = { enqueue: vi.fn(() => new Promise(() => {})) };
+
+    await expect(
+      retrieveMemoriesAndFacts({
+        memoryRetriever,
+        factRetriever: factRetriever as never,
+        personality: { id: 'personality-1', slug: 'nova' } as never,
+        searchQuery: 'q',
+        context: {} as never,
+        configOverrides: undefined,
+        archiveSummaryTrigger: trigger as never,
+      })
+    ).resolves.toBeDefined();
+    expect(trigger.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('MEM-ARCH-022: an enqueue rejection never propagates', async () => {
+    setFlag(true, ['nova']);
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', summaryRefreshEligible: true } },
+    ]);
+    const factRetriever = noopFactRetriever();
+    const trigger = { enqueue: vi.fn().mockRejectedValue(new Error('boom')) };
+
+    await expect(
+      retrieveMemoriesAndFacts({
+        memoryRetriever,
+        factRetriever: factRetriever as never,
+        personality: { id: 'personality-1', slug: 'nova' } as never,
+        searchQuery: 'q',
+        context: {} as never,
+        configOverrides: undefined,
+        archiveSummaryTrigger: trigger as never,
+      })
+    ).resolves.toBeDefined();
+  });
+});

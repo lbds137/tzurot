@@ -1,6 +1,6 @@
-# Memory Archive: LLD — Slices A and B1
+# Memory Archive: LLD — Slices A, B1 and B2
 
-Status: LIVE — slices A and B1
+Status: LIVE — slices A, B1 and B2
 
 HLD: [`docs/proposals/backlog/memory-architecture.md`](../../proposals/backlog/memory-architecture.md).
 Accepted artifact (decisions D0–D10, pilot results): [`docs/proposals/backlog/memory-archive-format.md`](../../proposals/backlog/memory-archive-format.md).
@@ -174,9 +174,87 @@ all characters combined, per UTC day). All three live in the new
 `archiveSplitRenderPersonalities` — the per-character RENDER switch is slice
 A's, not a new setting; B1 only adds the three write-side knobs.
 
-## Not in slice A/B1
+## Slice B2 — the summarizer (read side)
 
-`/memory view`'s summary line needs the retrieval-time enqueue and rendering
-change — deferred to slice B2, along with lazy-fill (`reason: 'retrieval'`)
-and pre-warm (`reason: 'sweep'`) enqueue paths, both already reserved in the
-job-data schema's `reason` enum but unproduced until B2.
+Wires the stored summary into retrieval, render, and `/memory view` — the
+counterpart to B1's write side. No processor changes; B1's job flow, gates,
+and raw-SQL write rule are untouched.
+
+**The three joined columns.** `buildSimilaritySearchQuery`
+(`PgvectorQueryBuilder.ts`) and `fetchChunkSiblings`
+(`PgvectorSiblingExpander.ts`) both add `assistant_summary`, `summary_status`,
+`summary_prompt_version` to their SELECT lists — two independent hand-written
+queries, so each is pinned by its own SQL-text test rather than sharing a
+constant (no composition shape in this codebase nests a `Prisma.Sql` fragment
+inside a `$queryRaw` tagged template).
+
+**The `done`-only render stamp.** `mapQueryResultToDocument`
+(`services/ai-worker/src/utils/memoryUtils.ts`) stamps
+`metadata.assistantSummary` only when `summary_status === 'done'` AND the
+column is non-empty — a stale prompt version still renders, because a version
+bump drives re-enqueue, never a blanked archive. Absence is meaningful, same
+rule as `userTurn`: never a default.
+
+**The eligibility rule.** The same function stamps
+`metadata.summaryRefreshEligible = true` only for a non-chunk row
+(`chunk_group_id === null`) whose status is `null` or `failed`, or whose status
+is `done` or `dead` at a `summary_prompt_version` behind
+`ARCHIVE_SUMMARY_PROMPT_VERSION`. Chunk rows are excluded because the write side
+deliberately never enqueues them — a chunk is a slice of the template, so it
+could only die as `no_template`, which is precisely why chunks sit at a null
+status forever and would otherwise be re-enqueued on every sibling expansion.
+`pending` is excluded because a job is already in flight. `dead` is excluded
+only at the CURRENT prompt version: B1's processor skips a `done`/`dead` row
+only when its content hash AND prompt version are both current, so a version
+bump is designed to re-admit a dead row — and this retrieval path is the only
+thing that enqueues an existing row before slice C's sweep, so excluding `dead`
+outright would leave a prompt bump unable to re-admit anything.
+
+**The fire-and-forget retrieval enqueue.** `PgvectorMemoryAdapter` exposes the
+archive-summary trigger it was already constructed with
+(`getArchiveSummaryTrigger()`), threaded through `ConversationalRAGService` as
+a private field (not a 6th constructor param — `max-params` is 5) to
+`factRetrievalHelper.ts`'s `enqueueSummaryRefreshes`, called from the END of
+`stampArchiveRenderMode` — inside the split-mode gate, so a verbatim-mode
+turn enqueues nothing (its rows are never rendered as summaries; slice C's
+sweep covers pre-warm instead). Every eligible doc gets `reason: 'retrieval'`,
+never awaited, its rejection swallowed — this rides the reply path and must
+never delay or fail it.
+
+**The arm-S note shape.** `renderSplitNoteBody`
+(`MemoryNoteSplitRender.ts`) checks `archiveRender.assistantSummary` before
+the linked-facts block: when present, the note renders the user turn then
+`personalityName: summary` (falling back to the render call's own `names`,
+then to no label), with no facts section at all, and `usedSummary: true`. A
+doc with no `userTurn` still takes the pre-existing verbatim fallback and
+ignores any summary — unchanged from slice A.
+
+**The attribution skip.** `stampArchiveRenderMode`'s fact-assignment loop
+skips any doc carrying a summary before assigning it linked facts, so a
+summarized note always stamps `linkedFacts: []`. The fact stays unassigned —
+picked up by the next relevant unsummarized memory that links it, or, if none
+does, left in the separate `<facts>` block. D10's dedup keys on rendered ids
+only, so nothing is dropped twice — `dropFactsCoveredByArchive` needs no
+change.
+
+**`/memory view`.** `MemoryItemSchema` gains `assistantSummary` and
+`summaryStatus` (both nullable optional — list/search routes are not
+widened). `api-gateway`'s `memorySingle.ts` `transformMemory` passes both
+through (the route's `findFirst` has no `select`, so the columns are already
+on the row). `bot-client`'s `buildDetailEmbed` adds a non-inline Summary
+field, shown only when the summary is a non-empty string; `summaryStatus`
+never renders — it exists for owner-side API debugging only.
+
+**Telemetry.** Two counters, at two different sites, for two different
+questions. `summaryNotes` rides `ArchiveRenderSummary`
+(`MemoryNoteSplitRender.ts`, aggregated in `MemoryFormatter.ts`) — how many
+notes in THIS render used a summary. `refreshEnqueued` is its own log line
+from `factRetrievalHelper.ts`, at stamp time — how many rows this retrieval
+just queued for summarization. They are not threaded together: the enqueue
+happens before the render summary is even built, so joining them would be
+pure ceremony.
+
+## Not in slices A/B1/B2
+
+Pre-warm (`reason: 'sweep'`) is still reserved in the job-data schema's
+`reason` enum but unproduced until slice C.

@@ -11,6 +11,7 @@ import type {
 } from '../services/PgvectorTypes.js';
 import { replacePromptPlaceholders } from './promptPlaceholders.js';
 import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '../services/archiveSummary/constants.js';
 
 /**
  * Embedding dimension for BGE-small-en-v1.5 model (local embeddings)
@@ -77,6 +78,35 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
   // renderer reads to pick the verbatim fallback.
   const split = splitMemoryContent(memory.content);
 
+  // @spec MEM-ARCH-021 — a stored `done` summary renders REGARDLESS of prompt
+  // version: a version bump drives re-enqueue, it must never blank the archive.
+  // Chunk rows never render a summary: the write side never summarizes them,
+  // so excluding them here keeps that invariant local — it stops one chunk of
+  // a group from ever rendering as a summary beside its verbatim siblings.
+  const storedSummary = memory.assistant_summary;
+  const hasSummary =
+    memory.chunk_group_id === null &&
+    memory.summary_status === 'done' &&
+    typeof storedSummary === 'string' &&
+    storedSummary.length > 0;
+
+  // @spec MEM-ARCH-022 — retrieval-time refresh eligibility. Chunk rows are
+  // never eligible: the write side deliberately never enqueues them (a chunk is
+  // a slice of the template, so it could only die as `no_template`), which is
+  // exactly why they sit at a null status forever — without this clause every
+  // sibling expansion would re-enqueue them. `pending` is excluded because a
+  // job is already in flight. `done` and `dead` are excluded only at the
+  // CURRENT prompt version: a version bump is what re-admits them, and B1's
+  // processor is built to accept exactly that. Absence of the flag is what the
+  // caller reads as "not eligible" — never write `false`.
+  const summaryVersionIsStale = memory.summary_prompt_version !== ARCHIVE_SUMMARY_PROMPT_VERSION;
+  const summaryRefreshEligible =
+    memory.chunk_group_id === null &&
+    (memory.summary_status === null ||
+      memory.summary_status === 'failed' ||
+      ((memory.summary_status === 'done' || memory.summary_status === 'dead') &&
+        summaryVersionIsStale));
+
   return {
     pageContent: content,
     metadata: {
@@ -108,6 +138,8 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
             subjectName: memory.persona_name,
           }
         : {}),
+      ...(hasSummary ? { assistantSummary: storedSummary } : {}),
+      ...(summaryRefreshEligible ? { summaryRefreshEligible: true } : {}),
     },
   };
 }

@@ -118,6 +118,8 @@ const defaultMemory = {
   updatedAt: new Date('2025-01-01'),
   personalityId: TEST_PERSONALITY_ID,
   isLocked: false,
+  assistantSummary: null,
+  summaryStatus: null,
   personality: { name: 'test', displayName: 'Test Personality' },
 };
 
@@ -237,6 +239,46 @@ describe('memorySingle handlers', () => {
       const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(response.memory.createdAt).toBe('2025-01-01T00:00:00.000Z');
       expect(response.memory.updatedAt).toBe('2025-01-01T00:00:00.000Z');
+    });
+
+    it('MEM-ARCH-025: GET returns the stored summary and status', async () => {
+      mockPrisma.memory.findFirst.mockResolvedValue({
+        ...defaultMemory,
+        assistantSummary: 'A neutral third-person summary.',
+        summaryStatus: 'done',
+      });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+
+      await handleGetMemory(deps())(req, res, () => undefined);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memory: expect.objectContaining({
+            assistantSummary: 'A neutral third-person summary.',
+            summaryStatus: 'done',
+          }),
+        })
+      );
+    });
+
+    it('MEM-ARCH-025: GET returns null for both on an unsummarized row', async () => {
+      mockPrisma.memory.findFirst.mockResolvedValue({
+        ...defaultMemory,
+        assistantSummary: null,
+        summaryStatus: null,
+      });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+
+      await handleGetMemory(deps())(req, res, () => undefined);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memory: expect.objectContaining({
+            assistantSummary: null,
+            summaryStatus: null,
+          }),
+        })
+      );
     });
   });
 

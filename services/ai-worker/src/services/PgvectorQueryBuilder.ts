@@ -88,6 +88,9 @@ export function buildSimilaritySearchQuery(
           m.chunk_group_id,
           m.chunk_index,
           m.total_chunks,
+          m.assistant_summary,
+          m.summary_status,
+          m.summary_prompt_version,
           COALESCE(persona.preferred_name, persona.name) as persona_name,
           owner.username as owner_username,
           COALESCE(personality.display_name, personality.name) as personality_name

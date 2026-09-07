@@ -342,6 +342,25 @@ describe('PgvectorMemoryAdapter', () => {
       await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toBeUndefined();
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
+
+    it('getArchiveSummaryTrigger returns the injected trigger', () => {
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const trigger = makeTrigger();
+      const adapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService(),
+        trigger
+      );
+
+      expect(adapter.getArchiveSummaryTrigger()).toBe(trigger);
+    });
+
+    it('getArchiveSummaryTrigger returns undefined when constructed without one', () => {
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as any, createMockEmbeddingService());
+
+      expect(adapter.getArchiveSummaryTrigger()).toBeUndefined();
+    });
   });
 
   describe('queryMemories', () => {

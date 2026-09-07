@@ -95,6 +95,19 @@ describe('PgvectorSiblingExpander', () => {
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
 
+    it('selects the memory-archive summarizer columns — guards against the column missing from ITS select becoming `undefined` at runtime', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      await fetchChunkSiblings(mockPrisma as never, 'group-abc', 'persona-123');
+
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      const [strings] = mockPrisma.$queryRaw.mock.calls[0] as [readonly string[]];
+      const sqlString = strings.join('');
+      expect(sqlString).toContain('m.assistant_summary');
+      expect(sqlString).toContain('m.summary_status');
+      expect(sqlString).toContain('m.summary_prompt_version');
+    });
+
     it('should return empty array when no siblings found', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 

@@ -165,6 +165,10 @@ export interface MemoryQueryResult {
   chunk_group_id: string | null;
   chunk_index: number | null;
   total_chunks: number | null;
+  // Memory-archive summarizer columns — the read side of the split render.
+  assistant_summary: string | null;
+  summary_status: string | null;
+  summary_prompt_version: number | null;
 }
 
 /**
