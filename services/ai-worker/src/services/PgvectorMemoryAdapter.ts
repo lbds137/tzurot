@@ -24,6 +24,7 @@ import {
 } from './PgvectorQueryBuilder.js';
 import { expandWithSiblings } from './PgvectorSiblingExpander.js';
 import { waterfallMemoryQuery } from './PgvectorChannelScoping.js';
+import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';
 
 // Re-export types for consumers that import from this module (~10 files)
 export { MemoryQueryOptions, MemoryMetadata, MemoryMetadataSchema } from './PgvectorTypes.js';
@@ -44,7 +45,11 @@ export class PgvectorMemoryAdapter {
   private prisma: PrismaClient;
   private embeddingService: IEmbeddingService;
 
-  constructor(prisma: PrismaClient, embeddingService: IEmbeddingService) {
+  constructor(
+    prisma: PrismaClient,
+    embeddingService: IEmbeddingService,
+    private readonly archiveSummaryTrigger?: ArchiveSummaryTrigger
+  ) {
     this.prisma = prisma;
     this.embeddingService = embeddingService;
     logger.info(
@@ -150,7 +155,23 @@ export class PgvectorMemoryAdapter {
 
     if (!wasChunked) {
       // Text fits within limit - store as single memory
-      await this.storeSingleMemory(data);
+      const memoryId = await this.storeSingleMemory(data);
+      // @spec MEM-ARCH-013
+      // Chunk rows are deliberately not enqueued: a chunk is a slice of the
+      // template, so `splitMemoryContent` returns null for it (pinned:
+      // `C013: a chunked memory enqueues nothing` in the colocated test) and
+      // it could only die as `no_template`. Fire-and-forget: this runs
+      // synchronously inside the reply pipeline
+      // (LongTermMemoryService.storeInteraction), and design D3 keeps the
+      // summarizer off the reply path — awaiting the trigger's Redis round
+      // trip + raw UPDATE would add that latency to every reply.
+      void this.archiveSummaryTrigger
+        ?.enqueue({
+          memoryId,
+          personalityId: data.metadata.personalityId,
+          reason: 'write',
+        })
+        .catch((err: unknown) => logger.debug({ err }, 'Archive-summary trigger tail rejected'));
       return;
     }
 
@@ -203,7 +224,10 @@ export class PgvectorMemoryAdapter {
    * Store a single memory record (internal helper)
    * Used by addMemory() for both single memories and individual chunks
    */
-  private async storeSingleMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void> {
+  private async storeSingleMemory(data: {
+    text: string;
+    metadata: MemoryMetadata;
+  }): Promise<string> {
     try {
       // Defensive validation: warn if text exceeds embedding limit
       // This shouldn't happen in normal operation (splitTextByTokens handles it),
@@ -277,6 +301,7 @@ export class PgvectorMemoryAdapter {
         },
         'Added memory to pgvector'
       );
+      return memoryId;
     } catch (error) {
       logger.error(
         {

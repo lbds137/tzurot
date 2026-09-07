@@ -277,7 +277,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
       'chunk_group_id',
       'canon_group_id',
     ],
-    timestampColumns: ['created_at', 'updated_at', 'summarized_at'],
+    timestampColumns: [
+      'created_at',
+      'updated_at',
+      'summarized_at',
+      'summary_requested_at',
+      'summary_completed_at',
+    ],
   },
   memory_facts: {
     pk: 'id',

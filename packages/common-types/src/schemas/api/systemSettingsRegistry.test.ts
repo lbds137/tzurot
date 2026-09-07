@@ -194,11 +194,38 @@ describe('headerSpoofNeutralizeEnabled (prompt-assembly kill switch)', () => {
 });
 
 describe('archiveSplitRenderPersonalities (memory-archive split render switch)', () => {
-  it('is a live-toggling list in the operations group, falling back to an empty array', () => {
+  it('is a live-toggling list in the memory-archive group, falling back to an empty array', () => {
     const meta = SYSTEM_SETTINGS_REGISTRY.archiveSplitRenderPersonalities;
     expect(meta.control).toBe('list');
-    expect(meta.group).toBe('operations');
+    expect(meta.group).toBe('memory-archive');
     expect(meta.liveness).toBe('live');
     expect(meta.fallback).toEqual([]);
+  });
+});
+
+describe('the archive-summary switches (memory-archive group)', () => {
+  it('archiveSummaryEnqueueEnabled falls back OFF', () => {
+    const meta = SYSTEM_SETTINGS_REGISTRY.archiveSummaryEnqueueEnabled;
+    expect(meta.control).toBe('boolean');
+    expect(meta.group).toBe('memory-archive');
+    expect(meta.liveness).toBe('live');
+    expect(meta.fallback).toBe(false);
+  });
+
+  it('archiveSummaryModelEnabled falls back OFF', () => {
+    const meta = SYSTEM_SETTINGS_REGISTRY.archiveSummaryModelEnabled;
+    expect(meta.control).toBe('boolean');
+    expect(meta.group).toBe('memory-archive');
+    expect(meta.liveness).toBe('live');
+    expect(meta.fallback).toBe(false);
+  });
+
+  it('archiveSummaryDailyCap is a bounded integer falling back to 2000', () => {
+    const meta = SYSTEM_SETTINGS_REGISTRY.archiveSummaryDailyCap;
+    expect(meta.control).toBe('integer');
+    expect(meta.group).toBe('memory-archive');
+    expect(meta.min).toBe(1);
+    expect(meta.max).toBe(100000);
+    expect(meta.fallback).toBe(2000);
   });
 });

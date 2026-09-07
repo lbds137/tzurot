@@ -24,10 +24,12 @@ const SYSTEM_PAGE_LABELS: Record<SystemSettingGroup, string> = {
   models: 'System · Fallback Models',
   limits: 'System · Limits',
   operations: 'System · Operations',
+  'memory-archive': 'System · Memory Archive',
 };
 
 const SYSTEM_GROUP_ORDER: SystemSettingGroup[] = [
   'extraction',
+  'memory-archive',
   'free-tier-fair-share',
   'free-tier-zai',
   'models',
@@ -62,6 +64,9 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   realMessagesEnabled: '💬',
   headerSpoofNeutralizeEnabled: '🛡️',
   archiveSplitRenderPersonalities: '🧩',
+  archiveSummaryEnqueueEnabled: '📥',
+  archiveSummaryModelEnabled: '✍️',
+  archiveSummaryDailyCap: '🧾',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */

@@ -123,6 +123,10 @@ const JOB_SCHEMA_BY_TYPE: Record<JobType, { schemaRef: string; consumer: string 
   // and consumes fact-extraction jobs — no cross-service producer↔consumer seam,
   // so no bullmq-contract surface despite having a payload schema.
   [JobType.FactExtraction]: null,
+  // Worker-internal: ai-worker both enqueues (the ArchiveSummaryTrigger tail
+  // call after a memory store) and consumes archive-summary jobs — no
+  // cross-service producer↔consumer seam despite having a payload schema.
+  [JobType.ArchiveSummary]: null,
   // Cross-service: api-gateway produces broadcast batches, bot-client's DM
   // worker consumes them — the payload schema IS the producer↔consumer contract.
   [JobType.ReleaseBroadcastDm]: {

@@ -246,7 +246,7 @@ describe('Admin Settings Dashboard', () => {
           expect.stringContaining('Memory Limit'),
         ])
       );
-      expect(embedJson.footer.text).toContain('Page 1/9 · Memory');
+      expect(embedJson.footer.text).toContain('Page 1/10 · Memory');
     });
 
     it('should include select menu and pagination row (no Close on paged dashboards)', async () => {
@@ -259,7 +259,7 @@ describe('Admin Settings Dashboard', () => {
       expect(editReplyCall.components).toHaveLength(2);
       const secondRow = editReplyCall.components[1].toJSON();
       const labels = secondRow.components.map((c: { label?: string }) => c.label);
-      expect(labels).toEqual(['Prev', 'Page 1/9 · Memory', 'Next']);
+      expect(labels).toEqual(['Prev', 'Page 1/10 · Memory', 'Next']);
       expect(labels).not.toContain('Close');
     });
 

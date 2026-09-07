@@ -87,6 +87,7 @@ describe('SYSTEM_SETTINGS_PAGES', () => {
   it('renders the concern pages covering every registry key exactly once', () => {
     expect(SYSTEM_SETTINGS_PAGES.map(p => p.label)).toEqual([
       'System · Extraction',
+      'System · Memory Archive',
       'System · Free Tier — Fair Share',
       'System · Free Tier — z.ai',
       'System · Fallback Models',
