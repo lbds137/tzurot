@@ -19,6 +19,7 @@ import { HumanMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { AIProvider, toZaiWireModelId } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { createChatModel } from '../ModelFactory.js';
 import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
 
@@ -72,6 +73,16 @@ export interface SystemModelCallOptions {
   appTitleSuffix: string;
   /** Hard deadline for the single model call. */
   timeoutMs: number;
+  /** Reasoning level for this call. Omitted entirely when undefined, because
+   *  absent (provider default) is distinct from 'off' (explicitly disabled). */
+  thinking?: ThinkingLevel;
+  /** Per-call output cap, forwarded only when defined. */
+  maxTokens?: number;
+  /** Pre-resolved route. Callers that gate on the route (the archive
+   *  summarizer) pass the value their gate accepted, so a live
+   *  `extractionProvider` change between gate and call cannot bill a route the
+   *  gate rejected. Omitted, the call resolves the route itself. */
+  route?: { provider: AIProvider; apiKey?: string };
 }
 
 /** The real model call — exported for eval harnesses (same code path as prod). */
@@ -80,7 +91,7 @@ export async function invokeSystemModel(
   options: SystemModelCallOptions
 ): Promise<SystemModelResult> {
   const systemModel = getSystemSetting('extractionModel');
-  const route = resolveSystemModelRoute();
+  const route = options.route ?? resolveSystemModelRoute();
   // z.ai-direct takes the bare model id ('z-ai/glm-5.2' → 'glm-5.2'), same
   // mapping ProviderRouter applies to promoted completions. Detection is
   // case-insensitive (toZaiWireModelId), so a `Z-AI/glm-5` setting strips
@@ -94,6 +105,8 @@ export async function invokeSystemModel(
     appTitleSuffix: options.appTitleSuffix,
     provider: route.provider,
     ...(route.apiKey !== undefined ? { apiKey: route.apiKey } : {}),
+    ...(options.thinking !== undefined ? { thinking: options.thinking } : {}),
+    ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
   });
   const response = await invokeModelGuarded(model, [new HumanMessage(prompt)], {
     timeout: options.timeoutMs,

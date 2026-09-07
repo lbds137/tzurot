@@ -515,6 +515,23 @@ export const factExtractionJobDataSchema = baseJobDataSchema.extend({
 
 export type FactExtractionJobData = z.infer<typeof factExtractionJobDataSchema>;
 
+/**
+ * Archive Summary Job Data Schema (memory-archive slice B1)
+ * SINGLE SOURCE OF TRUTH for archive-summary job payloads. One job = one memory
+ * row; the BullMQ jobId is the memory id itself, so an enqueue storm dedupes to
+ * the single in-flight job for that row.
+ */
+export const archiveSummaryJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.ArchiveSummary),
+  /** The memory row to summarize. */
+  memoryId: z.string().uuid(),
+  personalityId: z.string().uuid(),
+  /** Why this row was enqueued. Only 'write' is produced in slice B1;
+   *  'retrieval' (lazy fill) and 'sweep' (pre-warm) are reserved for later slices. */
+  reason: z.enum(['write', 'retrieval', 'sweep']),
+});
+export type ArchiveSummaryJobData = z.infer<typeof archiveSummaryJobDataSchema>;
+
 /** One DM recipient inside a broadcast batch. */
 const releaseBroadcastRecipientSchema = z.object({
   /** Deterministic ReleaseDeliveryLog row id — the per-recipient delivery ledger key. */
@@ -596,4 +613,5 @@ export const anyJobDataSchema = z.discriminatedUnion('jobType', [
   factExtractionJobDataSchema,
   releaseBroadcastDmJobDataSchema,
   retentionNotifyDmJobDataSchema,
+  archiveSummaryJobDataSchema,
 ]);

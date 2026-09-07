@@ -52,6 +52,15 @@ export const MEMORIES_SYNC_COLUMNS = [
   'pool',
   'canon_group_id',
   'is_fiction',
+  'assistant_summary',
+  'summary_status',
+  'summary_attempts',
+  'summary_model',
+  'summary_prompt_version',
+  'source_content_hash',
+  'summary_requested_at',
+  'summary_completed_at',
+  'summary_last_error',
 ] as const;
 
 /** Every memory_facts column — same explicit-list contract (and the same

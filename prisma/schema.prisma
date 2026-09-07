@@ -193,10 +193,11 @@ model UsageLog {
   createdAt     DateTime     @default(now()) @map("created_at")
   /// Not-measured marker: NULL when the write site has no timing in scope
   /// (fact_extraction and roster_blurb system calls, plus all rows predating
-  /// the column); populated only by the llm_generation path with the
+  /// the column); populated by the llm_generation path with the
   /// TEXT-GENERATION pipeline's latency — TTS synthesis runs after the
-  /// measurement and is not included. Reads guard with != null and must not
-  /// treat NULL as zero latency.
+  /// measurement and is not included — and by the archive_summary path with
+  /// each individual model call's latency. Reads guard with != null and must
+  /// not treat NULL as zero latency.
   latencyMs     Int?         @map("latency_ms")
   /// Tri-state applicability: NULL = the BYOK-vs-free distinction does not
   /// apply (system/background calls, rows predating the column); true = ran
@@ -883,15 +884,18 @@ model Memory {
   /// be summarized (no user/assistant template). A dead row is re-admitted
   /// only by a content edit or a prompt-version bump.
   summaryStatus        String?                @map("summary_status") @db.VarChar(10)
-  /// Billed summarizer attempts against the current content; zero-spend
-  /// failures (timeouts, rate limits) do not count. Reset by a content edit.
+  /// Billed summarizer attempts against the current content and prompt
+  /// version; zero-spend failures (timeouts, rate limits) do not count.
+  /// Reset by a content edit or a prompt-version bump.
   summaryAttempts      Int                    @default(0) @map("summary_attempts")
   /// Deferred-set: the model setting as written at the call that produced
   /// assistant_summary; null until the first summary is stored.
   summaryModel         String?                @map("summary_model") @db.VarChar(255)
-  /// Deferred-set: the summarizer prompt version that produced
-  /// assistant_summary; null until stored. A value below the current constant
-  /// marks the summary stale (renders as user turn + facts, re-enqueued).
+  /// Deferred-set: the summarizer prompt version that produced the stored
+  /// summary or the recorded terminal failure (`failed`/`dead`); null until
+  /// the first summary or terminal verdict is written. A value below the
+  /// current constant marks either stale (renders as user turn + facts,
+  /// re-enqueued).
   summaryPromptVersion Int?                   @map("summary_prompt_version")
   /// Deferred-set: sha-256 hex of `content` the stored summary (or the
   /// recorded failure) describes; null until the first billed attempt. A

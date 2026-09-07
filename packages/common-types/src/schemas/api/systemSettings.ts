@@ -29,6 +29,12 @@ export const SystemSettingsSchema = z.object({
   factsInPromptEnabled: z.boolean(),
   /** Personality slugs whose memory archive renders split (user turn verbatim + linked facts, assistant prose omitted). Empty = every character renders verbatim. */
   archiveSplitRenderPersonalities: z.array(z.string().regex(/^[a-z0-9-]+$/)),
+  /** Job creation switch for the memory-archive summarizer: when off, no memory is enqueued for summarization. */
+  archiveSummaryEnqueueEnabled: z.boolean(),
+  /** Model-call switch for the memory-archive summarizer: when off, queued jobs delay instead of billing a call. */
+  archiveSummaryModelEnabled: z.boolean(),
+  /** Rows the memory-archive summarizer may process per UTC day, all characters combined. */
+  archiveSummaryDailyCap: z.number().int().min(1).max(100000),
   /** Runtime switch for character roster blurbs: the summarizer sweep AND rendering them in the prompt. */
   rosterBlurbEnabled: z.boolean(),
   /** Render conversation history as real user/assistant provider messages instead of `<chat_log>` XML in the system prompt (prompt-assembly Phase 2 rollout switch). */

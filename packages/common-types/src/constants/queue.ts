@@ -38,6 +38,13 @@ export const SCHEDULED_QUEUE_NAME = 'scheduled-jobs';
 export const FACT_EXTRACTION_QUEUE_NAME = 'fact-extraction';
 
 /**
+ * Queue for async memory-archive summarization jobs. Worker-internal to
+ * ai-worker (it both enqueues and consumes); separate from the fact-extraction
+ * queue so a summary backlog never starves fact extraction.
+ */
+export const ARCHIVE_SUMMARY_QUEUE_NAME = 'archive-summary';
+
+/**
  * Queue for release-notes / broadcast DM delivery jobs. Produced by
  * api-gateway (recipient resolution + announcement bookkeeping live there);
  * consumed by bot-client (the only service holding the Discord client).
@@ -266,4 +273,6 @@ export enum JobType {
   ReleaseBroadcastDm = 'release-broadcast-dm',
   /** Retention warning-DM delivery batch (Phase 3; consumed by bot-client) */
   RetentionNotifyDm = 'retention-notify-dm',
+  /** Asynchronous memory-archive summarization of one stored episode. */
+  ArchiveSummary = 'archive-summary',
 }

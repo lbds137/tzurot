@@ -15,7 +15,8 @@ import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { NullVectorReembedder } from './jobs/NullVectorReembedder.js';
-import { setupFactExtraction } from './jobs/factExtractionSetup.js';
+import { setupBackgroundQueues, disposeBackgroundQueues } from './jobs/backgroundQueues.js';
+import type { ArchiveSummaryTrigger } from './services/archiveSummary/ArchiveSummaryTrigger.js';
 import { sweepRosterBlurbs } from './jobs/rosterBlurbSweep.js';
 import { logZaiFreeTierBootCoherence } from './services/ZaiFreeTierAdmission.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
@@ -114,12 +115,17 @@ const config = {
  */
 async function initializeVectorMemory(
   prisma: PrismaClient,
-  embeddingService: LocalEmbeddingService
+  embeddingService: LocalEmbeddingService,
+  archiveSummaryTrigger: ArchiveSummaryTrigger
 ): Promise<PgvectorMemoryAdapter | undefined> {
   logger.info('Initializing pgvector memory connection...');
 
   try {
-    const memoryManager = new PgvectorMemoryAdapter(prisma, embeddingService);
+    const memoryManager = new PgvectorMemoryAdapter(
+      prisma,
+      embeddingService,
+      archiveSummaryTrigger
+    );
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
@@ -435,28 +441,35 @@ async function main(): Promise<void> {
   // Initialize local embedding service (required for both vector memory and duplicate detection)
   const localEmbeddingService = await initializeLocalEmbedding();
 
-  // Initialize vector memory (depends on embedding service)
-  // If embedding service failed, vector memory also cannot work
-  const memoryManager =
-    localEmbeddingService !== undefined
-      ? await initializeVectorMemory(prisma, localEmbeddingService)
-      : undefined;
-
-  if (localEmbeddingService !== undefined && memoryManager === undefined) {
-    logger.warn('Embedding service ready but vector memory failed');
-  }
-
-  // Fact extraction (memory Phase 2) — assembly always constructs when the
-  // embedding service is up; the runtime `extractionEnabled` system setting is
-  // the kill switch, checked per trigger-fire.
+  // Background queues (fact extraction + memory-archive summarizer) construct
+  // BEFORE vector memory: the summarizer's trigger must exist before
+  // PgvectorMemoryAdapter is built, since the write-path tail-call needs it.
+  // Fact extraction's assembly always constructs when the embedding service
+  // is up; the runtime `extractionEnabled`/`archiveSummary*` system settings
+  // are the kill switches, checked per trigger-fire.
   logZaiFreeTierBootCoherence(getConfig());
-
-  const factExtraction = setupFactExtraction(
+  const backgroundQueues = setupBackgroundQueues(
     prisma,
     cacheRedis,
     redisConfig,
     localEmbeddingService
   );
+  const factExtraction = backgroundQueues.factExtraction;
+
+  // Initialize vector memory (depends on embedding service)
+  // If embedding service failed, vector memory also cannot work
+  const memoryManager =
+    localEmbeddingService !== undefined
+      ? await initializeVectorMemory(
+          prisma,
+          localEmbeddingService,
+          backgroundQueues.archiveSummary.trigger
+        )
+      : undefined;
+
+  if (localEmbeddingService !== undefined && memoryManager === undefined) {
+    logger.warn('Embedding service ready but vector memory failed');
+  }
 
   // Create job processor and main worker
   const jobProcessor = new AIJobProcessor({
@@ -506,10 +519,7 @@ async function main(): Promise<void> {
     await worker.close();
     await scheduledWorker.close();
     await scheduledQueue.close();
-    if (factExtraction !== undefined) {
-      await factExtraction.worker.close();
-      await factExtraction.queue.close();
-    }
+    await disposeBackgroundQueues(backgroundQueues);
     await pendingMemoryProcessor.disconnect();
     if (localEmbeddingService !== undefined) {
       await localEmbeddingService.shutdown();
