@@ -25,3 +25,5 @@ Recommendation: review the first real rows in dev before deciding — the class 
 Acceptance: the owner has read a sample of extracted commitment facts and recorded a decision here.
 Promote when: the first commitment-tagged facts appear in dev (after the extraction switch runs on new conversations post-deploy).
 <!-- SECTION:DESCRIPTION:END -->
+
+Boundary case to look for in the review (claude-review round 3 on the PR): a vague, open-ended assistant statement such as "I will always be here for you" sits between a standing decision (durable, extract) and an unfalsifiable relationship platitude (should not be reified as a permanent fact). The prompt's three worked examples are all concrete and instantiable, so the model has no anchor for the vague case; if the real rows show it leaning the wrong way, a fourth worked example or a boundary sentence in the exclusion bullet is the fix.
