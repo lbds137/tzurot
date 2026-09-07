@@ -11,7 +11,6 @@ import type { SystemSettings } from '@tzurot/common-types/schemas/api/systemSett
 import { SYSTEM_SETTINGS_REGISTRY } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
-import { parseSlugList } from '../../utils/dashboard/settings/parseSlugList.js';
 import {
   type SettingsData,
   type SettingsDashboardSession,
@@ -47,17 +46,11 @@ export async function handleSystemSettingUpdate(
       return { success: false, error: `Could not read current settings: ${current.error}` };
     }
 
-    // The dashboard's SettingType.TEXT modal always yields a raw string, but a
-    // `list` control's schema field is `string[]` — coerce it the SAME way the
-    // slash setter does (parseSlugList) so the two write paths never diverge on
-    // what counts as a valid entry.
     const meta = SYSTEM_SETTINGS_REGISTRY[settingId as keyof SystemSettings];
-    const patchValue: unknown =
-      meta?.control === 'list' && typeof newValue === 'string' ? parseSlugList(newValue) : newValue;
 
     const result = await ownerClient.updateSystemSettings({
       expectedUpdatedAt: current.data.updatedAt,
-      patch: { [settingId]: patchValue },
+      patch: { [settingId]: newValue },
     });
 
     if (!result.ok) {

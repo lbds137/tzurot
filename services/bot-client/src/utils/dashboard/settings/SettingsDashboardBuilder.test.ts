@@ -523,6 +523,46 @@ describe('SettingsDashboardBuilder', () => {
 
       expect(maxMessagesOption?.description).toContain('30');
     });
+
+    it("truncates an overflowing LIST value so the option description stays within Discord's 100-char cap", () => {
+      const listSetting: SettingDefinition = {
+        id: 'archiveSplitRenderPersonalities',
+        label: 'Split-Render Personalities',
+        emoji: '🧩',
+        description: 'Personality slugs that render verbatim.',
+        type: SettingType.LIST,
+        plainDisplay: true,
+      };
+      const config: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        settings: [...EXTENDED_CONTEXT_SETTINGS, listSetting],
+      };
+      // Two max-length (50-char) slugs: "Current: " + slug + ", " + slug = 111 chars, over the cap.
+      const slugA = 'a'.repeat(50);
+      const slugB = 'b'.repeat(50);
+      const session: SettingsDashboardSession = {
+        ...createTestSession(),
+        data: {
+          ...createTestSession().data,
+          archiveSplitRenderPersonalities: {
+            localValue: [slugA, slugB],
+            hasLocalOverride: true,
+            effectiveValue: [slugA, slugB],
+            source: 'admin',
+            parentValue: [slugA, slugB],
+          },
+        },
+      };
+
+      const row = buildSettingsSelectMenu(config, session);
+      const menu = getSelectMenu(row);
+      const listOption = menu?.options?.find(
+        (o: { value?: string }) => o.value === 'archiveSplitRenderPersonalities'
+      );
+
+      expect(listOption?.description?.length).toBeLessThanOrEqual(100);
+      expect(listOption?.description).toMatch(/^Current: /);
+    });
   });
 
   describe('buildOverviewMessage', () => {
@@ -913,6 +953,71 @@ describe('SettingsDashboardBuilder', () => {
       const embed = buildSettingEmbed(config(), staleSession, plainSetting).toJSON();
       const current = (embed.fields ?? []).find(f => f.name === 'Current Value');
       expect(current?.value).toContain('—');
+    });
+  });
+
+  describe('LIST setting display (empty and populated slug lists)', () => {
+    const listSetting: SettingDefinition = {
+      id: 'archiveSplitRenderPersonalities',
+      label: 'Split-Render Personalities',
+      emoji: '🧩',
+      description: 'Personality slugs that render verbatim.',
+      type: SettingType.LIST,
+      plainDisplay: true,
+    };
+    const listConfig = (): SettingsDashboardConfig => ({
+      ...createTestConfig(),
+      settings: [...EXTENDED_CONTEXT_SETTINGS, listSetting],
+    });
+    const listSession = (value: string[]): SettingsDashboardSession => ({
+      ...createTestSession(),
+      data: {
+        ...createTestSession().data,
+        archiveSplitRenderPersonalities: {
+          localValue: value,
+          hasLocalOverride: true,
+          effectiveValue: value,
+          source: 'admin',
+          parentValue: value,
+        },
+      },
+    });
+
+    it('renders (none) for an empty list on the overview embed', () => {
+      const embed = buildOverviewEmbed(listConfig(), listSession([])).toJSON();
+      const field = (embed.fields ?? []).find(f => f.name.includes('Split-Render'));
+      expect(field?.value).toContain('(none)');
+    });
+
+    it('renders joined slugs for a populated list', () => {
+      const embed = buildOverviewEmbed(
+        listConfig(),
+        listSession(['slug-one', 'slug-two'])
+      ).toJSON();
+      const field = (embed.fields ?? []).find(f => f.name.includes('Split-Render'));
+      expect(field?.value).toContain('slug-one, slug-two');
+    });
+
+    it('never wraps an empty display in a bare bold marker', () => {
+      const embed = buildOverviewEmbed(listConfig(), listSession([])).toJSON();
+      const field = (embed.fields ?? []).find(f => f.name.includes('Split-Render'));
+      expect(field?.value).not.toBe('**');
+      expect(field?.value).not.toContain('****');
+    });
+
+    it('renders a non-array (stale-session) value via String() instead of crashing or showing (none)', () => {
+      // A stale session written before this setting existed as a LIST could
+      // hold anything in effectiveValue — the fallback must degrade
+      // gracefully rather than assume an array.
+      const staleSession = listSession(['placeholder']);
+      staleSession.data.archiveSplitRenderPersonalities.effectiveValue =
+        'legacy-string-value' as unknown as string[];
+
+      const embed = buildOverviewEmbed(listConfig(), staleSession).toJSON();
+      const field = (embed.fields ?? []).find(f => f.name.includes('Split-Render'));
+
+      expect(field?.value).toContain('legacy-string-value');
+      expect(field?.value).not.toContain('(none)');
     });
   });
 
