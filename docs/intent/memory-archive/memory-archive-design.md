@@ -254,6 +254,40 @@ just queued for summarization. They are not threaded together: the enqueue
 happens before the render summary is even built, so joining them would be
 pure ceremony.
 
+## Commitment facts (amendment 4)
+
+The render pilot's D10 amendment adds the commitment class to extraction. The
+owner ruled it **prompt-level only**: no `fact_type` column, no change to
+`extractedFactSchema`, no change to salience-scoring code. A fact row carries a
+tier and a salience and nothing reads a type, so a column would be write-only
+storage. The class therefore lives in the extraction prompt's own definition of
+durable, and every downstream path — `formatSingleFact`,
+`dropFactsCoveredByArchive`, the split render — treats a commitment fact like
+any other fact, unchanged.
+
+The prompt change is one exclusion bullet. `buildExtractionPrompt` previously
+excluded "facts about the assistant or the AI itself", which forbade every
+character-side commitment by construction. That bullet still excludes facts
+about the assistant itself (nature, backstory, model, feelings) and carves
+commitments out of that ban — a promise, a standing decision, an agreed form
+of address, or advice the assistant gave — with worked examples that keep the
+literal `{assistant}`
+placeholder as the subject, so the render resolves it to the personality name
+through `replacePromptPlaceholders`. The durable-fact definition line names
+commitments as a member and the salience line suggests 0.6–0.8 for one. The
+other exclusions are unchanged: a time-bound plan ("dinner tonight") is still
+not a commitment fact; a standing promise is.
+
+Measurement is the eval corpus, not a unit gate. `extraction-goldens.json`
+gains a `commitment` category of six goldens — a promise, an agreed form of
+address, advice, a standing decision, a one-off assistant action that must
+extract nothing, and a durable-sounding backstory fact about the assistant
+itself (no commitment attached) that must also extract nothing. The number
+this moves against is the pilot's render-level gate
+"missing a commitment the character made": 46.5% of rows on the F arm (linked
+facts) and 26.5% on S. The eval is manual and paid (`pnpm eval:extraction`); no
+baseline JSON changes with this amendment.
+
 ## Not in slices A/B1/B2
 
 Pre-warm (`reason: 'sweep'`) is still reserved in the job-data schema's

@@ -1,5 +1,5 @@
 {
-  "$comment": "Extraction golden corpus (memory Phase 2 §3.9), methodology v2 (source-grounded). Each golden: episodes (verbatim interaction texts) + knownFacts (injected supersession context) → expectFacts (must-recall durable facts; recall measured against these alone) + allowedExtras (source-supported durable statements that are fine to extract but not required) + expectSupersedesKnownIndex (which knownFacts a new fact should supersede). An extraction matching NEITHER list is a violation (fabrication or transient over-extraction). Authoring line for the two lists: 'will this still be true in six months?' — past events that stay true → allowedExtras; states/plans that expire (moods, illness, tonight's dinner, next week's trip) → neither list, so extracting them counts against the extractor. Categories: durable-fact, preference, no-facts, transient-trap, multi-fact, supersession, fiction, contradiction. Grown toward the 100-sample re-open-trigger corpus; owner /memory correct|forget feedback accretes here.",
+  "$comment": "Extraction golden corpus (memory Phase 2 §3.9), methodology v2 (source-grounded). Each golden: episodes (verbatim interaction texts) + knownFacts (injected supersession context) → expectFacts (must-recall durable facts; recall measured against these alone) + allowedExtras (source-supported durable statements that are fine to extract but not required) + expectSupersedesKnownIndex (which knownFacts a new fact should supersede). An extraction matching NEITHER list is a violation (fabrication or transient over-extraction). Authoring line for the two lists: 'will this still be true in six months?' — past events that stay true → allowedExtras; states/plans that expire (moods, illness, tonight's dinner, next week's trip) → neither list, so extracting them counts against the extractor. Categories: durable-fact, preference, no-facts, transient-trap, multi-fact, supersession, fiction, contradiction, commitment. Commitment goldens cover the character-side class the render pilot's judge measured (a promise, standing decision, agreed form of address, or advice the character gave); a one-off, time-bound assistant action belongs in neither list, and neither does a durable-sounding backstory fact about the assistant itself with no commitment attached. Grown toward the 100-sample re-open-trigger corpus; owner /memory correct|forget feedback accretes here.",
   "goldens": [
     {
       "id": "simple-name-fact",
@@ -616,6 +616,70 @@
       "knownFacts": [],
       "expectFacts": ["The user plays the cello"],
       "allowedExtras": ["The user has a cello teacher", "The user has a cello recital in June"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "commit-promise",
+      "category": "commitment",
+      "episodes": [
+        "{user}: I've never managed a decent sourdough, the starter always dies on me\n{assistant}: Then it's settled — I'll teach you, start to finish, whenever you're ready."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["{assistant} promised to teach the user to bake sourdough bread"],
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user has repeatedly failed to keep a sourdough starter alive"]
+    },
+    {
+      "id": "commit-form-of-address",
+      "category": "commitment",
+      "episodes": [
+        "{user}: my old crew called me Captain, I kind of miss hearing it\n{assistant}: Then Captain it is, from here on. I won't call you anything else."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["{assistant} agreed to address the user as Captain"],
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user was called Captain by their former crew"]
+    },
+    {
+      "id": "commit-advice",
+      "category": "commitment",
+      "episodes": [
+        "{user}: the knee's been clicking for a month now and I keep ignoring it\n{assistant}: A month of clicking is not something to walk off. See a doctor about the knee, properly, with an x-ray."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["{assistant} advised the user to see a doctor about their knee"],
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user has had a clicking knee for about a month"]
+    },
+    {
+      "id": "commit-standing-decision",
+      "category": "commitment",
+      "episodes": [
+        "{user}: sometimes I want the blunt version, not the gentle one\n{assistant}: Understood. From now on I give you the blunt answer first and the softening after, every time, unless you tell me otherwise."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["{assistant} decided to always give the user the blunt answer first"],
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user prefers blunt answers over gentle ones"]
+    },
+    {
+      "id": "commit-oneoff-not-durable",
+      "category": "commitment",
+      "episodes": [
+        "{user}: I'm flagging, I need caffeine\n{assistant}: Sit tight — I'll grab you a coffee in a minute."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "commit-backstory-not-extracted",
+      "category": "commitment",
+      "episodes": [
+        "{user}: what were you like before all this?\n{assistant}: I grew up by the sea and trained as a cartographer, charting coastlines nobody had bothered to draw right."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
       "expectSupersedesKnownIndex": []
     }
   ]

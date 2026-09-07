@@ -103,6 +103,26 @@ describe('buildExtractionPrompt', () => {
     expect(prompt).toContain('NEVER write "the user"');
     expect(prompt).toContain('keep a literal "{user}" placeholder verbatim');
   });
+
+  it('MEM-ARCH-027: the prompt admits assistant commitments as durable facts with the {assistant} placeholder as subject', () => {
+    const prompt = buildExtractionPrompt(episodes, [], false);
+    expect(prompt).toContain(
+      'EXCEPT commitments: a promise, a standing decision, an agreed form of address, or advice the assistant gave IS durable'
+    );
+    expect(prompt).toContain('"{assistant} promised to teach {user} to bake bread"');
+    expect(prompt).toContain('Keep the literal "{assistant}" placeholder as the subject.');
+    expect(prompt).toContain('"commitment:promise"');
+  });
+
+  it('MEM-ARCH-027: the assistant-fact exclusion stays and names backstory, with commitments carved out', () => {
+    const prompt = buildExtractionPrompt(episodes, [], false);
+    expect(prompt).toContain(
+      'facts about the assistant or the AI itself (its nature, backstory, model, or feelings) — EXCEPT commitments'
+    );
+    expect(prompt).not.toContain(
+      "  - facts about the assistant's own nature, model, or feelings\n"
+    );
+  });
 });
 
 describe('extractJsonPayload', () => {
