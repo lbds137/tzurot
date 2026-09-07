@@ -12,7 +12,9 @@
  * summary_last_error), so Redis only needs to keep the in-flight job set. A
  * completed job leaving Redis immediately is what lets a later re-enqueue of
  * the same memory id (the deterministic jobId) be accepted rather than
- * silently deduped against a stale completed entry.
+ * silently deduped against a stale completed entry. See
+ * `ARCHIVE_SUMMARY_JOB_OPTIONS` (`@tzurot/common-types/constants/memoryArchive`)
+ * for the shared options this queue and the operator pre-warm sweep both use.
  */
 
 import { Queue, Worker, DelayedError } from 'bullmq';
@@ -20,6 +22,7 @@ import type { Redis } from 'ioredis';
 import type { BullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { ARCHIVE_SUMMARY_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
+import { ARCHIVE_SUMMARY_JOB_OPTIONS } from '@tzurot/common-types/constants/memoryArchive';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { archiveSummaryJobDataSchema } from '@tzurot/common-types/types/jobs';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
@@ -47,12 +50,7 @@ export function setupArchiveSummary(
 ): ArchiveSummaryAssembly {
   const queue = new Queue(ARCHIVE_SUMMARY_QUEUE_NAME, {
     connection: bullmqConnection,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 30_000 },
-      removeOnComplete: true,
-      removeOnFail: true,
-    },
+    defaultJobOptions: ARCHIVE_SUMMARY_JOB_OPTIONS,
   });
 
   const budget = new ArchiveSummaryBudget(cacheRedis, () =>

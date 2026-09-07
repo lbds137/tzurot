@@ -9,20 +9,27 @@ import {
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 
-const { addMock, queueCloseMock, workerCloseMock, workerOnHandlers, capturedOptions } = vi.hoisted(
-  () => ({
-    addMock: vi.fn(),
-    queueCloseMock: vi.fn(),
-    workerCloseMock: vi.fn(),
-    workerOnHandlers: new Map<string, (...args: never[]) => unknown>(),
-    capturedOptions: { current: undefined as unknown },
-  })
-);
+const {
+  addMock,
+  queueCloseMock,
+  workerCloseMock,
+  workerOnHandlers,
+  capturedOptions,
+  capturedQueueOptions,
+} = vi.hoisted(() => ({
+  addMock: vi.fn(),
+  queueCloseMock: vi.fn(),
+  workerCloseMock: vi.fn(),
+  workerOnHandlers: new Map<string, (...args: never[]) => unknown>(),
+  capturedOptions: { current: undefined as unknown },
+  capturedQueueOptions: { current: undefined as unknown },
+}));
 let capturedProcessor:
   ((job: { id: string; data: unknown }, token?: string) => Promise<unknown>) | undefined;
 
 vi.mock('bullmq', () => ({
-  Queue: vi.fn().mockImplementation(function () {
+  Queue: vi.fn().mockImplementation(function (_name: string, options: unknown) {
+    capturedQueueOptions.current = options;
     return { add: addMock, close: queueCloseMock };
   }),
   Worker: vi.fn().mockImplementation(function (
@@ -74,6 +81,25 @@ describe('setupArchiveSummary', () => {
     expect(options.concurrency).toBe(1);
     expect(options.maxStalledCount).toBe(1);
     expect(options.limiter).toEqual({ max: 10, duration: 60_000 });
+    resetSystemSettingsRegistration();
+  });
+
+  it('constructs the queue with the shared ARCHIVE_SUMMARY_JOB_OPTIONS as defaultJobOptions', () => {
+    registerSystemSettings({
+      get: (key: string) => fixtures()[key],
+    } as unknown as SystemSettingsService);
+    setupArchiveSummary({} as PrismaClient, {} as Redis, {} as BullMQRedisConfig);
+
+    const queueOptions = capturedQueueOptions.current as { defaultJobOptions: unknown };
+    // Concrete literal, not a comparison against the imported constant — a
+    // change to ARCHIVE_SUMMARY_JOB_OPTIONS must redden this test, which an
+    // import-vs-import comparison could never do.
+    expect(queueOptions.defaultJobOptions).toEqual({
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 30_000 },
+      removeOnComplete: true,
+      removeOnFail: true,
+    });
     resetSystemSettingsRegistration();
   });
 

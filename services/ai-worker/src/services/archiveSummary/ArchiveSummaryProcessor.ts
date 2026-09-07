@@ -25,6 +25,7 @@ import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsSe
 import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 import { replacePromptPlaceholders } from '../../utils/promptPlaceholders.js';
 import {
   resolveSystemModelRoute,
@@ -34,7 +35,6 @@ import {
 import { makeArchiveSummaryInvoker } from './makeArchiveSummaryInvoker.js';
 import type { ArchiveSummaryBudget } from './ArchiveSummaryBudget.js';
 import {
-  ARCHIVE_SUMMARY_PROMPT_VERSION,
   SWITCH_OFF_DELAY_MS,
   BUDGET_DELAY_MS,
   SUMMARY_SOFT_CAP_TOKENS,

@@ -27,12 +27,15 @@ describe('ArchiveSummaryTrigger', () => {
 
     expect(queue.add).toHaveBeenCalledWith(
       JobType.ArchiveSummary,
-      expect.objectContaining({
+      {
+        requestId: `archive-summary-${MEMORY_ID}`,
+        jobType: JobType.ArchiveSummary,
+        responseDestination: { type: 'api' },
+        version: 1,
         memoryId: MEMORY_ID,
         personalityId: PERSONALITY_ID,
         reason: 'write',
-        jobType: JobType.ArchiveSummary,
-      }),
+      },
       { jobId: MEMORY_ID }
     );
   });
