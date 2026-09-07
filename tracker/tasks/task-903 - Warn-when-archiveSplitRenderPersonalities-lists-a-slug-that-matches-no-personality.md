@@ -24,3 +24,5 @@ Acceptance: setting the list to a real slug plus a typo saves both and shows one
 
 Case note (review round 2 of PR #2350): parseSlugList lowercases entries at write time because personality slugs are validated lowercase-only and the runtime match is exact. The existence check here must compare the already-lowercased entry against real slugs exactly, never case-insensitively, or it would pass an entry the runtime match can never activate.
 <!-- SECTION:DESCRIPTION:END -->
+
+Related (claude-review round 3 on #2362): the settings-dashboard modal prefill truncates a joined list past 1000 chars at a character boundary, so a very long list could yield a mid-slug fragment on re-save; the fragment matches the slug regex and would land as an unknown slug. This warning is the catch for that case too; no separate task.
