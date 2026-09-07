@@ -3,9 +3,10 @@ id: TASK-912
 title: >-
   Settings dashboard cannot show or clear an empty slug list (Archive Split
   Render renders as **)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-07 22:11'
+updated_date: '2026-09-07 23:37'
 labels:
   - 'area:bot-client'
   - 'size:S'
