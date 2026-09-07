@@ -27,6 +27,9 @@ describe('SYSTEM_SETTINGS_DEFINITIONS (registry derivation)', () => {
     expect(byId.get('extractionBatchThreshold')?.type).toBe(SettingType.NUMERIC);
     expect(byId.get('extractionProvider')?.type).toBe(SettingType.ENUM);
     expect(byId.get('fallbackTextModel')?.type).toBe(SettingType.TEXT);
+    // A list control (comma-separated slugs) is its own SettingType, not TEXT
+    // — TEXT's empty-input rejection would make the list unclearable.
+    expect(byId.get('archiveSplitRenderPersonalities')?.type).toBe(SettingType.LIST);
   });
 
   it('integer definitions ALWAYS carry an explicit max (the modal parser defaults an absent max to 100)', () => {

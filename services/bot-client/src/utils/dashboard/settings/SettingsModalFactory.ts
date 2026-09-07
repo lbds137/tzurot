@@ -25,6 +25,30 @@ import { type SettingDefinition, buildSettingsCustomId, SettingType } from './ty
  */
 const DEFAULT_MAX_LENGTH = 20;
 const TEXT_MAX_LENGTH = 100;
+/**
+ * A slug list can hold many entries; a tight cap would silently DROP slugs
+ * from the prefill on the next save (the input is truncated before the user
+ * ever sees the rest). Generous rather than tight — verified against
+ * `@discordjs/builders`' `maxLengthValidator`, which `TextInputBuilder.setMaxLength`
+ * parses through and which rejects anything above 4000; not verified against
+ * Discord's server-side API itself.
+ */
+const LIST_MAX_LENGTH = 1000;
+
+/** Resolve the modal input's max length for a setting's type. */
+function resolveMaxLength(setting: SettingDefinition): number {
+  if (setting.maxLength !== undefined) {
+    return setting.maxLength;
+  }
+  switch (setting.type) {
+    case SettingType.TEXT:
+      return TEXT_MAX_LENGTH;
+    case SettingType.LIST:
+      return LIST_MAX_LENGTH;
+    default:
+      return DEFAULT_MAX_LENGTH;
+  }
+}
 
 /**
  * Build a modal for editing a setting value
@@ -45,8 +69,7 @@ export function buildSettingEditModal(
     .setCustomId(buildSettingsCustomId(entityType, 'modal', entityId, setting.id))
     .setTitle(`Edit ${setting.label}`);
 
-  const maxLength =
-    setting.maxLength ?? (setting.type === SettingType.TEXT ? TEXT_MAX_LENGTH : DEFAULT_MAX_LENGTH);
+  const maxLength = resolveMaxLength(setting);
 
   // Build the text input
   const input = new TextInputBuilder()
@@ -88,7 +111,11 @@ function formatValueForInput(value: unknown): string {
   if (typeof value === 'string') {
     return value;
   }
-  // Only numbers and strings are expected for setting values
+  if (Array.isArray(value) && value.every(entry => typeof entry === 'string')) {
+    return value.join(', ');
+  }
+  // Numbers, strings, and string arrays (LIST settings) are the only
+  // setting-value shapes; anything else renders no prefill.
   return '';
 }
 

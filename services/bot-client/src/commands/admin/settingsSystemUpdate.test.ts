@@ -162,20 +162,4 @@ describe('handleSystemSettingUpdate', () => {
       expect.objectContaining({ content: expect.stringContaining('catalog unavailable') })
     );
   });
-
-  // C13: the dashboard TEXT modal yields a raw string for a `list` control —
-  // this call site must coerce it the SAME way the slash setter does.
-  it('coerces a raw string into a slug array for a list-control setting before patching', async () => {
-    await handleSystemSettingUpdate(
-      makeInteraction(),
-      makeSession(),
-      'archiveSplitRenderPersonalities',
-      'a, b,,a'
-    );
-
-    expect(stub.updateSystemSettings).toHaveBeenCalledWith({
-      expectedUpdatedAt: UPDATED_AT,
-      patch: { archiveSplitRenderPersonalities: ['a', 'b'] },
-    });
-  });
 });

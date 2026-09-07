@@ -15,6 +15,7 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { Duration } from '@tzurot/common-types/utils/Duration';
+import { truncateForDescription } from '../../browse/truncation.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -54,6 +55,26 @@ function friendlySourceName(source: SettingSource): string {
     case 'hardcoded':
       return 'default';
   }
+}
+
+/**
+ * Format a slug-list value for display. `(none)` for an empty list is the
+ * meaningful-empty-value case (distinguished from the em-dash rendered for a
+ * session with no entry at all for this setting). Falls back to
+ * `String(value)` for a non-array (a stale session could hold anything)
+ * rather than crashing mid-render.
+ *
+ * No backticks/code formatting around the joined slugs: `display` is also
+ * reused as a select-menu option description (`.setDescription`), which is
+ * not the markdown surface the overview embed field is — formatting
+ * characters there risk showing up literally rather than rendering. (Not
+ * verified against a live Discord client.)
+ */
+function formatListValue(value: unknown): string {
+  if (!Array.isArray(value)) {
+    return String(value);
+  }
+  return value.length === 0 ? '(none)' : value.join(', ');
 }
 
 /**
@@ -100,6 +121,10 @@ function formatSettingValue(
     case SettingType.ENUM: {
       const choice = setting.choices?.find(c => c.value === effectiveValue);
       display = choice !== undefined ? `${choice.emoji} ${choice.label}` : String(effectiveValue);
+      break;
+    }
+    case SettingType.LIST: {
+      display = formatListValue(effectiveValue);
       break;
     }
     default:
@@ -202,6 +227,12 @@ function formatInheritedDisplay(setting: SettingDefinition, parentValue: unknown
       const choice = setting.choices?.find(c => c.value === parentValue);
       return choice !== undefined ? `${choice.emoji} ${choice.label}` : String(parentValue);
     }
+    case SettingType.LIST:
+      // Unreachable for the current plain-mode list setting (LIST settings
+      // are plainDisplay: true, so buildSettingEmbed never renders Parent
+      // Value for them) — present so a future cascading list setting renders
+      // correctly instead of falling through to String([...]).
+      return formatListValue(parentValue);
     default:
       return String(parentValue);
   }
@@ -305,7 +336,12 @@ export function buildSettingsSelectMenu(
     const option = new StringSelectMenuOptionBuilder()
       .setLabel(setting.label)
       .setValue(setting.id)
-      .setDescription(`Current: ${display}`)
+      // Discord caps a select-option description at 100 chars — an unbounded
+      // display (a max-length TEXT model id, or several max-length LIST
+      // slugs) can overflow it and throw at build time, bricking the whole
+      // overview render. Truncate the full "Current: …" string for every
+      // setting type, not just LIST.
+      .setDescription(truncateForDescription(`Current: ${display}`))
       .setEmoji(setting.emoji);
 
     menu.addOptions(option);

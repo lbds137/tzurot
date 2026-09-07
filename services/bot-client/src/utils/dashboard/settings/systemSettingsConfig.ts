@@ -139,7 +139,7 @@ function toSettingDefinition(meta: SystemSettingMeta): SettingDefinition {
     case 'list':
       return {
         ...base,
-        type: SettingType.TEXT,
+        type: SettingType.LIST,
         placeholder: 'slug-one, slug-two',
         helpText:
           'Comma-separated list of personality slugs. Empty means every character renders verbatim.',
