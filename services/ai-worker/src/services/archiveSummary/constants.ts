@@ -1,7 +1,3 @@
-/** Bump when the summarizer's system/user prompt text changes meaningfully —
- *  a re-summarize sweep keys off this to know which stored summaries are stale. */
-export const ARCHIVE_SUMMARY_PROMPT_VERSION = 1;
-
 /** A summary at or under this length needs no regeneration pass. */
 export const SUMMARY_SOFT_CAP_TOKENS = 80;
 

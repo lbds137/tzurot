@@ -10,6 +10,7 @@
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 import { extractJsonPayload } from '../extraction/extractionPrompt.js';
 import type { SystemModelInvoker, SystemModelResult } from '../systemModel/systemModelCall.js';
 import {
@@ -22,7 +23,6 @@ import {
 import { writeArchiveSummaryFailure } from './archiveSummaryStore.js';
 import { buildRegenerationFeedback, type CallTally } from './archiveSummaryFeedback.js';
 import { writeArchiveSummaryUsageLog } from './archiveSummaryUsageLog.js';
-import { ARCHIVE_SUMMARY_PROMPT_VERSION } from './constants.js';
 
 const logger = createLogger('ArchiveSummaryProcessor');
 

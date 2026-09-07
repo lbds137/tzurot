@@ -11,7 +11,7 @@ import type {
 } from '../services/PgvectorTypes.js';
 import { replacePromptPlaceholders } from './promptPlaceholders.js';
 import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
-import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '../services/archiveSummary/constants.js';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 
 /**
  * Embedding dimension for BGE-small-en-v1.5 model (local embeddings)

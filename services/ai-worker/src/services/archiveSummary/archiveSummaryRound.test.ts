@@ -4,7 +4,7 @@ import { AIProvider } from '@tzurot/common-types/constants/ai';
 import type { SystemModelInvoker, SystemModelResult } from '../systemModel/systemModelCall.js';
 import type { SummarizerMessageInput } from './archiveSummaryPrompt.js';
 import { CallTally } from './archiveSummaryFeedback.js';
-import { ARCHIVE_SUMMARY_PROMPT_VERSION } from './constants.js';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 import {
   callAndParse,
   checkReferent,

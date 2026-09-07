@@ -29,6 +29,7 @@ import {
   retentionNotifyDmJobDataSchema,
   archiveSummaryJobDataSchema,
   type ArchiveSummaryJobData,
+  buildArchiveSummaryJobData,
 } from './jobs.js';
 import {
   shapesImportJobDataSchema,
@@ -252,6 +253,43 @@ describe('BullMQ Job Contract Tests', () => {
       const result = anyJobDataSchema.safeParse(job);
       expect(result.success).toBe(true);
     });
+  });
+
+  describe('buildArchiveSummaryJobData', () => {
+    const UUID_MEMORY = '4f9b0f66-1111-4000-8000-00000000000a';
+    const UUID_PERSONALITY = '4f9b0f66-1111-4000-8000-00000000000b';
+
+    it('builds the exact payload for a given memoryId/personalityId/reason', () => {
+      const jobData = buildArchiveSummaryJobData({
+        memoryId: UUID_MEMORY,
+        personalityId: UUID_PERSONALITY,
+        reason: 'write',
+      });
+
+      expect(jobData).toEqual({
+        requestId: `archive-summary-${UUID_MEMORY}`,
+        jobType: JobType.ArchiveSummary,
+        responseDestination: { type: 'api' },
+        version: 1,
+        memoryId: UUID_MEMORY,
+        personalityId: UUID_PERSONALITY,
+        reason: 'write',
+      });
+    });
+
+    it.each(['write', 'retrieval', 'sweep'] as const)(
+      'parses clean against archiveSummaryJobDataSchema for reason=%s',
+      reason => {
+        const jobData = buildArchiveSummaryJobData({
+          memoryId: UUID_MEMORY,
+          personalityId: UUID_PERSONALITY,
+          reason,
+        });
+
+        const result = archiveSummaryJobDataSchema.safeParse(jobData);
+        expect(result.success).toBe(true);
+      }
+    );
   });
 
   describe('Schema Validation - Image Description Job', () => {

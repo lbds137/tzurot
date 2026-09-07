@@ -526,11 +526,37 @@ export const archiveSummaryJobDataSchema = baseJobDataSchema.extend({
   /** The memory row to summarize. */
   memoryId: z.string().uuid(),
   personalityId: z.string().uuid(),
-  /** Why this row was enqueued. Only 'write' is produced in slice B1;
-   *  'retrieval' (lazy fill) and 'sweep' (pre-warm) are reserved for later slices. */
+  /** Why this row was enqueued: 'write' from the store-path trigger,
+   *  'retrieval' from the split-mode lazy fill in ai-worker's fact-retrieval
+   *  helper, 'sweep' from the operator `memory:summarize` command. */
   reason: z.enum(['write', 'retrieval', 'sweep']),
 });
 export type ArchiveSummaryJobData = z.infer<typeof archiveSummaryJobDataSchema>;
+
+/**
+ * Build one archive-summary job payload.
+ *
+ * The single constructor for this payload: ai-worker's write/retrieval
+ * trigger and the operator pre-warm sweep in packages/tooling both call it,
+ * so the two producers cannot drift on the requestId shape or the envelope
+ * fields. The BullMQ jobId is the memory id itself (set by the caller), so a
+ * re-enqueue of the same row dedupes to the single in-flight job.
+ */
+export function buildArchiveSummaryJobData(input: {
+  memoryId: string;
+  personalityId: string;
+  reason: ArchiveSummaryJobData['reason'];
+}): ArchiveSummaryJobData {
+  return {
+    requestId: `archive-summary-${input.memoryId}`,
+    jobType: JobType.ArchiveSummary,
+    responseDestination: { type: 'api' },
+    version: 1,
+    memoryId: input.memoryId,
+    personalityId: input.personalityId,
+    reason: input.reason,
+  };
+}
 
 /** One DM recipient inside a broadcast batch. */
 const releaseBroadcastRecipientSchema = z.object({
