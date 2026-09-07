@@ -47,6 +47,38 @@ describe('MemoryBudgetManager × real MemoryFormatter — split-mode sizing (A4 
     expect(result.tokensUsed).toBe(splitTokens + wrapperOverhead);
   });
 
+  it('MEM-ARCH-012: counts a summarized note at its two-line body size, not at pageContent', () => {
+    const doc: MemoryDocument = {
+      pageContent:
+        '{user}: hi there, how is it going today?\n{assistant}: ' +
+        'a very long assistant reply that would inflate the verbatim size by a lot if counted ' +
+        'if the summarized note were sized against pageContent instead of its own rendered body',
+      metadata: {
+        id: 'mem-1',
+        userTurn: 'hi there, how is it going today?',
+        subjectName: 'Alice',
+        personalityName: 'Nova',
+        archiveRender: {
+          mode: 'split',
+          linkedFacts: [],
+          assistantSummary: 'A short neutral summary of the exchange.',
+        },
+      },
+    };
+
+    const manager = new MemoryBudgetManager();
+    const result = manager.selectMemoriesWithinBudget([doc], 5000);
+
+    expect(result.selectedMemories).toHaveLength(1);
+
+    const splitRendered = formatSingleMemory(doc);
+    const verbatimIfMisrendered = `<historical_note>${doc.pageContent}</historical_note>`;
+    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText('split'));
+
+    expect(result.tokensUsed).toBe(countTextTokens(splitRendered) + wrapperOverhead);
+    expect(countTextTokens(splitRendered)).toBeLessThan(countTextTokens(verbatimIfMisrendered));
+  });
+
   it('MEM-ARCH-012: threading `names` through sizing resolves linked-fact placeholders the same way rendering does', () => {
     // A linked fact whose statement carries BOTH placeholders, resolved against
     // names substantially longer than the literal placeholder text — so the

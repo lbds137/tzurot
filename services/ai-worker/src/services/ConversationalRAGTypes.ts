@@ -60,10 +60,26 @@ export interface MemoryDocument {
     /** The speaker name for `userTurn` — this row's own persona, so a remembered turn keeps its own
      *  speaker in a multi-user channel. Stamped beside `userTurn`. */
     subjectName?: string;
+    /** The responding personality's display name for this row, stamped by
+     *  `mapQueryResultToDocument` from the query's `personality_name` column. Used as the
+     *  arm-S summary note's speaker label when the render call site's own `names` are absent. */
+    personalityName?: string;
+    /** The stored assistant-side summary for this row, stamped by `mapQueryResultToDocument`
+     *  ONLY when `summary_status` is `done` and the column is non-empty — regardless of prompt
+     *  version. ABSENT otherwise; absence is meaningful (it selects the user-turn + linked-facts
+     *  note), so never write a default. */
+    assistantSummary?: string;
+    /** Stamped `true` only when the row should be (re)enqueued for summarization at retrieval.
+     *  Never written as `false` — absence IS "not eligible". */
+    summaryRefreshEligible?: true;
     /** Present ONLY when the split render is active for this turn (absent = verbatim mode). */
     archiveRender?: {
       mode: 'split';
       linkedFacts: { id: string; statement: string; salience: number }[];
+      /** The summary the note renders. Present only when the row carries a `done` summary; the
+       *  render reads it from HERE (never from the doc's own metadata) so verbatim mode — which
+       *  never gets an `archiveRender` — can never render a summary. */
+      assistantSummary?: string;
     };
   };
 }

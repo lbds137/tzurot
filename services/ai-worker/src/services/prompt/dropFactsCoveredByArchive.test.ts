@@ -68,4 +68,21 @@ describe('dropFactsCoveredByArchive', () => {
     ]);
     expect(result).toEqual(facts);
   });
+
+  // @spec MEM-ARCH-026 — a summarized note's archiveRender.linkedFacts is []
+  // (factRetrievalHelper's attribution skip, pinned by its MEM-ARCH-021 test
+  // "renders no linked facts for that note"), so a fact linked only to it is
+  // not covered by that note and survives into <facts>.
+  it('MEM-ARCH-026: keeps a fact whose only source memory rendered as a summary', () => {
+    const facts = [{ id: 'f-1', statement: 'Alice likes tea' }];
+    const summarizedMemory: MemoryDocument = {
+      pageContent: '',
+      metadata: {
+        id: 'mem-1',
+        archiveRender: { mode: 'split', linkedFacts: [], assistantSummary: 'A neutral summary.' },
+      },
+    };
+    const result = dropFactsCoveredByArchive(facts, [summarizedMemory]);
+    expect(result).toEqual(facts);
+  });
 });

@@ -21,6 +21,7 @@ import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import type { FactRetriever } from './FactRetriever.js';
 import { retrieveMemoriesAndFacts, createFactRetriever } from './factRetrievalHelper.js';
+import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { ExtractionTrigger } from './extraction/ExtractionTrigger.js';
@@ -57,6 +58,7 @@ export class ConversationalRAGService {
   private llmInvoker: LLMInvoker;
   private memoryRetriever: MemoryRetriever;
   private factRetriever?: FactRetriever;
+  private archiveSummaryTrigger?: ArchiveSummaryTrigger;
   private promptBuilder: PromptBuilder;
   private referencedMessageFormatter: ReferencedMessageFormatter;
   private contextWindowManager: ContextWindowManager;
@@ -84,6 +86,7 @@ export class ConversationalRAGService {
     // Fact retrieval (Phase 2 slice 4a); undefined without a memory manager,
     // gated at call time by the runtime factsInPromptEnabled setting.
     this.factRetriever = createFactRetriever(prisma, memoryManager);
+    this.archiveSummaryTrigger = memoryManager?.getArchiveSummaryTrigger();
     this.promptBuilder = new PromptBuilder();
     const longTermMemory = new LongTermMemoryService(prisma, memoryManager, extractionTrigger);
     this.referencedMessageFormatter = new ReferencedMessageFormatter(prisma);
@@ -255,6 +258,7 @@ export class ConversationalRAGService {
         context,
         configOverrides,
         diagnosticCollector,
+        archiveSummaryTrigger: this.archiveSummaryTrigger,
       });
 
       // Step 4: Allocate token budgets and select content

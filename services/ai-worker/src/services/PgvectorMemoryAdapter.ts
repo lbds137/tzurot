@@ -67,6 +67,12 @@ export class PgvectorMemoryAdapter {
     return this.embeddingService;
   }
 
+  /** The archive-summary trigger this adapter was wired with, so the retrieval path can
+   *  lazily re-enqueue a stale or missing summary without a second injection thread. */
+  getArchiveSummaryTrigger(): ArchiveSummaryTrigger | undefined {
+    return this.archiveSummaryTrigger;
+  }
+
   /**
    * Query memories using vector similarity search
    */

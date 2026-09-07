@@ -57,6 +57,19 @@ export interface SplitNoteBody {
   capped: boolean;
   quoteLinesStripped: number;
   usedFallback: boolean;
+  /** Rendered from a stored summary (D2's arm S) rather than from linked facts. */
+  usedSummary: boolean;
+}
+
+/** Resolve arm S's speaker label: the doc's own `personalityName` when non-empty, else `names.personalityName`. */
+function resolveSummaryPersonalityName(
+  doc: MemoryDocument,
+  names: FactRenderNames | undefined
+): string | undefined {
+  const docPersonalityName = doc.metadata?.personalityName;
+  return docPersonalityName !== undefined && docPersonalityName.length > 0
+    ? docPersonalityName
+    : names?.personalityName;
 }
 
 /** Resolve a fact statement's `{user}`/`{assistant}` placeholders — same guard `formatSingleFact` uses. */
@@ -91,6 +104,7 @@ export function renderSplitNoteBody(doc: MemoryDocument, names?: FactRenderNames
       capped,
       quoteLinesStripped: 0,
       usedFallback: true,
+      usedSummary: false,
     };
   }
 
@@ -104,6 +118,25 @@ export function renderSplitNoteBody(doc: MemoryDocument, names?: FactRenderNames
   const lines = [
     hasSubject ? `${escapeXmlContent(subjectName)}: ${escapedUserTurn}` : escapedUserTurn,
   ];
+
+  // @spec MEM-ARCH-021 — arm S: user turn + the character's summary, no facts section
+  const assistantSummary = doc.metadata?.archiveRender?.assistantSummary;
+  if (assistantSummary !== undefined && assistantSummary.length > 0) {
+    const personalityName = resolveSummaryPersonalityName(doc, names);
+    const escapedSummary = escapeXmlContent(assistantSummary);
+    lines.push(
+      personalityName !== undefined && personalityName.length > 0
+        ? `${escapeXmlContent(personalityName)}: ${escapedSummary}`
+        : escapedSummary
+    );
+    return {
+      body: lines.join('\n'),
+      capped,
+      quoteLinesStripped: strippedCount,
+      usedFallback: false,
+      usedSummary: true,
+    };
+  }
 
   const linkedFacts = doc.metadata?.archiveRender?.linkedFacts ?? [];
   if (linkedFacts.length > 0) {
@@ -119,6 +152,7 @@ export function renderSplitNoteBody(doc: MemoryDocument, names?: FactRenderNames
     capped,
     quoteLinesStripped: strippedCount,
     usedFallback: false,
+    usedSummary: false,
   };
 }
 
@@ -132,4 +166,6 @@ export interface ArchiveRenderSummary {
   cappedNotes: number;
   quoteLinesStripped: number;
   linkedFacts: number;
+  /** Split notes rendered from a stored summary (D2's arm S) rather than from linked facts. */
+  summaryNotes: number;
 }
