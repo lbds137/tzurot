@@ -3,9 +3,10 @@ id: TASK-587
 title: >-
   Mention-char instructions hardcode @ while /help and BotMentionProcessor read
   BOT_MENTION_CHAR
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 12:54'
+updated_date: '2026-09-08 23:13'
 labels:
   - 'area:bot-client'
   - 'size:S'
