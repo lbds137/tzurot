@@ -1,10 +1,10 @@
 ---
 id: TASK-92
 title: 'Memory retrieval Found: 20 / Included: 0 mystery (Focus Mode off)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-03 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-09-08 03:01'
 labels:
   - 'area:ai-worker'
   - 'area:embeddings'
