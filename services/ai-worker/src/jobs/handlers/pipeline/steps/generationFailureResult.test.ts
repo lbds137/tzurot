@@ -12,6 +12,8 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
 import { RetryError } from '../../../../utils/retry.js';
+import { ApiError } from '../../../../utils/apiErrorParser.js';
+import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import {
   composeGenerationFailureResult,
   type GenerationFailureOptions,
@@ -88,6 +90,21 @@ describe('composeGenerationFailureResult', () => {
     expect(result.result?.metadata?.fallbackProviderAttempted).toBeUndefined();
   });
 
+  it('mints one referenceId per failure — the record, its rawError, and the composed errorInfo agree', () => {
+    // A plain Error re-classifies to a NEW id on every resolveApiErrorInfo
+    // call, so three separate classifications would produce three different
+    // ids here.
+    const options = buildOptions(new Error('OpenRouter timeout'));
+
+    const result = composeGenerationFailureResult(options);
+
+    const recorded = vi.mocked(options.diagnosticCollector.recordError).mock.calls[0][0];
+
+    expect(recorded.referenceId).toMatch(/^[0-9a-z]+$/);
+    expect((recorded.rawError as Record<string, unknown>).referenceId).toBe(recorded.referenceId);
+    expect(result.result?.errorInfo?.referenceId).toBe(recorded.referenceId);
+  });
+
   it('folds the fallback story into message + metadata on a both-routes-failed error', () => {
     const error = new Error('Rate limit cached');
     (error as unknown as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_INFO] = {
@@ -109,6 +126,14 @@ describe('composeGenerationFailureResult', () => {
     // Footer seam: both routes named so the chain can render.
     expect(result.result?.metadata?.providerUsed).toBe('zai-coding');
     expect(result.result?.metadata?.fallbackProviderAttempted).toBe('openrouter');
+
+    // The diagnostic rawError mirrors the log context, which is built from the
+    // PRISTINE classification — the fallback summary is folded into the
+    // user-facing technicalMessage only, never back into the log record.
+    const recorded = vi.mocked(options.diagnosticCollector.recordError).mock.calls[0][0];
+    expect((recorded.rawError as Record<string, unknown>).technicalMessage).not.toContain(
+      'fallback via OpenRouter also failed'
+    );
   });
 
   it('leads with the root cause, not the wrapper text, when the error is RetryError-wrapped', () => {
@@ -130,6 +155,65 @@ describe('composeGenerationFailureResult', () => {
     expect(options.diagnosticCollector.recordError).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'OpenRouter 402: requires more credits' })
     );
+  });
+
+  it('keeps the credit-exhaustion cache-hit sentinel through the diagnostic record and log context when RetryError-wrapped', () => {
+    // A cache-hit ApiError's `.info` must survive into both the
+    // diagnostic-collector record and the log context, not get discarded by a
+    // re-parse of the pristine message.
+    const cachedError = new ApiError('Credit exhaustion cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      statusCode: 402,
+      userMessage: 'Out of credits.',
+      referenceId: 'credit-exhaustion-cache-hit',
+      shouldRetry: false,
+    });
+    const wrapped = new RetryError(
+      'LLM invocation (glm-4.7) failed with non-retryable error',
+      1,
+      cachedError
+    );
+    const options = buildOptions(wrapped);
+
+    const result = composeGenerationFailureResult(options);
+
+    expect(options.diagnosticCollector.recordError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceId: 'credit-exhaustion-cache-hit',
+        category: ApiErrorCategory.CREDIT_EXHAUSTION,
+        rawError: expect.objectContaining({ referenceId: 'credit-exhaustion-cache-hit' }),
+      })
+    );
+    expect(result.result?.errorInfo?.referenceId).toBe('credit-exhaustion-cache-hit');
+  });
+
+  it('does not mutate the ApiError.info.technicalMessage when the fallback-failure summary is folded in', () => {
+    const cachedError = new ApiError('Credit exhaustion cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      statusCode: 402,
+      userMessage: 'Out of credits.',
+      technicalMessage: 'original technical message',
+      referenceId: 'credit-exhaustion-cache-hit',
+      shouldRetry: false,
+    });
+    (cachedError as unknown as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_INFO] = {
+      summary: 'OpenRouter 402 credit check',
+      provider: 'openrouter',
+    };
+    const options = buildOptions(cachedError);
+
+    const result = composeGenerationFailureResult(options);
+
+    expect(result.result?.errorInfo?.technicalMessage).toContain(
+      'fallback via OpenRouter also failed'
+    );
+    // No-regression pin, not a canary for the resolver's copy: on this fold
+    // branch withFallbackFailure spreads into a new object regardless, so the
+    // assertion stays green with or without the copy. The copy itself is
+    // pinned by the mutation case in apiErrorParser.test.ts.
+    expect(cachedError.info.technicalMessage).toBe('original technical message');
   });
 
   it('keeps the wrapper text when a RetryError carries a non-Error cause', () => {

@@ -34,7 +34,7 @@ import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolut
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
-import { ApiError, parseApiError } from '../utils/apiErrorParser.js';
+import { resolveApiErrorInfo } from '../utils/apiErrorParser.js';
 import { RetryError } from '../utils/retry.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
 import { SYSTEM_CACHE_KEY_ID, type RateLimitCache } from './RateLimitCache.js';
@@ -186,8 +186,7 @@ const BILLING_CLASS_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
 /** Narrow classifier for billing-class failures (see BillingQuotaCategory). */
 export function classifyBillingQuotaFailure(error: unknown): BillingQuotaCategory | null {
   const unwrapped = error instanceof RetryError ? error.lastError : error;
-  const category =
-    unwrapped instanceof ApiError ? unwrapped.info.category : parseApiError(unwrapped).category;
+  const category = resolveApiErrorInfo(unwrapped).category;
   return BILLING_CLASS_CATEGORIES.has(category) ? (category as BillingQuotaCategory) : null;
 }
 
@@ -200,8 +199,7 @@ export function classifyBillingQuotaFailure(error: unknown): BillingQuotaCategor
  */
 export function isCausePrecedenceFailure(error: unknown): boolean {
   const unwrapped = error instanceof RetryError ? error.lastError : error;
-  const category =
-    unwrapped instanceof ApiError ? unwrapped.info.category : parseApiError(unwrapped).category;
+  const category = resolveApiErrorInfo(unwrapped).category;
   return CAUSE_PRECEDENCE_CATEGORIES.has(category);
 }
 
@@ -488,7 +486,6 @@ export function logQuotaFallbackAudit(
  */
 export function classifyQuotaFailure(error: unknown): QuotaFallbackCategory | null {
   const unwrapped = error instanceof RetryError ? error.lastError : error;
-  const category =
-    unwrapped instanceof ApiError ? unwrapped.info.category : parseApiError(unwrapped).category;
+  const category = resolveApiErrorInfo(unwrapped).category;
   return isQuotaFallbackCategory(category) ? category : null;
 }

@@ -688,43 +688,54 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.info = info;
   }
+}
 
-  /**
-   * Create an ApiError from a caught error
-   */
-  static fromError(error: unknown): ApiError {
-    const info = parseApiError(error);
-    const message = error instanceof Error ? error.message : String(error);
-    return new ApiError(message, info);
+/**
+ * Resolve the authoritative `ApiErrorInfo` for an error, honoring an
+ * `ApiError` instance's `.info` verbatim rather than re-parsing.
+ *
+ * **Honor explicit `ApiError.info` overrides**: when the error is an
+ * `ApiError` instance, its `.info` field is the authoritative answer — the
+ * constructor encoded a deliberate decision (e.g., a cache short-circuit's
+ * stable sentinel `referenceId`, a forced `category`, or a `shouldRetry`
+ * override on what would otherwise classify as transient). Re-parsing via
+ * `parseApiError` for an `ApiError` instance would discard that decision and
+ * re-derive category/`referenceId`/`shouldRetry` from the message text —
+ * which, for synthetic errors with rate-limit- or credit-exhaustion-shaped
+ * messages, would silently drop the sentinel and could falsely re-enable
+ * retries the override exists to prevent.
+ *
+ * Returns a shallow copy so callers that fold extra text into
+ * `technicalMessage` (e.g. `withFallbackFailure`) never mutate the
+ * originating error's `info`.
+ */
+export function resolveApiErrorInfo(error: unknown): ApiErrorInfo {
+  if (error instanceof ApiError) {
+    return { ...error.info };
   }
+  return parseApiError(error);
 }
 
 /**
  * Check if an error should be retried based on its classification
  * Convenience function for retry logic.
  *
- * **Honor explicit `ApiError.info.shouldRetry` overrides**: when the error is
- * an `ApiError` instance, its `.info.shouldRetry` field is the authoritative
- * answer (the constructor encoded a deliberate decision, e.g., the rate-limit
- * cache short-circuit overriding `shouldRetry: false` on what would otherwise
- * classify as transient). Re-parsing via `parseApiError` for an `ApiError`
- * instance would discard the override and re-derive from the message — which,
- * for synthetic errors with rate-limit-shaped messages, would falsely return
- * `true` and re-enter retry loops the override exists to prevent.
+ * See `resolveApiErrorInfo` for why an `ApiError` instance's `.info` is
+ * honored verbatim instead of re-parsed.
  */
 export function shouldRetryError(error: unknown): boolean {
-  if (error instanceof ApiError) {
-    return error.info.shouldRetry;
-  }
-  const info = parseApiError(error);
-  return info.shouldRetry;
+  return resolveApiErrorInfo(error).shouldRetry;
 }
 
 /**
- * Get logging context for an error (safe for production logs)
+ * Build the log context from an ALREADY-RESOLVED `ApiErrorInfo`.
+ *
+ * Exists so a caller that has already resolved the info can log it without a
+ * second classification. A second `resolveApiErrorInfo` call on a plain
+ * `Error` re-enters `parseApiError`, which mints a fresh `referenceId` — so
+ * the id in the log would not match the id the caller shows the user.
  */
-export function getErrorLogContext(error: unknown): Record<string, unknown> {
-  const info = parseApiError(error);
+export function errorLogContextFromInfo(info: ApiErrorInfo): Record<string, unknown> {
   return {
     errorCategory: info.category,
     errorType: info.type,
@@ -736,4 +747,11 @@ export function getErrorLogContext(error: unknown): Record<string, unknown> {
     // Truncate technical message for logs (prevents log flooding)
     technicalMessage: info.technicalMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
   };
+}
+
+/**
+ * Get logging context for an error (safe for production logs)
+ */
+export function getErrorLogContext(error: unknown): Record<string, unknown> {
+  return errorLogContextFromInfo(resolveApiErrorInfo(error));
 }
