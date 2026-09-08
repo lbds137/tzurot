@@ -1,9 +1,10 @@
 ---
 id: TASK-586
 title: participantGuildInfo lookup uses the unresolved personaId and no test can tell
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 12:13'
+updated_date: '2026-09-08 04:55'
 labels:
   - 'area:ai-worker'
   - 'size:S'
