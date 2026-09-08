@@ -769,8 +769,9 @@ describe('PersonaResolver', () => {
 
     it('should return null for discord: format with a warn log (UUID-only tripwire)', async () => {
       // resolveToUuid is UUID-only. The `discord:XXXX`
-      // format should have been stripped at the bot-client boundary by
-      // ExtendedContextPersonaResolver. A non-UUID reaching here signals
+      // format should have been stripped upstream by the shared
+      // `resolveExtendedContextPersonaIds` pass (run in ai-worker's
+      // `ContextAssembler`). A non-UUID reaching here signals
       // a regression, so we warn-log for visibility and return null.
       // This test documents the contract — no DB calls should happen.
       const result = await resolver.resolveToUuid('discord:123456789', 'personality-123');

@@ -111,11 +111,12 @@ describe('Discord ID Validation', () => {
 
 // DISCORD_ID_PREFIX, buildDiscordPersonaId, and extractDiscordId were deleted.
 // The `discord:XXXX` format is now strictly internal
-// to bot-client's ExtendedContextPersonaResolver module; the common-types
+// to the shared `extendedContextPersonaResolver` module in common-types and
+// the bot-client fetch sites that produce it; the common-types
 // exports were never used in production code outside that module and
 // lingered as a cross-package API that shouldn't exist. The internal
 // equivalent is `INTERNAL_DISCORD_ID_PREFIX` exported from
-// `ExtendedContextPersonaResolver` (in bot-client).
+// `constants/personaId.ts`.
 
 describe('Bot Footer Text Constants', () => {
   describe('BOT_FOOTER_TEXT', () => {
