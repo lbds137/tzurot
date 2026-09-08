@@ -6,6 +6,7 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('xmlTextExtractor');
@@ -57,7 +58,7 @@ export function extractXmlTextContent(xml: string): string {
     return values.filter(line => line.length > 0).join('\n');
   } catch (error) {
     logger.warn(
-      { err: error, xmlLength: xml.length, xmlPreview: xml.substring(0, 200) },
+      { err: error, xmlLength: xml.length, xmlPreview: contentPreview(xml, 200) },
       'Failed to parse XML for text extraction'
     );
     return '';

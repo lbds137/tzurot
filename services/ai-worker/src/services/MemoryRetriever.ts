@@ -17,6 +17,7 @@ import {
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type {
   MemoryDocument,
@@ -225,8 +226,6 @@ export class MemoryRetriever {
       const createdAt = doc.metadata?.createdAt;
       const timestamp =
         createdAt !== undefined && createdAt !== null ? formatMemoryTimestamp(createdAt) : null;
-      const content = doc.pageContent.substring(0, 120);
-      const truncated = doc.pageContent.length > 120 ? '...' : '';
 
       logger.info(
         {
@@ -234,7 +233,8 @@ export class MemoryRetriever {
           memoryId: id,
           score: Number(score.toFixed(3)),
           timestamp: timestamp ?? 'unknown',
-          contentPreview: `${content}${truncated}`,
+          contentPreview: contentPreview(doc.pageContent, 120),
+          contentLength: doc.pageContent.length,
         },
         'Memory retrieved'
       );

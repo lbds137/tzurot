@@ -16,6 +16,7 @@ import {
 } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
@@ -372,11 +373,10 @@ export class ReferencedMessageFormatter {
     logger.info(
       {
         count: references.length,
-        preview:
-          formattedText.length > 0
-            ? formattedText.substring(0, TEXT_LIMITS.REFERENCE_PREVIEW) +
-              (formattedText.length > TEXT_LIMITS.REFERENCE_PREVIEW ? '...' : '')
-            : undefined,
+        preview: contentPreview(
+          formattedText.length > 0 ? formattedText : null,
+          TEXT_LIMITS.REFERENCE_PREVIEW
+        ),
         totalLength: formattedText.length,
       },
       '[ReferencedMessageFormatter] Formatted referenced messages for prompt'

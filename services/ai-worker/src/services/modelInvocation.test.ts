@@ -24,7 +24,10 @@ function expectedHash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 12);
 }
 
-const { mockLoggerInfo } = vi.hoisted(() => ({ mockLoggerInfo: vi.fn() }));
+const { mockLoggerInfo, mockLoggerDebug } = vi.hoisted(() => ({
+  mockLoggerInfo: vi.fn(),
+  mockLoggerDebug: vi.fn(),
+}));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -32,13 +35,28 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({ info: mockLoggerInfo, debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => ({
+      info: mockLoggerInfo,
+      debug: mockLoggerDebug,
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
   };
 });
 
 vi.mock('../redis.js', () => ({
   checkModelReasoningSupport: vi.fn().mockResolvedValue(true),
 }));
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
 
 const personality: LoadedPersonality = {
   id: 'personality-1',
@@ -81,6 +99,8 @@ describe('invokeModelAndClean', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
 
     mockGetModel = vi.fn().mockReturnValue({
       model: { fakeModel: true },
@@ -278,5 +298,38 @@ describe('invokeModelAndClean', () => {
     await invokeModelAndClean(deps, baseOpts);
 
     expect(generatedResponseFields()).not.toHaveProperty('shippedHistoryCount');
+  });
+
+  describe('content cleanup debug log', () => {
+    function cleanupDebugFields(): Record<string, unknown> {
+      const call = mockLoggerDebug.mock.calls.find(
+        ([, message]) => typeof message === 'string' && message.includes('Content cleanup check')
+      );
+      expect(call).toBeDefined();
+      return call?.[0] as Record<string, unknown>;
+    }
+
+    it('omits the raw and cleaned content previews by default', async () => {
+      await invokeModelAndClean(deps, baseOpts);
+
+      const fields = cleanupDebugFields();
+      expect(fields.rawContentPreview).toBeUndefined();
+      expect(fields.cleanedContentPreview).toBeUndefined();
+      expect(fields).toHaveProperty('rawContentLength', 'raw model output'.length);
+      expect(fields).toHaveProperty('cleanedContentLength', 'cleaned output'.length);
+      expect(JSON.stringify(fields)).not.toContain('raw model output');
+      expect(JSON.stringify(fields)).not.toContain('cleaned output');
+    });
+
+    it('includes the raw and cleaned content previews when content previews are enabled', async () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+      await invokeModelAndClean(deps, baseOpts);
+
+      const fields = cleanupDebugFields();
+      expect(fields.rawContentPreview).toBe('raw model output');
+      expect(fields.cleanedContentPreview).toBe('cleaned output');
+    });
   });
 });

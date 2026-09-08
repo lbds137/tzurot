@@ -5,6 +5,7 @@
  * directly-testable function (and to keep the orchestrator under its line cap).
  */
 
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
@@ -216,9 +217,14 @@ export async function retrieveMemoriesAndFacts(
   opts: MemoriesAndFactsOptions
 ): Promise<MemoryRetrievalResult & { facts: FactForPrompt[] }> {
   const { searchQuery } = opts;
-  const qPreview = searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW);
-  const qTruncated = searchQuery.length > TEXT_LIMITS.LOG_PREVIEW;
-  logger.info({ queryPreview: qPreview, truncated: qTruncated }, 'Memory search query');
+  logger.info(
+    {
+      queryPreview: contentPreview(searchQuery, TEXT_LIMITS.LOG_PREVIEW),
+      queryLength: searchQuery.length,
+      truncated: searchQuery.length > TEXT_LIMITS.LOG_PREVIEW,
+    },
+    'Memory search query'
+  );
 
   opts.diagnosticCollector?.markMemoryRetrievalStart();
   const retrieval = await opts.memoryRetriever.retrieveRelevantMemories(

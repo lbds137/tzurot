@@ -61,14 +61,24 @@ vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
   };
 });
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
-  return {
-    ...actual,
-    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-  };
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
 });
 
 vi.mock('../../utils/gatewayClients.js', () => ({
@@ -229,6 +239,8 @@ function createSelectInteraction(customId: string): MockSelectInteraction {
 describe('handleSearch', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
     stub = createStub();
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockResolveOptionalPersonality.mockResolvedValue(TEST_PERSONALITY_ID);
@@ -330,6 +342,38 @@ describe('handleSearch', () => {
       expect.objectContaining({ content: expect.stringContaining("Couldn't search your memories") })
     );
     expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
+  });
+
+  describe('Search failed logging', () => {
+    function searchFailedFields(): Record<string, unknown> {
+      const call = mockLogger.warn.mock.calls.find(call => call[1] === 'Search failed');
+      expect(call).toBeDefined();
+      return call?.[0] as Record<string, unknown>;
+    }
+
+    it('omits the query preview by default, keeping the always-on length', async () => {
+      stub.search.mockResolvedValue(makeErr(500, 'Server error'));
+      const context = createDeferredContext();
+
+      await handleSearch(context as unknown as DeferredCommandContext);
+
+      const fields = searchFailedFields();
+      expect(fields.queryPreview).toBeUndefined();
+      expect(fields.queryLength).toBe(TEST_QUERY.length);
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(TEST_QUERY);
+    });
+
+    it('includes the query preview when content previews are enabled', async () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+      stub.search.mockResolvedValue(makeErr(500, 'Server error'));
+      const context = createDeferredContext();
+
+      await handleSearch(context as unknown as DeferredCommandContext);
+
+      const fields = searchFailedFields();
+      expect(fields.queryPreview).toBe(TEST_QUERY);
+    });
   });
 
   it('handles unexpected errors', async () => {

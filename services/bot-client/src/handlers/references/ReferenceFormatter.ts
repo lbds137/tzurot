@@ -7,6 +7,7 @@
 
 import type { Message } from 'discord.js';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
@@ -170,7 +171,8 @@ export class ReferenceFormatter {
       logger.debug(
         {
           messageId: message.id,
-          snapshotContent: snapshot.content?.substring(0, 50),
+          snapshotContent: contentPreview(snapshot.content, 50),
+          snapshotLength: snapshot.content?.length,
           referenceNumber: s.nextNumber - 1,
         },
         'Added snapshot from forwarded message'

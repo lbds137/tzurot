@@ -7,6 +7,7 @@ import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { MemorySearchSchema } from '@tzurot/common-types/schemas/api/memory';
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -248,7 +249,10 @@ async function executeSemanticSearchWithFallback(
       return { error: 'embedding_unavailable' };
     }
   } catch (error) {
-    logger.error({ err: error, query: query.substring(0, 50) }, 'Embedding generation failed');
+    logger.error(
+      { err: error, queryPreview: contentPreview(query, 50), queryLength: query.length },
+      'Embedding generation failed'
+    );
     return { error: 'embedding_failed' };
   }
 

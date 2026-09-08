@@ -43,6 +43,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return { ...actual, createLogger: vi.fn(() => mockLogger) };
 });
 
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 // Mock PersonaResolver constructor AND the shared-instance accessor (both
 // imported directly from @tzurot/identity). `getOrCreatePersonaResolver` is
 // mocked separately from `PersonaResolver` so a test can assert the fallback
@@ -87,6 +97,8 @@ describe('MemoryRetriever', () => {
   };
 
   beforeEach(() => {
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
     mockGetOrCreatePersonaResolver.mockReturnValue(mockPersonaResolver);
     mockMemoryManager = {
       queryMemories: vi.fn().mockResolvedValue([]),
@@ -1269,6 +1281,44 @@ describe('MemoryRetriever', () => {
         })
       );
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
+    });
+
+    describe('Memory retrieved logging', () => {
+      const memoryContent = 'Persona bio content that must never reach a deployed log';
+
+      beforeEach(() => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+        });
+        (mockMemoryManager.queryMemories as any).mockResolvedValue([
+          { pageContent: memoryContent, metadata: { id: 'mem-1', score: 0.9 } },
+        ]);
+      });
+
+      function memoryRetrievedFields(): Record<string, unknown> {
+        const call = mockLogger.info.mock.calls.find(call => call[1] === 'Memory retrieved');
+        expect(call).toBeDefined();
+        return call?.[0] as Record<string, unknown>;
+      }
+
+      it('omits the content preview by default, keeping the always-on length', async () => {
+        await retriever.retrieveRelevantMemories(mockPersonality, 'test query', context);
+
+        const fields = memoryRetrievedFields();
+        expect(fields.contentPreview).toBeUndefined();
+        expect(fields.contentLength).toBe(memoryContent.length);
+        expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain(memoryContent);
+      });
+
+      it('includes the content preview when content previews are enabled', async () => {
+        mockConfig.NODE_ENV = 'development';
+        mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+        await retriever.retrieveRelevantMemories(mockPersonality, 'test query', context);
+
+        const fields = memoryRetrievedFields();
+        expect(fields.contentPreview).toBe(memoryContent);
+      });
     });
   });
 });

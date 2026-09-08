@@ -1,4 +1,25 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 import { extractXmlTextContent } from './xmlTextExtractor.js';
 
 describe('extractXmlTextContent', () => {
@@ -79,5 +100,41 @@ Line three</content>`;
     // fast-xml-parser is lenient, but severely broken input should not throw
     const result = extractXmlTextContent('<<<>>>');
     expect(typeof result).toBe('string');
+  });
+
+  describe('parse-failure warn log', () => {
+    // An unterminated attribute value is a confirmed fast-xml-parser throw
+    // (probed directly against the parser with this module's exact options).
+    const unparseableXml = '<a attr="unterminated>text</a>';
+
+    beforeEach(() => {
+      mockLogger.warn.mockClear();
+      mockConfig.NODE_ENV = 'test';
+      mockConfig.LOG_CONTENT_PREVIEWS = false;
+    });
+
+    it('omits the xml preview by default, keeping the always-on length', () => {
+      const result = extractXmlTextContent(unparseableXml);
+
+      expect(result).toBe('');
+      const call = mockLogger.warn.mock.calls[0];
+      expect(call).toBeDefined();
+      const fields = call?.[0] as Record<string, unknown>;
+      expect(fields.xmlPreview).toBeUndefined();
+      expect(fields.xmlLength).toBe(unparseableXml.length);
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(unparseableXml);
+    });
+
+    it('includes the xml preview when content previews are enabled', () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+      extractXmlTextContent(unparseableXml);
+
+      const call = mockLogger.warn.mock.calls[0];
+      expect(call).toBeDefined();
+      const fields = call?.[0] as Record<string, unknown>;
+      expect(fields.xmlPreview).toBe(unparseableXml);
+    });
   });
 });
