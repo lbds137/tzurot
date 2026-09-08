@@ -412,16 +412,17 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
    * Validate a personaId is a UUID, returning it unchanged or null.
    *
    * **Contract**: callers must pass UUID personaIds. The legacy
-   * `discord:XXXX` placeholder format is stripped at the bot-client
-   * boundary by `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds`
-   * before any data leaves the service, so ai-worker never sees it.
+   * `discord:XXXX` placeholder format is resolved or stripped by the shared
+   * `resolveExtendedContextPersonaIds` (common-types), which ai-worker runs
+   * in `ContextAssembler.mergeExtendedContext` before the context reaches
+   * this resolver.
    *
    * This method remains as a defensive checkpoint: if it ever receives a
    * non-UUID input, a `warn` log fires as a tripwire signaling a regression
    * (a caller somewhere is producing non-UUID personaIds that bypassed the
    * resolution pass). The personaId parameter stays in the log for triage.
    *
-   * The empty-string sentinel (used by `ExtendedContextPersonaResolver`'s
+   * The empty-string sentinel (used by `resolveExtendedContextPersonaIds`'s
    * strip pass to mark unresolved message authors) also returns null — it's
    * not a UUID, but it's the documented "no persona" value and shouldn't
    * warn. Callers handling extended-context messages should check for empty

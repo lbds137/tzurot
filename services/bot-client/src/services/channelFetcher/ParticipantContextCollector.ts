@@ -100,9 +100,10 @@ export function collectReactorUsers(
   for (const reaction of reactions) {
     for (const reactor of reaction.reactors) {
       // Extract Discord ID from personaId format ('discord:123456').
-      // Uses .slice() to match the other three extraction sites in
-      // ExtendedContextPersonaResolver — functionally equivalent here
-      // because the prefix appears exactly once, but consistent.
+      // Uses .slice() to match the other three extraction sites in the
+      // shared extendedContextPersonaResolver module — functionally
+      // equivalent here because the prefix appears exactly once, but
+      // consistent.
       const discordId = reactor.personaId.slice(INTERNAL_DISCORD_ID_PREFIX.length);
       if (seenIds.has(discordId)) {
         continue;

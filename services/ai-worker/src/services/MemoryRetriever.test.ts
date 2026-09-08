@@ -261,7 +261,7 @@ describe('MemoryRetriever', () => {
           { personaId: 'discord:987654321', personaName: 'Other User', isActive: false },
         ],
         participantGuildInfo: {
-          'discord:987654321': { roles: ['Member'] },
+          'resolved-uuid-2': { roles: ['Member'] },
         },
       };
 
@@ -279,7 +279,7 @@ describe('MemoryRetriever', () => {
       // PersonaId should be the resolved UUID, not the discord: format
       expect(result.get('resolved-uuid-1')?.personaId).toBe('resolved-uuid-1');
       expect(result.get('resolved-uuid-2')?.personaId).toBe('resolved-uuid-2');
-      // participantGuildInfo is keyed by original personaId
+      // participantGuildInfo is keyed by the RESOLVED UUID, not the discord: id
       expect(result.get('resolved-uuid-2')?.guildInfo).toEqual({ roles: ['Member'] });
     });
 
@@ -398,7 +398,7 @@ describe('MemoryRetriever', () => {
           displayColor: '#FF0000',
         },
         participantGuildInfo: {
-          'discord:user2': {
+          'resolved-uuid-2': {
             roles: ['Member'],
             displayColor: '#00FF00',
           },
@@ -413,7 +413,7 @@ describe('MemoryRetriever', () => {
         roles: ['Admin'],
         displayColor: '#FF0000',
       });
-      // Inactive user gets info from participantGuildInfo (keyed by original personaId)
+      // Inactive user gets info from participantGuildInfo (keyed by the resolved UUID)
       expect(result.get('resolved-uuid-2')?.guildInfo).toEqual({
         roles: ['Member'],
         displayColor: '#00FF00',
@@ -446,8 +446,8 @@ describe('MemoryRetriever', () => {
           roles: ['Admin'],
         },
         participantGuildInfo: {
-          // Only discord:user3 has info, not db-persona-uuid
-          'discord:user3': { roles: ['VIP'] },
+          // Only an unrelated participant's resolved id has info, not db-persona-uuid
+          'resolved-uuid-3': { roles: ['VIP'] },
         },
       };
 
@@ -457,6 +457,33 @@ describe('MemoryRetriever', () => {
       expect(result.get('resolved-uuid-1')?.guildInfo).toBeDefined();
       // DB history user has no guild info (not from extended context)
       expect(result.get('db-persona-uuid')?.guildInfo).toBeUndefined();
+    });
+
+    it('looks up participantGuildInfo by the resolved id, not the pre-resolution id', async () => {
+      // The two id spaces carry DIFFERENT payloads here, so the assertion
+      // names which key space the lookup reads. Keying by the pre-resolution
+      // id would return the 'Wrong' entry.
+      mockPersonaResolver.resolveToUuid.mockResolvedValueOnce('resolved-uuid-x');
+      mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+        preferredName: null,
+        pronouns: null,
+        content: 'Inactive user content',
+      });
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'pre-resolution-id', personaName: 'Inactive User', isActive: false },
+        ],
+        participantGuildInfo: {
+          'pre-resolution-id': { roles: ['Wrong'] },
+          'resolved-uuid-x': { roles: ['Right'] },
+        },
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      expect(result.get('resolved-uuid-x')?.guildInfo).toEqual({ roles: ['Right'] });
     });
 
     it('should handle missing participantGuildInfo gracefully', async () => {
@@ -735,8 +762,8 @@ describe('MemoryRetriever', () => {
             // The losing, non-active first sighting's guildInfo. This fixture
             // cannot show WHICH id the lookup uses — resolveToUuid is mocked as
             // identity here, so pre-resolution and resolved are the same string.
-            // (The source indexes by participant.personaId; that is not what
-            // this test proves, and it is not what this test is for.)
+            // (The source indexes by the resolved id; that is not what this
+            // test proves, and it is not what this test is for.)
             'persona-lila': { roles: ['Member'] },
           },
           activePersonaGuildInfo: { roles: ['Admin'], displayColor: '#FF0000' },
@@ -1325,7 +1352,7 @@ describe('MemoryRetriever persisted guild-info fallback', () => {
     const result = await retriever.getAllParticipantPersonas(
       contextWith({
         activePersonaGuildInfo: { roles: ['Live'] },
-        participantGuildInfo: { 'discord:user2': { roles: ['AlsoLive'] } },
+        participantGuildInfo: { 'persona-2': { roles: ['AlsoLive'] } },
       }),
       'personality-123'
     );
@@ -1341,7 +1368,7 @@ describe('MemoryRetriever persisted guild-info fallback', () => {
     // nothing, so treating it as a real observation would leave the flicker
     // exactly where it was.
     const result = await retriever.getAllParticipantPersonas(
-      contextWith({ participantGuildInfo: { 'discord:user2': { roles: [] } } }),
+      contextWith({ participantGuildInfo: { 'persona-2': { roles: [] } } }),
       'personality-123'
     );
 
@@ -1371,7 +1398,7 @@ describe('MemoryRetriever persisted guild-info fallback', () => {
     const withLiveFetch = await retriever.getAllParticipantPersonas(
       contextWith({
         activePersonaGuildInfo: STORED,
-        participantGuildInfo: { 'discord:user2': STORED },
+        participantGuildInfo: { 'persona-2': STORED },
       }),
       'personality-123'
     );
