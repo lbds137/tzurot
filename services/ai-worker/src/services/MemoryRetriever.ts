@@ -401,9 +401,10 @@ export class MemoryRetriever {
    * Contract: `participant.personaId` is always either a valid
    * UUID (DB history or resolved extended context) or the empty-string
    * sentinel (unresolvable extended-context participant). The legacy
-   * `discord:XXXX` placeholder format is stripped by bot-client's
-   * `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds` before
-   * the job crosses the service boundary — ai-worker never sees it.
+   * `discord:XXXX` placeholder format is resolved or stripped by the shared
+   * `resolveExtendedContextPersonaIds`, which this service runs in
+   * `ContextAssembler.mergeExtendedContext` before the context reaches the
+   * pipeline — this retriever never sees the placeholder form.
    *
    * @param context - Conversation context with participants
    * @param personalityId - Personality ID for resolving per-personality persona overrides
@@ -443,8 +444,9 @@ export class MemoryRetriever {
       // or resolved extended context) OR the empty string sentinel (for
       // extended-context messages whose author couldn't be resolved to a
       // registered persona). resolveToUuid is now a UUID-or-null guard —
-      // all cross-service identity resolution already happened upstream in
-      // bot-client's `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds`.
+      // extended-context identity resolution already happened upstream in
+      // `ContextAssembler.mergeExtendedContext`, via the shared
+      // `resolveExtendedContextPersonaIds`.
       const resolvedPersonaId = await this.personaResolver.resolveToUuid(
         participant.personaId,
         personalityId
@@ -502,13 +504,16 @@ export class MemoryRetriever {
       // Include guild info:
       // - For active speaker: use activePersonaGuildInfo (from triggering message)
       // - For other participants: look up in participantGuildInfo (from extended context)
-      // Keys in participantGuildInfo are UUIDs (remapped by
-      // ExtendedContextPersonaResolver alongside the persona resolution pass).
+      // Keys in participantGuildInfo are persona UUIDs. The bot-client fetcher
+      // builds the map under pre-resolution keys; the shared
+      // `resolveExtendedContextPersonaIds` remaps them to UUIDs in the worker,
+      // called from ContextAssembler.mergeExtendedContext. The resolved id is
+      // therefore the lookup key.
       let guildInfo;
       if (participant.isActive) {
         guildInfo = context.activePersonaGuildInfo;
       } else if (context.participantGuildInfo) {
-        guildInfo = context.participantGuildInfo[participant.personaId];
+        guildInfo = context.participantGuildInfo[resolvedPersonaId];
       }
 
       personaMap.set(resolvedPersonaId, {
