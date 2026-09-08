@@ -95,6 +95,39 @@ act on.
 Make it a repeatable measurement so a prompt change can be evaluated against
 before/after, rather than judged by vibes on a handful of conversations.
 
+## Two-tier corpus (owner addition, 2026-09-08)
+
+The owner's framing: scan the stored debug logs first, reading the reasoning
+output to see how the model interprets the system prompt; then widen to the
+30-day trace store for coverage at lower fidelity. Grounded against the code:
+
+| Tier | Window | What it holds per assistant turn | Source |
+| --- | --- | --- | --- |
+| A — diagnostic log | 7 days (`RETENTION_HOURS = 7 * 24`, `services/ai-worker/src/jobs/CleanupDiagnosticLogs.ts`) | the raw user message, retrieved and selected memories, every sampling parameter, model / provider / routed model / finish reason, the raw response, the thinking trace, and `reasoningDebug` metadata (`services/ai-worker/src/services/diagnostics/DiagnosticTypes.ts`) | `/inspect`'s record |
+| B — history row | 30 days (`ConversationRetentionService` default) | `thinkingContent` plus the assistant content; no request context | `prisma/schema.prisma` `thinking_content` |
+
+Two premises that change the design, both verified at source:
+
+- **Neither tier stores the assembled system prompt text.** The diagnostic
+  payload carries `systemPromptTokens` and nothing else prompt-shaped
+  (`grep -n -i prompt services/ai-worker/src/services/diagnostics/DiagnosticTypes.ts`).
+  Phase 3's clause attribution therefore needs the prompt reconstructed for
+  the turn — the personality's stored config and directives at generation
+  time, plus the template at that commit — and the tool has to say which
+  reconstruction it used. A trace-only read cannot attribute; it can only
+  classify friction.
+- **Tier A is the hand-reading tier; tier B is the coverage tier.** Tier A
+  has the request context that makes a friction instance explainable (which
+  memories, which user message, which model actually answered); tier B has
+  four times the window and none of that. Phase 1 samples from A; Phase 4's
+  repeated measurement can run over B once the classifier from Phase 2 works
+  on a bare trace.
+
+Prose defect found while grounding, for whoever builds this: the
+`thinking_content` schema comment says reads "fall back to the 24h diagnostic
+log", while the cleanup job retains 7 days. Reconcile the comment against the
+read path when the tool lands (the read path, not the comment, is authoritative).
+
 ## Constraints
 
 - **Reasoning traces are user conversation content.** Any extract, sample, or
