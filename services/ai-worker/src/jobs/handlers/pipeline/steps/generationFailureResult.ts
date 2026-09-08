@@ -12,7 +12,7 @@
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
+import { resolveApiErrorInfo, errorLogContextFromInfo } from '../../../../utils/apiErrorParser.js';
 import { RetryError } from '../../../../utils/retry.js';
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
@@ -80,11 +80,12 @@ export function composeGenerationFailureResult(
   const underlyingError = error instanceof RetryError ? error.lastError : error;
   // Classify from the PRISTINE message; the compose step below appends the
   // fallback-failure summary (if any) AFTER classification.
-  const errorInfo = withFallbackFailure(parseApiError(underlyingError), error);
+  const resolvedInfo = resolveApiErrorInfo(underlyingError);
+  const errorInfo = withFallbackFailure(resolvedInfo, error);
   const errorMessage = composeFallbackAwareErrorMessage(error);
 
   logger.error(
-    { err: error, jobId: job.id, ...getErrorLogContext(underlyingError) },
+    { err: error, jobId: job.id, ...errorLogContextFromInfo(resolvedInfo) },
     `Generation failed: ${errorInfo.category}`
   );
 
@@ -100,7 +101,7 @@ export function composeGenerationFailureResult(
     message: errorMessage,
     category: errorInfo.category,
     referenceId: errorInfo.referenceId,
-    rawError: getErrorLogContext(underlyingError),
+    rawError: errorLogContextFromInfo(resolvedInfo),
     failedAtStage: 'GenerationStep',
   });
 

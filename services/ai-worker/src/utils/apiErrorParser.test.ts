@@ -8,8 +8,10 @@ import { describe, it, expect } from 'vitest';
 import {
   parseApiError,
   ApiError,
+  resolveApiErrorInfo,
   shouldRetryError,
   getErrorLogContext,
+  errorLogContextFromInfo,
   isAccountCreditExhaustion,
 } from './apiErrorParser.js';
 import {
@@ -797,22 +799,6 @@ describe('ApiError', () => {
       expect(error.name).toBe('ApiError');
     });
   });
-
-  describe('fromError', () => {
-    it('should create ApiError from caught error', () => {
-      const originalError = new Error('Original error');
-      const apiError = ApiError.fromError(originalError);
-      expect(apiError).toBeInstanceOf(ApiError);
-      expect(apiError.message).toBe('Original error');
-      expect(apiError.info).toBeDefined();
-    });
-
-    it('should create ApiError from non-Error', () => {
-      const apiError = ApiError.fromError({ status: 500 });
-      expect(apiError).toBeInstanceOf(ApiError);
-      expect(apiError.info.statusCode).toBe(500);
-    });
-  });
 });
 
 describe('shouldRetryError', () => {
@@ -862,6 +848,58 @@ describe('shouldRetryError', () => {
   });
 });
 
+describe('resolveApiErrorInfo', () => {
+  it('keeps every field from an ApiError verbatim, including the sentinel referenceId', () => {
+    // 'Rate limit cached' would re-parse to a fresh (non-sentinel) referenceId
+    // and RATE_LIMIT-transient (shouldRetry: true) if the ApiError's `.info`
+    // were discarded — this pins that the resolver honors it instead.
+    const syntheticError = new ApiError('Rate limit cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.RATE_LIMIT,
+      statusCode: 429,
+      userMessage: 'Too many requests — please wait a moment.',
+      referenceId: 'rate-limit-cache-hit',
+      shouldRetry: false,
+      requestId: 'req-from-provider',
+      rateLimitResetMs: 12345,
+    });
+
+    const result = resolveApiErrorInfo(syntheticError);
+
+    expect(result.referenceId).toBe('rate-limit-cache-hit');
+    expect(result.category).toBe(ApiErrorCategory.RATE_LIMIT);
+    expect(result.shouldRetry).toBe(false);
+    expect(result.userMessage).toBe('Too many requests — please wait a moment.');
+    expect(result.statusCode).toBe(429);
+    expect(result.requestId).toBe('req-from-provider');
+    expect(result.rateLimitResetMs).toBe(12345);
+  });
+
+  it('returns a copy — mutating the result does not mutate the ApiError.info', () => {
+    const syntheticError = new ApiError('Credit exhaustion cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      statusCode: 402,
+      userMessage: 'Out of credits.',
+      technicalMessage: 'original technical message',
+      referenceId: 'credit-exhaustion-cache-hit',
+      shouldRetry: false,
+    });
+
+    const result = resolveApiErrorInfo(syntheticError);
+    result.technicalMessage = 'mutated by caller';
+
+    expect(syntheticError.info.technicalMessage).toBe('original technical message');
+  });
+
+  it('falls back to parseApiError for non-ApiError instances, generating a base36 referenceId', () => {
+    const result = resolveApiErrorInfo(new Error('Request failed with status 429'));
+
+    expect(result.referenceId).toMatch(/^[0-9a-z]+$/);
+    expect(result.shouldRetry).toBe(true);
+  });
+});
+
 describe('getErrorLogContext', () => {
   it('should return safe logging context', () => {
     const error = {
@@ -901,6 +939,33 @@ describe('getErrorLogContext', () => {
     expect(context).not.toHaveProperty('apiKey');
     expect(context).not.toHaveProperty('token');
     expect(context).not.toHaveProperty('password');
+  });
+
+  it('keeps the sentinel referenceId for a cache-hit ApiError instead of regenerating one', () => {
+    const syntheticError = new ApiError('Rate limit cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.RATE_LIMIT,
+      statusCode: 429,
+      userMessage: 'Too many requests — please wait a moment.',
+      referenceId: 'rate-limit-cache-hit',
+      shouldRetry: false,
+    });
+
+    const context = getErrorLogContext(syntheticError);
+
+    expect(context.referenceId).toBe('rate-limit-cache-hit');
+  });
+
+  it('errorLogContextFromInfo passes the given referenceId through without re-classifying', () => {
+    const context = errorLogContextFromInfo({
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.RATE_LIMIT,
+      userMessage: 'Too many requests — please wait a moment.',
+      referenceId: 'passthrough-reference-id',
+      shouldRetry: false,
+    });
+
+    expect(context.referenceId).toBe('passthrough-reference-id');
   });
 });
 
