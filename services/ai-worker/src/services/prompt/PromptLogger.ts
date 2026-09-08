@@ -1,7 +1,7 @@
 /**
  * Prompt Logger
  *
- * Detailed prompt assembly logging for development mode.
+ * Detailed prompt assembly logging, gated on a development NODE_ENV plus an explicit LOG_PROMPT_ASSEMBLY opt-in.
  * Extracted from PromptBuilder to reduce file size.
  */
 
@@ -25,7 +25,7 @@ export interface PromptAssemblyLogOptions {
 }
 
 /**
- * Log detailed prompt assembly info in development mode.
+ * Log detailed prompt assembly info — requires a development NODE_ENV AND LOG_PROMPT_ASSEMBLY=true.
  */
 export function logDetailedPromptAssembly(opts: PromptAssemblyLogOptions): void {
   // SCOPED EXCEPTION to 00-critical § Logging (No PII), recorded here rather
@@ -37,7 +37,16 @@ export function logDetailedPromptAssembly(opts: PromptAssemblyLogOptions): void 
   // one name while printing the prompt that contains it would be theatre.
   // Anything that could run outside local development belongs in a different
   // function, not behind this guard.
-  if (config.NODE_ENV !== 'development') {
+  //
+  // The dump needs BOTH a development NODE_ENV and an explicit
+  // LOG_PROMPT_ASSEMBLY=true. The flag names the capability; NODE_ENV alone
+  // was a general-purpose switch that also happened to be the schema's
+  // fail-open default, so an environment that merely lacked the variable got
+  // the dump for free. The config layer separately refuses to boot a deployed
+  // service with NODE_ENV unset (assertDeployedNodeEnv). Both arms of this
+  // guard are pinned by the logDetailedPromptAssembly describe in
+  // PromptLogger.test.ts.
+  if (config.NODE_ENV !== 'development' || !config.LOG_PROMPT_ASSEMBLY) {
     return;
   }
 

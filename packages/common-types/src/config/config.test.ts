@@ -3,7 +3,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getConfig, resetConfig, createTestConfig, validateEnv, envSchema } from './config.js';
+import {
+  getConfig,
+  resetConfig,
+  createTestConfig,
+  validateEnv,
+  envSchema,
+  assertDeployedNodeEnv,
+} from './config.js';
 import { AIProvider, SERVICE_DEFAULTS } from '../constants/index.js';
 
 describe('config', () => {
@@ -327,6 +334,31 @@ describe('config', () => {
       const other = envSchema.parse({ ENABLE_HEALTH_SERVER: 'yes' });
       expect(other.ENABLE_HEALTH_SERVER).toBe(true);
     });
+
+    it('should treat LOG_PROMPT_ASSEMBLY as an explicit opt-in', () => {
+      expect(envSchema.parse({ LOG_PROMPT_ASSEMBLY: 'true' }).LOG_PROMPT_ASSEMBLY).toBe(true);
+      expect(envSchema.parse({ LOG_PROMPT_ASSEMBLY: 'false' }).LOG_PROMPT_ASSEMBLY).toBe(false);
+      expect(envSchema.parse({}).LOG_PROMPT_ASSEMBLY).toBe(false);
+    });
+  });
+
+  describe('assertDeployedNodeEnv', () => {
+    const deployed = createTestConfig({ RAILWAY_ENVIRONMENT_NAME: 'production' });
+
+    it('throws when a deployed service has no NODE_ENV', () => {
+      expect(() => assertDeployedNodeEnv(deployed, undefined)).toThrow(/NODE_ENV/);
+      expect(() => assertDeployedNodeEnv(deployed, undefined)).toThrow(/RAILWAY_ENVIRONMENT_NAME/);
+      expect(() => assertDeployedNodeEnv(deployed, undefined)).toThrow(/NODE_ENV=production/);
+    });
+
+    it('does not throw when a deployed service sets NODE_ENV', () => {
+      expect(() => assertDeployedNodeEnv(deployed, 'production')).not.toThrow();
+    });
+
+    it('does not throw for a local run with no NODE_ENV', () => {
+      const local = createTestConfig({ RAILWAY_ENVIRONMENT_NAME: undefined });
+      expect(() => assertDeployedNodeEnv(local, undefined)).not.toThrow();
+    });
   });
 
   describe('validateEnv', () => {
@@ -345,6 +377,24 @@ describe('config', () => {
 
       expect(config.LOG_LEVEL).toBe('info');
       expect(config.NODE_ENV).toBe('development');
+    });
+
+    it('refuses to boot a deployed service whose NODE_ENV is unset', () => {
+      process.env.RAILWAY_ENVIRONMENT_NAME = 'production';
+      delete process.env.NODE_ENV;
+
+      expect(() => validateEnv()).toThrow(/RAILWAY_ENVIRONMENT_NAME/);
+      // A plain Error thrown inside `validateEnv`'s try is rethrown unchanged,
+      // not re-wrapped by the ZodError branch.
+      expect(() => validateEnv()).not.toThrow(/Environment validation failed/);
+    });
+
+    it('rejects a blank NODE_ENV on a deployed service through the schema, before the deployed check runs', () => {
+      process.env.RAILWAY_ENVIRONMENT_NAME = 'production';
+      process.env.NODE_ENV = '';
+
+      expect(() => validateEnv()).toThrow(/Environment validation failed/);
+      expect(() => validateEnv()).toThrow(/NODE_ENV/);
     });
   });
 });
