@@ -15,9 +15,10 @@
  * report-only (no `break` threshold) — the ratchet semantics, grace margin,
  * and config-drift detection live in the checker.
  *
- * Run from this package: `pnpm test:mutation`. The vitest runner resolves the
- * repo-root vitest.config.ts by cwd, same as `pnpm test` does — including its
- * LOW_RESOURCE_MODE worker throttle.
+ * Run from this package: `pnpm test:mutation`. The vitest runner resolves this
+ * package's own vitest.config.ts by cwd, same as `pnpm test` does — and that
+ * config merges the repo-root one, including its LOW_RESOURCE_MODE worker
+ * throttle.
  */
 
 /** @type {import('@stryker-mutator/core').PartialStrykerOptions} */

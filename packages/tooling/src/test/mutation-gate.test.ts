@@ -46,7 +46,6 @@ describe('evaluateMutationGate', () => {
     'pnpm-lock.yaml',
     'package.json',
     'turbo.json',
-    'vitest.workspace.ts',
     '.npmrc',
     '.github/workflows/ci.yml',
     '.github/baselines/mutation-baseline.json',
