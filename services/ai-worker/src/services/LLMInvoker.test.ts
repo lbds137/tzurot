@@ -1231,8 +1231,8 @@ describe('LLMInvoker', () => {
           modelName: 'openrouter/auto',
           routedModel: 'deepseek/deepseek-v3.2',
           provider: 'openrouter',
-          responseContent: ERROR_MESSAGES.CENSORED_RESPONSE_TEXT,
         });
+        expect(censoredLog?.[0]).not.toHaveProperty('responseContent');
       });
     });
 

@@ -14,6 +14,7 @@
  * cached entries — the module is validity-centric, no longer purely pure.
  */
 
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { visionDescriptionCache } from '../../redis.js';
 
@@ -106,7 +107,7 @@ export async function readValidCachedDescription(
     {
       attachmentId: attachment.id,
       cachedLength: cached.description.length,
-      preview: cached.description.substring(0, 80),
+      preview: contentPreview(cached.description, 80),
     },
     'Cached vision description appears invalid — re-processing image'
   );

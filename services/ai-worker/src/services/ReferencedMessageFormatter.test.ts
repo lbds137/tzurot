@@ -63,6 +63,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return { ...actual, createLogger: () => mockLogger };
 });
 
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 // Mock formatPromptTimestamp for consistent test output
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
@@ -80,6 +90,8 @@ describe('ReferencedMessageFormatter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
 
     // Restore default mock implementations after mockReset clears them
     mockFormatPromptTimestamp.mockReturnValue('2025-12-06 (Fri) 00:00 • just now');
@@ -718,6 +730,65 @@ describe('ReferencedMessageFormatter', () => {
       expect(human.formatted).toContain(
         '<quote number="1" from="Test Bot" from_id="persona-uuid-2" username="someone" role="user"'
       );
+    });
+  });
+
+  describe('Formatted referenced messages logging', () => {
+    const distinctiveQuoteContent = 'a distinctive quoted passage for the log-preview pin';
+
+    function makeRef(overrides: Partial<ReferencedMessage> = {}): ReferencedMessage {
+      return {
+        referenceNumber: 1,
+        discordMessageId: 'msg-1',
+        discordUserId: 'discord-1',
+        authorUsername: 'testuser',
+        authorDisplayName: 'Test User',
+        content: distinctiveQuoteContent,
+        embeds: '',
+        timestamp: '2025-12-06T00:00:00Z',
+        locationContext: '',
+        ...overrides,
+      };
+    }
+
+    function formattedReferencesLogFields(): Record<string, unknown> {
+      const call = mockLogger.info.mock.calls.find(
+        call => call[1] === '[ReferencedMessageFormatter] Formatted referenced messages for prompt'
+      );
+      expect(call).toBeDefined();
+      return call?.[0] as Record<string, unknown>;
+    }
+
+    it('omits the preview by default, keeping the always-on totalLength', async () => {
+      await formatter.formatReferencedMessages([makeRef()], mockPersonality);
+
+      const fields = formattedReferencesLogFields();
+      expect(fields.preview).toBeUndefined();
+      expect(fields.totalLength).toEqual(expect.any(Number));
+      expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain(distinctiveQuoteContent);
+    });
+
+    it('includes the preview when content previews are enabled', async () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+      await formatter.formatReferencedMessages([makeRef()], mockPersonality);
+
+      const fields = formattedReferencesLogFields();
+      expect(fields.preview).toContain(distinctiveQuoteContent);
+    });
+
+    it('omits the preview for empty formatted text even with previews enabled', async () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+      // No references means no rendered elements, so the joined formatted text
+      // is the empty string — the field must vanish rather than log as `''`.
+      await formatter.formatReferencedMessages([], mockPersonality);
+
+      const fields = formattedReferencesLogFields();
+      expect(fields.preview).toBeUndefined();
+      expect(fields.totalLength).toBe(0);
     });
   });
 

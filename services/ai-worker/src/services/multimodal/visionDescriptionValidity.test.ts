@@ -1,7 +1,35 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockLogger, mockGetCanonical } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  mockGetCanonical: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+vi.mock('../../redis.js', () => ({
+  visionDescriptionCache: { getCanonical: mockGetCanonical },
+}));
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 import {
   isLikelyErrorDescription,
   isValidVisionDescription,
+  readValidCachedDescription,
   VISION_MIN_DESCRIPTION_LENGTH,
 } from './visionDescriptionValidity.js';
 
@@ -53,5 +81,59 @@ describe('isValidVisionDescription', () => {
 
   it('rejects placeholder-marker content', () => {
     expect(isValidVisionDescription('[Image attachment: cat.png]')).toBe(false);
+  });
+});
+
+describe('readValidCachedDescription', () => {
+  const invalidCachedDescription = 'short';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
+    mockGetCanonical.mockResolvedValue({
+      description: invalidCachedDescription,
+      model: 'test-model',
+    });
+  });
+
+  function invalidCacheLogFields(): Record<string, unknown> {
+    const call = mockLogger.warn.mock.calls[0];
+    expect(call).toBeDefined();
+    return call?.[0] as Record<string, unknown>;
+  }
+
+  it('returns null for an invalid cached description', async () => {
+    const result = await readValidCachedDescription(
+      { url: 'https://example.com/cat.png' },
+      { id: 'attachment-1', name: 'cat.png' }
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('omits the preview by default, keeping the always-on cachedLength', async () => {
+    await readValidCachedDescription(
+      { url: 'https://example.com/cat.png' },
+      { id: 'attachment-1', name: 'cat.png' }
+    );
+
+    const fields = invalidCacheLogFields();
+    expect(fields.preview).toBeUndefined();
+    expect(fields.cachedLength).toBe(invalidCachedDescription.length);
+    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(invalidCachedDescription);
+  });
+
+  it('includes the preview when content previews are enabled', async () => {
+    mockConfig.NODE_ENV = 'development';
+    mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+    await readValidCachedDescription(
+      { url: 'https://example.com/cat.png' },
+      { id: 'attachment-1', name: 'cat.png' }
+    );
+
+    const fields = invalidCacheLogFields();
+    expect(fields.preview).toBe(invalidCachedDescription);
   });
 });

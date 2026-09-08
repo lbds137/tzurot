@@ -19,6 +19,7 @@ import {
   type LoadedPersonality,
   type VisionTierParams,
 } from '@tzurot/common-types/types/schemas/personality';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
@@ -47,6 +48,14 @@ const logger = createLogger('VisionProcessor');
 // Attribution is optional for most callers, so binding a no-op once keeps the
 // notify call sites unconditional.
 const noopAttribution = (): void => undefined;
+
+/**
+ * Log-preview cap for the short-description warn — independent of the validity
+ * threshold `VISION_MIN_DESCRIPTION_LENGTH`, so tuning that minimum doesn't
+ * silently resize the log line too. Matches the sibling preview in
+ * `visionDescriptionValidity.ts`.
+ */
+const VISION_SHORT_DESCRIPTION_PREVIEW_CHARS = 80;
 
 /**
  * Diagnostic context for failure logging — answers "whose request was this, on what key,
@@ -315,7 +324,11 @@ async function invokeVisionModel(
     // Warn on suspiciously short descriptions (don't throw — some images may be simple)
     if (content.trim().length < VISION_MIN_DESCRIPTION_LENGTH) {
       logger.warn(
-        { modelName, contentLength: content.trim().length, content: content.trim() },
+        {
+          modelName,
+          contentLength: content.trim().length,
+          content: contentPreview(content.trim(), VISION_SHORT_DESCRIPTION_PREVIEW_CHARS),
+        },
         'Vision model returned suspiciously short description'
       );
     }

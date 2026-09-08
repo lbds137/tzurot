@@ -141,9 +141,21 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 describe('VisionProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
     mockModelInvoke.mockResolvedValue({
       content: 'Mocked image description',
     });
@@ -1602,6 +1614,48 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
         expect(result).toBe('A cat.');
+      });
+
+      it('omits the short-description log preview by default, keeping the always-on length', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({ content: 'A cat.' });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        const call = mockLogger.warn.mock.calls.find(
+          call => call[1] === 'Vision model returned suspiciously short description'
+        );
+        expect(call).toBeDefined();
+        const fields = call?.[0] as Record<string, unknown>;
+        expect(fields.content).toBeUndefined();
+        expect(fields.contentLength).toBe('A cat.'.length);
+        expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('A cat.');
+      });
+
+      it('includes the short-description log preview when content previews are enabled', async () => {
+        mockConfig.NODE_ENV = 'development';
+        mockConfig.LOG_CONTENT_PREVIEWS = true;
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({ content: 'A cat.' });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        const call = mockLogger.warn.mock.calls.find(
+          call => call[1] === 'Vision model returned suspiciously short description'
+        );
+        expect(call).toBeDefined();
+        const fields = call?.[0] as Record<string, unknown>;
+        expect(fields.content).toBe('A cat.');
       });
     });
 

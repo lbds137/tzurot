@@ -12,6 +12,7 @@
  */
 
 import { stripBotFooters } from '@tzurot/common-types/utils/discord';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   stringSimilarity,
@@ -44,8 +45,9 @@ interface ComparisonReportEntry {
   turnsBack: number;
   /** First 8 chars of the content hash, enough to correlate across logs */
   hash: string;
-  /** Bounded prefix of the cleaned content for human scan */
-  prefix: string;
+  /** Gated content preview of the cleaned content for human scan — `undefined`
+   *  unless content previews are enabled. */
+  prefix: string | undefined;
   /** Cleaned (post-`stripBotFooters`) length */
   length: number;
   /** Word-level Jaccard similarity, or null if message was too short to score */
@@ -82,7 +84,7 @@ function buildComparisonReport(
     return {
       turnsBack: i + 1,
       hash: hash.substring(0, 8),
-      prefix: clean.substring(0, DIAG_PREFIX_LENGTH),
+      prefix: contentPreview(clean, DIAG_PREFIX_LENGTH),
       length: clean.length,
       jaccard: tooShort ? null : Number(wordJaccardSimilarity(cleanNewResponse, clean).toFixed(3)),
       bigram: tooShort ? null : Number(stringSimilarity(cleanNewResponse, clean).toFixed(3)),
@@ -95,12 +97,9 @@ function buildComparisonReport(
 // Helper Functions
 // ============================================================================
 
-/** Create a snippet for logging (first N characters with ellipsis) */
-function snippet(content: string, maxLength = 60): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-  return content.substring(0, maxLength) + '...';
+/** Create a snippet for logging — gated: `undefined` unless content previews are on. */
+function snippet(content: string, maxLength = 60): string | undefined {
+  return contentPreview(content, maxLength);
 }
 
 /** Numeric/hash fields shared by both duplicate-check log outcomes. */
@@ -111,20 +110,27 @@ interface DuplicateCheckNumericFields {
   recentMessagesCount: number;
   newResponseLength: number;
   newResponseHash: string;
+  /** Content hash of the closest-scoring prior message; `undefined` when nothing
+   *  scored. Always-on because a hash carries no content. */
+  closestMatchHash: string | undefined;
 }
 
 /**
  * Discriminated union making the content/no-content split compiler-enforced:
  * a NEAR_MISS without content (or a PASSED with it) is unrepresentable, so
  * the no-PII property of the PASSED arm can't be broken by a call-site slip.
+ *
+ * NEAR_MISS is the only arm ALLOWED to carry content — whether it actually
+ * does depends on the `LOG_CONTENT_PREVIEWS` gate (`contentPreview`), which
+ * returns `undefined` when previews are off.
  */
 type DuplicateCheckLogParams =
   | ({ outcome: 'PASSED' } & DuplicateCheckNumericFields)
   | ({
       outcome: 'NEAR_MISS';
       content: {
-        newResponseSnippet: string;
-        closestMatchSnippet: string;
+        newResponseSnippet: string | undefined;
+        closestMatchSnippet: string | undefined;
         comparisonReport: ComparisonReportEntry[];
       };
     } & DuplicateCheckNumericFields);
@@ -138,6 +144,11 @@ type DuplicateCheckLogParams =
  * the common path emits numerics and hashes only. NEAR_MISS and the WARN
  * detection paths are the rare reconstruct-a-slipped-duplicate cases that
  * justify carrying content.
+ *
+ * Within the NEAR_MISS arm, whether content actually appears is a second,
+ * independent gate: `LOG_CONTENT_PREVIEWS` (via `contentPreview`/`snippet`).
+ * Both arms always emit numerics and hashes — including `closestMatchHash` —
+ * regardless of that gate.
  */
 function logDuplicateCheckResult(params: DuplicateCheckLogParams): void {
   const {
@@ -147,6 +158,7 @@ function logDuplicateCheckResult(params: DuplicateCheckLogParams): void {
     recentMessagesCount,
     newResponseLength,
     newResponseHash,
+    closestMatchHash,
   } = params;
 
   if (params.outcome === 'NEAR_MISS') {
@@ -163,6 +175,7 @@ function logDuplicateCheckResult(params: DuplicateCheckLogParams): void {
         newResponseSnippet: params.content.newResponseSnippet,
         closestMatchSnippet: params.content.closestMatchSnippet,
         newResponseHash,
+        closestMatchHash,
         comparisonReport: params.content.comparisonReport,
       },
       `NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
@@ -178,6 +191,7 @@ function logDuplicateCheckResult(params: DuplicateCheckLogParams): void {
         recentMessagesCount,
         newResponseLength,
         newResponseHash,
+        closestMatchHash,
       },
       'Check complete - no duplicate detected'
     );
@@ -257,7 +271,8 @@ export function isRecentDuplicate(
 
   let highestSimilarity = 0;
   let highestSimilarityIndex = -1;
-  let closestMatchSnippet = '';
+  let closestMatchSnippet: string | undefined;
+  let closestMatchHash: string | undefined;
 
   for (let i = 0; i < recentMessages.length; i++) {
     const cleanPreviousResponse = stripBotFooters(recentMessages[i]);
@@ -298,6 +313,8 @@ export function isRecentDuplicate(
           previousResponseLength: cleanPreviousResponse.length,
           newResponseSnippet: snippet(cleanNewResponse),
           matchedSnippet: snippet(cleanPreviousResponse),
+          newResponseHash,
+          matchedHash: previousHash,
         },
         `[CrossTurnDetection] Word-level duplication (Jaccard ${(jaccardSimilarity * 100).toFixed(0)}%).`
       );
@@ -311,6 +328,7 @@ export function isRecentDuplicate(
       highestSimilarity = similarity;
       highestSimilarityIndex = i;
       closestMatchSnippet = snippet(cleanPreviousResponse);
+      closestMatchHash = previousHash;
     }
 
     if (similarity >= threshold) {
@@ -325,6 +343,8 @@ export function isRecentDuplicate(
           previousResponseLength: cleanPreviousResponse.length,
           newResponseSnippet: snippet(cleanNewResponse),
           matchedSnippet: snippet(cleanPreviousResponse),
+          newResponseHash,
+          matchedHash: previousHash,
         },
         `[CrossTurnDetection] Bigram similarity match from ${i + 1} turn(s) ago.`
       );
@@ -340,6 +360,7 @@ export function isRecentDuplicate(
     highestSimilarity,
     highestSimilarityIndex,
     closestMatchSnippet,
+    closestMatchHash,
   });
 
   return { isDuplicate: false, matchIndex: -1 };
@@ -360,7 +381,8 @@ function emitPassedOrNearMissLog(args: {
   threshold: number;
   highestSimilarity: number;
   highestSimilarityIndex: number;
-  closestMatchSnippet: string;
+  closestMatchSnippet: string | undefined;
+  closestMatchHash: string | undefined;
 }): void {
   const {
     cleanNewResponse,
@@ -370,6 +392,7 @@ function emitPassedOrNearMissLog(args: {
     highestSimilarity,
     highestSimilarityIndex,
     closestMatchSnippet,
+    closestMatchHash,
   } = args;
 
   if (recentMessages.length === 0) {
@@ -384,6 +407,7 @@ function emitPassedOrNearMissLog(args: {
     recentMessagesCount: recentMessages.length,
     newResponseLength: cleanNewResponse.length,
     newResponseHash,
+    closestMatchHash,
   };
   logDuplicateCheckResult(
     isNearMiss

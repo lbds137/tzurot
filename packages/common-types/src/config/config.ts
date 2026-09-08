@@ -161,9 +161,24 @@ export const envSchema = z.object({
    * Explicit opt-in for `logDetailedPromptAssembly`'s dump of the assembled
    * system prompt, which embeds user-authored persona content. Off by
    * default and meant for a local run only — the Railway dev environment
-   * runs on a prod-synced database, so it must never be set there.
+   * runs on a prod-synced database, so it must never be set there. Enforced
+   * at boot by `assertNoLocalOnlyFlagsDeployed`, not merely a convention.
    */
   LOG_PROMPT_ASSEMBLY: z
+    .string()
+    .transform(val => val === 'true')
+    .default(false),
+
+  /**
+   * Explicit opt-in that puts message / persona / LLM-response /
+   * vision-description text previews into log lines via the
+   * `logContentPreview` helper. Off by default and meant for a local run
+   * only — the Railway dev environment runs on a prod-synced database, so
+   * content logged there is real user content. Must never be set on a
+   * deployed (Railway) environment; enforced at boot by
+   * `assertNoLocalOnlyFlagsDeployed`, not merely a convention.
+   */
+  LOG_CONTENT_PREVIEWS: z
     .string()
     .transform(val => val === 'true')
     .default(false),
@@ -271,6 +286,45 @@ export function assertDeployedNodeEnv(config: EnvConfig, rawNodeEnv: string | un
 }
 
 /**
+ * Local-only flags that must never be set on a deployed (Railway) service —
+ * see `assertNoLocalOnlyFlagsDeployed`.
+ */
+export const LOCAL_ONLY_FLAGS = ['LOG_PROMPT_ASSEMBLY', 'LOG_CONTENT_PREVIEWS'] as const;
+
+/**
+ * Guards against a deployed service booting with a local-only diagnostic
+ * flag turned on. `LOG_PROMPT_ASSEMBLY` and `LOG_CONTENT_PREVIEWS` are both
+ * content-dumping local diagnostics — they put user-authored message,
+ * persona, LLM-response, or vision-description text into log lines — and
+ * the Railway dev environment runs on a prod-synced database, so content
+ * logged there is real user content, not test data.
+ *
+ * Invariant: a deployed service with any `LOCAL_ONLY_FLAGS` entry set to
+ * true refuses to boot, while a local run (no `RAILWAY_ENVIRONMENT_NAME`)
+ * is unaffected. Pinned by the `assertNoLocalOnlyFlagsDeployed` describe in
+ * `config.test.ts`.
+ *
+ * @param config - the parsed environment config
+ */
+export function assertNoLocalOnlyFlagsDeployed(config: EnvConfig): void {
+  if (config.RAILWAY_ENVIRONMENT_NAME === undefined) {
+    return;
+  }
+
+  const offenders = LOCAL_ONLY_FLAGS.filter(flag => config[flag] === true);
+  if (offenders.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `${offenders.join(', ')} ${offenders.length === 1 ? 'is' : 'are'} set on a deployed service ` +
+      `(RAILWAY_ENVIRONMENT_NAME="${config.RAILWAY_ENVIRONMENT_NAME}"), but ${offenders.length === 1 ? 'it dumps' : 'they dump'} ` +
+      'message/prompt content into log lines and exist for local runs only. ' +
+      `Unset ${offenders.join(', ')} on this Railway service.`
+  );
+}
+
+/**
  * Validates and returns environment configuration
  * Throws detailed error if validation fails
  */
@@ -278,6 +332,7 @@ export function validateEnv(): EnvConfig {
   try {
     const config = envSchema.parse(process.env);
     assertDeployedNodeEnv(config, process.env.NODE_ENV);
+    assertNoLocalOnlyFlagsDeployed(config);
     return config;
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -371,6 +426,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // Logging
     LOG_LEVEL: 'error', // Quiet logs in tests
     LOG_PROMPT_ASSEMBLY: false,
+    LOG_CONTENT_PREVIEWS: false,
 
     // BYOK
     API_KEY_ENCRYPTION_KEY: undefined,

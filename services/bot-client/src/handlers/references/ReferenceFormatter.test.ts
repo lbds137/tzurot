@@ -11,12 +11,36 @@ import { createMockMessage } from '../../test/mocks/Discord.mock.js';
 import type { MessageFormatter } from './MessageFormatter.js';
 import type { SnapshotFormatter } from './SnapshotFormatter.js';
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 describe('ReferenceFormatter', () => {
   let formatter: ReferenceFormatter;
   let mockMessageFormatter: MessageFormatter;
   let mockSnapshotFormatter: SnapshotFormatter;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
+
     // Mock MessageFormatter
     const buildRef = (message: Message, refNum: number) => ({
       referenceNumber: refNum,
@@ -545,6 +569,76 @@ describe('ReferenceFormatter', () => {
       const ref = result.rawReferences[0];
       // Should use snapshot content, not empty message.content
       expect(ref.content).toBe('Forwarded snapshot content here');
+    });
+
+    describe('Added snapshot from forwarded message logging', () => {
+      const snapshotContent = 'a distinctive forwarded snapshot body';
+
+      function nonDedupedForwardedCrawl(): Map<
+        string,
+        { message: Message; metadata: ReferenceMetadata }
+      > {
+        const snapshotsMap = new Map();
+        snapshotsMap.set('snapshot-0', {
+          content: snapshotContent,
+          attachments: new Map(),
+          embeds: [],
+        });
+        const messageSnapshots = {
+          size: snapshotsMap.size,
+          values: () => snapshotsMap.values(),
+          first: () => snapshotsMap.values().next().value,
+        } as unknown as Collection<string, MessageSnapshot>;
+
+        const forwardedMessage = createMockMessage({
+          id: 'forwarded-not-deduped',
+          content: '',
+          createdAt: new Date('2025-01-01T12:00:00Z'),
+          reference: { type: MessageReferenceType.Forward } as Message['reference'],
+          messageSnapshots,
+        });
+
+        return new Map([
+          [
+            'forwarded-not-deduped',
+            {
+              message: forwardedMessage,
+              metadata: {
+                messageId: 'forwarded-not-deduped',
+                depth: 1,
+                timestamp: new Date('2025-01-01T12:00:00Z'),
+              },
+            },
+          ],
+        ]);
+      }
+
+      function snapshotDebugFields(): Record<string, unknown> {
+        const call = mockLogger.debug.mock.calls.find(
+          call => call[1] === 'Added snapshot from forwarded message'
+        );
+        expect(call).toBeDefined();
+        return call?.[0] as Record<string, unknown>;
+      }
+
+      it('omits the snapshot content preview by default, keeping the always-on length', async () => {
+        await formatter.format('', nonDedupedForwardedCrawl(), 10);
+
+        const fields = snapshotDebugFields();
+        expect(fields.snapshotContent).toBeUndefined();
+        expect(fields.snapshotLength).toBe(snapshotContent.length);
+        expect(JSON.stringify(mockLogger.debug.mock.calls)).not.toContain(snapshotContent);
+      });
+
+      it('includes the snapshot content preview when content previews are enabled', async () => {
+        mockConfig.NODE_ENV = 'development';
+        mockConfig.LOG_CONTENT_PREVIEWS = true;
+
+        await formatter.format('', nonDedupedForwardedCrawl(), 10);
+
+        const fields = snapshotDebugFields();
+        expect(fields.snapshotContent).toBe(snapshotContent);
+      });
     });
 
     it('should replace Discord links for deduped stubs with discordUrl', async () => {
