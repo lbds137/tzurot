@@ -35,9 +35,11 @@ import { escapeMarkdown, MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   normalizeTag,
+  TAG_LIMITS,
   type PersonalitySummary,
 } from '@tzurot/common-types/schemas/api/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -46,13 +48,7 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { runCharacterTurn } from './characterTurn.js';
-import {
-  filterByTag,
-  sampleUpTo,
-  emptyTagPoolDetail,
-  tagPoolDisplayName,
-  boundedTag,
-} from './tagPool.js';
+import { filterByTag, sampleUpTo, emptyTagPoolDetail, tagPoolDisplayName } from './tagPool.js';
 
 const logger = createLogger('chime-in-tag');
 
@@ -183,13 +179,6 @@ export async function runTagChimeIn(
   // notice interpolates the needle verbatim — without this, it would echo the
   // user's raw casing/whitespace instead of the tag that was actually matched.
   const tag = normalizeTag(params.tag);
-  // Logged instead of `tag` itself. Normalizing does not shorten, and the
-  // Discord option declares no `setMaxLength`, so a fan-out would otherwise
-  // write up to 6000 user-controlled characters into structured logs on EVERY
-  // invocation. The reply paths can interpolate `tag` unbounded-looking only
-  // because they either bound it themselves or run after it matched a stored
-  // (≤32-char) tag; a log line has neither protection.
-  const loggedTag = boundedTag(tag);
   const { incognitoOption } = params;
 
   const loaded = await loadAccessiblePool(context);
@@ -219,7 +208,12 @@ export async function runTagChimeIn(
       // answer. Losing it must not abort N turns that have not run yet — they
       // deliver through the push path, which never touches this interaction.
       logger.warn(
-        { err: error, tag: loggedTag, userId: context.user.id },
+        {
+          err: error,
+          tagPreview: contentPreview(tag, TAG_LIMITS.MAX_LENGTH),
+          tagLength: tag.length,
+          userId: context.user.id,
+        },
         'Could not post the tag fan-out sampling notice'
       );
     }
@@ -242,7 +236,8 @@ export async function runTagChimeIn(
 
   logger.info(
     {
-      tag: loggedTag,
+      tagPreview: contentPreview(tag, TAG_LIMITS.MAX_LENGTH),
+      tagLength: tag.length,
       poolSize: pool.length,
       cap,
       sampledSize: sampled.length,

@@ -9,7 +9,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
-import { TAG_LIMITS } from '@tzurot/common-types/schemas/api/personality';
 import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -22,6 +21,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     '@tzurot/common-types/utils/logger'
   );
   return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
 });
 
 const mockGetCachedPersonalities = vi.fn();
@@ -80,6 +89,8 @@ const makeContext = (): DeferredCommandContext =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockConfig.NODE_ENV = 'test';
+  mockConfig.LOG_CONTENT_PREVIEWS = false;
   mockedRandomInt.mockReturnValue(0);
   mockGetMultiTagCap.mockResolvedValue(5);
   mockRunCharacterTurn.mockResolvedValue(undefined);
@@ -285,9 +296,10 @@ describe('runTagChimeIn', () => {
     expect(mockLogger.warn).toHaveBeenCalled();
   });
 
-  it('bounds the tag it writes to logs, which the option itself never bounds', async () => {
+  it('drops the tag from the fan-out log by default, keeping the always-on length', async () => {
     // The Discord `tag` option declares no setMaxLength, so an unbounded log
-    // field writes up to 6000 user-controlled characters on EVERY fan-out.
+    // field would write up to 6000 user-controlled characters on EVERY
+    // fan-out unless it goes through the gated content-preview helper.
     const longTag = 'a'.repeat(4000);
     mockGetCachedPersonalities.mockResolvedValue({
       kind: 'ok',
@@ -296,9 +308,24 @@ describe('runTagChimeIn', () => {
 
     await runTagChimeIn(makeContext(), { tag: longTag, incognitoOption: null });
 
-    const [fields] = mockLogger.info.mock.calls[0] as [{ tag: string }];
-    expect(fields.tag.length).toBeLessThanOrEqual(TAG_LIMITS.MAX_LENGTH + 1);
-    expect(fields.tag).toBe(`${'a'.repeat(TAG_LIMITS.MAX_LENGTH)}…`);
+    const [fields] = mockLogger.info.mock.calls[0] as [Record<string, unknown>];
+    expect(fields.tagPreview).toBeUndefined();
+    expect(fields.tagLength).toBe(longTag.length);
+    expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain(longTag);
+  });
+
+  it('includes the tag preview in the fan-out log when content previews are enabled', async () => {
+    mockConfig.NODE_ENV = 'development';
+    mockConfig.LOG_CONTENT_PREVIEWS = true;
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('a', { tags: ['fantasy'] })],
+    });
+
+    await runTagChimeIn(makeContext(), { tag: 'fantasy', incognitoOption: null });
+
+    const [fields] = mockLogger.info.mock.calls[0] as [Record<string, unknown>];
+    expect(fields.tagPreview).toBe('fantasy');
   });
 
   it('still runs the turns when deleting the stale thinking indicator fails', async () => {

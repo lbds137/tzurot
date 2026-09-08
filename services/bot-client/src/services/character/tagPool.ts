@@ -24,6 +24,7 @@ import {
   TAG_LIMITS,
   type PersonalitySummary,
 } from '@tzurot/common-types/schemas/api/personality';
+import { truncateByCodePoints } from '@tzurot/common-types/utils/codePointTruncation';
 
 /** One entry of the count-sorted tag vocabulary offered by autocomplete. */
 export interface TagVocabularyEntry {
@@ -140,28 +141,19 @@ export function emptyTagPoolDetail(tag: string, extraClause = ''): string {
  *
  * Every tag surface reads a free-typed Discord string option that declares no
  * `setMaxLength`, so Discord's 6000-character ceiling is the only bound and
- * `normalizeTag` does not truncate. Use this before ANY output sink — a reply
- * body or a log line — not just the ones with a hard ceiling: anything longer
+ * `normalizeTag` does not truncate. Use this before a DISPLAY sink — a reply
+ * body or an embed — not just the ones with a hard ceiling: anything longer
  * than `TAG_LIMITS.MAX_LENGTH` could never have matched a stored tag, so the
- * cut costs no diagnostic value at either sink.
+ * cut costs nothing a reader could use. Log lines are a different sink:
+ * they go through `contentPreview` (gated, off on deployed services) with an
+ * always-on length, never through this helper.
  *
  * Sliced by code point rather than by `.slice`, which would cut an astral
- * character (emoji, some CJK) mid-surrogate and emit a lone surrogate.
- *
- * Not built on `truncateByCodePoints` (utils/modal/toolkit.ts), which does the
- * same slice: that module's own docstring scopes it to EDITABLE prefill rather
- * than display text — hence no ellipsis — and importing it here would drag the
- * modal builder's discord.js surface into a services module for three lines.
- * A shared home for the three variants (prefill, this one, and the UTF-16
- * budgeted cut `truncateForSelect` needs) is tracked on TASK-581, where all
- * three exist at once and the right signature is actually decidable.
+ * character (emoji, some CJK) mid-surrogate and emit a lone surrogate — the
+ * slicing itself is delegated to the shared `truncateByCodePoints` helper.
  */
 export function boundedTag(tag: string): string {
-  const normalized = normalizeTag(tag);
-  const codePoints = [...normalized];
-  return codePoints.length > TAG_LIMITS.MAX_LENGTH
-    ? `${codePoints.slice(0, TAG_LIMITS.MAX_LENGTH).join('')}…`
-    : normalized;
+  return truncateByCodePoints(normalizeTag(tag), TAG_LIMITS.MAX_LENGTH, '…');
 }
 
 /** Display label for one character in a fan-out notice. */

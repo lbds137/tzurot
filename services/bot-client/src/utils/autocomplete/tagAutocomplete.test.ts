@@ -20,14 +20,24 @@ vi.mock('../gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
 }));
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
-  return {
-    ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-  };
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
 });
 
 import { handleTagAutocomplete } from './tagAutocomplete.js';
@@ -37,6 +47,8 @@ describe('handleTagAutocomplete', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
     mockRespond.mockResolvedValue(undefined);
   });
 
@@ -180,6 +192,31 @@ describe('handleTagAutocomplete', () => {
 
     expect(handled).toBe(true);
     expect(mockRespond).toHaveBeenCalledWith([]);
+  });
+
+  it('drops the typed query from the error log by default', async () => {
+    const query = 'zzsentinelquery';
+    mockGetCachedPersonalities.mockRejectedValue(new Error('network down'));
+
+    await handleTagAutocomplete(makeInteraction('tag', query));
+
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    const payload = mockLogger.error.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.queryPreview).toBeUndefined();
+    expect(payload.queryLength).toBe(query.length);
+    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(query);
+  });
+
+  it('includes the query preview when content previews are enabled', async () => {
+    const query = 'zzsentinelquery';
+    mockConfig.NODE_ENV = 'development';
+    mockConfig.LOG_CONTENT_PREVIEWS = true;
+    mockGetCachedPersonalities.mockRejectedValue(new Error('network down'));
+
+    await handleTagAutocomplete(makeInteraction('tag', query));
+
+    const payload = mockLogger.error.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.queryPreview).toBe(query);
   });
 
   it('only aggregates the pool the cache returned', async () => {

@@ -27,6 +27,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { truncateByCodePoints } from '@tzurot/common-types/utils/codePointTruncation';
 import { joinFooter } from './footer.js';
 
 /**
@@ -119,18 +120,19 @@ export interface BrowseListEmbedResult<T> {
 }
 
 /**
- * Truncate the joined metadata line to the density cap. Counts and cuts by
- * code point, not UTF-16 unit — free-text segments (e.g. denylist reasons)
- * can carry astral-plane emoji, and a unit-slice through one leaves a
- * replacement character at the cut.
+ * Truncate the joined metadata line to the density cap.
+ *
+ * The cap CHARGES the ellipsis (an overflowing line is cut one code point
+ * short of it so the ellipsis fits), while whether to truncate at all is
+ * decided against the FULL cap — a line that exactly fills it is emitted
+ * whole, since nothing was actually dropped. Cut by code point, not UTF-16
+ * unit — free-text segments (e.g. denylist reasons) can carry astral-plane
+ * emoji, and a unit-slice through one would leave a broken glyph.
  */
 function renderMetadataLine(segments: string[]): string {
   const joined = segments.join(' · ');
-  const codePoints = [...joined];
-  const capped =
-    codePoints.length > MAX_METADATA_LENGTH
-      ? `${codePoints.slice(0, MAX_METADATA_LENGTH - 1).join('')}…`
-      : joined;
+  const overflows = [...joined].length > MAX_METADATA_LENGTH;
+  const capped = overflows ? truncateByCodePoints(joined, MAX_METADATA_LENGTH - 1, '…') : joined;
   return `   └ ${capped}`;
 }
 

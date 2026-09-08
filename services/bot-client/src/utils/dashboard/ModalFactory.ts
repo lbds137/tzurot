@@ -12,11 +12,8 @@
  */
 
 import { type ModalBuilder } from 'discord.js';
-import {
-  buildToolkitModal,
-  textFieldFromDefinition,
-  truncateByCodePoints,
-} from '../modal/toolkit.js';
+import { buildToolkitModal, textFieldFromDefinition } from '../modal/toolkit.js';
+import { truncateByCodePoints } from '@tzurot/common-types/utils/codePointTruncation';
 import {
   type DashboardConfig,
   type SectionDefinition,
