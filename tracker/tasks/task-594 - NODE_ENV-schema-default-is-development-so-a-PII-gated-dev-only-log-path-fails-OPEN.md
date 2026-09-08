@@ -3,9 +3,10 @@ id: TASK-594
 title: >-
   NODE_ENV schema default is development, so a PII-gated dev-only log path fails
   OPEN
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 22:57'
+updated_date: '2026-09-08 19:15'
 labels:
   - 'area:common-types'
   - 'size:S'
