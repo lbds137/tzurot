@@ -5,6 +5,11 @@
  * Logs anomalies when conversation history exists but no assistant messages are found.
  */
 
+import {
+  contentDigest,
+  contentPreview,
+  contentPreviewsEnabled,
+} from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('GenerationStep');
@@ -53,7 +58,15 @@ export function logDuplicateDetectionSetup(opts: DuplicateDetectionSetupOptions)
         jobId,
         historyLength,
         recentAssistantMessages: recentAssistantMessages.length,
-        recentMessagesPreview: recentAssistantMessages.slice(0, 2).map(m => m.substring(0, 50)),
+        recentMessageDigests: recentAssistantMessages.slice(0, 2).map(m => contentDigest(m)),
+        // Not redundant with contentPreview's own gate: that one gates per
+        // ELEMENT (returning undefined), so the array wrapper stays a defined
+        // field and serializes as [null, null] instead of vanishing. Only this
+        // outer check drops the field. Pinned by the "omits the preview array
+        // by default" test.
+        recentMessagesPreview: contentPreviewsEnabled()
+          ? recentAssistantMessages.slice(0, 2).map(m => contentPreview(m, 50))
+          : undefined,
       },
       'Duplicate detection ready'
     );

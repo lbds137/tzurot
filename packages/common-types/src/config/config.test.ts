@@ -10,6 +10,7 @@ import {
   validateEnv,
   envSchema,
   assertDeployedNodeEnv,
+  assertNoLocalOnlyFlagsDeployed,
 } from './config.js';
 import { AIProvider, SERVICE_DEFAULTS } from '../constants/index.js';
 
@@ -37,6 +38,7 @@ describe('config', () => {
       expect(config.AI_PROVIDER).toBe(AIProvider.OpenRouter);
       expect(config.ENABLE_HEALTH_SERVER).toBe(false);
       expect(config.BOT_MENTION_CHAR).toBe('@');
+      expect(config.LOG_CONTENT_PREVIEWS).toBe(false);
     });
 
     it('should allow overrides', () => {
@@ -361,6 +363,52 @@ describe('config', () => {
     });
   });
 
+  describe('assertNoLocalOnlyFlagsDeployed', () => {
+    it('throws when a deployed service has LOG_PROMPT_ASSEMBLY set', () => {
+      const config = createTestConfig({
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        LOG_PROMPT_ASSEMBLY: true,
+      });
+      expect(() => assertNoLocalOnlyFlagsDeployed(config)).toThrow(/LOG_PROMPT_ASSEMBLY/);
+    });
+
+    it('throws when a deployed service has LOG_CONTENT_PREVIEWS set', () => {
+      const config = createTestConfig({
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        LOG_CONTENT_PREVIEWS: true,
+      });
+      expect(() => assertNoLocalOnlyFlagsDeployed(config)).toThrow(/LOG_CONTENT_PREVIEWS/);
+    });
+
+    it('throws naming both flags when a deployed service has both set', () => {
+      const config = createTestConfig({
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        LOG_PROMPT_ASSEMBLY: true,
+        LOG_CONTENT_PREVIEWS: true,
+      });
+      expect(() => assertNoLocalOnlyFlagsDeployed(config)).toThrow(/LOG_PROMPT_ASSEMBLY/);
+      expect(() => assertNoLocalOnlyFlagsDeployed(config)).toThrow(/LOG_CONTENT_PREVIEWS/);
+    });
+
+    it('does not throw when a deployed service has both flags false', () => {
+      const config = createTestConfig({
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        LOG_PROMPT_ASSEMBLY: false,
+        LOG_CONTENT_PREVIEWS: false,
+      });
+      expect(() => assertNoLocalOnlyFlagsDeployed(config)).not.toThrow();
+    });
+
+    it('does not throw for a local run even with both flags true', () => {
+      const config = createTestConfig({
+        RAILWAY_ENVIRONMENT_NAME: undefined,
+        LOG_PROMPT_ASSEMBLY: true,
+        LOG_CONTENT_PREVIEWS: true,
+      });
+      expect(() => assertNoLocalOnlyFlagsDeployed(config)).not.toThrow();
+    });
+  });
+
   describe('validateEnv', () => {
     it('should throw descriptive error on validation failure', () => {
       process.env.LOG_LEVEL = 'invalid-level';
@@ -395,6 +443,14 @@ describe('config', () => {
 
       expect(() => validateEnv()).toThrow(/Environment validation failed/);
       expect(() => validateEnv()).toThrow(/NODE_ENV/);
+    });
+
+    it('refuses to boot a deployed service with LOG_CONTENT_PREVIEWS set', () => {
+      process.env.RAILWAY_ENVIRONMENT_NAME = 'production';
+      process.env.NODE_ENV = 'production';
+      process.env.LOG_CONTENT_PREVIEWS = 'true';
+
+      expect(() => validateEnv()).toThrow(/LOG_CONTENT_PREVIEWS/);
     });
   });
 });

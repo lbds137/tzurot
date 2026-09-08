@@ -11,6 +11,26 @@ import { retrieveFactsForPrompt } from './factRetrievalHelper.js';
 import type { FactRetriever } from './FactRetriever.js';
 import type { SimilarFact, LinkedFact } from './extraction/FactStore.js';
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
+});
+
 function setFlag(value: boolean, splitRenderSlugs: string[] = []): void {
   registerSystemSettings({
     get: (key: string) => {
@@ -26,6 +46,12 @@ function setFlag(value: boolean, splitRenderSlugs: string[] = []): void {
 }
 
 afterEach(() => resetSystemSettingsRegistration());
+
+beforeEach(() => {
+  mockLogger.info.mockClear();
+  mockConfig.NODE_ENV = 'test';
+  mockConfig.LOG_CONTENT_PREVIEWS = false;
+});
 
 function mockRetriever(): FactRetriever {
   const facts: SimilarFact[] = [
@@ -148,6 +174,66 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
 
     expect(factRetriever.retrieveFacts).not.toHaveBeenCalled();
     expect(result.facts).toEqual([]);
+  });
+
+  describe('Memory search query logging', () => {
+    const searchQuery = 'a distinctive search query for the log-preview pin';
+
+    function memoryRetrievedFields(): Record<string, unknown> {
+      const call = mockLogger.info.mock.calls.find(call => call[1] === 'Memory search query');
+      expect(call).toBeDefined();
+      return call?.[0] as Record<string, unknown>;
+    }
+
+    beforeEach(() => {
+      setFlag(true);
+    });
+
+    it('omits the query preview by default, keeping the always-on length', async () => {
+      const memoryRetriever = {
+        retrieveRelevantMemories: vi.fn().mockResolvedValue({
+          memories: [],
+          freshModeEnabled: false,
+        }),
+      } as unknown as MemoryRetriever;
+
+      await retrieveMemoriesAndFacts({
+        memoryRetriever,
+        factRetriever: { retrieveFacts: vi.fn() } as never,
+        personality: { id: 'personality-1' } as never,
+        searchQuery,
+        context: {} as never,
+        configOverrides: undefined,
+      });
+
+      const fields = memoryRetrievedFields();
+      expect(fields.queryPreview).toBeUndefined();
+      expect(fields.queryLength).toBe(searchQuery.length);
+      expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain(searchQuery);
+    });
+
+    it('includes the query preview when content previews are enabled', async () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+      const memoryRetriever = {
+        retrieveRelevantMemories: vi.fn().mockResolvedValue({
+          memories: [],
+          freshModeEnabled: false,
+        }),
+      } as unknown as MemoryRetriever;
+
+      await retrieveMemoriesAndFacts({
+        memoryRetriever,
+        factRetriever: { retrieveFacts: vi.fn() } as never,
+        personality: { id: 'personality-1' } as never,
+        searchQuery,
+        context: {} as never,
+        configOverrides: undefined,
+      });
+
+      const fields = memoryRetrievedFields();
+      expect(fields.queryPreview).toBe(searchQuery);
+    });
   });
 });
 

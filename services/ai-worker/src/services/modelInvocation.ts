@@ -10,6 +10,7 @@
 import { type BaseMessage } from '@langchain/core/messages';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { readRoutedModel } from './multimodal/readRoutedModel.js';
 import { type LLMInvoker } from './LLMInvoker.js';
@@ -206,8 +207,10 @@ export async function invokeModelAndClean(
 
   logger.debug(
     {
-      rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
-      cleanedContentPreview: cleanedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+      rawContentPreview: contentPreview(rawContent, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+      rawContentLength: rawContent.length,
+      cleanedContentPreview: contentPreview(cleanedContent, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+      cleanedContentLength: cleanedContent.length,
       wasDeduplicated,
       hadThinkingBlocks: thinkingContent !== null,
       thinkingContentLength: thinkingContent?.length ?? 0,

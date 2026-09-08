@@ -575,7 +575,6 @@ export class LLMInvoker {
           err: censoredResponseError,
           modelName,
           provider,
-          responseContent: content,
           ...diagnostics,
         },
         'LLM censored response detected, treating as retryable error'

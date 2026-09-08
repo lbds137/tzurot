@@ -26,6 +26,7 @@ import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { formatDateShort, formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -303,7 +304,10 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
     });
 
     if (data === null) {
-      logger.warn({ userId, query: query.substring(0, 50) }, 'Search failed');
+      logger.warn(
+        { userId, queryPreview: contentPreview(query, 50), queryLength: query.length },
+        'Search failed'
+      );
       await context.editReply({
         content: renderSpec(CATALOG.error.transient("Couldn't search your memories right now.")),
       });
