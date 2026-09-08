@@ -17,7 +17,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { truncateByCodePoints } from './modal/toolkit.js';
+import { truncateByCodePoints } from '@tzurot/common-types/utils/codePointTruncation';
 import { clampEmbedText, EMBED_CAPS } from './embedLimits.js';
 
 /** One embed field; `inline` defaults to false. */

@@ -12,7 +12,6 @@ import {
   buildToolkitModal,
   extractSubmission,
   textFieldFromDefinition,
-  truncateByCodePoints,
   validateSubmission,
 } from './toolkit.js';
 import type { ModalItem, SubmissionFieldReader } from './types.js';
@@ -276,17 +275,5 @@ describe('validateSubmission', () => {
     expect(validateSubmission({ name: 'ok', bio: 'ab' }, items).errors).toEqual([
       'Bio must be at least 3 characters',
     ]);
-  });
-});
-
-describe('truncateByCodePoints', () => {
-  it('caps by code point so astral emoji never split', () => {
-    expect(truncateByCodePoints('abc', 5)).toBe('abc');
-    expect(truncateByCodePoints('abcdef', 5)).toBe('abcde');
-    // 4 ASCII + butterfly (astral): cap at 5 keeps the whole emoji...
-    expect(truncateByCodePoints('abcd🦋ef', 5)).toBe('abcd🦋');
-    // ...and cap at 4 drops it entirely rather than leaving half a pair.
-    expect(truncateByCodePoints('abcd🦋ef', 4)).toBe('abcd');
-    expect(truncateByCodePoints('abcd🦋ef', 4)).not.toContain('\uFFFD');
   });
 });

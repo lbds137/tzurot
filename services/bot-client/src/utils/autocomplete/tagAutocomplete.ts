@@ -14,8 +14,9 @@
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
-import { normalizeTag } from '@tzurot/common-types/schemas/api/personality';
+import { normalizeTag, TAG_LIMITS } from '@tzurot/common-types/schemas/api/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { getCachedPersonalities } from './autocompleteCache.js';
 import { clientsFor } from '../gatewayClients.js';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
@@ -82,7 +83,8 @@ export async function handleTagAutocomplete(
       {
         err: error,
         option: focusedOption.name,
-        query: focusedOption.value,
+        queryPreview: contentPreview(focusedOption.value, TAG_LIMITS.MAX_LENGTH),
+        queryLength: focusedOption.value.length,
         userId: interaction.user.id,
         guildId: interaction.guildId,
       },

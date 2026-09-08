@@ -8,6 +8,7 @@
 
 import { createHash } from 'node:crypto';
 import { getConfig } from '../config/config.js';
+import { truncateByCodePoints } from './codePointTruncation.js';
 
 /**
  * Whether raw-text content previews are allowed in this process right now.
@@ -27,8 +28,10 @@ export function contentPreviewsEnabled(): boolean {
 /**
  * Returns a truncated preview of `text` when content previews are enabled,
  * or `undefined` otherwise (including when `text` itself is `undefined` or
- * `null`). Truncates to `maxChars` characters with a trailing `...` marker
- * when `text` is longer than that.
+ * `null`). Truncates to `maxChars` code points with a trailing `...` marker
+ * when `text` is longer than that. Cutting on code points keeps an emoji or
+ * other astral character whole, so a preview never carries a lone surrogate
+ * into the log line; the marker rides beyond the cap rather than inside it.
  *
  * Always returns `undefined`, never `null`, when there is no preview to
  * show — pino serializes an explicit `null` into the log line but omits an
@@ -45,10 +48,7 @@ export function contentPreview(
   if (!contentPreviewsEnabled()) {
     return undefined;
   }
-  if (text.length <= maxChars) {
-    return text;
-  }
-  return text.substring(0, maxChars) + '...';
+  return truncateByCodePoints(text, maxChars, '...');
 }
 
 /**
