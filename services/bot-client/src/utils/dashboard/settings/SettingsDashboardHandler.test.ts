@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { escapeMarkdown } from 'discord.js';
 import {
   createSettingsDashboard,
   handleSettingsSelectMenu,
@@ -664,6 +665,23 @@ describe('SettingsDashboardHandler', () => {
           expect.objectContaining({ content: expect.stringContaining('out of date') })
         );
       }
+    });
+
+    it('escapes markdown in the entity name on the reset confirm surface', async () => {
+      const entityName = '**bold** _it_ [x](https://e.example)';
+      const session = validSession();
+      session.data.entityName = entityName;
+      mockSessionManager.get.mockReturnValue(session);
+      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+
+      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), vi.fn());
+
+      const call = interaction.editReply.mock.calls[0][0] as {
+        embeds: Array<{ toJSON: () => { description?: string } }>;
+      };
+      const description = call.embeds[0].toJSON().description ?? '';
+      expect(description).toContain(escapeMarkdown(entityName, { maskedLink: true }));
+      expect(description).not.toContain('**bold**');
     });
   });
 

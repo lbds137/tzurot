@@ -11,7 +11,13 @@
  * flow in `confirmDestructive.ts` instead.
  */
 
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import {
+  EmbedBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
+  escapeMarkdown,
+} from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { DASHBOARD_MESSAGES } from '../dashboard/messages.js';
 
@@ -128,7 +134,7 @@ export function buildDeleteConfirmation(options: DeleteConfirmationOptions): {
     cancelLabel,
   } = options;
 
-  let description = `Are you sure you want to delete **${entityName}**?\n\n`;
+  let description = `Are you sure you want to delete **${escapeMarkdown(entityName, { maskedLink: true })}**?\n\n`;
   description += `${DASHBOARD_MESSAGES.DELETE_WARNING}`;
 
   if (additionalWarning !== undefined) {

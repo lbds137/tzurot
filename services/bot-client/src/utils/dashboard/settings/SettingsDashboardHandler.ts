@@ -14,6 +14,7 @@ import {
   type StringSelectMenuInteraction,
   type ChatInputCommandInteraction,
   MessageFlags,
+  escapeMarkdown,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { showModalWithTimeoutCatch } from '../showModalWithTimeoutCatch.js';
@@ -299,7 +300,7 @@ async function handleResetPrompt(
   const { embed, components } = buildConfirmAction({
     title: '♻️ Reset to defaults?',
     description:
-      `Every ${config.level}-level override for **${session.entityName}** will be cleared ` +
+      `Every ${config.level}-level override for **${escapeMarkdown(session.entityName, { maskedLink: true })}** will be cleared ` +
       `and values will inherit from the cascade again. The specific override values ` +
       `cannot be recovered.`,
     confirmCustomId: buildSettingsCustomId(config.entityType, 'reset-confirm', session.entityId),

@@ -17,9 +17,11 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
   PermissionFlagsBits,
+  escapeMarkdown,
 } from 'discord.js';
 import { historyPurgeOptions } from '@tzurot/common-types/generated/commandOptions';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { SLUG_PATTERN } from '@tzurot/common-types/schemas/api/personality';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -102,6 +104,20 @@ export async function handlePurgeHistory(context: DeferredCommandContext): Promi
   if (scope === 'everyone' && !hasChannelWidePurgePermission(context.interaction)) {
     await context.editReply({
       content: renderSpec(CATALOG.error.permissionDenied(CHANNEL_WIDE_PURGE_ACTION)),
+    });
+    return;
+  }
+
+  // A slug that cannot match the pattern cannot name a character, so answer
+  // with the same not-found the lookup would produce rather than rendering a
+  // destructive-confirm embed for a name that does not exist.
+  if (!SLUG_PATTERN.test(personalitySlug)) {
+    await context.editReply({
+      content: renderSpec(
+        CATALOG.error.notFound('Character', {
+          name: escapeMarkdown(personalitySlug, { maskedLink: true }),
+        })
+      ),
     });
     return;
   }

@@ -481,7 +481,17 @@ interface HardDeleteConfigOptions {
   confirmationPhrase?: string;
 }
 
-/** Compute the dynamic confirmation phrase for an entity name. */
+/**
+ * Compute the dynamic confirmation phrase for an entity name.
+ *
+ * Built from the raw entity name because the user has to type the phrase
+ * back verbatim. The warning renders this phrase inside a single-backtick
+ * code span (see the `Type \`...\`` line in `createHardDeleteConfig`), so an
+ * entity name carrying a backtick would close that span early. This is
+ * assumed safe for the current callers — one passes a slug-pattern-gated
+ * value, the other a constant — and relies on any future free-form caller
+ * escaping or rejecting backticks before the name reaches here.
+ */
 export function dynamicDeletePhrase(entityName: string): string {
   const phrase = `DELETE ${entityName.toUpperCase()}`;
   return phrase.length > MAX_DYNAMIC_PHRASE_LENGTH ? FIXED_DELETE_PHRASE : phrase;
@@ -522,7 +532,7 @@ export function createHardDeleteConfig(
     footerText,
     warningTitle: `Delete ${entityType}`,
     warningDescription:
-      `Are you sure you want to **permanently delete** ${entityType} for **${entityName}**?\n\n` +
+      `Are you sure you want to **permanently delete** ${entityType} for **${escapeMarkdown(entityName, { maskedLink: true })}**?\n\n` +
       `${additionalWarning}\n\n` +
       `Type \`${display.confirmationPhrase}\` in the next prompt to confirm.`,
     buttonLabel: 'Delete Forever',
