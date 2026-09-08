@@ -3,9 +3,10 @@ id: TASK-832
 title: >-
   composeGenerationFailureResult re-parses ApiError instances, discarding the
   deliberate cache-hit sentinels
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 17:51'
+updated_date: '2026-09-08 06:03'
 labels:
   - 'area:ai-worker'
   - 'size:S'
