@@ -17,7 +17,6 @@
     "vitest.config.ts",
     "vitest.component.config.ts",
     "vitest.integration.config.ts",
-    "vitest.workspace.ts",
     "eslint.config.js"
   ],
   "references": [{ "path": "./packages/common-types" }]
