@@ -173,6 +173,17 @@ describe('handlePurgeHistory', () => {
     });
   });
 
+  it('rejects a non-slug character name before building the confirmation', async () => {
+    const context = createMockContext('**luna**');
+
+    await handlePurgeHistory(context);
+
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('not found'),
+    });
+    expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
+  });
+
   describe('scope: everyone', () => {
     it('denies the channel-wide purge without Manage Messages or bot-owner status', async () => {
       const context = createMockContext('lilith', 'channel-123', {
@@ -185,6 +196,23 @@ describe('handlePurgeHistory', () => {
       expect(context.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('permission'),
       });
+      expect(mockCreateHardDeleteConfig).not.toHaveBeenCalled();
+      expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
+    });
+
+    it('refuses an unauthorized channel-wide purge before judging the character name', async () => {
+      const context = createMockContext('**luna**', 'channel-123', {
+        scope: 'everyone',
+        hasManageMessages: false,
+      });
+
+      await handlePurgeHistory(context);
+
+      const call = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0] as unknown as [
+        { content: string },
+      ];
+      expect(call[0].content).toEqual(expect.stringContaining('permission'));
+      expect(call[0].content).not.toMatch(/not found/i);
       expect(mockCreateHardDeleteConfig).not.toHaveBeenCalled();
       expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
     });
