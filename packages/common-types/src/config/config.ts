@@ -157,6 +157,17 @@ export const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
+  /**
+   * Explicit opt-in for `logDetailedPromptAssembly`'s dump of the assembled
+   * system prompt, which embeds user-authored persona content. Off by
+   * default and meant for a local run only — the Railway dev environment
+   * runs on a prod-synced database, so it must never be set there.
+   */
+  LOG_PROMPT_ASSEMBLY: z
+    .string()
+    .transform(val => val === 'true')
+    .default(false),
+
   // BYOK (Bring Your Own Key) Configuration
   API_KEY_ENCRYPTION_KEY: optionalEncryptionKey(), // 32-byte hex key for AES-256-GCM encryption
 
@@ -222,12 +233,52 @@ export const envSchema = z.object({
 export type EnvConfig = z.infer<typeof envSchema>;
 
 /**
+ * Guards against a deployed service booting on the schema's local-development
+ * `NODE_ENV` default. `RAILWAY_ENVIRONMENT_NAME` is injected on every deployed
+ * environment and is absent from a local run, so its presence alongside an
+ * unset `NODE_ENV` means the default has silently downgraded a deployed
+ * service to development behaviour — prompt-assembly dumps, verbose query
+ * logging, and the production-only schedulers left off.
+ *
+ * Only an ABSENT `NODE_ENV` reaches this check. A blank or whitespace value is
+ * not a member of the schema's enum, and `.default()` substitutes on
+ * `undefined` alone, so `envSchema.parse` rejects it upstream — pinned by the
+ * `validateEnv` case `rejects a blank NODE_ENV on a deployed service through
+ * the schema, before the deployed check runs` in `config.test.ts`.
+ *
+ * Invariant: a deployed service whose `NODE_ENV` is unset refuses to boot,
+ * while a local run (no `RAILWAY_ENVIRONMENT_NAME`) keeps the development
+ * default unchanged. Pinned by the `assertDeployedNodeEnv` describe in
+ * `config.test.ts`.
+ *
+ * @param config - the parsed environment config
+ * @param rawNodeEnv - `process.env.NODE_ENV` as read before schema defaulting
+ */
+export function assertDeployedNodeEnv(config: EnvConfig, rawNodeEnv: string | undefined): void {
+  if (config.RAILWAY_ENVIRONMENT_NAME === undefined) {
+    return;
+  }
+  if (rawNodeEnv !== undefined) {
+    return;
+  }
+
+  throw new Error(
+    `NODE_ENV is not set, but RAILWAY_ENVIRONMENT_NAME is ("${config.RAILWAY_ENVIRONMENT_NAME}"), ` +
+      'so this is a deployed service about to run with the local-development default. ' +
+      'Set NODE_ENV=production (or NODE_ENV=development on the dev environment) on the ' +
+      'Railway service; the schema default exists for local runs only.'
+  );
+}
+
+/**
  * Validates and returns environment configuration
  * Throws detailed error if validation fails
  */
 export function validateEnv(): EnvConfig {
   try {
-    return envSchema.parse(process.env);
+    const config = envSchema.parse(process.env);
+    assertDeployedNodeEnv(config, process.env.NODE_ENV);
+    return config;
   } catch (error) {
     if (error instanceof z.ZodError) {
       const issues = error.issues
@@ -319,6 +370,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
 
     // Logging
     LOG_LEVEL: 'error', // Quiet logs in tests
+    LOG_PROMPT_ASSEMBLY: false,
 
     // BYOK
     API_KEY_ENCRYPTION_KEY: undefined,
