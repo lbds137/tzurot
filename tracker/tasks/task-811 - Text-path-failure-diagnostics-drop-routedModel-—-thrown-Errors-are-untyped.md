@@ -1,9 +1,10 @@
 ---
 id: TASK-811
 title: Text-path failure diagnostics drop routedModel — thrown Errors are untyped
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 02:09'
+updated_date: '2026-09-08 13:38'
 labels:
   - 'area:ai-worker'
   - 'size:S'
