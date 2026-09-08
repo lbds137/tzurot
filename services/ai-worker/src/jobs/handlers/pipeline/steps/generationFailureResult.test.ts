@@ -9,11 +9,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
+import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
 import { RetryError } from '../../../../utils/retry.js';
 import { ApiError } from '../../../../utils/apiErrorParser.js';
-import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import { LlmResponseError } from '../../../../services/LlmResponseError.js';
+import {
+  ApiErrorCategory,
+  ApiErrorType,
+  ERROR_MESSAGES,
+} from '@tzurot/common-types/constants/error';
 import {
   composeGenerationFailureResult,
   type GenerationFailureOptions,
@@ -243,5 +248,73 @@ describe('composeGenerationFailureResult', () => {
       'glm-4.7',
       'zai-coding'
     );
+  });
+
+  it('threads routedModel and finishReason from a RetryError-wrapped LlmResponseError into the partial response record', () => {
+    const wrapped = new RetryError(
+      'LLM invocation (openrouter/auto) failed',
+      1,
+      new LlmResponseError(ERROR_MESSAGES.EMPTY_RESPONSE, {
+        routedModel: 'deepseek/deepseek-v3.2',
+        finishReason: 'stop',
+      })
+    );
+    const options = buildOptions(wrapped);
+
+    const result = composeGenerationFailureResult(options);
+
+    expect(options.diagnosticCollector.recordPartialLlmResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routedModel: 'deepseek/deepseek-v3.2',
+        finishReason: 'stop',
+      })
+    );
+
+    // Classification is unchanged: a plain Error carrying the same message
+    // through the same wrapper lands on the same category.
+    const plain = composeGenerationFailureResult(
+      buildOptions(
+        new RetryError(
+          'LLM invocation (openrouter/auto) failed',
+          1,
+          new Error(ERROR_MESSAGES.EMPTY_RESPONSE)
+        )
+      )
+    );
+    expect(result.result?.errorInfo?.category).toBe(plain.result?.errorInfo?.category);
+  });
+
+  it("lands the routed model on the real collector's assembled llmResponse payload", () => {
+    // Acceptance test at the collector seam: runs the REAL DiagnosticCollector
+    // (not the mocked one buildOptions constructs elsewhere) so a wiring break
+    // between the composer and the persisted record cannot pass.
+    const collector = new DiagnosticCollector({
+      requestId: 'req-1',
+      personalityId: 'personality-uuid-456',
+      personalityName: 'Test Personality',
+      personalityOwnerDiscordId: '777777777777777777',
+      userId: '123456789',
+      guildId: '987654321',
+      channelId: '111222333',
+    });
+    const options = {
+      ...buildOptions(
+        new RetryError(
+          'LLM invocation (openrouter/auto) failed',
+          1,
+          new LlmResponseError(ERROR_MESSAGES.EMPTY_RESPONSE, {
+            routedModel: 'deepseek/deepseek-v3.2',
+            finishReason: 'stop',
+          })
+        )
+      ),
+      diagnosticCollector: collector,
+    };
+
+    composeGenerationFailureResult(options);
+
+    const payload = collector.finalize();
+    expect(payload.llmResponse.routedModel).toBe('deepseek/deepseek-v3.2');
+    expect(payload.llmResponse.finishReason).toBe('stop');
   });
 });

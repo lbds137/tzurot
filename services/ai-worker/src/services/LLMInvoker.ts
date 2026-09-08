@@ -32,6 +32,7 @@ import {
   type ModelConfig,
 } from './ModelFactory.js';
 import { extractAndPopulateOpenRouterReasoning } from './modelFactory/extractOpenRouterReasoning.js';
+import { LlmResponseError } from './LlmResponseError.js';
 import { withRetry, RetryError } from '../utils/retry.js';
 import { invokeModelGuarded } from '../utils/invokeModelGuarded.js';
 import { isCausePrecedenceFailure } from './quotaFallback.js';
@@ -514,13 +515,17 @@ export class LLMInvoker {
     // thrown message is STABLE (see ERROR_MESSAGES.PROVIDER_ERROR_FINISH);
     // the provider's own failure detail rides this warn log.
     if (finishReason === FINISH_REASONS.ERROR) {
-      const providerErrorFailure = new Error(ERROR_MESSAGES.PROVIDER_ERROR_FINISH);
+      const diagnostics = this.extractResponseDiagnostics(response);
+      const providerErrorFailure = new LlmResponseError(ERROR_MESSAGES.PROVIDER_ERROR_FINISH, {
+        routedModel: diagnostics.routedModel,
+        finishReason: diagnostics.finishReason,
+      });
       logger.warn(
         {
           err: providerErrorFailure,
           modelName,
           providerErrorDetail: this.extractProviderErrorDetail(response),
-          ...this.extractResponseDiagnostics(response),
+          ...diagnostics,
         },
         'Provider reported an error finish_reason, treating as retryable error'
       );
@@ -539,12 +544,16 @@ export class LLMInvoker {
         : '';
 
     if (!content) {
-      const emptyResponseError = new Error(ERROR_MESSAGES.EMPTY_RESPONSE);
+      const diagnostics = this.extractResponseDiagnostics(response);
+      const emptyResponseError = new LlmResponseError(ERROR_MESSAGES.EMPTY_RESPONSE, {
+        routedModel: diagnostics.routedModel,
+        finishReason: diagnostics.finishReason,
+      });
       logger.warn(
         {
           err: emptyResponseError,
           modelName,
-          ...this.extractResponseDiagnostics(response),
+          ...diagnostics,
         },
         'Empty response detected, treating as retryable error'
       );
@@ -554,7 +563,11 @@ export class LLMInvoker {
     // Guard against censored responses (Gemini models sometimes return just "ext")
     // Treat this as a retryable error - it may succeed on retry
     if (content === ERROR_MESSAGES.CENSORED_RESPONSE_TEXT) {
-      const censoredResponseError = new Error(ERROR_MESSAGES.CENSORED_RESPONSE);
+      const diagnostics = this.extractResponseDiagnostics(response);
+      const censoredResponseError = new LlmResponseError(ERROR_MESSAGES.CENSORED_RESPONSE, {
+        routedModel: diagnostics.routedModel,
+        finishReason: diagnostics.finishReason,
+      });
       // Extract provider from modelName (format: "provider/model-name")
       const provider = modelName.includes('/') ? modelName.split('/')[0] : 'unknown';
       logger.warn(
@@ -563,6 +576,7 @@ export class LLMInvoker {
           modelName,
           provider,
           responseContent: content,
+          ...diagnostics,
         },
         'LLM censored response detected, treating as retryable error'
       );
@@ -658,7 +672,9 @@ export class LLMInvoker {
    * and additional_kwargs, token usage from the normalized usage_metadata, and
    * the routed model id the OpenRouter extractor captured.
    */
-  private extractResponseDiagnostics(response: BaseMessage): Record<string, unknown> {
+  private extractResponseDiagnostics(
+    response: BaseMessage
+  ): Record<string, unknown> & { finishReason: string; routedModel: string | undefined } {
     const metadata = (response as { response_metadata?: Record<string, unknown> })
       .response_metadata;
     const additionalKwargs = (response as { additional_kwargs?: Record<string, unknown> })

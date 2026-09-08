@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker, defaultRateLimitResetMs } from './LLMInvoker.js';
+import { LlmResponseError } from './LlmResponseError.js';
 import { RetryError } from '../utils/retry.js';
 import { parseApiError } from '../utils/apiErrorParser.js';
 import { classifyQuotaFailure } from './quotaFallback.js';
@@ -1068,10 +1069,14 @@ describe('LLMInvoker', () => {
     });
 
     describe('routed model attribution on the retryable-throw warns', () => {
-      // Both warns throw plain Errors, so the log payload is the ONLY place the
-      // routed model survives. For a router alias (openrouter/auto) modelName is
-      // the alias, so without routedModel a prod empty_response cannot name the
-      // model that actually failed. extractAndPopulateOpenRouterReasoning is
+      // These sites throw a typed LlmResponseError that carries the routed
+      // model + finish reason to the failure composer, and from there into
+      // the persisted diagnostic record /inspect reads — the throw is now the
+      // attribution path a downstream consumer can rely on. The warn log
+      // remains the prod attribution path for the log-grep workflow, since it
+      // still carries the same fields. For a router alias (openrouter/auto)
+      // modelName is the alias, so without routedModel a prod empty_response
+      // cannot name the model that actually failed. extractAndPopulateOpenRouterReasoning is
       // mocked to a pass-through here, so these fixtures carry the
       // post-extraction state the helper would have written.
       it('carries routedModel on the empty-response warn', async () => {
@@ -1085,14 +1090,23 @@ describe('LLMInvoker', () => {
           })
         );
 
-        await expect(
-          invoker.invokeWithRetry({
+        const rejection = await invoker
+          .invokeWithRetry({
             model: mockModel,
             messages: [new HumanMessage('Hello')],
             modelName: 'openrouter/auto',
             maxAttempts: 1,
           })
-        ).rejects.toThrow();
+          .then(
+            () => undefined,
+            (err: unknown) => err
+          );
+
+        expect(rejection).toBeInstanceOf(RetryError);
+        const lastError = (rejection as RetryError).lastError;
+        expect(lastError).toBeInstanceOf(LlmResponseError);
+        expect((lastError as LlmResponseError).routedModel).toBe('deepseek/deepseek-v3.2');
+        expect((lastError as LlmResponseError).finishReason).toBe('stop');
 
         const emptyLog = mockLoggerWarn.mock.calls.find(call =>
           (call[1] as string)?.includes('Empty response')
@@ -1117,14 +1131,23 @@ describe('LLMInvoker', () => {
           })
         );
 
-        await expect(
-          invoker.invokeWithRetry({
+        const rejection = await invoker
+          .invokeWithRetry({
             model: mockModel,
             messages: [new HumanMessage('Hello')],
             modelName: 'openrouter/auto',
             maxAttempts: 1,
           })
-        ).rejects.toThrow();
+          .then(
+            () => undefined,
+            (err: unknown) => err
+          );
+
+        expect(rejection).toBeInstanceOf(RetryError);
+        const lastError = (rejection as RetryError).lastError;
+        expect(lastError).toBeInstanceOf(LlmResponseError);
+        expect((lastError as LlmResponseError).routedModel).toBe('deepseek/deepseek-v3.2');
+        expect((lastError as LlmResponseError).finishReason).toBe('error');
 
         const providerErrorLog = mockLoggerWarn.mock.calls.find(call =>
           (call[1] as string)?.includes('error finish_reason')
@@ -1147,20 +1170,69 @@ describe('LLMInvoker', () => {
           })
         );
 
-        await expect(
-          invoker.invokeWithRetry({
+        const rejection = await invoker
+          .invokeWithRetry({
             model: mockModel,
             messages: [new HumanMessage('Hello')],
             modelName: 'google/gemini-pro',
             maxAttempts: 1,
           })
-        ).rejects.toThrow();
+          .then(
+            () => undefined,
+            (err: unknown) => err
+          );
+
+        expect(rejection).toBeInstanceOf(RetryError);
+        const lastError = (rejection as RetryError).lastError;
+        expect(lastError).toBeInstanceOf(LlmResponseError);
+        expect((lastError as LlmResponseError).routedModel).toBeUndefined();
+        expect((lastError as LlmResponseError).finishReason).toBe('stop');
 
         const emptyLog = mockLoggerWarn.mock.calls.find(call =>
           (call[1] as string)?.includes('Empty response')
         );
         expect(emptyLog?.[0]).toBeDefined();
         expect((emptyLog?.[0] as Record<string, unknown>).routedModel).toBeUndefined();
+      });
+
+      it('carries routedModel and finishReason on the censored-response warn', async () => {
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
+            content: ERROR_MESSAGES.CENSORED_RESPONSE_TEXT,
+            response_metadata: {
+              finish_reason: 'stop',
+              openrouter: { model: 'deepseek/deepseek-v3.2' },
+            },
+          })
+        );
+
+        const rejection = await invoker
+          .invokeWithRetry({
+            model: mockModel,
+            messages: [new HumanMessage('Hello')],
+            modelName: 'openrouter/auto',
+            maxAttempts: 1,
+          })
+          .then(
+            () => undefined,
+            (err: unknown) => err
+          );
+
+        expect(rejection).toBeInstanceOf(RetryError);
+        const lastError = (rejection as RetryError).lastError;
+        expect(lastError).toBeInstanceOf(LlmResponseError);
+        expect((lastError as LlmResponseError).routedModel).toBe('deepseek/deepseek-v3.2');
+        expect((lastError as LlmResponseError).finishReason).toBe('stop');
+
+        const censoredLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('censored response')
+        );
+        expect(censoredLog?.[0]).toMatchObject({
+          modelName: 'openrouter/auto',
+          routedModel: 'deepseek/deepseek-v3.2',
+          provider: 'openrouter',
+          responseContent: ERROR_MESSAGES.CENSORED_RESPONSE_TEXT,
+        });
       });
     });
 
