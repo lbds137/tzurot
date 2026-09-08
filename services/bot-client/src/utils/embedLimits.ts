@@ -10,30 +10,20 @@
  * a PREVIEW should show is the caller's judgment, this is the safety net.
  */
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { truncateToUtf16Units } from '@tzurot/common-types/utils/codePointTruncation';
 
 /**
  * Clamp text to an embed cap, marking the cut with an ellipsis.
  *
  * Measured in UTF-16 code units on purpose — discord.js validates `.length`,
- * so a code-point cap could still admit a string that throws. The one
- * code-unit hazard is cutting INSIDE a surrogate pair, which leaves a broken
- * glyph before the ellipsis; the trailing high surrogate is dropped instead.
+ * so a code-point cap could still admit a string that throws. The
+ * surrogate-safe cut itself is delegated to the shared
+ * `truncateToUtf16Units` helper.
  */
 export function clampEmbedText(text: string, max: number): string {
-  // A non-positive cap has no room for content OR the ellipsis; empty is the
-  // only honest output (slice with a negative end would wrap around).
-  if (max <= 0) {
-    return '';
-  }
-  if (text.length <= max) {
-    return text;
-  }
-  let cut = text.slice(0, max - 1);
-  const last = cut.charCodeAt(cut.length - 1);
-  if (last >= 0xd800 && last <= 0xdbff) {
-    cut = cut.slice(0, -1);
-  }
-  return `${cut}\u2026`;
+  // A non-positive cap yields the empty string through the helper's own floor
+  // (the budget cannot fit the ellipsis); pinned in embedLimits.test.ts.
+  return truncateToUtf16Units(text, max, '\u2026');
 }
 
 export const EMBED_CAPS = {

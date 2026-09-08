@@ -12,7 +12,7 @@ import {
   ActionRowBuilder,
   type ModalActionRowComponentBuilder,
 } from 'discord.js';
-import { truncateByCodePoints } from '../../modal/toolkit.js';
+import { truncateByCodePoints } from '@tzurot/common-types/utils/codePointTruncation';
 import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
 import { type SettingDefinition, buildSettingsCustomId, SettingType } from './types.js';
 

@@ -6,6 +6,7 @@
  */
 
 import { MAX_SELECT_LABEL_LENGTH, MAX_SELECT_DESCRIPTION_LENGTH } from './constants.js';
+import { truncateToUtf16Units } from '@tzurot/common-types/utils/codePointTruncation';
 
 /** Options for truncateForSelect */
 interface TruncateOptions {
@@ -45,10 +46,10 @@ export function truncateForSelect(
   // Strip newlines if requested
   const processedText = options.stripNewlines === true ? text.replace(/\n+/g, ' ').trim() : text;
 
-  if (processedText.length <= maxLength) {
-    return processedText;
-  }
-  return processedText.substring(0, maxLength - 3) + '...';
+  // Budget is UTF-16 units, not code points, because Discord validates
+  // `.length` on select labels/descriptions — a code-point cut could still
+  // admit an emoji-dense label that throws past the actual ceiling.
+  return truncateToUtf16Units(processedText, maxLength, '...');
 }
 
 /**

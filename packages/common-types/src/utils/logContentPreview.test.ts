@@ -56,6 +56,31 @@ describe('contentPreview', () => {
       expect(result).toBe('abcde...');
       expect(result?.length).toBe(5 + 3);
     });
+
+    it('counts the cap in code points, not UTF-16 units, for astral text', () => {
+      setConfig('development', true);
+      // 12 butterflies = 24 UTF-16 units, so a unit-based cut at 10 keeps
+      // only 5 of them.
+      const text = '🦋'.repeat(12);
+      const result = contentPreview(text, 10);
+
+      expect(result).toBe('🦋'.repeat(10) + '...');
+      expect([...(result ?? '')].length).toBe(10 + 3);
+    });
+
+    it('never emits a lone surrogate when the cap falls mid-pair in UTF-16', () => {
+      setConfig('development', true);
+      // An odd cap is where a unit-based cut splits a pair: `.substring(0, 9)`
+      // over butterflies keeps 4 whole ones plus a dangling high surrogate.
+      const text = '🦋'.repeat(12);
+      const result = contentPreview(text, 9);
+
+      expect(result).toBe('🦋'.repeat(9) + '...');
+      // No unpaired high surrogate (a high surrogate not followed by a low one).
+      expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(result ?? '')).toBe(false);
+      // No unpaired low surrogate (a low surrogate not preceded by a high one).
+      expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(result ?? '')).toBe(false);
+    });
   });
 
   describe('with previews OFF', () => {

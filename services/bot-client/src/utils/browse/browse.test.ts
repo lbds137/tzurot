@@ -85,6 +85,24 @@ describe('truncateForSelect', () => {
     const result = truncateForSelect('  Text\n  ', { stripNewlines: true });
     expect(result).toBe('Text');
   });
+
+  it('should not split a surrogate pair at the default select-label cap', () => {
+    // 96 ASCII units + 5 butterflies (10 units) = 106 units. The ellipsis is
+    // charged against the 100-unit ceiling, so the raw cut lands at unit 97 —
+    // the HIGH surrogate of the first butterfly, mid-pair.
+    const label = 'a'.repeat(96) + '🦋'.repeat(5);
+    expect(label.length).toBe(106);
+    const result = truncateForSelect(label);
+
+    expect(result.length).toBeLessThanOrEqual(MAX_SELECT_LABEL_LENGTH);
+    expect(result.endsWith('...')).toBe(true);
+    // No unpaired high surrogate (a high surrogate not followed by a low one).
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(result)).toBe(false);
+    // No unpaired low surrogate (a low surrogate not preceded by a high one).
+    expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(result)).toBe(false);
+    // Pins the back-off firing: the dangling surrogate is dropped, not kept.
+    expect(result).toBe('a'.repeat(96) + '...');
+  });
 });
 
 describe('truncateForDescription', () => {

@@ -17,8 +17,10 @@
  *   read them via `interaction.fields.getUploadedFiles`).
  * - `validateSubmission` — text-kind length/required rules, mirroring the
  *   dashboard ModalFactory's contract.
- * - `truncateByCodePoints` — the shared prefill-truncation helper (cuts by
- *   code point so a surrogate pair never splits at the cap).
+ *
+ * Prefill truncation itself lives in the shared `codePointTruncation`
+ * module, not here — it has no discord.js dependency and other callers
+ * outside the modal system need it too.
  */
 
 import {
@@ -36,6 +38,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
+import { truncateByCodePoints } from '@tzurot/common-types/utils/codePointTruncation';
 import type { FieldDefinition } from '../dashboard/types.js';
 import type {
   BuildToolkitModalOptions,
@@ -50,16 +53,6 @@ import type {
   SubmissionValue,
   TextModalField,
 } from './types.js';
-
-/**
- * Truncate to `max` code points — safe for astral-plane characters
- * (emoji, some CJK) that a UTF-16 `.slice` would cut mid-surrogate. No
- * ellipsis: callers truncate EDITABLE prefill content, not display text.
- */
-export function truncateByCodePoints(value: string, max: number): string {
-  const codePoints = [...value];
-  return codePoints.length > max ? codePoints.slice(0, max).join('') : value;
-}
 
 /**
  * Adapt a dashboard `FieldDefinition` to a text field. Bridges existing
