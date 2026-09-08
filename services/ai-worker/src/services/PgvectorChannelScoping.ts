@@ -17,12 +17,38 @@ export type QueryMemoriesFn = (
 ) => Promise<PgvectorMemoryDocument[]>;
 
 /**
+ * Collapse documents that share a memory id, keeping the first occurrence.
+ *
+ * Documents whose metadata carries no id cannot be keyed and are passed
+ * through untouched. Pinned by the `duplicate suppression` tests.
+ */
+function dedupeById(documents: PgvectorMemoryDocument[]): PgvectorMemoryDocument[] {
+  const seenIds = new Set<string>();
+  const deduped: PgvectorMemoryDocument[] = [];
+
+  for (const doc of documents) {
+    const id = doc.metadata?.id as string | null | undefined;
+    if (id === undefined || id === null) {
+      deduped.push(doc);
+      continue;
+    }
+    if (seenIds.has(id)) {
+      continue;
+    }
+    seenIds.add(id);
+    deduped.push(doc);
+  }
+
+  return deduped;
+}
+
+/**
  * Query memories with channel scoping using the "waterfall" method
  *
  * When channelIds are provided, this method:
  * 1. First queries memories from the specified channels (up to channelBudgetRatio of limit)
  * 2. Then backfills with global semantic search (excluding already-found IDs)
- * 3. Returns combined results with channel-scoped memories first
+ * 3. Returns the union deduplicated by memory id, channel-scoped memories first
  *
  * This ensures users get relevant channel-specific context when they reference
  * channels (e.g., "remember what we talked about in #gaming") while still
@@ -31,7 +57,8 @@ export type QueryMemoriesFn = (
  * @param queryFn - The underlying query function to delegate to
  * @param query - The search query text
  * @param options - Query options including channelIds for scoping
- * @returns Combined memories from channel-scoped and global searches
+ * @returns Combined memories from channel-scoped and global searches,
+ *          deduplicated by memory id with the channel-scoped instance kept
  */
 export async function waterfallMemoryQuery(
   queryFn: QueryMemoriesFn,
@@ -131,12 +158,18 @@ export async function waterfallMemoryQuery(
     }
   }
 
-  // Step 4: Combine results (channel-scoped first for prominence)
+  // Step 4: Combine results (channel-scoped first for prominence), collapsing
+  // any memory returned by both passes. Each pass expands sibling chunks with
+  // its own seen-id set, and excludeIds reaches only the vector WHERE clause,
+  // so the same memory can arrive twice when both passes carry the same chunk
+  // group.
   const combinedResults = [...channelResults, ...globalResults];
+  const deduped = dedupeById(combinedResults);
 
   logger.info(
     {
-      totalResults: combinedResults.length,
+      duplicatesDropped: combinedResults.length - deduped.length,
+      totalResults: deduped.length,
       channelScoped: channelResults.length,
       globalBackfill: globalResults.length,
       channelIds: validChannelIds,
@@ -144,5 +177,5 @@ export async function waterfallMemoryQuery(
     'Waterfall query complete'
   );
 
-  return combinedResults;
+  return deduped;
 }
