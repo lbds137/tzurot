@@ -14,6 +14,7 @@
  */
 
 import type { Message, DMChannel } from 'discord.js';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
@@ -304,11 +305,12 @@ export class DMSessionProcessor implements IMessageProcessor {
    */
   private async sendHelpMessage(message: Message): Promise<void> {
     try {
+      const mentionChar = getConfig().BOT_MENTION_CHAR;
       const helpMsg = await message.reply({
         content: `**No active conversation**
 
 To start chatting, mention a character:
-\`@character_name hello\`
+\`${mentionChar}character_name hello\`
 
 Or reply to any of my previous messages.`,
       });

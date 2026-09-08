@@ -23,7 +23,7 @@ import {
   evaluateNsfwGate,
   sendVerificationConfirmation,
   trackPendingVerificationMessage,
-  NSFW_VERIFICATION_MESSAGE,
+  nsfwVerificationMessage,
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
 } from '../../utils/nsfwVerification.js';
 
@@ -76,7 +76,7 @@ export async function runSlashChatGates(
     const content =
       nsfw.reason === 'check-failed'
         ? NSFW_VERIFICATION_CHECK_FAILED_MESSAGE
-        : NSFW_VERIFICATION_MESSAGE;
+        : nsfwVerificationMessage();
     const reply = await context.editReply({ content });
     if (nsfw.reason === 'not-verified') {
       logger.info(

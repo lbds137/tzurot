@@ -25,12 +25,30 @@ vi.mock('./gatewayClients.js', () => ({
   clientsForUser: clientsForUserMock,
 }));
 
+const mockConfig = {
+  BOT_MENTION_CHAR: '@',
+};
+
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    // Layer the mutable override on top of the real config rather than
+    // replacing it outright — this module is also `../redis.js`'s config
+    // source (via the shared `config/index.js` re-export), and a bare
+    // `{ BOT_MENTION_CHAR }` stub starves it of `REDIS_URL`.
+    getConfig: () => ({ ...actual.getConfig(), ...mockConfig }),
+  };
+});
+
 const {
   checkNsfwVerification,
   verifyNsfwUser,
   isNsfwChannel,
   isDMChannel,
-  NSFW_VERIFICATION_MESSAGE,
+  nsfwVerificationMessage,
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
   handleNsfwVerification,
   sendNsfwVerificationMessage,
@@ -324,16 +342,31 @@ describe('NSFW Verification Utilities', () => {
     });
   });
 
-  describe('NSFW_VERIFICATION_MESSAGE', () => {
+  describe('nsfwVerificationMessage', () => {
     it('should contain key information', () => {
-      expect(NSFW_VERIFICATION_MESSAGE).toContain('Age Verification');
-      expect(NSFW_VERIFICATION_MESSAGE).toContain('NSFW');
-      expect(NSFW_VERIFICATION_MESSAGE).toContain('@character_name');
-      expect(NSFW_VERIFICATION_MESSAGE).toContain('18+');
+      expect(nsfwVerificationMessage()).toContain('Age Verification');
+      expect(nsfwVerificationMessage()).toContain('NSFW');
+      expect(nsfwVerificationMessage()).toContain('@character_name');
+      expect(nsfwVerificationMessage()).toContain('18+');
       // Both verification paths must be documented: personality ping AND direct bot ping.
       // The direct-ping path is what BotMentionProcessor's handleNsfwVerification wiring
       // produces; the personality ping is the original webhook trigger.
-      expect(NSFW_VERIFICATION_MESSAGE).toContain('ping me directly');
+      expect(nsfwVerificationMessage()).toContain('ping me directly');
+    });
+
+    it('should use the configured mention character', () => {
+      mockConfig.BOT_MENTION_CHAR = '&';
+
+      try {
+        const message = nsfwVerificationMessage();
+
+        expect(message).toContain('&character_name');
+        expect(message).not.toContain('@character_name');
+      } finally {
+        // Restore in finally so a failed assertion can't leak the mutation
+        // into later tests (the mockConfig object is shared file-wide).
+        mockConfig.BOT_MENTION_CHAR = '@';
+      }
     });
   });
 
@@ -348,7 +381,7 @@ describe('NSFW Verification Utilities', () => {
 
       await sendNsfwVerificationMessage(mockMessage);
 
-      expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_MESSAGE);
+      expect(mockMessage.reply).toHaveBeenCalledWith(nsfwVerificationMessage());
     });
 
     it('should handle reply failure gracefully', async () => {
@@ -453,7 +486,7 @@ describe('NSFW Verification Utilities', () => {
       expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
       // Must NOT send the full verification education message — a previously
       // verified user shouldn't be re-onboarded because of a transient blip.
-      expect(mockMessage.reply).not.toHaveBeenCalledWith(NSFW_VERIFICATION_MESSAGE);
+      expect(mockMessage.reply).not.toHaveBeenCalledWith(nsfwVerificationMessage());
     });
 
     it('should block unverified user in non-NSFW channel and send message', async () => {
@@ -477,7 +510,7 @@ describe('NSFW Verification Utilities', () => {
       const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: false, wasNewVerification: false });
-      expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_MESSAGE);
+      expect(mockMessage.reply).toHaveBeenCalledWith(nsfwVerificationMessage());
     });
 
     it('should auto-verify in thread with NSFW parent', async () => {
