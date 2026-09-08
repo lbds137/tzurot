@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
+import { ButtonStyle, EmbedBuilder, MessageFlags, escapeMarkdown } from 'discord.js';
 import type {
   APIButtonComponentWithCustomId,
   ButtonInteraction,
@@ -603,5 +603,25 @@ describe('createHardDeleteConfig', () => {
 
     expect(config.confirmationPhrase).toBe('DELETE MY ACCOUNT');
     expect(config.warningDescription).toContain('`DELETE MY ACCOUNT`');
+  });
+
+  it('escapes markdown in the displayed name while leaving the typed phrase raw', () => {
+    // Short enough that the dynamic phrase stays under the typeable-length cap,
+    // so the phrase assertion below pins the raw form rather than the fallback.
+    const entityName = '**b** _i_ [x](https://e.co)';
+    const config = createHardDeleteConfig({
+      entityType: 'conversation history',
+      entityName,
+      additionalWarning: 'Permanent!',
+      source: 'history',
+      operation: 'hard-delete',
+      entityId: 'e|555',
+    });
+
+    expect(config.warningDescription).toContain(escapeMarkdown(entityName, { maskedLink: true }));
+    expect(config.warningDescription).not.toContain('**b**');
+    // The typed phrase is a plain-text surface — escaping it would change what
+    // the user must type to confirm.
+    expect(config.confirmationPhrase).toBe('DELETE **B** _I_ [X](HTTPS://E.CO)');
   });
 });

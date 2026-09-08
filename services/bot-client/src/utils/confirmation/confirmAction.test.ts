@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ButtonStyle } from 'discord.js';
+import { ButtonStyle, escapeMarkdown } from 'discord.js';
 import type { APIButtonComponentWithCustomId } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { buildConfirmAction, buildDeleteConfirmation } from './confirmAction.js';
@@ -83,6 +83,14 @@ describe('buildDeleteConfirmation', () => {
     expect(embed.data.title).toBe('🗑️ Delete Persona?');
     expect(embed.data.description).toContain('**My Persona**');
     expect(embed.data.description).toContain('This action cannot be undone.');
+  });
+
+  it('escapes markdown in the entity name so it renders literally', () => {
+    const entityName = '**bold** _it_ [x](https://e.example)';
+    const { embed } = buildDeleteConfirmation({ ...baseOptions, entityName });
+
+    expect(embed.data.description).toContain(escapeMarkdown(entityName, { maskedLink: true }));
+    expect(embed.data.description).not.toContain('**bold**');
   });
 
   it('appends the additional warning and deleted-items list', () => {
