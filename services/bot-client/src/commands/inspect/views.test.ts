@@ -497,6 +497,64 @@ describe('buildMemoryInspectorView', () => {
       expect(text).not.toContain('p3');
     });
   });
+
+  describe('drop attribution', () => {
+    it('attributes all drops to dedup when the budget manager dropped none', () => {
+      const payload = createMockPayload();
+      payload.memoryRetrieval.memoriesFound = Array.from({ length: 3 }, (_, i) => ({
+        id: `mem-${i}`,
+        score: 0.9,
+        preview: `p${i}`,
+        includedInPrompt: false,
+      }));
+      payload.tokenBudget.memoriesDropped = 0;
+      const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX);
+      const retrieved = result.embeds![0].data.fields?.find(f => f.name === 'Retrieved');
+      expect(retrieved?.value).toContain('0 dropped for budget · 3 already in history');
+    });
+
+    it('attributes all drops to budget when the dedup gap is zero', () => {
+      const payload = createMockPayload();
+      payload.memoryRetrieval.memoriesFound = Array.from({ length: 3 }, (_, i) => ({
+        id: `mem-${i}`,
+        score: 0.9,
+        preview: `p${i}`,
+        includedInPrompt: false,
+      }));
+      payload.tokenBudget.memoriesDropped = 3;
+      const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX);
+      const retrieved = result.embeds![0].data.fields?.find(f => f.name === 'Retrieved');
+      expect(retrieved?.value).toContain('3 dropped for budget · 0 already in history');
+    });
+
+    it('splits drops between budget and dedup when both contribute', () => {
+      const payload = createMockPayload();
+      payload.memoryRetrieval.memoriesFound = [
+        { id: 'mem-0', score: 0.9, preview: 'p0', includedInPrompt: true },
+        { id: 'mem-1', score: 0.9, preview: 'p1', includedInPrompt: false },
+        { id: 'mem-2', score: 0.9, preview: 'p2', includedInPrompt: false },
+        { id: 'mem-3', score: 0.9, preview: 'p3', includedInPrompt: false },
+      ];
+      payload.tokenBudget.memoriesDropped = 2;
+      const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX);
+      const retrieved = result.embeds![0].data.fields?.find(f => f.name === 'Retrieved');
+      expect(retrieved?.value).toContain('2 dropped for budget · 1 already in history');
+    });
+
+    it('clamps the dedup count at zero when the payload reports more budget drops than the gap allows', () => {
+      const payload = createMockPayload();
+      payload.memoryRetrieval.memoriesFound = Array.from({ length: 2 }, (_, i) => ({
+        id: `mem-${i}`,
+        score: 0.9,
+        preview: `p${i}`,
+        includedInPrompt: false,
+      }));
+      payload.tokenBudget.memoriesDropped = 5;
+      const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX);
+      const retrieved = result.embeds![0].data.fields?.find(f => f.name === 'Retrieved');
+      expect(retrieved?.value).toContain('5 dropped for budget · 0 already in history');
+    });
+  });
 });
 
 describe('buildTokenBudgetView', () => {

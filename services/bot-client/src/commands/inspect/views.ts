@@ -350,9 +350,14 @@ export function buildMemoryInspectorView(
   const memories = applyTopN(sorted, state.topN);
 
   const includedTotal = allMemories.filter(m => m.includedInPrompt).length;
-  // Budget drops happened over the full unfiltered retrieval, not the filtered
-  // view — hence allMemories rather than memories.
-  const budgetDropped = allMemories.length - includedTotal;
+  // `memoriesDropped` is the budget manager's count over the ALREADY-DEDUPED
+  // candidate list (ContentBudgetManager.selectMemories takes dedupedMemories),
+  // so the remaining gap between found and included is the STM/LTM dedup —
+  // memories already shipped as conversation history. Both counts are taken
+  // over the full unfiltered retrieval, not the filtered view. The clamp
+  // guards a payload whose two counts disagree; it is not expected to fire.
+  const budgetDropped = tokenBudget.memoriesDropped;
+  const dedupDropped = Math.max(0, allMemories.length - includedTotal - budgetDropped);
 
   const lines: string[] = [
     `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : UX_SENTINELS.NOT_SET} · **Fresh:** ${memoryRetrieval.freshModeEnabled ? 'on' : 'off'}`,
@@ -386,7 +391,7 @@ export function buildMemoryInspectorView(
   if (allMemories.length > 0) {
     embed.addFields({
       name: 'Retrieved',
-      value: `${allMemories.length} total · ${includedTotal} included · showing ${memories.length}\n${tokenBudget.memoryTokensUsed} tokens allocated · ${budgetDropped} dropped for budget`,
+      value: `${allMemories.length} total · ${includedTotal} included · showing ${memories.length}\n${tokenBudget.memoryTokensUsed} tokens allocated · ${budgetDropped} dropped for budget · ${dedupDropped} already in history`,
       inline: false,
     });
   }
