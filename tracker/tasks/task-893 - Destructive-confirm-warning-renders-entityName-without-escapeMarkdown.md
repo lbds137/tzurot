@@ -1,9 +1,10 @@
 ---
 id: TASK-893
 title: Destructive-confirm warning renders entityName without escapeMarkdown
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-05 03:44'
+updated_date: '2026-09-08 12:41'
 labels:
   - 'area:bot-client'
   - 'size:S'
