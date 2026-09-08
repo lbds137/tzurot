@@ -482,4 +482,67 @@ describe('waterfallMemoryQuery', () => {
       });
     });
   });
+
+  describe('duplicate suppression', () => {
+    it('should keep the channel-pass instance when both passes carry the same chunk group', async () => {
+      const channelResults: PgvectorMemoryDocument[] = [
+        {
+          pageContent: 'chunk a',
+          metadata: { id: 'mem-a', chunkGroupId: 'grp-1', chunkIndex: 0 },
+        },
+      ];
+      // The channel pass failed to expand grp-1, so the global pass hit another
+      // member and expanded the whole group, re-including mem-a.
+      const globalResults: PgvectorMemoryDocument[] = [
+        {
+          pageContent: 'chunk c',
+          metadata: { id: 'mem-c', chunkGroupId: 'grp-1', chunkIndex: 1 },
+        },
+        {
+          pageContent: 'chunk a (global copy)',
+          metadata: { id: 'mem-a', chunkGroupId: 'grp-1', chunkIndex: 0 },
+        },
+      ];
+
+      mockQueryFn.mockResolvedValueOnce(channelResults).mockResolvedValueOnce(globalResults);
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+      };
+      const result = await waterfallMemoryQuery(mockQueryFn, 'test query', options);
+
+      expect(result).toHaveLength(2);
+      expect(result.map(r => r.metadata?.id)).toEqual(['mem-a', 'mem-c']);
+      // The survivor is the channel-pass object itself, not the global copy
+      expect(result[0]).toBe(channelResults[0]);
+    });
+
+    it('should keep id-less documents from both passes while collapsing the repeated id', async () => {
+      const channelResults: PgvectorMemoryDocument[] = [
+        { pageContent: 'channel no id', metadata: { id: null as unknown as string } },
+        { pageContent: 'channel with id', metadata: { id: 'ch-1' } },
+      ];
+      const globalResults: PgvectorMemoryDocument[] = [
+        { pageContent: 'global no id', metadata: {} },
+        { pageContent: 'global duplicate', metadata: { id: 'ch-1' } },
+      ];
+
+      mockQueryFn.mockResolvedValueOnce(channelResults).mockResolvedValueOnce(globalResults);
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+      };
+      const result = await waterfallMemoryQuery(mockQueryFn, 'test query', options);
+
+      // Both id-less documents survive; the repeated 'ch-1' collapses to one
+      expect(result).toHaveLength(3);
+      expect(result.map(r => r.pageContent)).toEqual([
+        'channel no id',
+        'channel with id',
+        'global no id',
+      ]);
+    });
+  });
 });

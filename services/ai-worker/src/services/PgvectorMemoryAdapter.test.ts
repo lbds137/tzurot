@@ -798,14 +798,48 @@ describe('PgvectorMemoryAdapter', () => {
       });
 
       const resultIds = result.map(d => d.metadata?.id as string);
-      // Confirm the straddle actually happened in this fixture (mem-a
-      // returned by both passes) before trusting the stamp assertion below.
-      expect(new Set(resultIds).size).toBeLessThan(resultIds.length);
+      // Four raw queries = a primary plus a sibling expansion per pass, so both
+      // passes expanded group G and both therefore carried mem-a. The union the
+      // waterfall returns is nonetheless unique — the straddling memory appears
+      // once — which is what makes the stamp assertions below meaningful.
+      expect(queryRawMock).toHaveBeenCalledTimes(4);
+      expect(new Set(resultIds).size).toBe(resultIds.length);
 
       expect(executeRawMock).toHaveBeenCalledTimes(1);
       const [, idsArg] = executeRawMock.mock.calls[0] as [TemplateStringsArray, string[]];
       expect(new Set(idsArg).size).toBe(idsArg.length);
       expect([...idsArg].sort()).toEqual(['mem-a', 'mem-b', 'mem-c']);
+    });
+
+    it('MEM-ARCH-028: the stamp collapses a repeated id in the waterfall union', async () => {
+      // With no channelIds the waterfall short-circuits to a single pass and
+      // returns that pass's documents verbatim, so a repeated row reaches the
+      // stamp undeduplicated. That isolates the uniquing in `collectRetrievalIds`
+      // from the waterfall's — either one alone must still stamp each id once.
+      const rowA = buildRow({ id: 'mem-a', chunk_group_id: 'group-g', chunk_index: 0 });
+      const rowB = buildRow({ id: 'mem-b', chunk_group_id: 'group-g', chunk_index: 1 });
+
+      const executeRawMock = vi.fn().mockResolvedValue(undefined);
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([rowA, rowA, rowB]),
+        $executeRaw: executeRawMock,
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemoriesWithChannelScoping('test query', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      // Precondition: the union handed to the stamp really does repeat mem-a.
+      const resultIds = result.map(d => d.metadata?.id as string);
+      expect(resultIds).toEqual(['mem-a', 'mem-a', 'mem-b']);
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const [, idsArg] = executeRawMock.mock.calls[0] as [TemplateStringsArray, string[]];
+      expect(new Set(idsArg).size).toBe(idsArg.length);
+      expect([...idsArg].sort()).toEqual(['mem-a', 'mem-b']);
     });
   });
 });
