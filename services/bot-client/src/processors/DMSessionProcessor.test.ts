@@ -33,9 +33,26 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   checkNsfwVerification: vi.fn(),
   sendNsfwVerificationMessage: vi.fn().mockResolvedValue(undefined),
   trackPendingVerificationMessage: vi.fn(),
-  NSFW_VERIFICATION_MESSAGE: '**Age Verification Required**\n\nMocked message',
+  nsfwVerificationMessage: vi.fn(() => '**Age Verification Required**\n\nMocked message'),
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: "⚠️ Couldn't verify your age status right now.",
 }));
+
+const mockConfig = {
+  BOT_MENTION_CHAR: '@',
+};
+
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    // Layer the mutable override on top of the real config rather than
+    // replacing it outright, so BOT_MENTION_CHAR is the only field that
+    // differs from the env-derived config the rest of the graph sees.
+    getConfig: () => ({ ...actual.getConfig(), ...mockConfig }),
+  };
+});
 
 // The processor mints a UserClient via `clientsForUser(message.author)` to pass
 // into checkNsfwVerification. The real factory needs INTERNAL_SERVICE_SECRET
@@ -460,6 +477,28 @@ describe('DMSessionProcessor', () => {
       expect(message.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('@character_name'),
       });
+    });
+
+    it('should use the configured mention character in the help message', async () => {
+      mockConfig.BOT_MENTION_CHAR = '&';
+
+      try {
+        const channel = createMockDMChannel();
+        const message = createMockMessage({ channel });
+        vi.mocked(isDMChannel).mockReturnValue(true);
+
+        // Empty messages collection (no previous conversations)
+        const result = await processor.process(message);
+
+        expect(result).toBe(true);
+        expect(message.reply).toHaveBeenCalledWith({
+          content: expect.stringContaining('&character_name'),
+        });
+      } finally {
+        // Restore in finally so a failed assertion can't leak the mutation
+        // into later tests (the mockConfig object is shared file-wide).
+        mockConfig.BOT_MENTION_CHAR = '@';
+      }
     });
 
     it('should send help message when personality not accessible', async () => {
