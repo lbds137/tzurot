@@ -821,16 +821,12 @@ The `test:low-mem` command uses `--workspace-concurrency=1` to run one service a
 
 If memory issues persist, consider these additional strategies:
 
-#### 1. Vitest Workspaces (Single Process)
+#### 1. Vitest Projects (Single Process)
 
-Instead of 4 separate Vitest processes, use a single root instance:
-
-```typescript
-// vitest.workspace.ts (in project root)
-export default ['packages/*', 'services/*'];
-```
-
-Then run `vitest run` instead of pnpm filter. One process manages all tests, sharing the worker pool efficiently.
+Instead of 4 separate Vitest processes, use a single root instance with the
+`projects` option in `vitest.config.ts`. (Vitest 5 removed the older
+`vitest.workspace.ts` / `defineWorkspace` form — `projects` is the supported
+shape.) One process manages all tests, sharing the worker pool efficiently.
 
 #### 2. Node.js Memory Flags
 

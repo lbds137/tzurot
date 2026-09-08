@@ -29,7 +29,6 @@ const GLOBAL_TRIGGER_EXACT = new Set([
   'package.json',
   'turbo.json',
   'vitest.config.ts',
-  'vitest.workspace.ts',
   // pnpm's node_modules layout is load-bearing for Stryker's plugin
   // resolution (see the stryker.config.mjs plugin-glob note), and .npmrc
   // changes move neither turbo's affected set nor any package tree.

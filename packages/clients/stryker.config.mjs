@@ -15,9 +15,10 @@
  * report-only (no `break` threshold) — the ratchet semantics, grace margin,
  * and config-drift detection live in the checker.
  *
- * Run from this package: `pnpm test:mutation`. The vitest runner resolves the
- * repo-root vitest.config.ts by cwd, same as `pnpm test` does — including its
- * LOW_RESOURCE_MODE worker throttle.
+ * Run from this package: `pnpm test:mutation`. The vitest runner resolves this
+ * package's own vitest.config.ts by cwd, same as `pnpm test` does — and that
+ * config merges the repo-root one, including its LOW_RESOURCE_MODE worker
+ * throttle.
  */
 
 /** @type {import('@stryker-mutator/core').PartialStrykerOptions} */
@@ -52,6 +53,7 @@ export default {
   // multiplicative (each runner is a full vitest process) and the Steam Deck
   // dev machine OOMs under default all-cores concurrency. CI runners have
   // more headroom — the workflow raises this via STRYKER_CONCURRENCY.
-  concurrency: process.env.STRYKER_CONCURRENCY !== undefined ? Number(process.env.STRYKER_CONCURRENCY) : 2,
+  concurrency:
+    process.env.STRYKER_CONCURRENCY !== undefined ? Number(process.env.STRYKER_CONCURRENCY) : 2,
   tempDirName: '.stryker-tmp',
 };

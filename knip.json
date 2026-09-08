@@ -69,7 +69,6 @@
     "tzurot-legacy/**",
     "**/vitest.config.ts",
     "**/test/setup.ts",
-    "vitest.workspace.ts",
     "**/__mocks__/**",
     "audit.config.ts",
     "**/test-fixtures/audit-canaries/**"

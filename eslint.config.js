@@ -214,7 +214,6 @@ export default tseslint.config(
       'vitest.component.config.ts',
       'vitest.integration.config.ts',
       'vitest.eval.config.ts',
-      'vitest.workspace.ts',
       'prisma.config.ts',
       'audit.config.ts',
       // Audit-canary fixtures: deliberately-bad files that the audit tools
