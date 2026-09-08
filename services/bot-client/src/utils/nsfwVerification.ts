@@ -13,6 +13,7 @@ import {
   type Message,
   type SendableChannels,
 } from 'discord.js';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import { clientsForUser } from './gatewayClients.js';
@@ -145,7 +146,7 @@ export function isDMChannel(channel: Channel): boolean {
 
 /**
  * Shown when the gateway age-check couldn't run (network blip, gateway 500,
- * etc.). Distinct from {@link NSFW_VERIFICATION_MESSAGE} — we don't want a
+ * etc.). Distinct from {@link nsfwVerificationMessage} — we don't want a
  * previously-verified user to see the "you need to verify" onboarding flow
  * during a transient failure.
  */
@@ -153,20 +154,25 @@ export const NSFW_VERIFICATION_CHECK_FAILED_MESSAGE =
   "⚠️ Couldn't verify your age status right now. Please try again in a moment.";
 
 /**
- * NSFW verification requirement message
+ * NSFW verification requirement message. Reads the configured mention
+ * character at call time so the instructions match the deployment's
+ * `BOT_MENTION_CHAR`.
  */
-export const NSFW_VERIFICATION_MESSAGE = `
+export function nsfwVerificationMessage(): string {
+  const mentionChar = getConfig().BOT_MENTION_CHAR;
+  return `
 **Age Verification Required**
 
 To chat with me, I need confirmation that you're 18+. This is a one-time verification.
 
 **How to verify:**
 1. Go to any Discord server with an **NSFW (age-restricted) channel**
-2. Send me a message there — either \`@character_name hello\` or just ping me directly
+2. Send me a message there — either \`${mentionChar}character_name hello\` or just ping me directly
 3. Once verified, you can chat with me anywhere!
 
 *Note: Discord only shows NSFW channels to users who have confirmed they're 18+ in their Discord settings.*
 `.trim();
+}
 
 /**
  * Track a pending verification message for later cleanup
@@ -200,7 +206,7 @@ interface NsfwVerificationResult {
  */
 export async function sendNsfwVerificationMessage(message: Message): Promise<void> {
   try {
-    const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
+    const verificationReply = await message.reply(nsfwVerificationMessage());
     void trackPendingVerificationMessage(
       message.author.id,
       verificationReply.id,

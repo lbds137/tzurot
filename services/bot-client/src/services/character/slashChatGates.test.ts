@@ -33,7 +33,7 @@ vi.mock('../../utils/nsfwVerification.js', () => ({
   evaluateNsfwGate: (...args: unknown[]) => mockEvaluateNsfwGate(...args),
   sendVerificationConfirmation: (...args: unknown[]) => mockSendVerificationConfirmation(...args),
   trackPendingVerificationMessage: (...args: unknown[]) => mockTrackPending(...args),
-  NSFW_VERIFICATION_MESSAGE: 'NSFW_PROMPT',
+  nsfwVerificationMessage: () => 'NSFW_PROMPT',
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: 'NSFW_CHECK_FAILED',
 }));
 
