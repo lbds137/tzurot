@@ -14,6 +14,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { resolveApiErrorInfo, errorLogContextFromInfo } from '../../../../utils/apiErrorParser.js';
 import { RetryError } from '../../../../utils/retry.js';
+import { LlmResponseError } from '../../../../services/LlmResponseError.js';
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
 import {
@@ -78,6 +79,7 @@ export function composeGenerationFailureResult(
   const processingTimeMs = Date.now() - startTime;
 
   const underlyingError = error instanceof RetryError ? error.lastError : error;
+  const responseFailure = underlyingError instanceof LlmResponseError ? underlyingError : undefined;
   // Classify from the PRISTINE message; the compose step below appends the
   // fallback-failure summary (if any) AFTER classification.
   const resolvedInfo = resolveApiErrorInfo(underlyingError);
@@ -90,10 +92,14 @@ export function composeGenerationFailureResult(
   );
 
   // Record partial LLM response for /admin debug visibility
-  // The LLMInvoker may have thrown before recordLlmResponse() was called
+  // The LLMInvoker may have thrown before recordLlmResponse() was called.
+  // A response-shape failure carries the model the provider actually served —
+  // the requested model name can be a router alias that cannot name it.
   diagnosticCollector.recordPartialLlmResponse({
     rawContent: '[error — see error data]',
     modelUsed: effectivePersonality.model ?? 'unknown',
+    routedModel: responseFailure?.routedModel,
+    finishReason: responseFailure?.finishReason,
   });
 
   // Record error in diagnostic collector for debugging failed requests
