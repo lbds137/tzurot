@@ -31,3 +31,7 @@ Then decide the disposition per site rather than blanket-deleting: a length (`co
 ## Not in scope
 
 `interaction.reply({ content: ... })` and similar OUTBOUND payloads are not logging — a `content` field on a Discord send is the message itself, not a log of one. A naive grep hits dozens of these; they are the noise this section exists to pre-empt.
+
+## Owner decision (2026-09-08)
+
+The pass runs as ONE local-only opt-in flag, `LOG_CONTENT_PREVIEWS` (mirroring `LOG_PROMPT_ASSEMBLY` from TASK-594: development `NODE_ENV` AND the flag), behind a shared `contentPreview(text, maxChars)` helper in common-types that returns `undefined` when off, so the field is absent from deployed logs by default. Lengths stay always-on at every site; a content digest replaces the preview where the site diagnoses duplication (cross-turn NEAR_MISS, duplicate-detection). The owner accepted that prod NEAR_MISS lines keep only their metrics. Per-site stripping and a prod carve-out for NEAR_MISS snippets were the rejected options. TASK-594 shipped as the multiplier (#2371); TASK-422/533 were already shipped; the remaining members (TASK-593 and the bot-client snapshot preview) are one dispatch.
