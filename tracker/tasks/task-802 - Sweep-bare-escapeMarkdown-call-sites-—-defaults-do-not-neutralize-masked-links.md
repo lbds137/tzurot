@@ -36,4 +36,5 @@ ENUMERATION GAP — the search space above is too narrow (found 2026-08-30 while
 When this sweep runs, widen the enumeration to BOTH shapes: sites that escape insufficiently AND sites that do not escape at all. The second needs a different search — enumerate the values interpolated into embed fields and ask which are externally authored, rather than grepping for the helper. TASK-704 does not cover it either; that one is about unclamped length, not escaping.
 
 Acceptance: the classification is in the closing PR body, every user-authored site rendering into a parsing surface passes maskedLink, and one test pins a masked-link input rendering inert at a representative site.
+Member added from PR 2369 review: the two-arg form escapeMarkdown(x, { maskedLink: true }) is now inlined at five bot-client sites (ErrorChannelReporter escapePersonaName, confirmDestructive createHardDeleteConfig, confirmAction buildDeleteConfirmation, SettingsDashboardHandler reset confirm, history/purge not-found) with no shared helper; the sweep should extract one (e.g. escapeEntityName in a bot-client util) so a future site cannot forget the option.
 <!-- SECTION:DESCRIPTION:END -->
