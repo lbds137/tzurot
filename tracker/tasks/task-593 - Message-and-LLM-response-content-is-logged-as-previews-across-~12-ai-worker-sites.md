@@ -3,9 +3,10 @@ id: TASK-593
 title: >-
   Message and LLM-response content is logged as previews across ~12 ai-worker
   sites
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 21:45'
+updated_date: '2026-09-08 21:38'
 labels:
   - 'area:ai-worker'
   - 'size:M'
