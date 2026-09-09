@@ -1,0 +1,26 @@
+---
+id: TASK-926
+title: >-
+  Retention Phase 4: notify and purge run autonomously on a daily job under the
+  circuit breaker, with an owner-channel run report
+status: To Do
+assignee: []
+created_date: '2026-09-09 20:20'
+labels:
+  - 'area:api-gateway'
+  - 'size:M'
+  - 'state:ready'
+dependencies: []
+priority: high
+ordinal: 924000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Why: the accepted retention design (docs/proposals/backlog/inactivity-retention-purge-phase2.md, What Phase 2 is and is not) scoped autonomous execution out as Phase 4 and the epic slot was released 2026-08-01 with Phase 4 parked; no task carried it, so nothing surfaced it. Since then every manual tranche has run clean with 0 skipped: 45 users 2026-07-27, 14 on 2026-09-02, 5 on 2026-09-09. The operator step is now the only thing between the daily nag and the deletion, and the owner ruled on 2026-09-09 (AskUserQuestion) to make BOTH halves autonomous in beta.222.
+
+What: one scheduled job, mirroring the daily nag scheduler shape (daily plus startup, Redis cooldown), that runs the notify step then the purge step through the same endpoints the CLI uses, under the existing circuit breaker (warning annotation at ~15 percent of the userbase, hard ceiling at ~25 percent that even force cannot pass without the explicit override flag, which the job never sets), and posts one run-summary embed to the owner channel in the shape of the nightly db-sync report: purged, characters deleted and re-homed, skipped, notified, breaker state, plus the same per-user rows the nag posts today. The audit table and the per-user TOCTOU re-check already exist and stay in the path. Members that become real once a job and the CLI can both fire: TASK-326 (advisory lock so a scheduled run and a manual run cannot overlap) and TASK-325 (unreachability refresh only happens on notify runs, which the job now provides daily). Ergonomics found on the 2026-09-09 tranche: retention:notify prompts for production confirmation even from a non-TTY shell and exits 13 without --force, unlike the purge command; the job path must not inherit that prompt, and the CLI should fail fast naming --force the way db:safe-migrate names --name.
+
+Acceptance: the job runs on the schedule in dev with a seeded eligible cohort and posts the report; a breaker-tripping cohort (over the hard ceiling) halts the purge half, reports the halt, and the notify half still runs; TASK-326 lock pinned by a test that runs the job while a CLI purge holds the lock; the manual CLI path keeps working unchanged; the retention calendar line in CURRENT.md records the first autonomous run. Privacy policy: the deletion-without-request statement was the PR-D gate and already landed with the first manual purge, so autonomy needs no new policy text; re-read docs/legal/PRIVACY_POLICY.md retention table before shipping to confirm.
+<!-- SECTION:DESCRIPTION:END -->
