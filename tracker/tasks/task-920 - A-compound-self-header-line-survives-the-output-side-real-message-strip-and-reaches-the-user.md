@@ -3,9 +3,10 @@ id: TASK-920
 title: >-
   A compound self-header line survives the output-side real-message strip and
   reaches the user
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 15:10'
+updated_date: '2026-09-09 18:32'
 labels:
   - 'area:ai-worker'
   - 'size:S'
