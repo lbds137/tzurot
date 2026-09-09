@@ -28,3 +28,5 @@ Note the second-order cost this avoids: a fresh re-dispatch re-pays the whole sp
 
 Acceptance: the skill states the precondition at the resume instruction; a reader following only "When the worker reports" is pointed at it before sending; landed via PR since .claude/skills is review-gated.
 <!-- SECTION:DESCRIPTION:END -->
+
+Narrowed by the beta.221 pre-release audit (2026-09-09): two of the three sentences this task asks for already exist on develop. The base-is-stale section already says the harness auto-removes a worktree whose worker stops having changed nothing and that a resume then lands in the shared tree (grep: changed nothing), and When the worker reports already carries the cross-reference (grep: A resume is not isolation-preserving). What remains is only the pre-send precondition in Resuming a worktree-isolated worker: it still instructs the git worktree list check AFTER the SendMessage and never says that a worker whose own report says it made no edits is checked BEFORE the send and re-dispatched fresh when the tree is gone. Size stays S; it is one sentence in one section, landed via PR.
