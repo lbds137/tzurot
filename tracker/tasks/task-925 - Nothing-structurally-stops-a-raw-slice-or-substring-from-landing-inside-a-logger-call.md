@@ -24,3 +24,5 @@ Fix shape: an ESLint rule in the local plugin (the component-handler-ack-first r
 
 Acceptance: the rule or guard is red on the reverted shapes-list site and green on the tree; it runs in pnpm quality and CI; its probe or test is registered.
 <!-- SECTION:DESCRIPTION:END -->
+
+Vocabulary variant from the #2380 review (2026-09-09): services/bot-client/src/utils/gatewayServiceCalls.ts (grep: Transcription request failed) interpolates the full response body text into a thrown Error message, so a later logger call with err: error carries the raw body in .message. That shape is neither a slice nor a substring inside a logger argument, so the fix shape above would not see it; when the rule or guard is built, include a second pattern for a response.text() result reaching an Error constructor or a logger argument unwrapped, and sweep for it with the same positive control. Verified on the merged ref before filing.
