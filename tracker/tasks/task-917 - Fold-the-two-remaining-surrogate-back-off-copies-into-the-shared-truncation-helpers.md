@@ -3,9 +3,10 @@ id: TASK-917
 title: >-
   Fold the two remaining surrogate back-off copies into the shared truncation
   helpers
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 00:18'
+updated_date: '2026-09-09 00:51'
 labels:
   - 'area:common-types'
   - 'size:S'
