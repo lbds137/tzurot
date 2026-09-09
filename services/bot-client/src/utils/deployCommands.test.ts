@@ -76,6 +76,14 @@ function putBody(): unknown {
   return (mockPut.mock.calls[0][1] as { body: unknown }).body;
 }
 
+/** A fresh no-op hash store double for tests that pass one to `deployCommands`. */
+function makeStore(): {
+  get: ReturnType<typeof vi.fn<DeployedCommandsStore['get']>>;
+  set: ReturnType<typeof vi.fn<DeployedCommandsStore['set']>>;
+} {
+  return { get: vi.fn(), set: vi.fn() };
+}
+
 describe('deployCommands', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -134,12 +142,44 @@ describe('deployCommands', () => {
       expect(JSON.stringify(putBody())).toContain(TO_JSON_SENTINEL);
     });
 
-    it('deploys nothing when every discovered file is invalid', async () => {
+    it('PUTs an empty set when every discovered file is invalid and no store is supplied', async () => {
+      // No store means this is the shell script's caller shape — it relies on
+      // this exact behavior to deliberately wipe the registered command set.
       vi.mocked(getCommandFiles).mockReturnValue([NO_DEFAULT_FIXTURE_PATH]);
 
-      await deployCommands(false);
+      await expect(deployCommands(false)).resolves.toBe('registered');
 
       expect(putBody()).toEqual([]);
+    });
+
+    it('skips registration instead of PUTting an empty set when a store is supplied', async () => {
+      const store = makeStore();
+      vi.mocked(getCommandFiles).mockReturnValue([NO_DEFAULT_FIXTURE_PATH]);
+
+      await expect(deployCommands(false, store)).resolves.toBe('skipped-empty-command-set');
+
+      expect(mockPut).not.toHaveBeenCalled();
+      expect(store.get).not.toHaveBeenCalled();
+      expect(store.set).not.toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ discoveredFiles: 1 }),
+        'No valid commands were loaded; skipping registration to avoid wiping the existing command set'
+      );
+    });
+
+    it('logs discoveredFiles: 0 when the commands directory is empty', async () => {
+      const store = makeStore();
+      vi.mocked(getCommandFiles).mockReturnValue([]);
+
+      await expect(deployCommands(false, store)).resolves.toBe('skipped-empty-command-set');
+
+      expect(mockPut).not.toHaveBeenCalled();
+      expect(store.get).not.toHaveBeenCalled();
+      expect(store.set).not.toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ discoveredFiles: 0 }),
+        'No valid commands were loaded; skipping registration to avoid wiping the existing command set'
+      );
     });
   });
 
@@ -197,20 +237,13 @@ describe('deployCommands', () => {
   });
 
   describe('change detection (hash store)', () => {
-    function makeStore(): {
-      get: ReturnType<typeof vi.fn<DeployedCommandsStore['get']>>;
-      set: ReturnType<typeof vi.fn<DeployedCommandsStore['set']>>;
-    } {
-      return { get: vi.fn(), set: vi.fn() };
-    }
-
     it('skips the PUT when the stored hash matches the body', async () => {
       const store = makeStore();
       const canonicalBody = [EXPECTED_VALID_JSON].map(command => JSON.stringify(command)).sort();
       const expectedHash = createHash('sha256').update(JSON.stringify(canonicalBody)).digest('hex');
       store.get.mockResolvedValue(expectedHash);
 
-      await deployCommands(false, store);
+      await expect(deployCommands(false, store)).resolves.toBe('skipped-unchanged');
 
       expect(mockPut).not.toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -223,7 +256,7 @@ describe('deployCommands', () => {
       const store = makeStore();
       store.get.mockResolvedValue('stale-hash');
 
-      await deployCommands(false, store);
+      await expect(deployCommands(false, store)).resolves.toBe('registered');
 
       const canonicalBody = [EXPECTED_VALID_JSON].map(command => JSON.stringify(command)).sort();
       const expectedHash = createHash('sha256').update(JSON.stringify(canonicalBody)).digest('hex');
@@ -240,7 +273,7 @@ describe('deployCommands', () => {
       const store = makeStore();
       store.get.mockRejectedValue(new Error('redis unavailable'));
 
-      await deployCommands(false, store);
+      await expect(deployCommands(false, store)).resolves.toBe('registered');
 
       expect(mockPut).toHaveBeenCalledTimes(1);
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -249,12 +282,12 @@ describe('deployCommands', () => {
       );
     });
 
-    it('resolves when the hash store write rejects after a successful PUT', async () => {
+    it('resolves with "registered" when the hash store write rejects after a successful PUT', async () => {
       const store = makeStore();
       store.get.mockResolvedValue(null);
       store.set.mockRejectedValue(new Error('redis unavailable'));
 
-      await expect(deployCommands(false, store)).resolves.toBeUndefined();
+      await expect(deployCommands(false, store)).resolves.toBe('registered');
 
       expect(mockPut).toHaveBeenCalledTimes(1);
     });
