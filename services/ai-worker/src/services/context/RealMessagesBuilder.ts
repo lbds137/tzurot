@@ -56,12 +56,32 @@ const HEADER_SEPARATOR = ' — ';
  * before the self-header bracket — generous enough for a realistic stray
  * tag plus an aside, but finite: an unbounded quantifier immediately before
  * a literal is the catastrophic-backtracking shape `regexp/no-super-linear-move`
- * rejects. Counts UNITS of the preamble alternation (a single non-bracket
- * character, OR one whole non-header-shaped bracket group), not raw
- * characters — a bracket group collapses to one unit regardless of its
- * interior length.
+ * rejects. Counts UNITS of the preamble alternation — one whole
+ * non-header-shaped bracket group, one asterisk- or underscore-delimited
+ * emphasis run, or one single decoration character — not raw characters, so
+ * a bracket group or an emphasis run collapses to one unit regardless of its
+ * interior length. The boundary is pinned by the `preamble length cap`
+ * fixtures in `RealMessagesBuilder.test.ts`, which build the preamble out of
+ * single decoration characters so the unit count equals the character count.
  */
 const SELF_HEADER_PREAMBLE_MAX = 120;
+
+/**
+ * Interior character bound for a single emphasis run (asterisk- or
+ * underscore-delimited) inside the self-header preamble. Without this bound,
+ * an emphasis run's interior is an unbounded non-bracket character class, so
+ * an italic ACTION BEAT preceding the header — narration, not scaffolding —
+ * tiles into one preamble unit and is deleted along with the header it
+ * precedes; `bracketGroup`'s header-separator lookahead does not generalize
+ * to this case because narration need not contain the separator at all. The
+ * leak's own real preamble, `*previous context*`, has a 16-character
+ * interior; 40 leaves comfortable room for a longer stray tag or short aside
+ * while still excluding a narrated sentence — the underscore KEEP-CASE
+ * narration fixture in this file's own test suite runs a 73-character
+ * interior and is correctly rejected — pinned by the `emphasis run interior
+ * cap` fixtures in this file's own test suite.
+ */
+const EMPHASIS_RUN_INTERIOR_MAX = 40;
 
 /**
  * Correlation fields for the header-spoof hit log. Content and the matched
@@ -316,15 +336,41 @@ export function leadingHeaderLineMatcher(): RegExp {
  * (`i` above is orthogonal to this: it folds case only, and does not add
  * `m`'s multiline anchoring.)
  *
- * The preamble tolerates decorated scaffolding — a stray timestamp tag, an
- * aside — INCLUDING a plain bracket group, since that is the shape the real
- * production leak's own preamble contains. It does NOT tolerate a
- * header-SHAPED bracket group (one containing the header separator): a
- * legitimate quoted OTHER speaker's header preceding a genuine trailing
- * self-header must survive, pinned by the quote-plus-trailing-self-header
- * keep-case in this function's own test suite. A bracket group with no
- * separator (like the leak's own stray tag) still passes as one preamble
- * unit either way.
+ * The preamble admits decoration OUTSIDE emphasis delimiters only — a bare
+ * letter or digit outside a bracket group or an emphasis run is not a unit,
+ * so a first line of ordinary prose that merely ENDS in a self-named
+ * bracketed aside cannot be swallowed with its newline, pinned by the
+ * prose-then-aside keep-case in this function's own test suite and by its
+ * twin over `stripRealMessageEchoArtifacts` in `responseArtifacts.test.ts`.
+ * INSIDE an emphasis run, up to `EMPHASIS_RUN_INTERIOR_MAX` characters of
+ * ordinary word content is admitted as decoration — the emphasis run is
+ * load-bearing rather than cosmetic, since the leak's own preamble carries
+ * `*previous context*`, whose interior word characters no other unit shape
+ * admits, pinned by the leaked-compound strip cases in both suites. This
+ * necessarily also admits a short narrated action beat sitting where the
+ * leak's own scaffolding sits (`*sighs softly*`, `*nods*`): the two shapes
+ * are structurally identical — one or two space-separated lowercase words
+ * inside single-asterisk delimiters — and no character-class or length rule
+ * distinguishes them, so a short action beat immediately preceding a
+ * self-header is stripped along with it. This is a known, accepted residual
+ * of closing the leak, not a KEEP-CASE: pinned by the
+ * `accepted residual: short narrated action beat` fixture in this function's
+ * own test suite and its twin over `stripRealMessageEchoArtifacts` in
+ * `responseArtifacts.test.ts`. The interior is still bounded to
+ * `EMPHASIS_RUN_INTERIOR_MAX` characters: unlike `bracketGroup`, an emphasis
+ * run carries no header-separator lookahead (narration need not contain the
+ * separator at all), so an unbounded interior would let a narrated SENTENCE,
+ * not just a short beat, tile into one unit and be swallowed with the
+ * header — pinned by the `emphasis run interior cap` fixtures in this
+ * function's own test suite, which pin the boundary at the matcher tier
+ * only; the strip tier's twin covers the accepted residual above, not the cap.
+ *
+ * The preamble does NOT tolerate a header-SHAPED bracket group (one
+ * containing the header separator): a legitimate quoted OTHER speaker's
+ * header preceding a genuine trailing self-header must survive, pinned by
+ * the quote-plus-trailing-self-header keep-case in this function's own test
+ * suite. A bracket group with no separator (like the leak's own stray tag)
+ * still passes as one preamble unit.
  */
 export function leadingSelfHeaderLineMatcher(personalityName: string): RegExp {
   const trimmedName = personalityName.trim();
@@ -335,12 +381,57 @@ export function leadingSelfHeaderLineMatcher(personalityName: string): RegExp {
     return /(?!)/;
   }
   const escapedName = escapeForRegExp(trimmedName);
-  // One preamble UNIT: a non-bracket, non-newline character, OR a whole
-  // bracket group whose interior never forms the header separator — a
-  // header-shaped group cannot be skipped past, so it stops the preamble
-  // from reaching a later bracket instead of being absorbed as scaffolding.
   const nonBracketChar = '[^\\[\\]\\r\\n]';
-  const preambleUnit = `(?:${nonBracketChar}|\\[(?:(?!${escapeForRegExp(HEADER_SEPARATOR)})${nonBracketChar})*\\])`;
+  // A whole bracket group whose interior never forms the header separator — a
+  // header-shaped group cannot be skipped past, so it stops the preamble from
+  // reaching a later bracket instead of being absorbed as scaffolding.
+  const bracketGroup = `\\[(?:(?!${escapeForRegExp(HEADER_SEPARATOR)})${nonBracketChar})*\\]`;
+  // Emphasis/scaffolding runs. Word characters are admitted INSIDE the
+  // delimiters only, which is what lets the leak's own `*previous context*`
+  // pass while bare narration does not. One or two delimiters, so `**bold**`
+  // and `__under__` collapse to a single unit like their single-delimiter
+  // forms. The interior is bounded by `EMPHASIS_RUN_INTERIOR_MAX` — see that
+  // constant's doc comment for why an unbounded interior reopens the exact
+  // bug this preamble narrowing exists to close.
+  //
+  // The delimiter itself is NOT a plain `{1,2}` quantifier: on a failing
+  // overall match (no valid trailing header), `{1,2}` on both the opening
+  // AND closing delimiter lets the SAME run of bare asterisks/underscores
+  // be partitioned into a full preamble in more than one way (e.g. 4
+  // delimiter characters as open=2/close=2 or open=1/close=... — every
+  // split the engine can construct is a separate backtracking path), and
+  // that multiplicity compounds across the outer `{0,SELF_HEADER_PREAMBLE_MAX}`
+  // repetition into exponential blowup — measured at 645ms for a 30-character
+  // adversarial "asterisks then an incomplete header" input under the plain
+  // `{1,2}` form, unmeasurable (<1ms) at 1000 characters under this form.
+  // `\*(?:\*)?(?!\*)` picks the SAME one or two characters a plain `{1,2}`
+  // would try first, but the trailing negative lookahead makes that the only
+  // reading the engine ever considers: it also rejects a delimiter run of
+  // three or more characters outright, which a plain `{1,2}` would otherwise
+  // accept via a mixed open/close split — preserving the "one or two
+  // delimiters only" intent while removing the split ambiguity.
+  // The open and close delimiter each independently match one or two
+  // characters, with no requirement that the counts agree — `**text*` and
+  // `*text**` both close as one run. Accepted and bounded: the interior cap
+  // above already limits how much a mismatched-count run can absorb.
+  const asteriskDelim = '\\*(?:\\*)?(?!\\*)';
+  const underscoreDelim = '_(?:_)?(?!_)';
+  const asteriskRun = `${asteriskDelim}[^\\[\\]\\r\\n*]{0,${EMPHASIS_RUN_INTERIOR_MAX}}${asteriskDelim}`;
+  const underscoreRun = `${underscoreDelim}[^\\[\\]\\r\\n_]{0,${EMPHASIS_RUN_INTERIOR_MAX}}${underscoreDelim}`;
+  // A single decoration character: whitespace, the dash family, quotes, and
+  // ordinary separator punctuation. Deliberately an allowlist rather than the
+  // complement of `\w`, which is ASCII-only and would still admit non-Latin
+  // narration. `<` and `>` are both admitted symmetrically — neither is the
+  // header's own bracket syntax (`[`/`]`), so there is no asymmetric reason
+  // to allow one and not the other. This dash range also admits U+2010
+  // HYPHEN and U+2011 NON-BREAKING HYPHEN, which `sanitizeHeaderName`'s dash
+  // class does not — a deliberate divergence, not drift: this side reads
+  // decoration a NAME never contributes, so the narrower forgery-relevant set
+  // there has no bearing on what is safe to admit here.
+  const decorChar =
+    '[ \\t\\-\\u2010-\\u2015\\u2212<>|:;,.!?~"\'\\u2018\\u2019\\u201C\\u201D\\u2026]';
+  // One preamble UNIT: decoration only, never a bare word character.
+  const preambleUnit = `(?:${bracketGroup}|${asteriskRun}|${underscoreRun}|${decorChar})`;
   return new RegExp(
     `^(?:${preambleUnit}){0,${SELF_HEADER_PREAMBLE_MAX}}?${escapeForRegExp(HEADER_OPEN)}${escapedName}(?= )[^\\[\\]\\r\\n]*?${escapeForRegExp(HEADER_SEPARATOR)}[^\\[\\]\\r\\n]*${escapeForRegExp(HEADER_CLOSE)}(?=[ \\t]*(?:\\r?\\n|$))[ \\t]*\\r?\\n?`,
     'i'
