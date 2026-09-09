@@ -3,9 +3,10 @@ id: TASK-896
 title: >-
   Boot-time command registration PUTs an empty set when every command file fails
   to load
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-05 06:10'
+updated_date: '2026-09-09 06:18'
 labels:
   - 'area:bot-client'
   - 'size:S'
