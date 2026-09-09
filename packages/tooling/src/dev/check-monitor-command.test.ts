@@ -10,15 +10,16 @@ import {
   checkMonitorCommand,
 } from './check-monitor-command.js';
 
-const HOOK_LINE = String.raw`    pnpm ops gh:ci-gate 42 --sha \$(git rev-parse HEAD)`;
-const RULE_LINE = 'pnpm ops gh:ci-gate N --sha $(git rev-parse HEAD)';
+const HOOK_LINE = String.raw`    pnpm -C "\$(git rev-parse --show-toplevel)" ops gh:ci-gate 42 --sha \$(git rev-parse HEAD)`;
+const RULE_LINE =
+  'pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate N --sha $(git rev-parse HEAD)';
 
 describe('normalizeMonitorCommand', () => {
   it('erases only the PR-number and the heredoc escaping', () => {
     expect(normalizeMonitorCommand(HOOK_LINE)).toBe(normalizeMonitorCommand(RULE_LINE));
   });
 
-  it('flags drift INSIDE the first --sha token, which a placeholder rule would hide', () => {
+  it('flags drift INSIDE the --sha token, which a placeholder rule would hide', () => {
     // The load-bearing test for "the --sha value is no longer normalized", and
     // the fixture matters more than it looks. Reintroducing the old
     // `--sha \S+` → placeholder rule must break exactly this test, so the
@@ -26,7 +27,11 @@ describe('normalizeMonitorCommand', () => {
     // Verified by canary: with the old rule restored, this fails and every
     // other test in this file still passes. A stray space later in the
     // substitution does NOT discriminate — it survives outside `\S+`'s reach.
-    const drifted = RULE_LINE.replace('$(git ', '$(gitx ');
+    // RULE_LINE now carries TWO `$(git ` occurrences (the `-C` root-anchor and
+    // the `--sha` value), so this targets the `--sha` one by its distinguishing
+    // suffix rather than a bare `.replace()`, which would hit the `-C` one first
+    // and mutate text the `--sha \S+` rule never touched.
+    const drifted = RULE_LINE.replace('$(git rev-parse HEAD)', '$(gitx rev-parse HEAD)');
     expect(normalizeMonitorCommand(drifted)).not.toBe(normalizeMonitorCommand(RULE_LINE));
   });
 

@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-09-03'
+lastUpdated: '2026-09-09'
 ---
 
 # Git Workflow Procedures
@@ -135,7 +135,7 @@ Arm it from the template below every time:
 Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800000`, `persistent: false` (`05-tooling.md` § PR Monitoring explains the `false`), and this as its `command` — verbatim, as plain bash:
 
 ```bash
-pnpm ops gh:ci-gate <N> --sha $(git rev-parse HEAD)
+pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate <N> --sha $(git rev-parse HEAD)
 ```
 
 **Copy the substitution verbatim — never resolve the SHA and paste the result.** The gate rejects an abbreviated SHA and a well-formed one naming no local commit, but the substitution removes the step entirely.
