@@ -1050,6 +1050,14 @@ describe('stripRealMessageEchoArtifacts', () => {
       expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
     });
 
+    it('KEEP-CASE: a first line of narrated prose that merely ENDS in a self-named bracketed aside passes through byte-identical', () => {
+      // The delete direction of the leak-vs-delete asymmetry: the compound
+      // matcher's preamble admits decoration only, so narrated prose ahead of
+      // a self-named bracketed aside is not swallowed along with its newline.
+      const content = 'He handed me the note — [Lilith — 1834]\nAnd I read it twice.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
     it('KEEP-CASE: a header-shaped line in the BODY, not line one, passes through byte-identical', () => {
       const content = 'Sure, here is what happened:\n[Lilith — 2026-09-09 (Wed) 14:07]\nDone.';
       expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
@@ -1073,6 +1081,27 @@ describe('stripRealMessageEchoArtifacts', () => {
         'He handed me the note — [ Property of the Crown — 1834]\nAnd I read it twice.';
       expect(stripRealMessageEchoArtifacts(content, {}, '')).toBe(content);
       expect(stripRealMessageEchoArtifacts(content, {}, '   ')).toBe(content);
+    });
+
+    it('STRIP-CASE: strips the leaked compound shape with underscore-delimited scaffolding — the underscoreRun branch is exercised, not just asteriskRun', () => {
+      const content =
+        '[Sat 18:19] — _previous context_ — [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe('Damien.');
+    });
+
+    it('KEEP-CASE: an underscore-wrapped narrated action beat preceding the self header passes through byte-identical — the underscoreRun interior is bounded, not just asteriskRun', () => {
+      const content =
+        '_He remembers everything from before, every detail still vivid in his mind_ [Lilith — reminiscing]\nAnd then he continued speaking as if nothing had happened.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('accepted residual (documented, not a KEEP-CASE): a short narrated action beat preceding the self header is swallowed with it — structurally identical to the leak scaffolding this matcher exists to strip', () => {
+      // Unlike the underscore KEEP-CASE above, this beat is short enough to
+      // fit under EMPHASIS_RUN_INTERIOR_MAX — the same shape as the leak's
+      // own `*previous context*`, so nothing in the matcher can tell them
+      // apart. See the `leadingSelfHeaderLineMatcher` doc comment.
+      const content = '*sighs softly* [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe('Damien.');
     });
   });
 });
