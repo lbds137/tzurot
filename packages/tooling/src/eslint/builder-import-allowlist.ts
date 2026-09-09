@@ -39,11 +39,8 @@ export const BUILDER_IMPORT_ALLOWLIST: Readonly<Record<string, readonly string[]
   'services/bot-client/src/commands/channel/browse.ts': ['EmbedBuilder'],
   'services/bot-client/src/commands/character/browse.ts': ['ActionRowBuilder', 'ButtonBuilder'],
   'services/bot-client/src/commands/character/import.ts': ['EmbedBuilder'],
-  'services/bot-client/src/commands/character/view.ts': [
-    'ActionRowBuilder',
-    'ButtonBuilder',
-    'EmbedBuilder',
-  ],
+  'services/bot-client/src/commands/character/view.ts': ['ActionRowBuilder', 'ButtonBuilder'],
+  'services/bot-client/src/commands/character/viewPages.ts': ['EmbedBuilder'],
   'services/bot-client/src/commands/character/viewV2.ts': [
     'ActionRowBuilder',
     'ButtonBuilder',

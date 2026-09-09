@@ -45,7 +45,7 @@ import {
   type CharacterSessionData,
 } from './config.js';
 import type { CharacterData } from './characterTypes.js';
-import { buildRedactedViewPage } from './view.js';
+import { buildRedactedViewPage } from './viewPages.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
