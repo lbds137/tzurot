@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import type { ApiErrorSubcode } from '@tzurot/common-types/constants/error';
+import { truncateToUtf16Units } from '@tzurot/common-types/utils/codePointTruncation';
 
 /**
  * Transport failure category. Defined here (the dependency target) rather than
@@ -135,22 +136,19 @@ export class GatewayApiError extends Error {
 const RAW_ERROR_BODY_MAX_CHARS = 512;
 
 /**
- * Truncate without splitting a surrogate pair. `String.prototype.slice` cuts by
- * UTF-16 code unit, so a cut landing between the halves of an astral character
- * (an emoji in an upstream error page) would emit a lone surrogate into the log.
- * Dropping the orphaned leading half costs one character of an excerpt that is
- * already explicitly an excerpt.
+ * Truncate without splitting a surrogate pair. A raw `String.prototype.slice`
+ * cuts by UTF-16 code unit, so a cut landing between the halves of an astral
+ * character (an emoji in an upstream error page) would emit a lone surrogate
+ * into the log. Dropping the orphaned leading half costs one character of an
+ * excerpt that is already explicitly an excerpt.
+ *
+ * The unit-budget shape is exactly what `truncateToUtf16Units` implements, so
+ * this delegates rather than re-inlining the surrogate range: with no suffix it
+ * returns the text unchanged when within budget, and otherwise the cut backed
+ * off by one unit when that cut would orphan a high surrogate.
  */
 function truncateForLog(text: string): string {
-  // No length guard: `slice` already no-ops on a short string, and the orphan
-  // check cannot misfire on one. A decoded body is well-formed UTF-16 (the
-  // decoder substitutes U+FFFD for malformed bytes), so its final code unit is
-  // never a lone HIGH surrogate — only a cut we make ourselves can orphan one.
-  // `charCodeAt` on an empty string yields NaN, which compares false.
-  const cut = text.slice(0, RAW_ERROR_BODY_MAX_CHARS);
-  const lastUnit = cut.charCodeAt(cut.length - 1);
-  const endsOnOrphanedHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
-  return endsOnOrphanedHighSurrogate ? cut.slice(0, -1) : cut;
+  return truncateToUtf16Units(text, RAW_ERROR_BODY_MAX_CHARS);
 }
 
 /**
