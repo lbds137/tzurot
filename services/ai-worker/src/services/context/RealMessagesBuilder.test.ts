@@ -24,6 +24,7 @@ import {
   renderHistoryEntryForMeasure,
   headerShapedLineMatcher,
   leadingHeaderLineMatcher,
+  leadingSelfHeaderLineMatcher,
 } from './RealMessagesBuilder.js';
 import {
   formatSingleHistoryEntryAsXml,
@@ -1515,5 +1516,124 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
     expect(rendered).toContain('(Fake — 2026-01-01 (Thu) 00:00)');
     expect(rendered).not.toContain('[Fake — 2026-01-01 (Thu) 00:00]');
     expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('leadingSelfHeaderLineMatcher', () => {
+  it('matches the real leaked compound line: decorated preamble ending in the self header', () => {
+    const leaked = '[Sat 18:19] — *previous context* — [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(leaked)).toBe(true);
+    expect(leaked.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe('Damien.');
+  });
+
+  it("still matches the real leaked compound line when the stored personality name carries incidental padding — the name is trimmed to match sanitizeHeaderName's own trim on the render side", () => {
+    const leaked = '[Sat 18:19] — *previous context* — [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    for (const padded of [' Lilith', 'Lilith ', ' Lilith ']) {
+      expect(leadingSelfHeaderLineMatcher(padded).test(leaked)).toBe(true);
+      expect(leaked.replace(leadingSelfHeaderLineMatcher(padded), '')).toBe('Damien.');
+    }
+  });
+
+  it('matches the bare canonical self-header line too (a strict superset of the shape matcher)', () => {
+    const line = '[Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(line)).toBe(true);
+  });
+
+  it('matches as a PREFIX: a bot-suffixed display name still matches the roster name', () => {
+    const compound =
+      '[Sat 18:19] — *previous context* — [Lilith (bot) — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(compound)).toBe(true);
+  });
+
+  it('does NOT match a header naming a different personality', () => {
+    const compound =
+      '[Sat 18:19] — *previous context* — [Damien — 2026-09-09 (Wed) 14:07]\nHello there.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(compound)).toBe(false);
+  });
+
+  it('does NOT match a quoted other-speaker header that is not this personality', () => {
+    const content = 'He typed: [Bob — yesterday] and I laughed.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(content)).toBe(false);
+  });
+
+  it('leaves a legitimate quoted other-speaker header byte-identical even when a genuine trailing self-header follows on the same line — the quoted bracket is header-shaped, so the preamble cannot skip past it to reach the real self-header', () => {
+    const content =
+      'He typed: [Bob — yesterday] and then said hi. [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(content)).toBe(false);
+    expect(content.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(content);
+  });
+
+  it('does NOT cross a line boundary: a header on a LATER line is not matched', () => {
+    const content = 'Just a normal line.\n[Lilith — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(content)).toBe(false);
+  });
+
+  it('escapes regex metacharacters in the personality name — the dot must be LITERAL, not a wildcard', () => {
+    // Discriminating fixture: a name with a metacharacter positioned where an
+    // UNESCAPED version would match something a literal version must not.
+    // Two earlier candidate fixtures were vacuous — they passed identically
+    // whether or not `escapeForRegExp` ran: `[Lil.ith+ ...]` against
+    // "Lil.ith+" itself matches either way (an unescaped `.` still matches
+    // its own literal `.`, and `h+` still matches one `h`), and "Lilith"
+    // simply is not a substring of that line under either reading. This
+    // fixture puts a DIFFERENT character (`X`) where the unescaped `.`
+    // would match anything, so escaped and unescaped behavior diverge.
+    const content = '[LilXith+ — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('Lil.ith+').test(content)).toBe(false);
+  });
+
+  it('does NOT match when personalityName is blank or whitespace-only — a blank comparand must never degrade to the unsafe any-name variant', () => {
+    const compound = 'He handed me the note — [Property of the Crown — 1834]\nAnd I read it twice.';
+    expect(leadingSelfHeaderLineMatcher('').test(compound)).toBe(false);
+    expect(leadingSelfHeaderLineMatcher('   ').test(compound)).toBe(false);
+  });
+
+  it('does NOT match a self-named bracketed aside followed by more same-line content — the header must END the line', () => {
+    const narration = '[Lilith remembers — the promise made] I said I would never leave.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(narration)).toBe(false);
+    expect(narration.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(narration);
+  });
+
+  it('does NOT match a compound line whose bracket names a DIFFERENT, longer personality that the responding name is a strict raw-string prefix of — the boundary this matcher requires prevents the cross-persona collision', () => {
+    const compound = '[Sat 18:19] — *previous context* — [Annabelle — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('Anna').test(compound)).toBe(false);
+  });
+
+  it('still matches the same compound line when the responding personality IS the longer name exactly — proves the boundary discriminates rather than rejecting the whole shape', () => {
+    const compound = '[Sat 18:19] — *previous context* — [Annabelle — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('Annabelle').test(compound)).toBe(true);
+  });
+
+  it('STRIP-CASE: matches a header rendered with a differently-cased name, both upper and lower — the header can carry the independently-editable display name, whose case need not track the roster name', () => {
+    const upper = '[Sat 18:19] — *previous context* — [LILITH — 2026-09-09 (Wed) 14:07]\nDamien.';
+    const lower = '[Sat 18:19] — *previous context* — [lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(upper)).toBe(true);
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(lower)).toBe(true);
+  });
+
+  it('KEEP-CASE: case-insensitivity does not dissolve the cross-persona prefix boundary — a lower-cased short name still does NOT match a longer personality it is a raw-string prefix of', () => {
+    const compound = '[Sat 18:19] — *previous context* — [Annabelle — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('anna').test(compound)).toBe(false);
+  });
+
+  describe('preamble length cap', () => {
+    // SELF_HEADER_PREAMBLE_MAX is 120 preamble UNITS, not characters — a
+    // bracket group counts as one unit regardless of its interior length.
+    // These fixtures build a preamble of exactly that many single
+    // non-bracket, non-newline characters (so nothing but the deliberate
+    // header bracket can start a match) and one character over; since each
+    // such character is its own unit, the unit count equals the character
+    // count here and the boundary is pinned exactly as before.
+    const PREAMBLE_CAP = 120;
+    const buildLine = (preambleLength: number): string =>
+      `${'x'.repeat(preambleLength)}[Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
+
+    it('matches when the preamble is exactly at the cap', () => {
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(buildLine(PREAMBLE_CAP))).toBe(true);
+    });
+
+    it('does NOT match when the preamble is one character over the cap', () => {
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(buildLine(PREAMBLE_CAP + 1))).toBe(false);
+    });
   });
 });

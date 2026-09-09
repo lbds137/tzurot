@@ -52,6 +52,18 @@ const HEADER_CLOSE = ']';
 const HEADER_SEPARATOR = ' — ';
 
 /**
+ * Bound on the decorated preamble `leadingSelfHeaderLineMatcher` tolerates
+ * before the self-header bracket — generous enough for a realistic stray
+ * tag plus an aside, but finite: an unbounded quantifier immediately before
+ * a literal is the catastrophic-backtracking shape `regexp/no-super-linear-move`
+ * rejects. Counts UNITS of the preamble alternation (a single non-bracket
+ * character, OR one whole non-header-shaped bracket group), not raw
+ * characters — a bracket group collapses to one unit regardless of its
+ * interior length.
+ */
+const SELF_HEADER_PREAMBLE_MAX = 120;
+
+/**
  * Correlation fields for the header-spoof hit log. Content and the matched
  * line itself are deliberately absent — the no-PII logging rule forbids
  * putting message text in logs, so the log carries WHERE and HOW MANY only.
@@ -220,6 +232,112 @@ export function headerShapedLineMatcher(): RegExp {
  *  same invisible surrounding whitespace as the input-side matcher above. */
 export function leadingHeaderLineMatcher(): RegExp {
   return new RegExp(`^[ \\t]*${headerShapeCore()}[ \\t]*\\r?\\n?`);
+}
+
+/**
+ * Matches a line, at the START of a string only, whose leading run is
+ * followed by a header-shaped bracket group whose name field begins with
+ * `personalityName`, with the closing bracket the LAST thing on the line —
+ * the compound case `leadingHeaderLineMatcher` cannot see, where the model
+ * prefixes its own decorated preamble before restamping its own header
+ * (`[stray tag] — *aside* — [Name — timestamp]`). The trailing lookahead
+ * requires end-of-line (or end-of-string) immediately after the closing
+ * bracket, so same-line prose that merely FOLLOWS a self-named bracketed
+ * aside is left untouched — pinned by the narration keep-case in this
+ * function's own test suite.
+ *
+ * Deliberately name-scoped rather than shape-scoped: a shape-only match would
+ * delete legitimate character dialogue that happens to end in a bracketed,
+ * em-dash-separated aside (a quoted OTHER speaker's header, or an in-fiction
+ * label). Missing a compound self-header leaks cosmetic scaffolding; a false
+ * strip deletes what the character said — the asymmetry is why this matcher
+ * requires the personality's own name as a prefix of the bracket's name
+ * field rather than matching on shape alone.
+ *
+ * The name is matched as a PREFIX (via a bracket-free run after the escaped
+ * name, before the separator) rather than the whole field, because the
+ * header's rendered name can be the webhook display name
+ * (`${displayName}${botSuffix}`) rather than the roster name on a
+ * registry-miss fallback — a strict whole-field match would miss that case.
+ * The prefix relaxation requires a boundary immediately after the escaped
+ * name, and that boundary is a SPACE only — not a bare closing bracket —
+ * because this matcher's own bracket group requires the header separator
+ * later in the pattern unconditionally: a `]` sitting immediately after the
+ * name can never complete a match here regardless, since the bracket-free
+ * class between the name and the separator already excludes `]`. A
+ * closing-bracket boundary alternative would therefore protect a case this
+ * matcher cannot produce, so it is left out; the space boundary alone still
+ * stops a name that is a raw-string prefix of a DIFFERENT, longer
+ * personality's name from cross-matching that personality's header —
+ * pinned by the `Anna`-vs-`Annabelle`-shaped cases in this function's own
+ * test suite. A header naming a genuinely different personality that
+ * shares no such prefix relationship remains a known, accepted residual
+ * MISS this matcher does not close.
+ *
+ * A blank (or whitespace-only) `personalityName` returns a matcher that can
+ * NEVER match, rather than the bare-shape pattern an empty escaped name
+ * would otherwise collapse to. Without this guard, a blank comparand would
+ * make the matcher shape-scoped again — exactly the class of deletion the
+ * name-scoping above exists to prevent — which is the same failure mode the
+ * sibling `resolveAssistantRowRole`/`matchesPersonality` name comparisons
+ * guard against for the identical reason.
+ *
+ * The name is trimmed before it is spliced into the pattern, matching
+ * `sanitizeHeaderName`'s own final `.trim()` on the render side — a stored
+ * name carrying incidental leading/trailing whitespace renders bare, so an
+ * untrimmed comparand would silently never match (pinned by the padded-name
+ * cases in the `leadingSelfHeaderLineMatcher` describe block).
+ *
+ * The name comparison is case-insensitive (the `i` flag), completing the
+ * port of `matchesPersonality`'s trim-then-lowercase comparand handling
+ * above: the header's rendered name can be `Personality.displayName`, a
+ * separate, independently-editable schema field whose case need not track
+ * the roster name, so a case-only divergence must still strip — pinned by
+ * the STRIP-CASE cases in this function's own test suite. The name-prefix
+ * boundary above still guards against a case-folded cross-match: `anna`
+ * folded against `Annabelle` remains a non-match because the boundary
+ * requires a space immediately after the name, which `b` is not — pinned by
+ * the KEEP-CASE case in this function's own test suite. Every other literal
+ * in the pattern (brackets, the separator, whitespace) is already caseless,
+ * so `i` affects only the name comparison.
+ *
+ * No `m` flag: with `m`, the trailing lookahead's `$` would mean end-of-LINE
+ * rather than end-of-string, and `m` would also make the leading `^` match
+ * every line start — stripping a header sitting on a LATER line, which
+ * breaks this matcher's own start-of-string anchoring. Flagless, `^` and the
+ * lookahead's `$`/`\n` alternation both resolve against the whole string.
+ * (`i` above is orthogonal to this: it folds case only, and does not add
+ * `m`'s multiline anchoring.)
+ *
+ * The preamble tolerates decorated scaffolding — a stray timestamp tag, an
+ * aside — INCLUDING a plain bracket group, since that is the shape the real
+ * production leak's own preamble contains. It does NOT tolerate a
+ * header-SHAPED bracket group (one containing the header separator): a
+ * legitimate quoted OTHER speaker's header preceding a genuine trailing
+ * self-header must survive, pinned by the quote-plus-trailing-self-header
+ * keep-case in this function's own test suite. A bracket group with no
+ * separator (like the leak's own stray tag) still passes as one preamble
+ * unit either way.
+ */
+export function leadingSelfHeaderLineMatcher(personalityName: string): RegExp {
+  const trimmedName = personalityName.trim();
+  if (trimmedName.length === 0) {
+    // Matches nothing: no input string contains a position where "not
+    // immediately followed by the empty string" is true, since the empty
+    // string always matches at every position.
+    return /(?!)/;
+  }
+  const escapedName = escapeForRegExp(trimmedName);
+  // One preamble UNIT: a non-bracket, non-newline character, OR a whole
+  // bracket group whose interior never forms the header separator — a
+  // header-shaped group cannot be skipped past, so it stops the preamble
+  // from reaching a later bracket instead of being absorbed as scaffolding.
+  const nonBracketChar = '[^\\[\\]\\r\\n]';
+  const preambleUnit = `(?:${nonBracketChar}|\\[(?:(?!${escapeForRegExp(HEADER_SEPARATOR)})${nonBracketChar})*\\])`;
+  return new RegExp(
+    `^(?:${preambleUnit}){0,${SELF_HEADER_PREAMBLE_MAX}}?${escapeForRegExp(HEADER_OPEN)}${escapedName}(?= )[^\\[\\]\\r\\n]*?${escapeForRegExp(HEADER_SEPARATOR)}[^\\[\\]\\r\\n]*${escapeForRegExp(HEADER_CLOSE)}(?=[ \\t]*(?:\\r?\\n|$))[ \\t]*\\r?\\n?`,
+    'i'
+  );
 }
 
 /**

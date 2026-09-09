@@ -259,7 +259,11 @@ export class ResponsePostProcessor {
     // would otherwise consume a header line before the specific, logged strip
     // ever sees it.
     const echoStripped = context.realMessagesEnabled
-      ? stripRealMessageEchoArtifacts(unwrappedContent, context.telemetry ?? {})
+      ? stripRealMessageEchoArtifacts(
+          unwrappedContent,
+          context.telemetry ?? {},
+          context.personalityName
+        )
       : unwrappedContent;
     let cleanedContent = stripResponseArtifacts(echoStripped, context.personalityName);
 

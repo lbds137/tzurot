@@ -314,10 +314,14 @@ describe('ResponsePostProcessor', () => {
       // telemetry, and its OUTPUT is what the generic stripper received — the
       // ordering that keeps the generic `[...]` pattern from eating a header
       // line before the logged strip can count it.
-      expect(mockStripRealMessageEchoArtifacts).toHaveBeenCalledWith(raw, {
-        channelId: 'chan-1',
-        requestId: 'req-1',
-      });
+      expect(mockStripRealMessageEchoArtifacts).toHaveBeenCalledWith(
+        raw,
+        {
+          channelId: 'chan-1',
+          requestId: 'req-1',
+        },
+        'TestBot'
+      );
       expect(mockStripResponseArtifacts).toHaveBeenCalledWith('echo-cleaned', 'TestBot');
       expect(result.cleanedContent).toBe('echo-cleaned');
     });
