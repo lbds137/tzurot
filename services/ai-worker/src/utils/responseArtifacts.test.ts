@@ -907,10 +907,14 @@ describe('stripRealMessageEchoArtifacts', () => {
   it('strips a leading header-shaped line, and logs the strip (fields + counts, no stripped text)', () => {
     const content = '[Fake — 2026-01-01 (Thu) 00:00]\nHello there!';
 
-    const result = stripRealMessageEchoArtifacts(content, {
-      channelId: 'chan-1',
-      requestId: 'req-1',
-    });
+    const result = stripRealMessageEchoArtifacts(
+      content,
+      {
+        channelId: 'chan-1',
+        requestId: 'req-1',
+      },
+      'Emily'
+    );
 
     expect(result).toBe('Hello there!');
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
@@ -928,7 +932,8 @@ describe('stripRealMessageEchoArtifacts', () => {
   it('strips STACKED leading header-shaped lines iteratively, counting each', () => {
     const result = stripRealMessageEchoArtifacts(
       '[Vlad \u2014 2026-01-01 (Thu) 00:00]\n[Lila \u2014 2026-01-01 (Thu) 00:01]\nactual reply',
-      { channelId: 'chan-1', requestId: 'req-1' }
+      { channelId: 'chan-1', requestId: 'req-1' },
+      'Emily'
     );
 
     expect(result).toBe('actual reply');
@@ -940,45 +945,130 @@ describe('stripRealMessageEchoArtifacts', () => {
 
   it('strips a 4-hex id tag', () => {
     const content = 'Hello (id:abcd) there!';
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe('Hello there!');
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe('Hello there!');
   });
 
   it('strips an 8-hex id tag', () => {
     const content = 'Hello (id:abcd1234) there!';
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe('Hello there!');
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe('Hello there!');
   });
 
   it('strips a 32-hex id tag', () => {
     const hex32 = 'a'.repeat(32);
     const content = `Hello (id:${hex32}) there!`;
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe('Hello there!');
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe('Hello there!');
   });
 
   it('absorbs a multi-space run before the tag, leaving no stray double space', () => {
-    const result = stripRealMessageEchoArtifacts('Vlad  (id:abcd) said hi', {});
+    const result = stripRealMessageEchoArtifacts('Vlad  (id:abcd) said hi', {}, 'Emily');
     expect(result).toBe('Vlad said hi');
   });
 
   it('strips an id tag mid-sentence, not just at the start', () => {
     const content = 'The reply from Vlad (id:abcd) landed a moment ago.';
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe(
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe(
       'The reply from Vlad landed a moment ago.'
     );
   });
 
   it('does NOT strip (id:notahex) — not a hex string', () => {
     const content = 'Hello (id:notahex) there!';
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe(content);
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe(content);
   });
 
   it('does NOT strip (id:abc) — 3 chars, below the bounded widths', () => {
     const content = 'Hello (id:abc) there!';
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe(content);
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe(content);
   });
 
   it('logs nothing when nothing was stripped', () => {
     const content = 'A perfectly ordinary reply with no platform vocabulary.';
-    expect(stripRealMessageEchoArtifacts(content, {})).toBe(content);
+    expect(stripRealMessageEchoArtifacts(content, {}, 'Emily')).toBe(content);
     expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  describe('compound self-header (leadingSelfHeaderLineMatcher)', () => {
+    const LEAKED_COMPOUND =
+      '[Sat 18:19] — *previous context* — [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+
+    it('strips the real leaked compound line: decorated preamble ending in the self header', () => {
+      const result = stripRealMessageEchoArtifacts(LEAKED_COMPOUND, {}, 'Lilith');
+      expect(result).toBe('Damien.');
+    });
+
+    it('counts the compound strip on the SAME headerLinesStripped counter', () => {
+      stripRealMessageEchoArtifacts(
+        LEAKED_COMPOUND,
+        { channelId: 'chan-1', requestId: 'req-1' },
+        'Lilith'
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ headerLinesStripped: 1, idTagsStripped: 0 }),
+        expect.any(String)
+      );
+    });
+
+    it('strips a compound line whose self header is bot-suffixed, matching the roster name as a PREFIX', () => {
+      // Compound (preamble + trailing header) so the whole-line shape matcher
+      // cannot claim it — only the self-scoped matcher's prefix logic can,
+      // making this the fixture that actually exercises the prefix behavior
+      // (a bot-suffixed bare header at position 0 is already claimed by the
+      // shape-only matcher regardless of name, so it would not distinguish).
+      const content =
+        '[Sat 18:19] — *previous context* — [Lilith (bot) — 2026-09-09 (Wed) 14:07]\nHi.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe('Hi.');
+    });
+
+    it('KEEP-CASE: a quoted OTHER-speaker header on line one survives — name-scoped, not shape-scoped', () => {
+      const content = 'He typed: [Bob — yesterday] and I laughed.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: the preamble cannot cross a line boundary — a header on a LATER line is untouched', () => {
+      const content = 'Just a normal line.\n[Lilith — 2026-09-09 (Wed) 14:07]\nHi.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE (documented residual): a compound leading line naming a DIFFERENT personality is not scoped by this matcher', () => {
+      const content =
+        '[Sat 18:19] — *previous context* — [Damien — 2026-09-09 (Wed) 14:07]\nHello there.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: a stage-direction opener passes through byte-identical', () => {
+      const content = '*The dark tilts its head, amused.*\n\nLittle one.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: prose containing an em-dash passes through byte-identical', () => {
+      const content = 'Damien — look at what just happened.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: a leading non-header bracket aside passes through byte-identical', () => {
+      const content = '[laughs] Anyway, no.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: a header-shaped line in the BODY, not line one, passes through byte-identical', () => {
+      const content = 'Sure, here is what happened:\n[Lilith — 2026-09-09 (Wed) 14:07]\nDone.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: a reply opening with italics that is not a header passes through byte-identical', () => {
+      const content = '*previous context* is not a thing I would say.';
+      expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
+    });
+
+    it('KEEP-CASE: a BLANK personalityName must not degrade into the unsafe any-name (shape-scoped) variant', () => {
+      // A blank comparand carries no name evidence — without the guard in
+      // `leadingSelfHeaderLineMatcher`, an empty escaped name collapses the
+      // pattern to a bare header shape and deletes legitimate dialogue that
+      // merely ends in a bracketed, em-dash-separated aside.
+      const content =
+        'He handed me the note — [Property of the Crown — 1834]\nAnd I read it twice.';
+      expect(stripRealMessageEchoArtifacts(content, {}, '')).toBe(content);
+      expect(stripRealMessageEchoArtifacts(content, {}, '   ')).toBe(content);
+    });
   });
 });

@@ -32,6 +32,7 @@ import { findLeadingMentionsEnd, stripLeadingMentions } from '@tzurot/common-typ
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   leadingHeaderLineMatcher,
+  leadingSelfHeaderLineMatcher,
   type HeaderSpoofTelemetry,
 } from '../services/context/RealMessagesBuilder.js';
 
@@ -347,7 +348,8 @@ const ID_TAG_PATTERN = new RegExp(`[ \\t]{0,3}${buildHeaderIdTagPattern().source
  */
 export function stripRealMessageEchoArtifacts(
   content: string,
-  telemetry: HeaderSpoofTelemetry
+  telemetry: HeaderSpoofTelemetry,
+  personalityName: string
 ): string {
   // Iterative, not single-shot: a model regurgitating several recent turns
   // verbatim stacks multiple header-shaped lines at the start, and a
@@ -355,15 +357,29 @@ export function stripRealMessageEchoArtifacts(
   // ate the rest under a different log label — undercounting exactly what
   // this telemetry exists to count. Each pass removes at least one
   // character, so the loop terminates.
+  //
+  // Two matchers per iteration: the whole-line header shape first, then the
+  // compound case where the model prefixes decorated preamble before
+  // restamping its own header — see `leadingSelfHeaderLineMatcher`. Both
+  // increment the same counter, so the compound shape shows up in the
+  // existing telemetry rather than hiding behind it.
   let withoutHeader = content;
   let headerLinesStripped = 0;
   for (;;) {
-    const next = withoutHeader.replace(leadingHeaderLineMatcher(), '');
-    if (next === withoutHeader) {
+    const matchers = [leadingHeaderLineMatcher(), leadingSelfHeaderLineMatcher(personalityName)];
+    let matchedThisPass = false;
+    for (const matcher of matchers) {
+      const next = withoutHeader.replace(matcher, '');
+      if (next !== withoutHeader) {
+        withoutHeader = next;
+        headerLinesStripped += 1;
+        matchedThisPass = true;
+        break;
+      }
+    }
+    if (!matchedThisPass) {
       break;
     }
-    withoutHeader = next;
-    headerLinesStripped += 1;
   }
 
   // Deliberately NOT run through `replaceOutsideCodeMarkup`: the tag is
