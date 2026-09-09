@@ -3,9 +3,10 @@ id: TASK-581
 title: >-
   truncateForSelect cuts mid-surrogate — the class #2083 fixed, in the browse
   module
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 00:18'
+updated_date: '2026-09-09 00:21'
 labels:
   - 'area:bot-client'
   - 'size:S'
