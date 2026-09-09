@@ -6,12 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-09 15:51'
+updated_date: '2026-09-09 18:22'
 labels:
   - 'area:ai-worker'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 919000
 ---
 
@@ -27,4 +28,8 @@ Not yet measured: how often a personality is actually renamed while history rows
 Fix shape if it earns the work: source the candidate names from the same place the header render does rather than from the post-processor context, which means threading the history rows names into ResponsePostProcessor, or capturing the set of names that appeared in this turns rendered headers alongside realMessagesEnabled and matching against that set. Do NOT solve it by dropping the name scoping. That was considered and rejected in TASK-920 on an asymmetry that has not changed: a missed strip leaks cosmetic scaffolding, a false strip deletes character dialogue, so a shape-only matcher is the worse failure in a roleplay product.
 
 Acceptance: a measurement first, either the rename frequency against the history retention window or a prod sweep of the compound-strip counter for a stale-name case; then either an archive with the numbers as the reason, or a matcher whose candidate names come from the rendered headers, with a canary proving a stale-name compound line strips and the existing keep-cases stay byte-identical.
+
+BROADENED after PR #2379 rounds 4 and 5, and re-prioritised low to medium on that basis. The class this task owns is wider than the rename window it was filed for. The strip guesses the name from the post-processor context (the current roster name); the header renders whatever the row stored, which can be Personality.displayName — a separate, nullable, independently-editable schema field. Three divergences follow, and only two are now closed: a bot-style SUFFIX is handled by the prefix match, and a CASE difference is handled by the i flag added in round 5. Still open: a rename between the row and the current turn, and a display name that is not a prefix-extension of the roster name at all (roster name one word, display name an unrelated epithet). Both fail the same silent way — no match, headerLinesStripped stays 0, the leak ships looking exactly like a clean turn.
+
+That is the argument for the fix shape already stated above rather than a seventh guard: the matcher has now needed six corrections, and every one restated a property the render path already knows. Sourcing the candidate names from the rendered headers closes the remaining two divergences together and stops the next one from being discoverable only in review. The same reasoning is recorded on TASK-923 for the sibling matcher; whichever is picked up first should check whether it can serve both.
 <!-- SECTION:DESCRIPTION:END -->
