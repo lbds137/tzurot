@@ -17,6 +17,7 @@ import {
   SHAPES_USER_AGENT,
 } from '@tzurot/common-types/types/shapes-import';
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
@@ -86,7 +87,8 @@ function createListHandler(prisma: PrismaClient) {
             status: response.status,
             finalUrl: response.url,
             wasRedirected,
-            bodyPreview: bodyText.slice(0, 200),
+            bodyPreview: contentPreview(bodyText, 200),
+            bodyLength: bodyText.length,
             discordUserId,
           },
           'shapes.inc API call failed'
