@@ -1557,8 +1557,15 @@ describe('leadingSelfHeaderLineMatcher', () => {
   });
 
   it('leaves a legitimate quoted other-speaker header byte-identical even when a genuine trailing self-header follows on the same line — the quoted bracket is header-shaped, so the preamble cannot skip past it to reach the real self-header', () => {
-    const content =
-      'He typed: [Bob — yesterday] and then said hi. [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    // The preamble before the quoted bracket must be decoration-only: a bare
+    // word character (as in prose like "He typed: ") is not a preamble unit
+    // at all, so the match already fails at position 0 without ever reaching
+    // the bracket — that shape would pass regardless of the lookahead this
+    // test exists to pin. Building the preamble out of decoration characters
+    // (the header separator itself, which decorChar admits) forces the
+    // engine to actually attempt the quoted bracket as a preamble unit,
+    // which is what exercises the header-separator lookahead in bracketGroup.
+    const content = ' — [Bob — yesterday] — [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
     expect(leadingSelfHeaderLineMatcher('Lilith').test(content)).toBe(false);
     expect(content.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(content);
   });
@@ -1591,6 +1598,16 @@ describe('leadingSelfHeaderLineMatcher', () => {
       'He handed me the note — [ Property of the Crown — 1834]\nAnd I read it twice.';
     expect(leadingSelfHeaderLineMatcher('').test(compound)).toBe(false);
     expect(leadingSelfHeaderLineMatcher('   ').test(compound)).toBe(false);
+  });
+
+  it('KEEP-CASE: a first line of narrated prose that merely ENDS in a self-named bracketed aside is left byte-identical — the preamble admits decoration, not prose', () => {
+    // The preamble's unit alternation is decoration-only: a bare word
+    // character is not a unit, so `He handed me the note` cannot be absorbed
+    // as scaffolding on the way to the trailing self-named bracket. Reverting
+    // the preamble unit to a bare non-bracket character class reddens this.
+    const narration = 'He handed me the note — [Lilith — 1834]\nAnd I read it twice.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(narration)).toBe(false);
+    expect(narration.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(narration);
   });
 
   it('does NOT match a self-named bracketed aside followed by more same-line content — the header must END the line', () => {
@@ -1632,17 +1649,114 @@ describe('leadingSelfHeaderLineMatcher', () => {
     expect(leadingSelfHeaderLineMatcher('anna').test(compound)).toBe(false);
   });
 
+  it('STRIP-CASE: matches the same leaked compound shape with underscore-delimited scaffolding — the underscoreRun branch is exercised, not just asteriskRun', () => {
+    const leaked = '[Sat 18:19] — _previous context_ — [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(leaked)).toBe(true);
+    expect(leaked.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe('Damien.');
+  });
+
+  it('KEEP-CASE: an underscore-wrapped narrated action beat preceding the self header is left byte-identical — the underscoreRun interior is bounded, not just asteriskRun', () => {
+    const narration =
+      '_He remembers everything from before, every detail still vivid in his mind_ [Lilith — reminiscing]\nAnd then he continued speaking as if nothing had happened.';
+    expect(leadingSelfHeaderLineMatcher('Lilith').test(narration)).toBe(false);
+    expect(narration.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(narration);
+  });
+
+  describe('emphasis delimiter count shapes', () => {
+    // Pins the three delimiter-count claims in the `asteriskDelim`/
+    // `underscoreDelim` doc comment above `leadingSelfHeaderLineMatcher`:
+    // double delimiters collapse to one unit, mismatched open/close counts
+    // still close as one run, and a run of three or more is rejected
+    // outright rather than accepted via a mixed open/close split.
+    it.each([
+      [
+        'double-asterisk bold collapses to a single unit, same as the single-delimiter form',
+        '**bold**',
+      ],
+      [
+        'double-underscore collapses to a single unit, same as the single-delimiter form',
+        '__under__',
+      ],
+      ['mismatched counts (open 2 / close 1) still close as one run', '**text*'],
+      ['mismatched counts (open 1 / close 2) still close as one run', '*text**'],
+    ])('%s: %s', (_label, emphasis) => {
+      const leaked = `${emphasis} [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(leaked)).toBe(true);
+      expect(leaked.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe('Damien.');
+    });
+
+    it('a run of three or more asterisks is rejected outright, not accepted via a mixed open/close split', () => {
+      const line = '*** [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(line)).toBe(false);
+      expect(line.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(line);
+    });
+  });
+
+  describe('emphasis run interior cap', () => {
+    // EMPHASIS_RUN_INTERIOR_MAX is 40 interior characters. These fixtures
+    // build the emphasis run's interior out of a run of `x` characters so the
+    // boundary is pinned exactly, mirroring the preamble-unit-count fixtures
+    // below.
+    const INTERIOR_CAP = 40;
+    const buildLine = (interiorLength: number): string =>
+      `*${'x'.repeat(interiorLength)}* [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
+
+    it('matches when the emphasis run interior is exactly at the cap', () => {
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(buildLine(INTERIOR_CAP))).toBe(true);
+    });
+
+    it('does NOT match when the emphasis run interior is one character over the cap', () => {
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(buildLine(INTERIOR_CAP + 1))).toBe(false);
+    });
+
+    // underscoreRun shares EMPHASIS_RUN_INTERIOR_MAX with asteriskRun but is a
+    // structurally separate branch of the alternation — mirrors the two
+    // asterisk fixtures above so a regression touching only the underscore
+    // branch's `{0,N}` bound goes red independently of the asterisk branch.
+    const buildUnderscoreLine = (interiorLength: number): string =>
+      `_${'x'.repeat(interiorLength)}_ [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
+
+    it('matches when the underscore emphasis run interior is exactly at the cap', () => {
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(buildUnderscoreLine(INTERIOR_CAP))).toBe(
+        true
+      );
+    });
+
+    it('does NOT match when the underscore emphasis run interior is one character over the cap', () => {
+      expect(
+        leadingSelfHeaderLineMatcher('Lilith').test(buildUnderscoreLine(INTERIOR_CAP + 1))
+      ).toBe(false);
+    });
+  });
+
+  describe('accepted residual: short narrated action beat', () => {
+    // A short italic action beat immediately preceding a self-header is
+    // structurally identical to the leak's own `*previous context*`
+    // scaffolding — one or two space-separated lowercase words inside
+    // single-asterisk delimiters, well under EMPHASIS_RUN_INTERIOR_MAX — so
+    // it is swallowed along with the header. This is a documented, accepted
+    // residual (see the `leadingSelfHeaderLineMatcher` doc comment above),
+    // not a KEEP-CASE: the fixture pins the actual behavior so a future
+    // change to this tradeoff is visible in a diff rather than silent.
+    it('is swallowed with the header, same as the leak scaffolding it is structurally identical to', () => {
+      const narrated = '*sighs softly* [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(narrated)).toBe(true);
+      expect(narrated.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe('Damien.');
+    });
+  });
+
   describe('preamble length cap', () => {
     // SELF_HEADER_PREAMBLE_MAX is 120 preamble UNITS, not characters — a
-    // bracket group counts as one unit regardless of its interior length.
-    // These fixtures build a preamble of exactly that many single
-    // non-bracket, non-newline characters (so nothing but the deliberate
-    // header bracket can start a match) and one character over; since each
-    // such character is its own unit, the unit count equals the character
-    // count here and the boundary is pinned exactly as before.
+    // bracket group or an emphasis run counts as one unit regardless of its
+    // interior length. These fixtures build the preamble out of single
+    // decoration characters (hyphens, one unit each) so the unit count equals
+    // the character count and the boundary is pinned exactly. A bare letter is
+    // deliberately NOT used: under the decoration-only narrowing a letter is
+    // not a preamble unit at all, so a letter-built preamble would pin
+    // nothing — both cap fixtures would pass vacuously.
     const PREAMBLE_CAP = 120;
     const buildLine = (preambleLength: number): string =>
-      `${'x'.repeat(preambleLength)}[Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
+      `${'-'.repeat(preambleLength)}[Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
 
     it('matches when the preamble is exactly at the cap', () => {
       expect(leadingSelfHeaderLineMatcher('Lilith').test(buildLine(PREAMBLE_CAP))).toBe(true);
@@ -1650,6 +1764,41 @@ describe('leadingSelfHeaderLineMatcher', () => {
 
     it('does NOT match when the preamble is one character over the cap', () => {
       expect(leadingSelfHeaderLineMatcher('Lilith').test(buildLine(PREAMBLE_CAP + 1))).toBe(false);
+    });
+  });
+
+  describe('adversarial perf: no ambiguous delimiter tiling', () => {
+    // The emphasis-run delimiter is `\*(?:\*)?(?!\*)` rather than a plain
+    // `\*{1,2}`: on a FAILING overall match (adversarial inputs below all
+    // lack a valid trailing header), a plain `{1,2}` on both the opening and
+    // closing delimiter lets the same run of bare delimiter characters be
+    // partitioned into a full preamble in more than one way, and that
+    // multiplicity compounds exponentially across the outer
+    // `{0,SELF_HEADER_PREAMBLE_MAX}` repetition — measured (outside this
+    // suite, with a throwaway probe) at 645ms for a 30-character input under
+    // a plain `{1,2}` form, immeasurable (<1ms) at 1000 characters under the
+    // lookahead-disambiguated form these fixtures pin. A regression back to
+    // `{1,2}` reintroduces the blowup; these fixtures assert wall-clock time
+    // stays low, not that no more work is ever added to this matcher.
+    const ADVERSARIAL_INPUTS: Array<[string, string]> = [
+      ['1000 asterisks + incomplete header', `${'*'.repeat(1000)}[Lilith — 2026`],
+      ['1000 underscores + incomplete header', `${'_'.repeat(1000)}[Lilith — 2026`],
+      [
+        '500 alternating asterisk/underscore pairs + incomplete header',
+        `${'*_'.repeat(500)}[Lilith — 2026`,
+      ],
+    ];
+
+    it.each(ADVERSARIAL_INPUTS)('resolves %s in well under a second', (_label, input) => {
+      const start = performance.now();
+      leadingSelfHeaderLineMatcher('Lilith').test(input);
+      const elapsedMs = performance.now() - start;
+      // 100ms: measured local runs land under 1ms even at 1000 characters
+      // (vs. ~630ms for the rejected plain-{1,2} form at just 30 characters),
+      // so 100ms still gives >100x headroom over the observed fast-path time
+      // while staying far below the slow-path floor — tight enough to redden
+      // on a real regression, loose enough not to flake under CI load.
+      expect(elapsedMs).toBeLessThan(100);
     });
   });
 });
