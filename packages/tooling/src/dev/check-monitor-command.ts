@@ -33,11 +33,16 @@ export const MONITOR_COMMAND_SURFACES = [
 
 /**
  * Anchors on the gate invocation, which every copy must contain and no other
- * line in these files does. Requires the `--sha` flag too, so prose naming the
- * command (`run \`pnpm ops gh:ci-gate\` to wait`) can't be mistaken for a copy
- * of the invocation.
+ * line in these files does. The `.*` between `pnpm` and `ops` tolerates the
+ * `-C "$(git rev-parse --show-toplevel)"` root-anchor every copy carries
+ * (probed: a bare `pnpm ops` from a package subdirectory exits 254 with
+ * `Command "ops" not found`, so the unanchored form works only where the
+ * cwd already is the checkout root). Requires the
+ * `--sha` flag too, so prose naming the command (`run \`pnpm ops gh:ci-gate\`
+ * to wait`) can't be mistaken for a copy of the invocation — that requirement
+ * is unchanged by the `-C` anchor.
  */
-const COMMAND_LINE = /pnpm ops gh:ci-gate .*--sha/;
+const COMMAND_LINE = /pnpm .*ops gh:ci-gate .*--sha/;
 
 export interface SurfaceCommand {
   file: string;

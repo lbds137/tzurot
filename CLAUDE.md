@@ -85,6 +85,7 @@ When compacting context, preserve:
 - Test commands that were run and their results
 - **Session settings the user changed** (reasoning effort level, permission mode) — post-compaction sessions have twice re-suggested settings that were already active. The env block's MODEL line goes stale after an in-session `/model` switch — verify the driver model via the session JSONL's per-message `.message.model` field before asserting it (misread twice from the stale env block)
 - **Open promises and asks**: anything announced as "I'll do X later," any unanswered question posed to the user, any user question not yet answered
+- **A verification that has survived two compaction boundaries unresolved** — answer it in that turn or file it as a tracker task; a premise carried through three summaries reads as settled, and nothing later re-opens it
 - **The work-stack pointer**: the interrupted task and its resume point when a side-quest (prod bug, review round) preempted the main line
 - **Manual-test / smoke-checklist state**: which items the user has executed and their results (also written to CURRENT.md per `/tzurot-testing` — the file is the source of truth)
 - **Live `Monitor` task ids for open PRs**: they cannot be looked up afterwards (`TaskList` does not enumerate background monitors), and losing one re-stacks watchers on the next push — see `05-tooling.md` § PR Monitoring
