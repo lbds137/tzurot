@@ -277,7 +277,7 @@ export class CommandHandler {
     const commandsPath = join(__dirname, '../commands');
     const commandFiles = getCommandFiles(commandsPath);
 
-    logger.info({ count: commandFiles.length }, 'Loading command files');
+    logger.info({ discoveredFiles: commandFiles.length }, 'Loading command files');
 
     for (const filePath of commandFiles) {
       try {

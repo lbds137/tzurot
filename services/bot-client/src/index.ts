@@ -506,8 +506,8 @@ async function start(): Promise<void> {
     if (shouldAutoRegisterCommands(envConfig)) {
       logger.info('Auto-registering slash commands...');
       try {
-        await deployCommands(true, redis); // Always deploy globally in production
-        logger.info('Slash commands deployed successfully');
+        const outcome = await deployCommands(true, redis); // Always deploy globally in production
+        logger.info({ outcome }, 'Slash-command deploy step finished');
       } catch (error) {
         logger.warn({ err: error }, 'Failed to deploy commands, but continuing startup...');
       }

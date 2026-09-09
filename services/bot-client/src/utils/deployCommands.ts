@@ -26,6 +26,17 @@ interface CommandJson {
 }
 
 /**
+ * The three normal outcomes of a `deployCommands` call. `'registered'` means
+ * the PUT was sent; the other two mean it was deliberately skipped and name
+ * why — `'skipped-empty-command-set'` is the guard against wiping the
+ * existing command set with zero valid commands, `'skipped-unchanged'` is
+ * the hash-match short-circuit. A thrown error is not part of this type —
+ * the function still rejects on failure.
+ */
+export type DeployCommandsOutcome =
+  'registered' | 'skipped-unchanged' | 'skipped-empty-command-set';
+
+/**
  * Load and validate a single command file
  *
  * Command entry points MUST default-export their Command (the shape
@@ -147,11 +158,19 @@ async function putCommands(
  *
  * @param global - Deploy globally (production) or to a specific guild (dev)
  * @param store - Optional last-registered-hash store. When provided, a PUT
- *   whose body hash matches the stored hash is skipped. When omitted,
- *   behaves exactly as before: always PUT, no hash read or write.
- * @returns Promise that resolves when deployment is complete
+ *   whose body hash matches the stored hash is skipped, AND a discovered
+ *   command set of zero valid commands is skipped rather than PUT (to avoid
+ *   wiping the existing registered set on a broken or empty boot). When
+ *   omitted, behaves exactly as before: always PUT, no hash read or write,
+ *   and an empty command set is still PUT (the shell script's caller shape,
+ *   which can deliberately wipe the registered set).
+ * @returns The outcome: `'registered'` when the PUT was sent, or one of the
+ *   two skip reasons.
  */
-export async function deployCommands(global = true, store?: DeployedCommandsStore): Promise<void> {
+export async function deployCommands(
+  global = true,
+  store?: DeployedCommandsStore
+): Promise<DeployCommandsOutcome> {
   try {
     const config = getConfig();
     const clientId = config.DISCORD_CLIENT_ID;
@@ -173,7 +192,7 @@ export async function deployCommands(global = true, store?: DeployedCommandsStor
     const commandsPath = join(__dirname, '../commands');
 
     const commandFiles = getCommandFiles(commandsPath);
-    logger.info({ count: commandFiles.length }, 'Loading command files');
+    logger.info({ discoveredFiles: commandFiles.length }, 'Loading command files');
 
     const commands: unknown[] = [];
     for (const filePath of commandFiles) {
@@ -181,6 +200,19 @@ export async function deployCommands(global = true, store?: DeployedCommandsStor
       if (commandData !== null) {
         commands.push(commandData);
       }
+    }
+
+    // The boot path (index.ts) supplies a store while the shell script does
+    // not, so gating on the store's presence lets an unattended boot that
+    // loaded zero valid commands skip the PUT instead of overwriting the
+    // last-known-good set with an empty one, while a deliberate shell-driven
+    // wipe against a broken or empty commands directory still goes through.
+    if (store !== undefined && commands.length === 0) {
+      logger.error(
+        { discoveredFiles: commandFiles.length },
+        'No valid commands were loaded; skipping registration to avoid wiping the existing command set'
+      );
+      return 'skipped-empty-command-set';
     }
 
     const scope = resolveScope(global, guildId);
@@ -191,7 +223,7 @@ export async function deployCommands(global = true, store?: DeployedCommandsStor
     const key = store !== undefined ? deployedCommandsKey(clientId, scope) : undefined;
 
     if (await shouldSkipUnchangedDeploy(store, key, hash, commands.length)) {
-      return;
+      return 'skipped-unchanged';
     }
 
     logger.info({ count: commands.length }, 'Deploying commands to Discord');
@@ -202,6 +234,8 @@ export async function deployCommands(global = true, store?: DeployedCommandsStor
     if (store !== undefined && hash !== undefined && key !== undefined) {
       await recordHash(store, key, hash);
     }
+
+    return 'registered';
   } catch (error) {
     logger.error({ err: error }, 'Error deploying commands');
     throw error;
