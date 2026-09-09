@@ -9,6 +9,10 @@
 
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { stripQuoteLines } from '@tzurot/common-types/utils/memoryContentSplit';
+import {
+  HIGH_SURROGATE_MIN,
+  HIGH_SURROGATE_MAX,
+} from '@tzurot/common-types/utils/codePointTruncation';
 import { replacePromptPlaceholders } from '../../utils/promptPlaceholders.js';
 import { stripLegacyLocationSpans } from './legacyLocationSpans.js';
 import type { MemoryDocument, FactRenderNames } from '../ConversationalRAGTypes.js';
@@ -43,7 +47,7 @@ export function capUserTurn(text: string): { text: string; capped: boolean } {
   // surrogate at the end of the truncated text.
   if (cutIndex < 0) {
     const precedingCodeUnit = text.charCodeAt(effectiveCutIndex - 1);
-    if (precedingCodeUnit >= 0xd800 && precedingCodeUnit <= 0xdbff) {
+    if (precedingCodeUnit >= HIGH_SURROGATE_MIN && precedingCodeUnit <= HIGH_SURROGATE_MAX) {
       effectiveCutIndex -= 1;
     }
   }
