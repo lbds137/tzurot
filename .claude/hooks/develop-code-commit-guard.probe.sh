@@ -18,6 +18,12 @@ HOOK="$SCRIPT_DIR/develop-code-commit-guard.sh"
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 TMP_BASE=$(mktemp -d)
+# The header-check ack key is date-scoped (UTC day), not per-run: without a
+# per-run ack file here, a second run of this probe on the same day would
+# find every header block already acked from the first run and silently pass
+# every header case. TMP_BASE is fresh per invocation and removed by the EXIT
+# trap, so this file never survives across runs.
+export DEVELOP_COMMIT_HEADER_ACK_FILE="$TMP_BASE/commit-header-ack"
 WT="$TMP_BASE/probe-wt"
 FEATURE_WT="$TMP_BASE/probe-feature-wt"
 MAIN_WT="$TMP_BASE/probe-main-wt"
@@ -163,6 +169,22 @@ run() {
     printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
   else
     printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# run_reason <expected-reason-substring> <label> <command>
+# The exit-code table CANNOT discriminate the taskopen branch: every `TASK-N`
+# subject also opens uppercase, so the subject-case rule blocks it even with
+# taskopen deleted. Asserting the banner's REASON is what pins the branch.
+run_reason() {
+  local needle="$1" label="$2" cmd="$3" wt="${TARGET_WT:-$WT}" out
+  out=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$wt" "$HOOK" 2>&1 >/dev/null)
+  if printf '%s' "$out" | grep -qF "$needle"; then
+    printf 'PASS  (reason)  %s\n' "$label"
+  else
+    printf 'FAIL  (reason missing: %s)  %s\n' "$needle" "$label"
     FAILURES=$((FAILURES + 1))
   fi
 }
@@ -414,6 +436,223 @@ else
   printf 'FAIL  malformed tool-input should fail open\n'
   FAILURES=$((FAILURES + 1))
 fi
+
+# --- commit header pre-check ------------------------------------------
+# Isolates the header check from the develop/gated-file check below it: no
+# case here passes a dirty file, so a bad header must block on a CLEAN tree
+# (the header runs BEFORE the branch/gated-file gate) and a good header must
+# exit 0 with nothing dirty at all.
+
+# Exactly 101 characters: "feat: " (6) + 95 'w' characters = 101 — one over
+# commitlint's header-max-length of 100.
+SUBJECT_101="feat: $(printf 'w%.0s' $(seq 1 95))"
+# Exactly 100 characters (the boundary, one under the block) — the
+# discriminating pair against SUBJECT_101: without this case, the length
+# check could be `>= 100` or `> 90` and nothing here would notice.
+SUBJECT_100="feat: $(printf 'w%.0s' $(seq 1 94))"
+# A valid lowercase 90-character subject.
+SUBJECT_90="feat: $(printf 'w%.0s' $(seq 1 84))"
+
+# A SECOND, distinct over-length subject (105 chars, different prefix and
+# fill word) so this case's ack key never collides with SUBJECT_101's —
+# the ack key hashes the SUBJECT text, and a shared key would let the first
+# case's block silently ack the second.
+SUBJECT_105_HEREDOC="docs: $(printf 'q%.0s' $(seq 1 99))"
+
+# The canonical heredoc commit form carrying the over-length first line
+# instead of a short one. \$ is escaped so bash does not attempt the
+# substitution while building this string — the resulting value is inert
+# text, exactly like CANONICAL_HEREDOC above.
+HEREDOC_LONG_SUBJECT="git add -A && git commit -m \"\$(cat <<'EOF'
+$SUBJECT_105_HEREDOC
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)\""
+
+run 2 "101-char subject blocks (header-max-length)"         "git commit -m \"$SUBJECT_101\""
+run 0 "100-char subject at the boundary passes"              "git commit -m \"$SUBJECT_100\""
+run 2 "subject opens with a task id"                          'git commit -m "TASK-12 foo"'
+# Discriminates the taskopen BRANCH, which the exit-code case above cannot:
+# with taskopen deleted the commit still blocks (subject-case catches the
+# uppercase T), so only the reason text distinguishes the two rules.
+run_reason "opens with a task id" "task-id opener reports the taskopen reason, not subject-case" 'git commit -m "TASK-13 bar"'
+run 2 "subject starts uppercase"                              'git commit -m "Fix: x"'
+run 0 "valid lowercase 90-char subject passes"                "git commit -m \"$SUBJECT_90\""
+run 0 "heredoc form with a valid subject passes"              "$CANONICAL_HEREDOC"
+run 2 "heredoc form with an over-length 105-char subject blocks" "$HEREDOC_LONG_SUBJECT"
+# commitlint subject-case fires on the FIRST character of the subject, which
+# is lowercase here ("f" of "feat") — the violation is in the remainder
+# after the conventional-commit prefix is stripped ("Add thing").
+run 2 "subject-case: uppercase after a conventional-commit prefix blocks" 'git commit -m "feat(scope): Add thing"'
+
+# --- header subject extraction is scoped to the commit's OWN segment -------
+# An earlier command's own -m in the same chain (e.g. `git stash push -m
+# "..."`) must not supply the "subject" the header check evaluates — that
+# earlier value has nothing to do with the actual `git commit` invocation.
+# REGRESSION CASE: the earlier -m opens uppercase; the real commit's subject
+# is fine, so this must NOT block.
+run 0 "chained -m before the real commit does not supply its subject" \
+  'git stash push -m "WIP before rebase" && git commit -m "feat: x"'
+# The mirror: an earlier -m is fine, but the chain's LAST real `git commit`
+# carries the bad subject — pins that the fix did not simply disable the
+# check by always grabbing the FIRST commit-shaped segment.
+run 2 "the chain's actual last commit still blocks on its own subject" \
+  'git commit -m "fine one" && git commit -m "Bad Subject"'
+# Every commit segment is evaluated, not just the last one: a bad FIRST
+# commit blocks even though the chain also carries a later clean one — a
+# chain halts at its first rejected commit, so that first bad subject is the
+# one a developer actually hits. Distinct subjects per case (exit-code vs.
+# reason) so neither shares an ack key with the other new cases above.
+run 2 "the chain's FIRST commit blocks even with a later clean one" \
+  'git commit -m "Reversed Bad Subject One" && git commit -m "fine two"'
+run_reason "Reversed Bad Subject Two" "reversed-order reason names the FIRST segment's subject, not the second" \
+  'git commit -m "Reversed Bad Subject Two" && git commit -m "fine three"'
+
+# --- header check does not fire on a SUBSTITUTION-ONLY match ---------------
+# REGRESSION CASE: a `sed` replacement quoting a commit EXAMPLE in backticks,
+# joined to a preceding `-m` by sed's own `\&` escaping (needed to emit a
+# literal `&` rather than sed's "whole match" meaning). The whole `s|...|`
+# argument is single-quoted, so bash never executes any of this — the
+# backticks are inert prose describing a shell command, not a real
+# invocation. Detection still fires (the accepted single-quote-span over-arm
+# above), but the header check must not: it used to run on the full raw
+# command anyway, and its own chain-split does not recognize `\&\&` as a
+# separator, so it picked up the stash's `-m` (the FIRST one in the glued
+# segment) as though it were the quoted commit's subject and blocked on text
+# nobody ever committed.
+BACKTICKED_COMMIT_EXAMPLE='sed -i '"'"'s|old|see (`git stash push -m "WIP before rebase" \&\& git commit -m "feat: x"`) here|'"'"' body.md'
+run 0 "backticked commit example joined by escaped && is not a real commit" "$BACKTICKED_COMMIT_EXAMPLE"
+
+# The bare-parenthesis sibling — identical text minus the backticks, so no
+# substitution span exists at all and detection never fires by any path.
+# Already passed before the fix; pinned here so the fix is not mistaken for
+# having achieved case1 by disabling the header check outright.
+BARE_COMMIT_EXAMPLE='sed -i '"'"'s|old|see (git stash push -m "WIP before rebase" \&\& git commit -m "feat: x") here|'"'"' body.md'
+run 0 "bare-parenthesis equivalent (no substitution span) also passes" "$BARE_COMMIT_EXAMPLE"
+
+# DISCRIMINATION: a REAL commit with its own bad subject, in the SAME command
+# as backticked prose quoting a DIFFERENT commit's subject. Proves the fix
+# narrows the header check's trigger rather than suppressing it outright —
+# the real, top-level `git commit` still gets checked and still blocks, on
+# its OWN subject, never the quoted example's. Two distinct subjects (exit-
+# code vs. reason) so neither call's ack key silently absorbs the other's.
+run 2 "a real bad commit blocks on its own subject beside quoted prose" \
+  'git commit -m "Never Should Surface One" && sed -i '"'"'s|old|see (`git stash push -m "WIP before rebase" \&\& git commit -m "feat: x"`) here|'"'"' body.md'
+run_reason "Never Should Surface Two" "reason names the REAL commit's subject, not the quoted example's" \
+  'git commit -m "Never Should Surface Two" && sed -i '"'"'s|old|see (`git stash push -m "WIP before rebase" \&\& git commit -m "feat: x"`) here|'"'"' body.md'
+
+# --- header check is independent of the develop/main escape hatch ----------
+# TZUROT_ALLOW_DEVELOP_CODE_COMMIT unlocks the gated-file/branch gate only —
+# the header pre-check runs on every branch and must not honour it.
+run 2 "escape token does not unlock the header pre-check" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "Bad Subject Two"'
+
+# --- heredoc subject extraction recognizes --message, not just -m ----------
+SUBJECT_LONG_MESSAGE="chore: $(printf 'z%.0s' $(seq 1 100))"
+HEREDOC_LONG_MESSAGE="git add -A && git commit --message \"\$(cat <<'EOF'
+$SUBJECT_LONG_MESSAGE
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)\""
+run 2 "heredoc form via --message with an over-length subject blocks" "$HEREDOC_LONG_MESSAGE"
+
+# --- heredoc subject extraction recognizes the --message=$(...) `=` form ---
+# REGRESSION CASE: the heredoc regex required whitespace after -m/--message
+# while _plain_subject accepts `=` too. `--message=$(cat …)` used to skip the
+# heredoc branch entirely, find no inline -m/--message argument on the plain-
+# form fallback either, and pass an over-length subject through unchecked.
+SUBJECT_LONG_MESSAGE_EQ="chore: $(printf 'y%.0s' $(seq 1 100))"
+HEREDOC_EQ_LONG_MESSAGE="git add -A && git commit --message=\$(cat <<'EOF'
+$SUBJECT_LONG_MESSAGE_EQ
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+run 2 "heredoc form via --message=(...) (equals, no space) with an over-length subject blocks" "$HEREDOC_EQ_LONG_MESSAGE"
+
+# --- classification runs on quote-stripped text, not raw (the class fix) ---
+# REGRESSION CASE: a `sed` replacement quoting a commit EXAMPLE in an EARLIER
+# chain segment, joined by a plain `&&` (not sed's own `\&\&` escaping — that
+# shape was already covered above). The naive chain-split classified segment
+# 1 (the sed invocation) as a commit invocation because `is_commit_invocation`
+# matched the quoted example's `git commit` tokens literally, ignoring the
+# surrounding single quotes — so it extracted "Round Three Ignored Subject"
+# as though IT were the real commit's subject and blocked before ever
+# reaching the real, valid commit in segment 2. The fix classifies from the
+# quote-stripped `cmd`, where the quoted example collapses to a placeholder
+# and carries no `git`/`commit` tokens to match.
+ROUND3_REPRO='sed -i '"'"'s/old/git commit -m "Round Three Ignored Subject"/'"'"' notes.md && git commit -m "feat: round three real commit"'
+run 0 "quoted commit-shaped prose in an earlier segment does not block a valid later commit" "$ROUND3_REPRO"
+
+# DISCRIMINATION: the mirror of the round-3 case, with the REAL commit's own
+# subject now bad. Proves the classification fix narrows what counts as a
+# commit segment rather than suppressing the header check outright — the
+# real, later `git commit` still gets evaluated and still blocks, on its OWN
+# subject, never the quoted example's. Distinct subjects for the exit-code
+# vs. reason checks so neither call's ack key silently absorbs the other's.
+ROUND3_MIRROR='sed -i '"'"'s/old/git commit -m "Round Three Ignored Subject Two"/'"'"' notes.md && git commit -m "Round Three Real Bad Subject One"'
+run 2 "the mirror: a real bad commit after quoted prose in an earlier segment still blocks" "$ROUND3_MIRROR"
+ROUND3_MIRROR_REASON='sed -i '"'"'s/old/git commit -m "Round Three Ignored Subject Three"/'"'"' notes.md && git commit -m "Round Three Real Bad Subject Two"'
+run_reason "Round Three Real Bad Subject Two" "reason names the REAL later commit's subject, not the quoted prose's" "$ROUND3_MIRROR_REASON"
+
+# --- the heredoc branch gets the round-3 treatment too (round-4 class fix) -
+# REGRESSION CASE: round 3 fixed classification for the PLAIN -m path only —
+# the heredoc branch still ran a single whole-raw `re.search` for
+# `-m "$(cat <<TOKEN' ... TOKEN)"` with no check that the match sits inside an
+# inert quoted span. An `echo` of the canonical commit-message form (the exact
+# shape `05-tooling.md` and `/tzurot-git-workflow` document as literal prose,
+# and this probe file's own $CANONICAL_HEREDOC fixture) joined by `&&` to a
+# REAL, later, plain-`-m` commit put the fake example leftmost in raw, so the
+# whole-raw search picked "Round Four Ignored Subject" as the header verdict's
+# subject before the real commit was ever evaluated. The fix gives the
+# heredoc branch the same classify-from-quote-stripped-text/extract-from-raw
+# split the plain path already had, via a per-match sentinel so the chain
+# split can't be shredded by the heredoc body's own embedded newlines.
+ROUND4_HEREDOC_REPRO='echo '\''Canonical form: git commit -m "$(cat <<EOF
+Round Four Ignored Subject
+EOF
+)"'\'' && git commit -m "feat: round four real commit"'
+run 0 "quoted heredoc-shaped commit example in an earlier segment does not block a valid later commit" "$ROUND4_HEREDOC_REPRO"
+
+# DISCRIMINATION: the mirror of the round-4 case, with the REAL later commit's
+# own subject now bad. Proves the classification fix narrows what counts as a
+# commit segment rather than suppressing the heredoc header check outright —
+# the real, later `git commit` still gets evaluated and still blocks, on its
+# OWN subject, never the quoted example's. Distinct subjects for the exit-code
+# vs. reason checks so neither call's ack key silently absorbs the other's.
+ROUND4_MIRROR='echo '\''Canonical form: git commit -m "$(cat <<EOF
+Round Four Ignored Subject Two
+EOF
+)"'\'' && git commit -m "Round Four Real Bad Subject One"'
+run 2 "the mirror: a real bad commit after quoted heredoc-shaped prose in an earlier segment still blocks" "$ROUND4_MIRROR"
+ROUND4_MIRROR_REASON='echo '\''Canonical form: git commit -m "$(cat <<EOF
+Round Four Ignored Subject Three
+EOF
+)"'\'' && git commit -m "Round Four Real Bad Subject Two"'
+run_reason "Round Four Real Bad Subject Two" "reason names the REAL later commit's subject, not the quoted heredoc-shaped prose's" "$ROUND4_MIRROR_REASON"
+
+# --- -am and other combined short-flag clusters ending in `m` --------------
+# `_plain_subject`'s alternation was literal `-m`/`--message`, so
+# `git commit -am "..."` matched no inline argument and the header check
+# silently reported "ok" regardless of the subject. Extended to recognize a
+# combined short-flag cluster ending in `m`, anchored to a fresh flag
+# boundary so it cannot match mid-word inside an unrelated long flag.
+run 2 "combined short flag -am carries the message argument"       'git commit -am "Bad Uppercase Subject One"'
+run 2 "combined short flag -cam carries the message argument"      'git commit -cam "Bad Uppercase Subject Cam"'
+run 0 "a cluster NOT ending in m is not treated as a message flag" 'git commit -ac "Bad Looking Quoted String"'
+run 0 "--amend -m is unaffected by the cluster alternative"        'git commit --amend -m "totally fine amend subject"'
+
+# --- header check runs on the feature branch too (branch-independence) -----
+# The header pre-check is deliberately NOT gated behind the develop/main
+# check — it runs on every branch. Every other header case above runs
+# against the default develop worktree; nothing until now pinned that the
+# check also fires away from develop/main, so a regression that accidentally
+# moved it behind the branch gate would pass the whole suite unnoticed.
+TARGET_WT="$FEATURE_WT"
+run 2 "header check fires on a feature branch, not just develop/main" 'git commit -m "Feature Branch Header Subject"'
+TARGET_WT=""
 
 # Version-bump exception: tracked package.json files whose diffs touch only
 # their "version" line pass; a bump touching anything else blocks; an

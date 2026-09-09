@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-03'
+lastUpdated: '2026-09-09'
 ---
 
 # Orchestrator Mode
@@ -125,7 +125,11 @@ The dispatch prompt's non-negotiable contract points:
   sentence down. A canary pins the case it runs, not the general property: a
   body claim broader than its canary gets a second canary varying the next
   property, or a sentence scoped to the fixture actually run. Named canaries
-  get run and reported.
+  get run and reported. A canary fixture places the mutation's damage
+  strictly INSIDE the fixture, never on the boundary being tested — a cut
+  that lands ON the boundary passes with the fix deleted, so the fixture
+  reports coverage while verifying nothing. The spec states the cut
+  position, and the report shows the red tail.
 
 When the orchestrator reports, Fable's side is unchanged in substance from
 § When the worker reports, plus the transfer shape that keeps gates out of the
@@ -180,6 +184,16 @@ a gap the worker will fill by guessing.
    smaller than the expected addition, name the extraction target as a
    PRE-AUTHORIZED routine decision rather than a stop; same for any touched
    function already at `max-lines-per-function`/`max-statements`/`max-params`.
+
+   The same accounting covers EVERY enforced ceiling the change approaches,
+   not just ESLint's: the always-loaded line and byte budgets
+   (`pnpm ops lines:check`), dashboard settings-per-page, Discord's field,
+   description, and customId caps, and any cap the spec itself declares.
+   Name each ceiling the unit comes near with its current value and its
+   headroom, or pre-authorize the extraction or split that absorbs the
+   overrun. A ceiling the spec never named is one the worker discovers as a
+   failing gate.
+
 4. **Landmines** — enumerated known traps: formatters that rewrite the file,
    gated baselines, hook behavior, fixture shapes. Say up front that the worker
    edits files with the Edit tool and never an interpreter heredoc rewrite
@@ -199,7 +213,7 @@ a gap the worker will fill by guessing.
    parallel (`05-tooling.md` § Resource Constraints).
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
-   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs (§ Nested dispatch).
+   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs, and cut strictly inside the fixture rather than on the boundary under test (§ Nested dispatch).
 8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this
@@ -309,6 +323,14 @@ only correction that arrives in time.
 
 ### Resuming a worktree-isolated worker
 
+**Check `git worktree list` BEFORE the `SendMessage`, not only after.** A
+worker whose own report says it made no edits has no worktree left to resume
+into — the harness already removed it (§ "The base IS stale by default") —
+so the resume would land in the shared checkout. That signal is free: the
+worker's report says whether it edited. A missing tree means re-dispatch
+fresh. This narrows the resume preference in § When the worker reports; it
+does not reverse it.
+
 **A `SendMessage` resume can silently drop the isolation** — the resumed run
 can make every edit in the ORCHESTRATOR's tree while the tool result says only
 "resumed from transcript", so this fails silently in the direction the worktree
@@ -336,6 +358,12 @@ main tree is parked on a feature branch while a dispatch runs,
 `git switch develop`, commit, and switch back: a board commit made on a feature branch pushes as a silent "Everything up-to-date" no-op. Interaction with `05-tooling.md` § PR Monitoring: a branch hop moves
 `$(git rev-parse HEAD)`, so arm any pending CI monitor — and see its SHA echo
 — before hopping, not after. Backstopped by `board-commit-branch-gate.sh`.
+
+**A nested orchestrator waits on its inner worker through the Agent tool
+result, never a `run_in_background` poll loop** — and any background waiter
+it does start for an external condition carries its own bound and prints its
+exit reason, so the harness panel never shows an unbounded Running row behind
+an agent that already reported.
 
 ## When the worker reports
 

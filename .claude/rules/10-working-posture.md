@@ -273,6 +273,10 @@ ending on a `PushNotification`, which feels like delivery — a PushNotification
 is not the report, and `turn-end-shape-gate.sh` blocks the stop once when the
 turn's last content block is a tool call.
 
+A compaction offer is not a release from the ledger: when the owner asks
+whether to compact — or types `/compact` — while a close-out is still owed,
+the owed report goes in that same reply, above the agreement.
+
 ## A comment naming an artifact is a pointer — resolve it before acting
 
 Trigger: a comment, docstring, or task note names a concrete artifact — "the

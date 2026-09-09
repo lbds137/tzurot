@@ -174,7 +174,7 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
   1800000, persistent false (deliberately NOT true — a forgotten session-length
   watcher cannot be cleaned up), and the line below as its "command", verbatim:
 
-    pnpm ops gh:ci-gate $PR_NUM --sha \$(git rev-parse HEAD)
+    pnpm -C "\$(git rev-parse --show-toplevel)" ops gh:ci-gate $PR_NUM --sha \$(git rev-parse HEAD)
 
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.
