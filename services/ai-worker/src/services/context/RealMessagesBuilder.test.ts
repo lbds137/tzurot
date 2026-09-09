@@ -1583,7 +1583,12 @@ describe('leadingSelfHeaderLineMatcher', () => {
   });
 
   it('does NOT match when personalityName is blank or whitespace-only — a blank comparand must never degrade to the unsafe any-name variant', () => {
-    const compound = 'He handed me the note — [Property of the Crown — 1834]\nAnd I read it twice.';
+    // The bracket group deliberately opens with a space rather than a letter
+    // so the matcher's name-boundary lookahead cannot reject the line on its
+    // own — only the blank-name guard can, making this assertion discriminate
+    // that guard instead of the boundary.
+    const compound =
+      'He handed me the note — [ Property of the Crown — 1834]\nAnd I read it twice.';
     expect(leadingSelfHeaderLineMatcher('').test(compound)).toBe(false);
     expect(leadingSelfHeaderLineMatcher('   ').test(compound)).toBe(false);
   });
@@ -1602,6 +1607,17 @@ describe('leadingSelfHeaderLineMatcher', () => {
   it('still matches the same compound line when the responding personality IS the longer name exactly — proves the boundary discriminates rather than rejecting the whole shape', () => {
     const compound = '[Sat 18:19] — *previous context* — [Annabelle — 2026-09-09 (Wed) 14:07]\nHi.';
     expect(leadingSelfHeaderLineMatcher('Annabelle').test(compound)).toBe(true);
+  });
+
+  it('documents an accepted residual: a longer name extending the responding name across a space DOES cross-match — the space boundary discriminates only within a single token', () => {
+    // Accepted consequence of the name-PREFIX relaxation: the boundary after
+    // the escaped name is a space, and a multi-word name separates on a space
+    // too, so `Anna` still matches `[Anna Belle — ...]`. Tightening the
+    // boundary would break the bot-suffix header shape (`[Name (bot) — ...]`)
+    // the relaxation exists to cover. Asserted as CURRENT behaviour so a
+    // future change to the boundary shows up here.
+    const compound = '[Sat 18:19] — *ctx* — [Anna Belle — 2026-09-09 (Wed) 14:07]\nHi.';
+    expect(leadingSelfHeaderLineMatcher('Anna').test(compound)).toBe(true);
   });
 
   it('STRIP-CASE: matches a header rendered with a differently-cased name, both upper and lower — the header can carry the independently-editable display name, whose case need not track the roster name', () => {

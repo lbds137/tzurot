@@ -266,12 +266,19 @@ export function leadingHeaderLineMatcher(): RegExp {
  * name can never complete a match here regardless, since the bracket-free
  * class between the name and the separator already excludes `]`. A
  * closing-bracket boundary alternative would therefore protect a case this
- * matcher cannot produce, so it is left out; the space boundary alone still
- * stops a name that is a raw-string prefix of a DIFFERENT, longer
- * personality's name from cross-matching that personality's header —
- * pinned by the `Anna`-vs-`Annabelle`-shaped cases in this function's own
- * test suite. A header naming a genuinely different personality that
- * shares no such prefix relationship remains a known, accepted residual
+ * matcher cannot produce, so it is left out; the space boundary stops a
+ * prefix only WITHIN a single token — `Anna` does not cross-match
+ * `[Annabelle — …]`, pinned by the `Anna`-vs-`Annabelle`-shaped cases in
+ * this function's own test suite. It does NOT stop a name that extends the
+ * responder's name ACROSS a space: `Anna` still cross-matches
+ * `[Anna Belle — …]`, because a multi-word name's own internal separator is
+ * also a space, indistinguishable from the boundary the prefix relaxation
+ * looks for. That is an accepted consequence of the prefix relaxation —
+ * tightening the boundary to reject it would also reject the bot-suffix
+ * header shape (`[Name (bot) — …]`) the relaxation exists to cover, so it is
+ * left in place. It is tracked as a miss-direction residual of the
+ * render-path rebuild. A header naming a genuinely different personality
+ * that shares no such prefix relationship remains a known, accepted residual
  * MISS this matcher does not close.
  *
  * A blank (or whitespace-only) `personalityName` returns a matcher that can

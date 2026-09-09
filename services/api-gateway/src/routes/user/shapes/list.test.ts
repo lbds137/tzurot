@@ -20,19 +20,24 @@ vi.mock('@tzurot/common-types/utils/encryption', async () => {
   };
 });
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
-  return {
-    ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  };
+  return { ...actual, createLogger: () => mockLogger };
+});
+
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { NODE_ENV: 'test' as string, LOG_CONTENT_PREVIEWS: false },
+}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return { ...actual, getConfig: () => mockConfig };
 });
 
 // Uses the shared mock at `src/services/__mocks__/AuthMiddleware.ts`
@@ -83,6 +88,8 @@ function createMockReqRes() {
 describe('Shapes List Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfig.NODE_ENV = 'test';
+    mockConfig.LOG_CONTENT_PREVIEWS = false;
   });
 
   describe('GET /api/user/shapes/list (list shapes)', () => {
@@ -140,6 +147,70 @@ describe('Shapes List Routes', () => {
           total: 1,
         })
       );
+
+      vi.unstubAllGlobals();
+    });
+
+    it('should log a gated body preview and the body length when the shapes.inc call fails and previews are disabled', async () => {
+      mockConfig.NODE_ENV = 'test';
+      mockConfig.LOG_CONTENT_PREVIEWS = false;
+      mockPrisma.userCredential.findFirst.mockResolvedValue({
+        iv: 'iv',
+        content: 'content',
+        tag: 'tag',
+      });
+
+      const failingBody = 'shapes.inc internal error';
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        redirected: false,
+        status: 500,
+        url: 'https://shapes.inc/api/shapes?category=self',
+        text: vi.fn().mockResolvedValue(failingBody),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const { res } = await callListHandler();
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      const fields = mockLogger.warn.mock.calls[0][0] as {
+        bodyPreview: unknown;
+        bodyLength: unknown;
+      };
+      expect(fields.bodyPreview).toBeUndefined();
+      expect(fields.bodyLength).toBe(failingBody.length);
+
+      vi.unstubAllGlobals();
+    });
+
+    it('should log the actual body preview and the body length when the shapes.inc call fails and previews are enabled', async () => {
+      mockConfig.NODE_ENV = 'development';
+      mockConfig.LOG_CONTENT_PREVIEWS = true;
+      mockPrisma.userCredential.findFirst.mockResolvedValue({
+        iv: 'iv',
+        content: 'content',
+        tag: 'tag',
+      });
+
+      const failingBody = 'shapes.inc internal error';
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        redirected: false,
+        status: 500,
+        url: 'https://shapes.inc/api/shapes?category=self',
+        text: vi.fn().mockResolvedValue(failingBody),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const { res } = await callListHandler();
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      const fields = mockLogger.warn.mock.calls[0][0] as {
+        bodyPreview: unknown;
+        bodyLength: unknown;
+      };
+      expect(fields.bodyPreview).toBe(failingBody);
+      expect(fields.bodyLength).toBe(failingBody.length);
 
       vi.unstubAllGlobals();
     });
