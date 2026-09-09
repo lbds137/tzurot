@@ -440,7 +440,7 @@ invoke "$(bash_payload 'git push')"
 # guard:monitor-command, which requires this copy to match the two doc copies
 # modulo the PR/SHA placeholders.
 assert_stdout_has "monitor command prints the substitution unresolved" \
-  'pnpm ops gh:ci-gate 2004 --sha $(git rev-parse HEAD)'
+  'pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate 2004 --sha $(git rev-parse HEAD)'
 if grep -qE 'gh:ci-gate 2004 --sha [0-9a-f]{7,40}' "$STDOUT_FILE"; then
   bad "monitor command has a RESOLVED sha baked in"
 else
