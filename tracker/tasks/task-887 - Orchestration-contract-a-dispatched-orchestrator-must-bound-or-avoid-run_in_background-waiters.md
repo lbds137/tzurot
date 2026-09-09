@@ -24,3 +24,5 @@ Fix shape: one bullet in the nested-dispatch contract points of .claude/skills/t
 
 Acceptance: the skill carries the bullet; the next dispatch prompt written from the template includes it; a grep of the session Background tasks after the next unit shows no Running shell belonging to a completed agent.
 <!-- SECTION:DESCRIPTION:END -->
+
+Re-surfaced by the 2026-09-09 mining run (proposal R8): two more owner-caught orphan incidents in the mined delta (a 55-minute stray from a removed worktree that falsified a nothing-is-running answer; three wait-loops running ~170 minutes until the owner spotted them from a screenshot), and one window where 54 percent of all corpus blocks were a 3-to-5-second poll flood from an orchestrator waiting on its inner worker with run_in_background. Absent by construction under the single-hop driver. The companion skill sentence (a nested orchestrator waits through the Agent tool result, never a background poll loop; any background waiter states its own bound) rides the mining process PR; this task keeps the harness-side and tooling-side remedy.
