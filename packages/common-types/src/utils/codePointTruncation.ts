@@ -20,10 +20,14 @@
  * honours the ceiling.
  */
 
-/** Lower bound (inclusive) of the UTF-16 high-surrogate range. */
-const HIGH_SURROGATE_MIN = 0xd800;
+/**
+ * Lower bound (inclusive) of the UTF-16 high-surrogate range. Exported so
+ * callers whose truncation ALGORITHM differs (a word-boundary search, say)
+ * still share the range definition rather than re-inlining the literals.
+ */
+export const HIGH_SURROGATE_MIN = 0xd800;
 /** Upper bound (inclusive) of the UTF-16 high-surrogate range. */
-const HIGH_SURROGATE_MAX = 0xdbff;
+export const HIGH_SURROGATE_MAX = 0xdbff;
 
 /**
  * Truncate `value` to at most `maxCodePoints` code points, appending
@@ -36,6 +40,13 @@ const HIGH_SURROGATE_MAX = 0xdbff;
  * surrogate.
  */
 export function truncateByCodePoints(value: string, maxCodePoints: number, suffix = ''): string {
+  // Exact, not an approximation: an astral character costs two UTF-16 units and
+  // every other character costs one, so `.length` is always >= the code-point
+  // count — within the cap by units implies within it by code points. Skips the
+  // spread on the common short-string case.
+  if (value.length <= maxCodePoints) {
+    return value;
+  }
   const codePoints = [...value];
   if (codePoints.length <= maxCodePoints) {
     return value;
