@@ -1064,9 +1064,13 @@ describe('stripRealMessageEchoArtifacts', () => {
       // A blank comparand carries no name evidence — without the guard in
       // `leadingSelfHeaderLineMatcher`, an empty escaped name collapses the
       // pattern to a bare header shape and deletes legitimate dialogue that
-      // merely ends in a bracketed, em-dash-separated aside.
+      // merely ends in a bracketed, em-dash-separated aside. The bracket
+      // group deliberately opens with a space rather than a letter, so the
+      // matcher's name-boundary lookahead cannot reject the line on its own —
+      // only the blank-name guard can, which is what makes this assertion
+      // discriminate the guard rather than the boundary.
       const content =
-        'He handed me the note — [Property of the Crown — 1834]\nAnd I read it twice.';
+        'He handed me the note — [ Property of the Crown — 1834]\nAnd I read it twice.';
       expect(stripRealMessageEchoArtifacts(content, {}, '')).toBe(content);
       expect(stripRealMessageEchoArtifacts(content, {}, '   ')).toBe(content);
     });
