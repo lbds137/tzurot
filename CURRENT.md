@@ -14,6 +14,10 @@
 - **Config steps (minutes each)**: `WEEKLY_AUDIT_GH_TOKEN` repo secret (TASK-898 closes on the first run) · `TZUROT_RAILWAY_API_TOKEN` in the local `.env` plus the two `AUTO_DEPLOY_COMMANDS` deletes (TASK-62) · `~/.bash_profile` line 20 → the WebStorm 2026.1 node path · confirm dev's `realMessagesEnabled` on the Operations page (prod is confirmed ON from logs; dev had no traffic to read).
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read (multi-day sweep across prod deployments) · the retrieval-stamp watch (CLOSED 2026-09-08) · the #2270 link-share and #2253 restart-recovery watchers.
 
+## ☀️ 2026-09-10 — retention Phase 4 PR-A merged (Opus-driven)
+
+**#2385 MERGED (`dd8e5a853`, closes TASK-326)**: run lease + non-prod purge scope; detail on the board (TASK-926 unit 3). **PR-B (the job) is next**, spec in `docs/local/handoffs/`. Misses: a closed-task blind spot (TASK-634 already owned the dev-purge hazard), an unthrottled gate OOM (`test:low-mem` is the throttled form), twice-stale dist, two claims written before the thing existed. `.bash_profile` now resolves the WebStorm node path at login.
+
 ## 🌙 2026-09-09 (late) — beta.222 opens: sharp advisory shipped, two PRs in review, three tasks filed (Opus-driven)
 
 **#2382 MERGED (`281c2d483`) — the `sharp` HIGH advisory (GHSA-rgj7-g3m4-5g8c) closed by a `pnpm.overrides` floor bump.** The board's plan (wait for a Dependabot PR) was written on a wrong label: all four direct declarations already read `^0.35.4`, so the vulnerable copy was TRANSITIVE (`packages/embeddings` → `@huggingface/transformers@4.2.0` → `sharp@0.35.3`) and no PR was ever coming. **TASK-927** fixes the classifier — `isDirect` is name-membership in the declaration set, never the resolved tree. Advisory clears on `main` at the cut, not before.

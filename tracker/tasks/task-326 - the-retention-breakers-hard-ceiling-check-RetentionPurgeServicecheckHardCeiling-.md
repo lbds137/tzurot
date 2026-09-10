@@ -1,10 +1,10 @@
 ---
 id: TASK-326
 title: Serialize purge runs before a second caller exists (advisory lock)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-25 00:00'
-updated_date: '2026-09-04 19:36'
+updated_date: '2026-09-10 16:00'
 labels:
   - 'area:db'
   - 'origin:review'
