@@ -275,6 +275,7 @@ describe('buildViewComponents', () => {
 describe('handleView / handleViewPagination', () => {
   const editReply = vi.fn();
   const deferUpdate = vi.fn();
+  const followUp = vi.fn();
   const stub = { getPersonality: vi.fn() };
   const config = {} as unknown as Parameters<typeof handleView>[1];
 
@@ -289,7 +290,20 @@ describe('handleView / handleViewPagination', () => {
   }
 
   function paginationInteraction() {
-    return { deferUpdate, editReply } as unknown as Parameters<typeof handleViewPagination>[0];
+    const interaction = {
+      deferred: false,
+      replied: false,
+      editReply,
+      followUp,
+      // deferUpdate flips the ack state the way Discord does, so the reply
+      // matrix routes the failure notice to an ephemeral followUp instead of
+      // an editReply (pinned by the notifies-the-user test below).
+      deferUpdate: vi.fn(async () => {
+        interaction.deferred = true;
+        await deferUpdate();
+      }),
+    };
+    return interaction as unknown as Parameters<typeof handleViewPagination>[0];
   }
 
   it('renders the Components-V2 payload (flag + component tree, no embeds) when found', async () => {
@@ -417,13 +431,32 @@ describe('handleView / handleViewPagination', () => {
   });
 
   it('keeps the existing view (no editReply) when pagination re-fetch fails with a non-404', async () => {
-    // fetchCharacterForView throws on 500 → the catch logs and intentionally
-    // leaves the current page in place so the user can retry.
+    // fetchCharacterForView throws on 500 → the catch leaves the current page
+    // in place so the user can retry, and ships the failure notice as a
+    // separate ephemeral followUp (asserted in the next test).
     stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
 
     await handleViewPagination(paginationInteraction(), 'test-character', 1, config);
 
     expect(deferUpdate).toHaveBeenCalled();
+    expect(editReply).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user with an ephemeral followUp when pagination re-fetch fails', async () => {
+    stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
+
+    await handleViewPagination(paginationInteraction(), 'test-character', 1, config);
+
+    // The gateway's own message reaches the user: a 500 classifies to
+    // gatewayRejection, whose text IS the surfaced message.
+    expect(followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('boom'),
+      })
+    );
+    // Second conjunct, asserted separately: the visible page survives — the
+    // notice is a followUp, never an edit.
     expect(editReply).not.toHaveBeenCalled();
   });
 });
