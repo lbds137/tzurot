@@ -289,79 +289,6 @@ export class ServiceClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async retentionPreview(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionPreview.output>>> {
-    const fullPath = '/api/internal/retention/preview';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'GET',
-      path: fullPath,
-      outputSchema: ROUTE_MANIFEST.retentionPreview.output,
-    });
-  }
-
-  async retentionPurge(input: z.input<typeof ROUTE_MANIFEST.retentionPurge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionPurge.output>>> {
-    const fullPath = '/api/internal/retention/purge';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'POST',
-      path: fullPath,
-      body: input,
-      outputSchema: ROUTE_MANIFEST.retentionPurge.output,
-    });
-  }
-
-  async retentionReconcileOffDb(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionReconcileOffDb.output>>> {
-    const fullPath = '/api/internal/retention/reconcile-off-db';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'POST',
-      path: fullPath,
-      outputSchema: ROUTE_MANIFEST.retentionReconcileOffDb.output,
-    });
-  }
-
-  async retentionNotify(input: z.input<typeof ROUTE_MANIFEST.retentionNotify.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotify.output>>> {
-    const fullPath = '/api/internal/retention/notify';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'POST',
-      path: fullPath,
-      body: input,
-      outputSchema: ROUTE_MANIFEST.retentionNotify.output,
-    });
-  }
-
-  async retentionNotifyFilter(input: z.input<typeof ROUTE_MANIFEST.retentionNotifyFilter.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotifyFilter.output>>> {
-    const fullPath = '/api/internal/retention/notify/filter';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'POST',
-      path: fullPath,
-      body: input,
-      outputSchema: ROUTE_MANIFEST.retentionNotifyFilter.output,
-    });
-  }
-
-  async retentionNotifyReport(input: z.input<typeof ROUTE_MANIFEST.retentionNotifyReport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotifyReport.output>>> {
-    const fullPath = '/api/internal/retention/notify/report';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'POST',
-      path: fullPath,
-      body: input,
-      outputSchema: ROUTE_MANIFEST.retentionNotifyReport.output,
-    });
-  }
-
-  /**
-   * @safeRead Server-side has no observable mutation — safe to cache client-side.
-   */
   async getModels(options: { inputModality?: string; outputModality?: string; search?: string; limit?: number | string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getModels.output>>> {
     const fullPath = '/api/internal/models' + buildQueryString([['inputModality', options.inputModality], ['outputModality', options.outputModality], ['search', options.search], ['limit', options.limit]]);
     return callGateway({
@@ -467,6 +394,103 @@ export class ServiceClient {
       path: fullPath,
       outputSchema: ROUTE_MANIFEST.getExportSmokeStatus.output,
       timeoutMs: ROUTE_MANIFEST.getExportSmokeStatus.timeoutMs,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async retentionPreview(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionPreview.output>>> {
+    const fullPath = '/api/internal/retention/preview';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.retentionPreview.output,
+    });
+  }
+
+  async retentionRunBegin(input: z.input<typeof ROUTE_MANIFEST.retentionRunBegin.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionRunBegin.output>>> {
+    const fullPath = '/api/internal/retention/run/begin';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionRunBegin.output,
+    });
+  }
+
+  async retentionRunEnd(input: z.input<typeof ROUTE_MANIFEST.retentionRunEnd.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionRunEnd.output>>> {
+    const fullPath = '/api/internal/retention/run/end';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionRunEnd.output,
+    });
+  }
+
+  async retentionPurge(input: z.input<typeof ROUTE_MANIFEST.retentionPurge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionPurge.output>>> {
+    const fullPath = '/api/internal/retention/purge';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionPurge.output,
+    });
+  }
+
+  async retentionReconcileOffDb(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionReconcileOffDb.output>>> {
+    const fullPath = '/api/internal/retention/reconcile-off-db';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.retentionReconcileOffDb.output,
+    });
+  }
+
+  async retentionNotify(input: z.input<typeof ROUTE_MANIFEST.retentionNotify.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotify.output>>> {
+    const fullPath = '/api/internal/retention/notify';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionNotify.output,
+    });
+  }
+
+  async retentionNotifyFilter(input: z.input<typeof ROUTE_MANIFEST.retentionNotifyFilter.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotifyFilter.output>>> {
+    const fullPath = '/api/internal/retention/notify/filter';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionNotifyFilter.output,
+    });
+  }
+
+  async retentionNotifyReport(input: z.input<typeof ROUTE_MANIFEST.retentionNotifyReport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotifyReport.output>>> {
+    const fullPath = '/api/internal/retention/notify/report';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionNotifyReport.output,
     });
   }
 }

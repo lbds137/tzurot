@@ -461,10 +461,51 @@ export const RetentionPreviewResponseSchema = z.object({
     graceExpired: z.number().int().nonnegative(),
     /** Never deliberately used the bot — the silent-purge subset of the cohort. */
     bystander: z.number().int().nonnegative(),
+    /**
+     * Which purge scope this environment applies (the gateway's
+     * `purgeScope.ts`), and how many purge-eligible accounts that scope
+     * leaves out of this preview entirely — always 0 under `unrestricted`.
+     */
+    scope: z.object({
+      kind: z.enum(['unrestricted', 'allowlist', 'unscoped_non_production']),
+      excludedEligibleCount: z.number().int().nonnegative(),
+    }),
   }),
 });
 
 export type RetentionPreviewResponse = z.infer<typeof RetentionPreviewResponseSchema>;
+
+// ============================================================================
+// POST /internal/retention/run/{begin,end} — the run lease (Phase 4)
+// ============================================================================
+
+/** Lease token minted by `run/begin`; every leased call carries it. */
+const RetentionRunIdSchema = z.string().uuid();
+
+/**
+ * Take the retention run lease. One run at a time: a second `begin` while a
+ * lease is held answers 409 with subcode RUN_IN_PROGRESS and the holder.
+ */
+export const RetentionRunBeginRequestSchema = z.object({
+  /** Operator/run label, reported to any caller the lease refuses. */
+  runContext: z.string().min(1).max(200),
+});
+
+export const RetentionRunBeginResponseSchema = z.object({
+  runId: RetentionRunIdSchema,
+  /** How long the lease survives without a leased call refreshing it. */
+  leaseTtlMs: z.number().int().positive(),
+});
+
+/** Release the run lease. Never releases another run's lease. */
+export const RetentionRunEndRequestSchema = z.object({
+  runId: RetentionRunIdSchema,
+});
+
+export const RetentionRunEndResponseSchema = z.object({
+  /** False when the lease was not this run's (expired, or taken over). */
+  released: z.boolean(),
+});
 
 // ============================================================================
 // POST /internal/retention/purge — erase ONE eligible account (Phase 2, D2)
@@ -492,6 +533,12 @@ export const RetentionPurgeRequestSchema = z.object({
    * userbase off one bad tracking signal.
    */
   breakerOverride: z.boolean().optional(),
+  /**
+   * The run lease this call belongs to (from `run/begin`). Refreshed before
+   * the purge acts; a run that lost the lease gets 409 RUN_LEASE_CONFLICT and
+   * no erasure.
+   */
+  runId: RetentionRunIdSchema,
 });
 
 export const RetentionPurgeResponseSchema = z.object({
@@ -500,8 +547,20 @@ export const RetentionPurgeResponseSchema = z.object({
   discordId: z.string().min(1).max(32),
   /** `skipped` covers every normal no-op; only a thrown error is a failure. */
   status: z.enum(['purged', 'skipped']),
-  /** Present when status is `skipped`. */
-  reason: z.enum(['already_gone', 'no_longer_eligible', 'breaker_tripped']).optional(),
+  /**
+   * Present when status is `skipped`. `outside_allowlist` and
+   * `unscoped_non_production` are this environment's purge scope refusing the
+   * target (the gateway's purgeScope.ts).
+   */
+  reason: z
+    .enum([
+      'already_gone',
+      'no_longer_eligible',
+      'breaker_tripped',
+      'outside_allowlist',
+      'unscoped_non_production',
+    ])
+    .optional(),
   /** Operator-facing explanation for a tripped breaker. */
   detail: z.string().optional(),
   charactersDeleted: z.number().int().nonnegative().optional(),
@@ -538,10 +597,12 @@ export const RetentionReconcileOffDbResponseSchema = z.object({
  * reachable-but-inactive cohort, enqueues warning-DM batches to the
  * retention-notify queue. Cross-run idempotency is the predicate itself
  * (retention_notified_at IS NULL) — re-running resumes where a run stopped.
+ *
+ * Two arms, split on `dryRun`: a dry run is read-only and unleased; a real run
+ * MUST carry the run lease's `runId` (a union rather than a refinement, so the
+ * gateway's type narrows `runId` to a string on the real-run arm).
  */
-export const RetentionNotifyRequestSchema = z.object({
-  /** Resolve and report the cohort without enqueuing anything. */
-  dryRun: z.boolean().optional(),
+const RetentionNotifyRequestFields = {
   /**
    * Proceed past the hard-ceiling breaker share. Deliberately separate from
    * the CLI's `--force` (which only skips the interactive prompt) — same
@@ -550,7 +611,23 @@ export const RetentionNotifyRequestSchema = z.object({
   breakerOverride: z.boolean().optional(),
   /** Operator/run label (log context + the deterministic-jobId seed). */
   runContext: z.string().max(200).optional(),
-});
+};
+
+export const RetentionNotifyRequestSchema = z.union([
+  z.object({
+    /** Resolve and report the cohort without enqueuing anything. */
+    dryRun: z.literal(true),
+    ...RetentionNotifyRequestFields,
+    /** Accepted and ignored: a dry run takes no lease. */
+    runId: RetentionRunIdSchema.optional(),
+  }),
+  z.object({
+    dryRun: z.literal(false).optional(),
+    ...RetentionNotifyRequestFields,
+    /** The run lease this enqueue belongs to (from `run/begin`). */
+    runId: RetentionRunIdSchema,
+  }),
+]);
 
 export const RetentionNotifyCohortUserSchema = z.object({
   discordId: DiscordSnowflakeSchema,

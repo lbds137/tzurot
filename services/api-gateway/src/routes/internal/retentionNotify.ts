@@ -29,6 +29,7 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { RetentionNotifyService } from '../../services/retention/RetentionNotifyService.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { refreshRunLeaseOrRespond, UNLABELLED_RUN } from './retentionRun.js';
 
 /** POST /api/internal/retention/notify — resolve the cohort and enqueue warning DMs. */
 export const handleRetentionNotify = (deps: RouteDeps): RequestHandler =>
@@ -38,16 +39,35 @@ export const handleRetentionNotify = (deps: RouteDeps): RequestHandler =>
       sendZodError(res, parsed.error);
       return;
     }
-    // Dry runs never enqueue, so they must not fail on a missing queue —
-    // the conformance harness and any read-only caller take this path.
-    if (parsed.data.dryRun !== true && deps.retentionNotifyQueue === undefined) {
-      sendError(res, ErrorResponses.internalError('Retention notify queue is not configured'));
-      return;
+    // The lease token is the route's concern; the service never sees it.
+    // Destructured WITH the discriminant so `dryRun !== true` narrows `runId`
+    // to the required string of the schema's non-dry arm.
+    const { runId, dryRun, ...runOptions } = parsed.data;
+    if (dryRun !== true) {
+      // The run lease BEFORE anything else, matching retentionPurge.ts: a
+      // call whose run no longer holds the lease (or whose lease store is
+      // down) must reach no further check. A real run is leased; a dry run
+      // is read-only and stays unleased.
+      const leaseHeld = await refreshRunLeaseOrRespond(
+        deps,
+        res,
+        runId,
+        runOptions.runContext ?? UNLABELLED_RUN
+      );
+      if (!leaseHeld) {
+        return;
+      }
+      // Dry runs never enqueue, so they must not fail on a missing queue —
+      // the conformance harness and any read-only caller take this path.
+      if (deps.retentionNotifyQueue === undefined) {
+        sendError(res, ErrorResponses.internalError('Retention notify queue is not configured'));
+        return;
+      }
     }
 
     const result = await new RetentionNotifyService(deps.prisma).enqueueNotifyRun(
       deps.retentionNotifyQueue ?? null,
-      parsed.data
+      { ...runOptions, dryRun: dryRun === true }
     );
     sendContractSuccess(res, RetentionNotifyResponseSchema, result, StatusCodes.OK);
   });

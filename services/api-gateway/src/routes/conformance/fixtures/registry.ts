@@ -14,6 +14,7 @@ import { userAccountFixtures } from './userAccount.js';
 import { userFeedbackFixtures } from './userFeedback.js';
 import { adminFixtures } from './admin.js';
 import { internalFixtures } from './internal.js';
+import { retentionFixtures } from './retention.js';
 import { userConfigFixtures } from './userConfigs.js';
 import { userConfigOverrideFixtures } from './userConfigOverrides.js';
 import { userMemoryFixtures } from './userMemory.js';
@@ -26,6 +27,7 @@ export const CONFORMANCE_REGISTRY: Record<string, ConformanceEntry> = {
   ...userAccountFixtures,
   ...userFeedbackFixtures,
   ...internalFixtures,
+  ...retentionFixtures,
   ...adminFixtures,
   ...userOwnershipFixtures,
   ...userResourceFixtures,

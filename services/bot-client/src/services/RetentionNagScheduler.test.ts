@@ -70,6 +70,10 @@ function makePreview(overrides: {
       inGrace: overrides.inGrace ?? 0,
       graceExpired: overrides.graceExpired ?? 0,
       bystander: overrides.bystander ?? 0,
+      // The nag only ever runs in production, where the scope is unrestricted
+      // as long as production's OUTBOUND_DM_ALLOWLIST stays unset — see
+      // RetentionNagScheduler.ts's render (no scope line).
+      scope: { kind: 'unrestricted', excludedEligibleCount: 0 },
     },
   } satisfies RetentionPreviewResponse;
 }

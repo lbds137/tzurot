@@ -1,9 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { previewMock, purgeMock, reconcileMock, getClientMock, confirmMock } = vi.hoisted(() => ({
+const {
+  previewMock,
+  purgeMock,
+  reconcileMock,
+  retentionRunBeginMock,
+  retentionRunEndMock,
+  getClientMock,
+  confirmMock,
+} = vi.hoisted(() => ({
   previewMock: vi.fn(),
   purgeMock: vi.fn(),
   reconcileMock: vi.fn(),
+  retentionRunBeginMock: vi.fn(),
+  retentionRunEndMock: vi.fn(),
   getClientMock: vi.fn(),
   confirmMock: vi.fn(),
 }));
@@ -16,6 +26,8 @@ vi.mock('../utils/env-runner.js', () => ({
 vi.mock('../utils/gateway-client.js', () => ({ resolveServiceClientOrExit: getClientMock }));
 
 import { retentionPurge, parseExcludes } from './purge.js';
+
+const RUN_ID = '3f2b8c1e-9d4a-4c5b-8e7f-1a2b3c4d5e6f';
 
 function cohort(...discordIds: string[]) {
   return {
@@ -37,6 +49,7 @@ function cohort(...discordIds: string[]) {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
     },
   };
 }
@@ -67,19 +80,27 @@ describe('retentionPurge', () => {
       retentionPreview: previewMock,
       retentionPurge: purgeMock,
       retentionReconcileOffDb: reconcileMock,
+      retentionRunBegin: retentionRunBeginMock,
+      retentionRunEnd: retentionRunEndMock,
     });
     reconcileMock.mockResolvedValue({
       ok: true,
       data: { settled: 0, stillFailing: 0, remaining: 0 },
     });
+    retentionRunBeginMock.mockResolvedValue({
+      ok: true,
+      data: { runId: RUN_ID, leaseTtlMs: 600000 },
+    });
+    retentionRunEndMock.mockResolvedValue({ ok: true, data: { released: true } });
     confirmMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    process.removeAllListeners('SIGINT');
   });
 
-  it('purges every cohort member, one call each', async () => {
+  it('purges every cohort member, one call each, carrying the leased runId', async () => {
     previewMock.mockResolvedValue({
       ok: true,
       data: cohort('900000000000000001', '900000000000000002'),
@@ -91,11 +112,17 @@ describe('retentionPurge', () => {
     await retentionPurge({ env: 'dev' });
 
     expect(purgeMock).toHaveBeenCalledTimes(2);
-    expect(purgeMock.mock.calls[0][0]).toMatchObject({ discordId: '900000000000000001' });
-    expect(purgeMock.mock.calls[1][0]).toMatchObject({ discordId: '900000000000000002' });
+    expect(purgeMock.mock.calls[0][0]).toMatchObject({
+      discordId: '900000000000000001',
+      runId: RUN_ID,
+    });
+    expect(purgeMock.mock.calls[1][0]).toMatchObject({
+      discordId: '900000000000000002',
+      runId: RUN_ID,
+    });
   });
 
-  it('DRY RUN reports the cohort and purges nothing', async () => {
+  it('DRY RUN reports the cohort and purges nothing, never taking the lease', async () => {
     previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
 
     await retentionPurge({ env: 'prod', dryRun: true });
@@ -103,6 +130,7 @@ describe('retentionPurge', () => {
     expect(purgeMock).not.toHaveBeenCalled();
     // A dry run must not even ask for approval — there is nothing to approve.
     expect(confirmMock).not.toHaveBeenCalled();
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
   });
 
   it('requires production confirmation, and purges nothing when declined', async () => {
@@ -115,6 +143,7 @@ describe('retentionPurge', () => {
 
     expect(confirmMock).toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
   });
 
   it('requires confirmation on DEV too, and purges nothing when declined', async () => {
@@ -235,6 +264,42 @@ describe('retentionPurge', () => {
     expect(purgeMock).toHaveBeenCalledTimes(1);
   });
 
+  it('STOPS the run on an unscoped_non_production skip too (every later call refuses identically)', async () => {
+    previewMock.mockResolvedValue({
+      ok: true,
+      data: cohort('900000000000000001', '900000000000000002'),
+    });
+    purgeMock.mockResolvedValue({
+      ok: true,
+      data: {
+        status: 'skipped',
+        discordId: '900000000000000001',
+        reason: 'unscoped_non_production',
+      },
+    });
+
+    await retentionPurge({ env: 'dev' });
+
+    expect(purgeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT stop on an outside_allowlist skip — that is per-target, not per-run', async () => {
+    previewMock.mockResolvedValue({
+      ok: true,
+      data: cohort('900000000000000001', '900000000000000002'),
+    });
+    purgeMock
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { status: 'skipped', discordId: '900000000000000001', reason: 'outside_allowlist' },
+      })
+      .mockResolvedValueOnce(PURGED('900000000000000002'));
+
+    await retentionPurge({ env: 'dev' });
+
+    expect(purgeMock).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps going past a per-user failure so one bad row cannot strand the rest', async () => {
     previewMock.mockResolvedValue({
       ok: true,
@@ -247,6 +312,26 @@ describe('retentionPurge', () => {
     await retentionPurge({ env: 'dev' });
 
     expect(purgeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a lease-lost result STOPS the run without retrying, and still releases the lease', async () => {
+    previewMock.mockResolvedValue({
+      ok: true,
+      data: cohort('900000000000000001', '900000000000000002'),
+    });
+    purgeMock.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      error: 'This run no longer holds the retention run lease.',
+      status: 409,
+      code: 'RUN_LEASE_CONFLICT',
+    });
+
+    await retentionPurge({ env: 'dev' });
+
+    expect(purgeMock).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBe(1);
+    expect(retentionRunEndMock).toHaveBeenCalledWith({ runId: RUN_ID });
   });
 
   it('drains the off-DB retry queue after the loop', async () => {
@@ -286,6 +371,7 @@ describe('retentionPurge', () => {
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
   });
 
   it('exits nonzero and purges nothing when the preview fetch fails', async () => {
@@ -307,5 +393,81 @@ describe('retentionPurge', () => {
 
     expect(previewMock).not.toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();
+  });
+
+  it('begins the run lease AFTER the confirmation', async () => {
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    purgeMock.mockResolvedValue(PURGED('900000000000000001'));
+
+    await retentionPurge({ env: 'prod' });
+
+    expect(confirmMock.mock.invocationCallOrder[0]).toBeLessThan(
+      retentionRunBeginMock.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('begin refused (RUN_IN_PROGRESS) — retentionPurge is never called, exitCode 1', async () => {
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    retentionRunBeginMock.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      error: 'Another retention run is in progress: "other run" (since 2026-01-01).',
+      code: 'RUN_IN_PROGRESS',
+    });
+
+    await retentionPurge({ env: 'prod' });
+
+    expect(purgeMock).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('end is called with the runId after a normal run', async () => {
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    purgeMock.mockResolvedValue(PURGED('900000000000000001'));
+
+    await retentionPurge({ env: 'dev' });
+
+    expect(retentionRunEndMock).toHaveBeenCalledWith({ runId: RUN_ID });
+  });
+
+  it('end is called with the runId even when retentionPurge REJECTS mid-loop', async () => {
+    previewMock.mockResolvedValue({
+      ok: true,
+      data: cohort('900000000000000001', '900000000000000002'),
+    });
+    purgeMock.mockRejectedValueOnce(new Error('transport exploded'));
+
+    await expect(retentionPurge({ env: 'dev' })).rejects.toThrow('transport exploded');
+
+    expect(retentionRunEndMock).toHaveBeenCalledWith({ runId: RUN_ID });
+  });
+
+  it('SIGINT stops the loop, releases the lease, and exits 130 without a second purge call', async () => {
+    previewMock.mockResolvedValue({
+      ok: true,
+      data: cohort('900000000000000001', '900000000000000002'),
+    });
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    purgeMock.mockImplementationOnce(() => {
+      process.emit('SIGINT');
+      return Promise.resolve(PURGED('900000000000000001'));
+    });
+
+    await retentionPurge({ env: 'dev' });
+    // Let the handler's fire-and-forget release/exit chain settle before
+    // counting calls — it is not awaited by retentionPurge itself.
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(purgeMock).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(130);
+    expect(retentionRunEndMock).toHaveBeenCalledWith({ runId: RUN_ID });
+    // The HANDLER's own release must precede the exit: in a real process the
+    // exit ends everything, so the command's finally would never get to run.
+    expect(retentionRunEndMock.mock.invocationCallOrder[0]).toBeLessThan(
+      exitSpy.mock.invocationCallOrder[0]
+    );
+    // Exactly one release for the whole interrupted run: the command's own
+    // finally must not release a second time on top of the handler's.
+    expect(retentionRunEndMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,7 +12,7 @@
  * own user from the cohort.
  */
 
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { AccountEraserService, type AccountEraserDeps } from '../AccountEraserService.js';
 import type { AccountDeletionSummary } from '../AccountDeletionService.js';
@@ -31,6 +31,13 @@ import {
   recordPurgeFailure,
   settleOffDb,
 } from './purgeAudit.js';
+import {
+  purgeScopeAllowlist,
+  purgeScopeRefusal,
+  resolvePurgeScope,
+  type PurgeScope,
+  type PurgeScopeRefusal,
+} from './purgeScope.js';
 
 const logger = createLogger('RetentionPurgeService');
 
@@ -91,6 +98,15 @@ export interface RetentionPreview {
     graceExpired: number;
     /** Never deliberately used the bot — the silent-purge subset of the cohort. */
     bystander: number;
+    /**
+     * Which purge scope this environment applies, and how many purge-eligible
+     * accounts that scope leaves out of this preview entirely (0 under
+     * `unrestricted`).
+     */
+    scope: {
+      kind: PurgeScope['kind'];
+      excludedEligibleCount: number;
+    };
   };
 }
 
@@ -104,7 +120,9 @@ export type PurgeSkipReason =
   /** The predicate no longer holds: they became active since the preview (D4). */
   | 'no_longer_eligible'
   /** The cohort exceeds the hard ceiling and no override was given. */
-  | 'breaker_tripped';
+  | 'breaker_tripped'
+  /** Outside this environment's purge scope — see purgeScope.ts. */
+  | PurgeScopeRefusal;
 
 export type PurgeOutcome =
   | { status: 'purged'; discordId: string; charactersDeleted: number; charactersReHomed: number }
@@ -118,16 +136,35 @@ export interface PurgeUserOptions {
   breakerOverride?: boolean;
 }
 
+/** How the erasure attempt ended, short of an unexpected throw. */
+type EraseResult =
+  | { kind: 'erased'; summary: AccountDeletionSummary }
+  /** The in-transaction re-check found them active again and rolled back (D4). */
+  | { kind: 'no_longer_eligible' }
+  /** A concurrent delete removed the row between our lookup and the transaction. */
+  | { kind: 'already_gone' };
+
 export class RetentionPurgeService {
-  constructor(private readonly deps: AccountEraserDeps) {}
+  /**
+   * @param scope - Which accounts this environment may erase. Defaults to the
+   *   environment's own scope (resolved per construction; routes construct per
+   *   request); tests pass one explicitly.
+   */
+  constructor(
+    private readonly deps: AccountEraserDeps,
+    private readonly scope: PurgeScope = resolvePurgeScope()
+  ) {}
 
   private get prisma(): PrismaClient {
     return this.deps.prisma;
   }
 
-  /** THE eligibility predicate (D3/D4) — see `eligibility.ts`. */
+  /**
+   * THE eligibility predicate (D3/D4) — see `eligibility.ts` — narrowed to this
+   * environment's purge scope, so the cohort is what a run can actually erase.
+   */
   async selectPurgeCohort(): Promise<PurgeCohortRow[]> {
-    return selectEligibleUsers(this.prisma);
+    return selectEligibleUsers(this.prisma, purgeScopeAllowlist(this.scope));
   }
 
   /**
@@ -139,13 +176,21 @@ export class RetentionPurgeService {
     // never be eligible (bot owner, retention_exempt, the orphan sentinel). The
     // breaker asks "how much of the userbase would this run erase?", and a
     // purgeable-population denominator would make the percentage drift every
-    // time an exemption is added rather than when real churn changes.
-    const [cohort, userbaseCount, reachableToNotify, inGrace] = await Promise.all([
-      this.selectPurgeCohort(),
-      this.prisma.user.count(),
-      countNotifyCohort(this.prisma),
-      countInGrace(this.prisma),
-    ]);
+    // time an exemption is added rather than when real churn changes. In a
+    // scope-narrowed environment the NUMERATOR (the cohort) is the narrowed
+    // set while this denominator stays the whole userbase — the share of the
+    // userbase this run can actually erase.
+    const [cohort, userbaseCount, reachableToNotify, inGrace, unrestrictedEligibleCount] =
+      await Promise.all([
+        this.selectPurgeCohort(),
+        this.prisma.user.count(),
+        countNotifyCohort(this.prisma),
+        countInGrace(this.prisma),
+        // Only queried when the scope actually narrows the cohort — an
+        // unrestricted environment's excluded count is always 0, so the extra
+        // COUNT(*) would be pure waste on the common (production) path.
+        this.scope.kind === 'unrestricted' ? null : countEligibleUsers(this.prisma, null),
+      ]);
 
     // Concurrent, not sequential: the daily nag calls this on a schedule, so a
     // per-user round-trip chain would put the whole cohort's latency on a timer.
@@ -180,6 +225,13 @@ export class RetentionPurgeService {
         // to eligibleCount.
         graceExpired: users.filter(u => u.reason === 'grace_expired').length,
         bystander: users.filter(u => u.reason === 'bystander').length,
+        scope: {
+          kind: this.scope.kind,
+          excludedEligibleCount:
+            unrestrictedEligibleCount === null
+              ? 0
+              : Math.max(0, unrestrictedEligibleCount - users.length),
+        },
       },
     };
   }
@@ -195,7 +247,15 @@ export class RetentionPurgeService {
   async purgeUser(options: PurgeUserOptions): Promise<PurgeOutcome> {
     const { discordId, runContext, breakerOverride = false } = options;
 
-    // Existence first, THEN the ceiling. The order matters for the reported
+    // Scope before anything else — before the existence read, the ceiling
+    // counts, and above all the erasure: a target this environment may not
+    // erase gets no further work at all.
+    const refusal = purgeScopeRefusal(this.scope, discordId);
+    if (refusal !== null) {
+      return { status: 'skipped', discordId, reason: refusal };
+    }
+
+    // Existence next, THEN the ceiling. The order matters for the reported
     // reason, not for safety: a target that no longer exists has nothing to
     // erase, so answering `breaker_tripped` would be actively misleading about
     // why nothing happened. The ceiling still gates every actual deletion —
@@ -216,11 +276,11 @@ export class RetentionPurgeService {
       }
     }
 
-    const summary = await this.eraseAndAudit(user.id, discordId, runContext);
-    if (summary === null) {
-      // The in-transaction re-check found them active again and rolled back.
-      return { status: 'skipped', discordId, reason: 'no_longer_eligible' };
+    const result = await this.eraseAndAudit(user.id, discordId, runContext);
+    if (result.kind !== 'erased') {
+      return { status: 'skipped', discordId, reason: result.kind };
     }
+    const { summary } = result;
 
     logger.warn(
       { discordId, runContext, charactersDeleted: summary.characters },
@@ -249,21 +309,27 @@ export class RetentionPurgeService {
    *
    * NOT recorded: the TOCTOU abort, which the eraser reports as `null` rather
    * than a throw. That one is a routine, expected outcome of a resumable loop —
-   * logging it would fill the ledger with non-events.
+   * logging it would fill the ledger with non-events. Nor a concurrent delete
+   * (see `isConcurrentlyGone`): the account is gone, which is the outcome the
+   * purge wanted, so it is the `already_gone` skip, not a failure.
    */
   private async eraseAndAudit(
     userId: string,
     discordId: string,
     runContext: string | null
-  ): Promise<AccountDeletionSummary | null> {
+  ): Promise<EraseResult> {
     try {
-      return await new AccountEraserService(this.deps).erase({
+      const summary = await new AccountEraserService(this.deps).erase({
         userId,
         discordUserId: discordId,
         mode: 'retention',
         runContext,
       });
+      return summary === null ? { kind: 'no_longer_eligible' } : { kind: 'erased', summary };
     } catch (error) {
+      if (await this.isConcurrentlyGone(error, userId)) {
+        return { kind: 'already_gone' };
+      }
       const reason = error instanceof Error ? error.message : 'Unknown error';
       try {
         await recordPurgeFailure(this.prisma, discordId, runContext, reason);
@@ -273,6 +339,35 @@ export class RetentionPurgeService {
         logger.error({ err: auditError, discordId }, 'Failed to record purge failure');
       }
       throw error;
+    }
+  }
+
+  /**
+   * Did the erasure fail only because someone else deleted the account first?
+   *
+   * `purgeUser` resolves the row before the erasure transaction opens, so a
+   * concurrent delete in between (another purge, a self-serve delete) makes the
+   * eraser's `findUniqueOrThrow` raise Prisma P2025. P2025 alone is not proof —
+   * any not-found inside the erasure raises it — so the row's absence is
+   * re-read before the failure is reclassified. A failed re-read keeps the
+   * original failure (it is recorded and rethrown).
+   */
+  private async isConcurrentlyGone(error: unknown, userId: string): Promise<boolean> {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+      return false;
+    }
+    try {
+      const row = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      return row === null;
+    } catch (lookupError) {
+      logger.error(
+        { err: lookupError, userId },
+        'Could not confirm a P2025 as a concurrent delete'
+      );
+      return false;
     }
   }
 
@@ -311,11 +406,13 @@ export class RetentionPurgeService {
   /**
    * The hard-ceiling gate. Returns a human-readable reason when the current
    * cohort is too large a share of the userbase to purge unattended, or null
-   * when the run may proceed.
+   * when the run may proceed. The numerator is the SCOPE-NARROWED eligible
+   * count (what this environment can erase); the denominator is the whole
+   * userbase, as in `buildPreview`.
    */
   private async checkHardCeiling(): Promise<string | null> {
     const [eligibleCount, userbaseCount] = await Promise.all([
-      countEligibleUsers(this.prisma),
+      countEligibleUsers(this.prisma, purgeScopeAllowlist(this.scope)),
       this.prisma.user.count(),
     ]);
     if (userbaseCount === 0 || eligibleCount / userbaseCount <= BREAKER_HARD_FRACTION) {
