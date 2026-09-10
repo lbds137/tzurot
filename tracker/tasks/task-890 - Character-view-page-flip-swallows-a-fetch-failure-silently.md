@@ -1,9 +1,10 @@
 ---
 id: TASK-890
 title: Character view page flip swallows a fetch failure silently
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-04 20:51'
+updated_date: '2026-09-10 22:33'
 labels:
   - 'area:bot-client'
   - 'size:S'
