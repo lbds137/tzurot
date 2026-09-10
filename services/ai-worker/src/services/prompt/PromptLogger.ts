@@ -81,6 +81,7 @@ export function logDetailedPromptAssembly(opts: PromptAssemblyLogOptions): void 
   } else {
     logger.debug(
       `Full system prompt (showing first ${maxPreviewLength} chars):\n` +
+        // eslint-disable-next-line @tzurot/no-raw-log-content -- deliberate full-prompt dump behind the NODE_ENV=development + LOG_PROMPT_ASSEMBLY guard at the top of this function
         fullSystemPrompt.substring(0, maxPreviewLength) +
         `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
     );

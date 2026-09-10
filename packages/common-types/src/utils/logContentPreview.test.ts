@@ -4,7 +4,13 @@ import pino from 'pino';
 const getConfigMock = vi.hoisted(() => vi.fn());
 vi.mock('../config/config.js', () => ({ getConfig: getConfigMock }));
 
-import { contentPreviewsEnabled, contentPreview, contentDigest } from './logContentPreview.js';
+import {
+  contentPreviewsEnabled,
+  contentPreview,
+  contentDigest,
+  idPrefix,
+  urlPrefix,
+} from './logContentPreview.js';
 
 const setConfig = (NODE_ENV: string, LOG_CONTENT_PREVIEWS: boolean): void => {
   getConfigMock.mockReturnValue({ NODE_ENV, LOG_CONTENT_PREVIEWS });
@@ -143,5 +149,46 @@ describe('contentDigest', () => {
     setConfig('development', true);
     const on = contentDigest('consistent input');
     expect(off).toBe(on);
+  });
+});
+
+describe('idPrefix', () => {
+  it('defaults to the first 8 characters on a UUID-shaped string', () => {
+    setConfig('production', false);
+    expect(idPrefix('a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe('a1b2c3d4');
+  });
+
+  it('returns the first n characters for an explicit width', () => {
+    setConfig('production', false);
+    expect(idPrefix('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 12)).toBe('a1b2c3d4-e5f');
+  });
+
+  it('returns the whole value when it is shorter than n', () => {
+    setConfig('production', false);
+    expect(idPrefix('short', 20)).toBe('short');
+  });
+
+  it('returns the prefix even when content previews are disabled', () => {
+    setConfig('production', false);
+    expect(contentPreviewsEnabled()).toBe(false);
+    expect(idPrefix('a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe('a1b2c3d4');
+  });
+});
+
+describe('urlPrefix', () => {
+  it('returns the first n characters of a URL', () => {
+    setConfig('production', false);
+    expect(urlPrefix('https://example.com/path/to/resource.png', 20)).toBe('https://example.com/');
+  });
+
+  it('returns the whole value when the URL is shorter than n', () => {
+    setConfig('production', false);
+    expect(urlPrefix('https://short.io', 100)).toBe('https://short.io');
+  });
+
+  it('returns the prefix even when content previews are disabled', () => {
+    setConfig('production', false);
+    expect(contentPreviewsEnabled()).toBe(false);
+    expect(urlPrefix('https://example.com/path/to/resource.png', 20)).toBe('https://example.com/');
   });
 });

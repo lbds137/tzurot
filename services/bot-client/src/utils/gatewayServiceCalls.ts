@@ -572,7 +572,7 @@ async function transcribeOnce(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
+    throw new Error(`Transcription request failed: ${response.status} (${errorText.length} chars)`);
   }
 
   const data = (await response.json()) as TranscribeResponse;

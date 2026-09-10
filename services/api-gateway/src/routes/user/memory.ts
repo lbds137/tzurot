@@ -11,6 +11,7 @@
 
 import { type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
 import { MemoryModeSessionManager } from '../../services/MemoryModeSessionManager.js';
@@ -96,7 +97,7 @@ export const handleGetStats = (deps: RouteDeps): RequestHandler => {
     ]);
 
     logger.debug(
-      { discordUserId, personalityId, personaId: personaId.substring(0, 8), totalCount },
+      { discordUserId, personalityId, personaId: idPrefix(personaId), totalCount },
       'Stats retrieved'
     );
 

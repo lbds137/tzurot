@@ -542,6 +542,24 @@ describe('raw-fetch helpers (allow-listed)', () => {
     spy.mockRejectedValue(new Error('down'));
     expect(await healthCheck()).toBe(false);
   });
+
+  it('transcribe keeps the response body out of the thrown Error', async () => {
+    const sentinelBody = 'SENTINEL-BODY user said something private';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => sentinelBody,
+    } as Response);
+
+    await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
+      `Transcription request failed: 500 (${sentinelBody.length} chars)`
+    );
+
+    const rejection = await transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1').catch(
+      (error: unknown) => error
+    );
+    expect((rejection as Error).message).not.toContain('SENTINEL-BODY');
+  });
 });
 
 describe('transcribe — transient-network retry', () => {

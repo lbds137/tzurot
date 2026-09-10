@@ -3,7 +3,10 @@
  * deployed logs carry no message / persona / LLM-response /
  * vision-description text by default. Lengths and digests stay always-on;
  * only the raw-text preview is gated behind `LOG_CONTENT_PREVIEWS`, and only
- * in development — see `contentPreviewsEnabled`.
+ * in development — see `contentPreviewsEnabled`. This module also holds the
+ * two non-content prefix helpers (`idPrefix`, `urlPrefix`) — the
+ * `@tzurot/no-raw-log-content` lint rule makes this module the sanctioned
+ * route for a truncated value into a log field.
  */
 
 import { createHash } from 'node:crypto';
@@ -58,4 +61,24 @@ export function contentPreview(
  */
 export function contentDigest(text: string): string {
   return createHash('sha256').update(text).digest('hex').substring(0, 12);
+}
+
+/**
+ * The first `n` characters of an identifier or opaque token (a persona UUID,
+ * an action token) — enough to correlate log lines without logging the whole
+ * value. NOT a content gate: pass only values that carry no user-authored
+ * text; the name records that intent at the call site. Pinned by the
+ * `idPrefix` describe in `logContentPreview.test.ts`.
+ */
+export function idPrefix(id: string, n = 8): string {
+  return id.substring(0, n);
+}
+
+/**
+ * The first `n` characters of a URL, so a cache or attachment log line can be
+ * correlated with its source without logging the full URL. NOT a content
+ * gate. Pinned by the `urlPrefix` describe in `logContentPreview.test.ts`.
+ */
+export function urlPrefix(url: string, n: number): string {
+  return url.substring(0, n);
 }
