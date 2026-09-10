@@ -3,9 +3,10 @@ id: TASK-922
 title: >-
   Orchestration skill does not name the collision between resuming a stopped
   worker and worktree auto-removal
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 15:58'
+updated_date: '2026-09-10 01:18'
 labels:
   - 'area:skills'
   - 'size:S'
