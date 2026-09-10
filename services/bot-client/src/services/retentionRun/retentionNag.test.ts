@@ -1,5 +1,7 @@
 /**
- * Tests for the retention nag scheduler's check cycle and embed content.
+ * Tests for the retention job's report-only nag mode: check cycle and embed
+ * content. Row-level formatting (identity tokens, escaping, empty username,
+ * cap + overflow) is covered in retentionRows.test.ts.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -8,37 +10,16 @@ import type { Redis } from 'ioredis';
 import type { RetentionPreviewResponse } from '@tzurot/common-types/schemas/api/internal';
 
 const mockRetentionPreview = vi.fn();
-vi.mock('../utils/gatewayClients.js', () => ({
+vi.mock('../../utils/gatewayClients.js', () => ({
   getServiceClient: () => ({ retentionPreview: mockRetentionPreview }),
 }));
 
 const mockPostOwnerChannelEmbed = vi.fn();
-vi.mock('../utils/ownerChannel.js', () => ({
+vi.mock('../../utils/ownerChannel.js', () => ({
   postOwnerChannelEmbed: (...args: unknown[]) => mockPostOwnerChannelEmbed(...args),
 }));
 
-// Mutable so the boot-guard tests can vary the configured env per case.
-let mockNodeEnv = 'production';
-vi.mock('@tzurot/common-types/config/config', () => ({
-  getConfig: () => ({ NODE_ENV: mockNodeEnv }),
-}));
-
-// vi.hoisted: the module under test calls createIntervalScheduler at import
-// time, so plain consts would not be initialized when the factory runs.
-const { mockSchedulerStart, mockSchedulerStop } = vi.hoisted(() => ({
-  mockSchedulerStart: vi.fn(),
-  mockSchedulerStop: vi.fn(),
-}));
-vi.mock('@tzurot/common-types/utils/intervalScheduler', () => ({
-  createIntervalScheduler: () => ({ start: mockSchedulerStart, stop: mockSchedulerStop }),
-}));
-
-import {
-  runRetentionNagCheck,
-  buildRetentionNagEmbed,
-  startRetentionNagScheduler,
-  stopRetentionNagScheduler,
-} from './RetentionNagScheduler.js';
+import { runRetentionNagCheck, buildRetentionNagEmbed } from './retentionNag.js';
 
 function makePreview(overrides: {
   eligibleCount?: number;
@@ -72,7 +53,7 @@ function makePreview(overrides: {
       bystander: overrides.bystander ?? 0,
       // The nag only ever runs in production, where the scope is unrestricted
       // as long as production's OUTBOUND_DM_ALLOWLIST stays unset — see
-      // RetentionNagScheduler.ts's render (no scope line).
+      // retentionNag.ts's render (no scope line).
       scope: { kind: 'unrestricted', excludedEligibleCount: 0 },
     },
   } satisfies RetentionPreviewResponse;
@@ -87,40 +68,9 @@ function makeRedis(cooldownValue: string | null): Redis {
 
 const client = {} as Client;
 
-describe('startRetentionNagScheduler boot guard', () => {
+describe('retentionNag runRetentionNagCheck', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockNodeEnv = 'production';
-  });
-
-  it('starts the interval scheduler in production', () => {
-    startRetentionNagScheduler(client, makeRedis(null));
-
-    expect(mockSchedulerStart).toHaveBeenCalledTimes(1);
-  });
-
-  it.each(['development', 'test'])(
-    'refuses to start outside production (NODE_ENV=%s) — the dev nag points at a purge whose tombstones sync to prod',
-    env => {
-      mockNodeEnv = env;
-
-      startRetentionNagScheduler(client, makeRedis(null));
-
-      expect(mockSchedulerStart).not.toHaveBeenCalled();
-    }
-  );
-
-  it('stop delegates to the interval scheduler', () => {
-    stopRetentionNagScheduler();
-
-    expect(mockSchedulerStop).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('RetentionNagScheduler runRetentionNagCheck', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockNodeEnv = 'production';
     mockPostOwnerChannelEmbed.mockResolvedValue(true);
   });
 
@@ -201,29 +151,22 @@ describe('RetentionNagScheduler runRetentionNagCheck', () => {
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
   });
 
-  it('swallows a thrown error entirely (nag must never affect anything else)', async () => {
+  it('propagates a thrown error rather than swallowing it — the scheduler tick wrapper is what swallows', async () => {
     mockRetentionPreview.mockRejectedValue(new Error('network'));
     const redis = makeRedis(null);
 
-    await expect(runRetentionNagCheck(client, redis)).resolves.toBeUndefined();
+    await expect(runRetentionNagCheck(client, redis)).rejects.toThrow('network');
   });
 });
 
 describe('buildRetentionNagEmbed', () => {
-  beforeEach(() => {
-    // The footer assertions below read the mocked NODE_ENV; reset it here so
-    // this block never depends on a sibling describe's cleanup having run.
-    mockNodeEnv = 'production';
-  });
-
-  it('carries the counts, the reason labels, and the exact CLI commands with this env', () => {
+  it('carries the counts, the reason labels, and the exact prod CLI commands', () => {
     const embed = buildRetentionNagEmbed(makePreview({ eligibleCount: 2 })).toJSON();
 
     expect(embed.description).toContain('**2** of 300 users');
     expect(embed.description).toContain('unreachable)');
     expect(embed.description).toContain('account deleted)');
-    // The footer is the operator's handoff — both commands, env included
-    // (mocked config says production).
+    // The nag is production-only, so the footer always names the prod env.
     expect(embed.footer?.text).toContain('pnpm ops retention:preview --env prod');
     expect(embed.footer?.text).toContain('pnpm ops retention:purge --env prod');
   });
@@ -278,46 +221,11 @@ describe('buildRetentionNagEmbed', () => {
     expect(expiredOnly.description).toContain('**2** grace-expired');
   });
 
-  it('renders all three identity tokens per user line', () => {
-    // The owner reads this embed on mobile, where `<@id>` mentions frequently
-    // fail to resolve — the plain-text username is the readable identity, and
-    // the backticked id stays the copy-paste handle for the CLI commands.
+  it('renders a formatted row for a purge-eligible user', () => {
     const embed = buildRetentionNagEmbed(makePreview({ eligibleCount: 1 })).toJSON();
 
     expect(embed.description).toContain('<@990000000000000000>');
-    expect(embed.description).toContain('@inactive0');
     expect(embed.description).toContain('`990000000000000000`');
-  });
-
-  it('escapes markdown in the username (user-controlled text in an owner embed)', () => {
-    const preview = makePreview({ eligibleCount: 1 });
-    preview.users[0] = { ...preview.users[0], username: '*bold*`tick`' };
-
-    const embed = buildRetentionNagEmbed(preview).toJSON();
-
-    expect(embed.description).toContain('\\*bold\\*\\`tick\\`');
-    expect(embed.description).not.toContain('@*bold*');
-  });
-
-  it('omits the username token entirely when the stored username is empty', () => {
-    // Fail-open: the schema deliberately allows an empty username, so the line
-    // must render without a dangling `@` rather than crash the nag.
-    const preview = makePreview({ eligibleCount: 1 });
-    preview.users[0] = { ...preview.users[0], username: '   ' };
-
-    const embed = buildRetentionNagEmbed(preview).toJSON();
-
-    expect(embed.description).toContain('<@990000000000000000> — `990000000000000000`');
-    expect(embed.description).not.toContain('@ —');
-  });
-
-  it('caps the listed users and reports the overflow', () => {
-    const embed = buildRetentionNagEmbed(
-      makePreview({ eligibleCount: 14, userCount: 14 })
-    ).toJSON();
-
-    // 10 listed + the overflow line, never the full cohort.
-    expect(embed.description?.match(/inactive since/g)).toHaveLength(10);
-    expect(embed.description).toContain('and 4 more');
+    expect(embed.description).toContain('inactive since');
   });
 });

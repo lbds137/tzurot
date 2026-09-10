@@ -1,7 +1,7 @@
 /**
  * Interval-scheduler factory — the shared skeleton of the services' periodic
  * background work: bot-client's checks (verification cleanup, secret-rotation
- * nag, retention nag, nightly db sync) and api-gateway's model-catalog refresh.
+ * nag, retention job, nightly db sync) and api-gateway's model-catalog refresh.
  *
  * The shape every consumer shares: a guarded start (no double-scheduling), a
  * recurring `setInterval` run, one startup run after a short delay (services

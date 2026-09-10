@@ -62,8 +62,10 @@
    options, so a model picker cannot live inside a dashboard.
 6. **Data rights.** Self-serve export (token link, 24h) and token-gated self-delete;
    the retention lifecycle (activity stamps → preview → warning DMs → 30-day grace →
-   operator purge → audit ledger) for inactive accounts. Everything destructive is
-   operator-driven with previews and circuit breakers.
+   purge → audit ledger) for inactive accounts. In production a daily job runs the
+   notify and purge steps unattended behind the server-side circuit breaker and a
+   run lease shared with the operator CLIs, and posts a run report;
+   `RETENTION_AUTORUN_ENABLED=false` drops it to a report-only nag.
 7. **Release comms.** GitHub release webhook → broadcast queue → bot-client DM worker →
    per-recipient delivery ledger; an hourly reconcile sweep catches missed releases.
 8. **Shapes.inc migration.** BYOK auth, then two one-way doors: IMPORT ingests a
@@ -101,8 +103,10 @@
   exist on the platform, so a breach can't hijack anyone's bots — the shapes.inc
   lesson. Accepted costs: reply-to-webhook detection fiddling, no banners, static-only
   avatars.
-- **Manual-approval-first for destructive automation.** Purges and blasts ship as
-  operator CLIs with previews and breakers first; autonomy is earned later, if ever.
+- **Destructive automation earns autonomy after a manual phase.** Purges and blasts
+  ship as operator CLIs with previews and breakers first; the retention purge runs
+  unattended only behind the server-side hard-ceiling breaker (which the job never
+  overrides), a run lease, and a kill switch.
 - **Prod is the soak environment; dev is dev+QA collapsed.** Dev has no organic
   traffic — a green deploy proves boot, not behavior — and it deliberately doubles as
   QA (one person holds both roles), kept honest by db-sync feeding it real prod data

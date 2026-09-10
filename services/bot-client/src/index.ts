@@ -51,9 +51,9 @@ import {
   stopReleaseFlagNagScheduler,
 } from './services/ReleaseFlagNagScheduler.js';
 import {
-  startRetentionNagScheduler,
-  stopRetentionNagScheduler,
-} from './services/RetentionNagScheduler.js';
+  startRetentionRunScheduler,
+  stopRetentionRunScheduler,
+} from './services/retentionRun/RetentionRunScheduler.js';
 import {
   startExportSmokeScheduler,
   stopExportSmokeScheduler,
@@ -218,9 +218,12 @@ client.once(Events.ClientReady, () => {
   // every DM until this catches it.
   startReleaseFlagNagScheduler(client, services.cacheRedis);
 
-  // Daily retention purge-eligibility check → owner-channel nag (same
-  // restart-friendly cadence; nothing purges automatically in Phase 2).
-  startRetentionNagScheduler(client, services.cacheRedis);
+  // Retention job, hourly tick: in production the daily live run (notify +
+  // purge under the gateway's breaker and run lease, owner-channel run
+  // report); RETENTION_AUTORUN_ENABLED=false drops it to the report-only
+  // nag; elsewhere a weekly dry-run rehearsal. See RetentionRunScheduler for
+  // the mode table.
+  startRetentionRunScheduler(client, services.cacheRedis);
 
   // Daily check, weekly real export-path smoke → owner-channel nag on
   // failure only (silent on a clean pass; see ExportSmokeScheduler).
@@ -328,7 +331,7 @@ async function disposeBotClient(): Promise<void> {
     stopVerificationCleanupScheduler();
     stopSecretRotationNagScheduler();
     stopReleaseFlagNagScheduler();
-    stopRetentionNagScheduler();
+    stopRetentionRunScheduler();
     stopExportSmokeScheduler();
     stopNightlyDbSyncScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
