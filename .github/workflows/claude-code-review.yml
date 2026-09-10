@@ -62,6 +62,8 @@ jobs:
 
             Report every issue you find — do not pre-filter by severity; label severity instead and let the reader triage. Keep the review proportional to its findings (no padding), and if you write a summary or actionable-items section, it must enumerate EVERY actionable item from the body — a finding that appears only mid-body and not in the summary is a defect of the review.
 
+            Tests, lint, and type checks are verified by CI on this PR. Do NOT run `pnpm test`, `pnpm lint`, or any package script: those commands are outside your tool allowlist, and every attempt is a denied turn that should have gone into reading the diff and the test files. Assess test coverage by reading the tests, not by running them.
+
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
@@ -106,7 +108,10 @@ jobs:
                debug instrumentation, temporary scaffolding, TODO markers in
                changed files, anything secret-shaped.
 
-            Use the repository's CLAUDE.md for guidance on conventions.
+            Use the repository's CLAUDE.md for guidance on conventions. Tests,
+            lint, and type checks are verified by CI; do NOT run `pnpm test` or
+            any package script (outside your tool allowlist, each attempt is a
+            denied turn).
 
             Post your findings with `gh pr comment` using your Bash tool. Post
             a comment EVEN IF everything looks fine — a short "holistic release
