@@ -18,6 +18,7 @@
  */
 
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { Redis } from 'ioredis';
 
 /** HTTP methods the harness can replay (mirrors the manifest's HttpMethod). */
 export type HarnessMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
@@ -25,6 +26,11 @@ export type HarnessMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export interface SeedContext {
   /** PGLite-backed Prisma client shared with the mounted app. */
   prisma: PrismaClient;
+  /**
+   * The harness's real Redis, for seeds that must reset shared lease state
+   * (e.g. the retention run lease) between fixtures.
+   */
+  redis: Redis;
   /** Discord snowflake of the authenticated actor (also configured as bot owner). */
   actorDiscordId: string;
   /** Internal `users.id` UUID of the provisioned actor. */

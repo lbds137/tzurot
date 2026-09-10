@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { retentionNotifyMock, getClientMock, confirmMock } = vi.hoisted(() => ({
+const {
+  retentionNotifyMock,
+  retentionRunBeginMock,
+  retentionRunEndMock,
+  getClientMock,
+  confirmMock,
+} = vi.hoisted(() => ({
   retentionNotifyMock: vi.fn(),
+  retentionRunBeginMock: vi.fn(),
+  retentionRunEndMock: vi.fn(),
   getClientMock: vi.fn(),
   confirmMock: vi.fn(),
 }));
@@ -14,6 +22,8 @@ vi.mock('../utils/env-runner.js', () => ({
 vi.mock('../utils/gateway-client.js', () => ({ resolveServiceClientOrExit: getClientMock }));
 
 import { retentionNotify, renderNotifyRun } from './notify.js';
+
+const RUN_ID = '3f2b8c1e-9d4a-4c5b-8e7f-1a2b3c4d5e6f';
 
 function runResult(overrides: Partial<Parameters<typeof renderNotifyRun>[0]> = {}) {
   return {
@@ -37,7 +47,16 @@ describe('retentionNotify', () => {
     process.exitCode = undefined;
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    getClientMock.mockReturnValue({ retentionNotify: retentionNotifyMock });
+    getClientMock.mockReturnValue({
+      retentionNotify: retentionNotifyMock,
+      retentionRunBegin: retentionRunBeginMock,
+      retentionRunEnd: retentionRunEndMock,
+    });
+    retentionRunBeginMock.mockResolvedValue({
+      ok: true,
+      data: { runId: RUN_ID, leaseTtlMs: 600000 },
+    });
+    retentionRunEndMock.mockResolvedValue({ ok: true, data: { released: true } });
     confirmMock.mockResolvedValue(undefined);
   });
 
@@ -53,9 +72,10 @@ describe('retentionNotify', () => {
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
     expect(retentionNotifyMock).toHaveBeenCalledWith({ dryRun: true });
     expect(confirmMock).not.toHaveBeenCalled();
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
   });
 
-  it('a real prod run previews first, confirms, then enqueues with runContext', async () => {
+  it('a real prod run previews first, confirms, then enqueues with runContext AND the leased runId', async () => {
     retentionNotifyMock
       .mockResolvedValueOnce({ ok: true, data: runResult() })
       .mockResolvedValueOnce({
@@ -71,10 +91,26 @@ describe('retentionNotify', () => {
     expect(retentionNotifyMock).toHaveBeenNthCalledWith(2, {
       breakerOverride: false,
       runContext: 'ops retention:notify (prod)',
+      runId: RUN_ID,
     });
   });
 
-  it('a declined confirmation enqueues nothing', async () => {
+  it('begins the lease AFTER the confirmation, and never on a dry run or an empty cohort', async () => {
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult() })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1 }),
+      });
+
+    await retentionNotify({ env: 'prod' });
+
+    expect(confirmMock.mock.invocationCallOrder[0]).toBeLessThan(
+      retentionRunBeginMock.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('a declined confirmation enqueues nothing, and never takes the lease', async () => {
     // The real gate exits the process on decline (it never returns declined);
     // the mock simulates that non-return by rejecting with a sentinel.
     retentionNotifyMock.mockResolvedValue({ ok: true, data: runResult() });
@@ -83,6 +119,7 @@ describe('retentionNotify', () => {
     await expect(retentionNotify({ env: 'prod' })).rejects.toThrow('exit: declined');
 
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
   });
 
   it('requires confirmation on DEV too, and enqueues nothing when declined', async () => {
@@ -146,7 +183,7 @@ describe('retentionNotify', () => {
     expect(retentionNotifyMock).toHaveBeenCalledTimes(2);
   });
 
-  it('an empty cohort stops before the confirmation', async () => {
+  it('an empty cohort stops before the confirmation and never takes the lease', async () => {
     retentionNotifyMock.mockResolvedValue({
       ok: true,
       data: runResult({ status: 'empty', cohortSize: 0, recipients: [] }),
@@ -156,9 +193,10 @@ describe('retentionNotify', () => {
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
   });
 
-  it('a refused preview stops BEFORE the confirmation — never confirm a refused action', async () => {
+  it('a refused preview stops BEFORE the confirmation and never takes the lease', async () => {
     // The service runs the hard-ceiling breaker before its dry-run branch, so
     // the PREVIEW call itself comes back refused for an over-ceiling cohort.
     retentionNotifyMock.mockResolvedValue({
@@ -170,10 +208,11 @@ describe('retentionNotify', () => {
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+    expect(retentionRunBeginMock).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
-  it('--breaker-override proceeds past a refused preview to confirm + the real run', async () => {
+  it('--breaker-override proceeds past a refused preview to confirm + the real leased run', async () => {
     retentionNotifyMock
       .mockResolvedValueOnce({
         ok: true,
@@ -190,6 +229,7 @@ describe('retentionNotify', () => {
     expect(retentionNotifyMock).toHaveBeenNthCalledWith(2, {
       breakerOverride: true,
       runContext: 'ops retention:notify (prod)',
+      runId: RUN_ID,
     });
     expect(process.exitCode).toBeUndefined();
   });
@@ -205,6 +245,45 @@ describe('retentionNotify', () => {
     await retentionNotify({ env: 'dev' });
 
     expect(process.exitCode).toBe(1);
+  });
+
+  it('begin refused (RUN_IN_PROGRESS) — the real notify call is never made, exitCode 1', async () => {
+    retentionNotifyMock.mockResolvedValue({ ok: true, data: runResult() });
+    retentionRunBeginMock.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      error: 'Another retention run is in progress: "other run" (since 2026-01-01).',
+      code: 'RUN_IN_PROGRESS',
+    });
+
+    await retentionNotify({ env: 'prod' });
+
+    // Only the dry-run preview call happened; the real (leased) call never did.
+    expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('end is called with the runId after a normal successful run', async () => {
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult() })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1 }),
+      });
+
+    await retentionNotify({ env: 'prod' });
+
+    expect(retentionRunEndMock).toHaveBeenCalledWith({ runId: RUN_ID });
+  });
+
+  it('end is called with the runId even when the real notify call rejects', async () => {
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult() })
+      .mockRejectedValueOnce(new Error('gateway exploded'));
+
+    await expect(retentionNotify({ env: 'prod' })).rejects.toThrow('gateway exploded');
+
+    expect(retentionRunEndMock).toHaveBeenCalledWith({ runId: RUN_ID });
   });
 });
 

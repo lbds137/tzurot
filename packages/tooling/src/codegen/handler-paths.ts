@@ -55,6 +55,7 @@ const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
 const ADMIN_BROADCAST = '../admin/broadcast.js';
 const INTERNAL_RELEASE_BROADCAST = '../internal/releaseBroadcast.js';
 const INTERNAL_RETENTION_NOTIFY = '../internal/retentionNotify.js';
+const INTERNAL_RETENTION_RUN = '../internal/retentionRun.js';
 const USER_NOTIFICATIONS = '../user/notifications.js';
 const USER_STT_OVERRIDE = '../user/stt-override.js';
 const USER_TIMEZONE = '../user/timezone.js';
@@ -141,6 +142,8 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   listMyAliases: PERSONALITY_ALIASES_PATH,
   secretRotationStatus: '../internal/secretRotationStatus.js',
   retentionPreview: '../internal/retentionPreview.js',
+  retentionRunBegin: INTERNAL_RETENTION_RUN,
+  retentionRunEnd: INTERNAL_RETENTION_RUN,
   retentionPurge: '../internal/retentionPurge.js',
   retentionReconcileOffDb: '../internal/retentionReconcileOffDb.js',
   retentionNotify: INTERNAL_RETENTION_NOTIFY,

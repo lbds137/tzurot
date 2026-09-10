@@ -386,8 +386,26 @@ async function promptProductionConfirmation(operation: string): Promise<boolean>
  * one caller shipped without checking it, making the prod gate decorative.
  * A gate a caller can hold wrong isn't a gate — this shape makes the
  * discarded-result bug unrepresentable.
+ *
+ * Each caller found by grepping `requireProductionConfirmation(` in
+ * packages/tooling/src (ten at the time of writing) skips this call under a
+ * `--force`-style flag, so a non-interactive stdin reaching it is a script
+ * or CI invocation that omitted the flag. Not pinned by a test: a new caller
+ * without such a flag now fails fast here in a non-TTY instead of hanging.
  */
 export async function requireProductionConfirmation(operation: string): Promise<void> {
+  // Without this guard, readline's `question()` below waits on input that
+  // never arrives on a non-interactive stdin — observed manually as an
+  // unsettled top-level await (Node exits 13), not something this module's
+  // own tests can pin as a "hang". Same shape as db:safe-migrate's
+  // non-interactive guard (create-safe-migration.ts's resolveMigrationName).
+  if (process.stdin.isTTY !== true) {
+    console.error(
+      chalk.red(`❌ Confirmation required to ${operation}, but stdin is not a terminal`)
+    );
+    console.error(chalk.dim('   Re-run with --force to skip the confirmation prompt'));
+    process.exit(1);
+  }
   const confirmed = await promptProductionConfirmation(operation);
   if (!confirmed) {
     console.log(chalk.yellow('\nOperation cancelled.'));

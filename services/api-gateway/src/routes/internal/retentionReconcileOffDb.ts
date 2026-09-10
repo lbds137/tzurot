@@ -13,6 +13,11 @@
  *
  * Idempotent by construction (a settled ledger is a zero-row no-op), which is
  * why the purge CLI calls it unconditionally at the end of every run.
+ *
+ * Deliberately NOT leased (unlike purge and non-dry notify — see
+ * retentionRun.ts): it only retries idempotent avatar unlinks for accounts
+ * already erased, so two overlapping sweeps cannot do harm the lease would
+ * prevent — and the purge CLI already calls it while holding the run lease.
  */
 
 import { type Request, type Response, type RequestHandler } from 'express';

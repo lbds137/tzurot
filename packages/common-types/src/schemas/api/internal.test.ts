@@ -35,6 +35,10 @@ import {
   SecretRotationStatusResponseSchema,
   RetentionPreviewUserSchema,
   RetentionPreviewResponseSchema,
+  RetentionRunBeginRequestSchema,
+  RetentionRunBeginResponseSchema,
+  RetentionRunEndRequestSchema,
+  RetentionRunEndResponseSchema,
   RetentionPurgeRequestSchema,
   RetentionPurgeResponseSchema,
   RetentionReconcileOffDbResponseSchema,
@@ -863,6 +867,7 @@ describe('RetentionPreviewResponseSchema', () => {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
     },
   };
 
@@ -882,12 +887,40 @@ describe('RetentionPreviewResponseSchema', () => {
     const { breakerWarning: _dropped, ...totals } = response.totals;
     expect(RetentionPreviewResponseSchema.safeParse({ ...response, totals }).success).toBe(false);
   });
+
+  it.each(['unrestricted', 'allowlist', 'unscoped_non_production'] as const)(
+    'accepts scope kind %s',
+    kind => {
+      const parsed = RetentionPreviewResponseSchema.safeParse({
+        ...response,
+        totals: { ...response.totals, scope: { kind, excludedEligibleCount: 3 } },
+      });
+      expect(parsed.success).toBe(true);
+    }
+  );
+
+  it('rejects a totals object missing scope entirely', () => {
+    const { scope: _dropped, ...totals } = response.totals;
+    expect(RetentionPreviewResponseSchema.safeParse({ ...response, totals }).success).toBe(false);
+  });
+
+  it('rejects a negative excludedEligibleCount', () => {
+    const parsed = RetentionPreviewResponseSchema.safeParse({
+      ...response,
+      totals: {
+        ...response.totals,
+        scope: { kind: 'allowlist' as const, excludedEligibleCount: -1 },
+      },
+    });
+    expect(parsed.success).toBe(false);
+  });
 });
 
 describe('RetentionPurgeRequestSchema', () => {
-  const request = { discordId: '900000000000000001' };
+  const VALID_RUN_ID = '3f2b8c1e-9d4a-4c5b-8e7f-1a2b3c4d5e6f';
+  const request = { discordId: '900000000000000001', runId: VALID_RUN_ID };
 
-  it('accepts a bare target — run context and override are optional', () => {
+  it('accepts a bare target + runId — run context and override are optional', () => {
     expect(RetentionPurgeRequestSchema.safeParse(request).success).toBe(true);
   });
 
@@ -905,15 +938,32 @@ describe('RetentionPurgeRequestSchema', () => {
     expect(RetentionPurgeRequestSchema.safeParse({}).success).toBe(false);
   });
 
+  it('REQUIRES the run lease runId — a purge call outside a leased run must never act', () => {
+    expect(RetentionPurgeRequestSchema.safeParse({ discordId: '900000000000000001' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects a non-uuid runId', () => {
+    expect(RetentionPurgeRequestSchema.safeParse({ ...request, runId: 'not-a-uuid' }).success).toBe(
+      false
+    );
+  });
+
   it('ACCEPTS a malformed stored id — the operator must be able to purge the junk the preview surfaced', () => {
     // The id is a lookup key, not a trust boundary (parameterized SQL + the
     // in-tx eligibility re-check own safety); a nonexistent id skips as
     // already_gone. Empty and oversized ids stay rejected.
-    expect(RetentionPurgeRequestSchema.safeParse({ discordId: 'unknown' }).success).toBe(true);
-    expect(RetentionPurgeRequestSchema.safeParse({ discordId: '' }).success).toBe(false);
-    expect(RetentionPurgeRequestSchema.safeParse({ discordId: 'x'.repeat(33) }).success).toBe(
-      false
-    );
+    expect(
+      RetentionPurgeRequestSchema.safeParse({ discordId: 'unknown', runId: VALID_RUN_ID }).success
+    ).toBe(true);
+    expect(
+      RetentionPurgeRequestSchema.safeParse({ discordId: '', runId: VALID_RUN_ID }).success
+    ).toBe(false);
+    expect(
+      RetentionPurgeRequestSchema.safeParse({ discordId: 'x'.repeat(33), runId: VALID_RUN_ID })
+        .success
+    ).toBe(false);
   });
 
   it('rejects a non-boolean breaker override rather than coercing it', () => {
@@ -943,8 +993,14 @@ describe('RetentionPurgeResponseSchema', () => {
     ).toBe(true);
   });
 
-  it('accepts each skip reason', () => {
-    for (const reason of ['already_gone', 'no_longer_eligible', 'breaker_tripped']) {
+  it('accepts each skip reason, including the two purge-scope refusals', () => {
+    for (const reason of [
+      'already_gone',
+      'no_longer_eligible',
+      'breaker_tripped',
+      'outside_allowlist',
+      'unscoped_non_production',
+    ]) {
       expect(
         RetentionPurgeResponseSchema.safeParse({
           discordId: '900000000000000001',
@@ -1001,11 +1057,13 @@ describe('RetentionReconcileOffDbResponseSchema', () => {
 });
 
 describe('RetentionNotifyRequestSchema', () => {
-  it('accepts a bare run — every field is optional', () => {
-    expect(RetentionNotifyRequestSchema.safeParse({}).success).toBe(true);
+  const VALID_RUN_ID = '3f2b8c1e-9d4a-4c5b-8e7f-1a2b3c4d5e6f';
+
+  it('REJECTS a bare {} — a real run without a runId must never act (deliberate contract change: a dry run now needs `dryRun: true` explicitly)', () => {
+    expect(RetentionNotifyRequestSchema.safeParse({}).success).toBe(false);
   });
 
-  it('accepts the full operator payload', () => {
+  it('accepts the full DRY-RUN operator payload (no runId required)', () => {
     expect(
       RetentionNotifyRequestSchema.safeParse({
         dryRun: true,
@@ -1013,6 +1071,97 @@ describe('RetentionNotifyRequestSchema', () => {
         runContext: 'first prod notify run',
       }).success
     ).toBe(true);
+  });
+
+  it('accepts a bare dry run', () => {
+    expect(RetentionNotifyRequestSchema.safeParse({ dryRun: true }).success).toBe(true);
+  });
+
+  it('accepts a dry run that also carries a runId (accepted and ignored)', () => {
+    expect(
+      RetentionNotifyRequestSchema.safeParse({ dryRun: true, runId: VALID_RUN_ID }).success
+    ).toBe(true);
+  });
+
+  it('accepts a bare runId — dryRun omitted means a real run', () => {
+    expect(RetentionNotifyRequestSchema.safeParse({ runId: VALID_RUN_ID }).success).toBe(true);
+  });
+
+  it('accepts an explicit dryRun:false with a runId', () => {
+    expect(
+      RetentionNotifyRequestSchema.safeParse({ dryRun: false, runId: VALID_RUN_ID }).success
+    ).toBe(true);
+  });
+
+  it('REJECTS dryRun:false with no runId — a real run outside a leased run must never act', () => {
+    expect(RetentionNotifyRequestSchema.safeParse({ dryRun: false }).success).toBe(false);
+  });
+
+  it('rejects a non-uuid runId on the real-run arm', () => {
+    expect(RetentionNotifyRequestSchema.safeParse({ runId: 'not-a-uuid' }).success).toBe(false);
+  });
+});
+
+describe('RetentionRunBeginRequestSchema and RetentionRunBeginResponseSchema', () => {
+  const VALID_RUN_ID = '3f2b8c1e-9d4a-4c5b-8e7f-1a2b3c4d5e6f';
+
+  it('request accepts a valid runContext', () => {
+    expect(
+      RetentionRunBeginRequestSchema.safeParse({ runContext: 'ops retention:purge (dev)' }).success
+    ).toBe(true);
+  });
+
+  it('request rejects an empty runContext', () => {
+    expect(RetentionRunBeginRequestSchema.safeParse({ runContext: '' }).success).toBe(false);
+  });
+
+  it('request rejects a runContext over the 200-char cap', () => {
+    expect(RetentionRunBeginRequestSchema.safeParse({ runContext: 'x'.repeat(201) }).success).toBe(
+      false
+    );
+  });
+
+  it('request rejects a missing runContext', () => {
+    expect(RetentionRunBeginRequestSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('response accepts a runId + positive leaseTtlMs', () => {
+    expect(
+      RetentionRunBeginResponseSchema.safeParse({ runId: VALID_RUN_ID, leaseTtlMs: 600000 }).success
+    ).toBe(true);
+  });
+
+  it('response rejects a non-uuid runId', () => {
+    expect(
+      RetentionRunBeginResponseSchema.safeParse({ runId: 'not-a-uuid', leaseTtlMs: 600000 }).success
+    ).toBe(false);
+  });
+
+  it('response rejects a non-positive leaseTtlMs', () => {
+    expect(
+      RetentionRunBeginResponseSchema.safeParse({ runId: VALID_RUN_ID, leaseTtlMs: 0 }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionRunEndRequestSchema and RetentionRunEndResponseSchema', () => {
+  const VALID_RUN_ID = '3f2b8c1e-9d4a-4c5b-8e7f-1a2b3c4d5e6f';
+
+  it('request accepts a valid runId', () => {
+    expect(RetentionRunEndRequestSchema.safeParse({ runId: VALID_RUN_ID }).success).toBe(true);
+  });
+
+  it('request rejects a non-uuid runId', () => {
+    expect(RetentionRunEndRequestSchema.safeParse({ runId: 'not-a-uuid' }).success).toBe(false);
+  });
+
+  it('response accepts both released outcomes', () => {
+    expect(RetentionRunEndResponseSchema.safeParse({ released: true }).success).toBe(true);
+    expect(RetentionRunEndResponseSchema.safeParse({ released: false }).success).toBe(true);
+  });
+
+  it('response rejects a missing released flag', () => {
+    expect(RetentionRunEndResponseSchema.safeParse({}).success).toBe(false);
   });
 });
 
