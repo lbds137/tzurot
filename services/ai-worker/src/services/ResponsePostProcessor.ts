@@ -254,10 +254,12 @@ export class ResponsePostProcessor {
     // unwrapped while it is still intact.
     const { content: unwrappedContent } = unwrapUnknownWrapperTags(visibleContent);
 
-    // Step 5: Strip artifacts. The real-message echo strips run FIRST: the
-    // generic pass below carries an unconditional leading-`[...]` pattern that
-    // would otherwise consume a header line before the specific, logged strip
-    // ever sees it.
+    // Step 5: Strip artifacts. The real-message echo strips run FIRST, so a
+    // leaked header line is removed by the specific, logged strip and counted
+    // in its telemetry. The generic pass below does not take header lines: its
+    // leading-bracket step matches only a bracket whose whole interior is a
+    // prompt timestamp (see promptTimestampShapes.ts). Both stages composed
+    // in both flag states are pinned in responseStripSeam.test.ts.
     const echoStripped = context.realMessagesEnabled
       ? stripRealMessageEchoArtifacts(
           unwrappedContent,
