@@ -20,6 +20,7 @@
  * tier — no per-message wire mutation and still zero Prisma in bot-client.
  */
 
+import { urlPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../../redis.js';
 
@@ -49,7 +50,7 @@ export class TranscriptRetriever {
         logger.info(
           {
             messageId: discordMessageId,
-            attachmentUrl: attachmentUrl.substring(0, 50),
+            attachmentUrl: urlPrefix(attachmentUrl, 50),
             transcriptLength: cachedTranscript.length,
             source: 'redis-cache',
           },
@@ -61,7 +62,7 @@ export class TranscriptRetriever {
       logger.debug(
         {
           messageId: discordMessageId,
-          attachmentUrl: attachmentUrl.substring(0, 50),
+          attachmentUrl: urlPrefix(attachmentUrl, 50),
         },
         'No transcript in Redis cache (DB tier lives worker-side, not in bot-client)'
       );
@@ -71,7 +72,7 @@ export class TranscriptRetriever {
         {
           err: error,
           messageId: discordMessageId,
-          attachmentUrl: attachmentUrl.substring(0, 50),
+          attachmentUrl: urlPrefix(attachmentUrl, 50),
         },
         'Error retrieving voice transcript from cache'
       );

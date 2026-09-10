@@ -16,6 +16,7 @@ import {
 } from '@tzurot/common-types/types/conversationMessage';
 import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { findTriggerMessage } from './triggerReferenceWriter.js';
@@ -210,7 +211,7 @@ export class ConversationHistoryService {
           channelId,
           guildId: guildId ?? 'DM',
           personalityId,
-          personaIdPrefix: personaId.substring(0, 8),
+          personaIdPrefix: idPrefix(personaId),
           discordIdCount: messageIds.length,
           timestampKind: timestamp !== undefined ? 'explicit' : 'default',
           tokenCount,
@@ -261,7 +262,7 @@ export class ConversationHistoryService {
       if (target === null) {
         logger.warn(
           {},
-          `No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
+          `No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${idPrefix(personaId)}...)`
         );
         return false;
       }
@@ -311,7 +312,7 @@ export class ConversationHistoryService {
       if (!lastMessage) {
         logger.warn(
           {},
-          `No assistant message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
+          `No assistant message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${idPrefix(personaId)}...)`
         );
         return false;
       }

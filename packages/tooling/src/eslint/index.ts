@@ -25,6 +25,7 @@ import buttonOrderDangerLast from './button-order-danger-last.js';
 import noRawContentLiterals from './no-raw-content-literals.js';
 import noRawDeferUpdate from './no-raw-defer-update.js';
 import noRegexTagStrip from './no-regex-tag-strip.js';
+import noRawLogContent from './no-raw-log-content.js';
 
 const plugin = {
   meta: {
@@ -39,6 +40,7 @@ const plugin = {
     'no-raw-content-literals': noRawContentLiterals,
     'no-raw-defer-update': noRawDeferUpdate,
     'no-regex-tag-strip': noRegexTagStrip,
+    'no-raw-log-content': noRawLogContent,
   },
 };
 

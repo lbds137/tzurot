@@ -13,6 +13,7 @@
 import { NO_TEXT_CONTENT_PLACEHOLDER } from '@tzurot/common-types/constants/message';
 import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
@@ -420,7 +421,7 @@ export class ConversationPersistence {
       {
         channelId,
         personalityId: personality.id,
-        personaId: personaId.substring(0, 8),
+        personaId: idPrefix(personaId),
         chunkCount: chunkMessageIds.length,
         userMessageTime: userMessageTime.toISOString(),
         assistantMessageTime: assistantMessageTime.toISOString(),

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { contentDigest } from '@tzurot/common-types/utils/logContentPreview';
 
 import { createMockPersonality } from '../../test/mocks/fixtures/personality.js';
 import {
@@ -66,6 +67,14 @@ describe('parseJudgeVerdict', () => {
   it('throws on missing JSON and on an invalid winner', () => {
     expect(() => parseJudgeVerdict('no json here')).toThrow(/no JSON object/);
     expect(() => parseJudgeVerdict('{"winner": "both"}')).toThrow(/winner is invalid/);
+  });
+
+  it('names the length and digest of a JSON-less reply, never its text', () => {
+    const raw = 'the persona said something private';
+    expect(() => parseJudgeVerdict(raw)).toThrow(
+      `Judge output contains no JSON object (${raw.length} chars, ${contentDigest(raw)})`
+    );
+    expect(() => parseJudgeVerdict(raw)).not.toThrow(/persona said/);
   });
 
   it('drops malformed violation entries rather than failing the call', () => {
