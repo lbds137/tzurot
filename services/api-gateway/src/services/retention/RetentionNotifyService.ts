@@ -7,8 +7,10 @@
  * seams the worker reports back through: the send-time still-eligible filter
  * and the per-recipient outcome stamps.
  *
- * Operator-driven only (manual-approval doctrine, like the purge) — nothing
- * calls enqueueNotifyRun on a schedule; autonomous execution is Phase 4.
+ * Reached through the notify route by two callers — the retention:notify CLI
+ * and, in production, bot-client's daily retention job; the breaker below
+ * holds for both unless a caller sends the explicit override, which the job
+ * never does.
  *
  * Idempotency layers:
  *   - CROSS-RUN: the predicate itself (retention_notified_at IS NULL) — a
