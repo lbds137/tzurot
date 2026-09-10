@@ -61,6 +61,13 @@ vi.mock('../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
+// Instrumentation for the undo transaction: `transactionCommitted` flips only
+// after the callback returns, and `countCallsAtCommit` records how many count
+// calls had already happened at that moment. Together they pin that the
+// restored-count query runs INSIDE the transaction.
+let transactionCommitted = false;
+let countCallsAtCommit = 0;
+
 // Mock Prisma
 const mockPrisma = {
   user: {
@@ -78,10 +85,16 @@ const mockPrisma = {
     update: vi.fn(),
     deleteMany: vi.fn(),
   },
+  conversationHistory: {
+    count: vi.fn(),
+  },
   // Transaction mock - executes callback with mockPrisma as transaction client
   $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
-    return callback(mockPrisma);
+    const value = await callback(mockPrisma);
+    transactionCommitted = true;
+    countCallsAtCommit = mockPrisma.conversationHistory.count.mock.calls.length;
+    return value;
   }),
 };
 
@@ -137,6 +150,9 @@ describe('/user/history routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    transactionCommitted = false;
+    countCallsAtCommit = 0;
+
     // Default mocks
     mockPrisma.user.findFirst.mockResolvedValue({
       id: TEST_USER_ID,
@@ -169,6 +185,7 @@ describe('/user/history routes', () => {
     mockPrisma.userPersonaHistoryConfig.upsert.mockResolvedValue({});
     mockPrisma.userPersonaHistoryConfig.update.mockResolvedValue({});
     mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.conversationHistory.count.mockResolvedValue(0);
 
     mockGetHistoryStats.mockResolvedValue({
       totalMessages: 10,
@@ -514,6 +531,142 @@ describe('/user/history routes', () => {
           success: true,
           personaId: TEST_PERSONA_ID,
           restoredEpoch: previousEpoch.toISOString(),
+        })
+      );
+    });
+
+    it('counts the band between restoredEpoch and undoneEpoch when restoredEpoch is non-null', async () => {
+      const restoredDate = new Date('2024-01-01');
+      const undoneDate = new Date('2024-01-02');
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        lastContextReset: undoneDate,
+        previousContextReset: restoredDate,
+      });
+      mockPrisma.conversationHistory.count.mockResolvedValue(7);
+
+      const handler = buildHandler(handleUndoHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      await handler(req, res);
+
+      expect(mockPrisma.conversationHistory.count).toHaveBeenCalledWith({
+        where: {
+          personaId: TEST_PERSONA_ID,
+          personalityId: TEST_PERSONALITY_ID,
+          deletedAt: null,
+          createdAt: { gte: restoredDate, lt: undoneDate },
+        },
+      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          restoredCount: 7,
+        })
+      );
+
+      // The count had already run when the transaction callback returned. Moving
+      // it back outside `$transaction` drops this to 0.
+      expect(countCallsAtCommit).toBe(1);
+    });
+
+    it('counts with no lower bound when restoredEpoch is null', async () => {
+      const undoneDate = new Date('2024-01-02');
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        lastContextReset: undoneDate,
+        previousContextReset: null,
+      });
+      mockPrisma.conversationHistory.count.mockResolvedValue(0);
+
+      const handler = buildHandler(handleUndoHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      await handler(req, res);
+
+      const callArg = mockPrisma.conversationHistory.count.mock.calls[0][0] as {
+        where: { createdAt: { gte?: Date; lt: Date } };
+      };
+      expect(callArg.where.createdAt.gte).toBeUndefined();
+      expect(callArg.where.createdAt.lt).toEqual(undoneDate);
+      expect(mockPrisma.conversationHistory.count).toHaveBeenCalledWith({
+        where: {
+          personaId: TEST_PERSONA_ID,
+          personalityId: TEST_PERSONALITY_ID,
+          deletedAt: null,
+          createdAt: { lt: undoneDate },
+        },
+      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          restoredCount: 0,
+        })
+      );
+    });
+
+    it('does not commit the swap when the count fails', async () => {
+      const restoredDate = new Date('2024-01-01');
+      const undoneDate = new Date('2024-01-02');
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        lastContextReset: undoneDate,
+        previousContextReset: restoredDate,
+      });
+      mockPrisma.conversationHistory.count.mockRejectedValue(new Error('count failed'));
+
+      const handler = buildHandler(handleUndoHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      // `asyncHandler` is stubbed to the identity function in this file, so the
+      // throw surfaces here; mounted for real it is caught and sent as a 500.
+      await expect(handler(req, res)).rejects.toThrow('count failed');
+
+      // The swap was issued inside the callback, but the callback never returned,
+      // so the transaction never reached its commit point.
+      expect(mockPrisma.userPersonaHistoryConfig.update).toHaveBeenCalled();
+      expect(transactionCommitted).toBe(false);
+      expect(res.json).not.toHaveBeenCalled();
+    });
+
+    it('reports zero restored messages when the band between two epochs is empty', async () => {
+      const restoredDate = new Date('2024-01-01');
+      const undoneDate = new Date('2024-01-02');
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        lastContextReset: undoneDate,
+        previousContextReset: restoredDate,
+      });
+      mockPrisma.conversationHistory.count.mockResolvedValue(0);
+
+      const handler = buildHandler(handleUndoHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      await handler(req, res);
+
+      expect(mockPrisma.conversationHistory.count).toHaveBeenCalledWith({
+        where: {
+          personaId: TEST_PERSONA_ID,
+          personalityId: TEST_PERSONALITY_ID,
+          deletedAt: null,
+          createdAt: { gte: restoredDate, lt: undoneDate },
+        },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          restoredEpoch: restoredDate.toISOString(),
+          restoredCount: 0,
         })
       );
     });

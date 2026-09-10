@@ -172,13 +172,40 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
       }
 
       const restoredEpoch = currentConfig.previousContextReset;
+      const undoneEpoch = currentConfig.lastContextReset;
 
       await tx.userPersonaHistoryConfig.update({
         where: { userId_personalityId_personaId: { userId, personalityId, personaId } },
         data: { lastContextReset: restoredEpoch, previousContextReset: null },
       });
 
-      return { success: true as const, restoredEpoch };
+      // An epoch is an INCLUSIVE lower bound on visibility (`createdAt >= epoch`),
+      // the convention recorded in `historyCutoff.ts`. So the rows the swap made
+      // visible again are the band `>= restoredEpoch` and `< undoneEpoch`: a row
+      // sitting exactly on the restored epoch is visible now, and one sitting
+      // exactly on the undone epoch was already visible before this undo. Both
+      // bounds are pinned by the two undo-count tests in `history.test.ts`.
+      //
+      // The count runs inside the transaction so that a count failure aborts the
+      // callback before it commits: the epoch swap must not persist while the
+      // request errors, or the retry hits the "no previous context" rejection
+      // with the history still hidden. The pre-commit ordering is pinned by
+      // `does not commit the swap when the count fails`; the rollback itself is
+      // Prisma's transaction semantics, which the mocked unit tests cannot
+      // observe.
+      const restoredCount = await tx.conversationHistory.count({
+        where: {
+          personaId,
+          personalityId,
+          deletedAt: null,
+          createdAt: {
+            ...(restoredEpoch !== null ? { gte: restoredEpoch } : {}),
+            lt: undoneEpoch,
+          },
+        },
+      });
+
+      return { success: true as const, restoredEpoch, restoredCount };
     });
 
     if (!result.success) {
@@ -196,6 +223,7 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
         personalitySlug,
         personaId: idPrefix(personaId),
         restoredEpoch: result.restoredEpoch?.toISOString(),
+        restoredCount: result.restoredCount,
       },
       'Context restored (undo)'
     );
@@ -206,6 +234,7 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
         success: true,
         restoredEpoch: result.restoredEpoch?.toISOString() ?? null,
         personaId,
+        restoredCount: result.restoredCount,
         message: 'Previous context restored. The last clear operation has been undone.',
       },
       StatusCodes.OK
