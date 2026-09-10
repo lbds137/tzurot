@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { AIMessage } from '@langchain/core/messages';
 
 const getConfigMock = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types/config/config', async importOriginal => {
@@ -207,5 +208,70 @@ describe('invokeSystemModel provider seam', () => {
     await expect(
       invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 })
     ).rejects.toThrow('LLM returned empty response');
+  });
+
+  it('runs the OpenRouter extractor on the response: drops __raw_response, keeps the diagnostics, leaves content intact', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+
+    const sentinelContent = 'Distilled roster blurb summary text.';
+    const fixture = new AIMessage({
+      content: sentinelContent,
+      response_metadata: { finish_reason: 'stop' },
+      additional_kwargs: {
+        __raw_response: {
+          provider: 'Parasail',
+          choices: [{ message: { role: 'assistant', content: sentinelContent } }],
+        },
+      },
+    });
+
+    createChatModelMock.mockReturnValueOnce({
+      model: { generate: mockModelGenerate },
+      modelName: 'x',
+      expectsRawResponse: true,
+    });
+    mockModelGenerate.mockResolvedValueOnce({
+      generations: [[{ text: '', message: fixture }]],
+    });
+
+    const result = await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+
+    expect((fixture.additional_kwargs as Record<string, unknown>).__raw_response).toBeUndefined();
+    expect((fixture.response_metadata as Record<string, unknown>).openrouter).toMatchObject({
+      provider: 'Parasail',
+    });
+    expect(result.content).toBe(sentinelContent);
+  });
+
+  it('promotes reasoning into the returned content when the response content is empty', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+
+    const sentinelReasoning = 'The distilled summary the model misplaced into reasoning.';
+    const fixture = new AIMessage({
+      content: '',
+      response_metadata: { finish_reason: 'stop' },
+      additional_kwargs: {
+        __raw_response: {
+          provider: 'Parasail',
+          choices: [{ message: { role: 'assistant', content: '', reasoning: sentinelReasoning } }],
+        },
+      },
+    });
+
+    createChatModelMock.mockReturnValueOnce({
+      model: { generate: mockModelGenerate },
+      modelName: 'x',
+      expectsRawResponse: true,
+    });
+    mockModelGenerate.mockResolvedValueOnce({
+      generations: [[{ text: '', message: fixture }]],
+    });
+
+    const result = await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+
+    expect(result.content).toBe(sentinelReasoning);
+    expect((fixture.additional_kwargs as Record<string, unknown>).__raw_response).toBeUndefined();
   });
 });

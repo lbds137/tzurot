@@ -151,8 +151,8 @@ describe('Canary: __includeRawResponse contract with @langchain/openai', () => {
 
     // 6. The converter populates response_metadata.model_name from the raw
     // payload's top-level `model` field. readRoutedModel (vision path) reads
-    // this instead of openrouter.model, because the vision path never runs the
-    // extractor — if a @langchain/openai bump renames or stops populating it,
+    // this instead of openrouter.model, because it's available regardless of
+    // provenance — if a @langchain/openai bump renames or stops populating it,
     // every vision routedModel silently becomes undefined, which is exactly the
     // attribution loss this instrumentation exists to prevent.
     expect(
