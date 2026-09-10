@@ -5,10 +5,10 @@
  *   POST /api/internal/retention/notify/filter  — the worker's send-time re-check
  *   POST /api/internal/retention/notify/report  — per-recipient delivery outcomes
  *
- * Operator-driven (manual-approval doctrine): only the retention:notify CLI
- * calls the enqueue route; nothing runs it on a schedule (autonomy is
- * Phase 4). The filter and report routes are the bot-client worker's two
- * seams back into the grace bookkeeping.
+ * Two callers reach the enqueue route: the retention:notify CLI (behind its
+ * confirmation prompt) and, in production, bot-client's daily retention job,
+ * which never sends `breakerOverride`. The filter and report routes are the
+ * bot-client worker's two seams back into the grace bookkeeping.
  *
  * Service-auth protected upstream like every /internal/* route.
  */

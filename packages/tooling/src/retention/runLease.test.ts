@@ -80,7 +80,14 @@ describe('beginRunLease', () => {
 });
 
 describe('releaseRunLease', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
   afterEach(() => {
+    warnSpy.mockRestore();
     process.exitCode = undefined;
   });
 
@@ -93,11 +100,65 @@ describe('releaseRunLease', () => {
     expect(client.retentionRunEnd).toHaveBeenCalledWith({ runId: RUN_ID });
   });
 
-  it('swallows a rejection — best effort, resolves undefined', async () => {
+  it('does not warn when the lease was released cleanly', async () => {
+    const client = makeClient();
+    client.retentionRunEnd.mockResolvedValue({ ok: true, data: { released: true } });
+
+    await releaseRunLease(client, RUN_ID);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('warns naming the kind and error when the release call fails', async () => {
+    const client = makeClient();
+    client.retentionRunEnd.mockResolvedValue({
+      ok: false,
+      kind: 'network',
+      error: 'ECONNREFUSED',
+    });
+
+    await releaseRunLease(client, RUN_ID);
+
+    const output = warnSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('network');
+    expect(output).toContain('ECONNREFUSED');
+    expect(output).toContain('lease TTL reclaims');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("warns that the lease was no longer this run's when released: false", async () => {
+    const client = makeClient();
+    client.retentionRunEnd.mockResolvedValue({ ok: true, data: { released: false } });
+
+    await releaseRunLease(client, RUN_ID);
+
+    const output = warnSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('no longer this run');
+    expect(output).toContain('overlapped');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('warns with the error message when the call throws, and swallows it — best effort, resolves undefined', async () => {
     const client = makeClient();
     client.retentionRunEnd.mockRejectedValue(new Error('network down'));
 
     await expect(releaseRunLease(client, RUN_ID)).resolves.toBeUndefined();
+
+    const output = warnSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('network down');
+    expect(output).toContain('lease TTL reclaims');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('warns with String(error) when a non-Error is thrown', async () => {
+    const client = makeClient();
+    client.retentionRunEnd.mockRejectedValue('a plain string rejection');
+
+    await releaseRunLease(client, RUN_ID);
+
+    const output = warnSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('a plain string rejection');
   });
 });
 

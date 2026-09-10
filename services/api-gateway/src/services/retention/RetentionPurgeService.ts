@@ -8,8 +8,8 @@
  * The purge is PER-USER by design (D2): one account per HTTP call, each within
  * its own 60s erasure transaction. A per-batch endpoint would blow Railway's
  * ~60s request timeout partway through and leave a partial, unrecorded purge.
- * The CLI loops; resuming is simply re-running it, since each purge removes its
- * own user from the cohort.
+ * Callers (the CLI, bot-client's daily job) loop; resuming is simply re-running
+ * it, since each purge removes its own user from the cohort.
  */
 
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -192,8 +192,9 @@ export class RetentionPurgeService {
         this.scope.kind === 'unrestricted' ? null : countEligibleUsers(this.prisma, null),
       ]);
 
-    // Concurrent, not sequential: the daily nag calls this on a schedule, so a
-    // per-user round-trip chain would put the whole cohort's latency on a timer.
+    // Concurrent, not sequential: bot-client's daily retention job calls this
+    // on a schedule, so a per-user round-trip chain would put the whole
+    // cohort's latency on a timer.
     const users: RetentionPreviewUser[] = await Promise.all(
       cohort.map(async row => ({
         discordId: row.discordId,

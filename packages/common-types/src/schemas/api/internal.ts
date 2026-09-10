@@ -411,18 +411,19 @@ export const RetentionPreviewUserSchema = z.object({
    * Deliberately NOT snowflake-validated: the preview is a display-only
    * report, and a malformed stored id (a legacy row holds the literal
    * 'unknown') is a finding the report must SURFACE — snowflake validation
-   * here crashed the CLI and silenced the daily nag on exactly that anomaly
-   * the moment the bystander arm made the cohort non-empty. The notify
-   * pipeline's recipient schemas stay strict; such rows never qualify there.
+   * here crashed the CLI and silenced the daily retention report on exactly
+   * that anomaly the moment the bystander arm made the cohort non-empty. The
+   * notify pipeline's recipient schemas stay strict; such rows never qualify
+   * there.
    */
   discordId: z.string().min(1).max(32),
   /**
    * Display-only identity token, rendered beside the id because `<@id>`
    * mentions often fail to resolve on mobile. Deliberately NOT `.min(1)`:
-   * the same fail-open doctrine `discordId` above documents — nag delivery
+   * the same fail-open doctrine `discordId` above documents — report delivery
    * outranks field validity, so a malformed or empty stored username must
-   * never crash the CLI or silence the daily nag. The rendering surfaces
-   * omit the token rather than reject the payload.
+   * never crash the CLI or silence the daily retention report. The rendering
+   * surfaces omit the token rather than reject the payload.
    */
   username: z.string().max(255),
   /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
@@ -579,8 +580,8 @@ export type RetentionPurgeResponse = z.infer<typeof RetentionPurgeResponseSchema
  * not run the whole queue inside one ~60s HTTP request. Idempotent — an
  * already-settled ledger is a zero-row no-op — so it is safe to run at the
  * end of every purge run. `remaining` counts rows the call did NOT attempt
- * (rows that failed in-batch stay queued but are not "remaining"); the CLI
- * loops while it is nonzero.
+ * (rows that failed in-batch stay queued but are not "remaining"); callers
+ * loop while it is nonzero.
  */
 export const RetentionReconcileOffDbResponseSchema = z.object({
   settled: z.number().int().nonnegative(),
@@ -593,7 +594,8 @@ export const RetentionReconcileOffDbResponseSchema = z.object({
 // ============================================================================
 
 /**
- * Operator-driven (manual-approval doctrine, like the purge): resolves the
+ * Called by the retention:notify CLI (behind its confirmation prompt) and by
+ * bot-client's daily retention job in production: resolves the
  * reachable-but-inactive cohort, enqueues warning-DM batches to the
  * retention-notify queue. Cross-run idempotency is the predicate itself
  * (retention_notified_at IS NULL) — re-running resumes where a run stopped.
