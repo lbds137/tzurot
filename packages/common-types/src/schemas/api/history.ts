@@ -71,6 +71,17 @@ export const UndoHistoryResponseSchema = z.object({
   success: z.literal(true),
   restoredEpoch: z.string().nullable(),
   personaId: z.string(),
+  /**
+   * How many previously-hidden messages became visible again as a result of
+   * the undo. Zero means the pre-clear history is gone (e.g. a channel-wide
+   * purge by another user removed the rows the epoch swap would have
+   * uncovered), even though the undo itself succeeded.
+   * Soft-deleted rows are excluded, matching the predicates that decide
+   * whether a message is visible in conversation history.
+   * The count covers the epoch band only: a channel whose max-age window is
+   * shorter than that band still hides some of these rows in that channel.
+   */
+  restoredCount: z.number().int().nonnegative(),
   message: z.string(),
 });
 

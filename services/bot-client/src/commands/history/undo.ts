@@ -18,7 +18,7 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { createSuccessEmbed } from '../../utils/commandHelpers.js';
+import { createInfoEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-undo');
 
@@ -68,18 +68,30 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
 
     const data = result.data;
 
-    const embed = createSuccessEmbed(
-      'Context Restored',
-      `Previous conversation context with **${personalitySlug}** has been restored.\n\n` +
-        'The last clear operation has been undone.\n\n' +
-        '*Note: Only one level of undo is supported.*'
-    );
+    const embed =
+      data.restoredCount > 0
+        ? createSuccessEmbed(
+            'Context Restored',
+            `Previous conversation context with **${personalitySlug}** has been restored.\n\n` +
+              `Restored **${data.restoredCount}** message${data.restoredCount === 1 ? '' : 's'}.\n\n` +
+              'The last clear operation has been undone.\n\n' +
+              '*Note: Only one level of undo is supported.*'
+          )
+        : createInfoEmbed(
+            'Nothing to Restore',
+            `Nothing to restore for **${personalitySlug}**: the history from before your last clear is gone.`
+          );
 
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, personalitySlug, restoredEpoch: data.restoredEpoch },
-      'Context restored successfully'
+      {
+        userId,
+        personalitySlug,
+        restoredEpoch: data.restoredEpoch,
+        restoredCount: data.restoredCount,
+      },
+      'Undo completed'
     );
   } catch (error) {
     logger.error({ err: error, userId, command: 'History Undo' }, 'Error');
