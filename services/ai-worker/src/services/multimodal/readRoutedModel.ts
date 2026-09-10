@@ -1,12 +1,12 @@
 /**
  * Read the routed model id off a LangChain response's `response_metadata`.
  *
- * The vision path invokes the model directly rather than through `LLMInvoker`,
- * so `extractAndPopulateOpenRouterReasoning` never runs on its responses and
- * `response_metadata.openrouter` is not populated there. `model_name` is
- * populated instead by @langchain/openai's chat-completions converter, which
- * assigns it from the raw payload's top-level `model` field
- * (`dist/converters/completions.js`, the non-streaming assistant branch).
+ * `model_name` is populated by @langchain/openai's chat-completions converter,
+ * which assigns it from the raw payload's top-level `model` field
+ * (`dist/converters/completions.js`, the non-streaming assistant branch). That
+ * field is available on every completion response regardless of which caller
+ * produced it, so both the vision path and the text path (`modelInvocation.ts`)
+ * can read it the same way.
  *
  * That distinction is what makes this worth reading: for a router alias such as
  * `openrouter/auto`, the model NAME we requested is the alias, while this field
