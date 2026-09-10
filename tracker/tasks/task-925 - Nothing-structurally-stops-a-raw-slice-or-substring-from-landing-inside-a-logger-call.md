@@ -3,9 +3,10 @@ id: TASK-925
 title: >-
   Nothing structurally stops a raw slice or substring from landing inside a
   logger call
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 19:44'
+updated_date: '2026-09-10 21:50'
 labels:
   - 'area:tooling'
   - 'size:M'
