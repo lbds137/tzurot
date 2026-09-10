@@ -50,7 +50,10 @@ _beta.221 CUT 2026-09-09 (8 PRs / 8 runtime / 96 range files; no migrations; PR 
      - The second half stays open on TASK-923: the prod measurement plus the name-agnostic matcher decision.
   5. **TASK-925** (M) — the first dispatch stopped at its census gate. The inline shape flagged 34 logger truncations, none of them content, and it missed truncations made into a local variable first.
      - Main-loop decision: a type-aware funnel rule (inline, or one same-scope `const` hop), `idPrefix`/`urlPrefix` helpers, and the id/token/URL sites migrated to them.
-     - **PR #2388 is open.** The rule is at error level, and 30 sites migrated.
+     - **MERGED** 2026-09-10 as **#2388** (`66963134f`), after 2 review rounds; TASK-925 is Done.
+     - The rule is at error level and also covers Error sinks. An `errorSinks` option turns that half off for tooling only.
+     - 30 sites migrated, plus two content-in-Error leaks fixed.
+     - Blind spots with live sites and hardening members are on TASK-933 (low).
   6. **TASK-890 unit B** — spec at `docs/local/handoffs/spec-890b-fix.md` (re-derive the base SHA; unit A shipped as #2378).
   7. **TASK-894 · TASK-808** — the drain continues from `pnpm tracker task list -s "To Do" -l state:ready -l size:S --priority high --plain`, then medium.
   8. **TASK-901** — a main-cut PR (claude workflow file); `release:finalize` right after it merges.

@@ -16,7 +16,7 @@
 
 ## ☀️ 2026-09-10 — retention Phase 4 built (#2385, #2386), TASK-923a #2387 (Opus-driven)
 
-**#2385** (`dd8e5a853`) run lease + non-prod scope; **#2386** (`86602aebd`) the daily job, 5 review rounds, owner rulings: reconcile backlog + breaker warning report. **#2387** (`c3d351c42`) bracket strip narrowed to prompt timestamps. **#2388** (TASK-925 lint rule) in review. Misses: a closed-task blind spot (TASK-634 already owned the dev-purge hazard), an unthrottled gate OOM (`test:low-mem` is the throttled form), twice-stale dist, two claims written before the thing existed. `.bash_profile` now resolves the WebStorm node path at login.
+**#2385** (`dd8e5a853`) run lease + non-prod scope; **#2386** (`86602aebd`) the daily job, 5 review rounds, owner rulings: reconcile backlog + breaker warning report. **#2387** (`c3d351c42`) bracket strip narrowed to prompt timestamps. **#2388** (`66963134f`) the raw-log-content lint rule. Misses: a closed-task blind spot (TASK-634 already owned the dev-purge hazard), an unthrottled gate OOM (`test:low-mem` is the throttled form), twice-stale dist, two claims written before the thing existed. `.bash_profile` now resolves the WebStorm node path at login.
 
 ## 🌙 2026-09-09 (late) — beta.222 opens: sharp advisory shipped, two PRs in review, three tasks filed (Opus-driven)
 
