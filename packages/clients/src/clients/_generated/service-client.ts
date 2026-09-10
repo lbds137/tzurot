@@ -444,6 +444,7 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.retentionPurge.output,
+      timeoutMs: ROUTE_MANIFEST.retentionPurge.timeoutMs,
     });
   }
 

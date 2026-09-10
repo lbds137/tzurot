@@ -39,6 +39,7 @@ describe('config', () => {
       expect(config.ENABLE_HEALTH_SERVER).toBe(false);
       expect(config.BOT_MENTION_CHAR).toBe('@');
       expect(config.LOG_CONTENT_PREVIEWS).toBe(false);
+      expect(config.RETENTION_AUTORUN_ENABLED).toBe(true);
     });
 
     it('should allow overrides', () => {
@@ -341,6 +342,20 @@ describe('config', () => {
       expect(envSchema.parse({ LOG_PROMPT_ASSEMBLY: 'true' }).LOG_PROMPT_ASSEMBLY).toBe(true);
       expect(envSchema.parse({ LOG_PROMPT_ASSEMBLY: 'false' }).LOG_PROMPT_ASSEMBLY).toBe(false);
       expect(envSchema.parse({}).LOG_PROMPT_ASSEMBLY).toBe(false);
+    });
+
+    it('defaults RETENTION_AUTORUN_ENABLED to true and only the exact string "true" keeps it on', () => {
+      expect(envSchema.parse({}).RETENTION_AUTORUN_ENABLED).toBe(true);
+      expect(envSchema.parse({ RETENTION_AUTORUN_ENABLED: 'true' }).RETENTION_AUTORUN_ENABLED).toBe(
+        true
+      );
+      expect(
+        envSchema.parse({ RETENTION_AUTORUN_ENABLED: 'false' }).RETENTION_AUTORUN_ENABLED
+      ).toBe(false);
+      // A mistyped value fails toward stopping deletions, not toward running them.
+      expect(
+        envSchema.parse({ RETENTION_AUTORUN_ENABLED: 'False' }).RETENTION_AUTORUN_ENABLED
+      ).toBe(false);
     });
   });
 

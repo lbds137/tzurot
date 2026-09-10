@@ -62,13 +62,39 @@ export async function beginRunLease(
 
 /**
  * Release the run lease, best-effort: a failure here must never mask the run's
- * own outcome, and the lease TTL reclaims an unreleased lease on its own.
+ * own outcome (never throws, never sets `process.exitCode`), and the lease
+ * TTL reclaims an unreleased lease on its own. Best-effort is not silent,
+ * though — every non-clean outcome (a failed call, a lease that was no longer
+ * this run's, or a thrown error) prints a warning so an operator watching the
+ * CLI's own output sees it, even though nothing here fails the run.
  */
 export async function releaseRunLease(client: RunLeaseClient, runId: string): Promise<void> {
   try {
-    await client.retentionRunEnd({ runId });
-  } catch {
-    // Best-effort by design — see the docstring.
+    const result = await client.retentionRunEnd({ runId });
+    if (!result.ok) {
+      console.warn(
+        chalk.yellow(
+          `\nFailed to release the retention run lease (${result.kind}): ${result.error}. ` +
+            'The lease TTL reclaims it.'
+        )
+      );
+      return;
+    }
+    if (!result.data.released) {
+      console.warn(
+        chalk.yellow(
+          "\nThe retention run lease was no longer this run's (expired, or taken over by " +
+            'another run) — another run may have overlapped this one.'
+        )
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      chalk.yellow(
+        `\nFailed to release the retention run lease: ${message}. The lease TTL reclaims it.`
+      )
+    );
   }
 }
 

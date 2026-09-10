@@ -6,7 +6,8 @@
  *
  *   - **One user per call.** A whole-cohort endpoint would exceed the platform's
  *     ~60s request timeout partway through and leave a partial, unrecorded
- *     purge. The operator's CLI loops; each call gets its own transaction.
+ *     purge. The caller loops (the retention:purge CLI, or bot-client's daily
+ *     retention job); each call gets its own transaction.
  *   - **Idempotent.** An already-purged target, or one who became active since
  *     the cohort was selected, returns 200 with a `skipped` status. Every one of
  *     those is a normal outcome of a resumable loop, not an error.
@@ -18,8 +19,9 @@
  *   - **Scoped.** The service refuses targets outside this environment's
  *     purge scope before any other work (see purgeScope.ts).
  *
- * Service-auth protected like every internal route. Nothing calls it on a
- * schedule: autonomous execution is Phase 4.
+ * Service-auth protected like every internal route. In production the daily
+ * retention job calls it unattended and never sends `breakerOverride`, so the
+ * hard ceiling holds for every scheduled call.
  */
 
 import { type Request, type Response, type RequestHandler } from 'express';

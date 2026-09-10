@@ -183,6 +183,20 @@ export const envSchema = z.object({
     .transform(val => val === 'true')
     .default(false),
 
+  /**
+   * Kill switch for the retention job's LIVE mode (bot-client's
+   * `RetentionRunScheduler`). In production, `true` — the default — runs the
+   * daily retention notify + purge unattended; any other value drops the job
+   * to the report-only owner-channel nag, so deletions stop without a revert.
+   * Only the exact string 'true' keeps it on, so a mistyped value fails toward
+   * stopping deletions. Outside production the job only rehearses and this
+   * flag has no effect. Changing it on Railway redeploys the service.
+   */
+  RETENTION_AUTORUN_ENABLED: z
+    .string()
+    .transform(val => val === 'true')
+    .default(true),
+
   // BYOK (Bring Your Own Key) Configuration
   API_KEY_ENCRYPTION_KEY: optionalEncryptionKey(), // 32-byte hex key for AES-256-GCM encryption
 
@@ -427,6 +441,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     LOG_LEVEL: 'error', // Quiet logs in tests
     LOG_PROMPT_ASSEMBLY: false,
     LOG_CONTENT_PREVIEWS: false,
+    RETENTION_AUTORUN_ENABLED: true,
 
     // BYOK
     API_KEY_ENCRYPTION_KEY: undefined,

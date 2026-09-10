@@ -12,16 +12,17 @@
  * the CHECK runs daily/on-startup (restart-friendly) while a Redis cooldown
  * caps the actual SMOKE at once a week.
  *
- * NO production-only gate. `RetentionNagScheduler` gates on
- * `NODE_ENV === 'production'` because the dev DB mirrors prod's users, so a
- * dev-side retention report carries no dev-specific signal. That reasoning
- * does not transfer here, and the inverse applies: this smoke exercises a
- * CODE PATH (the export pipeline), and dev runs a different build than
- * prod — a dev-side failure is exactly the early warning this exists to
- * surface, catching a breaking change before it reaches a release.
+ * NO production-only gate. `RetentionRunScheduler` keeps its live run (and
+ * its nag) production-only because the dev DB mirrors prod's users, so
+ * dev-side retention data carries no dev-specific signal — dev only
+ * rehearses. That reasoning does not transfer here, and the inverse applies:
+ * this smoke exercises a CODE PATH (the export pipeline), and dev runs a
+ * different build than prod — a dev-side failure is exactly the early
+ * warning this exists to surface, catching a breaking change before it
+ * reaches a release.
  *
  * Cooldown ordering is INVERTED from the other nags. `SecretRotationNagScheduler`
- * and `RetentionNagScheduler` check their condition first and read the
+ * and the retention job's nag mode check their condition first and read the
  * cooldown only once there's something to report — the cooldown there guards
  * the ALERT. Here the cooldown is read FIRST, before starting anything:
  * starting a real export job is the expensive action (a real write —

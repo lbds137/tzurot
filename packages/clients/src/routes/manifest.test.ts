@@ -264,6 +264,13 @@ describe('central route manifest', () => {
     ).toEqual([]);
   });
 
+  it('retentionPurge outwaits the WRITE default with the 60s erasure-transaction budget', () => {
+    // Literal, not derived from the source constant — this is a regression pin
+    // on the wire value the client actually sends, not a tautology against the
+    // constant it was copied from.
+    expect(ROUTE_MANIFEST.retentionPurge.timeoutMs).toBe(60_000);
+  });
+
   it('GET routes do not declare an input body schema', () => {
     // GET-with-body is broken in the field — Node's fetch (and many
     // intermediaries) drop the body, so a manifest entry like
