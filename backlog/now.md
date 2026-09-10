@@ -56,7 +56,7 @@ _beta.221 CUT 2026-09-09 (8 PRs / 8 runtime / 96 range files; no migrations; PR 
      - Blind spots with live sites and hardening members are on TASK-933 (low).
   6. ~~**TASK-890 unit B**~~ **MERGED** 2026-09-10 as **#2389** (`ab35ee5ab`); TASK-890 is Done (unit A was #2378). The fix rides the unified ack matrix (`replySpecSafe`), not the browse helper; one clean review round.
   7. **TASK-894 · TASK-808** — specs at `docs/local/handoffs/spec-894-undo-count.md` and `spec-808-vision-extractor.md`; 894 dispatched 2026-09-10. Grounding note on 808: the vision response object is transient, so the fix is diagnostics parity, not a retention fix.
-  8. **TASK-901** — main-cut **PR #2390 open** (CI green; claude-review self-skips on a workflow-file PR by design). Merge to `main` plus `release:finalize` are owner-approved steps. TASK-901 stays open until a test-heavy PR's first review run posts.
+  8. ~~**TASK-901**~~ main-cut **#2390 MERGED** to `main` 2026-09-10 (`8a232687`, owner-approved) and `release:finalize` re-aligned develop (`d001c6ec7`). Both review prompts now say tests are CI-verified. **TASK-901 stays open** as a watch: it closes when a test-heavy PR's first review run posts.
   9. **doc-99 measurement** — the usage-audit count of main-loop calls per unit phase over the last two Fable windows; build nothing until it says which phase dominates.
 - **Waiting on** (carried from 221, unchanged):
   1. **`doc-97` Phase 2 — the `Voice Fidelity` directive** in the database `characterDirectives` JSON (agent drafts, owner applies; no code).
