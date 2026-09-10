@@ -36,7 +36,7 @@ import {
 } from './viewV2.js';
 import { buildCharacterViewPage } from './viewPages.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
-import { ackUpdate } from '../../ux/render/reply.js';
+import { ackUpdate, replySpecSafe } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-view');
 
@@ -241,7 +241,9 @@ export async function handleViewPagination(
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, slug, page }, 'Failed to load character view page');
-    // Keep existing content on error - user can try again
+    await replySpecSafe(interaction, classifyGatewayFailure(error, 'page', { operation: 'read' }), {
+      logContext: { slug, page },
+    });
   }
 }
 
