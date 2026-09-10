@@ -22,3 +22,10 @@ Why: the #2388 review found two live sites the new @tzurot/no-raw-log-content ru
 Fix shape: (1) decide whether provider error text counts as content. If not, add a justified disable at the truncation site, or route it through a named helper, so the decision is visible; if it does, log a digest plus length instead. (2) Leave the dump, but add a disable-style comment naming the guard, so a reader sees the sanctioned exception. Also decide whether the rule should gain a cross-function arm for helpers that return a truncation of their parameter.
 Acceptance: both sites carry an explicit, reviewed disposition in code, and the rule doc names the remaining blind spots with a live example each.
 <!-- SECTION:DESCRIPTION:END -->
+
+Hardening members added from the #2388 round-2 review (none has a live site today):
+- (3) Exempt callees are matched by name only. A local function named contentPreview or contentDigest would pass as the sanctioned gate; the fix is resolving the binding to an import from logContentPreview.
+- (4) idPrefix and urlPrefix accept any string. Nothing stops content from being passed through them. The fix is a branded Id or Url type, or a light shape check.
+- (5) .substr(0, n) is not in the truncation set. A repo-wide grep found zero call sites.
+- (6) Error sinks are recognized by the class name ending in Error. Every current custom error follows that convention; name the dependency in the rule's blind-spot doc.
+- DISMISSED from the same review: the claim that getStringType and isTypeAssignableTo are internal TypeChecker API. Both are declared in the public typescript.d.ts of the installed TypeScript 6.0.3 (lines 6296 and 6343).
