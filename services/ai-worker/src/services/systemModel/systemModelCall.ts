@@ -21,6 +21,7 @@ import { AIProvider, toZaiWireModelId } from '@tzurot/common-types/constants/ai'
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { createChatModel } from '../ModelFactory.js';
+import { extractAndPopulateOpenRouterReasoning } from '../modelFactory/extractOpenRouterReasoning.js';
 import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
 
 /** One background model call's outcome — content plus token usage for cost rows. */
@@ -98,7 +99,7 @@ export async function invokeSystemModel(
   // correctly instead of reaching z.ai unstripped and 400ing.
   const modelName =
     route.provider === AIProvider.ZaiCoding ? toZaiWireModelId(systemModel) : systemModel;
-  const { model } = createChatModel({
+  const { model, expectsRawResponse } = createChatModel({
     modelName,
     temperature: 0,
     responseFormat: { type: 'json_object' },
@@ -111,6 +112,13 @@ export async function invokeSystemModel(
   const response = await invokeModelGuarded(model, [new HumanMessage(prompt)], {
     timeout: options.timeoutMs,
   });
+  // Parity with the LLMInvoker text path: populates response_metadata.openrouter
+  // diagnostics and drops the raw payload the OpenRouter builder stashed on the
+  // message. The flag is threaded rather than defaulted because the z.ai-direct
+  // route returns false; the warning-suppression that buys is pinned by
+  // extractOpenRouterReasoning.test.ts ("does NOT warn when expectsRawResponse
+  // is false and __raw_response is missing on a completed message").
+  extractAndPopulateOpenRouterReasoning(response, expectsRawResponse);
   return {
     content:
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content),

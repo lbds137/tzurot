@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { AIMessage } from '@langchain/core/messages';
 import { hasVisionSupport, describeImage } from './VisionProcessor.js';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -1108,6 +1109,80 @@ describe('VisionProcessor', () => {
         });
         // Should NOT have stored anything (API failed)
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('OpenRouter reasoning extraction (seam)', () => {
+      it('runs the OpenRouter extractor on the vision response: drops __raw_response, keeps the diagnostics, leaves the description intact', async () => {
+        const sentinelDescription = 'A tabby cat sitting on a windowsill in afternoon light.';
+        const fixture = new AIMessage({
+          content: sentinelDescription,
+          response_metadata: { finish_reason: 'stop' },
+          additional_kwargs: {
+            __raw_response: {
+              provider: 'Parasail',
+              choices: [{ message: { role: 'assistant', content: sentinelDescription } }],
+            },
+          },
+        });
+
+        mockModelInvoke.mockResolvedValue(fixture);
+        mockCreateChatModel.mockReturnValue({
+          model: { generate: generateFromInvokeMock(mockModelInvoke) },
+          modelName: 'test-model',
+          expectsRawResponse: true,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'gpt-4-vision-preview',
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(
+          (fixture.additional_kwargs as Record<string, unknown>).__raw_response
+        ).toBeUndefined();
+        expect((fixture.response_metadata as Record<string, unknown>).openrouter).toMatchObject({
+          provider: 'Parasail',
+        });
+        expect(result).toBe(sentinelDescription);
+      });
+
+      it('promotes reasoning into the description when the vision response content is empty', async () => {
+        const sentinelReasoning =
+          'A tabby cat dozing on a sunlit windowsill, paws tucked beneath it.';
+        const fixture = new AIMessage({
+          content: '',
+          response_metadata: { finish_reason: 'stop' },
+          additional_kwargs: {
+            __raw_response: {
+              provider: 'Parasail',
+              choices: [
+                { message: { role: 'assistant', content: '', reasoning: sentinelReasoning } },
+              ],
+            },
+          },
+        });
+
+        mockModelInvoke.mockResolvedValue(fixture);
+        mockCreateChatModel.mockReturnValue({
+          model: { generate: generateFromInvokeMock(mockModelInvoke) },
+          modelName: 'test-model',
+          expectsRawResponse: true,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'gpt-4-vision-preview',
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe(sentinelReasoning);
+        expect(
+          (fixture.additional_kwargs as Record<string, unknown>).__raw_response
+        ).toBeUndefined();
       });
     });
 

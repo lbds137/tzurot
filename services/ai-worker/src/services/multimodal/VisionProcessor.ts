@@ -24,6 +24,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
 import { createChatModel } from '../ModelFactory.js';
+import { extractAndPopulateOpenRouterReasoning } from '../modelFactory/extractOpenRouterReasoning.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
@@ -227,7 +228,7 @@ async function invokeVisionModel(
   // reserve the routed model's whole output budget; see VISION_MAX_TOKENS.
   // createChatModel's per-model filtering sanitizes any param the model
   // can't take.
-  const { model } = createChatModel({
+  const { model, expectsRawResponse } = createChatModel({
     modelName,
     apiKey: userApiKey,
     provider,
@@ -307,6 +308,9 @@ async function invokeVisionModel(
 
   try {
     const response = await invokeModelGuarded(model, messages, { timeout: TIMEOUTS.VISION_MODEL });
+    // Parity with the LLMInvoker text path: populates response_metadata.openrouter
+    // diagnostics and drops the raw payload the OpenRouter builder stashed on the message.
+    extractAndPopulateOpenRouterReasoning(response, expectsRawResponse);
     routedModel = readRoutedModel(response.response_metadata);
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
