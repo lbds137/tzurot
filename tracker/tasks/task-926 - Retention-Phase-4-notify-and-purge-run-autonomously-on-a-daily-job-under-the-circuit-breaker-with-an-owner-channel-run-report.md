@@ -32,3 +32,10 @@ PR-A MERGED 2026-09-10 as #2385 (dd8e5a853; closed TASK-326). Correction to the 
 
 Privacy policy re-read 2026-09-10 (docs/legal/PRIVACY_POLICY.md, Inactive accounts): erasure "may" follow the notice and 30 days, or happen without notice when unreachable; no clause requires operator approval per deletion. Autonomy needs no new policy text.
 <!-- SECTION:DESCRIPTION:END -->
+
+PR-B MERGED 2026-09-10 as #2386 (86602aebd), after 5 review rounds with no correctness finding.
+- What shipped: RetentionRunScheduler, with three modes (live, nag, rehearsal), the RETENTION_AUTORUN_ENABLED kill switch defaulting to true, and the owner-channel run report. The PR-A members shipped too: the released-false warning in both lease helpers, and no reliance on the breaker for a scoped run.
+- Owner rulings during review: a reconcile backlog reports, and a breaker warning alone reports.
+- Round-5 lows were filed as TASK-932.
+- TASK-325 is closed.
+- REMAINING, the last acceptance clause: record the first autonomous run on CURRENT.md's retention calendar line. That run happens in prod about 60s after the beta.222 boot. Close this task then.
