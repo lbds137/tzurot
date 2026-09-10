@@ -17,6 +17,12 @@
  *      separate flag. The first real run is EXPECTED to trip the softer warn
  *      annotation (~15-18%, the backfilled zombie cohort) — that prints, and
  *      the run proceeds.
+ *   4. The real (non-dry) run is leased: taken AFTER the confirmation (an
+ *      operator pondering the prompt must not hold it) and released in a
+ *      finally on normal completion and on a thrown error. An interrupt
+ *      (Ctrl-C) during the single enqueue call exits without releasing —
+ *      deliberately unhandled, since the leased window is one short call —
+ *      and the lease's TTL reclaims it.
  *
  * **Resuming is re-running.** A sent notice stamps the user's grace clock,
  * which removes them from the notify cohort — an interrupted or partially
@@ -27,6 +33,7 @@
  */
 
 import chalk from 'chalk';
+import type { ServiceClient } from '@tzurot/clients';
 import type { RetentionNotifyResponse } from '@tzurot/common-types/schemas/api/internal';
 import {
   type Environment,
@@ -35,6 +42,7 @@ import {
   requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { resolveServiceClientOrExit } from '../utils/gateway-client.js';
+import { beginRunLease, releaseRunLease } from './runLease.js';
 
 export interface RetentionNotifyOptions {
   env: Environment;
@@ -84,6 +92,31 @@ export function renderNotifyRun(result: RetentionNotifyResponse): void {
           'bot-client; delivery tallies arrive in the owner channel as batches complete.'
       )
     );
+  }
+}
+
+/**
+ * Run the real (non-dry) notify call under the run lease. Taken AFTER the
+ * confirmation — an operator pondering the prompt must not hold it — and
+ * released in a finally on normal completion and on a thrown error; an
+ * interrupt during the single enqueue call exits without releasing, left to
+ * the lease's TTL. Returns null when the lease could not be taken;
+ * `beginRunLease` has already reported why and set the failing exit code.
+ */
+async function runLeasedNotify(
+  client: ServiceClient,
+  env: Environment,
+  breakerOverride: boolean
+): Promise<Awaited<ReturnType<ServiceClient['retentionNotify']>> | null> {
+  const runContext = `ops retention:notify (${env})`;
+  const runId = await beginRunLease(client, runContext);
+  if (runId === null) {
+    return null;
+  }
+  try {
+    return await client.retentionNotify({ breakerOverride, runContext, runId });
+  } finally {
+    await releaseRunLease(client, runId);
   }
 }
 
@@ -151,10 +184,10 @@ export async function retentionNotify(options: RetentionNotifyOptions): Promise<
     );
   }
 
-  const runResult = await client.retentionNotify({
-    breakerOverride,
-    runContext: `ops retention:notify (${env})`,
-  });
+  const runResult = await runLeasedNotify(client, env, breakerOverride);
+  if (runResult === null) {
+    return;
+  }
   if (!runResult.ok) {
     console.error(chalk.red(`\nNotify run failed (${runResult.kind}): ${runResult.error}`));
     process.exitCode = 1;

@@ -60,16 +60,6 @@ import {
   PersistUserMessageRequestSchema,
   PersistUserMessageResponseSchema,
   RecentUsersResponseSchema,
-  RetentionPreviewResponseSchema,
-  RetentionPurgeRequestSchema,
-  RetentionPurgeResponseSchema,
-  RetentionReconcileOffDbResponseSchema,
-  RetentionNotifyRequestSchema,
-  RetentionNotifyResponseSchema,
-  RetentionNotifyFilterRequestSchema,
-  RetentionNotifyFilterResponseSchema,
-  RetentionNotifyReportRequestSchema,
-  RetentionNotifyReportResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
   SecretRotationStatusResponseSchema,
@@ -83,13 +73,18 @@ import { generateRequestSchema } from '@tzurot/common-types/types/schemas/genera
 // route-manifest treats them uniformly via the import below.
 
 import type { RouteDef } from './types.js';
+import { internalRetentionRoutes } from './internalRetention.js';
 
 /**
  * The internal route registry. Each entry is declared `as const satisfies RouteDef`
  * so TypeScript preserves literal types (id, audience, method, path) for the
  * manifest-invariant tests AND the generator's string-template emission.
+ *
+ * Retention routes live in `internalRetention.ts`, merged in below — split
+ * purely for the max-lines budget (see that file's header, and
+ * `routes/user/index.ts` for the precedent).
  */
-export const internalRoutes = {
+const baseInternalRoutes = {
   /**
    * POST /api/internal/ai/generate
    * Submits an async AI generation job.
@@ -438,106 +433,6 @@ export const internalRoutes = {
   },
 
   /**
-   * GET /api/internal/retention/preview
-   * The purge-eligible cohort (Retention Phase 2, D2/D3) with per-user
-   * character impact and the circuit-breaker annotation. READ-ONLY — it
-   * reports; the purge itself is a separate, later endpoint. Consumed by the
-   * `pnpm ops retention:preview` CLI and (later) the daily owner-channel nag,
-   * both reading the same predicate so their counts can never drift.
-   */
-  retentionPreview: {
-    audience: 'internal',
-    method: 'get',
-    path: '/retention/preview',
-    id: 'retentionPreview',
-    output: RetentionPreviewResponseSchema,
-    serviceOnly: true,
-    meta: { safeRead: true },
-  },
-
-  /**
-   * POST /api/internal/retention/purge
-   * Erase ONE purge-eligible account (Retention Phase 2, D2). Per-user by
-   * design: a whole-cohort call would exceed the platform request timeout
-   * mid-run and leave a partial, unrecorded purge. Idempotent — an
-   * already-purged or newly-active target returns 200 with a `skipped` status,
-   * so the CLI's loop is safe to re-run after any interruption. Eligibility is
-   * re-checked INSIDE the erasure transaction, so a user who became active
-   * since the preview is never erased.
-   */
-  retentionPurge: {
-    audience: 'internal',
-    method: 'post',
-    path: '/retention/purge',
-    id: 'retentionPurge',
-    input: RetentionPurgeRequestSchema,
-    output: RetentionPurgeResponseSchema,
-    serviceOnly: true,
-  },
-
-  /**
-   * POST /api/internal/retention/reconcile-off-db
-   * Replay the off-DB cleanup (avatar unlink) owed by any purge-audit row whose
-   * reconciliation did not complete (D15). The audit ledger doubles as the
-   * retry queue, so this needs no input. Idempotent: a settled ledger is a
-   * zero-row no-op, which is why the purge CLI can call it after every run.
-   */
-  retentionReconcileOffDb: {
-    audience: 'internal',
-    method: 'post',
-    path: '/retention/reconcile-off-db',
-    id: 'retentionReconcileOffDb',
-    output: RetentionReconcileOffDbResponseSchema,
-    serviceOnly: true,
-  },
-
-  /**
-   * POST /api/internal/retention/notify
-   * Resolve the reachable-but-inactive cohort and enqueue warning-DM batches
-   * (Phase 3). Operator-driven via the retention:notify CLI only — autonomy
-   * is Phase 4. Cross-run idempotent via the predicate itself.
-   */
-  retentionNotify: {
-    audience: 'internal',
-    method: 'post',
-    path: '/retention/notify',
-    id: 'retentionNotify',
-    input: RetentionNotifyRequestSchema,
-    output: RetentionNotifyResponseSchema,
-    serviceOnly: true,
-  },
-
-  /**
-   * POST /api/internal/retention/notify/filter
-   * The worker's send-time still-eligible re-check: a user active since
-   * cohort resolution must not be DMed a deletion warning.
-   */
-  retentionNotifyFilter: {
-    audience: 'internal',
-    method: 'post',
-    path: '/retention/notify/filter',
-    id: 'retentionNotifyFilter',
-    input: RetentionNotifyFilterRequestSchema,
-    output: RetentionNotifyFilterResponseSchema,
-    serviceOnly: true,
-  },
-
-  /**
-   * POST /api/internal/retention/notify/report
-   * Per-recipient delivery outcomes: sent stamps the grace clock; a permanent
-   * bounce stamps the unreachable column (the re-route to the purge branch).
-   */
-  retentionNotifyReport: {
-    audience: 'internal',
-    method: 'post',
-    path: '/retention/notify/report',
-    id: 'retentionNotifyReport',
-    input: RetentionNotifyReportRequestSchema,
-    output: RetentionNotifyReportResponseSchema,
-    serviceOnly: true,
-  },
-
-  /**
    * GET /api/internal/models
    * The OpenRouter model catalog (cached in OpenRouterModelCache), powering the
    * bot-client `/models` command. Public re: user auth, but service-auth only
@@ -706,4 +601,9 @@ export const internalRoutes = {
     meta: { safeRead: true },
     timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
+} as const satisfies Record<string, RouteDef>;
+
+export const internalRoutes = {
+  ...baseInternalRoutes,
+  ...internalRetentionRoutes,
 } as const satisfies Record<string, RouteDef>;

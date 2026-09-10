@@ -46,6 +46,38 @@ function renderReachableBranch(totals: RetentionPreviewResponse['totals']): void
   );
 }
 
+/**
+ * Names this environment's purge scope when it narrows the cohort — this
+ * preview only ever shows what the scope-narrowed cohort contains, so a
+ * non-unrestricted scope means purge-eligible accounts can exist OUTSIDE
+ * what is listed above. Silent under `unrestricted` (nothing is excluded).
+ */
+function renderScopeLine(totals: RetentionPreviewResponse['totals']): void {
+  const { scope } = totals;
+  if (scope.kind === 'unrestricted') {
+    return;
+  }
+  if (scope.kind === 'allowlist') {
+    console.log(
+      chalk.yellow(
+        scope.excludedEligibleCount > 0
+          ? `Scope: allowlist — ${String(scope.excludedEligibleCount)} purge-eligible accounts ` +
+              "are outside this environment's OUTBOUND_DM_ALLOWLIST and are not listed."
+          : 'Scope: allowlist — this environment only purges accounts on its OUTBOUND_DM_ALLOWLIST.'
+      )
+    );
+    return;
+  }
+  console.log(
+    chalk.yellow(
+      scope.excludedEligibleCount > 0
+        ? 'Scope: none — this non-production gateway has no OUTBOUND_DM_ALLOWLIST, so it purges ' +
+            `nobody (${String(scope.excludedEligibleCount)} eligible accounts not listed).`
+        : 'Scope: none — this non-production gateway has no OUTBOUND_DM_ALLOWLIST, so it purges nobody.'
+    )
+  );
+}
+
 /** Print the cohort report. Exported for testing without the transport. */
 export function renderPreview(preview: RetentionPreviewResponse): void {
   const { users, totals } = preview;
@@ -59,6 +91,7 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
     );
     console.log(chalk.dim(`  eligible: 0 of ${String(totals.userbaseCount)} users`));
     renderReachableBranch(totals);
+    renderScopeLine(totals);
     return;
   }
 
@@ -91,6 +124,7 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
       `${totals.charactersToReHome} would be re-homed to the Orphaned Characters bucket`
   );
   renderReachableBranch(totals);
+  renderScopeLine(totals);
 
   if (totals.breakerWarning) {
     console.log(

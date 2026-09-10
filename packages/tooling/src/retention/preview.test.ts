@@ -24,6 +24,7 @@ const EMPTY_TOTALS = {
   inGrace: 0,
   graceExpired: 0,
   bystander: 0,
+  scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
 };
 
 const COHORT = {
@@ -54,6 +55,7 @@ const COHORT = {
     inGrace: 0,
     graceExpired: 0,
     bystander: 0,
+    scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
   },
 };
 
@@ -204,6 +206,69 @@ describe('renderPreview', () => {
     const output = logSpy.mock.calls.flat().join('\n');
     expect(output).toContain('Circuit-breaker warning');
     expect(output).toContain('40%');
+    logSpy.mockRestore();
+  });
+
+  it('prints nothing about scope when the scope is unrestricted', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview(COHORT);
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).not.toContain('Scope:');
+    logSpy.mockRestore();
+  });
+
+  it('names the allowlist scope and how many eligible accounts it excludes, on the non-empty cohort branch', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview({
+      ...COHORT,
+      totals: {
+        ...COHORT.totals,
+        scope: { kind: 'allowlist' as const, excludedEligibleCount: 37 },
+      },
+    });
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain(
+      "Scope: allowlist — 37 purge-eligible accounts are outside this environment's " +
+        'OUTBOUND_DM_ALLOWLIST and are not listed.'
+    );
+    logSpy.mockRestore();
+  });
+
+  it('names the allowlist scope without a count clause when nothing is excluded', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview({
+      ...COHORT,
+      totals: { ...COHORT.totals, scope: { kind: 'allowlist' as const, excludedEligibleCount: 0 } },
+    });
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain(
+      'Scope: allowlist — this environment only purges accounts on its OUTBOUND_DM_ALLOWLIST.'
+    );
+    logSpy.mockRestore();
+  });
+
+  it('names the unscoped_non_production scope and the excluded count, on the empty cohort branch', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview({
+      users: [],
+      totals: {
+        ...EMPTY_TOTALS,
+        scope: { kind: 'unscoped_non_production' as const, excludedEligibleCount: 12 },
+      },
+    });
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain(
+      'Scope: none — this non-production gateway has no OUTBOUND_DM_ALLOWLIST, ' +
+        'so it purges nobody (12 eligible accounts not listed).'
+    );
     logSpy.mockRestore();
   });
 });

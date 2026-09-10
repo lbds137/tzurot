@@ -12,6 +12,11 @@
  *     those is a normal outcome of a resumable loop, not an error.
  *   - **Eligibility is re-checked inside the erasure transaction**, not here —
  *     a check at this layer would reopen the TOCTOU window it closes.
+ *   - **Leased.** The body carries the `runId` from `run/begin`; the run lease
+ *     is refreshed before the service runs, and a lost lease answers 409
+ *     without touching the account (see retentionRun.ts).
+ *   - **Scoped.** The service refuses targets outside this environment's
+ *     purge scope before any other work (see purgeScope.ts).
  *
  * Service-auth protected like every internal route. Nothing calls it on a
  * schedule: autonomous execution is Phase 4.
@@ -30,6 +35,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { SuperuserDeletionError } from '../../services/AccountDeletionService.js';
 import { RetentionPurgeService } from '../../services/retention/RetentionPurgeService.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { refreshRunLeaseOrRespond, UNLABELLED_RUN } from './retentionRun.js';
 
 /** POST /api/internal/retention/purge — erase one eligible account. */
 export const handleRetentionPurge = (deps: RouteDeps): RequestHandler =>
@@ -39,7 +45,13 @@ export const handleRetentionPurge = (deps: RouteDeps): RequestHandler =>
       sendZodError(res, parsed.error);
       return;
     }
-    const { discordId, runContext, breakerOverride } = parsed.data;
+    const { discordId, runContext, breakerOverride, runId } = parsed.data;
+
+    // The run lease BEFORE the service: a call whose run no longer holds the
+    // lease (or whose lease store is down) must reach no erasure code at all.
+    if (!(await refreshRunLeaseOrRespond(deps, res, runId, runContext ?? UNLABELLED_RUN))) {
+      return;
+    }
 
     try {
       const outcome = await new RetentionPurgeService(deps).purgeUser({

@@ -58,7 +58,7 @@ describe('the eligibility predicate', () => {
   it('gates on every arm (D4) and nothing else', async () => {
     const { db, queryRaw } = makeDb();
 
-    await selectEligibleUsers(db);
+    await selectEligibleUsers(db, null);
 
     const sql = flattenSql(queryRaw.mock.calls[0]);
     // Unreachable OR gone OR grace-expired OR bystander — any of the four.
@@ -95,7 +95,7 @@ describe('the eligibility predicate', () => {
     // and is ANDed with the inactivity window, never ORed around it.
     const { db, queryRaw } = makeDb();
 
-    await selectEligibleUsers(db);
+    await selectEligibleUsers(db, null);
 
     const sql = flattenSql(queryRaw.mock.calls[0]).replace(/\s+/g, ' ');
     // Fragment-bound values flatten to `?` placeholders, hence the literal \?.
@@ -147,7 +147,7 @@ describe('the eligibility predicate', () => {
       },
     ]);
 
-    const cohort = await selectEligibleUsers(db);
+    const cohort = await selectEligibleUsers(db, null);
 
     expect(cohort.map(row => row.reason)).toEqual([
       'account_gone',
@@ -173,7 +173,7 @@ describe('the eligibility predicate', () => {
       },
     ]);
 
-    const cohort = await selectEligibleUsers(db);
+    const cohort = await selectEligibleUsers(db, null);
 
     expect(flattenSql(queryRaw.mock.calls[0])).toContain('u.username AS "username"');
     expect(cohort[0].username).toBe('inactiveuser');
@@ -317,7 +317,7 @@ describe('countEligibleUsers', () => {
     // would throw ("Cannot mix BigInt and other types").
     const { db } = makeDb([{ n: 7n }]);
 
-    const count = await countEligibleUsers(db);
+    const count = await countEligibleUsers(db, null);
 
     expect(count).toBe(7);
     expect(typeof count).toBe('number');
@@ -326,6 +326,64 @@ describe('countEligibleUsers', () => {
   it('reports zero when the query returns no rows', async () => {
     const { db } = makeDb([]);
 
-    expect(await countEligibleUsers(db)).toBe(0);
+    expect(await countEligibleUsers(db, null)).toBe(0);
+  });
+});
+
+describe('the purge scope allowlist narrowing (selectEligibleUsers / countEligibleUsers)', () => {
+  it('selectEligibleUsers narrows by the allowlist at the SQL level when one is set', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectEligibleUsers(db, new Set(['111111111111111111']));
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.discord_id = ANY(');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContainEqual(['111111111111111111']);
+  });
+
+  it('selectEligibleUsers adds no allowlist clause when null (unrestricted)', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectEligibleUsers(db, null);
+
+    expect(flattenSql(queryRaw.mock.calls[0])).not.toContain('ANY(');
+  });
+
+  it('selectEligibleUsers still adds the clause for an empty Set (selects nobody)', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectEligibleUsers(db, new Set());
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.discord_id = ANY(');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContainEqual([]);
+  });
+
+  it('countEligibleUsers narrows by the allowlist at the SQL level when one is set', async () => {
+    const { db, queryRaw } = makeDb([{ n: 2n }]);
+
+    await countEligibleUsers(db, new Set(['111111111111111111']));
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.discord_id = ANY(');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContainEqual(['111111111111111111']);
+  });
+
+  it('countEligibleUsers adds no allowlist clause when null (unrestricted)', async () => {
+    const { db, queryRaw } = makeDb([{ n: 2n }]);
+
+    await countEligibleUsers(db, null);
+
+    expect(flattenSql(queryRaw.mock.calls[0])).not.toContain('ANY(');
+  });
+
+  it('countEligibleUsers still adds the clause for an empty Set (selects nobody)', async () => {
+    const { db, queryRaw } = makeDb([{ n: 0n }]);
+
+    await countEligibleUsers(db, new Set());
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.discord_id = ANY(');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContainEqual([]);
   });
 });

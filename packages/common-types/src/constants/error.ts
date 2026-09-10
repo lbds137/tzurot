@@ -614,6 +614,10 @@ export function stripErrorSpoiler(message: string): string {
 export const API_ERROR_SUBCODE = {
   /** User/admin tried to create a resource whose name is already taken. */
   NAME_COLLISION: 'NAME_COLLISION',
+  /** `retention/run/begin` refused: another retention run holds the run lease. */
+  RUN_IN_PROGRESS: 'RUN_IN_PROGRESS',
+  /** A leased retention call refused: this run no longer holds the run lease. */
+  RUN_LEASE_CONFLICT: 'RUN_LEASE_CONFLICT',
 } as const;
 
 /** Union of all defined sub-code values, for typing `ErrorResponse.code`. */

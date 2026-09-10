@@ -16,7 +16,15 @@ import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot
 import { generateUserUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { ORPHAN_SENTINEL_DISCORD_ID } from '@tzurot/common-types/constants/persona';
 import { RetentionPurgeService } from './RetentionPurgeService.js';
-import { filterStillNotifyEligible, selectNotifyCohort } from './eligibility.js';
+import {
+  countEligibleUsers,
+  filterStillNotifyEligible,
+  selectEligibleUsers,
+  selectNotifyCohort,
+} from './eligibility.js';
+import type { PurgeScope } from './purgeScope.js';
+
+const UNRESTRICTED: PurgeScope = { kind: 'unrestricted' };
 
 const OLD = new Date('2020-01-01T00:00:00Z'); // far past the 180-day window
 const RECENT = new Date(); // inside the window
@@ -56,7 +64,7 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     pglite = createTestPGlite();
     await pglite.exec(loadPGliteSchema());
     prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) }) as PrismaClient;
-    service = new RetentionPurgeService({ prisma });
+    service = new RetentionPurgeService({ prisma }, UNRESTRICTED);
 
     const seed = async (userId: string, name: string): Promise<void> => {
       await seedUserWithPersona(prisma, {
@@ -307,6 +315,25 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     expect(narrowed.map(row => row.userId)).toEqual([REACHABLE]);
   });
 
+  it('narrows the purge cohort by an explicit scope allowlist in SQL', async () => {
+    // ELIGIBLE_UNREACHABLE and ELIGIBLE_GONE are both purge-eligible (the
+    // unreachable and account_gone arms) — scoping to just the first one's
+    // Discord id must select exactly that one, excluding the other real
+    // eligible row rather than merely a hypothetical non-member.
+    const insideRow = await prisma.user.findUnique({ where: { id: ELIGIBLE_UNREACHABLE } });
+    const outsideRow = await prisma.user.findUnique({ where: { id: ELIGIBLE_GONE } });
+    expect(insideRow).not.toBeNull();
+    expect(outsideRow).not.toBeNull();
+    const insideAllowlist = new Set([insideRow!.discordId]);
+
+    const narrowed = await selectEligibleUsers(prisma, insideAllowlist);
+    expect(narrowed.map(row => row.userId)).toEqual([ELIGIBLE_UNREACHABLE]);
+    expect(await countEligibleUsers(prisma, insideAllowlist)).toBe(1);
+
+    expect(await selectEligibleUsers(prisma, new Set())).toEqual([]);
+    expect(await countEligibleUsers(prisma, new Set())).toBe(0);
+  });
+
   it('filterStillNotifyEligible drops users who no longer qualify (real SQL)', async () => {
     const eligible = await filterStillNotifyEligible(prisma, [
       REACHABLE,
@@ -353,7 +380,7 @@ describe('RetentionPurgeService.purgeUser (component, PGLite)', () => {
     pglite = createTestPGlite();
     await pglite.exec(loadPGliteSchema());
     prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) }) as PrismaClient;
-    service = new RetentionPurgeService({ prisma });
+    service = new RetentionPurgeService({ prisma }, UNRESTRICTED);
 
     await seedUserWithPersona(prisma, {
       userId: DEPARTED,
@@ -439,6 +466,27 @@ describe('RetentionPurgeService.purgeUser (component, PGLite)', () => {
   afterAll(async () => {
     await prisma.$disconnect();
     await pglite.close();
+  });
+
+  it('a scope allowlist not containing the target skips it, leaving the row untouched', async () => {
+    // Runs BEFORE the destructive test below so DEPARTED still exists to
+    // prove it survives — a service constructed with a scope that excludes it.
+    const scopedService = new RetentionPurgeService(
+      { prisma },
+      { kind: 'allowlist', discordIds: new Set(['900000000000000999']) }
+    );
+
+    const outcome = await scopedService.purgeUser({
+      discordId: DEPARTED_DISCORD,
+      runContext: 'component-test',
+    });
+
+    expect(outcome).toEqual({
+      status: 'skipped',
+      discordId: DEPARTED_DISCORD,
+      reason: 'outside_allowlist',
+    });
+    expect(await prisma.user.findUnique({ where: { id: DEPARTED } })).not.toBeNull();
   });
 
   it('erases the account, re-homes the shared character, and logs the purge', async () => {
