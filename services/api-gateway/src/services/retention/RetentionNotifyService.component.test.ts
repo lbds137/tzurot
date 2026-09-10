@@ -124,7 +124,7 @@ describe('RetentionNotifyService (component, PGLite)', () => {
     expect(row?.dmUndeliverableSince).not.toBeNull();
     // The whole point of cohort discovery: the bounced user is now in the
     // PURGE cohort, labeled unreachable (stamp outranks the grace clock).
-    const cohort = await selectEligibleUsers(prisma);
+    const cohort = await selectEligibleUsers(prisma, null);
     expect(cohort.map(r => r.userId)).toContain(NOTIFY_TARGET);
     expect(cohort.find(r => r.userId === NOTIFY_TARGET)?.reason).toBe('unreachable');
   });

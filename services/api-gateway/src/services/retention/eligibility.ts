@@ -140,6 +140,18 @@ const NOTIFY_CONDITIONS = Prisma.sql`
   AND u.retention_exempt = false
 `;
 
+/**
+ * Narrow a `users u` query to a Discord-id allowlist: `null` = unrestricted,
+ * and an EMPTY set selects nobody (`= ANY('{}')` matches no row). Callers
+ * wrap the predicate in parentheses, so the conjunct binds to the whole
+ * predicate regardless of the fragment's internal shape.
+ */
+function discordIdScope(allowlist: ReadonlySet<string> | null): Prisma.Sql {
+  return allowlist === null
+    ? Prisma.empty
+    : Prisma.sql`AND u.discord_id = ANY(${[...allowlist]}::text[])`;
+}
+
 /** Map a raw cohort row to the domain shape. */
 function toCohortRow(row: CohortSqlRow): PurgeCohortRow {
   return {
@@ -176,8 +188,14 @@ function toCohortRow(row: CohortSqlRow): PurgeCohortRow {
  * Unbounded by design: the cohort IS the answer, and truncating it would
  * under-report the very number the circuit breaker exists to police. The
  * breaker's percentage annotation is what flags an implausibly large result.
+ *
+ * `allowlist` is the purge scope's narrowing (purgeScope.ts) — required so
+ * no caller can forget which environment it is selecting for.
  */
-export async function selectEligibleUsers(db: Prisma.TransactionClient): Promise<PurgeCohortRow[]> {
+export async function selectEligibleUsers(
+  db: Prisma.TransactionClient,
+  allowlist: ReadonlySet<string> | null
+): Promise<PurgeCohortRow[]> {
   const rows = await db.$queryRaw<CohortSqlRow[]>`
     SELECT u.id AS "userId",
            u.discord_id AS "discordId",
@@ -187,16 +205,22 @@ export async function selectEligibleUsers(db: Prisma.TransactionClient): Promise
            (u.dm_undeliverable_since IS NOT NULL) AS "unreachable",
            (u.retention_notified_at IS NOT NULL) AS "wasNotified"
     FROM users u
-    WHERE ${ELIGIBILITY_CONDITIONS}
+    WHERE (${ELIGIBILITY_CONDITIONS}) ${discordIdScope(allowlist)}
     ORDER BY COALESCE(u.last_active_at, u.created_at) ASC
   `;
   return rows.map(toCohortRow);
 }
 
-/** How many users the predicate currently selects (the breaker's numerator). */
-export async function countEligibleUsers(db: Prisma.TransactionClient): Promise<number> {
+/**
+ * How many users the predicate currently selects within `allowlist` (the
+ * breaker's numerator — narrowed exactly like `selectEligibleUsers`).
+ */
+export async function countEligibleUsers(
+  db: Prisma.TransactionClient,
+  allowlist: ReadonlySet<string> | null
+): Promise<number> {
   const rows = await db.$queryRaw<{ n: bigint }[]>`
-    SELECT count(*) AS n FROM users u WHERE ${ELIGIBILITY_CONDITIONS}
+    SELECT count(*) AS n FROM users u WHERE (${ELIGIBILITY_CONDITIONS}) ${discordIdScope(allowlist)}
   `;
   return Number(rows[0]?.n ?? 0);
 }
@@ -243,16 +267,12 @@ export async function selectNotifyCohort(
   db: Prisma.TransactionClient,
   allowlist: ReadonlySet<string> | null
 ): Promise<NotifyCohortRow[]> {
-  const allowlistClause =
-    allowlist === null
-      ? Prisma.empty
-      : Prisma.sql`AND u.discord_id = ANY(${[...allowlist]}::text[])`;
   return db.$queryRaw<NotifyCohortRow[]>`
     SELECT u.id AS "userId",
            u.discord_id AS "discordId",
            COALESCE(u.last_active_at, u.created_at) AS "inactiveSince"
     FROM users u
-    WHERE ${NOTIFY_CONDITIONS} ${allowlistClause}
+    WHERE (${NOTIFY_CONDITIONS}) ${discordIdScope(allowlist)}
     ORDER BY COALESCE(u.last_active_at, u.created_at) ASC
   `;
 }

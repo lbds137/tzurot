@@ -383,6 +383,8 @@ describe('env-runner', () => {
   describe('requireProductionConfirmation', () => {
     let exitSpy: ReturnType<typeof vi.spyOn>;
     let logSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof vi.spyOn>;
+    let originalIsTTY: PropertyDescriptor | undefined;
 
     // The prompt dynamically imports node:readline; the doMock intercepts it
     // per-answer so each test controls what the operator "typed".
@@ -404,17 +406,28 @@ describe('env-runner', () => {
     beforeEach(() => {
       vi.resetModules();
       logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       // Throwing sentinel: the real exit never returns, and the code after
       // the gate must be unreachable on decline.
       exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
         throw new Error('process.exit called');
       });
+      // The interactive-path tests below assume a TTY stdin; the non-TTY
+      // guard tests (further down) override this per-test.
+      originalIsTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+      Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
     });
 
     afterEach(() => {
       exitSpy.mockRestore();
       logSpy.mockRestore();
+      errorSpy.mockRestore();
       vi.doUnmock('node:readline');
+      if (originalIsTTY !== undefined) {
+        Object.defineProperty(process.stdin, 'isTTY', originalIsTTY);
+      } else {
+        Reflect.deleteProperty(process.stdin, 'isTTY');
+      }
     });
 
     it('returns when the operator types "yes"', async () => {
@@ -442,6 +455,42 @@ describe('env-runner', () => {
       );
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(logSpy.mock.calls.flat().join(' ')).toContain('Operation cancelled');
+    });
+
+    it('exits 1 without prompting when stdin is not a TTY (isTTY: false)', async () => {
+      Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+      const createInterfaceMock = vi.fn();
+      vi.doMock('node:readline', () => ({
+        default: { createInterface: createInterfaceMock },
+        createInterface: createInterfaceMock,
+      }));
+      const { requireProductionConfirmation } = await import('./env-runner.js');
+
+      await expect(requireProductionConfirmation('erase everything')).rejects.toThrow(
+        'process.exit called'
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(createInterfaceMock).not.toHaveBeenCalled();
+      expect(errorSpy.mock.calls.flat().join(' ')).toContain('--force');
+    });
+
+    it('exits 1 without prompting when stdin.isTTY is undefined', async () => {
+      Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+      const createInterfaceMock = vi.fn();
+      vi.doMock('node:readline', () => ({
+        default: { createInterface: createInterfaceMock },
+        createInterface: createInterfaceMock,
+      }));
+      const { requireProductionConfirmation } = await import('./env-runner.js');
+
+      await expect(requireProductionConfirmation('erase everything')).rejects.toThrow(
+        'process.exit called'
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(createInterfaceMock).not.toHaveBeenCalled();
+      expect(errorSpy.mock.calls.flat().join(' ')).toContain('--force');
     });
   });
 });

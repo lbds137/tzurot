@@ -382,48 +382,8 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     // entries: [] + overdueCount: 0 — zero seed needed.
   },
 
-  retentionPreview: {
-    // An empty cohort is the healthy steady state (and the conformance actor is
-    // recent + reachable, so it can't be eligible): the route returns
-    // users: [] with zeroed totals — zero seed needed.
-  },
-
-  retentionPurge: {
-    // Targets a Discord id no user row has, so the route takes its idempotent
-    // branch and returns 200 { status: 'skipped', reason: 'already_gone' } —
-    // which is the shape conformance is checking. Deliberately NOT seeding a
-    // purgeable user: this harness replays every route against a shared
-    // database, and a fixture that erases an account would be reaching outside
-    // its own state. The real erasure is proven in
-    // RetentionPurgeService.component.test.ts against an isolated PGLite DB.
-    body: { discordId: '829999999999999999', runContext: 'conformance' },
-  },
-
-  retentionNotify: {
-    // Dry run against the empty steady state (the conformance actor is recent
-    // and reachable, so the notify cohort is empty): resolves, enqueues
-    // nothing, needs no queue and no seed.
-    body: { dryRun: true },
-  },
-
-  retentionNotifyFilter: {
-    // No user row carries this id, so the still-eligible subset is empty —
-    // the shape conformance checks, with zero seed and zero writes.
-    body: { userIds: ['829e4567-e89b-42d3-a456-426614174999'] },
-  },
-
-  retentionNotifyReport: {
-    // A transient outcome stamps NOTHING by design (the queue retries it), so
-    // this exercises the route's happy path without writing shared state.
-    body: {
-      outcomes: [{ userId: '829e4567-e89b-42d3-a456-426614174999', status: 'failed_transient' }],
-    },
-  },
-
-  retentionReconcileOffDb: {
-    // An empty audit ledger is the steady state: the sweep finds nothing owed
-    // and returns { settled: 0, stillFailing: 0, remaining: 0 } — zero seed needed.
-  },
+  // Retention fixtures (preview, the run lease, purge, notify) live in
+  // retention.ts — merged into the registry alongside this file.
 
   getModels: {
     // No DB seed: the catalog comes from the harness's fake modelCache.

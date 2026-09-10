@@ -201,6 +201,7 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
 
   const ctx: SeedContext = {
     prisma,
+    redis: testEnv.redis,
     actorDiscordId: ACTOR_DISCORD_ID,
     actorUserId: provisioned.userId,
     actorPersonaId: provisioned.defaultPersonaId,
