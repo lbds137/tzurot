@@ -40,8 +40,16 @@ _beta.221 CUT 2026-09-09 (8 PRs / 8 runtime / 96 range files; no migrations; PR 
   1. ~~**The 2026-09-09 mining process PR**~~ — DONE, #2383 (closes TASK-922).
   2. ~~**TASK-924**~~ — DONE, #2384.
   3. **TASK-926** (high, M) — retention Phase 4, split in two. **PR-A MERGED** 2026-09-10 as **#2385** (`dd8e5a853`, closes TASK-326): a Redis run lease serializing whole runs (the advisory-lock shape could not span a run of pooled per-account calls), non-prod purges confined to `OUTBOUND_DM_ALLOWLIST` (fail closed when unset), P2025 → `already_gone`, preview reports its scope, CLI non-TTY fail-fast; four review rounds, no correctness finding. **PR-B NEXT**: the bot-client job (live in prod only, dev rehearsal mode, kill switch, owner-channel report), spec at `docs/local/handoffs/spec-926b-retention-job.md`; members carried from #2385's review: warn on `released: false` in both lease helpers, and the job must never treat the breaker as protection for a scoped run. TASK-325 closes with PR-B.
-  4. **TASK-923's first half** (S) — the seam test composing the two response strips over the keep-case and leak fixtures, and the generic bracket step named as the primary deleter; the matcher decision waits on that test.
-  5. **TASK-925** (M) — the lint rule or guard for raw truncation inside logger calls, plus the response-body-into-Error variant.
+     **PR-B #2386** is open and in review round 4.
+     - Owner rulings on the round findings: a reconcile backlog reports (r1), and a breaker warning alone reports (r4).
+     - The first live run happens in prod after the beta.222 release, and its report goes on CURRENT.md's retention calendar line.
+  4. ~~**TASK-923's first half**~~ **MERGED** 2026-09-10 as **#2387** (`c3d351c42`).
+     - Owner ruling: the generic bracket step is narrowed to prompt-timestamp shapes, so asides like `[laughs]` survive in both flag states.
+     - A seam test now composes the two real strips.
+     - The second half stays open on TASK-923: the prod measurement plus the name-agnostic matcher decision.
+  5. **TASK-925** (M) — the first dispatch stopped at its census gate. The inline shape flagged 34 logger truncations, none of them content, and it missed truncations made into a local variable first.
+     - Main-loop decision: a type-aware funnel rule (inline, or one same-scope `const` hop), `idPrefix`/`urlPrefix` helpers, and 29 id/token/URL sites migrated to them.
+     - Re-dispatched; the spec's REVISION section carries the details.
   6. **TASK-890 unit B** — spec at `docs/local/handoffs/spec-890b-fix.md` (re-derive the base SHA; unit A shipped as #2378).
   7. **TASK-894 · TASK-808** — the drain continues from `pnpm tracker task list -s "To Do" -l state:ready -l size:S --priority high --plain`, then medium.
   8. **TASK-901** — a main-cut PR (claude workflow file); `release:finalize` right after it merges.
@@ -53,7 +61,7 @@ _beta.221 CUT 2026-09-09 (8 PRs / 8 runtime / 96 range files; no migrations; PR 
 - **Runtime watches carried**: TASK-880 · TASK-791 / TASK-860 · TASK-822 · the beta.218 runtime-unverified paths · the retrieval stamp warn · **new from 221**: the `headerLinesStripped` counter and echo-strip warn (a compound leak surviving shows as a bracketed header line in a reply); the first prod boot's command-registration outcome line.
 - **Owner steps carried**: the two beta.218 tokens (TASK-898, TASK-62); card-level examples for the drifted character; the rollout sequence in `CURRENT.md`; the privacy-policy z.ai bullet before the prod summarizer flips; TASK-907's review; the 2026-09-08 smoke pass.
 - **Explicitly NOT in**: the memory-archive flips themselves (settings, not code) · browse/UI (`doc-14`) · `doc-86` · TASK-906/TASK-910 residue unless a prompt-version bump is planned · the vitest 5 bump (held on the stryker-js 6210 fix; TASK-913 watches) · any further hand-added lookahead on the strip matchers (TASK-921/923 say derive from the render path).
-- **Deploy notes**: TASK-926 adds a scheduled job — confirm the scheduler registration on the first prod boot after it ships; no schema change expected. **#2385 (already on dev)**: the dev gateway now purges only accounts on its own `OUTBOUND_DM_ALLOWLIST` (set there); prod has none, so prod purges stay unrestricted. Purge and non-dry notify now REQUIRE a lease `runId` — the updated CLI handles it; any other caller must call `retention/run/begin` first.
+- **Deploy notes**: TASK-926 adds a scheduled job — confirm the scheduler registration on the first prod boot after it ships; no schema change expected. **Autonomy is ON by default**: `RETENTION_AUTORUN_ENABLED` defaults to `true`, so the first prod boot after the beta.222 release runs an unattended notify + purge about 60s after ready (release approval names this; set `RETENTION_AUTORUN_ENABLED=false` on bot-client BEFORE merging the release PR to stage it as report-only instead). Dev runs the weekly rehearsal (dry run) only. **#2385 (already on dev)**: the dev gateway now purges only accounts on its own `OUTBOUND_DM_ALLOWLIST` (set there); prod has none, so prod purges stay unrestricted. Purge and non-dry notify now REQUIRE a lease `runId` — the updated CLI handles it; any other caller must call `retention/run/begin` first.
 - **Cut when**: the three waiting-on readings land, OR the ~10 runtime-PR backstop fires first — with nine scheduled units above, the backstop is the likelier trigger; say which at the cut.
 - **🗺️ Horizon (rolling three releases, re-touched at every cut)**:
   - **beta.222** — this block.
