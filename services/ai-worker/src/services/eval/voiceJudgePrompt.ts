@@ -9,6 +9,7 @@
  */
 
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { contentDigest } from '@tzurot/common-types/utils/logContentPreview';
 
 /** One judge call's parsed output. Labels are the CALL's positions (1 = shown first). */
 export interface JudgeVerdict {
@@ -105,7 +106,9 @@ export function parseJudgeVerdict(raw: string): JudgeVerdict {
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   if (start === -1 || end <= start) {
-    throw new Error(`Judge output contains no JSON object: ${raw.slice(0, 200)}`);
+    throw new Error(
+      `Judge output contains no JSON object (${raw.length} chars, ${contentDigest(raw)})`
+    );
   }
   const parsed: unknown = JSON.parse(raw.slice(start, end + 1));
   if (typeof parsed !== 'object' || parsed === null) {

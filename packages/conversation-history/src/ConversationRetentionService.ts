@@ -13,6 +13,7 @@
 
 import { CLEANUP_DEFAULTS, SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
 import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { propagateDeletionToMemories } from './memoryDeletionPropagation.js';
 
@@ -136,7 +137,7 @@ export class ConversationRetentionService {
           channelId,
           personalityId,
           personaIdPrefix:
-            personaId !== undefined && personaId.length > 0 ? personaId.substring(0, 8) : null,
+            personaId !== undefined && personaId.length > 0 ? idPrefix(personaId) : null,
         },
         'Cleared messages from history'
       );

@@ -20,6 +20,7 @@ import {
   isTimeoutError,
   isTooLongError,
 } from '@tzurot/common-types/utils/errors';
+import { urlPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../redis.js';
 import {
@@ -393,7 +394,7 @@ export class VoiceTranscriptionService {
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
         await voiceTranscriptCache.store(voiceAttachment.originalUrl, response.content);
         logger.debug(
-          { urlPreview: voiceAttachment.url.substring(0, 50) },
+          { urlPreview: urlPrefix(voiceAttachment.url, 50) },
           'Cached transcript for attachment'
         );
       }

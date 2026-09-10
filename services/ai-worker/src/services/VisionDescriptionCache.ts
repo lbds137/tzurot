@@ -33,6 +33,7 @@ import {
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { INTERVALS, TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { deriveAttachmentCacheKey } from '@tzurot/common-types/utils/attachmentCacheKey';
+import { urlPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 import { visionModelTier, VISION_MODEL_TIER } from './multimodal/visionModelTier.js';
@@ -255,7 +256,7 @@ export class VisionDescriptionCache {
           attachmentId: options.attachmentId,
           model: options.model,
           tier,
-          urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
+          urlPrefix: urlPrefix(options.url, TEXT_LIMITS.URL_LOG_PREVIEW),
         },
         '[VisionDescriptionCache] Stored/promoted canonical description'
       );

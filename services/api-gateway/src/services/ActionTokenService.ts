@@ -37,6 +37,7 @@ import { randomBytes } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type BatchDeletePreviewInput } from '@tzurot/common-types/schemas/api/memory';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ActionTokenService');
@@ -100,7 +101,7 @@ export class ActionTokenService {
       issuedAt: new Date().toISOString(),
     };
     await this.redis.setex(key, TOKEN_TTL_SECONDS, JSON.stringify(payload));
-    logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Preview token issued');
+    logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Preview token issued');
     return token;
   }
 
@@ -124,7 +125,7 @@ export class ActionTokenService {
     const key = buildPreviewKey(userId, token);
     const raw = await this.redis.get(key);
     if (raw === null) {
-      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Preview token peek miss');
+      logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Preview token peek miss');
       return null;
     }
     try {
@@ -150,7 +151,7 @@ export class ActionTokenService {
     const key = buildPreviewKey(userId, token);
     const raw = await this.redis.getdel(key);
     if (raw === null) {
-      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Preview token miss');
+      logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Preview token miss');
       return null;
     }
     try {
@@ -176,10 +177,7 @@ export class ActionTokenService {
       issuedAt: new Date().toISOString(),
     };
     await this.redis.setex(key, TOKEN_TTL_SECONDS, JSON.stringify(payload));
-    logger.info(
-      { userId, personalityId, token: `${token.substring(0, 12)}…` },
-      'Purge token issued'
-    );
+    logger.info({ userId, personalityId, token: `${idPrefix(token, 12)}…` }, 'Purge token issued');
     return token;
   }
 
@@ -192,7 +190,7 @@ export class ActionTokenService {
     const key = buildPurgeKey(userId, token);
     const raw = await this.redis.get(key);
     if (raw === null) {
-      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Purge token peek miss');
+      logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Purge token peek miss');
       return null;
     }
     try {
@@ -216,7 +214,7 @@ export class ActionTokenService {
     const key = buildPurgeKey(userId, token);
     const raw = await this.redis.getdel(key);
     if (raw === null) {
-      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Purge token miss');
+      logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Purge token miss');
       return null;
     }
     try {
@@ -241,7 +239,7 @@ export class ActionTokenService {
       TOKEN_TTL_SECONDS,
       JSON.stringify({ issuedAt: new Date().toISOString() })
     );
-    logger.info({ userId, token: `${token.substring(0, 12)}…` }, 'Account delete token issued');
+    logger.info({ userId, token: `${idPrefix(token, 12)}…` }, 'Account delete token issued');
     return token;
   }
 
@@ -253,10 +251,7 @@ export class ActionTokenService {
   async peekAccountDeleteToken(userId: string, token: string): Promise<boolean> {
     const raw = await this.redis.get(buildAccountDeleteKey(userId, token));
     if (raw === null) {
-      logger.debug(
-        { userId, token: `${token.substring(0, 12)}…` },
-        'Account delete token peek miss'
-      );
+      logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Account delete token peek miss');
     }
     return raw !== null;
   }
@@ -268,7 +263,7 @@ export class ActionTokenService {
   async consumeAccountDeleteToken(userId: string, token: string): Promise<boolean> {
     const raw = await this.redis.getdel(buildAccountDeleteKey(userId, token));
     if (raw === null) {
-      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Account delete token miss');
+      logger.debug({ userId, token: `${idPrefix(token, 12)}…` }, 'Account delete token miss');
     }
     return raw !== null;
   }
