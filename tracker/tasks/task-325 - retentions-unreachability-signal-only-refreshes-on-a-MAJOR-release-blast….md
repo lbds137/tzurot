@@ -1,10 +1,10 @@
 ---
 id: TASK-325
 title: Retention unreachability only refreshes on release blasts + notify runs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-25 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-09-10 20:59'
 labels:
   - 'area:api-gateway'
   - 'size:M'
