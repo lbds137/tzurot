@@ -40,16 +40,17 @@ _beta.221 CUT 2026-09-09 (8 PRs / 8 runtime / 96 range files; no migrations; PR 
   1. ~~**The 2026-09-09 mining process PR**~~ — DONE, #2383 (closes TASK-922).
   2. ~~**TASK-924**~~ — DONE, #2384.
   3. **TASK-926** (high, M) — retention Phase 4, split in two. **PR-A MERGED** 2026-09-10 as **#2385** (`dd8e5a853`, closes TASK-326): a Redis run lease serializing whole runs (the advisory-lock shape could not span a run of pooled per-account calls), non-prod purges confined to `OUTBOUND_DM_ALLOWLIST` (fail closed when unset), P2025 → `already_gone`, preview reports its scope, CLI non-TTY fail-fast; four review rounds, no correctness finding. **PR-B NEXT**: the bot-client job (live in prod only, dev rehearsal mode, kill switch, owner-channel report), spec at `docs/local/handoffs/spec-926b-retention-job.md`; members carried from #2385's review: warn on `released: false` in both lease helpers, and the job must never treat the breaker as protection for a scoped run. TASK-325 closes with PR-B.
-     **PR-B #2386** is open and in review round 4.
+     **PR-B MERGED** 2026-09-10 as **#2386** (`86602aebd`), after 5 review rounds; TASK-325 is Done.
      - Owner rulings on the round findings: a reconcile backlog reports (r1), and a breaker warning alone reports (r4).
-     - The first live run happens in prod after the beta.222 release, and its report goes on CURRENT.md's retention calendar line.
+     - TASK-926 stays open until the first live run: it happens in prod after the beta.222 release, and its report goes on CURRENT.md's retention calendar line.
+     - Round-5 lows filed as TASK-932 (medium): a failed live-report post is lost.
   4. ~~**TASK-923's first half**~~ **MERGED** 2026-09-10 as **#2387** (`c3d351c42`).
      - Owner ruling: the generic bracket step is narrowed to prompt-timestamp shapes, so asides like `[laughs]` survive in both flag states.
      - A seam test now composes the two real strips.
      - The second half stays open on TASK-923: the prod measurement plus the name-agnostic matcher decision.
   5. **TASK-925** (M) — the first dispatch stopped at its census gate. The inline shape flagged 34 logger truncations, none of them content, and it missed truncations made into a local variable first.
-     - Main-loop decision: a type-aware funnel rule (inline, or one same-scope `const` hop), `idPrefix`/`urlPrefix` helpers, and 29 id/token/URL sites migrated to them.
-     - Re-dispatched; the spec's REVISION section carries the details.
+     - Main-loop decision: a type-aware funnel rule (inline, or one same-scope `const` hop), `idPrefix`/`urlPrefix` helpers, and the id/token/URL sites migrated to them.
+     - **PR #2388 is open.** The rule is at error level, and 30 sites migrated.
   6. **TASK-890 unit B** — spec at `docs/local/handoffs/spec-890b-fix.md` (re-derive the base SHA; unit A shipped as #2378).
   7. **TASK-894 · TASK-808** — the drain continues from `pnpm tracker task list -s "To Do" -l state:ready -l size:S --priority high --plain`, then medium.
   8. **TASK-901** — a main-cut PR (claude workflow file); `release:finalize` right after it merges.
