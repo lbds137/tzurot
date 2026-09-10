@@ -3,9 +3,10 @@ id: TASK-924
 title: >-
   leadingSelfHeaderLineMatcher deletes a first line of prose that ends in a
   self-named bracketed aside
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 19:44'
+updated_date: '2026-09-10 01:18'
 labels:
   - 'area:ai-worker'
   - 'size:S'
