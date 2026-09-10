@@ -312,8 +312,8 @@ describe('ResponsePostProcessor', () => {
 
       // The specific, logged strip saw the raw content with the caller's
       // telemetry, and its OUTPUT is what the generic stripper received — the
-      // ordering that keeps the generic `[...]` pattern from eating a header
-      // line before the logged strip can count it.
+      // order that lets the logged strip see and count a header line before
+      // any other strip runs.
       expect(mockStripRealMessageEchoArtifacts).toHaveBeenCalledWith(
         raw,
         {

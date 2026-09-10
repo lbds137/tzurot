@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { formatRelativeTime } from '@tzurot/common-types/utils/dateFormatting';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -330,10 +331,12 @@ describe('stripResponseArtifacts', () => {
       expect(stripResponseArtifacts(input, 'Emily')).toBe('How are you?');
     });
 
-    it('should strip mixed artifact types (name prefix + trailing XML)', () => {
+    it('should strip mixed artifact types (name prefix + trailing XML); a bare [now] after the name survives — not a formatter output, a deliberate contract change', () => {
       // LLM might add legacy "Name:" prefix AND trailing </message>
       expect(stripResponseArtifacts('Emily: Hello!</message>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Emily: [now] Hi there!</message>', 'Emily')).toBe('Hi there!');
+      expect(stripResponseArtifacts('Emily: [now] Hi there!</message>', 'Emily')).toBe(
+        '[now] Hi there!'
+      );
     });
   });
 
@@ -343,8 +346,11 @@ describe('stripResponseArtifacts', () => {
     });
 
     it('should strip prefix with timestamp', () => {
-      expect(stripResponseArtifacts('Emily: [now] hello', 'Emily')).toBe('hello');
       expect(stripResponseArtifacts('Lilith: [2 minutes ago] hey', 'Lilith')).toBe('hey');
+    });
+
+    it('keeps a bare [now] after the stripped name prefix — not a formatter output, a deliberate contract change', () => {
+      expect(stripResponseArtifacts('Emily: [now] hello', 'Emily')).toBe('[now] hello');
     });
 
     it('should be case-insensitive for name', () => {
@@ -360,18 +366,50 @@ describe('stripResponseArtifacts', () => {
       const content = 'Hello! Emily: is my name';
       expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
     });
+
+    it('strips a formatter-generated timestamp after the name prefix', () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-03-18T15:30:00Z'));
+        const stamp = formatRelativeTime(new Date(Date.now() - 2 * 60_000), 'America/New_York');
+        expect(stamp).toBe('2m ago');
+        expect(stripResponseArtifacts(`Emily: [${stamp}] Hello`, 'Emily')).toBe('Hello');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('keeps an aside after the stripped name prefix', () => {
+      expect(stripResponseArtifacts('Emily: [laughs] Anyway, no.', 'Emily')).toBe(
+        '[laughs] Anyway, no.'
+      );
+    });
+
+    it('the i flag the name match needs also folds the timestamp vocabulary case inside the name step; the standalone step stays case-exact', () => {
+      expect(stripResponseArtifacts('Emily: [JUST NOW] hi', 'Emily')).toBe('hi');
+      expect(stripResponseArtifacts('[JUST NOW] hi', 'Emily')).toBe('[JUST NOW] hi');
+    });
   });
 
-  describe('Standalone timestamps', () => {
+  describe('Echoed prompt timestamps', () => {
     it('should strip standalone timestamp at start', () => {
       expect(stripResponseArtifacts('[2m ago] content here', 'Emily')).toBe('content here');
-      expect(stripResponseArtifacts('[now] hello', 'Emily')).toBe('hello');
+      // 'now' is not a formatter output — the only "now" a prompt formatter
+      // renders is 'just now' — so this is a deliberate contract change, not
+      // a test tweak: the narrowed pattern no longer strips a bare '[now]'.
+      expect(stripResponseArtifacts('[just now] hello', 'Emily')).toBe('hello');
     });
 
     it('should NOT strip timestamps in middle of content', () => {
       expect(stripResponseArtifacts('I replied [2m ago] to you', 'Emily')).toBe(
         'I replied [2m ago] to you'
       );
+    });
+
+    it('keeps a leading bracket whose interior is not a prompt timestamp', () => {
+      expect(stripResponseArtifacts('[laughs] Anyway, no.', 'Emily')).toBe('[laughs] Anyway, no.');
+      expect(stripResponseArtifacts('[Sat 18:19] Hello', 'Emily')).toBe('[Sat 18:19] Hello');
+      expect(stripResponseArtifacts('[now] hello', 'Emily')).toBe('[now] hello');
     });
   });
 
@@ -1045,7 +1083,10 @@ describe('stripRealMessageEchoArtifacts', () => {
       expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
     });
 
-    it('KEEP-CASE: a leading non-header bracket aside passes through byte-identical', () => {
+    it('KEEP-CASE (stage 1 only; end-to-end in responseStripSeam.test.ts): a leading non-header bracket aside passes through byte-identical', () => {
+      // This asserts stage 1 only. The em-dash variant `[laughs — really]` IS
+      // taken by `leadingHeaderLineMatcher` flag-on, and that is pinned in
+      // responseStripSeam.test.ts under TASK-923's open matcher question.
       const content = '[laughs] Anyway, no.';
       expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
     });
