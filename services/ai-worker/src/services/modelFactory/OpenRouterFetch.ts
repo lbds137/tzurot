@@ -270,6 +270,7 @@ async function trySurfaceOkErrorBody(
         // `MAX_ERROR_MESSAGE_LENGTH` the parser applies. The forwarded body keeps
         // the full string: `parseApiError` reads the SDK error's own message and
         // truncates there. Asserted by the cap test in `OpenRouterFetch.test.ts`.
+        // eslint-disable-next-line @tzurot/no-raw-log-content -- provider error text capped at MAX_ERROR_MESSAGE_LENGTH; diagnostic, not user content
         errorMessage: message.slice(0, MAX_ERROR_MESSAGE_LENGTH),
         providerName: meta.provider_name,
         modelSlug: meta.model_slug,

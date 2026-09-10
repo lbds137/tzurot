@@ -30,6 +30,7 @@ import {
   PurgeMemoriesSchema,
 } from '@tzurot/common-types/schemas/api/memory';
 import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
@@ -145,7 +146,7 @@ export const handleBatchDeletePreview = (deps: RouteDeps): RequestHandler => {
       {
         discordUserId,
         personalityId,
-        personaId: personaId.substring(0, 8),
+        personaId: idPrefix(personaId),
         wouldDelete,
         lockedWouldSkip,
       },
@@ -409,7 +410,7 @@ export const handlePurge = (deps: RouteDeps): RequestHandler => {
         discordUserId,
         personalityId,
         personalityName: personality.name,
-        personaId: defaultPersonaId.substring(0, 8),
+        personaId: idPrefix(defaultPersonaId),
         totalBefore: totalCount,
         deletedCount: result.count,
         lockedPreserved: lockedCount,

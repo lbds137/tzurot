@@ -466,6 +466,14 @@ export default tseslint.config(
       // applying to every overridden glob without saying so.
       '@tzurot/no-regex-tag-strip': 'error',
 
+      // Log-content funnel: a raw string `.slice(0, n)` / `.substring(0, n)`
+      // (type-aware: string receivers only) or a raw `.text()` response body
+      // must not reach a log call's fields or an Error message. User content
+      // goes through contentPreview (log fields only) or contentDigest;
+      // id/token/URL prefixes through idPrefix/urlPrefix
+      // (packages/common-types/src/utils/logContentPreview.ts).
+      '@tzurot/no-raw-log-content': 'error',
+
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
       // ============================================================================
@@ -600,6 +608,8 @@ export default tseslint.config(
       'max-depth': ['warn', { max: 5 }], // ESLint rules can be deeply nested
       curly: 'off', // Allow compact conditional returns in CLI
       'no-restricted-syntax': 'off', // console.error is fine in CLI tools (not pino logger)
+      // Dev-only operator CLI, a runtime dependency of no deployed service: its Error messages print to the operator's terminal, not a deployed log stream
+      '@tzurot/no-raw-log-content': ['error', { errorSinks: false }],
     },
   },
 

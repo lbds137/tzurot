@@ -21,6 +21,7 @@ import {
 } from '@tzurot/common-types/schemas/api/history';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonaHistoryConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ConversationHistoryService,
@@ -107,7 +108,7 @@ function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
       {
         discordUserId,
         personalitySlug,
-        personaId: personaId.substring(0, 8),
+        personaId: idPrefix(personaId),
         epoch: now.toISOString(),
       },
       'Context cleared (epoch set)'
@@ -193,7 +194,7 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
       {
         discordUserId,
         personalitySlug,
-        personaId: personaId.substring(0, 8),
+        personaId: idPrefix(personaId),
         restoredEpoch: result.restoredEpoch?.toISOString(),
       },
       'Context restored (undo)'
@@ -256,7 +257,7 @@ function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
     const hiddenMessages = totalStats.totalMessages - visibleStats.totalMessages;
 
     logger.debug(
-      { discordUserId, personalitySlug, channelId, personaId: personaId.substring(0, 8) },
+      { discordUserId, personalitySlug, channelId, personaId: idPrefix(personaId) },
       'Stats retrieved'
     );
 
@@ -360,7 +361,7 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
         discordUserId,
         personalitySlug,
         channelId,
-        personaId: personaId.substring(0, 8),
+        personaId: idPrefix(personaId),
         scope,
         deletedCount,
       },

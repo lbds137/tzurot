@@ -10,6 +10,7 @@ import type { Response } from 'express';
 import type { Redis } from 'ioredis';
 import { StatusCodes } from 'http-status-codes';
 import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
@@ -151,7 +152,7 @@ export async function executeBatchDelete(params: ExecuteBatchDeleteParams): Prom
       discordUserId,
       personalityId,
       personalityName,
-      personaId: personaId.substring(0, 8),
+      personaId: idPrefix(personaId),
       timeframe: timeframe ?? 'all',
       deletedCount: result.count,
       skippedLocked: lockedCount,

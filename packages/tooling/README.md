@@ -274,6 +274,52 @@ export default [
 ];
 ```
 
+### `@tzurot/no-raw-log-content`
+
+**Status**: ✅ Integrated in `eslint.config.js` (error level)
+
+Flags two shapes that leak content into logs, at two sinks — a log call's
+first argument, and any argument of an `Error` constructor (the message later
+rides `err` into a log line): Pattern A, a type-aware string truncation
+(`.slice(0, n)` / `.substring(0, n)` on a `string`-typed value, inline or via
+one same-file `const`); Pattern B, a `.text()` response body. Anything inside
+`contentDigest` (a hash, never the text) is exempt at both sinks. Anything
+inside `contentPreview` (dev-gated behind `LOG_CONTENT_PREVIEWS`) is exempt in
+a log field only — a `contentPreview` call inside an `Error` message is itself
+flagged, because the message rides `.message` into every `logger.error({ err })`
+that handles it. `.length` reads carry no content. Identifier and URL prefixes
+go through `idPrefix` / `urlPrefix`, which are not truncation calls and so
+never flag.
+
+**Option** `{ errorSinks?: boolean }` (default `true`): `false` skips every
+`Error`-constructor sink (no truncation, body, or preview check there) while
+log sinks stay checked. `eslint.config.js` sets it `false` in the
+`packages/tooling/**` override: this package is a dev-only operator CLI that no
+deployed service depends on, so its `Error` messages print to the operator's
+terminal rather than into a deployed log stream.
+
+```typescript
+// ❌ BAD - raw truncation reaches a log call's fields
+logger.debug({ preview: text.substring(0, 50) }, 'Cached value');
+
+// ❌ BAD - a raw response body, a truncation, or a preview reaches an Error message
+const body = await response.text();
+throw new Error(`Request failed: ${body}`);
+throw new Error(`Request failed: ${body.slice(0, 200)}`);
+throw new Error(`Request failed: ${contentPreview(body, 200)}`);
+
+// ✅ GOOD - content through the gate, ids/URLs through the named helpers
+import {
+  contentDigest,
+  contentPreview,
+  idPrefix,
+} from '@tzurot/common-types/utils/logContentPreview';
+logger.debug({ preview: contentPreview(text, 50), personaId: idPrefix(personaId) }, 'Cached value');
+throw new Error(
+  `Request failed: ${response.status} (${body.length} chars, ${contentDigest(body)})`
+);
+```
+
 ## Dependencies
 
 - `cac` - Lightweight CLI framework
