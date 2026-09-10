@@ -26,3 +26,13 @@ Acceptance: the rule or guard is red on the reverted shapes-list site and green 
 <!-- SECTION:DESCRIPTION:END -->
 
 Vocabulary variant from the #2380 review (2026-09-09): services/bot-client/src/utils/gatewayServiceCalls.ts (grep: Transcription request failed) interpolates the full response body text into a thrown Error message, so a later logger call with err: error carries the raw body in .message. That shape is neither a slice nor a substring inside a logger argument, so the fix shape above would not see it; when the rule or guard is built, include a second pattern for a response.text() result reaching an Error constructor or a logger argument unwrapped, and sweep for it with the same positive control. Verified on the merged ref before filing.
+
+SHAPE CORRECTION 2026-09-10 (first dispatch census): the Fix shape above is wrong on both sides.
+- Over-fires: an AST scan of every non-test .ts found 34 inline logger truncations, and zero are user content. They are 12 persona-UUID prefixes, 9 action-token prefixes, 8 attachment-URL prefixes, 1 capped provider error, and array slices.
+- Under-fires: it misses real content truncated into a local first and then logged by name, which is exactly the shape of several sites 6f0f7e059 fixed.
+
+Main-loop decision (engineering call, reported to the owner):
+- A type-aware funnel rule: a string .slice(0, …) or .substring(0, …) reaching a logger first-argument property, inline or through one same-scope const.
+- Named helpers idPrefix and urlPrefix in logContentPreview.ts, with the 29 id/token/URL sites migrated to them.
+- Pattern B as above.
+- Scope widens to about 14 runtime files. Spec: docs/local/handoffs/spec-925-logger-raw-slice-rule.md, REVISION section.
