@@ -35,6 +35,10 @@ import {
   leadingSelfHeaderLineMatcher,
   type HeaderSpoofTelemetry,
 } from '../services/context/RealMessagesBuilder.js';
+import {
+  PROMPT_TIMESTAMP_BRACKET_PATTERN,
+  PROMPT_TIMESTAMP_BRACKET_SOURCE,
+} from './promptTimestampShapes.js';
 
 const logger = createLogger('ResponseArtifacts');
 
@@ -235,10 +239,23 @@ function buildArtifactPatterns(personalityName: string): ArtifactStep[] {
     stripOrphanTrailingCloser,
     // XML message prefix: '<message speaker="Emily">Hello' → 'Hello'
     patternStep(new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i')),
-    // Simple name prefix: "Emily: Hello" → "Hello"
-    patternStep(new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i')),
-    // Standalone timestamp: "[2m ago] Hello" → "Hello"
-    patternStep(/^\[[^\]]+?\]\s*/),
+    // Simple name prefix: "Emily: Hello" → "Hello". An echoed prompt
+    // timestamp right after the name goes with it: "Emily: [2m ago] Hello"
+    // → "Hello" — but only a prompt-timestamp bracket (see
+    // promptTimestampShapes.ts). An aside after the name survives:
+    // "Emily: [laughs] Anyway" → "[laughs] Anyway", pinned in
+    // responseArtifacts.test.ts and responseStripSeam.test.ts. The `i` flag
+    // the name match needs also folds the timestamp vocabulary's case
+    // inside this step, so "Emily: [JUST NOW] hi" strips here while the
+    // standalone prompt-timestamp step below stays case-exact — pinned in
+    // responseArtifacts.test.ts.
+    patternStep(new RegExp(`^${escapedName}:\\s*(?:${PROMPT_TIMESTAMP_BRACKET_SOURCE}\\s*)?`, 'i')),
+    // Echoed prompt timestamp: "[2 hours ago] Hello" → "Hello". Only a
+    // bracket whose WHOLE interior is a prompt time-formatter output (see
+    // promptTimestampShapes.ts) is taken — asides like `[laughs]` and a
+    // weekday+clock compound like `[Sat 18:19]` are kept, pinned in
+    // responseStripSeam.test.ts.
+    patternStep(PROMPT_TIMESTAMP_BRACKET_PATTERN),
   ];
 }
 
@@ -353,10 +370,14 @@ export function stripRealMessageEchoArtifacts(
 ): string {
   // Iterative, not single-shot: a model regurgitating several recent turns
   // verbatim stacks multiple header-shaped lines at the start, and a
-  // single-pass strip would count 1 while the generic artifact pass quietly
-  // ate the rest under a different log label — undercounting exactly what
-  // this telemetry exists to count. Each pass removes at least one
-  // character, so the loop terminates.
+  // single-pass strip would leave the remaining stacked header lines in the
+  // reply — the generic artifact pass's leading-bracket step does not take
+  // a header-shaped bracket (it strips only prompt-timestamp interiors, see
+  // promptTimestampShapes.ts), so nothing downstream would catch what a
+  // single pass here missed. Pinned by the 'strips STACKED leading
+  // header-shaped lines iteratively, counting each' case in
+  // responseArtifacts.test.ts. Each pass removes at least one character, so
+  // the loop terminates.
   //
   // Two matchers per iteration: the whole-line header shape first, then the
   // compound case where the model prefixes decorated preamble before

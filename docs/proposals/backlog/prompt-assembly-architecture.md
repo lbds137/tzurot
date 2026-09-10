@@ -618,9 +618,10 @@ with the losing side's objections as binding constraints:
   bounding rules out the worst and platform syntax has no legitimate
   in-reply use. And the output-side leading-header strip removes a reply's
   first line when it is a bracketed em-dash stage direction
-  (`[Sighs — clearly annoyed] ...`) — accepted, a strict subset of the
-  generic artifact pass's long-standing unconditional leading-`[...]`
-  deletion; changing THAT is a separate product call, not this hardening's.
+  (`[Sighs — clearly annoyed] ...`) — accepted at build time. The generic
+  artifact pass's leading-`[...]` deletion has since been narrowed to
+  prompt-timestamp interiors, so this matcher is now the only deleter of that
+  shape; whether it needs an end-of-line requirement is open on TASK-923.
 
 ### D3 — flag-read unification: BUILD
 
