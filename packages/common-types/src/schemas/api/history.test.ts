@@ -230,6 +230,7 @@ describe('History API Input Schema Tests', () => {
         success: true as const,
         restoredEpoch: '2026-05-24T00:00:00.000Z',
         personaId: 'persona-uuid',
+        restoredCount: 3,
         message: 'Previous context restored.',
       };
       expect(UndoHistoryResponseSchema.safeParse(data).success).toBe(true);
@@ -240,9 +241,32 @@ describe('History API Input Schema Tests', () => {
         success: true as const,
         restoredEpoch: null,
         personaId: 'persona-uuid',
+        restoredCount: 0,
         message: 'Previous context restored.',
       };
       expect(UndoHistoryResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('rejects a missing restoredCount', () => {
+      const data = {
+        success: true as const,
+        restoredEpoch: null,
+        personaId: 'persona-uuid',
+        message: 'Previous context restored.',
+      };
+      expect(UndoHistoryResponseSchema.safeParse(data).success).toBe(false);
+    });
+
+    it('survives the parse with restoredCount intact', () => {
+      const result = UndoHistoryResponseSchema.safeParse({
+        success: true as const,
+        restoredEpoch: '2026-05-24T00:00:00.000Z',
+        personaId: 'persona-uuid',
+        restoredCount: 3,
+        message: 'Previous context restored.',
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.restoredCount).toBe(3);
     });
   });
 

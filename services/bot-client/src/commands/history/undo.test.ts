@@ -33,9 +33,12 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 
 // Mock commandHelpers
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
+const mockCreateInfoEmbed = vi.fn(() => ({}));
 vi.mock('../../utils/commandHelpers.js', () => ({
   createSuccessEmbed: (...args: unknown[]) =>
     mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
+  createInfoEmbed: (...args: unknown[]) =>
+    mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
 }));
 
 interface StubClient {
@@ -106,6 +109,7 @@ describe('handleUndo', () => {
       makeOk({
         success: true,
         restoredEpoch: '2025-12-12T08:00:00.000Z',
+        restoredCount: 5,
         message: 'Context restored',
       })
     );
@@ -126,6 +130,7 @@ describe('handleUndo', () => {
       makeOk({
         success: true,
         restoredEpoch: '2025-12-12T08:00:00.000Z',
+        restoredCount: 5,
         message: 'Context restored',
       })
     );
@@ -201,5 +206,87 @@ describe('handleUndo', () => {
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
+  });
+
+  it('renders the positive restored-count copy with plural messages', async () => {
+    stub.undoHistory.mockResolvedValue(
+      makeOk({
+        success: true,
+        restoredEpoch: '2025-12-12T08:00:00.000Z',
+        restoredCount: 5,
+        message: 'Context restored',
+      })
+    );
+
+    const context = createMockContext();
+    await handleUndo(context);
+
+    expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
+      'Context Restored',
+      expect.stringContaining('Restored **5** messages')
+    );
+  });
+
+  it('renders the positive restored-count copy with no trailing s for a single message', async () => {
+    stub.undoHistory.mockResolvedValue(
+      makeOk({
+        success: true,
+        restoredEpoch: '2025-12-12T08:00:00.000Z',
+        restoredCount: 1,
+        message: 'Context restored',
+      })
+    );
+
+    const context = createMockContext();
+    await handleUndo(context);
+
+    expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
+      'Context Restored',
+      expect.stringContaining('Restored **1** message.')
+    );
+  });
+
+  it('renders the nothing-to-restore copy when restoredCount is zero', async () => {
+    stub.undoHistory.mockResolvedValue(
+      makeOk({
+        success: true,
+        restoredEpoch: null,
+        restoredCount: 0,
+        message: 'Context restored',
+      })
+    );
+
+    const context = createMockContext();
+    await handleUndo(context);
+
+    expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
+      'Nothing to Restore',
+      expect.stringContaining(
+        'Nothing to restore for **lilith**: the history from before your last clear is gone.'
+      )
+    );
+    expect(mockCreateSuccessEmbed).not.toHaveBeenCalled();
+  });
+
+  it('renders the nothing-to-restore copy when the restored epoch is non-null but the band is empty', async () => {
+    stub.undoHistory.mockResolvedValue(
+      makeOk({
+        success: true,
+        restoredEpoch: '2025-12-12T08:00:00.000Z',
+        restoredCount: 0,
+        message: 'Context restored',
+      })
+    );
+
+    const context = createMockContext();
+    await handleUndo(context);
+
+    expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
+      'Nothing to Restore',
+      expect.stringContaining(
+        'Nothing to restore for **lilith**: the history from before your last clear is gone.'
+      )
+    );
+    expect(mockCreateSuccessEmbed).not.toHaveBeenCalled();
   });
 });
