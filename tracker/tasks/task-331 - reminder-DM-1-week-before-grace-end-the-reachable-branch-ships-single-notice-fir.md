@@ -1,10 +1,10 @@
 ---
 id: TASK-331
 title: Reminder DM about one week before grace-end
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-26 00:00'
-updated_date: '2026-09-11 16:52'
+updated_date: '2026-09-11 22:12'
 labels:
   - 'area:jobs'
   - 'area:api-gateway'
