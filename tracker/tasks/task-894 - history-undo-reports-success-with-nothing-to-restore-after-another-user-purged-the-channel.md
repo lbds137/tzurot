@@ -3,9 +3,10 @@ id: TASK-894
 title: >-
   history undo reports success with nothing to restore after another user purged
   the channel
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-05 04:14'
+updated_date: '2026-09-11 13:16'
 labels:
   - 'area:bot-client'
   - 'size:S'
