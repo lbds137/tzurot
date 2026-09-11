@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-08 23:06'
+updated_date: '2026-09-11 19:24'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 914000
@@ -27,3 +28,13 @@ Recommendation: yes, interpolate it — the label is read as how to invoke the a
 
 Acceptance: either the five sites read the configured character with a test on the non-default value, or the decision to keep the literal sigil is recorded here.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: owner-ruling
+created: 2026-09-11 19:24
+---
+Owner ruling 2026-09-11: interpolate BOT_MENTION_CHAR at every alias label site (five sites, one PR). Build via the drain.
+---
+<!-- COMMENTS:END -->
