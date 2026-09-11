@@ -83,7 +83,7 @@ export function registerRetentionCommands(cli: CAC): void {
   cli
     .command(
       'retention:notify',
-      'DM the deletion warning to reachable-but-inactive users (starts grace clocks)'
+      'DM the deletion warning (and any due reminders) to the reachable branch — starts grace clocks, sends the second notice'
     )
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--dry-run', 'Resolve and print the notify cohort without enqueuing anything')

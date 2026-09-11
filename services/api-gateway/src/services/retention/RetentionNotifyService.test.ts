@@ -21,10 +21,23 @@ function cohortRow(n: number) {
   };
 }
 
-function makePrisma(opts: { cohort: unknown[]; userbase: number }) {
+function remindCohortRow(n: number) {
   return {
-    // call 1 = selectNotifyCohort; later calls = report stamps / filter
-    $queryRaw: vi.fn().mockResolvedValue(opts.cohort),
+    userId: `c0407000-0000-4000-8000-2000000000${String(n).padStart(2, '0')}`,
+    discordId: `91000000000000${String(n).padStart(4, '0')}`,
+    notifiedAt: new Date('2026-07-01T00:00:00Z'),
+  };
+}
+
+function makePrisma(opts: { cohort: unknown[]; userbase: number; remindCohort?: unknown[] }) {
+  return {
+    // call order: selectNotifyCohort, then selectRemindCohort (both via
+    // Promise.all, evaluated left-to-right); later calls = report stamps / filter
+    $queryRaw: vi
+      .fn()
+      .mockResolvedValueOnce(opts.cohort)
+      .mockResolvedValueOnce(opts.remindCohort ?? [])
+      .mockResolvedValue([]),
     $executeRaw: vi.fn().mockResolvedValue(1),
     user: { count: vi.fn().mockResolvedValue(opts.userbase) },
   } as unknown as PrismaClient;
@@ -109,6 +122,22 @@ describe('RetentionNotifyService.enqueueNotifyRun', () => {
     expect(mockAddValidatedJob).not.toHaveBeenCalled();
   });
 
+  it('refuses over the hard ceiling while holding the reminder cohort unsent', async () => {
+    // The breaker refusal is computed on the warning cohort alone, but the
+    // refusal must not smuggle the reminder cohort through — both cohorts
+    // stay unenqueued when the warning cohort trips the hard ceiling.
+    const cohort = Array.from({ length: 30 }, (_, i) => cohortRow(i));
+    const remindCohort = Array.from({ length: 3 }, (_, i) => remindCohortRow(i));
+    const service = new RetentionNotifyService(makePrisma({ cohort, remindCohort, userbase: 100 }));
+
+    const result = await service.enqueueNotifyRun(queue, { now: NOW });
+
+    expect(result.status).toBe('refused_breaker');
+    expect(result.reminderBatchesEnqueued).toBe(0);
+    expect(result.reminderCohortSize).toBe(3);
+    expect(mockAddValidatedJob).not.toHaveBeenCalled();
+  });
+
   it('proceeds past the ceiling with an explicit breakerOverride', async () => {
     const cohort = Array.from({ length: 30 }, (_, i) => cohortRow(i));
     const service = new RetentionNotifyService(makePrisma({ cohort, userbase: 100 }));
@@ -126,7 +155,98 @@ describe('RetentionNotifyService.enqueueNotifyRun', () => {
 
     expect(result.status).toBe('dry_run');
     expect(result.recipients).toHaveLength(2);
+    expect(result.reminderBatchesEnqueued).toBe(0);
     expect(mockAddValidatedJob).not.toHaveBeenCalled();
+  });
+
+  it('reports empty only when BOTH the warning and reminder cohorts are empty', async () => {
+    const service = new RetentionNotifyService(
+      makePrisma({ cohort: [], remindCohort: [], userbase: 100 })
+    );
+
+    const result = await service.enqueueNotifyRun(queue, { now: NOW });
+
+    expect(result.status).toBe('empty');
+    expect(result.reminderCohortSize).toBe(0);
+  });
+
+  it('enqueues reminder batches with the distinct retention-remind- jobId prefix, carrying notifiedAt', async () => {
+    const remindCohort = [remindCohortRow(0)];
+    const service = new RetentionNotifyService(
+      makePrisma({ cohort: [], remindCohort, userbase: 1000 })
+    );
+
+    const result = await service.enqueueNotifyRun(queue, { now: NOW, runContext: 'remind-run' });
+
+    expect(result.status).toBe('enqueued');
+    expect(result.reminderBatchesEnqueued).toBe(1);
+    expect(mockAddValidatedJob).toHaveBeenCalledTimes(1);
+    const [, , payload, opts] = mockAddValidatedJob.mock.calls[0];
+    expect(payload.notice).toBe('reminder');
+    expect(payload.recipients[0]).toEqual({
+      userId: remindCohort[0].userId,
+      discordUserId: remindCohort[0].discordId,
+      notifiedAt: remindCohort[0].notifiedAt.toISOString(),
+    });
+    expect(opts.jobId).toBe('retention-remind-2026-07-26T12-00-00.000Z-remind-run-0');
+  });
+
+  it('a large reminder cohort with a small warning cohort does NOT trip the breaker', async () => {
+    // The breaker is computed on the warning cohort only — a huge reminder
+    // cohort (everyone warned a while back, now due) must never refuse a run
+    // whose warning cohort is tiny.
+    const cohort = [cohortRow(0)];
+    const remindCohort = Array.from({ length: 90 }, (_, i) => remindCohortRow(i));
+    const service = new RetentionNotifyService(makePrisma({ cohort, remindCohort, userbase: 100 }));
+
+    const result = await service.enqueueNotifyRun(queue, { now: NOW });
+
+    expect(result.status).toBe('enqueued');
+    expect(result.breakerWarning).toBe(false);
+    expect(result.reminderCohortSize).toBe(90);
+    expect(result.reminderBatchesEnqueued).toBe(2);
+  });
+});
+
+/**
+ * Reconstruct the full SQL a `$queryRaw` tagged template would send, splicing
+ * any nested `Prisma.Sql` fragment inline — mirrors eligibility.test.ts's
+ * flattenSql, needed here because NOTIFY_CONDITIONS/REMIND_CONDITIONS are
+ * nested fragments the outer template strings alone don't contain.
+ */
+function flattenSql(call: unknown[]): string {
+  const [strings, ...values] = call as [TemplateStringsArray, ...unknown[]];
+  return strings
+    .map((chunk, i) => {
+      const value = values[i];
+      const isFragment =
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as { sql?: unknown }).sql === 'string';
+      return chunk + (isFragment ? (value as { sql: string }).sql : '');
+    })
+    .join(' ');
+}
+
+describe('RetentionNotifyService.filterEligible', () => {
+  it('routes to filterStillNotifyEligible for warning', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ userId: 'u1' }]);
+    const prisma = { $queryRaw: queryRaw } as unknown as PrismaClient;
+
+    const eligible = await new RetentionNotifyService(prisma).filterEligible(['u1'], 'warning');
+
+    expect(eligible).toEqual(['u1']);
+    expect(flattenSql(queryRaw.mock.calls[0])).toContain('retention_notified_at IS NULL');
+  });
+
+  it('routes to filterStillRemindEligible for reminder', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ userId: 'u1' }]);
+    const prisma = { $queryRaw: queryRaw } as unknown as PrismaClient;
+
+    const eligible = await new RetentionNotifyService(prisma).filterEligible(['u1'], 'reminder');
+
+    expect(eligible).toEqual(['u1']);
+    expect(flattenSql(queryRaw.mock.calls[0])).toContain('retention_reminded_at IS NULL');
   });
 });
 
@@ -141,11 +261,11 @@ describe('RetentionNotifyService.reportOutcomes', () => {
     };
   }
 
-  it('stamps the grace clock on sent, IS NULL-guarded', async () => {
+  it('stamps the grace clock on a sent warning, IS NULL-guarded', async () => {
     const { prisma, executeRaw } = makeReportPrisma();
 
     const processed = await new RetentionNotifyService(prisma).reportOutcomes([
-      { userId: USER, status: 'sent' },
+      { userId: USER, status: 'sent', notice: 'warning' },
     ]);
 
     expect(processed).toBe(1);
@@ -156,11 +276,26 @@ describe('RetentionNotifyService.reportOutcomes', () => {
     expect(text).not.toContain('updated_at');
   });
 
-  it('routes a 50278 bounce to the unreachable stamp (the re-route arm)', async () => {
+  it('stamps the reminder clock on a sent reminder, guarded on both columns', async () => {
+    const { prisma, executeRaw } = makeReportPrisma();
+
+    const processed = await new RetentionNotifyService(prisma).reportOutcomes([
+      { userId: USER, status: 'sent', notice: 'reminder' },
+    ]);
+
+    expect(processed).toBe(1);
+    const [strings] = executeRaw.mock.calls[0] as [TemplateStringsArray];
+    const text = strings.join('');
+    expect(text).toContain('retention_reminded_at = NOW()');
+    expect(text).toContain('retention_reminded_at IS NULL');
+    expect(text).toContain('retention_notified_at IS NOT NULL');
+  });
+
+  it('routes a 50278 bounce to the unreachable stamp (the re-route arm), for either notice', async () => {
     const { prisma, executeRaw } = makeReportPrisma();
 
     await new RetentionNotifyService(prisma).reportOutcomes([
-      { userId: USER, status: 'failed_permanent', errorCode: '50278' },
+      { userId: USER, status: 'failed_permanent', errorCode: '50278', notice: 'reminder' },
     ]);
 
     const [strings] = executeRaw.mock.calls[0] as [TemplateStringsArray];
@@ -171,8 +306,8 @@ describe('RetentionNotifyService.reportOutcomes', () => {
     const { prisma, executeRaw } = makeReportPrisma();
 
     const processed = await new RetentionNotifyService(prisma).reportOutcomes([
-      { userId: USER, status: 'failed_bot_level', errorCode: '20026' },
-      { userId: USER, status: 'failed_transient' },
+      { userId: USER, status: 'failed_bot_level', errorCode: '20026', notice: 'warning' },
+      { userId: USER, status: 'failed_transient', notice: 'reminder' },
     ]);
 
     expect(processed).toBe(0);
@@ -184,7 +319,9 @@ describe('RetentionNotifyService.reportOutcomes', () => {
     executeRaw.mockRejectedValueOnce(new Error('db down'));
 
     await expect(
-      new RetentionNotifyService(prisma).reportOutcomes([{ userId: USER, status: 'sent' }])
+      new RetentionNotifyService(prisma).reportOutcomes([
+        { userId: USER, status: 'sent', notice: 'warning' },
+      ])
     ).rejects.toThrow('db down');
   });
 });

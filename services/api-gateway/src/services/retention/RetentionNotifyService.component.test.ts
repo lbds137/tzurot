@@ -1,8 +1,10 @@
 /**
  * Component test: the notify pipeline's write seams over REAL PGLite — the
- * grace-clock stamp (one notice per spell), the bounce re-route into the
- * unreachable purge branch, and the enqueue path's cohort resolution with a
- * schema-validated batch payload.
+ * grace-clock and reminder-clock stamps, the bounce re-route into the
+ * unreachable purge branch, the enqueue path's cohort resolution with a
+ * schema-validated batch payload, and the reminder window predicate (raw SQL
+ * with `now() - make_interval(...)`, which a mocked-Prisma unit test cannot
+ * exercise).
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -12,7 +14,7 @@ import type { Queue } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { RetentionNotifyService } from './RetentionNotifyService.js';
-import { selectEligibleUsers } from './eligibility.js';
+import { selectEligibleUsers, selectRemindCohort } from './eligibility.js';
 
 vi.mock('@tzurot/common-types/utils/outboundDmAllowlist', () => ({
   getOutboundDmAllowlist: () => null,
@@ -91,15 +93,17 @@ describe('RetentionNotifyService (component, PGLite)', () => {
     expect(opts.jobId).not.toContain(':');
   });
 
-  it('stamps the grace clock exactly once on sent (one notice per spell)', async () => {
-    const processed = await service.reportOutcomes([{ userId: NOTIFY_TARGET, status: 'sent' }]);
+  it('stamps the grace clock exactly once on a sent warning', async () => {
+    const processed = await service.reportOutcomes([
+      { userId: NOTIFY_TARGET, status: 'sent', notice: 'warning' },
+    ]);
     expect(processed).toBe(1);
 
     const first = await prisma.user.findUnique({ where: { id: NOTIFY_TARGET } });
     expect(first?.retentionNotifiedAt).not.toBeNull();
 
     // A worker-retry re-report must not advance the clock (IS NULL guard).
-    await service.reportOutcomes([{ userId: NOTIFY_TARGET, status: 'sent' }]);
+    await service.reportOutcomes([{ userId: NOTIFY_TARGET, status: 'sent', notice: 'warning' }]);
     const second = await prisma.user.findUnique({ where: { id: NOTIFY_TARGET } });
     expect(second?.retentionNotifiedAt?.getTime()).toBe(first?.retentionNotifiedAt?.getTime());
   });
@@ -107,7 +111,7 @@ describe('RetentionNotifyService (component, PGLite)', () => {
   it('drops a warned user from the notify cohort and the eligibility filter', async () => {
     // NOTIFY_TARGET now carries a grace stamp (previous test): the one-notice
     // guard excludes them from selection and from the send-time re-check.
-    const eligible = await service.filterEligible([NOTIFY_TARGET, ACTIVE_USER]);
+    const eligible = await service.filterEligible([NOTIFY_TARGET, ACTIVE_USER], 'warning');
     expect(eligible).toEqual([]);
 
     const queue = { add: vi.fn() } as unknown as Queue;
@@ -117,7 +121,7 @@ describe('RetentionNotifyService (component, PGLite)', () => {
 
   it('re-routes a bounced notice into the unreachable purge branch (real SQL)', async () => {
     await service.reportOutcomes([
-      { userId: NOTIFY_TARGET, status: 'failed_permanent', errorCode: '50278' },
+      { userId: NOTIFY_TARGET, status: 'failed_permanent', errorCode: '50278', notice: 'warning' },
     ]);
 
     const row = await prisma.user.findUnique({ where: { id: NOTIFY_TARGET } });
@@ -127,5 +131,63 @@ describe('RetentionNotifyService (component, PGLite)', () => {
     const cohort = await selectEligibleUsers(prisma, null);
     expect(cohort.map(r => r.userId)).toContain(NOTIFY_TARGET);
     expect(cohort.find(r => r.userId === NOTIFY_TARGET)?.reason).toBe('unreachable');
+  });
+
+  describe('the reminder window predicate (real SQL)', () => {
+    const DAY22 = 'c0408000-0000-4000-8000-000000000022';
+    const DAY23 = 'c0408000-0000-4000-8000-000000000023';
+    const DAY29 = 'c0408000-0000-4000-8000-000000000029';
+    const DAY30 = 'c0408000-0000-4000-8000-000000000030';
+    const ALREADY_REMINDED = 'c0408000-0000-4000-8000-000000000099';
+
+    beforeAll(async () => {
+      for (const [id, name] of [
+        [DAY22, 'remindday22'],
+        [DAY23, 'remindday23'],
+        [DAY29, 'remindday29'],
+        [DAY30, 'remindday30'],
+        [ALREADY_REMINDED, 'remindalready'],
+      ] as const) {
+        await seedUserWithPersona(prisma, {
+          userId: id,
+          personaId: nextId(),
+          discordId: `9300000000000000${(seq + 10).toString().padStart(2, '0')}`,
+          username: name,
+          personaName: `${name} Persona`,
+          personaContent: 'x',
+        });
+      }
+      // SQL-side interval arithmetic (NOT a bound JS Date parameter): both the
+      // seed and the later query evaluate `now()` in the same runtime, so the
+      // only drift between "seeded age" and "queried age" is the few
+      // milliseconds between statements — never a JS-Date-parameter/driver
+      // timezone mismatch, which a bound Date parameter is vulnerable to.
+      for (const [id, days] of [
+        [DAY22, 22],
+        [DAY23, 23],
+        [DAY29, 29],
+        [DAY30, 30],
+        [ALREADY_REMINDED, 25],
+      ] as const) {
+        await prisma.$executeRaw`
+          UPDATE users SET retention_notified_at = now() - make_interval(days => ${days})
+          WHERE id = ${id}::uuid
+        `;
+      }
+      await prisma.$executeRaw`
+        UPDATE users SET retention_reminded_at = NOW() WHERE id = ${ALREADY_REMINDED}::uuid
+      `;
+    });
+
+    it('is due at day 23 and day 29, not due at day 22 or day 30, and excludes an already-reminded user', async () => {
+      const cohort = await selectRemindCohort(prisma, null);
+      const ids = cohort.map(r => r.userId);
+
+      expect(ids).not.toContain(DAY22);
+      expect(ids).toContain(DAY23);
+      expect(ids).toContain(DAY29);
+      expect(ids).not.toContain(DAY30);
+      expect(ids).not.toContain(ALREADY_REMINDED);
+    });
   });
 });

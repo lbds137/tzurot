@@ -82,7 +82,8 @@ export const handleRetentionNotifyFilter = (deps: RouteDeps): RequestHandler =>
     }
 
     const stillEligibleUserIds = await new RetentionNotifyService(deps.prisma).filterEligible(
-      parsed.data.userIds
+      parsed.data.userIds,
+      parsed.data.notice
     );
     sendContractSuccess(
       res,

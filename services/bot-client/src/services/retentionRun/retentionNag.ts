@@ -43,13 +43,22 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
     `${String(totals.charactersToReHome)} re-homed to the Orphaned Characters bucket.`;
 
   // The reachable branch's pipeline states (Phase 3). Grace-expired users are
-  // already IN the cohort above; the other two are upstream of it. All THREE
-  // counts gate the line — grace-expired users have left the other two counts
+  // already IN the cohort above; the other three are upstream of it. All FOUR
+  // counts gate the line — grace-expired users have left the other counts
   // (window passed, already warned), so a graceExpired-only state is real.
+  // Reminder-due is a labeled subset of in-grace, not an addition to it: both
+  // require an active grace window (`retention_notified_at` within
+  // GRACE_PERIOD_DAYS) and reachability, and reminder-due narrows further to
+  // users old enough in that window to be nearing the deadline who have not
+  // yet been reminded (REMIND_CONDITIONS in eligibility.ts).
   const reachable =
-    totals.reachableToNotify > 0 || totals.inGrace > 0 || totals.graceExpired > 0
+    totals.reachableToNotify > 0 ||
+    totals.inGrace > 0 ||
+    totals.reminderDue > 0 ||
+    totals.graceExpired > 0
       ? `\n\nReachable branch: **${String(totals.reachableToNotify)}** awaiting a warning DM · ` +
         `**${String(totals.inGrace)}** in grace · ` +
+        `**${String(totals.reminderDue)}** due a reminder · ` +
         `**${String(totals.graceExpired)}** grace-expired (counted in the cohort above).`
       : '';
 

@@ -27,7 +27,13 @@ import { RETENTION_POLICY } from '@tzurot/common-types/constants/retention';
 // The policy windows live in common-types (bot-client's notice copy states
 // the same numbers); this module remains the single home of the SQL that
 // consumes them. Local names keep the fragments readable.
-const { WINDOW_DAYS: RETENTION_WINDOW_DAYS, GRACE_PERIOD_DAYS } = RETENTION_POLICY;
+const {
+  WINDOW_DAYS: RETENTION_WINDOW_DAYS,
+  GRACE_PERIOD_DAYS,
+  REMINDER_LEAD_DAYS,
+} = RETENTION_POLICY;
+/** How many days after the warning the reminder window opens. */
+const REMINDER_EARLIEST_AGE_DAYS = GRACE_PERIOD_DAYS - REMINDER_LEAD_DAYS;
 
 /**
  * Why a user is purge-eligible: the two unreachable signals (D13), a
@@ -122,12 +128,14 @@ const ELIGIBILITY_CONDITIONS = Prisma.sql`
 `;
 
 /**
- * The reachable branch's notify predicate (Phase 3): who should receive a
- * retention warning DM. Disjoint from the purge cohort by construction — a
- * user with either unreachable stamp can't be DMed, and a non-null
- * retention_notified_at means the one notice was already sent (the IS NULL
- * clause is also the cross-run idempotency guard: re-running a notify run
- * resumes exactly where it stopped).
+ * The reachable branch's WARNING predicate (Phase 3): who should receive the
+ * first retention notice, which starts the grace clock. Disjoint from the
+ * purge cohort by construction — a user with either unreachable stamp can't
+ * be DMed, and a non-null retention_notified_at means the warning was already
+ * sent (the IS NULL clause is also the cross-run idempotency guard:
+ * re-running a notify run resumes exactly where it stopped). See
+ * REMIND_CONDITIONS for the second, reminder notice sent partway through the
+ * grace window this predicate starts.
  */
 const NOTIFY_CONDITIONS = Prisma.sql`
       u.dm_undeliverable_since IS NULL
@@ -136,6 +144,26 @@ const NOTIFY_CONDITIONS = Prisma.sql`
   AND ${DELIBERATE_USE}
   AND COALESCE(u.last_active_at, u.created_at)
         < now() - make_interval(days => ${RETENTION_WINDOW_DAYS})
+  AND u.is_superuser = false
+  AND u.retention_exempt = false
+`;
+
+/**
+ * The reachable branch's REMINDER predicate: who should receive the second
+ * and last grace-cycle notice, sent REMINDER_LEAD_DAYS before the grace
+ * deadline. No DELIBERATE_USE clause and no 180-day inactivity clause is
+ * needed here — a non-null retention_notified_at already proves the user
+ * passed NOTIFY_CONDITIONS (deliberate use, inactive ≥180d) at warning time,
+ * and any activity since then clears retention_notified_at (the activity-stamp
+ * sites), which would fail this predicate's IS NOT NULL clause immediately.
+ */
+const REMIND_CONDITIONS = Prisma.sql`
+      u.dm_undeliverable_since IS NULL
+  AND u.discord_account_gone_at IS NULL
+  AND u.retention_notified_at IS NOT NULL
+  AND u.retention_reminded_at IS NULL
+  AND u.retention_notified_at <  now() - make_interval(days => ${REMINDER_EARLIEST_AGE_DAYS})
+  AND u.retention_notified_at >= now() - make_interval(days => ${GRACE_PERIOD_DAYS})
   AND u.is_superuser = false
   AND u.retention_exempt = false
 `;
@@ -325,6 +353,65 @@ export async function filterStillNotifyEligible(
     SELECT u.id AS "userId"
     FROM users u
     WHERE u.id = ANY(${userIds}::uuid[]) AND ${NOTIFY_CONDITIONS}
+  `;
+  return new Set(rows.map(r => r.userId));
+}
+
+export interface RemindCohortRow {
+  userId: string;
+  discordId: string;
+  /** The warning's send time — anchors the deadline the reminder quotes. */
+  notifiedAt: Date;
+}
+
+/**
+ * The reminder cohort: warned users partway through grace, oldest-warned
+ * first. Unbounded by design, like selectNotifyCohort; the enqueue path
+ * slices it into bounded batches downstream.
+ *
+ * `allowlist` is the same OUTBOUND_DM_ALLOWLIST scope as selectNotifyCohort —
+ * there is exactly one allowlist for both notice kinds.
+ */
+export async function selectRemindCohort(
+  db: Prisma.TransactionClient,
+  allowlist: ReadonlySet<string> | null
+): Promise<RemindCohortRow[]> {
+  return db.$queryRaw<RemindCohortRow[]>`
+    SELECT u.id AS "userId",
+           u.discord_id AS "discordId",
+           u.retention_notified_at AS "notifiedAt"
+    FROM users u
+    WHERE (${REMIND_CONDITIONS}) ${discordIdScope(allowlist)}
+    ORDER BY u.retention_notified_at ASC
+  `;
+}
+
+/** How many users the reminder predicate selects (un-narrowed — reporting). */
+export async function countRemindCohort(db: Prisma.TransactionClient): Promise<number> {
+  const rows = await db.$queryRaw<{ n: bigint }[]>`
+    SELECT count(*) AS n FROM users u WHERE ${REMIND_CONDITIONS}
+  `;
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * The send-time re-check for reminders (the notify analogue of
+ * filterStillNotifyEligible): of these users, which are STILL
+ * reminder-eligible? A user who became active, or was already reminded,
+ * between cohort resolution and the worker picking up the batch must not
+ * receive a reminder. Returns the still-eligible subset of `userIds`.
+ */
+export async function filterStillRemindEligible(
+  db: Prisma.TransactionClient,
+  userIds: string[]
+): Promise<Set<string>> {
+  if (userIds.length === 0) {
+    return new Set();
+  }
+  const rows = await db.$queryRaw<{ userId: string }[]>`
+    SELECT u.id AS "userId"
+    FROM users u
+    WHERE u.id = ANY(${userIds}::uuid[]) AND ${REMIND_CONDITIONS}
   `;
   return new Set(rows.map(r => r.userId));
 }

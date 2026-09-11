@@ -29,6 +29,7 @@ function makePreview(overrides: {
   inGrace?: number;
   graceExpired?: number;
   bystander?: number;
+  reminderDue?: number;
 }): RetentionPreviewResponse {
   const eligibleCount = overrides.eligibleCount ?? 1;
   const listedUsers = overrides.userCount ?? eligibleCount;
@@ -51,6 +52,7 @@ function makePreview(overrides: {
       inGrace: overrides.inGrace ?? 0,
       graceExpired: overrides.graceExpired ?? 0,
       bystander: overrides.bystander ?? 0,
+      reminderDue: overrides.reminderDue ?? 0,
       // The nag only ever runs in production, where the scope is unrestricted
       // as long as production's OUTBOUND_DM_ALLOWLIST stays unset — see
       // retentionNag.ts's render (no scope line).
@@ -204,13 +206,21 @@ describe('buildRetentionNagEmbed', () => {
   it('shows the reachable-branch pipeline line only when that pipeline has anyone in it', () => {
     const quiet = buildRetentionNagEmbed(makePreview({})).toJSON();
     const active = buildRetentionNagEmbed(
-      makePreview({ reachableToNotify: 51, inGrace: 4, graceExpired: 1 })
+      makePreview({ reachableToNotify: 51, inGrace: 4, graceExpired: 1, reminderDue: 2 })
     ).toJSON();
 
     expect(quiet.description).not.toContain('Reachable branch');
     expect(active.description).toContain('**51** awaiting a warning DM');
     expect(active.description).toContain('**4** in grace');
+    expect(active.description).toContain('**2** due a reminder');
     expect(active.description).toContain('**1** grace-expired');
+  });
+
+  it('shows the reachable-branch pipeline line in the reminderDue-only steady state', () => {
+    const reminderOnly = buildRetentionNagEmbed(makePreview({ reminderDue: 3 })).toJSON();
+
+    expect(reminderOnly.description).toContain('Reachable branch');
+    expect(reminderOnly.description).toContain('**3** due a reminder');
   });
 
   it('still shows the pipeline line in the graceExpired-only steady state', () => {

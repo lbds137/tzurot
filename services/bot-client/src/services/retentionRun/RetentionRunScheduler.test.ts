@@ -95,6 +95,7 @@ function makePreview(
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      reminderDue: 0,
       scope: { kind: 'unrestricted', excludedEligibleCount: 0 },
     },
   } satisfies RetentionPreviewResponse;
@@ -108,6 +109,9 @@ const quietNotifyData = {
   breakerWarning: false,
   batchesEnqueued: 0,
   recipients: [],
+  reminderCohortSize: 0,
+  reminderBatchesEnqueued: 0,
+  reminderRecipients: [],
 };
 
 function purgedResponse(discordId: string) {

@@ -79,14 +79,20 @@ export const retentionFixtures: Record<string, ConformanceEntry> = {
   retentionNotifyFilter: {
     // No user row carries this id, so the still-eligible subset is empty —
     // the shape conformance checks, with zero seed and zero writes.
-    body: { userIds: ['829e4567-e89b-42d3-a456-426614174999'] },
+    body: { userIds: ['829e4567-e89b-42d3-a456-426614174999'], notice: 'warning' },
   },
 
   retentionNotifyReport: {
     // A transient outcome stamps NOTHING by design (the queue retries it), so
     // this exercises the route's happy path without writing shared state.
     body: {
-      outcomes: [{ userId: '829e4567-e89b-42d3-a456-426614174999', status: 'failed_transient' }],
+      outcomes: [
+        {
+          userId: '829e4567-e89b-42d3-a456-426614174999',
+          status: 'failed_transient',
+          notice: 'warning',
+        },
+      ],
     },
   },
 

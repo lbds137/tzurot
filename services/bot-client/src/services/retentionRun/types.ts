@@ -22,6 +22,9 @@ export type NotifyStepOutcome =
       batchesEnqueued: number;
       breakerWarning: boolean;
       breakerDetail?: string;
+      /** Reminder-cohort size — bounded by prior warnings, out of the breaker. */
+      reminderCohortSize: number;
+      reminderBatchesEnqueued: number;
     }
   | { kind: 'failed'; error: string };
 

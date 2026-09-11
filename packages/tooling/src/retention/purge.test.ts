@@ -49,6 +49,7 @@ function cohort(...discordIds: string[]) {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      reminderDue: 0,
       scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
     },
   };
