@@ -51,6 +51,7 @@ function makePreview(overrides: {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      reminderDue: 0,
       scope: overrides.scope ?? { kind: 'unrestricted', excludedEligibleCount: 0 },
     },
   } satisfies RetentionPreviewResponse;
@@ -77,6 +78,8 @@ const quietNotify: NotifyStepOutcome = {
   cohortSize: 0,
   batchesEnqueued: 0,
   breakerWarning: false,
+  reminderCohortSize: 0,
+  reminderBatchesEnqueued: 0,
 };
 
 function makeOutcome(overrides: Partial<LiveRunOutcome> = {}): LiveRunOutcome {
@@ -126,6 +129,13 @@ describe('shouldReportLiveRun', () => {
   it('is true when batchesEnqueued > 0', () => {
     const outcome = makeOutcome({
       notify: { ...quietNotify, status: 'enqueued', batchesEnqueued: 2 },
+    });
+    expect(shouldReportLiveRun(outcome)).toBe(true);
+  });
+
+  it('is true when reminderBatchesEnqueued > 0, even with no warning batches', () => {
+    const outcome = makeOutcome({
+      notify: { ...quietNotify, status: 'enqueued', reminderBatchesEnqueued: 1 },
     });
     expect(shouldReportLiveRun(outcome)).toBe(true);
   });
@@ -297,10 +307,61 @@ describe('buildLiveRunEmbed content', () => {
 
     expect(failed.description).toContain('**Notify failed:** boom');
     expect(refused.description).toContain('**Notify refused by the breaker:** too many');
-    expect(enqueuedOne.description).toContain('queued for 5 users (1 batch)');
-    expect(enqueuedMany.description).toContain('queued for 5 users (2 batches)');
-    expect(empty.description).toContain('**Notify:** nobody is awaiting a warning');
+    expect(enqueuedOne.description).toContain('warning DMs queued for 5 users (1 batch)');
+    expect(enqueuedMany.description).toContain('warning DMs queued for 5 users (2 batches)');
+    expect(empty.description).toContain('**Notify:** nobody is awaiting a warning or a reminder');
     expect(unexpectedStatus.description).toContain('**Notify:** dry_run');
+  });
+
+  it('renders the notify line in all four cohort-combination shapes', () => {
+    const both = buildLiveRunEmbed(
+      makeOutcome({
+        notify: {
+          ...quietNotify,
+          status: 'enqueued',
+          cohortSize: 5,
+          batchesEnqueued: 1,
+          reminderCohortSize: 3,
+          reminderBatchesEnqueued: 1,
+        },
+      })
+    ).toJSON();
+    const warningsOnly = buildLiveRunEmbed(
+      makeOutcome({
+        notify: { ...quietNotify, status: 'enqueued', cohortSize: 5, batchesEnqueued: 1 },
+      })
+    ).toJSON();
+    const remindersOnly = buildLiveRunEmbed(
+      makeOutcome({
+        notify: {
+          ...quietNotify,
+          status: 'enqueued',
+          reminderCohortSize: 3,
+          reminderBatchesEnqueued: 1,
+        },
+      })
+    ).toJSON();
+    const empty = buildLiveRunEmbed(makeOutcome()).toJSON();
+
+    expect(both.description).toContain('warning DMs queued for 5 users (1 batch)');
+    expect(both.description).toContain('reminders queued for 3 users (1 batch)');
+    expect(warningsOnly.description).toContain('warning DMs queued for 5 users (1 batch)');
+    expect(warningsOnly.description).not.toContain('reminders queued');
+    expect(remindersOnly.description).toContain('reminders queued for 3 users (1 batch)');
+    expect(remindersOnly.description).not.toContain('warning DMs queued');
+    expect(empty.description).toContain('**Notify:** nobody is awaiting a warning or a reminder');
+  });
+
+  it('is reportable on a reminders-only run', () => {
+    const outcome = makeOutcome({
+      notify: {
+        ...quietNotify,
+        status: 'enqueued',
+        reminderCohortSize: 3,
+        reminderBatchesEnqueued: 1,
+      },
+    });
+    expect(shouldReportLiveRun(outcome)).toBe(true);
   });
 
   it('includes the breaker-warning line only when the preview flags it', () => {
@@ -484,6 +545,16 @@ describe('shouldReportRehearsal', () => {
     ).toBe(true);
   });
 
+  it('is true on a reminders-only rehearsal (reminderCohortSize > 0, no warning cohort)', () => {
+    expect(
+      shouldReportRehearsal(makePreview({}), {
+        ...quietNotify,
+        status: 'dry_run',
+        reminderCohortSize: 4,
+      })
+    ).toBe(true);
+  });
+
   it('is false for the all-quiet case', () => {
     expect(shouldReportRehearsal(makePreview({}), quietNotify)).toBe(false);
   });
@@ -523,6 +594,28 @@ describe('buildRehearsalEmbed content', () => {
     expect(refused.description).toContain('**Notify would be refused by the breaker:** too many');
     expect(dryRun.description).toContain('**Would warn:** 7 users');
     expect(empty.description).toContain('**Would warn:** nobody');
+  });
+
+  it('renders a reminders-only dry run as "Would remind" with no "Would warn"', () => {
+    const remindersOnly = buildRehearsalEmbed(
+      makePreview({}),
+      { ...quietNotify, status: 'dry_run', cohortSize: 0, reminderCohortSize: 4 },
+      rehearsalContext
+    ).toJSON();
+
+    expect(remindersOnly.description).toContain('**Would remind:** 4 users');
+    expect(remindersOnly.description).not.toContain('**Would warn:** 0');
+  });
+
+  it('renders both clauses when both cohorts are non-empty', () => {
+    const both = buildRehearsalEmbed(
+      makePreview({}),
+      { ...quietNotify, status: 'dry_run', cohortSize: 7, reminderCohortSize: 4 },
+      rehearsalContext
+    ).toJSON();
+
+    expect(both.description).toContain('**Would warn:** 7 users');
+    expect(both.description).toContain('**Would remind:** 4 users');
   });
 
   it('includes the scope line only when scope is not unrestricted', () => {

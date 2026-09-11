@@ -38,7 +38,12 @@ import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
 import { getValidatedServiceSecret } from '../startup.js';
 import { getServiceClient } from './gatewayClients.js';
-import { isConnectionFailure, withGatewayRetry } from './gatewayRetry.js';
+import {
+  isConnectionFailure,
+  withGatewayRetry,
+  REPORT_MAX_ATTEMPTS,
+  REPORT_RETRY_BASE_DELAY_MS,
+} from './gatewayRetry.js';
 
 const logger = createLogger('gatewayServiceCalls');
 
@@ -359,9 +364,6 @@ export interface DeliveryReport {
   deletedPreviousDeliveryLogId?: string;
 }
 
-const REPORT_MAX_ATTEMPTS = 3;
-const REPORT_RETRY_BASE_DELAY_MS = 500;
-
 /** The slice of the deliveries response the worker acts on (ops report). */
 export interface DeliveryReportOutcome {
   /** True only on the report that flipped the announcement to completed. */
@@ -416,55 +418,10 @@ export async function reportDeliveries(
   };
 }
 
-/**
- * Retention notify: the worker's send-time still-eligible re-check. THROWS on
- * gateway failure — this runs BEFORE any DM is sent (same before-spend
- * contract as filterPendingDeliveries), so failing the job lets BullMQ's
- * retry re-run the batch instead of silently skipping it.
- */
-export async function filterNotifyEligible(userIds: string[]): Promise<string[]> {
-  const result = await getServiceClient().retentionNotifyFilter({ userIds });
-  if (!result.ok) {
-    logger.error({ status: result.status }, 'Failed to filter notify-eligible users');
-    throw new Error(`Notify-eligibility filter failed: ${result.status} ${result.error}`);
-  }
-  return result.data.stillEligibleUserIds;
-}
-
-/** One reported notify outcome (mirrors the internal-route contract). */
-export interface NotifyOutcomeReport {
-  userId: string;
-  status: 'sent' | 'failed_permanent' | 'failed_bot_level' | 'failed_transient';
-  errorCode?: string;
-}
-
-/**
- * Report retention-notice outcomes. AFTER-spend contract (mirrors
- * reportDeliveries): retries transient gateway failures, then returns false
- * and never throws — the DM has already happened, and the stamps'
- * IS NULL guards make the pre-send filter absorb an eventual re-run.
- */
-export async function reportNotifyOutcomes(outcomes: NotifyOutcomeReport[]): Promise<boolean> {
-  if (outcomes.length === 0) {
-    return true;
-  }
-  const { result, attempts } = await withGatewayRetry(
-    () => getServiceClient().retentionNotifyReport({ outcomes }),
-    {
-      maxAttempts: REPORT_MAX_ATTEMPTS,
-      baseDelayMs: REPORT_RETRY_BASE_DELAY_MS,
-      operation: 'reporting notify outcomes',
-    }
-  );
-  if (!result.ok) {
-    logger.error(
-      { status: result.status, attempts },
-      'Failed to report notify outcomes — un-stamped users ride the next run'
-    );
-    return false;
-  }
-  return true;
-}
+// Retention notify's two gateway seams (filterNotifyEligible,
+// NotifyOutcomeReport, reportNotifyOutcomes) live in
+// retentionNotifyGatewayCalls.ts — split out to keep this file under its
+// line budget; same typed-client pattern as everything here.
 
 // ---------------------------------------------------------------------------
 // Raw-fetch helpers (the two sanctioned exceptions to typed-client usage).

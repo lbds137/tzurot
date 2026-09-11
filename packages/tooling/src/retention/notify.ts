@@ -1,22 +1,26 @@
 /**
- * `pnpm ops retention:notify` — send the retention warning DM to every
- * reachable-but-inactive user (Retention Phase 3, the reachable branch).
+ * `pnpm ops retention:notify` — send BOTH grace-cycle notices to the
+ * reachable branch (Retention Phase 3): the warning DM to every
+ * reachable-but-inactive user, and the reminder DM to every already-warned
+ * user whose warning has stood 23-30 days.
  *
  * Non-destructive but outward-facing: each recipient gets a DM stating a
- * concrete deletion date, and every send starts a 30-day grace clock. The
- * safeguards, in the order a run hits them:
+ * concrete deletion date, a warning send starts a 30-day grace clock, and a
+ * reminder send restates the same deadline. The safeguards, in the order a
+ * run hits them:
  *
- *   1. `--dry-run` resolves and prints the cohort without enqueuing.
+ *   1. `--dry-run` resolves and prints both cohorts without enqueuing.
  *   2. In EVERY environment, `requireProductionConfirmation` is the
  *      manual-approval gate — `--force` skips the PROMPT only. Dev is not
  *      exempt: dev mirrors prod's users via sync, so a dev run DMs REAL
- *      users a deletion warning from the dev bot and starts their grace
- *      clocks.
- *   3. The gateway refuses the run when the cohort exceeds the hard-ceiling
- *      share of the userbase; `--breaker-override` is the deliberate,
- *      separate flag. The first real run is EXPECTED to trip the softer warn
- *      annotation (~15-18%, the backfilled zombie cohort) — that prints, and
- *      the run proceeds.
+ *      users a deletion warning or reminder from the dev bot and starts or
+ *      restates their grace clocks.
+ *   3. The gateway refuses the run when the WARNING cohort exceeds the
+ *      hard-ceiling share of the userbase; `--breaker-override` is the
+ *      deliberate, separate flag. The breaker is warning-only — the reminder
+ *      cohort is bounded by prior warnings and never trips it. The first real
+ *      run is EXPECTED to trip the softer warn annotation (~15-18%, the
+ *      backfilled zombie cohort) — that prints, and the run proceeds.
  *   4. The real (non-dry) run is leased: taken AFTER the confirmation (an
  *      operator pondering the prompt must not hold it) and released in a
  *      finally on normal completion and on a thrown error. An interrupt
@@ -24,9 +28,10 @@
  *      deliberately unhandled, since the leased window is one short call —
  *      and the lease's TTL reclaims it.
  *
- * **Resuming is re-running.** A sent notice stamps the user's grace clock,
- * which removes them from the notify cohort — an interrupted or partially
- * failed run picks up exactly the un-warned remainder next invocation.
+ * **Resuming is re-running.** A sent notice stamps the user's grace or
+ * reminder clock, which removes them from the matching cohort — an
+ * interrupted or partially failed run picks up exactly the un-notified
+ * remainder next invocation.
  *
  * The command returns at ENQUEUE time; the DMs go out via bot-client's
  * worker (1/sec pacing), which posts a per-batch tally to the owner channel.
@@ -57,7 +62,9 @@ export interface RetentionNotifyOptions {
 /** Print a resolved run (dry or real). Exported for testing. */
 export function renderNotifyRun(result: RetentionNotifyResponse): void {
   if (result.status === 'empty') {
-    console.log(chalk.green('\nNobody to warn — no reachable user is past the inactivity window.'));
+    console.log(
+      chalk.green('\nNobody to warn or remind — no reachable user is due for either notice.')
+    );
     console.log(chalk.dim(`  cohort: 0 of ${String(result.userbaseCount)} users`));
     return;
   }
@@ -71,12 +78,18 @@ export function renderNotifyRun(result: RetentionNotifyResponse): void {
       `(${String(result.percentOfUserbase)}% of the userbase)`
   );
 
+  console.log(chalk.bold('\nReminder cohort (warned 23-30 days ago, not yet reminded):'));
+  for (const user of result.reminderRecipients) {
+    console.log(`  ${user.discordId}  warned since ${user.inactiveSince.slice(0, 10)}`);
+  }
+  console.log(`\n  reminder cohort: ${String(result.reminderCohortSize)} users`);
+
   if (result.breakerWarning) {
     console.log(
       chalk.yellow(
         '\n⚠️  Breaker warning: the cohort exceeds the warn share of the userbase. On the FIRST ' +
           'real run this is expected (the backfilled zombie cohort); on later runs, confirm real ' +
-          'churn before proceeding.'
+          'churn before proceeding. (The breaker is computed on the warning cohort only.)'
       )
     );
   }
@@ -88,7 +101,8 @@ export function renderNotifyRun(result: RetentionNotifyResponse): void {
   if (result.status === 'enqueued') {
     console.log(
       chalk.green(
-        `\nEnqueued ${String(result.batchesEnqueued)} batch(es). DMs go out at 1/sec via ` +
+        `\nEnqueued ${String(result.batchesEnqueued)} warning batch(es) and ` +
+          `${String(result.reminderBatchesEnqueued)} reminder batch(es). DMs go out at 1/sec via ` +
           'bot-client; delivery tallies arrive in the owner channel as batches complete.'
       )
     );
@@ -172,14 +186,15 @@ export async function retentionNotify(options: RetentionNotifyOptions): Promise<
       console.log(chalk.red.bold('\n⚠️  A DEV NOTIFY IS NOT A SANDBOX OPERATION'));
       console.log(
         chalk.red(
-          "dev mirrors prod's users via sync: this run DMs REAL users a deletion\n" +
-            'warning from the dev bot and starts their 30-day grace clocks.'
+          "dev mirrors prod's users via sync: this run DMs REAL users a deletion warning\n" +
+            'or reminder from the dev bot, starting or restating their 30-day grace clocks.'
         )
       );
     }
     await requireProductionConfirmation(
       `DM a deletion warning to ${String(previewResult.data.cohortSize)} inactive users ` +
-        '(starts their 30-day grace clocks)' +
+        '(starts their 30-day grace clocks) and a reminder to ' +
+        `${String(previewResult.data.reminderCohortSize)} already-warned users` +
         (env === 'dev' ? ' via DEV, reaching the mirrored prod userbase' : '')
     );
   }

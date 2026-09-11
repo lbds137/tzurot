@@ -162,8 +162,10 @@ export const internalRetentionRoutes = {
 
   /**
    * POST /api/internal/retention/notify/filter
-   * The worker's send-time still-eligible re-check: a user active since
-   * cohort resolution must not be DMed a deletion warning.
+   * The worker's send-time still-eligible re-check, routed per notice kind: a
+   * user active since cohort resolution must not be DMed a warning, and a
+   * user active or already reminded since resolution must not be DMed a
+   * reminder.
    */
   retentionNotifyFilter: {
     audience: 'internal',

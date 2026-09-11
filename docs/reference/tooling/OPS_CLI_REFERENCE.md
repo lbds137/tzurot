@@ -119,15 +119,15 @@ Commands for analyzing and managing pgvector memories:
 
 Data-minimization tooling for the inactivity retention/purge epic:
 
-| Command                                                       | Description                                                                   |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `pnpm ops retention:preview --env dev`                        | Report the purge-eligible cohort + character impact (**read-only**)           |
-| `pnpm ops retention:backfill-last-active --env dev --dry-run` | Report which users' `last_active_at` would advance                            |
-| `pnpm ops retention:backfill-last-active --env dev`           | Seed `last_active_at` from historical activity (forward-only, idempotent)     |
-| `pnpm ops retention:backfill-last-active --env prod --force`  | Skip the production confirmation prompt                                       |
-| `pnpm ops retention:notify --env prod`                        | DM the deletion warning to reachable-but-inactive users (starts grace clocks) |
-| `pnpm ops retention:purge --env prod`                         | **ERASE** the purge-eligible cohort, one account per call                     |
-| `pnpm ops retention:reconcile-off-db --env prod`              | Retry avatar cleanup a completed purge still owes (idempotent)                |
+| Command                                                       | Description                                                                                                            |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops retention:preview --env dev`                        | Report the purge-eligible cohort + character impact (**read-only**)                                                    |
+| `pnpm ops retention:backfill-last-active --env dev --dry-run` | Report which users' `last_active_at` would advance                                                                     |
+| `pnpm ops retention:backfill-last-active --env dev`           | Seed `last_active_at` from historical activity (forward-only, idempotent)                                              |
+| `pnpm ops retention:backfill-last-active --env prod --force`  | Skip the production confirmation prompt                                                                                |
+| `pnpm ops retention:notify --env prod`                        | DM the deletion warning (and any due reminders) to the reachable branch — starts grace clocks, sends the second notice |
+| `pnpm ops retention:purge --env prod`                         | **ERASE** the purge-eligible cohort, one account per call                                                              |
+| `pnpm ops retention:reconcile-off-db --env prod`              | Retry avatar cleanup a completed purge still owes (idempotent)                                                         |
 
 **`retention:preview` is safe to run against prod** — it mutates nothing and has
 no confirmation prompt. It reads the cohort from the gateway
@@ -140,6 +140,14 @@ A user is purge-eligible when they are **unreachable** (DMs permanently failed,
 or their Discord account is gone) **and** inactive past the retention window.
 The bot owner and any `retention_exempt` account — including the Orphaned
 Characters sentinel — are always excluded.
+
+`retention:notify` sends two grace-cycle notices per reachable-but-inactive
+user, never more than one of each: the **warning** (starts the 30-day grace
+clock) and, once the warning has stood 23-30 days with no activity, a
+**reminder** — the second and last notice, restating the same deletion date.
+A user's `retention_reminded_at` stamp records the reminder was sent; any bot
+activity clears both stamps (`retention_notified_at` and
+`retention_reminded_at`), exiting the pipeline entirely.
 
 ## Telemetry Commands
 

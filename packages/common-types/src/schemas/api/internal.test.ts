@@ -49,6 +49,7 @@ import {
   RetentionNotifyFilterResponseSchema,
   RetentionNotifyReportRequestSchema,
   RetentionNotifyReportResponseSchema,
+  RetentionNoticeKindSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -867,6 +868,7 @@ describe('RetentionPreviewResponseSchema', () => {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      reminderDue: 0,
       scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
     },
   };
@@ -913,6 +915,17 @@ describe('RetentionPreviewResponseSchema', () => {
       },
     });
     expect(parsed.success).toBe(false);
+  });
+
+  it('survives the Zod strip: reminderDue', () => {
+    const parsed = RetentionPreviewResponseSchema.safeParse({
+      ...response,
+      totals: { ...response.totals, reminderDue: 7 },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.totals.reminderDue).toBe(7);
+    }
   });
 });
 
@@ -1174,6 +1187,11 @@ describe('RetentionNotifyResponseSchema', () => {
     breakerWarning: true,
     batchesEnqueued: 2,
     recipients: [{ discordId: '900000000000000001', inactiveSince: '2025-01-01T00:00:00.000Z' }],
+    reminderCohortSize: 3,
+    reminderBatchesEnqueued: 1,
+    reminderRecipients: [
+      { discordId: '900000000000000002', inactiveSince: '2025-01-01T00:00:00.000Z' },
+    ],
   };
 
   it('accepts the first-real-run shape (warn-breaker true, still enqueued)', () => {
@@ -1185,11 +1203,41 @@ describe('RetentionNotifyResponseSchema', () => {
       RetentionNotifyResponseSchema.safeParse({ ...response, status: 'partial' }).success
     ).toBe(false);
   });
+
+  it('survives the Zod strip: reminderCohortSize, reminderBatchesEnqueued, reminderRecipients', () => {
+    const parsed = RetentionNotifyResponseSchema.safeParse(response);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.reminderCohortSize).toBe(3);
+      expect(parsed.data.reminderBatchesEnqueued).toBe(1);
+      expect(parsed.data.reminderRecipients).toHaveLength(1);
+    }
+  });
+});
+
+describe('RetentionNoticeKindSchema', () => {
+  it('accepts the two grace-cycle notice kinds and rejects anything else', () => {
+    expect(RetentionNoticeKindSchema.safeParse('reminder').success).toBe(true);
+    expect(RetentionNoticeKindSchema.safeParse('nudge').success).toBe(false);
+  });
 });
 
 describe('RetentionNotifyFilterRequestSchema', () => {
   it('rejects an empty batch — the worker must not ask a vacuous question', () => {
-    expect(RetentionNotifyFilterRequestSchema.safeParse({ userIds: [] }).success).toBe(false);
+    expect(
+      RetentionNotifyFilterRequestSchema.safeParse({ userIds: [], notice: 'warning' }).success
+    ).toBe(false);
+  });
+
+  it('survives the Zod strip: notice', () => {
+    const parsed = RetentionNotifyFilterRequestSchema.safeParse({
+      userIds: ['a3bb189e-8bf9-3888-9912-ace4e6543002'],
+      notice: 'reminder',
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.notice).toBe('reminder');
+    }
   });
 });
 
@@ -1197,7 +1245,9 @@ describe('RetentionNotifyReportRequestSchema', () => {
   it('accepts a single sent outcome (the per-recipient immediate report)', () => {
     expect(
       RetentionNotifyReportRequestSchema.safeParse({
-        outcomes: [{ userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent' }],
+        outcomes: [
+          { userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent', notice: 'warning' },
+        ],
       }).success
     ).toBe(true);
   });
@@ -1205,9 +1255,23 @@ describe('RetentionNotifyReportRequestSchema', () => {
   it('rejects an outcome status outside the delivery vocabulary', () => {
     expect(
       RetentionNotifyReportRequestSchema.safeParse({
-        outcomes: [{ userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'skipped' }],
+        outcomes: [
+          { userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'skipped', notice: 'warning' },
+        ],
       }).success
     ).toBe(false);
+  });
+
+  it('survives the Zod strip: notice', () => {
+    const parsed = RetentionNotifyReportRequestSchema.safeParse({
+      outcomes: [
+        { userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent', notice: 'reminder' },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.outcomes[0]?.notice).toBe('reminder');
+    }
   });
 });
 

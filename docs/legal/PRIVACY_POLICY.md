@@ -54,8 +54,10 @@ still reach you:
   message — resets your inactivity clock entirely and cancels the deletion.
   The notice also points you at `/settings data export` (take a full copy of
   your data) and `/settings data delete` (delete immediately instead of
-  waiting). Only if the 30 days pass with no activity may your account and
-  everything associated with it be erased.
+  waiting). About a week before that date, if you still have not used the
+  bot, we send one reminder DM restating the same deletion date; no other
+  automated messages are sent. Only if the 30 days pass with no activity may
+  your account and everything associated with it be erased.
 - **If we cannot reach you** — you have closed DMs and share no server with
   the bot, so a notification cannot be delivered; or your Discord account no
   longer exists — your account may be erased without the notice, because there

@@ -66,6 +66,7 @@ describe('POST /api/internal/users/activity', () => {
     // Grace aborts on use: activity mid-grace must exit the reachable-branch
     // purge pipeline, or a warned user who came back gets purged anyway.
     expect(sql).toContain('retention_notified_at = NULL');
+    expect(sql).toContain('retention_reminded_at = NULL');
     expect(sql).toContain('discord_id');
     expect(sql).not.toContain('updated_at');
     expect(discordId).toBe(VALID_DISCORD_ID);

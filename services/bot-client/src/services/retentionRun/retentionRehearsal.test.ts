@@ -39,6 +39,7 @@ function makePreview(eligibleCount: number) {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      reminderDue: 0,
       scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
     },
   };
@@ -73,6 +74,9 @@ describe('runRetentionRehearsal', () => {
         breakerWarning: false,
         batchesEnqueued: 0,
         recipients: [],
+        reminderCohortSize: 0,
+        reminderBatchesEnqueued: 0,
+        reminderRecipients: [],
       },
     });
     mockPostOwnerChannelEmbed.mockResolvedValue(true);
@@ -130,6 +134,32 @@ describe('runRetentionRehearsal', () => {
       7 * 24 * 60 * 60,
       expect.any(String)
     );
+  });
+
+  it('posts on a reminders-only rehearsal (reminderCohortSize > 0, no warning cohort)', async () => {
+    mockClient.retentionPreview.mockResolvedValue({ ok: true, data: makePreview(0) });
+    mockClient.retentionNotify.mockResolvedValue({
+      ok: true,
+      data: {
+        status: 'dry_run',
+        cohortSize: 0,
+        userbaseCount: 300,
+        percentOfUserbase: 0,
+        breakerWarning: false,
+        batchesEnqueued: 0,
+        recipients: [],
+        reminderCohortSize: 4,
+        reminderBatchesEnqueued: 0,
+        reminderRecipients: [],
+      },
+    });
+    const redis = makeRedis(null);
+
+    await runRetentionRehearsal(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    const embed = mockPostOwnerChannelEmbed.mock.calls[0]?.[1] as EmbedBuilder;
+    expect(embed.toJSON().description).toContain('**Would remind:** 4 users');
   });
 
   it('posts and arms the cooldown when the rehearsal is worth reporting and delivered', async () => {

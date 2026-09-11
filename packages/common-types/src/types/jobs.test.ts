@@ -1361,6 +1361,7 @@ describe('BullMQ Job Contract Tests', () => {
       jobType: JobType.RetentionNotifyDm,
       responseDestination: { type: 'api' },
       runId: 'notify-2026-07-26-prod',
+      notice: 'warning' as const,
       recipients: [
         {
           userId: '323e4567-e89b-42d3-a456-426614174000',
@@ -1387,6 +1388,31 @@ describe('BullMQ Job Contract Tests', () => {
       expect(
         retentionNotifyDmJobDataSchema.safeParse({ ...validPayload, recipients: oversized }).success
       ).toBe(false);
+    });
+
+    it('should reject a payload with no notice kind', () => {
+      const { notice: _notice, ...withoutNotice } = validPayload;
+      expect(retentionNotifyDmJobDataSchema.safeParse(withoutNotice).success).toBe(false);
+    });
+
+    it('should survive the Zod strip: notice and a reminder recipient notifiedAt', () => {
+      const reminderPayload = {
+        ...validPayload,
+        notice: 'reminder' as const,
+        recipients: [
+          {
+            userId: '323e4567-e89b-42d3-a456-426614174000',
+            discordUserId: '123456789012345678',
+            notifiedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
+      };
+      const result = retentionNotifyDmJobDataSchema.safeParse(reminderPayload);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.notice).toBe('reminder');
+        expect(result.data.recipients[0]?.notifiedAt).toBe('2026-08-01T00:00:00.000Z');
+      }
     });
 
     it('should participate in the discriminated union', () => {

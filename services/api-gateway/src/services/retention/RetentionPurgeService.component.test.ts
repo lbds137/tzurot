@@ -165,7 +165,7 @@ describe('RetentionPurgeService (component, PGLite)', () => {
       WHERE id = ${GRACE_EXPIRED_USER}::uuid
     `;
     // Warned 5 days ago → mid-grace: excluded from the purge cohort AND from
-    // the notify cohort (one notice per spell), counted in inGrace.
+    // the notify (warning) cohort, counted in inGrace.
     await prisma.$executeRaw`
       UPDATE users SET retention_notified_at = ${IN_GRACE_STAMP}, last_active_at = ${OLD},
                        notify_opted_in_at = ${OLD}

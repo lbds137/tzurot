@@ -40,6 +40,7 @@ function makePreview(users: RetentionPreviewUser[]) {
       inGrace: 0,
       graceExpired: 0,
       bystander: 0,
+      reminderDue: 0,
       scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
     },
   };
@@ -61,6 +62,9 @@ function makeClient(): LiveRunClient & {
         breakerWarning: false,
         batchesEnqueued: 0,
         recipients: [],
+        reminderCohortSize: 0,
+        reminderBatchesEnqueued: 0,
+        reminderRecipients: [],
       },
     }),
     retentionPurge: vi.fn(),
@@ -425,6 +429,9 @@ describe('callRetentionNotify', () => {
         batchesEnqueued: 0,
         breakerDetail: 'cohort exceeds hard ceiling',
         recipients: [],
+        reminderCohortSize: 3,
+        reminderBatchesEnqueued: 0,
+        reminderRecipients: [],
       },
     });
 
@@ -440,6 +447,8 @@ describe('callRetentionNotify', () => {
       batchesEnqueued: 0,
       breakerWarning: true,
       breakerDetail: 'cohort exceeds hard ceiling',
+      reminderCohortSize: 3,
+      reminderBatchesEnqueued: 0,
     });
   });
 
@@ -455,6 +464,9 @@ describe('callRetentionNotify', () => {
         breakerWarning: false,
         batchesEnqueued: 1,
         recipients: [],
+        reminderCohortSize: 0,
+        reminderBatchesEnqueued: 0,
+        reminderRecipients: [],
       },
     });
 
@@ -469,6 +481,8 @@ describe('callRetentionNotify', () => {
       cohortSize: 5,
       batchesEnqueued: 1,
       breakerWarning: false,
+      reminderCohortSize: 0,
+      reminderBatchesEnqueued: 0,
     });
     expect('breakerDetail' in outcome).toBe(false);
   });

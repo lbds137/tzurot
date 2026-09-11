@@ -37,6 +37,9 @@ function runResult(overrides: Partial<Parameters<typeof renderNotifyRun>[0]> = {
       { discordId: '900000000000000001', inactiveSince: '2025-01-01T00:00:00.000Z' },
       { discordId: '900000000000000002', inactiveSince: '2025-02-01T00:00:00.000Z' },
     ],
+    reminderCohortSize: 0,
+    reminderBatchesEnqueued: 0,
+    reminderRecipients: [],
     ...overrides,
   };
 }
@@ -85,9 +88,11 @@ describe('retentionNotify', () => {
 
     await retentionNotify({ env: 'prod' });
 
-    // The confirmation names the action and the count — the operator vouches
-    // for exactly what the dry-run just showed them.
+    // The confirmation names the action and BOTH counts — the operator
+    // vouches for exactly what the dry-run just showed them, warnings and
+    // reminders alike.
     expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('2 inactive users'));
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('0 already-warned users'));
     expect(retentionNotifyMock).toHaveBeenNthCalledWith(2, {
       breakerOverride: false,
       runContext: 'ops retention:notify (prod)',
@@ -132,6 +137,19 @@ describe('retentionNotify', () => {
 
     expect(confirmMock).toHaveBeenCalled();
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the actual reminder count in the confirmation, not just the warning count', async () => {
+    retentionNotifyMock
+      .mockResolvedValueOnce({ ok: true, data: runResult({ reminderCohortSize: 5 }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1, reminderCohortSize: 5 }),
+      });
+
+    await retentionNotify({ env: 'prod' });
+
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('5 already-warned users'));
   });
 
   it('spells out the mirrored-userbase consequence before the dev prompt', async () => {
@@ -296,6 +314,49 @@ describe('renderNotifyRun', () => {
     const output = logSpy.mock.calls.flat().join('\n');
     expect(output).toContain('Breaker warning');
     expect(output).toContain('FIRST');
+    logSpy.mockRestore();
+  });
+
+  it('prints the reminder cohort under its own heading', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderNotifyRun(
+      runResult({
+        reminderCohortSize: 3,
+        reminderRecipients: [
+          { discordId: '900000000000000009', inactiveSince: '2025-08-01T00:00:00.000Z' },
+        ],
+      })
+    );
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('Reminder cohort');
+    expect(output).toContain('900000000000000009');
+    expect(output).toContain('reminder cohort: 3 users');
+    logSpy.mockRestore();
+  });
+
+  it('prints both batch counts on enqueue', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderNotifyRun(
+      runResult({ status: 'enqueued', batchesEnqueued: 2, reminderBatchesEnqueued: 1 })
+    );
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('Enqueued 2 warning batch(es) and 1 reminder batch(es)');
+    logSpy.mockRestore();
+  });
+
+  it('says nobody is due for either notice when both cohorts are empty', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderNotifyRun(
+      runResult({ status: 'empty', cohortSize: 0, recipients: [], reminderCohortSize: 0 })
+    );
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('Nobody to warn or remind');
     logSpy.mockRestore();
   });
 });

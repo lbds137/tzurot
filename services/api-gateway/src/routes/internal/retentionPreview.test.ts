@@ -36,6 +36,7 @@ const PREVIEW = {
     inGrace: 0,
     graceExpired: 0,
     bystander: 0,
+    reminderDue: 0,
     scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
   },
 };
@@ -77,6 +78,7 @@ describe('GET /api/internal/retention/preview', () => {
         inGrace: 0,
         graceExpired: 0,
         bystander: 0,
+        reminderDue: 0,
         scope: { kind: 'unrestricted' as const, excludedEligibleCount: 0 },
       },
     });

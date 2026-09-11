@@ -61,6 +61,8 @@ export async function callRetentionNotify(
       cohortSize: data.cohortSize,
       batchesEnqueued: data.batchesEnqueued,
       breakerWarning: data.breakerWarning,
+      reminderCohortSize: data.reminderCohortSize,
+      reminderBatchesEnqueued: data.reminderBatchesEnqueued,
       ...(data.breakerDetail !== undefined && { breakerDetail: data.breakerDetail }),
     };
   } catch (error) {

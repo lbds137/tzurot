@@ -30,6 +30,7 @@ export function shouldReportLiveRun(outcome: LiveRunOutcome): boolean {
     outcome.notify.kind === 'failed' ||
     (outcome.notify.kind === 'ok' && outcome.notify.status === 'refused_breaker') ||
     (outcome.notify.kind === 'ok' && outcome.notify.batchesEnqueued > 0) ||
+    (outcome.notify.kind === 'ok' && outcome.notify.reminderBatchesEnqueued > 0) ||
     outcome.reconcile.kind === 'failed' ||
     outcome.reconcile.stillFailing > 0 ||
     (outcome.reconcile.kind === 'ok' && outcome.reconcile.remaining > 0) ||
@@ -137,14 +138,25 @@ function liveNotifyLine(notify: NotifyStepOutcome): string {
     return `**Notify refused by the breaker:** ${notify.breakerDetail ?? ''}`;
   }
   if (notify.status === 'enqueued') {
-    const batchWord = notify.batchesEnqueued === 1 ? 'batch' : 'batches';
-    return (
-      `**Notify:** warning DMs queued for ${String(notify.cohortSize)} users ` +
-      `(${String(notify.batchesEnqueued)} ${batchWord})`
-    );
+    const parts: string[] = [];
+    if (notify.batchesEnqueued > 0) {
+      const batchWord = notify.batchesEnqueued === 1 ? 'batch' : 'batches';
+      parts.push(
+        `warning DMs queued for ${String(notify.cohortSize)} users ` +
+          `(${String(notify.batchesEnqueued)} ${batchWord})`
+      );
+    }
+    if (notify.reminderBatchesEnqueued > 0) {
+      const reminderBatchWord = notify.reminderBatchesEnqueued === 1 ? 'batch' : 'batches';
+      parts.push(
+        `reminders queued for ${String(notify.reminderCohortSize)} users ` +
+          `(${String(notify.reminderBatchesEnqueued)} ${reminderBatchWord})`
+      );
+    }
+    return `**Notify:** ${parts.join('; ')}`;
   }
   if (notify.status === 'empty') {
-    return '**Notify:** nobody is awaiting a warning';
+    return '**Notify:** nobody is awaiting a warning or a reminder';
   }
   return `**Notify:** ${notify.status}`;
 }
@@ -258,7 +270,8 @@ export function shouldReportRehearsal(
     preview.totals.eligibleCount > 0 ||
     notify.kind === 'failed' ||
     (notify.kind === 'ok' && notify.status === 'refused_breaker') ||
-    (notify.kind === 'ok' && notify.cohortSize > 0)
+    (notify.kind === 'ok' && notify.cohortSize > 0) ||
+    (notify.kind === 'ok' && notify.reminderCohortSize > 0)
   );
 }
 
@@ -272,7 +285,17 @@ function rehearsalNotifyLine(notify: NotifyStepOutcome): string {
   if (notify.status === 'empty') {
     return '**Would warn:** nobody';
   }
-  return `**Would warn:** ${String(notify.cohortSize)} users`;
+  const parts: string[] = [];
+  if (notify.cohortSize > 0) {
+    parts.push(`**Would warn:** ${String(notify.cohortSize)} users`);
+  }
+  if (notify.reminderCohortSize > 0) {
+    parts.push(`**Would remind:** ${String(notify.reminderCohortSize)} users`);
+  }
+  if (parts.length === 0) {
+    return '**Would warn:** nobody';
+  }
+  return parts.join(' · ');
 }
 
 /** Build the owner-channel embed for a rehearsal worth reporting. */
