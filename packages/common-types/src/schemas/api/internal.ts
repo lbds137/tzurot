@@ -58,6 +58,26 @@ export const StampUserActivityResponseSchema = z.object({
 });
 
 // ============================================================================
+// POST /internal/users/dm-undeliverable
+// Records a permanent persona-DM delivery failure so per-user unreachability
+// stays fresh for the retention purge, the same signal a release blast
+// produces via the notify pipeline. bot-client sends Discord's raw error
+// code; the gateway decides which column it stamps (dm_undeliverable_since
+// or discord_account_gone_at), keeping that mapping out of bot-client.
+// ============================================================================
+
+export const StampUserDmUndeliverableRequestSchema = z.object({
+  discordId: DiscordSnowflakeSchema,
+  /** Discord API error code rendered as a string, e.g. '50007'. */
+  errorCode: z.string().min(1).max(16),
+});
+
+export const StampUserDmUndeliverableResponseSchema = z.object({
+  /** True when a user row was stamped; false when the user has no row or the code stamps no column. */
+  stamped: z.boolean(),
+});
+
+// ============================================================================
 // POST /internal/channel/dm-session/set
 // Records active personality in a DM session. Called by bot-client after a
 // multi-tag reply selects a personality; the gateway stores it so subsequent

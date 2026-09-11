@@ -358,6 +358,13 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     seed: ctx => Promise.resolve({ body: { discordId: ctx.actorDiscordId } }),
   },
 
+  stampUserDmUndeliverable: {
+    // Same target as stampUserActivity — the provisioned actor row. A bot-level
+    // code (20026) stamps no column, so the response shape is exercised without
+    // flagging the shared actor unreachable for later fixtures (stamped: false).
+    seed: ctx => Promise.resolve({ body: { discordId: ctx.actorDiscordId, errorCode: '20026' } }),
+  },
+
   recordCommandEvent: {
     // command_events has no user FK by design (it keys on the loose Discord
     // snowflake), so the insert needs no seeded row at all — the actor's own

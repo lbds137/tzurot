@@ -418,6 +418,34 @@ export async function reportDeliveries(
   };
 }
 
+/**
+ * Reports a permanent persona-DM delivery failure so the retention purge's
+ * per-user unreachability signal stays fresh. Fire-and-forget: the reply
+ * path already failed to deliver, so it must not also wait on (or fail
+ * because of) a gateway round trip. Never throws, and no retry loop — the
+ * next persona-DM failure for this user is the retry, and the gateway's
+ * stamp is idempotently guarded, so a missed report only delays the signal.
+ * The gateway alone owns the error-code -> column mapping.
+ */
+export function reportPersonaDmUndeliverable(discordId: string, errorCode: string): void {
+  void getServiceClient()
+    .stampUserDmUndeliverable({ discordId, errorCode })
+    .then(result => {
+      if (!result.ok) {
+        logger.warn(
+          { discordId, errorCode, status: result.status },
+          'Failed to stamp persona-DM unreachability'
+        );
+      }
+    })
+    .catch((error: unknown) => {
+      logger.warn(
+        { err: error, discordId, errorCode },
+        'Failed to stamp persona-DM unreachability'
+      );
+    });
+}
+
 // Retention notify's two gateway seams (filterNotifyEligible,
 // NotifyOutcomeReport, reportNotifyOutcomes) live in
 // retentionNotifyGatewayCalls.ts — split out to keep this file under its

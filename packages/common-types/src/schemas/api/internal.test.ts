@@ -10,6 +10,8 @@ import {
   GuildMemberInfoRemoveResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
+  StampUserDmUndeliverableRequestSchema,
+  StampUserDmUndeliverableResponseSchema,
   RecordCommandEventRequestSchema,
   RecordCommandEventResponseSchema,
   ExportSmokeStartRequestSchema,
@@ -281,6 +283,75 @@ describe('StampUserActivityRequestSchema and StampUserActivityResponseSchema', (
 
   it('response rejects a non-boolean stamped', () => {
     expect(StampUserActivityResponseSchema.safeParse({ stamped: 'yes' }).success).toBe(false);
+  });
+});
+
+describe('StampUserDmUndeliverableRequestSchema and StampUserDmUndeliverableResponseSchema', () => {
+  it('request accepts a valid snowflake + error code', () => {
+    expect(
+      StampUserDmUndeliverableRequestSchema.safeParse({
+        discordId: '123456789012345678',
+        errorCode: '50007',
+      }).success
+    ).toBe(true);
+  });
+
+  it('request rejects a non-snowflake discordId', () => {
+    expect(
+      StampUserDmUndeliverableRequestSchema.safeParse({
+        discordId: 'not-a-snowflake',
+        errorCode: '50007',
+      }).success
+    ).toBe(false);
+  });
+
+  it('request rejects a missing errorCode', () => {
+    expect(
+      StampUserDmUndeliverableRequestSchema.safeParse({
+        discordId: '123456789012345678',
+      }).success
+    ).toBe(false);
+  });
+
+  it('request rejects an empty errorCode', () => {
+    expect(
+      StampUserDmUndeliverableRequestSchema.safeParse({
+        discordId: '123456789012345678',
+        errorCode: '',
+      }).success
+    ).toBe(false);
+  });
+
+  it('request rejects an errorCode over the 16-char cap', () => {
+    expect(
+      StampUserDmUndeliverableRequestSchema.safeParse({
+        discordId: '123456789012345678',
+        errorCode: 'x'.repeat(17),
+      }).success
+    ).toBe(false);
+  });
+
+  it('response accepts stamped true and false', () => {
+    expect(StampUserDmUndeliverableResponseSchema.safeParse({ stamped: true }).success).toBe(true);
+    expect(StampUserDmUndeliverableResponseSchema.safeParse({ stamped: false }).success).toBe(true);
+  });
+
+  it('response rejects a non-boolean stamped', () => {
+    expect(StampUserDmUndeliverableResponseSchema.safeParse({ stamped: 'yes' }).success).toBe(
+      false
+    );
+  });
+
+  /**
+   * Zod-strip pin: the typed client returns `outputSchema.safeParse(...).data`,
+   * so an undeclared response key would be deleted before any caller sees it.
+   * Pinning `stamped` survives the parse guards against that class of silent
+   * loss if the field is ever renamed without updating this schema.
+   */
+  it('survives the Zod strip: stamped', () => {
+    const parsed = StampUserDmUndeliverableResponseSchema.safeParse({ stamped: true });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.stamped).toBe(true);
   });
 });
 
@@ -1239,6 +1310,15 @@ describe('RetentionNotifyFilterRequestSchema', () => {
       expect(parsed.data.notice).toBe('reminder');
     }
   });
+
+  it('rejects a payload with no notice kind', () => {
+    const validPayload = {
+      userIds: ['a3bb189e-8bf9-3888-9912-ace4e6543002'],
+      notice: 'warning',
+    };
+    const { notice: _notice, ...withoutNotice } = validPayload;
+    expect(RetentionNotifyFilterRequestSchema.safeParse(withoutNotice).success).toBe(false);
+  });
 });
 
 describe('RetentionNotifyReportRequestSchema', () => {
@@ -1272,6 +1352,18 @@ describe('RetentionNotifyReportRequestSchema', () => {
     if (parsed.success) {
       expect(parsed.data.outcomes[0]?.notice).toBe('reminder');
     }
+  });
+
+  it('rejects a payload with no notice kind', () => {
+    const validPayload = {
+      outcomes: [
+        { userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent', notice: 'warning' },
+      ],
+    };
+    const { notice: _notice, ...withoutNotice } = validPayload.outcomes[0];
+    expect(
+      RetentionNotifyReportRequestSchema.safeParse({ outcomes: [withoutNotice] }).success
+    ).toBe(false);
   });
 });
 
