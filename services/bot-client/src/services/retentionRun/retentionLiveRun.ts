@@ -9,6 +9,7 @@ import type {
   RetentionPurgeResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import type { ServiceClient } from '@tzurot/clients';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isRetentionRunLeaseLost } from './retentionRunLease.js';
 import type {
   LiveRunOutcome,
@@ -17,6 +18,8 @@ import type {
   ReconcileOutcome,
   RetentionPreviewUser,
 } from './types.js';
+
+const logger = createLogger('retention-run');
 
 /** Run-context label sent on every notify/purge call the live run makes. */
 export const LIVE_RUN_CONTEXT = 'job:retention-daily';
@@ -89,6 +92,25 @@ async function callPurge(
 }
 
 /**
+ * Tally one failed purge attempt (a real client failure, or an unrecognized
+ * status treated as one) onto the running outcome and apply the same
+ * consecutive-failure abort check both failure paths share.
+ */
+function tallyPurgeFailure(
+  outcome: PurgeLoopOutcome,
+  kind: string,
+  consecutiveFailures: number
+): number {
+  outcome.failed += 1;
+  outcome.failureKinds[kind] = (outcome.failureKinds[kind] ?? 0) + 1;
+  const nextConsecutive = consecutiveFailures + 1;
+  if (nextConsecutive >= MAX_CONSECUTIVE_PURGE_FAILURES) {
+    outcome.halt = { kind: 'aborted_consecutive_failures', consecutiveFailures: nextConsecutive };
+  }
+  return nextConsecutive;
+}
+
+/**
  * Apply one purge call's result onto the running outcome, returning the
  * updated consecutive-failure count. Split out of the loop to keep both
  * under the per-function complexity budget.
@@ -102,22 +124,34 @@ function applyPurgeResult(
   outcome.attempted += 1;
 
   if (result.ok) {
-    if (result.data.status === 'purged') {
-      outcome.purged.push(user);
-      outcome.charactersDeleted += result.data.charactersDeleted ?? 0;
-      outcome.charactersReHomed += result.data.charactersReHomed ?? 0;
-      return 0;
+    switch (result.data.status) {
+      case 'purged': {
+        outcome.purged.push(user);
+        outcome.charactersDeleted += result.data.charactersDeleted ?? 0;
+        outcome.charactersReHomed += result.data.charactersReHomed ?? 0;
+        return 0;
+      }
+      case 'skipped': {
+        if (result.data.reason === 'breaker_tripped') {
+          // The gateway re-counts the hard ceiling on EVERY purge call, so the
+          // job never duplicates the threshold here — it only reacts to the
+          // gateway's own refusal and stops issuing further purges.
+          outcome.halt = { kind: 'breaker_tripped', detail: result.data.detail ?? '' };
+          return consecutiveFailures;
+        }
+        const reasonKey = result.data.reason ?? 'unspecified';
+        outcome.skippedByReason[reasonKey] = (outcome.skippedByReason[reasonKey] ?? 0) + 1;
+        return 0;
+      }
+      default: {
+        // The typed client's Zod parse means an unknown status cannot reach
+        // here through the real client today; this branch is the
+        // compile-time guard for enum growth plus a runtime backstop.
+        const unknownStatus: never = result.data.status;
+        logger.warn({ status: String(unknownStatus) }, 'Purge returned an unrecognized status');
+        return tallyPurgeFailure(outcome, 'unknown_status', consecutiveFailures);
+      }
     }
-    if (result.data.reason === 'breaker_tripped') {
-      // The gateway re-counts the hard ceiling on EVERY purge call, so the
-      // job never duplicates the threshold here — it only reacts to the
-      // gateway's own refusal and stops issuing further purges.
-      outcome.halt = { kind: 'breaker_tripped', detail: result.data.detail ?? '' };
-      return consecutiveFailures;
-    }
-    const reasonKey = result.data.reason ?? 'unspecified';
-    outcome.skippedByReason[reasonKey] = (outcome.skippedByReason[reasonKey] ?? 0) + 1;
-    return 0;
   }
 
   if (isRetentionRunLeaseLost(result)) {
@@ -125,13 +159,7 @@ function applyPurgeResult(
     return consecutiveFailures;
   }
 
-  outcome.failed += 1;
-  outcome.failureKinds[result.kind] = (outcome.failureKinds[result.kind] ?? 0) + 1;
-  const nextConsecutive = consecutiveFailures + 1;
-  if (nextConsecutive >= MAX_CONSECUTIVE_PURGE_FAILURES) {
-    outcome.halt = { kind: 'aborted_consecutive_failures', consecutiveFailures: nextConsecutive };
-  }
-  return nextConsecutive;
+  return tallyPurgeFailure(outcome, result.kind, consecutiveFailures);
 }
 
 /**
