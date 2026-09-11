@@ -37,7 +37,7 @@ _beta.222 CUT 2026-09-11 (10 PRs / 9 runtime / 152 range files; no migrations; P
 - **Driver**: Fable with nested dispatch per `/tzurot-orchestration` for units; the Opus lane for drain days when Fable runs low. **Owner decisions carried (binding)**: everything in the ⚖️ block below, plus **2026-09-11**: retention autonomy stays ON for the first prod run (no report-only staging); the cut on the backstop; session mining deferred to the next 4–6-week window.
 - **In**: _(empty at cut time; grows as PRs merge)_.
 - **Scheduled units (in this order)**:
-  1. **TASK-926 close** — observation only: the first autonomous prod run's report in the owner channel (~60 s after the beta.222 bot-client boot); record it on CURRENT.md's retention calendar line and mark the task Done. If the report never posts, TASK-932 (the lost-report path) is the first unit instead of a watch.
+  1. ~~**TASK-926 close**~~ DONE 2026-09-11: the first autonomous prod run fired 60 s after boot (attempted 0, purged 0, one warning DM sent, no halt, report delivered); recorded on CURRENT.md's retention calendar line.
   2. **TASK-934** (medium, M) — `pnpm ops worktree:transfer` and `unit:closeout`, the doc-99 lever-1 build; the measured target is the 72.6% of main-loop calls spent on transfer, PR, review and close-out bookkeeping.
   3. **TASK-932** (medium) — a failed live retention report is lost; the nag hourly preview; the exhaustive status switch.
   4. **TASK-923 second half** — the prod measurement of the narrowed bracket strip (`headerLinesStripped` and the echo-strip warn) plus the name-agnostic matcher decision (owner call recorded in CURRENT.md).
