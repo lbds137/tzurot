@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-04 22:03'
+updated_date: '2026-09-11 19:24'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 889000
@@ -23,3 +24,13 @@ Owner question: should voice browse keep replacing the page on a failed fetch, o
 Recommendation: follow up ephemerally like the others — one behaviour across browse surfaces is easier to explain and the page the user was on stays visible; the change is one call plus one test, and the existing editReply test is updated rather than deleted.
 Acceptance: a decision is recorded here; if aligned, voice pagination calls followUpBrowsePageFailure on !result.ok and its test asserts the followUp seam.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: owner-ruling
+created: 2026-09-11 19:24
+---
+Owner ruling 2026-09-11: follow up ephemerally and keep the page, matching the other five browse surfaces. Build via the drain.
+---
+<!-- COMMENTS:END -->
