@@ -41,6 +41,7 @@ import { handleSetDmSession } from '../internal/dmSessionSet.js';
 import { handleRecordGuildMemberInfo } from '../internal/guildMemberInfoRecord.js';
 import { handleRemoveGuildMemberInfo } from '../internal/guildMemberInfoRemove.js';
 import { handleStampUserActivity } from '../internal/usersActivity.js';
+import { handleStampUserDmUndeliverable } from '../internal/usersDmUndeliverable.js';
 import { handleLookupPersonalityFromMessage } from '../user/conversationLookup.js';
 import { handlePersistAssistantMessage } from '../internal/conversationAssistantMessage.js';
 import { handlePersistUserMessage } from '../internal/conversationUserMessage.js';
@@ -130,6 +131,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/internal/guild-member-info', handleRecordGuildMemberInfo(deps));
   app.delete('/api/internal/guild-member-info', handleRemoveGuildMemberInfo(deps));
   app.post('/api/internal/users/activity', handleStampUserActivity(deps));
+  app.post('/api/internal/users/dm-undeliverable', handleStampUserDmUndeliverable(deps));
   app.get('/api/internal/conversation/message-personality', handleLookupPersonalityFromMessage(deps));
   app.post('/api/internal/conversation/assistant-message', handlePersistAssistantMessage(deps));
   app.post('/api/internal/conversation/user-message', handlePersistUserMessage(deps));

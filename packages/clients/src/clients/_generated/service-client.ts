@@ -168,6 +168,18 @@ export class ServiceClient {
     });
   }
 
+  async stampUserDmUndeliverable(input: z.input<typeof ROUTE_MANIFEST.stampUserDmUndeliverable.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.stampUserDmUndeliverable.output>>> {
+    const fullPath = '/api/internal/users/dm-undeliverable';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.stampUserDmUndeliverable.output,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */

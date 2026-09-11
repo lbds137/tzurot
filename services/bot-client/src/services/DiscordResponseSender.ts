@@ -27,6 +27,8 @@ import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';
+import { classifyDmError, dmErrorCode } from '../utils/dmErrorClassifier.js';
+import { reportPersonaDmUndeliverable } from '../utils/gatewayServiceCalls.js';
 
 const logger = createLogger('DiscordResponseSender');
 
@@ -256,10 +258,22 @@ export class DiscordResponseSender {
       const isLastChunk = i === chunks.length - 1;
       const files = isLastChunk ? ttsFiles : undefined;
 
-      const sentMessage = await dmChannel.send({
-        content: chunks[i],
-        ...(files !== undefined && { files }),
-      });
+      let sentMessage;
+      try {
+        sentMessage = await dmChannel.send({
+          content: chunks[i],
+          ...(files !== undefined && { files }),
+        });
+      } catch (error) {
+        const classified = classifyDmError(error);
+        if (classified.kind === 'permanent') {
+          // Fire-and-forget: the failed reply path must not also wait on a
+          // gateway round trip. Rethrow below preserves the caller's existing
+          // failure handling unchanged.
+          reportPersonaDmUndeliverable(dmChannel.recipientId, dmErrorCode(classified));
+        }
+        throw error;
+      }
 
       await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);

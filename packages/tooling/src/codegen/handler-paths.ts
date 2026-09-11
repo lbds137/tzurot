@@ -136,6 +136,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   // Internal
   recentUsers: '../internal/usersRecent.js',
   stampUserActivity: '../internal/usersActivity.js',
+  stampUserDmUndeliverable: '../internal/usersDmUndeliverable.js',
   listPersonalityAliases: PERSONALITY_ALIASES_PATH,
   addPersonalityAlias: PERSONALITY_ALIASES_PATH,
   removePersonalityAlias: PERSONALITY_ALIASES_PATH,

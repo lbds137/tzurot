@@ -18,7 +18,9 @@
  * the blast route swallows (its ledger row is already terminal, a 500 would
  * strand it), the notify report route propagates (its stamps ARE the terminal
  * transition, and the worker's retry makes a re-report safe via these same
- * idempotent guards).
+ * idempotent guards), and the persona-DM route (users/dm-undeliverable)
+ * propagates too: its bot-client caller is fire-and-forget and only warns on
+ * a non-ok result, so a 500 cascades nowhere and the next failure re-reports.
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
