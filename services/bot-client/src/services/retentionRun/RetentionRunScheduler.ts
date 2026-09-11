@@ -32,6 +32,7 @@ import { postOwnerChannelEmbed } from '../../utils/ownerChannel.js';
 import { beginRetentionRunLease, releaseRetentionRunLease } from './retentionRunLease.js';
 import { executeLiveRun, LIVE_RUN_CONTEXT } from './retentionLiveRun.js';
 import { shouldReportLiveRun, buildLiveRunEmbed, summarizeLiveRun } from './retentionRunReport.js';
+import { replayPendingReport, stashUndeliveredReport } from './retentionPendingReport.js';
 import { runRetentionNagCheck } from './retentionNag.js';
 import { runRetentionRehearsal } from './retentionRehearsal.js';
 import type { LiveRunOutcome } from './types.js';
@@ -91,6 +92,10 @@ export async function runRetentionTick(client: Client, redis: Redis): Promise<vo
       return;
     }
     if (mode === 'nag') {
+      // A report stashed by a live run before the kill switch was flipped off
+      // still has to reach the owner channel; nag mode never writes the
+      // stash itself, so replay is the only path back to delivery.
+      await replayPendingReport(client, redis);
       await runRetentionNagCheck(client, redis);
       return;
     }
@@ -100,13 +105,17 @@ export async function runRetentionTick(client: Client, redis: Redis): Promise<vo
   }
 }
 
-async function reportLiveRun(client: Client, outcome: LiveRunOutcome): Promise<void> {
+async function reportLiveRun(client: Client, redis: Redis, outcome: LiveRunOutcome): Promise<void> {
   if (!shouldReportLiveRun(outcome)) {
     logger.info(summarizeLiveRun(outcome), 'Quiet retention run — nothing to report');
     return;
   }
-  const delivered = await postOwnerChannelEmbed(client, buildLiveRunEmbed(outcome));
+  const embed = buildLiveRunEmbed(outcome);
+  const delivered = await postOwnerChannelEmbed(client, embed);
   logger.info({ ...summarizeLiveRun(outcome), delivered }, 'Retention run report');
+  if (!delivered) {
+    await stashUndeliveredReport(redis, embed, outcome);
+  }
 }
 
 /**
@@ -115,6 +124,11 @@ async function reportLiveRun(client: Client, outcome: LiveRunOutcome): Promise<v
  * tests; dispatched to by `runRetentionTick` when the mode is `live`.
  */
 export async function runLiveTick(client: Client, redis: Redis): Promise<void> {
+  // Replay before the cooldown read so a stashed report gets retried on
+  // every hourly tick during the cooldown window — which is exactly when no
+  // new report will be generated to take its place.
+  await replayPendingReport(client, redis);
+
   const cooling = await redis.get(LIVE_COOLDOWN_KEY);
   if (cooling !== null) {
     logger.debug('Retention live run is in cooldown');
@@ -160,5 +174,5 @@ export async function runLiveTick(client: Client, redis: Redis): Promise<void> {
     await releaseRetentionRunLease(serviceClient, runId);
   }
 
-  await reportLiveRun(client, outcome);
+  await reportLiveRun(client, redis, outcome);
 }
