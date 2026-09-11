@@ -102,6 +102,15 @@ model User {
   /// purge-eligible with reason grace_expired (retention/eligibility.ts is the
   /// single source). Reads guard with != null.
   retentionNotifiedAt   DateTime?                  @map("retention_notified_at")
+  /// State machine (the grace clock's second notice): NULL until the retention
+  /// REMINDER DM is confirmed SENT, which happens once per grace cycle when
+  /// retentionNotifiedAt is REMINDER_LEAD_DAYS short of the grace window; set to
+  /// the send-confirmation time, never advancing while non-null. Cleared back to
+  /// NULL by the same activity stamp sites that clear retentionNotifiedAt, so a
+  /// user who returns mid-grace and later goes inactive again gets a fresh
+  /// warning-then-reminder pair. Never set while retentionNotifiedAt is NULL.
+  /// Reads guard with != null.
+  retentionRemindedAt   DateTime?                  @map("retention_reminded_at")
   /// Operator-set exemption: when true, the retention purge job never selects
   /// this user (test/burner/VIP/pending-dispute accounts). Distinct from
   /// isSuperuser (which grants admin powers — the wrong lever for an exemption).
