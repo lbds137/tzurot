@@ -18,6 +18,7 @@ const mockServiceClient = {
   lookupPersonalityFromMessage: vi.fn(),
   updateDiagnosticResponseIds: vi.fn(),
   stampUserActivity: vi.fn(),
+  stampUserDmUndeliverable: vi.fn(),
   aiGenerate: vi.fn(),
   aiConfirmDelivery: vi.fn(),
   releaseBroadcastPending: vi.fn(),
@@ -40,6 +41,7 @@ import {
   lookupPersonalityFromMessage,
   updateDiagnosticResponseIds,
   stampUserActivity,
+  reportPersonaDmUndeliverable,
   generate,
   confirmDelivery,
   filterPendingDeliveries,
@@ -222,6 +224,40 @@ describe('fire-and-forget helpers', () => {
     expect(mockServiceClient.stampUserActivity).toHaveBeenCalledWith({
       discordId: '123456789012345678',
     });
+  });
+
+  it('reportPersonaDmUndeliverable forwards discordId + errorCode across the seam', async () => {
+    mockServiceClient.stampUserDmUndeliverable.mockResolvedValue(ok({ stamped: true }));
+
+    reportPersonaDmUndeliverable('123456789012345678', '50007');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockServiceClient.stampUserDmUndeliverable).toHaveBeenCalledWith({
+      discordId: '123456789012345678',
+      errorCode: '50007',
+    });
+  });
+
+  it('reportPersonaDmUndeliverable warns and does not throw on a non-ok result', async () => {
+    mockServiceClient.stampUserDmUndeliverable.mockResolvedValue(makeErr(500, 'boom'));
+
+    expect(() => reportPersonaDmUndeliverable('123456789012345678', '50007')).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockServiceClient.stampUserDmUndeliverable).toHaveBeenCalledTimes(1);
+  });
+
+  it('reportPersonaDmUndeliverable never throws and produces no unhandled rejection when the client rejects', async () => {
+    mockServiceClient.stampUserDmUndeliverable.mockRejectedValue(new Error('socket hang up'));
+
+    expect(() => reportPersonaDmUndeliverable('123456789012345678', '50007')).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockServiceClient.stampUserDmUndeliverable).toHaveBeenCalledTimes(1);
   });
 
   it('filterPendingDeliveries THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {

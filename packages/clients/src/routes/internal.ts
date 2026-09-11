@@ -45,6 +45,8 @@ import {
   GuildMemberInfoRemoveResponseSchema,
   StampUserActivityRequestSchema,
   StampUserActivityResponseSchema,
+  StampUserDmUndeliverableRequestSchema,
+  StampUserDmUndeliverableResponseSchema,
   RecordCommandEventRequestSchema,
   RecordCommandEventResponseSchema,
   ExportSmokeStartRequestSchema,
@@ -263,6 +265,22 @@ const baseInternalRoutes = {
     id: 'stampUserActivity',
     input: StampUserActivityRequestSchema,
     output: StampUserActivityResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/users/dm-undeliverable
+   * Records a permanent persona-DM delivery failure so per-user
+   * unreachability stays fresh for the retention purge — the same signal a
+   * release blast produces via the notify pipeline.
+   */
+  stampUserDmUndeliverable: {
+    audience: 'internal',
+    method: 'post',
+    path: '/users/dm-undeliverable',
+    id: 'stampUserDmUndeliverable',
+    input: StampUserDmUndeliverableRequestSchema,
+    output: StampUserDmUndeliverableResponseSchema,
     serviceOnly: true,
   },
 

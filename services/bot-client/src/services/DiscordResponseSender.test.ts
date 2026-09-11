@@ -7,7 +7,7 @@ import { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { Message } from 'discord.js';
-import { TextChannel, ThreadChannel } from 'discord.js';
+import { DiscordAPIError, TextChannel, ThreadChannel } from 'discord.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 
 // Mock dependencies
@@ -19,6 +19,12 @@ vi.mock('../redis.js', () => ({
     checkHealth: vi.fn(),
     close: vi.fn(),
   },
+}));
+
+const mockReportPersonaDmUndeliverable = vi.fn();
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  reportPersonaDmUndeliverable: (...args: unknown[]) =>
+    (mockReportPersonaDmUndeliverable as (...args: unknown[]) => unknown)(...args),
 }));
 
 // Hoisted spy so individual tests can flip `isBotOwner` per case without
@@ -631,6 +637,130 @@ describe('DiscordResponseSender', () => {
 
       expect(result.chunkMessageIds).toEqual(['dm-msg-1', 'dm-msg-2']);
       expect(result.chunkCount).toBe(2);
+    });
+  });
+
+  describe('sendResponse - DM permanent-failure stamping', () => {
+    beforeEach(() => {
+      mockReportPersonaDmUndeliverable.mockClear();
+    });
+
+    function createMockDmChannel(id: string, recipientId: string) {
+      const mockChannel = createMockTextChannel(id);
+      mockChannel.recipientId = recipientId;
+      return mockChannel;
+    }
+
+    it('reports 50007 as permanent and still propagates the failure', async () => {
+      const mockChannel = createMockDmChannel('dm-1', '111111111111111111');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const blocked = new DiscordAPIError(
+        { code: 50007, message: 'Cannot send messages to this user' },
+        50007,
+        403,
+        'POST',
+        'url',
+        {}
+      );
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockRejectedValue(blocked);
+
+      await expect(
+        sender.sendResponse({
+          content: 'Hello in DM!',
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+        // toBe, not toThrow(): the caller's failure handling is unchanged only
+        // if the ORIGINAL error object propagates, not merely some error.
+      ).rejects.toBe(blocked);
+
+      expect(mockReportPersonaDmUndeliverable).toHaveBeenCalledWith('111111111111111111', '50007');
+    });
+
+    it('reports 50278 as permanent and still propagates the failure', async () => {
+      const mockChannel = createMockDmChannel('dm-2', '222222222222222222');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const noMutualGuilds = new DiscordAPIError(
+        { code: 50278, message: 'No mutual guilds' },
+        50278,
+        403,
+        'POST',
+        'url',
+        {}
+      );
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockRejectedValue(noMutualGuilds);
+
+      await expect(
+        sender.sendResponse({
+          content: 'Hello in DM!',
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+      ).rejects.toBe(noMutualGuilds);
+
+      expect(mockReportPersonaDmUndeliverable).toHaveBeenCalledWith('222222222222222222', '50278');
+    });
+
+    it('does NOT report a transient failure, and still propagates it', async () => {
+      const mockChannel = createMockDmChannel('dm-3', '333333333333333333');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const serverError = new DiscordAPIError(
+        { code: 0, message: 'Internal Server Error' },
+        500,
+        500,
+        'POST',
+        'url',
+        {}
+      );
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockRejectedValue(serverError);
+
+      await expect(
+        sender.sendResponse({
+          content: 'Hello in DM!',
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+      ).rejects.toBe(serverError);
+
+      expect(mockReportPersonaDmUndeliverable).not.toHaveBeenCalled();
+    });
+
+    it('does NOT report a bot-level failure (20026), and still propagates it', async () => {
+      const mockChannel = createMockDmChannel('dm-5', '555555555555555555');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const quarantined = new DiscordAPIError(
+        { code: 20026, message: 'Bot quarantined' },
+        20026,
+        403,
+        'POST',
+        'url',
+        {}
+      );
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockRejectedValue(quarantined);
+
+      await expect(
+        sender.sendResponse({
+          content: 'Hello in DM!',
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+      ).rejects.toBe(quarantined);
+
+      expect(mockReportPersonaDmUndeliverable).not.toHaveBeenCalled();
+    });
+
+    it('does NOT report on a successful DM send', async () => {
+      const mockChannel = createMockDmChannel('dm-4', '444444444444444444');
+      const mockMessage = createMockMessage(mockChannel, null);
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'dm-msg-ok' });
+
+      await sender.sendResponse({
+        content: 'Hello in DM!',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+      });
+
+      expect(mockReportPersonaDmUndeliverable).not.toHaveBeenCalled();
     });
   });
 
