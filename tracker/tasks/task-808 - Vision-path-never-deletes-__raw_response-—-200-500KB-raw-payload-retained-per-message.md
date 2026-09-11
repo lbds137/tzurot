@@ -3,9 +3,10 @@ id: TASK-808
 title: >-
   Vision path never deletes __raw_response — 200-500KB raw payload retained per
   message
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 01:02'
+updated_date: '2026-09-11 00:53'
 labels:
   - 'area:ai-worker'
   - 'size:S'
