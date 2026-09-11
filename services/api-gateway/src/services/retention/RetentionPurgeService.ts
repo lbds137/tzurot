@@ -21,6 +21,7 @@ import {
   countEligibleUsers,
   countInGrace,
   countNotifyCohort,
+  countRemindCohort,
   selectEligibleUsers,
   type PurgeCohortRow,
   type PurgeReason,
@@ -98,6 +99,8 @@ export interface RetentionPreview {
     graceExpired: number;
     /** Never deliberately used the bot — the silent-purge subset of the cohort. */
     bystander: number;
+    /** Warned 23-30 days ago, reachable, not yet reminded — the reminder cohort. */
+    reminderDue: number;
     /**
      * Which purge scope this environment applies, and how many purge-eligible
      * accounts that scope leaves out of this preview entirely (0 under
@@ -180,17 +183,24 @@ export class RetentionPurgeService {
     // scope-narrowed environment the NUMERATOR (the cohort) is the narrowed
     // set while this denominator stays the whole userbase — the share of the
     // userbase this run can actually erase.
-    const [cohort, userbaseCount, reachableToNotify, inGrace, unrestrictedEligibleCount] =
-      await Promise.all([
-        this.selectPurgeCohort(),
-        this.prisma.user.count(),
-        countNotifyCohort(this.prisma),
-        countInGrace(this.prisma),
-        // Only queried when the scope actually narrows the cohort — an
-        // unrestricted environment's excluded count is always 0, so the extra
-        // COUNT(*) would be pure waste on the common (production) path.
-        this.scope.kind === 'unrestricted' ? null : countEligibleUsers(this.prisma, null),
-      ]);
+    const [
+      cohort,
+      userbaseCount,
+      reachableToNotify,
+      inGrace,
+      reminderDue,
+      unrestrictedEligibleCount,
+    ] = await Promise.all([
+      this.selectPurgeCohort(),
+      this.prisma.user.count(),
+      countNotifyCohort(this.prisma),
+      countInGrace(this.prisma),
+      countRemindCohort(this.prisma),
+      // Only queried when the scope actually narrows the cohort — an
+      // unrestricted environment's excluded count is always 0, so the extra
+      // COUNT(*) would be pure waste on the common (production) path.
+      this.scope.kind === 'unrestricted' ? null : countEligibleUsers(this.prisma, null),
+    ]);
 
     // Concurrent, not sequential: bot-client's daily retention job calls this
     // on a schedule, so a per-user round-trip chain would put the whole
@@ -226,6 +236,7 @@ export class RetentionPurgeService {
         // to eligibleCount.
         graceExpired: users.filter(u => u.reason === 'grace_expired').length,
         bystander: users.filter(u => u.reason === 'bystander').length,
+        reminderDue,
         scope: {
           kind: this.scope.kind,
           excludedEligibleCount:

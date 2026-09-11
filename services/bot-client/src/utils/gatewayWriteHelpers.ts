@@ -19,8 +19,8 @@ import { withGatewayRetry } from './gatewayRetry.js';
 const logger = createLogger('gatewayWriteHelpers');
 
 /**
- * Retry budget for the assistant persist. Matches the after-spend report
- * convention in `gatewayServiceCalls.ts` (`REPORT_MAX_ATTEMPTS` /
+ * Retry budget for the assistant persist. Matches the shared after-spend
+ * report policy in `gatewayRetry.ts` (`REPORT_MAX_ATTEMPTS` /
  * `REPORT_RETRY_BASE_DELAY_MS`): the message is already on Discord when this
  * runs, so the write is worth a short bounded retry, not a long one.
  */

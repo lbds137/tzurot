@@ -17,8 +17,12 @@ export const RETENTION_POLICY = {
   WINDOW_DAYS: 180,
   /**
    * The reachable branch's grace window (Phase 3, owner call): days between
-   * the warning DM landing and purge eligibility. Any bot use during grace
-   * clears retention_notified_at and exits the pipeline entirely.
+   * the warning DM landing and purge eligibility. A reminder DM goes out
+   * `REMINDER_LEAD_DAYS` before the deadline (see that constant). Any bot use
+   * during grace clears both retention_notified_at and retention_reminded_at
+   * and exits the pipeline entirely.
    */
   GRACE_PERIOD_DAYS: 30,
+  /** Days before the grace deadline that the single reminder DM goes out. */
+  REMINDER_LEAD_DAYS: 7,
 } as const;

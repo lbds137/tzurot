@@ -5,10 +5,13 @@ import {
   countEligibleUsers,
   countInGrace,
   countNotifyCohort,
+  countRemindCohort,
   filterStillNotifyEligible,
+  filterStillRemindEligible,
   isStillEligibleForPurge,
   selectEligibleUsers,
   selectNotifyCohort,
+  selectRemindCohort,
 } from './eligibility.js';
 
 /**
@@ -190,7 +193,7 @@ describe('the notify predicate (Phase 3)', () => {
     // Reachable: BOTH unreachable stamps must be null...
     expect(sql).toContain('u.dm_undeliverable_since IS NULL');
     expect(sql).toContain('u.discord_account_gone_at IS NULL');
-    // ...one notice per inactivity spell (also the cross-run idempotency guard)...
+    // ...un-warned (also the cross-run idempotency guard for the warning)...
     expect(sql).toContain('u.retention_notified_at IS NULL');
     // ...only DELIBERATE users get the notice (bystanders purge silently)...
     expect(sql).toContain('u.notify_opted_in_at IS NOT NULL');
@@ -220,6 +223,74 @@ describe('the notify predicate (Phase 3)', () => {
     await selectNotifyCohort(db, null);
 
     expect(flattenSql(queryRaw.mock.calls[0])).not.toContain('ANY(');
+  });
+});
+
+describe('the reminder predicate', () => {
+  it('selects reachable, warned-but-not-reminded users, scoped to the window bounds', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectRemindCohort(db, null);
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.dm_undeliverable_since IS NULL');
+    expect(sql).toContain('u.discord_account_gone_at IS NULL');
+    expect(sql).toContain('u.retention_notified_at IS NOT NULL');
+    expect(sql).toContain('u.retention_reminded_at IS NULL');
+    expect(sql).toContain('u.retention_notified_at <');
+    expect(sql).toContain('u.retention_notified_at >=');
+    expect(sql).toContain('u.is_superuser = false');
+    expect(sql).toContain('u.retention_exempt = false');
+    // The lower bound is GRACE_PERIOD_DAYS - REMINDER_LEAD_DAYS; the upper is GRACE_PERIOD_DAYS.
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(
+      RETENTION_POLICY.GRACE_PERIOD_DAYS - RETENTION_POLICY.REMINDER_LEAD_DAYS
+    );
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_POLICY.GRACE_PERIOD_DAYS);
+  });
+
+  it('narrows by the outbound-DM allowlist at the SQL level when one is set', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectRemindCohort(db, new Set(['111111111111111111']));
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.discord_id = ANY(');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContainEqual(['111111111111111111']);
+  });
+
+  it('maps notifiedAt through to the cohort row', async () => {
+    const notifiedAt = new Date('2026-08-01T00:00:00.000Z');
+    const { db } = makeDb([{ userId: 'u1', discordId: '900000000000000001', notifiedAt }]);
+
+    const cohort = await selectRemindCohort(db, null);
+
+    expect(cohort[0]?.notifiedAt).toBe(notifiedAt);
+  });
+
+  it('countRemindCohort returns a number', async () => {
+    const { db } = makeDb([{ n: 4n }]);
+
+    expect(await countRemindCohort(db)).toBe(4);
+  });
+});
+
+describe('filterStillRemindEligible (the send-time re-check)', () => {
+  it('returns the still-eligible subset', async () => {
+    const { db, queryRaw } = makeDb([{ userId: 'keep-1' }]);
+
+    const eligible = await filterStillRemindEligible(db, ['keep-1', 'gone-active']);
+
+    expect(eligible).toEqual(new Set(['keep-1']));
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.id = ANY(');
+    expect(sql).toContain('u.retention_reminded_at IS NULL');
+  });
+
+  it('short-circuits on an empty batch without touching the db', async () => {
+    const { db, queryRaw } = makeDb();
+
+    expect(await filterStillRemindEligible(db, [])).toEqual(new Set());
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 });
 

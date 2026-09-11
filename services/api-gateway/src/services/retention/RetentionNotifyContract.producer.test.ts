@@ -48,7 +48,11 @@ const COHORT_ROWS = [{ discordId: '111111111111111111' }, { discordId: '22222222
 describe('Contract producer: retention-notify DM batch (real enqueueNotifyRun output)', () => {
   it('captures the enqueued batch payload as the committed contract fixture', async () => {
     const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue(COHORT_ROWS),
+      // call order: selectNotifyCohort, then selectRemindCohort (both via
+      // Promise.all, evaluated left-to-right) — the reminder cohort is empty
+      // so the fixture stays a single warning-notice batch, matching the
+      // committed contract artifact's historical shape.
+      $queryRaw: vi.fn().mockResolvedValueOnce(COHORT_ROWS).mockResolvedValueOnce([]),
       user: { count: vi.fn().mockResolvedValue(100) },
     } as unknown as PrismaClient;
     const added: unknown[] = [];

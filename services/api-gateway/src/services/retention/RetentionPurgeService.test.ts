@@ -69,16 +69,18 @@ describe('RetentionPurgeService.buildPreview', () => {
     reach?: { personalityId: string }[];
     reachableToNotify?: number;
     inGrace?: number;
+    reminderDue?: number;
     /** Only set when the scope under test narrows the cohort. */
     unrestrictedEligible?: number;
   }) {
     const queryRaw = vi
       .fn()
-      // call 1 = the cohort; calls 2-3 = notify/in-grace counts; call 4 (scope-
-      // narrowed only) = the un-narrowed eligible count; call 5+ = per-user reach
+      // call 1 = the cohort; calls 2-4 = notify/in-grace/reminder counts; call 5
+      // (scope-narrowed only) = the un-narrowed eligible count; call 6+ = per-user reach
       .mockResolvedValueOnce(opts.cohort)
       .mockResolvedValueOnce([{ n: BigInt(opts.reachableToNotify ?? 0) }])
-      .mockResolvedValueOnce([{ n: BigInt(opts.inGrace ?? 0) }]);
+      .mockResolvedValueOnce([{ n: BigInt(opts.inGrace ?? 0) }])
+      .mockResolvedValueOnce([{ n: BigInt(opts.reminderDue ?? 0) }]);
     if (opts.unrestrictedEligible !== undefined) {
       queryRaw.mockResolvedValueOnce([{ n: BigInt(opts.unrestrictedEligible) }]);
     }
@@ -188,13 +190,20 @@ describe('RetentionPurgeService.buildPreview', () => {
         wasNotified: true,
       },
     ];
-    const prisma = makePreviewPrisma({ cohort, userbase: 100, reachableToNotify: 51, inGrace: 4 });
+    const prisma = makePreviewPrisma({
+      cohort,
+      userbase: 100,
+      reachableToNotify: 51,
+      inGrace: 4,
+      reminderDue: 7,
+    });
 
     const { totals } = await new RetentionPurgeService({ prisma }, UNRESTRICTED).buildPreview();
 
     expect(totals.eligibleCount).toBe(2);
     expect(totals.reachableToNotify).toBe(51);
     expect(totals.inGrace).toBe(4);
+    expect(totals.reminderDue).toBe(7);
     expect(totals.graceExpired).toBe(1);
     expect(totals.bystander).toBe(0);
   });
@@ -205,9 +214,10 @@ describe('RetentionPurgeService.buildPreview', () => {
     const { totals } = await new RetentionPurgeService({ prisma }, UNRESTRICTED).buildPreview();
 
     expect(totals.scope).toEqual({ kind: 'unrestricted', excludedEligibleCount: 0 });
-    // 3 queries only: cohort, notify, in-grace — no 4th (un-narrowed eligible) query.
+    // 4 queries only: cohort, notify, in-grace, reminder-due — no 5th
+    // (un-narrowed eligible) query.
     const queryRawMock = prisma.$queryRaw as unknown as ReturnType<typeof vi.fn>;
-    expect(queryRawMock).toHaveBeenCalledTimes(3);
+    expect(queryRawMock).toHaveBeenCalledTimes(4);
   });
 
   it('reports scope kind allowlist with the un-narrowed count minus the narrowed cohort', async () => {
@@ -642,6 +652,7 @@ describe('RetentionPurgeService — ceiling count scope narrowing', () => {
     const queryRaw = vi
       .fn()
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ n: BigInt(0) }])
       .mockResolvedValueOnce([{ n: BigInt(0) }])
       .mockResolvedValueOnce([{ n: BigInt(0) }])
       // The scope narrows this call, so buildPreview also queries the

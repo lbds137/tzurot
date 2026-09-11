@@ -47,6 +47,9 @@ const EMPTY_RUN = {
   breakerWarning: false,
   batchesEnqueued: 0,
   recipients: [],
+  reminderCohortSize: 0,
+  reminderBatchesEnqueued: 0,
+  reminderRecipients: [],
 };
 
 function createMockReqRes(body: unknown) {
@@ -226,6 +229,7 @@ describe('handleRetentionNotifyFilter', () => {
     filterMock.mockResolvedValue(['a3bb189e-8bf9-3888-9912-ace4e6543002']);
     const { req, res } = createMockReqRes({
       userIds: ['a3bb189e-8bf9-3888-9912-ace4e6543002', 'b3bb189e-8bf9-3888-9912-ace4e6543002'],
+      notice: 'warning',
     });
 
     await handleRetentionNotifyFilter(deps)(req, res, vi.fn());
@@ -234,8 +238,20 @@ describe('handleRetentionNotifyFilter', () => {
     expect(payload.stillEligibleUserIds).toEqual(['a3bb189e-8bf9-3888-9912-ace4e6543002']);
   });
 
+  it('passes the notice kind through to the service', async () => {
+    filterMock.mockResolvedValue([]);
+    const { req, res } = createMockReqRes({
+      userIds: ['a3bb189e-8bf9-3888-9912-ace4e6543002'],
+      notice: 'reminder',
+    });
+
+    await handleRetentionNotifyFilter(deps)(req, res, vi.fn());
+
+    expect(filterMock).toHaveBeenCalledWith(['a3bb189e-8bf9-3888-9912-ace4e6543002'], 'reminder');
+  });
+
   it('rejects an empty batch', async () => {
-    const { req, res } = createMockReqRes({ userIds: [] });
+    const { req, res } = createMockReqRes({ userIds: [], notice: 'warning' });
 
     await handleRetentionNotifyFilter(deps)(req, res, vi.fn());
 
@@ -247,7 +263,9 @@ describe('handleRetentionNotifyFilter', () => {
 describe('handleRetentionNotifyReport', () => {
   it('applies outcomes and reports the processed count', async () => {
     reportMock.mockResolvedValue(1);
-    const outcomes = [{ userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent' }];
+    const outcomes = [
+      { userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent', notice: 'warning' },
+    ];
     const { req, res } = createMockReqRes({ outcomes });
 
     await handleRetentionNotifyReport(deps)(req, res, vi.fn());

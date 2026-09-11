@@ -15,6 +15,15 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('gatewayRetry');
 
+/**
+ * The shared after-spend report-retry policy: `reportDeliveries` (release
+ * blast) and `reportNotifyOutcomes` (retention notify) both retry a lost
+ * outcome report on this same schedule — one policy, not two copies that can
+ * drift apart.
+ */
+export const REPORT_MAX_ATTEMPTS = 3;
+export const REPORT_RETRY_BASE_DELAY_MS = 500;
+
 /** Gateway failures worth retrying: infrastructure states, never 4xx rejections. */
 export function isRetryableGatewayFailure(failure: { kind: string; status: number }): boolean {
   return failure.kind === 'network' || failure.kind === 'timeout' || failure.status >= 500;

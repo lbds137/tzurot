@@ -33,7 +33,7 @@ import {
   type ConfigSourceId,
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
-import { DiscordSnowflakeSchema } from '../schemas/api/internal.js';
+import { DiscordSnowflakeSchema, RetentionNoticeKindSchema } from '../schemas/api/internal.js';
 import type { SttProvider } from './sttProvider.js';
 
 /**
@@ -601,28 +601,35 @@ export const releaseBroadcastDmJobDataSchema = baseJobDataSchema.extend({
 export type ReleaseBroadcastDmJobData = z.infer<typeof releaseBroadcastDmJobDataSchema>;
 export type ReleaseBroadcastRecipient = z.infer<typeof releaseBroadcastRecipientSchema>;
 
-/** One warning-DM recipient inside a retention-notify batch. */
+/** One recipient inside a retention-notify batch, either notice kind. */
 const retentionNotifyRecipientSchema = z.object({
   /** Internal users.id UUID — the grace stamp and re-check key on. */
   userId: z.string().uuid(),
-  /** Discord snowflake the warning DM is sent to. */
+  /** Discord snowflake the notice DM is sent to. */
   discordUserId: DiscordSnowflakeSchema,
+  /** Present for `reminder` recipients: the warning's send time, which anchors the deadline the reminder quotes. */
+  notifiedAt: z.string().datetime().optional(),
 });
 
 /**
- * Job data for one retention warning-DM batch (Phase 3's reachable branch).
+ * Job data for one retention notice-DM batch (Phase 3's reachable branch),
+ * carrying either the warning (first notice, starts the grace clock) or the
+ * reminder (second and last notice, sent partway through grace).
  *
- * The worker re-filters recipients against the notify predicate before
- * sending (a user active since cohort resolution must not receive a deletion
- * warning), composes the notice body itself (Discord copy belongs to
- * bot-client), and reports each outcome to the gateway — `sent` stamps the
- * grace clock, a permanent bounce stamps the unreachable flag that re-routes
- * the user to the existing purge branch.
+ * The worker re-filters recipients against the matching eligibility predicate
+ * before sending (a user active since cohort resolution must not receive a
+ * notice), composes the notice body itself (Discord copy belongs to
+ * bot-client), and reports each outcome to the gateway — a `sent` warning
+ * stamps the grace clock, a `sent` reminder stamps the reminder clock, and a
+ * permanent bounce stamps the unreachable flag that re-routes the user to the
+ * existing purge branch, for either notice kind.
  */
 export const retentionNotifyDmJobDataSchema = baseJobDataSchema.extend({
   jobType: z.literal(JobType.RetentionNotifyDm),
   /** Operator run label (audit/log context; also the deterministic-jobId seed). */
   runId: z.string().min(1),
+  /** Which of the two grace-cycle notices this batch carries. */
+  notice: RetentionNoticeKindSchema,
   recipients: z.array(retentionNotifyRecipientSchema).min(1).max(50),
 });
 

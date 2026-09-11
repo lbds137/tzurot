@@ -61,8 +61,8 @@
    the settings dashboard): Discord autocomplete exists only on slash-command
    options, so a model picker cannot live inside a dashboard.
 6. **Data rights.** Self-serve export (token link, 24h) and token-gated self-delete;
-   the retention lifecycle (activity stamps → preview → warning DMs → 30-day grace →
-   purge → audit ledger) for inactive accounts. In production a daily job runs the
+   the retention lifecycle (activity stamps → preview → warning DM → reminder DM →
+   30-day grace → purge → audit ledger) for inactive accounts. In production a daily job runs the
    notify and purge steps unattended behind the server-side circuit breaker and a
    run lease shared with the operator CLIs, and posts a run report;
    `RETENTION_AUTORUN_ENABLED=false` drops it to a report-only nag.

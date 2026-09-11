@@ -53,7 +53,8 @@ export const handleStampUserActivity = (deps: RouteDeps): RequestHandler => {
     const affected = await prisma.$executeRaw`
       UPDATE users
       SET last_active_at = NOW(), dm_undeliverable_since = NULL,
-          discord_account_gone_at = NULL, retention_notified_at = NULL
+          discord_account_gone_at = NULL, retention_notified_at = NULL,
+          retention_reminded_at = NULL
       WHERE discord_id = ${discordId}
     `;
 

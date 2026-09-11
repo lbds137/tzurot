@@ -462,6 +462,8 @@ export const RetentionPreviewResponseSchema = z.object({
     graceExpired: z.number().int().nonnegative(),
     /** Never deliberately used the bot — the silent-purge subset of the cohort. */
     bystander: z.number().int().nonnegative(),
+    /** Warned 23-30 days ago, reachable, not yet reminded — the reminder cohort. */
+    reminderDue: z.number().int().nonnegative(),
     /**
      * Which purge scope this environment applies (the gateway's
      * `purgeScope.ts`), and how many purge-eligible accounts that scope
@@ -633,26 +635,52 @@ export const RetentionNotifyRequestSchema = z.union([
 
 export const RetentionNotifyCohortUserSchema = z.object({
   discordId: DiscordSnowflakeSchema,
-  /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
+  /**
+   * Two meanings depending on which cohort this row came from: in
+   * `RetentionNotifyResponseSchema.recipients` (the warning cohort) it is the
+   * inactivity anchor — last_active_at, or created_at when never stamped. In
+   * `.reminderRecipients` (the reminder cohort) it is instead the warning's
+   * own send time (retention_notified_at) — the CLI renders it as "warned
+   * since" for that cohort.
+   */
   inactiveSince: z.string().datetime(),
 });
 
 export const RetentionNotifyResponseSchema = z.object({
-  /** `refused_breaker` enqueues nothing; `empty` is the healthy steady state. */
+  /**
+   * `empty` means BOTH the warning and reminder cohorts are empty;
+   * `enqueued` means at least one batch of EITHER notice kind went out;
+   * `refused_breaker` enqueues nothing (the breaker is computed on the
+   * warning cohort only — the reminder cohort is bounded by prior warnings
+   * and never needs it, so it never trips the refusal).
+   */
   status: z.enum(['enqueued', 'dry_run', 'empty', 'refused_breaker']),
+  /** Warning-cohort size only. */
   cohortSize: z.number().int().nonnegative(),
   userbaseCount: z.number().int().nonnegative(),
+  /** Warning cohort as a percentage of the userbase — the breaker's input. */
   percentOfUserbase: z.number().nonnegative(),
   /** Cohort exceeds the warn share — expected ~15-18% on the first real run (zombie cohort). */
   breakerWarning: z.boolean(),
+  /** Warning batches enqueued only. */
   batchesEnqueued: z.number().int().nonnegative(),
   /** Present when status is `refused_breaker`. */
   breakerDetail: z.string().optional(),
-  /** The resolved cohort (who would be / was DMed) — the dry-run's whole point. */
+  /** The resolved warning cohort (who would be / was DMed) — the dry-run's whole point. */
   recipients: z.array(RetentionNotifyCohortUserSchema),
+  /** Warned 23-30 days ago and not yet reminded — the reminder cohort. */
+  reminderCohortSize: z.number().int().nonnegative(),
+  /** Reminder batches enqueued. */
+  reminderBatchesEnqueued: z.number().int().nonnegative(),
+  /** The resolved reminder cohort (who would be / was reminded). */
+  reminderRecipients: z.array(RetentionNotifyCohortUserSchema),
 });
 
 export type RetentionNotifyResponse = z.infer<typeof RetentionNotifyResponseSchema>;
+
+/** The two grace-cycle notices: the warning starts the clock, the reminder restates the deadline. */
+export const RetentionNoticeKindSchema = z.enum(['warning', 'reminder']);
+export type RetentionNoticeKind = z.infer<typeof RetentionNoticeKindSchema>;
 
 // ============================================================================
 // POST /internal/retention/notify/filter — send-time still-eligible re-check
@@ -660,12 +688,16 @@ export type RetentionNotifyResponse = z.infer<typeof RetentionNotifyResponseSche
 
 /**
  * The notify analogue of the purge's TOCTOU re-check: of these users, which
- * are STILL notify-eligible? A user active since cohort resolution must not
- * be DMed a deletion warning. The worker calls this before every batch send
- * (throw-before-spend: a filter failure aborts the batch, never skips it).
+ * are STILL eligible for the given `notice` kind? A user active since cohort
+ * resolution must not be DMed a warning, and a user active or already
+ * reminded since resolution must not be DMed a reminder. The worker calls
+ * this before every batch send (throw-before-spend: a filter failure aborts
+ * the batch, never skips it).
  */
 export const RetentionNotifyFilterRequestSchema = z.object({
   userIds: z.array(z.string().uuid()).min(1).max(50),
+  /** Which eligibility predicate to re-check against. */
+  notice: RetentionNoticeKindSchema,
 });
 
 export const RetentionNotifyFilterResponseSchema = z.object({
@@ -692,6 +724,8 @@ export const RetentionNotifyReportRequestSchema = z.object({
         status: z.enum(['sent', 'failed_permanent', 'failed_bot_level', 'failed_transient']),
         /** Discord error code for failures (e.g. '50278', '10013'). */
         errorCode: z.string().optional(),
+        /** Which notice kind this outcome reports — routes the stamp write. */
+        notice: RetentionNoticeKindSchema,
       })
     )
     .min(1)

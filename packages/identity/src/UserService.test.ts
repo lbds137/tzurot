@@ -250,6 +250,7 @@ describe('UserService', () => {
       // Grace aborts on use: the same seam clears the reachable-branch grace
       // clock, or a warned user who came back would still be purge-eligible.
       expect(template.join('')).toContain('retention_notified_at = NULL');
+      expect(template.join('')).toContain('retention_reminded_at = NULL');
       expect(template.join('')).not.toContain('updated_at');
       expect(userId).toBe('active-user-id');
     });

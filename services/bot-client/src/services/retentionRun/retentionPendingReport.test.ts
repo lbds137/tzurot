@@ -55,6 +55,7 @@ function makeOutcome(): LiveRunOutcome {
         inGrace: 0,
         graceExpired: 0,
         bystander: 0,
+        reminderDue: 0,
         scope: { kind: 'unrestricted', excludedEligibleCount: 0 },
       },
     },
@@ -64,6 +65,8 @@ function makeOutcome(): LiveRunOutcome {
       cohortSize: 0,
       batchesEnqueued: 0,
       breakerWarning: false,
+      reminderCohortSize: 0,
+      reminderBatchesEnqueued: 0,
     },
     purge: {
       attempted: 0,

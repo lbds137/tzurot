@@ -1,17 +1,22 @@
 /**
- * Retention warning-DM worker — bot-client's BullMQ consumer for the
- * retention-notify queue (api-gateway produces the batches; Phase 3).
+ * Retention notice-DM worker — bot-client's BullMQ consumer for the
+ * retention-notify queue (api-gateway produces the batches; Phase 3), for
+ * BOTH grace-cycle notices: the warning (first notice, starts the grace
+ * clock) and the reminder (second and last notice, sent partway through
+ * grace, anchored on the warning's send time).
  *
  * Delivery discipline mirrors the release-DM worker:
- *   - Re-filters the batch against the notify predicate before sending
- *     (a user active since cohort resolution must not get a deletion
- *     warning; a stalled-and-rerun batch never double-DMs).
+ *   - Re-filters the batch against the matching eligibility predicate before
+ *     sending (a user active since cohort resolution — or, for a reminder,
+ *     already reminded — must not get a notice; a stalled-and-rerun batch
+ *     never double-DMs).
  *   - Sends sequentially, 1/sec pacing — background sends must not
  *     head-of-line block the shared discord.js REST queue.
  *   - Classifies failures (dmErrorClassifier) and reports EACH outcome
- *     immediately: sent → the grace clock; a permanent bounce → the
- *     unreachable stamp that re-routes the user to the purge branch;
- *     bot-level (20026, dev quarantine) and transient → no stamp.
+ *     immediately: a sent warning → the grace clock; a sent reminder → the
+ *     reminder clock; a permanent bounce → the unreachable stamp that
+ *     re-routes the user to the purge branch (either notice); bot-level
+ *     (20026, dev quarantine) and transient → no stamp.
  *   - Posts a per-batch owner-channel tally — the operator's CLI returns at
  *     enqueue time, so this embed is where delivery results surface.
  */
@@ -22,6 +27,7 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { RETENTION_NOTIFY_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import type { RetentionNoticeKind } from '@tzurot/common-types/schemas/api/internal';
 import {
   retentionNotifyDmJobDataSchema,
   type RetentionNotifyRecipient,
@@ -33,9 +39,13 @@ import {
   filterNotifyEligible,
   reportNotifyOutcomes,
   type NotifyOutcomeReport,
-} from '../../utils/gatewayServiceCalls.js';
+} from '../../utils/retentionNotifyGatewayCalls.js';
 import { postOwnerChannelEmbed } from '../../utils/ownerChannel.js';
-import { buildRetentionNotice, RETENTION_NOTICE_FOOTER } from './noticeContent.js';
+import {
+  buildRetentionNotice,
+  buildRetentionReminder,
+  RETENTION_NOTICE_FOOTER,
+} from './noticeContent.js';
 
 const logger = createLogger('RetentionNotifyWorker');
 
@@ -63,18 +73,32 @@ export interface RetentionNotifyWorkerDeps {
 
 const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-/** Send one warning DM; returns the report outcome. */
+/**
+ * Send one notice DM; returns the report outcome. `notifiedAt` is validated
+ * present by the caller for a `reminder` recipient BEFORE this is reached
+ * (see the malformed-recipient guard in the processor); the defensive throw
+ * below is unreachable in normal operation but keeps this function safe to
+ * call standalone (tests, a future caller) without that upstream guard.
+ */
 async function sendOne(
   client: Client,
   recipient: RetentionNotifyRecipient,
-  sentAt: Date
-): Promise<Omit<NotifyOutcomeReport, 'userId'>> {
+  sentAt: Date,
+  notice: RetentionNoticeKind
+): Promise<Omit<NotifyOutcomeReport, 'userId' | 'notice'>> {
   try {
+    let content: string;
+    if (notice === 'reminder') {
+      if (recipient.notifiedAt === undefined) {
+        throw new Error('Reminder recipient missing notifiedAt');
+      }
+      content =
+        buildRetentionReminder(new Date(recipient.notifiedAt), sentAt) + RETENTION_NOTICE_FOOTER;
+    } else {
+      content = buildRetentionNotice(sentAt) + RETENTION_NOTICE_FOOTER;
+    }
     const user = await client.users.fetch(recipient.discordUserId);
-    await user.send({
-      content: buildRetentionNotice(sentAt) + RETENTION_NOTICE_FOOTER,
-      allowedMentions: { parse: [] },
-    });
+    await user.send({ content, allowedMentions: { parse: [] } });
     return { status: 'sent' };
   } catch (error) {
     const classified = classifyDmError(error);
@@ -104,9 +128,26 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
     // Throws on gateway failure — BEFORE any spend, so BullMQ's retry re-runs
     // the whole batch rather than completing it silently undelivered.
     const eligibleIds = new Set(
-      await filterEligible(data.recipients.map(recipient => recipient.userId))
+      await filterEligible(
+        data.recipients.map(recipient => recipient.userId),
+        data.notice
+      )
     );
-    const toSend = data.recipients.filter(recipient => eligibleIds.has(recipient.userId));
+    let toSend = data.recipients.filter(recipient => eligibleIds.has(recipient.userId));
+
+    // Malformed-recipient guard: a reminder recipient with no notifiedAt
+    // cannot anchor a deadline. Fail-to-skip (never throw, never send a
+    // warning in its place) so the rest of the batch keeps flowing.
+    if (data.notice === 'reminder') {
+      toSend = toSend.filter(recipient => {
+        if (recipient.notifiedAt === undefined) {
+          logger.error({ userId: recipient.userId }, 'Reminder recipient missing notifiedAt');
+          return false;
+        }
+        return true;
+      });
+    }
+
     const skipped = data.recipients.length - toSend.length;
 
     let sent = 0;
@@ -116,7 +157,7 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
     const sentAt = new Date();
     for (let i = 0; i < toSend.length; i++) {
       const recipient = toSend[i];
-      const outcome = await sendOne(deps.client, recipient, sentAt);
+      const outcome = await sendOne(deps.client, recipient, sentAt, data.notice);
       // Report EACH outcome immediately. Nothing after the send can THROW
       // (sendOne catches, report retries-then-swallows), so the only mid-batch
       // interruption is process death: a stall re-run then re-sends at most
@@ -124,7 +165,7 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
       // Everyone reported with a TERMINAL outcome (sent / permanent bounce) is
       // dropped by the pre-send filter; bot-level and transient failures are
       // un-stamped by design and correctly ride the re-run — no DM reached them.
-      await report([{ userId: recipient.userId, ...outcome }]);
+      await report([{ userId: recipient.userId, notice: data.notice, ...outcome }]);
       if (outcome.status === 'sent') {
         sent += 1;
       } else if (outcome.status === 'failed_permanent') {
@@ -136,7 +177,12 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
     }
 
     logger.info({ runId: data.runId, sent, bounced, skipped }, 'Retention notify batch processed');
-    await postBatchReport(deps.client, { sent, bounced, skipped, total: toSend.length });
+    await postBatchReport(deps.client, data.notice, {
+      sent,
+      bounced,
+      skipped,
+      total: toSend.length,
+    });
     return { sent, bounced, skipped };
   };
 }
@@ -147,17 +193,27 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
  */
 async function postBatchReport(
   client: Client,
+  notice: RetentionNoticeKind,
   tally: { sent: number; bounced: number; skipped: number; total: number }
 ): Promise<void> {
   const failedOtherwise = tally.total - tally.sent - tally.bounced;
+  const title =
+    notice === 'reminder'
+      ? '📬 Retention reminder batch delivered'
+      : '📪 Retention notice batch delivered';
+  const sentLabel = notice === 'reminder' ? 'reminded' : 'warned (grace clock started)';
+  const skippedLabel =
+    notice === 'reminder'
+      ? 'active again, already reminded, or missing its warning timestamp'
+      : 'active again or already warned';
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.BLURPLE)
-    .setTitle('📪 Retention notice batch delivered')
+    .setTitle(title)
     .setDescription(
-      `${String(tally.sent)} warned (grace clock started), ` +
+      `${String(tally.sent)} ${sentLabel}, ` +
         `${String(tally.bounced)} bounced (now purge-eligible as unreachable), ` +
         `${String(failedOtherwise)} failed without a stamp, ` +
-        `${String(tally.skipped)} skipped (active again or already warned)`
+        `${String(tally.skipped)} skipped (${skippedLabel})`
     )
     .setTimestamp();
   await postOwnerChannelEmbed(client, embed);
