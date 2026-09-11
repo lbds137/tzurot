@@ -4,12 +4,12 @@ title: 'Stamp dmUndeliverableSince on persona-DM failures, not just blasts'
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-09-04 19:37'
+updated_date: '2026-09-11 16:53'
 labels:
   - 'area:bot-client'
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 5000
@@ -31,5 +31,11 @@ author: digest-pass
 created: 2026-09-04 19:37
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `DiscordResponseSender.sendViaDM` still has no try/catch or `classifyDmError` call; the field is stamped only from `handleReleaseBroadcastDeliveries`. Real cost prevented: retention-window staleness for per-user DM failures. Dependent trigger (retention Phase 2/3 needing fresher unreachability) hasn't fired. Evidence: `git grep -n sendViaDM` → `DiscordResponseSender.ts:251` defines it with no classifier import in that file; `classifyDmError` calls are confined to the release/retention-notice workers.
+---
+
+author: owner-ruling
+created: 2026-09-11 16:53
+---
+Owner ruling 2026-09-11: the dependent trigger has fired (retention purge is live and autonomous in prod from beta.222, so per-user unreachability freshness now matters). Ordered third in the retention follow-up set (TASK-932, TASK-331, TASK-5).
 ---
 <!-- COMMENTS:END -->
