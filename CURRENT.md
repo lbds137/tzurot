@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.220 — "the tracker drain: eight fixes, the dependency groups, vitest-5 config prep" (11 PRs / 11 runtime / 106 range files; no migrations; PR #2372 merged 2026-09-08 ~19:47Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.221 — "the content-in-logs sweep, the self-header strip, six bot-client fixes" (8 PRs / 8 runtime / 96 range files; no migrations; PR #2381 merged 2026-09-09 ~20:45Z; finalize done, tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.219 — "the voice anchor, and the memory-archive build dormant behind switches" (8 PRs / 7 runtime / 206 range files, 2026-09-07 ~22:03Z; three additive migrations).
+> **Previous**: v3.0.0-beta.220 — "the tracker drain: eight fixes, the dependency groups, vitest-5 config prep" (11 PRs / 11 runtime / 106 range files, 2026-09-08 ~19:47Z; no migrations).
 
 ---
 
