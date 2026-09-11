@@ -4,13 +4,13 @@ title: Reminder DM about one week before grace-end
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
-updated_date: '2026-09-04 19:39'
+updated_date: '2026-09-11 16:52'
 labels:
   - 'area:jobs'
   - 'area:api-gateway'
   - 'area:bot-client'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 331000
@@ -35,5 +35,11 @@ author: digest-pass
 created: 2026-09-04 19:39
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): TRIGGER DATA NOW EXISTS: the first prod purge (2026-09-02) removed 5 users who were warned and let grace expire with no recorded return or export, which is the outcome shape this task named as its promotion signal. Moved to state:owner with the question recorded in the description.
+---
+
+author: owner-ruling
+created: 2026-09-11 16:52
+---
+Owner ruling 2026-09-11: BUILD IT. One reminder DM about 7 days before grace-end, once per grace cycle, on the same daily job. Ordered second in the retention follow-up set (TASK-932, TASK-331, TASK-5), ahead of TASK-934 on the beta.223 plan.
 ---
 <!-- COMMENTS:END -->
