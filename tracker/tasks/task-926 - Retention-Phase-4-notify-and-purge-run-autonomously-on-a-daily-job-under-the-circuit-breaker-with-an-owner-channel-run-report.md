@@ -3,9 +3,10 @@ id: TASK-926
 title: >-
   Retention Phase 4: notify and purge run autonomously on a daily job under the
   circuit breaker, with an owner-channel run report
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 20:20'
+updated_date: '2026-09-11 13:43'
 labels:
   - 'area:api-gateway'
   - 'size:M'
