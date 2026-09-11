@@ -3,9 +3,10 @@ id: TASK-932
 title: >-
   Retention job report robustness: a failed live-report post is lost, nag
   previews hourly, purge status not switched exhaustively
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-10 20:59'
+updated_date: '2026-09-11 18:50'
 labels:
   - 'area:bot-client'
   - 'size:S'
