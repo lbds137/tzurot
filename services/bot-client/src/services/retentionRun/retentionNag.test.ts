@@ -105,17 +105,19 @@ describe('retentionNag runRetentionNagCheck', () => {
     expect(redis.setex).not.toHaveBeenCalled();
   });
 
-  it('does NOT post while the cooldown key exists (at most one nag per week)', async () => {
-    mockRetentionPreview.mockResolvedValue({ ok: true, data: makePreview({}) });
+  it('does NOT post while the cooldown key exists, and never fetches the preview it would have needed', async () => {
     const redis = makeRedis('2026-07-20T00:00:00.000Z');
 
     await runRetentionNagCheck(client, redis);
 
+    expect(mockRetentionPreview).not.toHaveBeenCalled();
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
     expect(redis.setex).not.toHaveBeenCalled();
   });
 
-  it('stays silent when nobody is eligible (quiet week costs no Redis read)', async () => {
+  // The cooldown read precedes the preview fetch, so a quiet week costs one
+  // Redis `get` and one preview; this test pins that order.
+  it('stays silent when nobody is eligible (one Redis read, one preview, no post)', async () => {
     mockRetentionPreview.mockResolvedValue({
       ok: true,
       data: makePreview({ eligibleCount: 0, userCount: 0 }),
@@ -124,7 +126,8 @@ describe('retentionNag runRetentionNagCheck', () => {
 
     await runRetentionNagCheck(client, redis);
 
-    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.get).toHaveBeenCalledTimes(1);
+    expect(mockRetentionPreview).toHaveBeenCalledTimes(1);
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
   });
 

@@ -77,6 +77,15 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
  * wrapper is what swallows errors, not this function.
  */
 export async function runRetentionNagCheck(client: Client, redis: Redis): Promise<void> {
+  // Cooldown FIRST: it costs one Redis `get`, while the preview it guards
+  // costs a gateway call plus a DB aggregate. During a suppressed week the
+  // tick costs the `get` alone rather than paying for a preview it cannot use.
+  const cooling = await redis.get(COOLDOWN_KEY);
+  if (cooling !== null) {
+    logger.info({ cooling }, 'Retention nag is in cooldown');
+    return;
+  }
+
   const result = await getServiceClient().retentionPreview();
   if (!result.ok) {
     logger.warn({ error: result.error }, 'Retention preview fetch failed; skipping check');
@@ -88,17 +97,6 @@ export async function runRetentionNagCheck(client: Client, redis: Redis): Promis
   // now, so that state is actionable). Mid-grace users need nobody's
   // attention — the clock is doing the work.
   if (preview.totals.eligibleCount === 0 && preview.totals.reachableToNotify === 0) {
-    return;
-  }
-
-  // Cooldown AFTER the eligibility determination: a quiet week costs no
-  // Redis read, and the key only exists while a nag is being suppressed.
-  const cooling = await redis.get(COOLDOWN_KEY);
-  if (cooling !== null) {
-    logger.info(
-      { eligibleCount: preview.totals.eligibleCount },
-      'Purge-eligible accounts present but nag is in cooldown'
-    );
     return;
   }
 

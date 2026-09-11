@@ -249,6 +249,25 @@ describe('executeLiveRun — halts', () => {
     expect(outcome.purge.failed).toBe(1);
     expect(outcome.purge.failureKinds.exception).toBe(1);
   });
+
+  it('tallies an unrecognized purge status as a failure, never a skip, and keeps going', async () => {
+    const client = makeClient();
+    client.retentionPurge
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { discordId: 'x', status: 'weird' } as unknown as RetentionPurgeResponse,
+      })
+      .mockResolvedValueOnce({ ok: true, data: purged() });
+    const preview = makePreview([makeUser('1'), makeUser('2')]);
+
+    const outcome = await executeLiveRun(client, RUN_ID, preview);
+
+    expect(outcome.purge.failed).toBe(1);
+    expect(outcome.purge.failureKinds.unknown_status).toBe(1);
+    expect(Object.keys(outcome.purge.skippedByReason)).toHaveLength(0);
+    expect(client.retentionPurge).toHaveBeenCalledTimes(2);
+    expect(outcome.purge.purged).toHaveLength(1);
+  });
 });
 
 describe('executeLiveRun — notify failure does not block purge', () => {
