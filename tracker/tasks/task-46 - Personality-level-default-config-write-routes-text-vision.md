@@ -1,10 +1,10 @@
 ---
 id: TASK-46
 title: Personality-level default config write routes (text + vision)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-28 00:00'
-updated_date: '2026-09-11 19:28'
+updated_date: '2026-09-12 06:28'
 labels:
   - 'area:api-gateway'
   - 'size:M'
