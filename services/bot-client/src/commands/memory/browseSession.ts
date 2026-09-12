@@ -21,8 +21,7 @@ export const MEMORY_BROWSE_ENTITY_TYPE = 'memory-browse';
 export const MEMORY_SEARCH_ENTITY_TYPE = 'memory-search';
 
 export type MemoryListEntityType =
-  | typeof MEMORY_BROWSE_ENTITY_TYPE
-  | typeof MEMORY_SEARCH_ENTITY_TYPE;
+  typeof MEMORY_BROWSE_ENTITY_TYPE | typeof MEMORY_SEARCH_ENTITY_TYPE;
 
 /**
  * Discriminated union for memory list sessions.

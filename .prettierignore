@@ -1,3 +1,11 @@
+# The root `format` / `format:check` scripts pass BOTH `--ignore-path .gitignore`
+# and `--ignore-path .prettierignore`: repeated flags accumulate, but passing
+# any of them drops prettier's implicit `.prettierignore` lookup, so this file
+# has to be named explicitly. Gitignored build artifacts and caches (dist,
+# coverage, node_modules, .mypy_cache, etc.) are already covered by
+# `.gitignore` and need no entry here — this file only covers TRACKED trees
+# that prettier must still skip.
+
 # Legacy codebase
 tzurot-legacy/
 

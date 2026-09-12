@@ -22,11 +22,7 @@ import { ChannelType } from 'discord-api-types/v10';
  * that a channel supports the sendTyping() API.
  */
 export type TypingChannel =
-  | TextChannel
-  | DMChannel
-  | NewsChannel
-  | PublicThreadChannel
-  | PrivateThreadChannel;
+  TextChannel | DMChannel | NewsChannel | PublicThreadChannel | PrivateThreadChannel;
 
 /**
  * Type guard to check if a channel supports typing indicators

@@ -34,9 +34,7 @@ export async function handlePersonalityAutocomplete(
  * unreachable gateway told the user their character "doesn't exist".
  */
 export type ResolvedPersonality =
-  | { kind: 'found'; id: string }
-  | { kind: 'not-found' }
-  | { kind: 'unavailable' };
+  { kind: 'found'; id: string } | { kind: 'not-found' } | { kind: 'unavailable' };
 
 /**
  * Resolve a personality slug/ID/name to its UUID via the autocomplete cache.
