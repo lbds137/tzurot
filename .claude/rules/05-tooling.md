@@ -21,6 +21,16 @@ pnpm focus:lint       # Lint changed packages
 pnpm focus:test       # Test changed packages
 ```
 
+**Two local gate caches are shaped for correctness, not speed.** `pnpm
+depcruise` runs **uncached** by design: its `strategy: 'content'` result cache
+was observed reporting green with a real import cycle on disk (and red after
+the cycle was removed), so `.dependency-cruiser.cjs` carries no `cache` block
+and every run costs ~10s instead of ~2s (TASK-902). `turbo run lint` hashes the
+root `eslint.config.js` through `$TURBO_ROOT$`, so an ESLint **rule** change
+invalidates every lint task rather than reporting a stale green (TASK-940) —
+the custom rule sources under `packages/tooling/src/eslint/` need no entry of
+their own, reaching the hash via the `@tzurot/tooling#build` dependency.
+
 ## Resource Constraints (CRITICAL)
 
 **NEVER run heavy commands in parallel** — `pnpm test`, `pnpm test:component`,
