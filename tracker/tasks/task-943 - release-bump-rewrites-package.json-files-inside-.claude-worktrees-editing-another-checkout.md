@@ -3,9 +3,10 @@ id: TASK-943
 title: >-
   release:bump rewrites package.json files inside .claude/worktrees, editing
   another checkout
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 14:43'
+updated_date: '2026-09-12 16:06'
 labels:
   - 'area:tooling'
   - 'size:S'
