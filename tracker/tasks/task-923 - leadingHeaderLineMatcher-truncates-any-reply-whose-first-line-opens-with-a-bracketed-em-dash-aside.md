@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-09 16:34'
-updated_date: '2026-09-12 06:29'
+updated_date: '2026-09-12 10:06'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 921000
@@ -41,6 +41,7 @@ So the recommended starting point here is NOT a fourth hand-added lookahead on t
 SECOND HALF MEASURED 2026-09-12 (state moved to owner). Prod ai-worker, the only beta.222 deployment (4d00e3af, up since 2026-09-11 13:38Z), two 5000-line pulls deduplicated, readable span 2026-09-11 15:45Z to 2026-09-12 06:20Z (about 14.6 h; the first two hours after the deploy are beyond the log cap): 171 generation turns, ONE Stripped real-message platform vocabulary warn (2026-09-12 01:29Z, headerLinesStripped=1, idTagsStripped=0). The counter cannot distinguish a standalone header line from a header with same-line reply text (no content is logged), so the same-line-leak question is bounded, not answered: at most one candidate in 171 turns, about 0.6 percent of turns stripping anything.
 Owner question: for the name-agnostic leadingHeaderLineMatcher, take the end-of-line lookahead (a header followed by same-line reply text survives visibly, replies are never truncated) or a narrower discriminator that still strips such a line (risking truncation of asides)?
 Recommendation: the end-of-line lookahead, built from the render-path shape per the design note above. With strips this rare a surviving same-line header is a visible, reportable defect, whereas a truncated reply is silent; the seam fixtures already hold the narration keep-cases and the leak cases for the canary pair.
+OWNER RULING 2026-09-12 (AskUserQuestion, recommended option taken): the END-OF-LINE LOOKAHEAD. Build it from the render-path shape (buildHeaderLine and sanitizeHeaderName), not as a fourth hand-added lookahead; the two seam tests named CURRENT behavior pending TASK-923 flip to the keep behaviour; the separator-free keep-case is replaced by a strengthened one; canary pair = the narration fixture survives, the leak fixtures still strip. State back to ready; this is the next build unit.
 <!-- SECTION:DESCRIPTION:END -->
 
 CORRECTION from the beta.221 pre-release audit (2026-09-09), read before acting on anything above. This task blames the wrong deleter. Run through the actual two-stage pipeline that ResponsePostProcessor calls (stripRealMessageEchoArtifacts, then stripResponseArtifacts), the generic step in services/ai-worker/src/utils/responseArtifacts.ts (grep: Standalone timestamp; the pattern is a leading bracket group followed by optional whitespace) deletes ANY leading bracket group regardless of header shape and regardless of realMessagesEnabled. It has been unconditional on every reply since commit 9d332fd6e (2026-01-05). Consequences: (1) the aside is deleted with or without the end-of-line lookahead this task proposes, so that lookahead alone would not fix the user-visible bug; (2) the separator-free keep-case  [laughs] Anyway, no.  is NOT passing only because it lacks the separator, it is eaten already by the generic step, so the fixture claim above is off; (3) three of the KEEP-CASE tests #2379 added assert byte-identity at ONE stage only and do not hold end-to-end, because nothing in the suite composes the two real strips (ResponsePostProcessor.test.ts mocks both); (4) the other-personality compound keep-case still ships debris through the generic step, the exact degradation #2379 was filed on, fixed only for the self-named case. Revised fix shape: name the generic step as the primary deleter and decide its fate first (it predates real-messages mode and its comment says it targets a standalone timestamp, which the header format no longer produces alone); add ONE seam test that runs the two strips in order over the six keep-case fixtures and the leak fixtures; only then revisit whether the name-agnostic matcher needs the lookahead. The render-path design note above still applies to whatever matcher survives. Priority stays high; this is a pre-existing unconditional deletion of leading bracket groups in every reply, not a regression of the beta.221 range.
