@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { MODEL_SLOTS } from '@tzurot/common-types/constants/ai';
 import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import {
   ClearOverrideResponseSchema,
@@ -40,9 +41,15 @@ import {
   RemovePersonalityAliasResponseSchema,
   SetVisibilitySchema,
 } from '@tzurot/common-types/schemas/api/personality';
+import {
+  ClearPersonalityDefaultConfigResponseSchema,
+  SetPersonalityDefaultConfigRequestSchema,
+  SetPersonalityDefaultConfigResponseSchema,
+} from '@tzurot/common-types/schemas/api/personalityDefaultConfig';
 import type { RouteDef } from '../types.js';
 
 const PERSONALITY_DETAIL_PATH = '/personality/:slug';
+const PERSONALITY_DEFAULT_CONFIG_PATH = '/personality/:slug/default-config';
 const PERSONA_DETAIL_PATH = '/persona/:id';
 const PERSONA_OVERRIDE_DETAIL_PATH = '/persona/override/:personalitySlug';
 
@@ -124,6 +131,31 @@ export const userOwnershipRoutes = {
     params: { slug: z.string() },
     output: DeletePersonalityResponseSchema,
     requiresProvisionedUser: true,
+  },
+
+  setPersonalityDefaultConfig: {
+    audience: 'user',
+    method: 'put',
+    path: PERSONALITY_DEFAULT_CONFIG_PATH,
+    id: 'setPersonalityDefaultConfig',
+    params: { slug: z.string() },
+    query: { slot: z.enum(MODEL_SLOTS).optional() },
+    input: SetPersonalityDefaultConfigRequestSchema,
+    output: SetPersonalityDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { idempotent: true },
+  },
+
+  clearPersonalityDefaultConfig: {
+    audience: 'user',
+    method: 'delete',
+    path: PERSONALITY_DEFAULT_CONFIG_PATH,
+    id: 'clearPersonalityDefaultConfig',
+    params: { slug: z.string() },
+    query: { slot: z.enum(MODEL_SLOTS).optional() },
+    output: ClearPersonalityDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   // ============================================================================

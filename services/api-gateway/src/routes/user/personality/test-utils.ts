@@ -66,7 +66,15 @@ export function createMockPrisma(): {
   pendingMemory: { count: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
   systemPrompt: { findFirst: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
-  personalityDefaultConfig: { create: ReturnType<typeof vi.fn> };
+  personalityDefaultConfig: {
+    create: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+  };
+  personalityVisionDefaultConfig: {
+    upsert: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+  };
   $executeRaw: ReturnType<typeof vi.fn>;
   $transaction: ReturnType<typeof vi.fn>;
 } {
@@ -106,6 +114,12 @@ export function createMockPrisma(): {
     },
     personalityDefaultConfig: {
       create: vi.fn(),
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    personalityVisionDefaultConfig: {
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
     },
   };
   return attachMockTransaction(client);

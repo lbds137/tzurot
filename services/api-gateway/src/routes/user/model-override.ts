@@ -20,7 +20,6 @@ import {
   SetModelOverrideSchema,
   SetDefaultConfigSchema,
 } from '@tzurot/common-types/schemas/api/model-override';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -43,33 +42,13 @@ import {
   OVERRIDE_SUMMARY_SELECT,
   buildOverrideSummary,
   parseClearSlots,
+  verifyConfigAccess,
 } from './modelOverrideShared.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-model-override');
-
-/**
- * Verify that the given LLM config exists and the user can access it (global or owned).
- * Returns the config (incl. its `model`) if accessible, null otherwise. The slot a
- * config occupies (chat vs vision) is the caller's request, NOT a property of the
- * config — so the set handlers pick the FK column from `?slot=`. `model` is returned
- * so the vision slot can be capability-gated (the model must support image input).
- */
-async function verifyConfigAccess(
-  prisma: PrismaClient,
-  configId: string,
-  userId: string
-): Promise<{ id: string; name: string; model: string } | null> {
-  return prisma.llmConfig.findFirst({
-    where: {
-      id: configId,
-      OR: [{ isGlobal: true }, { ownerId: userId }],
-    },
-    select: { id: true, name: true, model: true },
-  });
-}
 
 /** GET /api/user/model-override — list all user model overrides */
 export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {

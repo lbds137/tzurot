@@ -910,6 +910,47 @@ export class UserClient {
   }
 
   /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async setPersonalityDefaultConfig(slug: string, input: z.input<typeof ROUTE_MANIFEST.setPersonalityDefaultConfig.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonalityDefaultConfig.output>>> {
+    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/default-config` + buildQueryString([['slot', options.slot]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PUT',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.setPersonalityDefaultConfig.output,
+    });
+  }
+
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async clearPersonalityDefaultConfig(slug: string, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearPersonalityDefaultConfig.output>>> {
+    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/default-config` + buildQueryString([['slot', options.slot]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.clearPersonalityDefaultConfig.output,
+    });
+  }
+
+  /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
   async listPersonalityAliases(slug: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listPersonalityAliases.output>>> {
