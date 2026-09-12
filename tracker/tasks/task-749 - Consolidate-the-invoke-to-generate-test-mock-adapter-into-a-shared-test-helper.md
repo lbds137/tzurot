@@ -1,9 +1,10 @@
 ---
 id: TASK-749
 title: Consolidate the invoke-to-generate test-mock adapter into a shared test helper
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 16:34'
+updated_date: '2026-09-12 17:05'
 labels:
   - 'area:ai-worker'
   - 'size:S'
