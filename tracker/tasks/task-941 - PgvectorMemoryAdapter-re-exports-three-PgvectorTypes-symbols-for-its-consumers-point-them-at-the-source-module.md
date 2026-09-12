@@ -3,9 +3,10 @@ id: TASK-941
 title: >-
   PgvectorMemoryAdapter re-exports three PgvectorTypes symbols for its
   consumers; point them at the source module
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 12:39'
+updated_date: '2026-09-12 15:20'
 labels:
   - 'area:ai-worker'
   - 'size:S'
