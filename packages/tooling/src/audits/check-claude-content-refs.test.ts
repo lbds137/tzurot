@@ -444,6 +444,8 @@ describe('findContentRefs (against real repo)', () => {
       'test:generate-schema',
       'test:tiers',
       'voice-refs:audit',
+      'worktree:transfer',
+      'unit:closeout',
       'xray',
     ]);
     const result = findContentRefs(repoRoot, validCommands);

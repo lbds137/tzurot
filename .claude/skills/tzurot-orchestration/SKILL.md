@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-09'
+lastUpdated: '2026-09-11'
 ---
 
 # Orchestrator Mode
@@ -146,8 +146,12 @@ outside it** → verify the worktree has no unpushed commits, then
 `git worktree remove --force` (sanctioned ONLY here, and resting on BOTH
 preceding checks: the byte-identical diff covers everything uncommitted, and
 the no-unpushed-commits check covers anything a worker committed against its
-contract — either alone leaves a loss window) → run the touched packages' test suites and `pnpm quality` in the main tree (sequentially) → commit → PR →
-monitor. The review gate is not delegated and not skipped for a clean-looking report.
+contract — either alone leaves a loss window) → run the touched packages'
+test suites and `pnpm quality` in the main tree (sequentially) → commit → PR →
+monitor. `pnpm ops worktree:transfer <path> --base <sha>` runs the checks from
+`add -A` through the removal in that order and refuses on the first failure,
+so that half is one call; the gates, commit, PR and monitor stay yours. The
+review gate is not delegated and not skipped for a clean-looking report.
 
 ## The spec template
 
