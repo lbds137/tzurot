@@ -393,13 +393,13 @@ BYOK rotation is breakage-free via the dual-key window in `common-types/utils/en
 
 ## Security Commands
 
-| Command                                 | Description                                                            |
-| --------------------------------------- | ---------------------------------------------------------------------- |
-| `pnpm ops security:advisories`          | Open Dependabot advisories: severity + fix version + direct/transitive |
-| `pnpm ops security:advisories --json`   | Machine-readable surface                                               |
-| `pnpm ops security:advisories --strict` | Exit non-zero on an actionable (fix-available) high/critical           |
+| Command                                 | Description                                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `pnpm ops security:advisories`          | Open Dependabot advisories: severity + fix version + scope (direct / transitive / direct+transitive) |
+| `pnpm ops security:advisories --json`   | Machine-readable surface                                                                             |
+| `pnpm ops security:advisories --strict` | Exit non-zero on an actionable (fix-available) high/critical                                         |
 
-Run it in the release security-preflight: transitive-only advisories get no Dependabot PR and need a manual `pnpm.overrides` bump. Degrades to "unavailable" (never blocks) when the alerts API can't be read.
+Run it in the release security-preflight: `transitive` and `direct+transitive` advisories get no Dependabot PR and need a manual `pnpm.overrides` bump — `direct+transitive` is the trap case where every workspace declaration is already patched but the lockfile still resolves a vulnerable copy transitively. Degrades to "unavailable" (never blocks) when the alerts API can't be read.
 
 ## Codegen Commands
 
