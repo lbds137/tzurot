@@ -29,21 +29,12 @@ import {
   AudioTooLongError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
-import type {
-  BroadcastCompletionSummary,
-  DeliveryOutcome,
-} from '@tzurot/common-types/schemas/api/broadcast';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
 import { getValidatedServiceSecret } from '../startup.js';
 import { getServiceClient } from './gatewayClients.js';
-import {
-  isConnectionFailure,
-  withGatewayRetry,
-  REPORT_MAX_ATTEMPTS,
-  REPORT_RETRY_BASE_DELAY_MS,
-} from './gatewayRetry.js';
+import { isConnectionFailure, withGatewayRetry } from './gatewayRetry.js';
 
 const logger = createLogger('gatewayServiceCalls');
 
@@ -350,106 +341,10 @@ export async function filterPendingDeliveries(
   return result.data.pendingDeliveryLogIds;
 }
 
-/** One reported delivery outcome (mirrors the internal-route contract). */
-export interface DeliveryReport {
-  deliveryLogId: string;
-  status: DeliveryOutcome;
-  errorCode?: string;
-  /** Snowflake of the sent DM (status 'sent' only) — enables later cleanup. */
-  sentMessageId?: string;
-  /**
-   * Ledger row of the user's prior release DM this send deleted (or found
-   * already gone) — the gateway stamps its messageDeletedAt.
-   */
-  deletedPreviousDeliveryLogId?: string;
-}
-
-/** The slice of the deliveries response the worker acts on (ops report). */
-export interface DeliveryReportOutcome {
-  /** True only on the report that flipped the announcement to completed. */
-  completed: boolean;
-  /** The blast's final tally; present exactly when completed is true. */
-  summary?: BroadcastCompletionSummary;
-}
-
-/**
- * Report a batch's delivery outcomes to the gateway ledger, retrying
- * transient failures — a lost report leaves a SENT row looking pending, and a
- * later stall-rerun would re-DM it (redeploys of gateway and bot-client are
- * correlated on this platform, so "report failed" and "job stalls" co-occur).
- *
- * After the retries this still NEVER throws — the DM is already sent, and a
- * thrown error would fail the job, retry the batch, and re-DM the very row
- * whose report was lost. The asymmetry with filterPendingDeliveries (which
- * throws) is deliberate: throw before spend, absorb after spend. The
- * all-retries-failed path returns undefined ("no outcome"), which callers
- * must treat as "no ops report" — never as a reason to fail the job.
- */
-export async function reportDeliveries(
-  releaseId: string,
-  results: DeliveryReport[]
-): Promise<DeliveryReportOutcome | undefined> {
-  if (results.length === 0) {
-    return undefined;
-  }
-  const { result, attempts } = await withGatewayRetry(
-    () => getServiceClient().releaseBroadcastDeliveries(releaseId, { results }),
-    {
-      maxAttempts: REPORT_MAX_ATTEMPTS,
-      baseDelayMs: REPORT_RETRY_BASE_DELAY_MS,
-      operation: 'reporting delivery outcomes',
-      context: { releaseId },
-    }
-  );
-  if (!result.ok) {
-    logger.error(
-      { status: result.status, releaseId, attempts },
-      'Failed to report delivery outcomes — rows stay pending (re-DM risk on stall-rerun)'
-    );
-    return undefined;
-  }
-  logger.debug(
-    { releaseId, updated: result.data.updated, completed: result.data.completed },
-    'Delivery outcomes reported'
-  );
-  return {
-    completed: result.data.completed,
-    ...(result.data.summary !== undefined ? { summary: result.data.summary } : {}),
-  };
-}
-
-/**
- * Reports a permanent persona-DM delivery failure so the retention purge's
- * per-user unreachability signal stays fresh. Fire-and-forget: the reply
- * path already failed to deliver, so it must not also wait on (or fail
- * because of) a gateway round trip. Never throws, and no retry loop — the
- * next persona-DM failure for this user is the retry, and the gateway's
- * stamp is idempotently guarded, so a missed report only delays the signal.
- * The gateway alone owns the error-code -> column mapping.
- */
-export function reportPersonaDmUndeliverable(discordId: string, errorCode: string): void {
-  void getServiceClient()
-    .stampUserDmUndeliverable({ discordId, errorCode })
-    .then(result => {
-      if (!result.ok) {
-        logger.warn(
-          { discordId, errorCode, status: result.status },
-          'Failed to stamp persona-DM unreachability'
-        );
-      }
-    })
-    .catch((error: unknown) => {
-      logger.warn(
-        { err: error, discordId, errorCode },
-        'Failed to stamp persona-DM unreachability'
-      );
-    });
-}
-
-// Retention notify's two gateway seams (filterNotifyEligible,
-// NotifyOutcomeReport, reportNotifyOutcomes) live in
-// retentionNotifyGatewayCalls.ts — split out to keep this file under its
-// line budget; same typed-client pattern as everything here.
+// Four more gateway seams (filterNotifyEligible, reportNotifyOutcomes,
+// reportDeliveries, reportPersonaDmUndeliverable, plus the DeliveryReport
+// types) live in retentionGatewayCalls.ts — split out to keep this file under
+// its line budget; same typed-client pattern as everything here.
 
 // ---------------------------------------------------------------------------
 // Raw-fetch helpers (the two sanctioned exceptions to typed-client usage).

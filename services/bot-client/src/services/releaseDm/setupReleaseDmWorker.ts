@@ -27,11 +27,8 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import { classifyDmError, dmErrorCode } from '../../utils/dmErrorClassifier.js';
-import {
-  filterPendingDeliveries,
-  reportDeliveries,
-  type DeliveryReport,
-} from '../../utils/gatewayServiceCalls.js';
+import { filterPendingDeliveries } from '../../utils/gatewayServiceCalls.js';
+import { reportDeliveries, type DeliveryReport } from '../../utils/retentionGatewayCalls.js';
 import { postOwnerChannelEmbed } from '../../utils/ownerChannel.js';
 import { OPT_OUT_FOOTER } from './releaseDmContext.js';
 
