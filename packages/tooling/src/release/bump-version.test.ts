@@ -153,6 +153,39 @@ describe('bumpVersion', () => {
       expect(packageJsonPathsRead()).toEqual(new Set([join(process.cwd(), 'package.json')]));
     });
 
+    it('should skip the .claude directory, which holds full agent-worktree checkouts', async () => {
+      const worktreeDir = join(process.cwd(), '.claude', 'worktrees', 'agent-x');
+      mockReaddirSync.mockImplementation((dir: string) => {
+        if (dir === process.cwd()) {
+          return [
+            { name: '.claude', isDirectory: () => true, isFile: () => false },
+            { name: 'package.json', isDirectory: () => false, isFile: () => true },
+          ];
+        }
+        if (dir === join(process.cwd(), '.claude')) {
+          return [{ name: 'worktrees', isDirectory: () => true, isFile: () => false }];
+        }
+        if (dir === join(process.cwd(), '.claude', 'worktrees')) {
+          return [{ name: 'agent-x', isDirectory: () => true, isFile: () => false }];
+        }
+        if (dir === worktreeDir) {
+          return [{ name: 'package.json', isDirectory: () => false, isFile: () => true }];
+        }
+        return [];
+      });
+
+      mockPackages('0.0.1');
+
+      const { bumpVersion } = await import('./bump-version.js');
+      await bumpVersion('1.0.0');
+
+      // An agent worktree is a full checkout: without the exclusion the bump
+      // rewrites every workspace manifest a second time under .claude/.
+      expect(packageJsonPathsRead()).toEqual(new Set([join(process.cwd(), 'package.json')]));
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('Updated 1 package.json file(s)');
+    });
+
     it('should recursively find package.json files', async () => {
       mockReaddirSync.mockImplementation((dir: string) => {
         if (dir === process.cwd()) {

@@ -519,6 +519,32 @@ describe('collectOpenAdvisories', () => {
     expect(surface.advisories[0].scope).toBe('direct'); // package.json was still read
   });
 
+  it('skips the .claude directory, so an agent worktree manifest adds no direct deps', () => {
+    // An agent worktree is a full checkout; its manifests are copies, and
+    // letting them into the direct set misclassifies transitive advisories.
+    vi.mocked(readdirSync).mockImplementation(((dir: string) =>
+      String(dir).includes('.claude') ? ['package.json'] : ['package.json', '.claude']) as never);
+    vi.mocked(statSync).mockReturnValue({ isDirectory: () => true } as never);
+    vi.mocked(readFileSync).mockImplementation(((path: string) =>
+      String(path).includes('.claude')
+        ? JSON.stringify({ dependencies: { 'worktree-only-pkg': '^1' } })
+        : JSON.stringify({ dependencies: { 'root-pkg': '^1' } })) as never);
+    vi.mocked(execFileSync).mockReturnValue(
+      rawAlertLine({
+        package: 'worktree-only-pkg',
+        severity: 'high',
+        vulnerableRange: '< 1.0.0',
+        firstPatched: '1.0.0',
+        ghsaId: 'GHSA-wt',
+      }) as never
+    );
+
+    const surface = collectOpenAdvisories('/repo');
+    expect(surface.available).toBe(true);
+    if (!surface.available) return;
+    expect(surface.advisories[0].scope).toBe('transitive');
+  });
+
   it('skips a malformed package.json without discarding the fetched advisory list', () => {
     // A mid-merge-conflict / WIP package.json must not throw away real advisories
     // that were already fetched — the bad file just contributes no dep names.
