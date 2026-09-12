@@ -10,10 +10,8 @@ import type { HumanMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { contentToText } from '../utils/baseMessageContent.js';
-import {
-  buildHistoryMessageIdSet,
-  type ResponderIdentity,
-} from '../jobs/utils/conversationUtils.js';
+import { buildHistoryMessageIdSet } from '../jobs/utils/conversationUtils.js';
+import type { ResponderIdentity } from '../jobs/utils/conversationTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import {

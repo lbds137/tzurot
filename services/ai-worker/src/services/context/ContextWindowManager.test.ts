@@ -10,7 +10,7 @@ import {
 import { buildRealMessages } from './RealMessagesBuilder.js';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { getPriorConversationsWrapperOverheadText } from '../../jobs/utils/conversationUtils.js';
-import type { StructuredHistoryEntry } from '../../jobs/utils/conversationUtils.js';
+import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
 describe('ContextWindowManager', () => {
   let manager: ContextWindowManager;
