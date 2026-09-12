@@ -3,9 +3,10 @@ id: TASK-929
 title: >-
   ai-worker is unloadable under tsx: conversationUtils re-exports three
   interfaces without the type keyword
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 22:34'
+updated_date: '2026-09-12 12:48'
 labels:
   - 'area:ai-worker'
   - 'size:S'
