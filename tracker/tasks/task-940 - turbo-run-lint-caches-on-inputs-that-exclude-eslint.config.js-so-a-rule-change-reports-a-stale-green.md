@@ -3,9 +3,10 @@ id: TASK-940
 title: >-
   turbo run lint caches on inputs that exclude eslint.config.js, so a rule
   change reports a stale green
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 12:38'
+updated_date: '2026-09-12 14:00'
 labels:
   - 'area:tooling'
   - 'size:S'
