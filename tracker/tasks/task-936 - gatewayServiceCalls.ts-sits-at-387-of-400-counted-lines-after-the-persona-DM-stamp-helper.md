@@ -3,9 +3,10 @@ id: TASK-936
 title: >-
   gatewayServiceCalls.ts sits at 387 of 400 counted lines after the persona-DM
   stamp helper
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-11 23:21'
+updated_date: '2026-09-12 14:41'
 labels:
   - 'area:bot-client'
   - 'size:S'
