@@ -4,8 +4,10 @@
  * Wraps the single-model `describeImage` with a runtime retry-down-the-chain: when the
  * chosen vision model FAILS on a RETRYABLE category, try the next fallback tier (the
  * gateway-stamped `visionFallbackModels`, then the hardcoded floor) before surfacing a
- * terminal placeholder. Terminate immediately on an IMAGE-intrinsic failure (content
- * filtered / censored / unreadable) — another model won't help.
+ * terminal placeholder. Terminate immediately only when the ATTACHMENT itself can't be
+ * fetched — no model on any tier could ever see it. A provider/model refusal (content
+ * policy, censorship, a filter) is tier-specific, so those advance to the next tier
+ * instead.
  *
  * All DB resolution stays gateway-side (the tiers are stamped on the personality); this
  * loop only picks the next model + resolves its per-tier auth via `resolveVisionAuth`.
@@ -63,7 +65,7 @@ const MAX_VISION_FALLBACK_TIERS = 3;
 /**
  * Outcome of a single resolved tier:
  * - `resolved` — return this string (a real description, OR a terminate-category placeholder
- *   the image itself earned — no other tier would do better).
+ *   for an attachment no tier could ever fetch).
  * - `advance` — this tier failed on a retryable category; try the next one.
  */
 type TierOutcome =
@@ -122,7 +124,7 @@ async function runVisionTier(
     if (VISION_TERMINATE_CATEGORIES.has(error.category)) {
       logger.info(
         { attachmentId: attachment.id, model: config.model, category: error.category },
-        'Vision terminate category — image itself rejected, not retrying other tiers'
+        'Vision terminate category — attachment unfetchable, not retrying other tiers'
       );
       return {
         kind: 'resolved',

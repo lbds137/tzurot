@@ -6,10 +6,10 @@ independent cascades and the two-phase resolve-then-execute split they run throu
 
 > **Status (2026-07-01):** the text + vision resolution cascades and the gateway-stamped
 > vision fallback chain are shipped (Model Config Overhaul epic, Phase 4 slices A/B/C1).
-> The **runtime vision fallback loop** (retry-down-the-chain on failure) is _designed but
-> not yet wired_ — see [§Vision fallback loop](#vision-fallback-loop-designed--pending). Its
-> plumbing (`visionFallbackModels` on the envelope, model-parameterized `resolveVisionAuth`)
-> is in place; the loop that consumes them is the pending C2b slice.
+> The **runtime vision fallback loop** (retry-down-the-chain on failure) is _live in
+> prod_ — see [§Vision fallback loop](#vision-fallback-loop). Its plumbing
+> (`visionFallbackModels` on the envelope, model-parameterized `resolveVisionAuth`) and the
+> loop that consumes them are both shipped.
 
 ## The two-phase split (load-bearing)
 
@@ -108,10 +108,9 @@ by `(model, attachmentId|urlHash)` with per-category TTL), and surfaces a human-
 Because the negative cache is keyed **by model**, swapping the model (a global-default change, or
 the fallback loop below) re-attempts immediately rather than replaying the old model's failure.
 
-## Vision fallback loop (designed — pending)
+## Vision fallback loop
 
-> Phase 4's headline behavior. **Not yet wired** — the plumbing is in place, the loop is the
-> pending C2b slice. Documented here so the design is the reference when it lands.
+> Phase 4's headline behavior. **Live in prod** — this section is its reference.
 
 Today a vision failure yields one `[Image unavailable: …]` placeholder immediately. The fallback
 loop retries **down the chain** on a _retryable_ failure before giving up:
@@ -129,12 +128,13 @@ with nothing concrete left. The check runs after the cap, so it covers an alias 
 either source — the system-setting floor or a gateway-stamped fallback. An alias that is not the
 tail already has something concrete after it and gets nothing.
 
-**Retry-vs-terminate policy** — `VISION_TERMINATE_CATEGORIES = { CONTENT_POLICY, CENSORED,
-MEDIA_NOT_FOUND }` terminate the loop immediately (the _image itself_ is rejected — another model
-won't help). This is a **strict subset** of `ATTACHMENT_BOUND_FAILURE_CATEGORIES`, excluding
-`MODEL_NOT_FOUND` — a missing model is exactly what a fallback tier routes around, so it retries.
-Everything else (AUTH, RATE_LIMIT, QUOTA, SERVER, NETWORK, TIMEOUT, MODEL_NOT_FOUND) advances to
-the next tier.
+**Retry-vs-terminate policy** — `VISION_TERMINATE_CATEGORIES = { MEDIA_NOT_FOUND }` terminates the
+loop immediately: the attachment itself cannot be fetched, so no tier's model could ever see it.
+This is a **strict subset** of `LONG_TTL_FAILURE_CATEGORIES`, which additionally holds
+`CONTENT_POLICY`, `CENSORED`, `PROVIDER_CONTENT_REFUSED`, and `MODEL_NOT_FOUND` —
+attachment-bound for negative-cache TTL, but tier-specific for retry (a different tier is a
+different provider, model, or filter), so the loop advances past all four. Everything else
+advances too.
 
 **Per-tier auth** — each fallback model may need a different provider/key, so the loop resolves
 auth per tier via `resolveVisionAuth(targetModel, options, quotaTracker)` (model-parameterized,

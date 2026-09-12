@@ -53,25 +53,30 @@ export class VisionModelError extends Error {
 }
 
 /**
- * Vision failure categories where the IMAGE ITSELF is the problem (a provider examined
- * it and refused, or it's unreadable) — retrying with a different model won't help, so
- * the fallback loop terminates immediately rather than burning tiers/latency/quota.
+ * The one vision failure every tier shares: the attachment itself cannot be FETCHED,
+ * so no model — on any tier — can ever see it. That's the only condition where
+ * advancing to the next tier is pointless, so it's the only one that terminates the
+ * fallback loop immediately rather than burning tiers/latency/quota.
  *
- * Deliberately a STRICT SUBSET of `LONG_TTL_FAILURE_CATEGORIES`, excluding two members
- * that are attachment-bound for negative-cache-TTL purposes but are exactly what the
- * fallback loop routes AROUND rather than terminates on:
- * - `MODEL_NOT_FOUND` — a missing model won't reappear for THIS attachment on a retry
- *   of the SAME model, but a different tier is a different model.
+ * Four categories are deliberately excluded even though they're attachment-bound for
+ * negative-cache-TTL purposes (`LONG_TTL_FAILURE_CATEGORIES`) — each is TIER-SPECIFIC,
+ * so the loop routes AROUND it rather than terminating:
+ * - `CONTENT_POLICY` — a provider or router refused the request; a different tier is a
+ *   different provider/router (whether a lower tier accepts such a payload is not yet
+ *   observed — this category never reached one while it terminated the loop).
+ * - `CENSORED` — the model answered but had its output filtered; a different tier is a
+ *   different model.
  * - `PROVIDER_CONTENT_REFUSED` — a provider's input filter won't reappear for THIS
  *   attachment on a retry of the SAME provider, but a different tier is a different
  *   provider's filter, and lower tiers are observed describing images an upstream
  *   tier's filter refused.
- * The subset invariant (and that these two are the sole difference) is pinned by a test.
+ * - `MODEL_NOT_FOUND` — a missing model won't reappear for THIS attachment on a retry
+ *   of the SAME model, but a different tier is a different model.
+ * The subset invariant (and that these four are the sole difference) is pinned by the
+ * `terminate-set / attachment-bound-set invariant` describe in visionDescribeGates.test.ts.
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant (mirrors LONG_TTL_FAILURE_CATEGORIES). Exported for the fallback loop + the terminate-set/attachment-bound-set invariant test in visionDescribeGates.test.ts.
 export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
-  ApiErrorCategory.CONTENT_POLICY,
-  ApiErrorCategory.CENSORED,
   ApiErrorCategory.MEDIA_NOT_FOUND,
 ]);
 
@@ -96,7 +101,7 @@ export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Se
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant. Exported only to enable the cache-policy/fallback-set invariant test in visionDescribeGates.test.ts.
 export const LONG_TTL_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   // The axis here is CACHE LIFETIME (mirror of VISION_FAILURE_CACHE_POLICY's
-  // LONG cooldowns), NOT "the image itself is doomed" — MODEL_NOT_FOUND is
+  // LONG cooldowns), NOT "no tier could ever see this" — MODEL_NOT_FOUND is
   // long-cacheable per (model, attachment) yet retryable across models, which
   // is exactly why VISION_TERMINATE_CATEGORIES excludes it (invariant-tested).
   ApiErrorCategory.CONTENT_POLICY,
@@ -108,8 +113,8 @@ export const LONG_TTL_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Se
   ApiErrorCategory.CENSORED,
   // Attachment-bound for THIS provider's input filter (the cache key includes
   // the model), yet retryable ACROSS tiers — a different tier is a different
-  // provider's filter. Same shape as MODEL_NOT_FOUND above, which is why the
-  // terminate set (below) excludes both.
+  // provider's filter. Same shape as CONTENT_POLICY, CENSORED, and
+  // MODEL_NOT_FOUND above, which is why the terminate set (above) excludes all four.
   ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
 ]);
 
@@ -164,8 +169,9 @@ export function buildFailureFallback(
  *
  * `longTtlOnly` (the retry-loop / reference path) honors ONLY failures bound to
  * the attachment itself (dead URL, removed model, content-policy, censored) — those can't
- * recover for this attachment, so re-attempting every turn the image sits in context just
- * re-storms across providers (observed adding ~100s of latency per turn). Transient
+ * recover for this (model, attachment) pair, which is what the cache key holds, so
+ * re-attempting every turn the image sits in context just re-storms across providers
+ * (observed adding ~100s of latency per turn). Transient
  * failures (rate-limit, quota, server) are NOT honored in this mode: they may have
  * cleared, and short-circuiting them would defeat the retry that exists to catch recovery.
  */
