@@ -64,20 +64,22 @@ Railway deployment helpers (full procedure: `/tzurot-deployment`):
 
 Focused (changed-packages-only) task runs plus the standalone dev audits:
 
-| Command                           | Description                                                                       |
-| --------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm ops dev:focus <task>`       | Run a turbo task only on packages with changes                                    |
-| `pnpm ops dev:lint`               | Lint only changed packages                                                        |
-| `pnpm ops dev:test`               | Test only changed packages                                                        |
-| `pnpm ops dev:typecheck`          | Typecheck only changed packages                                                   |
-| `pnpm ops dev:test-summary`       | Run tests and print a clean summary                                               |
-| `pnpm ops dev:update-deps`        | Update all dependencies to latest versions                                        |
-| `pnpm ops dev:dead-files`         | Find production files referenced only by their own tests                          |
-| `pnpm ops dev:deferred-refs`      | Surface tracker tasks referencing the given (or staged) files — never fails       |
-| `pnpm ops dev:schema-audit`       | Audit Prisma optional columns for fake-optionality                                |
-| `pnpm ops dev:stale-debug`        | Audit for `debug`-typed commits whose scaffolding survives at HEAD                |
-| `pnpm ops lint:complexity-report` | Report files/functions approaching the ESLint complexity limits                   |
-| `pnpm ops commands:audit`         | Slash-command surface inventory + consistency audit (CI runs it with `--summary`) |
+| Command                             | Description                                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm ops dev:focus <task>`         | Run a turbo task only on packages with changes                                                                                       |
+| `pnpm ops dev:lint`                 | Lint only changed packages                                                                                                           |
+| `pnpm ops dev:test`                 | Test only changed packages                                                                                                           |
+| `pnpm ops dev:typecheck`            | Typecheck only changed packages                                                                                                      |
+| `pnpm ops dev:test-summary`         | Run tests and print a clean summary                                                                                                  |
+| `pnpm ops dev:update-deps`          | Update all dependencies to latest versions                                                                                           |
+| `pnpm ops dev:dead-files`           | Find production files referenced only by their own tests                                                                             |
+| `pnpm ops dev:deferred-refs`        | Surface tracker tasks referencing the given (or staged) files — never fails                                                          |
+| `pnpm ops dev:schema-audit`         | Audit Prisma optional columns for fake-optionality                                                                                   |
+| `pnpm ops dev:stale-debug`          | Audit for `debug`-typed commits whose scaffolding survives at HEAD                                                                   |
+| `pnpm ops lint:complexity-report`   | Report files/functions approaching the ESLint complexity limits                                                                      |
+| `pnpm ops commands:audit`           | Slash-command surface inventory + consistency audit (CI runs it with `--summary`)                                                    |
+| `pnpm ops worktree:transfer <path>` | Apply a worker worktree's staged diff into the main tree, verify it byte-for-byte, then remove the worktree and its throwaway branch |
+| `pnpm ops unit:closeout <task-id>`  | Close a tracker task, commit + push the tracker file to develop, and print the now.md/CURRENT.md lines that still need judgment      |
 
 ## Backlog Commands
 

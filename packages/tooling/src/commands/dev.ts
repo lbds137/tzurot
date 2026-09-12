@@ -6,7 +6,19 @@
 
 import type { CAC } from 'cac';
 
-import { parseIntFlag } from '../utils/cli-args.js';
+import { parseIntFlag, rawOptionValue } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
+
+/** A commit SHA is 7-40 hex characters; a hand-completed or truncated value fails cleanly here rather than downstream in `git`. */
+const SHA_FORMAT = /^[0-9a-f]{7,40}$/i;
+
+function parseShaFlag(raw: string, flagName: string): string {
+  const trimmed = raw.trim();
+  if (!SHA_FORMAT.test(trimmed)) {
+    throw new UsageError(`${flagName} must be a 7–40 character hex commit SHA`);
+  }
+  return trimmed;
+}
 
 export function registerDevCommands(cli: CAC): void {
   cli
@@ -106,6 +118,67 @@ export function registerDevCommands(cli: CAC): void {
   registerComplexityReportCommand(cli);
   registerCommandsAuditCommand(cli);
   registerBacklogCommand(cli);
+  registerWorktreeTransferCommand(cli);
+  registerUnitCloseoutCommand(cli);
+}
+
+function registerWorktreeTransferCommand(cli: CAC): void {
+  cli
+    .command(
+      'worktree:transfer <path>',
+      "Apply a worker worktree's staged diff into the main tree, verify it byte-for-byte, then remove the worktree and its throwaway branch"
+    )
+    .option('--base <sha>', "Refuse unless the main tree's HEAD still equals this SHA")
+    .example('ops worktree:transfer .claude/worktrees/agent-xyz')
+    .example(
+      'ops worktree:transfer .claude/worktrees/agent-xyz --base 6bbfaeaa1faa683b91a6249095aa3ebe96bed0b7'
+    )
+    .action(async (worktreePath: string) => {
+      // Read --base from raw argv, not cac's parsed options: mri coerces a
+      // digit-only value to a Number before any type declaration applies, and
+      // an all-decimal SHA (rare, not impossible) would arrive as a number.
+      // Same reason gh:ci-gate reads --sha this way.
+      const rawBase = rawOptionValue(process.argv, '--base');
+      const base = rawBase === undefined ? undefined : parseShaFlag(rawBase, '--base');
+      const { transferWorktree } = await import('../dev/worktree-transfer.js');
+      const result = transferWorktree({ worktreePath, base });
+      if (!result.ok) {
+        console.error(`worktree:transfer refused (${result.check}): ${result.reason}`);
+        process.exitCode = 1;
+      }
+    });
+}
+
+function registerUnitCloseoutCommand(cli: CAC): void {
+  cli
+    .command(
+      'unit:closeout <task-id>',
+      'Close a tracker task, commit and push the tracker file to develop, and print the now.md/CURRENT.md lines that still need judgment'
+    )
+    .option('--pr <n>', 'PR number the unit merged as')
+    .option('--sha <sha>', 'Merge commit SHA')
+    .example('ops unit:closeout TASK-934 --pr 2400 --sha 6bbfaeaa1faa683b91a6249095aa3ebe96bed0b7')
+    .action(async (taskId: string, options: { pr?: string | number; sha?: string }) => {
+      const pr = parseIntFlag(options.pr, '--pr', { min: 1 });
+      if (pr === undefined) {
+        throw new UsageError('--pr <n> is required');
+      }
+      // Read --sha from raw argv, not cac's parsed options: mri coerces a
+      // digit-only value to a Number before any type declaration applies, and
+      // an all-decimal SHA (rare, not impossible) would arrive as a number.
+      // Same reason gh:ci-gate reads --sha this way.
+      const rawSha = rawOptionValue(process.argv, '--sha');
+      if (rawSha === undefined || rawSha.trim().length === 0) {
+        throw new UsageError('--sha <merge-sha> is required');
+      }
+      const sha = parseShaFlag(rawSha, '--sha');
+      const { unitCloseout } = await import('../dev/unit-closeout.js');
+      const result = unitCloseout({ taskId, pr, sha });
+      if (!result.ok) {
+        console.error(`unit:closeout refused (${result.check}): ${result.reason}`);
+        process.exitCode = 1;
+      }
+    });
 }
 
 function registerStaleDebugCommand(cli: CAC): void {
