@@ -296,6 +296,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:clearPersonalityDefaultConfig",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "DELETE /personality/:slug/default-config",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:clearPersonalityOverrides",
       "kind": "http-route",
       "producer": "client",
@@ -2303,6 +2317,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "PATCH /persona/:id/default",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:setPersonalityDefaultConfig",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "PUT /personality/:slug/default-config",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

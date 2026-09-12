@@ -7,6 +7,7 @@
 
 import type { Request, Response } from 'express';
 import type { ModelOverrideSummary } from '@tzurot/common-types/schemas/api/model-override';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { parseModelSlotQueryAllowAll } from '../../utils/configRouteHelpers.js';
 import type { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 
@@ -56,6 +57,27 @@ export async function buildOverrideSummary(
     slot,
     supportsVision: await capabilities.supportsVision(config?.model ?? ''),
   };
+}
+
+/**
+ * Verify that the given LLM config exists and the user can access it (global or owned).
+ * Returns the config (incl. its `model`) if accessible, null otherwise. The slot a
+ * config occupies (chat vs vision) is the caller's request, NOT a property of the
+ * config — so the set handlers pick the FK column from `?slot=`. `model` is returned
+ * so the vision slot can be capability-gated (the model must support image input).
+ */
+export async function verifyConfigAccess(
+  prisma: PrismaClient,
+  configId: string,
+  userId: string
+): Promise<{ id: string; name: string; model: string } | null> {
+  return prisma.llmConfig.findFirst({
+    where: {
+      id: configId,
+      OR: [{ isGlobal: true }, { ownerId: userId }],
+    },
+    select: { id: true, name: true, model: true },
+  });
 }
 
 export interface ClearSlots {
