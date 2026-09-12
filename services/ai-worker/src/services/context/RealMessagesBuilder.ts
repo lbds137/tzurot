@@ -224,6 +224,21 @@ function escapeForRegExp(literal: string): string {
   return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Shared line-end tail for both output-side header matchers
+ * (`leadingHeaderLineMatcher`, `leadingSelfHeaderLineMatcher`): the closing
+ * bracket must be the last non-blank thing on its line — a lookahead requires
+ * end-of-line (or end-of-string) after optional trailing spaces/tabs — and
+ * the tail then consumes that line break so the header's own newline never
+ * survives into the stripped output — pinned at the UNIT tier by the
+ * leading-header strip cases in `responseArtifacts.test.ts`, which assert the
+ * exact remainder. The seam tier cannot pin this half: stage 2
+ * (`stripResponseArtifacts`) trims, so a surviving blank line is invisible
+ * there. One shared string so the two matchers' line-end handling cannot
+ * drift apart from each other.
+ */
+const HEADER_LINE_END = '(?=[ \\t]*(?:\\r?\\n|$))[ \\t]*\\r?\\n?';
+
 /** The header shape's regex core: open bracket, bracket-free text, the
  *  separator, bracket-free tail, close bracket. Capture group 1 is the inner
  *  text. Only the TIMESTAMPED form is expressible here — the bare `[Name]`
@@ -247,11 +262,18 @@ export function headerShapedLineMatcher(): RegExp {
   return new RegExp(`^([ \\t]*)${headerShapeCore()}(?=[ \\t]*\\r?$)`, 'gm');
 }
 
-/** Matches a header-shaped line only at the START of a string, together with
- *  its trailing line break — the output-side strip's matcher. Tolerates the
- *  same invisible surrounding whitespace as the input-side matcher above. */
+/**
+ * Matches a header-shaped line only at the START of a string, together with
+ * its trailing line break — the output-side strip's matcher. Tolerates the
+ * same invisible surrounding whitespace as the input-side matcher above, and
+ * requires the closing bracket to be the last non-blank thing on its line
+ * (`HEADER_LINE_END`) — a bracketed em-dash aside followed by same-line prose
+ * (`[laughs — really] Anyway, no.`) is therefore left intact rather than
+ * truncated at the bracket, pinned by the keep-case fixtures in
+ * `responseStripSeam.test.ts`.
+ */
 export function leadingHeaderLineMatcher(): RegExp {
-  return new RegExp(`^[ \\t]*${headerShapeCore()}[ \\t]*\\r?\\n?`);
+  return new RegExp(`^[ \\t]*${headerShapeCore()}${HEADER_LINE_END}`);
 }
 
 /**
@@ -260,11 +282,12 @@ export function leadingHeaderLineMatcher(): RegExp {
  * `personalityName`, with the closing bracket the LAST thing on the line —
  * the compound case `leadingHeaderLineMatcher` cannot see, where the model
  * prefixes its own decorated preamble before restamping its own header
- * (`[stray tag] — *aside* — [Name — timestamp]`). The trailing lookahead
- * requires end-of-line (or end-of-string) immediately after the closing
- * bracket, so same-line prose that merely FOLLOWS a self-named bracketed
- * aside is left untouched — pinned by the narration keep-case in this
- * function's own test suite.
+ * (`[stray tag] — *aside* — [Name — timestamp]`). The trailing tail
+ * (`HEADER_LINE_END`, shared with `leadingHeaderLineMatcher`) requires
+ * end-of-line (or end-of-string) immediately after the closing bracket, so
+ * same-line prose that merely FOLLOWS a self-named bracketed aside is left
+ * untouched — pinned by the narration keep-case in this function's own test
+ * suite.
  *
  * Deliberately name-scoped rather than shape-scoped: a shape-only match would
  * delete legitimate character dialogue that happens to end in a bracketed,
@@ -433,7 +456,7 @@ export function leadingSelfHeaderLineMatcher(personalityName: string): RegExp {
   // One preamble UNIT: decoration only, never a bare word character.
   const preambleUnit = `(?:${bracketGroup}|${asteriskRun}|${underscoreRun}|${decorChar})`;
   return new RegExp(
-    `^(?:${preambleUnit}){0,${SELF_HEADER_PREAMBLE_MAX}}?${escapeForRegExp(HEADER_OPEN)}${escapedName}(?= )[^\\[\\]\\r\\n]*?${escapeForRegExp(HEADER_SEPARATOR)}[^\\[\\]\\r\\n]*${escapeForRegExp(HEADER_CLOSE)}(?=[ \\t]*(?:\\r?\\n|$))[ \\t]*\\r?\\n?`,
+    `^(?:${preambleUnit}){0,${SELF_HEADER_PREAMBLE_MAX}}?${escapeForRegExp(HEADER_OPEN)}${escapedName}(?= )[^\\[\\]\\r\\n]*?${escapeForRegExp(HEADER_SEPARATOR)}[^\\[\\]\\r\\n]*${escapeForRegExp(HEADER_CLOSE)}${HEADER_LINE_END}`,
     'i'
   );
 }

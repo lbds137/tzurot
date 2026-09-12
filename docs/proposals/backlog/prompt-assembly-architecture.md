@@ -616,12 +616,16 @@ with the losing side's objections as binding constraints:
   hex>)` anywhere in a reply, so an in-fiction parenthetical that happens to
   be hex-shaped (`(id:c0de)`) is silently dropped — accepted, the width
   bounding rules out the worst and platform syntax has no legitimate
-  in-reply use. And the output-side leading-header strip removes a reply's
-  first line when it is a bracketed em-dash stage direction
-  (`[Sighs — clearly annoyed] ...`) — accepted at build time. The generic
-  artifact pass's leading-`[...]` deletion has since been narrowed to
-  prompt-timestamp interiors, so this matcher is now the only deleter of that
-  shape; whether it needs an end-of-line requirement is open on TASK-923.
+  in-reply use. The output-side leading-header strip requires the closing
+  bracket to be the last non-blank thing on its line (resolved on TASK-923),
+  so a bracketed em-dash stage direction followed by same-line prose
+  (`[Sighs — clearly annoyed] ...`) is left intact rather than truncated at
+  the bracket. The generic artifact pass's leading-`[...]` deletion has since
+  been narrowed to prompt-timestamp interiors, so this matcher is now the
+  only deleter of that shape. The accepted residual runs the other way: a
+  rendered header followed by same-line reply text (rather than its own
+  line) survives unstripped, since the end-of-line requirement declines to
+  match it.
 
 ### D3 — flag-read unification: BUILD
 

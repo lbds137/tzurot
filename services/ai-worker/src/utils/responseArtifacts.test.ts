@@ -1084,9 +1084,10 @@ describe('stripRealMessageEchoArtifacts', () => {
     });
 
     it('KEEP-CASE (stage 1 only; end-to-end in responseStripSeam.test.ts): a leading non-header bracket aside passes through byte-identical', () => {
-      // This asserts stage 1 only. The em-dash variant `[laughs — really]` IS
-      // taken by `leadingHeaderLineMatcher` flag-on, and that is pinned in
-      // responseStripSeam.test.ts under TASK-923's open matcher question.
+      // This asserts stage 1 only. The em-dash variant `[laughs — really]` is
+      // NOT taken by `leadingHeaderLineMatcher` flag-on either, since the
+      // matcher requires the closing bracket to end the line — pinned as a
+      // keep-case in responseStripSeam.test.ts (resolved by TASK-923).
       const content = '[laughs] Anyway, no.';
       expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe(content);
     });
