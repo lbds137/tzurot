@@ -3,9 +3,10 @@ id: TASK-849
 title: >-
   No format gate exists in pnpm quality or CI, so unstaged files drift
   indefinitely
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-01 02:30'
+updated_date: '2026-09-12 21:13'
 labels:
   - 'area:tooling'
   - 'size:S'
