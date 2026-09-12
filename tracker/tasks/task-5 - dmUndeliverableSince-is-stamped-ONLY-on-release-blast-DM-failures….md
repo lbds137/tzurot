@@ -1,10 +1,10 @@
 ---
 id: TASK-5
 title: 'Stamp dmUndeliverableSince on persona-DM failures, not just blasts'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-09-11 16:53'
+updated_date: '2026-09-12 00:20'
 labels:
   - 'area:bot-client'
   - 'area:api-gateway'
