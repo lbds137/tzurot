@@ -110,10 +110,15 @@ module.exports = {
       exportsFields: ['exports'],
       conditionNames: ['import', 'require', 'node', 'default'],
     },
-    cache: {
-      strategy: 'content',
-      folder: 'node_modules/.cache/dependency-cruiser',
-    },
+    // No result cache by design (TASK-902). With `strategy: 'content'` over
+    // `node_modules/.cache/dependency-cruiser`, a warm cache was observed
+    // serving a stale verdict that contradicted the files on disk: adding a
+    // MemoryFormatter ↔ MemoryNoteSplitRender import cycle and re-running
+    // printed "no dependency violations" in ~1.7s, while the same tree with
+    // the cache deleted reported the no-circular error in ~10s. The stale
+    // verdict was reproduced in both directions (a removed cycle also kept
+    // reporting red) and persisted until the cache folder was deleted. A
+    // correctness gate that can disagree with disk is worth ~8s a run.
     // node_modules/discord.js is deliberately IN the graph (as a leaf —
     // doNotFollow stops traversal): the ai-worker-no-discord and
     // ux-catalog-no-discord rules ban importing the library, and includeOnly

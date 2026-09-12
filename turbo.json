@@ -10,7 +10,7 @@
     },
     "lint": {
       "dependsOn": ["^build", "@tzurot/tooling#build"],
-      "inputs": ["src/**", "*.config.js", "*.config.ts", "eslint.config.js"],
+      "inputs": ["src/**", "*.config.js", "*.config.ts", "$TURBO_ROOT$/eslint.config.js"],
       "outputs": [],
       "cache": true
     },
