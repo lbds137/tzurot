@@ -3,10 +3,10 @@ id: TASK-923
 title: >-
   leadingHeaderLineMatcher truncates any reply whose first line opens with a
   bracketed em-dash aside
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 16:34'
-updated_date: '2026-09-12 10:06'
+updated_date: '2026-09-12 10:41'
 labels:
   - 'area:ai-worker'
   - 'size:M'
