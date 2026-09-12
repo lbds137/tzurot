@@ -3,9 +3,10 @@ id: TASK-792
 title: >-
   tests/ workspace has no typecheck script, so pnpm typecheck silently skips the
   whole package
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 14:45'
+updated_date: '2026-09-12 21:13'
 labels:
   - 'area:testing'
   - 'size:S'
