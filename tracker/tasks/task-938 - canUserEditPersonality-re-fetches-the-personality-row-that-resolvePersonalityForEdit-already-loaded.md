@@ -3,9 +3,10 @@ id: TASK-938
 title: >-
   canUserEditPersonality re-fetches the personality row that
   resolvePersonalityForEdit already loaded
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 05:32'
+updated_date: '2026-09-12 16:13'
 labels:
   - 'area:api-gateway'
   - 'size:S'
