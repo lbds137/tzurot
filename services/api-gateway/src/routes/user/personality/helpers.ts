@@ -30,38 +30,57 @@ interface CanUserViewPersonalityOptions {
 }
 
 /**
+ * Options for checking if user can edit a personality
+ */
+interface CanUserEditPersonalityOptions {
+  /** Prisma client instance */
+  prisma: PrismaClient;
+  /** Internal database user ID */
+  userId: string;
+  /** Personality ID to check */
+  personalityId: string;
+  /** Owner ID the caller already loaded; when omitted the row is fetched by id */
+  ownerId?: string;
+  /** Discord user ID (for bot owner check) */
+  discordUserId?: string;
+}
+
+/**
  * Check if user can edit a personality (owns it directly or via PersonalityOwner)
  * Bot owner can edit any personality.
  *
- * @param prisma - Prisma client
- * @param userId - Internal database user ID
- * @param personalityId - Personality ID to check
- * @param discordUserId - Discord user ID (for bot owner check)
+ * Passing an `ownerId` the caller already loaded skips the personality row read;
+ * omitting it makes this helper fetch the row by id. The skip is pinned by the
+ * "skips the personality fetch when ownerId is supplied" tests in helpers.test.ts.
  */
 export async function canUserEditPersonality(
-  prisma: PrismaClient,
-  userId: string,
-  personalityId: string,
-  discordUserId?: string
+  options: CanUserEditPersonalityOptions
 ): Promise<boolean> {
+  const { prisma, userId, personalityId, ownerId, discordUserId } = options;
+
   // Bot owner bypass - can edit any personality
   if (discordUserId !== undefined && isBotOwner(discordUserId)) {
     return true;
   }
 
-  // Single query to check both direct ownership and PersonalityOwner table
-  const personality = await prisma.personality.findUnique({
-    where: { id: personalityId },
-    select: { ownerId: true },
-    // Note: We can't nest relations in select, so we do a separate check
-  });
+  let resolvedOwnerId = ownerId;
+  if (resolvedOwnerId === undefined) {
+    // Single query to check both direct ownership and PersonalityOwner table
+    const personality = await prisma.personality.findUnique({
+      where: { id: personalityId },
+      select: { ownerId: true },
+      // Note: We can't nest relations in select, so we do a separate check
+    });
 
-  if (personality === null) {
-    return false;
+    if (personality === null) {
+      return false;
+    }
+
+    resolvedOwnerId = personality.ownerId;
   }
 
   // Check direct ownership first (most common case)
-  if (personality.ownerId === userId) {
+  if (resolvedOwnerId === userId) {
     return true;
   }
 
@@ -182,12 +201,13 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
     return null;
   }
 
-  const canEdit = await canUserEditPersonality(
+  const canEdit = await canUserEditPersonality({
     prisma,
     userId,
-    (personality as { id: string }).id,
-    discordUserId
-  );
+    personalityId: (personality as { id: string }).id,
+    ownerId: (personality as { ownerId: string }).ownerId,
+    discordUserId,
+  });
   if (!canEdit) {
     sendError(
       res,

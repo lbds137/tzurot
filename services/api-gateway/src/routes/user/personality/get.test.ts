@@ -220,6 +220,7 @@ describe('GET /api/user/personality/:slug', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(mockPrisma.personality.findUnique).toHaveBeenCalledTimes(1);
     // Owner (canEdit) always sees the full card even when definitionPublic=false.
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
