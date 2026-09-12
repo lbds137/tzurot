@@ -6,7 +6,6 @@ import {
   AudioTooLongError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
-import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
 // run without real config/network. (The context write-path helpers live in
@@ -18,11 +17,9 @@ const mockServiceClient = {
   lookupPersonalityFromMessage: vi.fn(),
   updateDiagnosticResponseIds: vi.fn(),
   stampUserActivity: vi.fn(),
-  stampUserDmUndeliverable: vi.fn(),
   aiGenerate: vi.fn(),
   aiConfirmDelivery: vi.fn(),
   releaseBroadcastPending: vi.fn(),
-  releaseBroadcastDeliveries: vi.fn(),
 };
 
 vi.mock('./gatewayClients.js', () => ({
@@ -41,11 +38,9 @@ import {
   lookupPersonalityFromMessage,
   updateDiagnosticResponseIds,
   stampUserActivity,
-  reportPersonaDmUndeliverable,
   generate,
   confirmDelivery,
   filterPendingDeliveries,
-  reportDeliveries,
   transcribe,
   healthCheck,
   invalidateChannelSettingsCache,
@@ -226,40 +221,6 @@ describe('fire-and-forget helpers', () => {
     });
   });
 
-  it('reportPersonaDmUndeliverable forwards discordId + errorCode across the seam', async () => {
-    mockServiceClient.stampUserDmUndeliverable.mockResolvedValue(ok({ stamped: true }));
-
-    reportPersonaDmUndeliverable('123456789012345678', '50007');
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockServiceClient.stampUserDmUndeliverable).toHaveBeenCalledWith({
-      discordId: '123456789012345678',
-      errorCode: '50007',
-    });
-  });
-
-  it('reportPersonaDmUndeliverable warns and does not throw on a non-ok result', async () => {
-    mockServiceClient.stampUserDmUndeliverable.mockResolvedValue(makeErr(500, 'boom'));
-
-    expect(() => reportPersonaDmUndeliverable('123456789012345678', '50007')).not.toThrow();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockServiceClient.stampUserDmUndeliverable).toHaveBeenCalledTimes(1);
-  });
-
-  it('reportPersonaDmUndeliverable never throws and produces no unhandled rejection when the client rejects', async () => {
-    mockServiceClient.stampUserDmUndeliverable.mockRejectedValue(new Error('socket hang up'));
-
-    expect(() => reportPersonaDmUndeliverable('123456789012345678', '50007')).not.toThrow();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockServiceClient.stampUserDmUndeliverable).toHaveBeenCalledTimes(1);
-  });
-
   it('filterPendingDeliveries THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {
     mockServiceClient.releaseBroadcastPending.mockResolvedValue(makeErr(503, 'boom'));
     await expect(filterPendingDeliveries('release-1', ['a'])).rejects.toThrow(
@@ -272,75 +233,6 @@ describe('fire-and-forget helpers', () => {
       ok({ pendingDeliveryLogIds: ['a'] })
     );
     await expect(filterPendingDeliveries('release-1', ['a', 'b'])).resolves.toEqual(['a']);
-  });
-
-  it('reportDeliveries retries a transient failure, then succeeds', async () => {
-    vi.useFakeTimers();
-    try {
-      mockServiceClient.releaseBroadcastDeliveries
-        .mockResolvedValueOnce({ ok: false, kind: 'network', error: 'x', status: 0 })
-        .mockResolvedValueOnce(ok({ updated: 1, autoDisabledUserIds: [], completed: false }));
-
-      const promise = reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }]);
-      await vi.runAllTimersAsync();
-      await expect(promise).resolves.toEqual({ completed: false });
-
-      expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('reportDeliveries threads the completion summary back to the caller', async () => {
-    const summary = {
-      version: 'v-1',
-      sent: 3,
-      failedPermanent: 0,
-      failedTransient: 1,
-      failedBotLevel: 0,
-      optedOut: 0,
-    } satisfies BroadcastCompletionSummary;
-    mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue(
-      ok({ updated: 1, autoDisabledUserIds: [], completed: true, summary })
-    );
-
-    await expect(
-      reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }])
-    ).resolves.toEqual({ completed: true, summary });
-  });
-
-  it('reportDeliveries NEVER throws after retries exhaust (post-send: a throw would re-DM)', async () => {
-    vi.useFakeTimers();
-    try {
-      mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue({
-        ok: false,
-        kind: 'network',
-        error: 'x',
-        status: 0,
-      });
-
-      const promise = reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }]);
-      await vi.runAllTimersAsync();
-      await expect(promise).resolves.toBeUndefined();
-
-      expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(3);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('reportDeliveries gives up immediately on a non-retryable 4xx', async () => {
-    mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue({
-      ok: false,
-      kind: 'http',
-      error: 'bad',
-      status: 400,
-    });
-
-    await expect(
-      reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }])
-    ).resolves.toBeUndefined();
-    expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(1);
   });
 
   it('confirmDelivery never throws on failure', async () => {

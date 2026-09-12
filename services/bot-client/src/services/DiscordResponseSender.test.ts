@@ -22,7 +22,7 @@ vi.mock('../redis.js', () => ({
 }));
 
 const mockReportPersonaDmUndeliverable = vi.fn();
-vi.mock('../utils/gatewayServiceCalls.js', () => ({
+vi.mock('../utils/retentionGatewayCalls.js', () => ({
   reportPersonaDmUndeliverable: (...args: unknown[]) =>
     (mockReportPersonaDmUndeliverable as (...args: unknown[]) => unknown)(...args),
 }));

@@ -28,7 +28,7 @@ import { type WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';
 import { classifyDmError, dmErrorCode } from '../utils/dmErrorClassifier.js';
-import { reportPersonaDmUndeliverable } from '../utils/gatewayServiceCalls.js';
+import { reportPersonaDmUndeliverable } from '../utils/retentionGatewayCalls.js';
 
 const logger = createLogger('DiscordResponseSender');
 

@@ -39,7 +39,7 @@ import {
   filterNotifyEligible,
   reportNotifyOutcomes,
   type NotifyOutcomeReport,
-} from '../../utils/retentionNotifyGatewayCalls.js';
+} from '../../utils/retentionGatewayCalls.js';
 import { postOwnerChannelEmbed } from '../../utils/ownerChannel.js';
 import {
   buildRetentionNotice,
