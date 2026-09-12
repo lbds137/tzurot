@@ -1720,6 +1720,16 @@ describe('leadingSelfHeaderLineMatcher', () => {
       expect(leadingSelfHeaderLineMatcher('Lilith').test(line)).toBe(false);
       expect(line.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(line);
     });
+
+    // underscoreDelim is a separately constructed string from asteriskDelim,
+    // not a shared helper — mirrors the asterisk case above so a regression in
+    // the underscore branch's three-or-more rejection goes red on its own,
+    // instead of relying on the asterisk fixture to catch a shared bug.
+    it('a run of three or more underscores is rejected outright, not accepted via a mixed open/close split', () => {
+      const line = '___ [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(line)).toBe(false);
+      expect(line.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(line);
+    });
   });
 
   describe('emphasis run interior cap', () => {
@@ -1772,6 +1782,37 @@ describe('leadingSelfHeaderLineMatcher', () => {
       const narrated = '*sighs softly* [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.';
       expect(leadingSelfHeaderLineMatcher('Lilith').test(narrated)).toBe(true);
       expect(narrated.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe('Damien.');
+    });
+  });
+
+  describe('accepted residual: decoration outside the allowlist', () => {
+    // Pins the decorChar comment's false-negative direction as deliberate (see
+    // `leadingSelfHeaderLineMatcher` above): a decoration character OUTSIDE the
+    // curated allowlist makes the preamble parse fail at that character, so a
+    // genuine leak decorated that way survives unstripped. The fixture exists
+    // so a future widening of decorChar is visible in a diff rather than silent.
+    const buildLine = (deco: string): string =>
+      `${deco} [Lilith — 2026-09-09 (Wed) 14:07]\nDamien.`;
+
+    it.each([
+      ['bullet U+2022', '•'],
+      ['emoji', '😀'],
+      ['fullwidth comma U+FF0C', '，'],
+    ])(
+      '%s is outside the allowlist: the preamble does not match, and the line survives unstripped',
+      (_label, deco) => {
+        const line = buildLine(deco);
+        expect(leadingSelfHeaderLineMatcher('Lilith').test(line)).toBe(false);
+        expect(line.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe(line);
+      }
+    );
+
+    // Positive control: an in-allowlist decoration must still match and strip,
+    // so this block cannot pass vacuously if the matcher ever stops matching.
+    it('an in-allowlist decoration (em-dash) still matches and strips the header', () => {
+      const line = buildLine('—');
+      expect(leadingSelfHeaderLineMatcher('Lilith').test(line)).toBe(true);
+      expect(line.replace(leadingSelfHeaderLineMatcher('Lilith'), '')).toBe('Damien.');
     });
   });
 

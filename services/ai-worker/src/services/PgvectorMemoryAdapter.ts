@@ -27,7 +27,11 @@ import { waterfallMemoryQuery } from './PgvectorChannelScoping.js';
 import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';
 
 // Re-export types for consumers that import from this module (~10 files)
-export { MemoryQueryOptions, MemoryMetadata, MemoryMetadataSchema } from './PgvectorTypes.js';
+export {
+  type MemoryQueryOptions,
+  type MemoryMetadata,
+  MemoryMetadataSchema,
+} from './PgvectorTypes.js';
 
 import type {
   MemoryQueryOptions,

@@ -507,6 +507,15 @@ export default tseslint.config(
       //   as the engine slides the match start position.
       'regexp/no-super-linear-backtracking': 'error',
       'regexp/no-super-linear-move': 'error',
+
+      // A plain `export { X }` of a type-only symbol type-checks and passes
+      // vitest (tsc erases type-only re-exports), but a per-file transpiler
+      // (tsx/esbuild) has no type information and emits a runtime value
+      // re-export of a binding that doesn't exist, throwing at import time.
+      '@typescript-eslint/consistent-type-exports': [
+        'error',
+        { fixMixedExportsWithInlineTypeSpecifier: true },
+      ],
     },
   },
 
