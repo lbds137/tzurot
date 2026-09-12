@@ -169,22 +169,46 @@ describe.each([true, false])(
       });
     });
 
-    describe('OPEN MATCHER QUESTION (TASK-923): a same-line bracketed em-dash aside naming no personality', () => {
-      it("CURRENT behavior pending TASK-923's open matcher question: flag-on leadingHeaderLineMatcher strips a same-line bracketed em-dash aside ('laughs — really')", () => {
+    describe('KEEP-CASES (TASK-923): a same-line bracketed em-dash aside naming no personality', () => {
+      it("flag-on and flag-off: a same-line bracketed em-dash aside ('laughs — really') survives the name-agnostic matcher", () => {
         const fixture = '[laughs — really] Anyway, no.';
         const result = run(fixture);
-        // Recorded as-is, not endorsed: flag-on, `leadingHeaderLineMatcher`
-        // is shape-scoped (any bracket containing the header separator), so
-        // it strips this aside even though its interior names no
-        // personality. Whether it needs an end-of-line requirement is open
-        // on TASK-923 (see prompt-assembly-architecture.md).
-        expect(result).toBe(realMessagesEnabled ? 'Anyway, no.' : fixture);
+        // Accepted tradeoff: `leadingHeaderLineMatcher` requires the closing
+        // bracket to end the line, so a bracketed aside followed by
+        // same-line prose is never truncated. The cost is the inverse case —
+        // a header with same-line reply text survives (see the accepted
+        // tradeoff test below).
+        expect(result).toBe(fixture);
       });
 
-      it("CURRENT behavior pending TASK-923's open matcher question: flag-on leadingHeaderLineMatcher strips a same-line bracketed em-dash aside ('Name remembers — the promise made')", () => {
+      it("flag-on and flag-off: a same-line bracketed em-dash aside ('Name remembers — the promise made') survives the name-agnostic matcher", () => {
         const fixture = '[Name remembers — the promise made] I said I would never leave.';
         const result = run(fixture);
-        expect(result).toBe(realMessagesEnabled ? 'I said I would never leave.' : fixture);
+        expect(result).toBe(fixture);
+      });
+
+      it('a rendered header line alone at the top still strips flag-on — the end-of-line requirement does not disarm the strip', () => {
+        // Pins `leadingHeaderLineMatcher` specifically: `Damien` shares no
+        // prefix relationship with the run() personality ('Lilith'), so
+        // `leadingSelfHeaderLineMatcher` cannot take this line either, and
+        // stage 2's leading-bracket step takes only pure-timestamp interiors.
+        // This case pins the STRIP, not the tail's newline consumption —
+        // stage 2 trims, so a surviving blank line cannot redden a seam test;
+        // that half is pinned at the unit tier in responseArtifacts.test.ts.
+        const stamp = formatAbsoluteTimestamp(new Date(), NY);
+        const fixture = `[Damien — ${stamp}]\nAnd then the reply.`;
+        const result = run(fixture);
+        expect(result).toBe(realMessagesEnabled ? 'And then the reply.' : fixture);
+      });
+
+      it('accepted tradeoff: a header with same-line reply text survives (the matcher requires end of line)', () => {
+        // Same rendered header as above, but with same-line reply text — the
+        // matcher's end-of-line requirement means the closing bracket is no
+        // longer the last thing on the line, so it declines to strip.
+        const stamp = formatAbsoluteTimestamp(new Date(), NY);
+        const fixture = `[Damien — ${stamp}] and then the reply`;
+        const result = run(fixture);
+        expect(result).toBe(fixture);
       });
     });
   }
