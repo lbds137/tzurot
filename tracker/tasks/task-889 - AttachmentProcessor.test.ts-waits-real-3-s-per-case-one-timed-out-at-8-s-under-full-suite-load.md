@@ -3,9 +3,10 @@ id: TASK-889
 title: >-
   AttachmentProcessor.test.ts waits real 3 s per case; one timed out at 8 s
   under full-suite load
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-04 17:18'
+updated_date: '2026-09-12 17:05'
 labels:
   - 'area:ai-worker'
   - 'size:S'
