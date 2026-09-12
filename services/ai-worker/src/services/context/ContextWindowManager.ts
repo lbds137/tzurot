@@ -13,11 +13,13 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument, FactRenderNames } from '../ConversationalRAGTypes.js';
 import {
-  type StructuredHistoryEntry,
-  type ResponderIdentity,
   collectPersonalityNames,
   formatConversationHistoryAsXml,
 } from '../../jobs/utils/conversationUtils.js';
+import type {
+  StructuredHistoryEntry,
+  ResponderIdentity,
+} from '../../jobs/utils/conversationTypes.js';
 import type { HeaderIdTagMap } from '../../jobs/utils/participantUtils.js';
 import {
   measureHistoryEntryTokens,

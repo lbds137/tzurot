@@ -28,15 +28,10 @@ import {
 } from '../../services/prompt/QuoteFormatter.js';
 import { promptTime } from '../../services/prompt/RenderableReference.js';
 
-// Re-export from extracted modules for backward compatibility
+// Re-export from extracted modules
 export { extractParticipants } from './participantUtils.js';
 import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
 export { convertConversationHistory } from './langchainConverter.js';
-export {
-  StructuredHistoryEntry,
-  InlineImageDescription,
-  ResponderIdentity,
-} from './conversationTypes.js';
 
 // Import what we need internally
 import type { StructuredHistoryEntry } from './conversationTypes.js';

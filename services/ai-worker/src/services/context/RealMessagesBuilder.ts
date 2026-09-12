@@ -451,6 +451,17 @@ export function leadingSelfHeaderLineMatcher(personalityName: string): RegExp {
   // class does not — a deliberate divergence, not drift: this side reads
   // decoration a NAME never contributes, so the narrower forgery-relevant set
   // there has no bearing on what is safe to admit here.
+  //
+  // Consequence, accepted deliberately: scaffolding decorated with punctuation
+  // OUTSIDE this allowlist — a bullet, fullwidth punctuation, an emoji, a
+  // Unicode dash not in the curated set — makes the preamble parse fail at
+  // that character, so a genuine leak decorated that way survives unstripped.
+  // That false-negative direction is the intended one, matching the file's
+  // general preference for surviving a body over deleting it; widening this
+  // set to close a specific gap is a considered tradeoff, not a bug fix.
+  // Pinned by the `accepted residual: decoration outside the allowlist` cases
+  // in this function's own test suite (bullet, fullwidth, emoji survive; the
+  // positive control still strips).
   const decorChar =
     '[ \\t\\-\\u2010-\\u2015\\u2212<>|:;,.!?~"\'\\u2018\\u2019\\u201C\\u201D\\u2026]';
   // One preamble UNIT: decoration only, never a bare word character.

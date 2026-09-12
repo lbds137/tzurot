@@ -16,10 +16,8 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument, FactRenderNames } from '../ConversationalRAGTypes.js';
-import {
-  type StructuredHistoryEntry,
-  collectPersonalityNames,
-} from '../../jobs/utils/conversationUtils.js';
+import { collectPersonalityNames } from '../../jobs/utils/conversationUtils.js';
+import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { measureHistoryEntryTokens, measureHistoryEntryRealTokens } from './historyTokenMeasure.js';
 import type { RealRenderSettings } from './RealMessagesBuilder.js';
 

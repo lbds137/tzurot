@@ -20,8 +20,10 @@ import { type ModelConfig } from './ModelFactory.js';
 import type { DuplicateRetryConfig } from './ConversationalRAGTypes.js';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
-import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
+import type {
+  InlineImageDescription,
+  StructuredHistoryEntry,
+} from '../jobs/utils/conversationTypes.js';
 import { hydrateStoredReferences } from './storedReferenceHydrator.js';
 
 const logger = createLogger('RAGUtils');

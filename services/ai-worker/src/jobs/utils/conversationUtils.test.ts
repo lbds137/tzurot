@@ -15,8 +15,8 @@ import {
   formatCrossChannelHistoryAsXml,
   getPriorConversationsWrapperOverheadText,
   PRIOR_CONVERSATIONS_INSTRUCTION,
-  type StructuredHistoryEntry,
 } from './conversationUtils.js';
+import type { StructuredHistoryEntry } from './conversationTypes.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   type CrossChannelHistoryGroupEntry,
