@@ -3,9 +3,10 @@ id: TASK-934
 title: >-
   Mechanize the worktree transfer and the unit close-out as ops commands (doc-99
   lever 1)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-10 23:24'
+updated_date: '2026-09-12 06:05'
 labels:
   - 'area:tooling'
   - 'size:M'
