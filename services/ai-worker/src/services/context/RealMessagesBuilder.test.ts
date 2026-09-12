@@ -1469,6 +1469,36 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
     // silently disarming the transform / the output-side strip.
     expect(headerShapedLineMatcher().test(headerLine)).toBe(true);
     expect(leadingHeaderLineMatcher().test(`${headerLine}\nbody`)).toBe(true);
+    // Negative: same-line reply text means the closing bracket is no longer
+    // the last thing on the line, so the matcher declines — pinned here
+    // beside the positive case so the two cannot drift apart.
+    expect(leadingHeaderLineMatcher().test(`${headerLine} body`)).toBe(false);
+    // End-of-string: no trailing newline at all still matches — the tail's
+    // lookahead accepts end-of-string, not only end-of-line.
+    expect(leadingHeaderLineMatcher().test(`${headerLine}`)).toBe(true);
+  });
+
+  it('leadingHeaderLineMatcher tolerates trailing spaces/tabs before the newline', () => {
+    const entries: StructuredHistoryEntry[] = [
+      {
+        role: 'user',
+        content: 'hi',
+        personaId: 'p-1',
+        personaName: 'Vlad',
+        createdAt: '2026-01-01T12:00:00.000Z',
+      },
+    ];
+
+    const [message] = buildRealMessages(entries, {
+      personalityName: PERSONALITY_NAME,
+      responderPersonalityId: undefined,
+      realMessagesEnabled: true,
+      headerSpoofNeutralizeEnabled: false,
+      headerIdTags: new Map(),
+    });
+    const headerLine = String(message.content).split('\n')[0];
+
+    expect(leadingHeaderLineMatcher().test(`${headerLine}  \t \nbody`)).toBe(true);
   });
 
   it('telemetry: ship path (telemetry supplied) logs channelId/requestId and the hit count', () => {
