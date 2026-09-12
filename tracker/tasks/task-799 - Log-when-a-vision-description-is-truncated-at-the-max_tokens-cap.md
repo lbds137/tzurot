@@ -1,9 +1,10 @@
 ---
 id: TASK-799
 title: Log when a vision description is truncated at the max_tokens cap
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 20:41'
+updated_date: '2026-09-12 17:05'
 labels:
   - 'area:ai-worker'
   - 'size:S'
