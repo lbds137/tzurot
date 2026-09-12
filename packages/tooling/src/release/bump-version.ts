@@ -13,8 +13,18 @@ import { ALLOW_STALE_CURRENT_FLAG, checkCurrentMdReset } from './current-md-gate
 /** Semver with optional pre-release pattern */
 const SEMVER_REGEX = /^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$/;
 
-/** Directories to exclude from search */
-const EXCLUDED_DIRS = new Set(['node_modules', '.pnpm-store', 'tzurot-legacy', '.git', 'dist']);
+/**
+ * Directories to exclude from search. `.claude` holds agent worktrees, which
+ * are full checkouts — walking it would rewrite every manifest a second time.
+ */
+const EXCLUDED_DIRS = new Set([
+  'node_modules',
+  '.pnpm-store',
+  'tzurot-legacy',
+  '.git',
+  'dist',
+  '.claude',
+]);
 
 interface BumpVersionOptions {
   dryRun?: boolean;

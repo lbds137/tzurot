@@ -93,7 +93,12 @@ const SEVERITY_RANK: Record<string, number> = {
   low: 3,
 };
 
-/** Directories never worth walking for package.json files (deps + build/output dirs). */
+/**
+ * Directories never worth walking for package.json files (deps + build/output
+ * dirs). `.claude` holds agent worktrees, which are full checkouts — their
+ * manifests are copies of the workspace's own and must not enter the
+ * direct-dependency set.
+ */
 const EXCLUDED_DIRS = new Set([
   'node_modules',
   '.pnpm-store',
@@ -103,6 +108,7 @@ const EXCLUDED_DIRS = new Set([
   'coverage',
   'reports',
   '.venv',
+  '.claude',
 ]);
 
 /**
