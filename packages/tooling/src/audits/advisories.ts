@@ -4,24 +4,31 @@
  *
  * Reads the GitHub Dependabot *alerts* API — the same source
  * {@link collectSecuritySurface} counts — but keeps the full per-advisory
- * detail: severity, the first patched version, and whether the vulnerable
- * package is a DIRECT workspace dependency.
+ * detail: severity, the first patched version, and how the vulnerable
+ * npm package resolves across the workspace: `direct`, `transitive`, or
+ * `direct+transitive`.
  *
- * The direct/transitive split is the actionable signal. Dependabot opens PRs
- * for direct deps automatically, but it CANNOT PR a transitive-only advisory
- * (it can't edit a dependency it doesn't directly control) — those need a
- * manual `pnpm.overrides` bump and otherwise linger open with no PR ever
- * arriving. Surfacing that class at the release decision-point is the whole
- * point: it's exactly the shape that sat unnoticed until a release preflight.
+ * The scope is the actionable signal. Dependabot opens PRs for direct deps
+ * automatically, but it CANNOT PR a transitive-only advisory (it can't edit a
+ * dependency it doesn't directly control) — those need a manual
+ * `pnpm.overrides` bump and otherwise linger open with no PR ever arriving.
+ * `direct+transitive` is the trap case: every workspace `package.json`
+ * declaration is already past the fix, so no Dependabot PR will ever open,
+ * but the LOCKFILE still resolves a vulnerable copy pulled in transitively —
+ * that also needs a manual override, exactly like a pure-transitive advisory.
+ * Surfacing these classes at the release decision-point is the whole point:
+ * it's exactly the shape that sat unnoticed until a release preflight.
  */
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
+import { parse } from 'yaml';
+import { satisfies, validRange } from 'semver';
 import { GH_TIMEOUT_MS, describeGhFailure } from './health-extras.js';
 
-/** One open Dependabot advisory, enriched with our direct/transitive classification. */
+/** One open Dependabot advisory, enriched with our direct/transitive/direct+transitive classification. */
 export interface Advisory {
   /** Vulnerable package name (e.g. `protobufjs`). */
   package: string;
@@ -45,12 +52,19 @@ export interface Advisory {
   /** GHSA identifier (e.g. `GHSA-v422-hmwv-36x6`). */
   ghsaId: string;
   /**
-   * NPM-only signal: true when the package appears in some workspace
-   * `package.json` dependency block (Dependabot can PR it directly), false =
-   * transitive-only (needs a manual `pnpm.overrides` bump). Always false for
-   * non-npm ecosystems — read it together with {@link ecosystem}, never alone.
+   * NPM-only classification of how the vulnerable package resolves across the
+   * workspace: `direct` (declared, and every resolved lockfile version is
+   * already past the fix (or no resolved version was found) — Dependabot can
+   * PR it), `transitive` (not declared at all — needs a manual
+   * `pnpm.overrides` bump), or `direct+transitive`
+   * (declared AND a still-vulnerable copy resolves transitively — the direct
+   * declarations being patched means Dependabot will never open a PR, so this
+   * ALSO needs a manual override). Non-npm ecosystems always get
+   * `'transitive'` here and are reported by {@link ecosystem} instead — this
+   * field is never surfaced for them (see `recommendedAction` and
+   * `formatAdvisoriesReport`, both of which branch on ecosystem first).
    */
-  isDirect: boolean;
+  scope: 'direct' | 'transitive' | 'direct+transitive';
 }
 
 /** Per-call availability: the alerts API is legitimately unreadable in some environments. */
@@ -66,6 +80,9 @@ interface RawAdvisory {
   firstPatched: string | null;
   ghsaId: string;
 }
+
+/** The npm scope meaning "declared, but a vulnerable copy still resolves transitively." */
+const DIRECT_AND_TRANSITIVE = 'direct+transitive' as const;
 
 /** Severity rank for descending sort — unknown labels sort last. */
 const SEVERITY_RANK: Record<string, number> = {
@@ -166,7 +183,15 @@ function parseAlertNdjson(ndjson: string): RawAdvisory[] {
   return advisories;
 }
 
-/** Collect every dependency name declared across all workspace package.json files. */
+/**
+ * Collect every dependency name declared across all workspace package.json
+ * files. The declaration set records dependency KEYS, not resolved package
+ * names — a package.json-level npm alias (`"foo": "npm:realname@^1"`) is
+ * recorded as `foo`, so an advisory against `realname` classifies
+ * `transitive` even though the alias pins it directly. No workspace
+ * package.json declares such an alias today, so this stays an accepted,
+ * documented gap rather than a code path.
+ */
 function collectDirectDependencyNames(rootDir: string): Set<string> {
   const names = new Set<string>();
   for (const file of findPackageJsonFiles(rootDir)) {
@@ -235,20 +260,148 @@ function findPackageJsonFiles(rootDir: string): string[] {
 }
 
 /**
+ * Read the `packages:` map of `pnpm-lock.yaml` and return the resolved
+ * version keys, once per {@link collectOpenAdvisories} call — every advisory
+ * looks up its versions from this same list rather than re-reading the file.
+ *
+ * Fail-soft by design: an unreadable or unparseable lockfile (a WIP file, a
+ * merge-conflict marker) must not abort the whole advisory report — it simply
+ * contributes no version keys, the same "fail visible-not-blank" contract
+ * {@link collectDirectDependencyNames} already applies to package.json reads
+ * (pinned by "classifies direct, without throwing, when the package is
+ * declared but the lockfile read throws").
+ */
+function readLockfilePackageKeys(rootDir: string): string[] {
+  try {
+    const content = readFileSync(join(rootDir, 'pnpm-lock.yaml'), 'utf-8');
+    const doc: unknown = parse(content);
+    if (typeof doc !== 'object' || doc === null) {
+      return [];
+    }
+    const packages = (doc as Record<string, unknown>).packages;
+    if (typeof packages !== 'object' || packages === null) {
+      return [];
+    }
+    return Object.keys(packages);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Extract every resolved version of `packageName` from the lockfile's
+ * `packages:` key list. A key may carry a peer-dependency suffix in
+ * parentheses (e.g. `sharp@0.35.4(@types/node@26.4.1)`) — that suffix is
+ * stripped BEFORE splitting on `@`, because the suffix's own `@` would
+ * otherwise be the rightmost one and `lastIndexOf('@')` would split there
+ * instead of at the real name/version boundary. Keys are `<name>@<version>`
+ * once the suffix is gone — `lastIndexOf('@')` then finds the real split
+ * point rather than the first `@`, so a scoped name's own leading `@` is
+ * never mistaken for the separator (guarded by `at > 0`). The current
+ * lockfile carries no peer-suffixed keys under `packages:` (that shape lives
+ * only under `snapshots:`, which this function never reads); the strip is
+ * pinned by "still yields the bare version from a peer-suffixed lockfile key
+ * (defensive-shape regression guard)" against a future pnpm lockfile that
+ * does carry one there.
+ *
+ * A pnpm alias key has the shape `alias@npm:realname@version` — the local
+ * name pnpm resolved the dependency under is unrelated to the real package
+ * an advisory names. When the (peer-suffix-stripped) key contains `@npm:`,
+ * the substring after it is used as the `realname@version` pair for the
+ * name/version split instead of the full key, so the resolved version is
+ * attributed to the real package rather than to the alias. The current
+ * lockfile carries no alias keys (`grep -c '@npm:' pnpm-lock.yaml` → 0); this
+ * is a defensive-shape guard against a future lockfile that does.
+ */
+function collectResolvedVersions(packageKeys: string[], packageName: string): string[] {
+  const versions: string[] = [];
+  for (const key of packageKeys) {
+    const parenIndex = key.indexOf('(');
+    const withoutPeerSuffix = parenIndex === -1 ? key : key.slice(0, parenIndex);
+    const npmAliasMarker = '@npm:';
+    const aliasIndex = withoutPeerSuffix.indexOf(npmAliasMarker);
+    const target =
+      aliasIndex === -1
+        ? withoutPeerSuffix
+        : withoutPeerSuffix.slice(aliasIndex + npmAliasMarker.length);
+    const at = target.lastIndexOf('@');
+    if (at <= 0) {
+      continue;
+    }
+    if (target.slice(0, at) !== packageName) {
+      continue;
+    }
+    versions.push(target.slice(at + 1));
+  }
+  return versions;
+}
+
+/**
+ * Whether some resolved lockfile version of the package still falls inside
+ * the advisory's vulnerable range. `includePrerelease: true` is the
+ * conservative choice for a security tool: a resolved prerelease of an
+ * otherwise-vulnerable version should still count as vulnerable rather than
+ * silently pass the range check.
+ *
+ * An unparseable range fails OPEN — returns false, so the caller keeps the
+ * name-based `direct` classification for that advisory rather than risk a
+ * false negative-turned-crash (pinned by "falls back to direct scope when the
+ * vulnerable range does not parse, without throwing"). The `validRange`
+ * guard below makes that unparseable-range intent explicit in the code;
+ * semver's own `satisfies` returns false for such a range too rather than
+ * throwing, so the guard is belt-and-braces alongside that behavior, not the
+ * sole mechanism producing the observed fallback.
+ */
+function someVersionInVulnerableRange(versions: string[], vulnerableRange: string): boolean {
+  const normalized = vulnerableRange.replaceAll(',', ' ');
+  if (validRange(normalized) === null) {
+    return false;
+  }
+  return versions.some(version => {
+    try {
+      return satisfies(version, normalized, { includePrerelease: true });
+    } catch {
+      // Defensive only: `satisfies` returns false rather than throwing for a
+      // malformed individual version key on the currently installed semver.
+      // This guards against that changing in a future semver release — no
+      // test currently drives this branch red.
+      return false;
+    }
+  });
+}
+
+/**
+ * Classify one raw npm advisory's scope against the workspace declaration set
+ * and the resolved lockfile tree. Non-npm advisories always classify
+ * `transitive` here and are reported by {@link Advisory.ecosystem} instead.
+ */
+function classifyScope(
+  raw: RawAdvisory,
+  directNames: Set<string>,
+  packageKeys: string[]
+): Advisory['scope'] {
+  if (raw.ecosystem !== 'npm' || !directNames.has(raw.package)) {
+    return 'transitive';
+  }
+  const versions = collectResolvedVersions(packageKeys, raw.package);
+  const stillVulnerable = someVersionInVulnerableRange(versions, raw.vulnerableRange);
+  return stillVulnerable ? DIRECT_AND_TRANSITIVE : 'direct';
+}
+
+/**
  * Enumerate open Dependabot advisories, enriched with the direct/transitive
- * split. Never throws — the alerts API is unreadable under the Actions token
- * (no workflow scope grants the Dependabot-alerts read; `security-events` is
- * code and secret scanning only) and in local checkouts without `gh` auth, and the
- * caller (health report, preflight) must degrade rather than break.
+ * scope split. Never throws — the alerts API is unreadable under the Actions
+ * token (no workflow scope grants the Dependabot-alerts read; `security-events`
+ * is code and secret scanning only) and in local checkouts without `gh` auth,
+ * and the caller (health report, preflight) must degrade rather than break.
  */
 export function collectOpenAdvisories(rootDir: string): AdvisorySurface {
   try {
     const ndjson = fetchOpenAlertsNdjson();
     const directNames = collectDirectDependencyNames(rootDir);
+    const packageKeys = readLockfilePackageKeys(rootDir);
     const advisories = parseAlertNdjson(ndjson)
-      // isDirect is npm-only: the package.json dep set says nothing about a pip
-      // or actions package, so those stay false and are reported by ecosystem.
-      .map(raw => ({ ...raw, isDirect: raw.ecosystem === 'npm' && directNames.has(raw.package) }))
+      .map(raw => ({ ...raw, scope: classifyScope(raw, directNames, packageKeys) }))
       .sort(compareAdvisories);
     return { available: true, advisories };
   } catch (error) {
@@ -268,9 +421,10 @@ function compareAdvisories(a: Advisory, b: Advisory): number {
 
 /**
  * The one-line action a maintainer should take for an advisory. For npm, the
- * direct/transitive split decides who's responsible (Dependabot for direct, a
- * manual override for transitive). Non-npm ecosystems get a generic, honest
- * pointer — the npm-specific `pnpm.overrides` remediation would be wrong there.
+ * scope decides who's responsible: Dependabot for `direct`, a manual override
+ * for `transitive` and `direct+transitive` alike. Non-npm ecosystems get a
+ * generic, honest pointer — the npm-specific `pnpm.overrides` remediation
+ * would be wrong there.
  */
 export function recommendedAction(advisory: Advisory): string {
   if (advisory.firstPatched === null) {
@@ -279,8 +433,11 @@ export function recommendedAction(advisory: Advisory): string {
   if (advisory.ecosystem !== 'npm') {
     return `Fix available (>=${advisory.firstPatched}) — update via the ${advisory.ecosystem} manifest`;
   }
-  if (advisory.isDirect) {
+  if (advisory.scope === 'direct') {
     return `Dependabot PR expected (bump to >=${advisory.firstPatched})`;
+  }
+  if (advisory.scope === DIRECT_AND_TRANSITIVE) {
+    return `Manual override needed (>=${advisory.firstPatched}) — direct deps are patched but a transitive copy still resolves vulnerable`;
   }
   return `Manual override needed (>=${advisory.firstPatched}) — transitive, Dependabot can't PR`;
 }
@@ -326,22 +483,27 @@ export function formatAdvisoriesReport(surface: AdvisorySurface): string {
   const count = surface.advisories.length;
   const lines: string[] = [`⚠️  ${count} open Dependabot advisor${count === 1 ? 'y' : 'ies'}:`, ''];
   for (const a of surface.advisories) {
-    // npm splits direct/transitive; other ecosystems are labeled by ecosystem
-    // (the npm dep set can't classify a pip/actions package).
-    const scope = a.ecosystem === 'npm' ? (a.isDirect ? 'direct' : 'transitive') : a.ecosystem;
+    // npm reports its three-way scope; other ecosystems are labeled by
+    // ecosystem (the npm dep set can't classify a pip/actions package).
+    const scope = a.ecosystem === 'npm' ? a.scope : a.ecosystem;
     lines.push(`  ${severityBadge(a.severity)} ${chalk.bold(a.package)}  (${scope})  ${a.ghsaId}`);
     lines.push(`      vulnerable: ${a.vulnerableRange}`);
     lines.push(`      ${recommendedAction(a)}`);
     lines.push('');
   }
-  const transitive = surface.advisories.filter(
-    a => a.ecosystem === 'npm' && !a.isDirect && a.firstPatched !== null
+  // Both transitive and direct+transitive need a manual pnpm.overrides bump —
+  // only a pure `direct` advisory is fully covered by an automatic Dependabot PR.
+  const needsOverride = surface.advisories.filter(
+    a =>
+      a.ecosystem === 'npm' &&
+      (a.scope === 'transitive' || a.scope === DIRECT_AND_TRANSITIVE) &&
+      a.firstPatched !== null
   ).length;
-  if (transitive > 0) {
+  if (needsOverride > 0) {
     lines.push(
       chalk.dim(
-        `${transitive} transitive npm advisor${transitive === 1 ? 'y needs' : 'ies need'} a manual ` +
-          `pnpm.overrides bump (Dependabot can't PR transitive-only advisories).`
+        `${needsOverride} npm advisor${needsOverride === 1 ? 'y needs' : 'ies need'} a manual ` +
+          `pnpm.overrides bump (Dependabot can't PR a transitive-only advisory, or one whose direct declarations are already patched).`
       )
     );
   }

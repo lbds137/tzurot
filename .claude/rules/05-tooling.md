@@ -89,12 +89,15 @@ daily bot-client check nags the owner channel when one lapses.
 
 ### Security Advisories
 
-`pnpm ops security:advisories` flags each open Dependabot advisory **direct**
-(Dependabot auto-PRs the fix) vs **transitive-only** (needs a manual
-`pnpm.overrides` bump — no PR will ever appear). **Decision-point trigger:**
+`pnpm ops security:advisories` classifies each open Dependabot advisory from
+the resolved lockfile tree: **direct** (Dependabot auto-PRs the fix),
+**transitive** (needs a manual `pnpm.overrides` bump — no PR will ever
+appear), or **direct+transitive** (every declaration is already patched but
+a vulnerable copy still resolves transitively — Dependabot sees nothing to
+bump, so this ALSO needs the override). **Decision-point trigger:**
 the release security-preflight (`/tzurot-git-workflow` § Release) — ride any
-transitive-with-fix advisory into the release via an override. Degrades to
-"unavailable", never blocks.
+transitive or direct+transitive advisory that has a fix into the release via
+an override. Degrades to "unavailable", never blocks.
 
 ### Test Audits
 

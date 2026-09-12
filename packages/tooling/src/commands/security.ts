@@ -16,7 +16,7 @@ export function registerSecurityCommands(cli: CAC): void {
   cli
     .command(
       'security:advisories',
-      'List open Dependabot advisories with fix versions + direct/transitive split'
+      'List open Dependabot advisories with fix versions + scope (direct / transitive / direct+transitive)'
     )
     .option('--json', 'Emit the advisory surface as JSON')
     .option(
