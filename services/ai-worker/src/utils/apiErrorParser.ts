@@ -129,9 +129,12 @@ const ERROR_PATTERNS = {
   // were observed describing the image Alibaba's filter refused; for z.ai the
   // refusal was observed permanent for that model, but no other provider was
   // observed accepting the same payload (unverified). Broaden only with
-  // per-provider evidence — a generic phrase here would also route
-  // intrinsically-refused payloads (CONTENT_POLICY's terminate case) into
-  // tier-burning advances.
+  // per-provider evidence — the narrower reading still matters even though
+  // both categories advance the fallback loop: PROVIDER_CONTENT_REFUSED
+  // renders a different user-facing placeholder than CONTENT_POLICY and
+  // drives the piggyback tier's z.ai free-tier failure reactor, so a generic
+  // phrase would mis-attribute an ordinary content-policy refusal to a
+  // specific provider's input filter.
   PROVIDER_CONTENT_REFUSED: [
     /data_inspection_failed/i,
     /input image data may contain inappropriate content/i,

@@ -69,34 +69,45 @@ describe('terminate-set / attachment-bound-set invariant', () => {
   // `VISION_TERMINATE_CATEGORIES` (the categories where the fallback LOOP stops trying
   // other tiers) and `LONG_TTL_FAILURE_CATEGORIES` (the categories the negative
   // cache treats as image-bound for TTL purposes) encode two RELATED-but-distinct
-  // decisions. The relationship is a deliberate strict subset: every "give up, the image
-  // is the problem" category is also "bound to this attachment," but two categories are
-  // attachment-bound for cache-TTL purposes yet are exactly what the loop routes around:
-  // MODEL_NOT_FOUND (a different tier is a different model) and PROVIDER_CONTENT_REFUSED
-  // (a different tier is a different provider's filter, so the chain must advance rather
-  // than terminate). These tests pin that relationship so a future edit to either set
-  // surfaces the divergence at PR time.
+  // decisions. The relationship is a deliberate strict subset: only MEDIA_NOT_FOUND
+  // (the attachment can't be fetched, so no tier could ever see it) terminates the
+  // loop. Four categories are attachment-bound for cache-TTL purposes yet are exactly
+  // what the loop routes around because each is TIER-SPECIFIC: CONTENT_POLICY (a
+  // provider/router refusal), CENSORED (a model's output filtered), MODEL_NOT_FOUND (a
+  // different tier is a different model), and PROVIDER_CONTENT_REFUSED (a different
+  // tier is a different provider's filter) — so the chain must advance rather than
+  // terminate on any of them. These tests pin that relationship so a future edit to
+  // either set surfaces the divergence at PR time.
 
   it('VISION_TERMINATE_CATEGORIES is a strict subset of LONG_TTL_FAILURE_CATEGORIES', () => {
     for (const category of VISION_TERMINATE_CATEGORIES) {
       expect(LONG_TTL_FAILURE_CATEGORIES.has(category)).toBe(true);
     }
     // Strict (proper) subset: the attachment-bound set must have at least one member the
-    // terminate set lacks (that member is asserted to be MODEL_NOT_FOUND below).
+    // terminate set lacks (those members are asserted to be the four below).
     expect(LONG_TTL_FAILURE_CATEGORIES.size).toBeGreaterThan(VISION_TERMINATE_CATEGORIES.size);
   });
 
-  it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND, PROVIDER_CONTENT_REFUSED }', () => {
+  it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND, PROVIDER_CONTENT_REFUSED, CONTENT_POLICY, CENSORED }', () => {
     // MODEL_NOT_FOUND: a missing model won't reappear for THIS attachment on the SAME
     // model, but a different tier is a different model, so the loop advances.
     // PROVIDER_CONTENT_REFUSED: a provider's input filter won't reappear for THIS
     // attachment on the SAME provider, but a different tier is a different provider's
     // filter, so the loop must also advance rather than terminate.
+    // CONTENT_POLICY: a provider or router refused the request, but a different tier is
+    // a different provider/router, so the loop advances.
+    // CENSORED: the model answered with its output filtered, but a different tier is a
+    // different model, so the loop advances.
     const difference = [...LONG_TTL_FAILURE_CATEGORIES].filter(
       category => !VISION_TERMINATE_CATEGORIES.has(category)
     );
     expect(new Set(difference)).toEqual(
-      new Set([ApiErrorCategory.MODEL_NOT_FOUND, ApiErrorCategory.PROVIDER_CONTENT_REFUSED])
+      new Set([
+        ApiErrorCategory.MODEL_NOT_FOUND,
+        ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
+        ApiErrorCategory.CONTENT_POLICY,
+        ApiErrorCategory.CENSORED,
+      ])
     );
   });
 
@@ -104,13 +115,17 @@ describe('terminate-set / attachment-bound-set invariant', () => {
     expect(VISION_TERMINATE_CATEGORIES.has(ApiErrorCategory.PROVIDER_CONTENT_REFUSED)).toBe(false);
   });
 
-  it('VISION_TERMINATE_CATEGORIES contains exactly CONTENT_POLICY, CENSORED, MEDIA_NOT_FOUND', () => {
+  it('VISION_TERMINATE_CATEGORIES does NOT contain CONTENT_POLICY — the chain must advance, not terminate', () => {
+    expect(VISION_TERMINATE_CATEGORIES.has(ApiErrorCategory.CONTENT_POLICY)).toBe(false);
+  });
+
+  it('VISION_TERMINATE_CATEGORIES does NOT contain CENSORED — the chain must advance, not terminate', () => {
+    expect(VISION_TERMINATE_CATEGORIES.has(ApiErrorCategory.CENSORED)).toBe(false);
+  });
+
+  it('VISION_TERMINATE_CATEGORIES contains exactly MEDIA_NOT_FOUND', () => {
     expect(new Set(VISION_TERMINATE_CATEGORIES)).toEqual(
-      new Set([
-        ApiErrorCategory.CONTENT_POLICY,
-        ApiErrorCategory.CENSORED,
-        ApiErrorCategory.MEDIA_NOT_FOUND,
-      ])
+      new Set([ApiErrorCategory.MEDIA_NOT_FOUND])
     );
   });
 });
