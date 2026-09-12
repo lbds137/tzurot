@@ -17,6 +17,7 @@ import {
   ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
 
 /** Build a mock chat model whose PRODUCTION seam is `generate` (what
  *  `invokeModelGuarded` calls) while the test keeps driving and asserting the
@@ -24,9 +25,7 @@ import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 function mockChatModel(invokeMock: (...args: unknown[]) => unknown): BaseChatModel {
   return {
     invoke: invokeMock,
-    generate: vi.fn(async (messages: unknown[], options?: unknown) => ({
-      generations: [[{ text: '', message: await invokeMock(messages[0], options) }]],
-    })),
+    generate: generateFromInvokeMock(invokeMock),
   } as unknown as BaseChatModel;
 }
 

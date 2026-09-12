@@ -34,6 +34,7 @@ import { isDataUrl } from '../../utils/attachmentFetch.js';
 import { resolveVisionImageUrl } from './visionImageResolver.js';
 import { readRoutedModel } from './readRoutedModel.js';
 import { getDescriptionPrompt } from '../DescriptionPromptService.js';
+import { FINISH_REASONS, resolveFinishReason } from '@tzurot/common-types/constants/finishReasons';
 import {
   isValidVisionDescription,
   VISION_MIN_DESCRIPTION_LENGTH,
@@ -209,6 +210,28 @@ interface InvokeVisionModelOptions {
 }
 
 /**
+ * A description cut at VISION_MAX_TOKENS is stored and reused as if complete;
+ * nothing downstream can tell. `resolveFinishReason` covers the
+ * OpenAI/OpenRouter, Anthropic and Google field names and yields
+ * FINISH_REASONS.UNKNOWN for absent or non-string values, so an unrecognised
+ * shape logs nothing. Only the 'length' value is evidenced by this repo's own
+ * fixtures; the z.ai-direct value is unverified, so this covers the
+ * OpenRouter route.
+ */
+function warnIfLengthTruncated(
+  modelName: string,
+  content: string,
+  metadata: Record<string, unknown> | undefined
+): void {
+  if (resolveFinishReason(metadata) === FINISH_REASONS.LENGTH) {
+    logger.warn(
+      { modelName, descriptionLength: content.trim().length, finishReason: FINISH_REASONS.LENGTH },
+      'Vision description stopped on length; the stored description may be truncated'
+    );
+  }
+}
+
+/**
  * Invoke a vision model with the given attachment and optional system prompt.
  * Uses ModelFactory's createChatModel for consistent API key routing,
  * parameter filtering, and OpenRouter integration.
@@ -336,6 +359,8 @@ async function invokeVisionModel(
         'Vision model returned suspiciously short description'
       );
     }
+
+    warnIfLengthTruncated(modelName, content, response.response_metadata);
 
     logger.info({ modelName, routedModel, attachmentId: attachment.id }, 'Vision model responded');
     options.onAttribution?.({ model: modelName, routedModel, fromCache: false });
