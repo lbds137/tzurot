@@ -24,6 +24,7 @@
         "$TURBO_ROOT$/services/api-gateway/src/**",
         "$TURBO_ROOT$/tests/e2e/contracts/**",
         "$TURBO_ROOT$/prisma/drift-ignore.json",
+        "$TURBO_ROOT$/prisma/drift-ignore.schema.json",
         "$TURBO_ROOT$/packages/common-types/src/**"
       ]
     },
@@ -49,6 +50,7 @@
         "$TURBO_ROOT$/services/api-gateway/src/**",
         "$TURBO_ROOT$/tests/e2e/contracts/**",
         "$TURBO_ROOT$/prisma/drift-ignore.json",
+        "$TURBO_ROOT$/prisma/drift-ignore.schema.json",
         "$TURBO_ROOT$/packages/common-types/src/**"
       ]
     }

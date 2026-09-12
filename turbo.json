@@ -34,6 +34,13 @@
       "cache": true,
       "env": ["CI", "NODE_ENV"]
     },
+    "@tzurot/test-utils#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "*.config.ts", "vitest.config.ts", "fixtures/**"],
+      "outputs": ["coverage/**", "junit.xml"],
+      "cache": true,
+      "env": ["CI", "NODE_ENV"]
+    },
     "test:coverage": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "*.config.ts", "vitest.config.ts"],
@@ -50,6 +57,12 @@
     "@tzurot/scripts#typecheck": {
       "dependsOn": ["^build"],
       "inputs": ["*.ts", "migrations/**/*.ts", "tsconfig.json"],
+      "outputs": [],
+      "cache": true
+    },
+    "@tzurot/e2e#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["e2e/**", "tsconfig.json"],
       "outputs": [],
       "cache": true
     },

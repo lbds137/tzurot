@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Integration + contract tests for Tzurot services (run via the root `pnpm test:integration`; see vitest.integration.config.ts).",
-  "scripts": {},
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@tzurot/ai-worker": "workspace:*",
     "@tzurot/api-gateway": "workspace:*",

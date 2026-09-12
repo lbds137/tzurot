@@ -208,9 +208,7 @@ export interface ManualCommandContext extends BaseCommandContext {
  * Used when the exact context type isn't known at compile time.
  */
 export type SafeCommandContext =
-  | DeferredCommandContext
-  | ModalCommandContext
-  | ManualCommandContext;
+  DeferredCommandContext | ModalCommandContext | ManualCommandContext;
 
 // ============================================================================
 // Type Guards
