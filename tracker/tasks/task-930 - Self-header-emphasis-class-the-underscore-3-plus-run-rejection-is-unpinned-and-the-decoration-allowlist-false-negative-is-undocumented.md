@@ -3,9 +3,10 @@ id: TASK-930
 title: >-
   Self-header emphasis class: the underscore 3-plus-run rejection is unpinned,
   and the decoration allowlist false-negative is undocumented
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-10 01:15'
+updated_date: '2026-09-12 12:48'
 labels:
   - 'area:ai-worker'
   - 'size:S'
