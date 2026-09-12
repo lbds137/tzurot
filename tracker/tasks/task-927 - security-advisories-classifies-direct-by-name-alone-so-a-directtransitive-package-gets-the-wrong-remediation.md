@@ -3,9 +3,10 @@ id: TASK-927
 title: >-
   security:advisories classifies direct by name alone, so a direct+transitive
   package gets the wrong remediation
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 21:13'
+updated_date: '2026-09-12 14:08'
 labels:
   - 'area:tooling'
   - 'size:S'
