@@ -37,9 +37,9 @@ three fallback tiers exist: (1) z.ai-direct, (2) `AutoPromotionFallback` → Ope
 _beta.223 CUT 2026-09-12 (11 PRs / 10 runtime / 145 range files; one additive migration premigrated; PR #2405 `b487cc688`; finalize done; tagged `latest`). The retention follow-up set (#2394, #2395 the reminder DM, #2396), the prod vision refusal fix (#2399), prompt hygiene (#2400, #2402), the personality default-config routes (#2398), the bookkeeping tools (#2397), the resolved-tree advisories (#2401), the gate-cache fixes (#2403), the gateway-calls budget split (#2404). The cut fired on the ~10 runtime backstop by owner ruling; the three carried readings below moved here unchanged for the third time._
 
 - **Driver**: Fable with nested dispatch per `/tzurot-orchestration` for units; the Opus lane for drain days when Fable runs low. **Owner decisions carried (binding)**: everything in the ⚖️ block below, plus **2026-09-11**: retention autonomy stays ON for the first prod run (no report-only staging); the cut on the backstop; session mining deferred to the next 4–6-week window; **the retention follow-up set (TASK-932 → TASK-331 → TASK-5) builds ahead of TASK-934** after the first live run was observed.
-- **In**: (empty at cut time; grows as PRs merge).
+- **In**: #2406 (TASK-941: the adapter's three-name type re-export deleted, four consumers import from `PgvectorTypes.js`; two review rounds, no findings; runtime).
 - **Scheduled units (in this order)**:
-  1. **TASK-941** (low, S, ai-worker) — #2406 open, review clean, rebasing onto the finalized develop; the first merge of the range.
+  1. ~~**TASK-941** (low, S, ai-worker)~~ DONE 2026-09-12 as #2406 (rebased onto the finalized develop after the cut; the first merge of the range).
   2. **TASK-938** (low, S, api-gateway) — `canUserEditPersonality` accepts the already-loaded `ownerId`; one `personality.findUnique` per edit route; the task's "aliases" route never used this path (spec at `spec-938-single-fetch.md`, grounded 2026-09-12).
   3. **TASK-943** (medium, S, tooling) — `release:bump` walks into `.claude/worktrees/`; observed at the 223 cut.
   4. **The medium/S drain** (~55; the high/S query is empty): batches of 3–5 same-area tasks per PR per the standing owner call.
