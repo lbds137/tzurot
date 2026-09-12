@@ -1,9 +1,10 @@
 ---
 id: TASK-610
 title: No CI tier validates JSON config files against their own $schema
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 16:15'
+updated_date: '2026-09-12 21:13'
 labels:
   - 'area:tooling'
   - 'area:db'
