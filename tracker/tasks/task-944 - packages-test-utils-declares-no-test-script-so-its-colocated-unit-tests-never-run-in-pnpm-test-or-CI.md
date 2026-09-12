@@ -3,9 +3,10 @@ id: TASK-944
 title: >-
   packages/test-utils declares no test script, so its colocated unit tests never
   run in pnpm test or CI
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 16:54'
+updated_date: '2026-09-12 21:13'
 labels:
   - 'area:testing'
   - 'size:S'
