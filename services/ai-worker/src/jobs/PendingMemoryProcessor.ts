@@ -7,10 +7,8 @@
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import {
-  type PgvectorMemoryAdapter,
-  MemoryMetadataSchema,
-} from '../services/PgvectorMemoryAdapter.js';
+import { type PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
+import { MemoryMetadataSchema } from '../services/PgvectorTypes.js';
 
 const logger = createLogger('PendingMemoryProcessor');
 

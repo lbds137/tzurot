@@ -9,7 +9,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import { type MemoryMetadata } from './PgvectorTypes.js';
 import type { IEmbeddingService } from '@tzurot/embeddings';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';

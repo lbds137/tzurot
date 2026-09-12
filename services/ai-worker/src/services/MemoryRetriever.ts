@@ -7,7 +7,8 @@
  * Uses PersonaResolver for consistent persona resolution with caching and auto-defaulting.
  */
 
-import { type PgvectorMemoryAdapter, type MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
+import { type PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import { type MemoryQueryOptions } from './PgvectorTypes.js';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import {

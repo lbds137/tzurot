@@ -15,7 +15,8 @@ import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
-import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import { type MemoryMetadata } from './PgvectorTypes.js';
 import type { IEmbeddingService } from '@tzurot/embeddings';
 
 /**
