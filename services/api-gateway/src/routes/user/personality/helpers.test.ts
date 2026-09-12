@@ -73,12 +73,12 @@ describe('personality route helpers', () => {
     it('should return true for bot owner', async () => {
       mockIsBotOwner.mockReturnValue(true);
 
-      const result = await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'personality-id',
-        'bot-owner-discord-id'
-      );
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+        discordUserId: 'bot-owner-discord-id',
+      });
 
       expect(result).toBe(true);
       expect(mockIsBotOwner).toHaveBeenCalledWith('bot-owner-discord-id');
@@ -91,12 +91,12 @@ describe('personality route helpers', () => {
         ownerId: 'user-id',
       });
 
-      const result = await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'personality-id',
-        'regular-discord-id'
-      );
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+        discordUserId: 'regular-discord-id',
+      });
 
       expect(result).toBe(true);
       // Should not query PersonalityOwner when user is direct owner
@@ -113,12 +113,12 @@ describe('personality route helpers', () => {
         personalityId: 'personality-id',
       });
 
-      const result = await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'personality-id',
-        'regular-discord-id'
-      );
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+        discordUserId: 'regular-discord-id',
+      });
 
       expect(result).toBe(true);
       expect(mockPrisma.personalityOwner.findUnique).toHaveBeenCalledWith({
@@ -134,12 +134,12 @@ describe('personality route helpers', () => {
     it('should return false when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const result = await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'nonexistent-personality',
-        'regular-discord-id'
-      );
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'nonexistent-personality',
+        discordUserId: 'regular-discord-id',
+      });
 
       expect(result).toBe(false);
     });
@@ -150,12 +150,12 @@ describe('personality route helpers', () => {
       });
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 
-      const result = await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'personality-id',
-        'regular-discord-id'
-      );
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+        discordUserId: 'regular-discord-id',
+      });
 
       expect(result).toBe(false);
     });
@@ -165,12 +165,12 @@ describe('personality route helpers', () => {
         ownerId: 'user-id',
       });
 
-      const result = await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'personality-id'
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
         // No discordUserId
-      );
+      });
 
       expect(result).toBe(true);
       expect(mockIsBotOwner).not.toHaveBeenCalled();
@@ -182,11 +182,11 @@ describe('personality route helpers', () => {
       });
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 
-      await canUserEditPersonality(
-        mockPrisma as unknown as PrismaClient,
-        'user-id',
-        'personality-id'
-      );
+      await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+      });
 
       // Verify personality lookup
       expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
@@ -195,6 +195,46 @@ describe('personality route helpers', () => {
       });
 
       // Verify PersonalityOwner lookup
+      expect(mockPrisma.personalityOwner.findUnique).toHaveBeenCalledWith({
+        where: {
+          personalityId_userId: {
+            personalityId: 'personality-id',
+            userId: 'user-id',
+          },
+        },
+      });
+    });
+
+    it('skips the personality fetch when ownerId is supplied and matches the user', async () => {
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+        ownerId: 'user-id',
+        discordUserId: 'regular-discord-id',
+      });
+
+      expect(result).toBe(true);
+      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.personalityOwner.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('skips the personality fetch when ownerId is supplied and falls through for a non-owner', async () => {
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue({
+        userId: 'user-id',
+        personalityId: 'personality-id',
+      });
+
+      const result = await canUserEditPersonality({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userId: 'user-id',
+        personalityId: 'personality-id',
+        ownerId: 'other-user-id',
+        discordUserId: 'regular-discord-id',
+      });
+
+      expect(result).toBe(true);
+      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
       expect(mockPrisma.personalityOwner.findUnique).toHaveBeenCalledWith({
         where: {
           personalityId_userId: {
@@ -430,6 +470,29 @@ describe('personality route helpers', () => {
 
       expect(result).not.toBeNull();
       expect(result!.personality).toEqual({ id: 'pers-id', ownerId: 'provisioned-id' });
+    });
+
+    it('fetches the personality row exactly once on the happy path', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'pers-id',
+        ownerId: 'user-id',
+      });
+      const res = createMockRes();
+
+      const result = await resolvePersonalityForEdit({
+        prisma: mockPrisma as unknown as PrismaClient,
+        req: createMockReq('discord-123', 'user-id'),
+        slug: 'test-slug',
+        res,
+        options: { select: { id: true, ownerId: true } },
+      });
+
+      expect(result).not.toBeNull();
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { slug: 'test-slug' },
+        select: { id: true, ownerId: true },
+      });
     });
   });
 });

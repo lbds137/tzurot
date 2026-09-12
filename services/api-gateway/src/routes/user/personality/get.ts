@@ -25,7 +25,7 @@ const logger = createLogger('user-personality-get');
 
 async function checkUserAccess(
   prisma: PrismaClient,
-  userId: string | undefined,
+  userId: string,
   personality: { id: string; isPublic: boolean; ownerId: string },
   discordUserId: string
 ): Promise<boolean> {
@@ -35,17 +35,15 @@ async function checkUserAccess(
   if (personality.isPublic) {
     return true;
   }
-  if (userId !== undefined && personality.ownerId === userId) {
+  if (personality.ownerId === userId) {
     return true;
   }
 
-  if (userId !== undefined) {
-    const ownerEntry = await prisma.personalityOwner.findUnique({
-      where: { personalityId_userId: { personalityId: personality.id, userId } },
-    });
-    if (ownerEntry !== null) {
-      return true;
-    }
+  const ownerEntry = await prisma.personalityOwner.findUnique({
+    where: { personalityId_userId: { personalityId: personality.id, userId } },
+  });
+  if (ownerEntry !== null) {
+    return true;
   }
 
   return false;
@@ -74,7 +72,13 @@ function createHandler(prisma: PrismaClient) {
       return sendError(res, ErrorResponses.forbidden('You do not have access to this personality'));
     }
 
-    const canEdit = await canUserEditPersonality(prisma, userId, personality.id, discordUserId);
+    const canEdit = await canUserEditPersonality({
+      prisma,
+      userId,
+      personalityId: personality.id,
+      ownerId: personality.ownerId,
+      discordUserId,
+    });
 
     // Definition visibility: owner/bot-admin (canEdit) always see the card;
     // everyone else sees it only when the creator opted the definition public.

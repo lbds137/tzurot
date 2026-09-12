@@ -108,14 +108,16 @@ function formatPersonalityResponse(personality: PersonalityFromDb): PersonalityR
 ### Validation & Authorization
 
 ```typescript
-// Check if user can perform action
-async function canUserEditPersonality(
-  prisma: PrismaClient,
-  userId: string,
-  personalityId: string,
-  discordUserId: string
-): Promise<boolean> {
-  if (isBotOwner(discordUserId)) return true;
+// Check if user can perform action (options object; an ownerId the caller
+// already loaded skips the row read)
+async function canUserEditPersonality(options: {
+  prisma: PrismaClient;
+  userId: string;
+  personalityId: string;
+  ownerId?: string;
+  discordUserId?: string;
+}): Promise<boolean> {
+  if (options.discordUserId !== undefined && isBotOwner(options.discordUserId)) return true;
   // ... additional checks
 }
 ```
@@ -170,7 +172,7 @@ function createUpdateHandler(prisma: PrismaClient) {
     }
 
     // 2. Authorize
-    const canEdit = await canUserEditPersonality(prisma, userId, personalityId);
+    const canEdit = await canUserEditPersonality({ prisma, userId, personalityId });
     if (!canEdit) {
       return sendError(res, ErrorResponses.unauthorized('...'));
     }
