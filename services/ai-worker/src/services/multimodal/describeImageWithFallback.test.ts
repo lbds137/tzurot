@@ -3,8 +3,9 @@
  *
  * The wrapper turns the single-model `describeImage` into a retry-down-the-chain:
  * on a RETRYABLE failure it advances to the next fallback tier; on a TERMINATE
- * category (the image itself is the problem) it short-circuits to a placeholder;
- * on an all-AUTH exhaustion it surfaces the "configure your key" guidance.
+ * category (the attachment itself can't be fetched, so no tier could see it) it
+ * short-circuits to a placeholder; on an all-AUTH exhaustion it surfaces the
+ * "configure your key" guidance.
  *
  * Collaborators mocked here:
  * - `describeImage` / `selectVisionModel` / `buildFailureFallback` from VisionProcessor
@@ -789,9 +790,72 @@ describe('describeImageWithFallback', () => {
     expect(result.attribution).toBeNull();
   });
 
-  it('short-circuits on a TERMINATE category (CONTENT_POLICY) without trying later tiers', async () => {
+  it('advances on CONTENT_POLICY to the next tier', async () => {
     const personality = makePersonality({ visionFallbackModels: ['tier-a', 'tier-b'] });
-    mockDescribeImage.mockRejectedValueOnce(
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.CONTENT_POLICY, 'filtered'))
+      .mockResolvedValueOnce('second tier description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    // CONTENT_POLICY is tier-specific (a different tier is a different provider/router),
+    // so the loop advances rather than terminating.
+    expect(result.description).toBe('second tier description');
+    expect(mockDescribeImage).toHaveBeenCalledTimes(2);
+  });
+
+  it('advances on CENSORED to the next tier', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a', 'tier-b'] });
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.CENSORED, 'censored'))
+      .mockResolvedValueOnce('second tier description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    // CENSORED is tier-specific (a different tier is a different model), so the loop
+    // advances rather than terminating.
+    expect(result.description).toBe('second tier description');
+    expect(mockDescribeImage).toHaveBeenCalledTimes(2);
+  });
+
+  it('walks the observed prod path: provider filter refusal, then router content_policy, then the third tier answers', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a', 'tier-b'] });
+    // First hop is the category TASK-747's fix advances on (a provider input filter);
+    // second hop is the one this change advances on (a router content-policy refusal).
+    mockDescribeImage
+      .mockRejectedValueOnce(
+        new VisionModelError(ApiErrorCategory.PROVIDER_CONTENT_REFUSED, 'data_inspection_failed')
+      )
+      .mockRejectedValueOnce(
+        new VisionModelError(ApiErrorCategory.CONTENT_POLICY, 'content policy')
+      )
+      .mockResolvedValueOnce('third tier description');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result.description).toBe('third tier description');
+    expect(mockDescribeImage).toHaveBeenCalledTimes(3);
+    expect(mockBuildFailureFallback).not.toHaveBeenCalled();
+  });
+
+  it('a CONTENT_POLICY refusal on the LAST tier exhausts the chain with the permanent placeholder', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    mockDescribeImage.mockRejectedValue(
       new VisionModelError(ApiErrorCategory.CONTENT_POLICY, 'filtered')
     );
 
@@ -802,18 +866,17 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    // Returns buildFailureFallback(CONTENT_POLICY, ...) immediately.
     expect(result.description).toBe(`[fallback:${ApiErrorCategory.CONTENT_POLICY}/system]`);
-    expect(mockBuildFailureFallback).toHaveBeenCalledWith(
+    // primary/model, tier-a, and the paid floor are three distinct resolved models.
+    expect(mockDescribeImage).toHaveBeenCalledTimes(3);
+    expect(mockBuildFailureFallback).toHaveBeenLastCalledWith(
       ApiErrorCategory.CONTENT_POLICY,
-      expect.anything(),
-      'img.png' // the filename crosses the seam so the placeholder can name the image
+      'system',
+      'img.png'
     );
-    // Only the primary tier was attempted — no later tiers.
-    expect(mockDescribeImage).toHaveBeenCalledTimes(1);
   });
 
-  it('short-circuits on a TERMINATE category (MEDIA_NOT_FOUND) too', async () => {
+  it('short-circuits on a TERMINATE category (MEDIA_NOT_FOUND) without trying later tiers', async () => {
     const personality = makePersonality({ visionFallbackModels: ['tier-a', 'tier-b'] });
     mockDescribeImage.mockRejectedValueOnce(
       new VisionModelError(ApiErrorCategory.MEDIA_NOT_FOUND, 'gone')
@@ -826,7 +889,15 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
+    // Returns buildFailureFallback(MEDIA_NOT_FOUND, ...) immediately — no other tier
+    // could fetch this attachment either, so the advance path is never taken.
     expect(result.description).toBe(`[fallback:${ApiErrorCategory.MEDIA_NOT_FOUND}/system]`);
+    expect(mockBuildFailureFallback).toHaveBeenCalledWith(
+      ApiErrorCategory.MEDIA_NOT_FOUND,
+      expect.anything(),
+      'img.png' // the filename crosses the seam so the placeholder can name the image
+    );
+    // Only the primary tier was attempted — no later tiers.
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
   });
 

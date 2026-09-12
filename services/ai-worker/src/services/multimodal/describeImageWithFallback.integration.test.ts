@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 
 // The mocked seams are the two NETWORK boundaries: the LLM client factory and
 // the attachment downloader (describeImage fetches the image bytes to a data:
@@ -204,7 +205,8 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     expect(stored).toBe('first-pass description');
 
     // Second pass, same attachment: tier 1 short-circuits on its honored
-    // negative entry (no LLM call), tier 2 serves from the positive cache
+    // negative entry (no LLM call), tier 2 serves from the canonical positive
+    // cache — model-agnostic and read before any tier's negative entry —
     // (no LLM call) — the whole request costs zero LLM calls.
     const generate = scriptModelInvocations([{ content: 'should never be called' }]);
     const { description, attribution } = await describeImageWithFallback(
@@ -219,11 +221,49 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it('a terminate-category failure short-circuits: one LLM call, placeholder, no tier burn', async () => {
+  it('a cached CONTENT_POLICY entry on tier 1 is skipped on the re-ask and the loop advances to a FRESH tier-2 call', async () => {
+    const attachment = makeAttachment();
+    const personality = makePersonality();
+
+    // Prime tier 1's negative entry directly, bypassing a first full pass —
+    // no positive entry exists for this attachment.
+    await visionDescriptionCache.storeFailure({
+      attachmentId: attachment.id,
+      url: attachment.url,
+      model: 'itest/tier-one',
+      category: ApiErrorCategory.CONTENT_POLICY,
+    });
+
+    // Tier 1 finds no positive entry, hits its honored long-TTL
+    // content-policy failure and throws; the loop must advance, not
+    // terminate; tier 2 runs a real call. With content-policy in the
+    // terminate set this returns the placeholder with zero calls, which is
+    // the prod re-ask.
+    const generate = scriptModelInvocations([{ content: 'fresh tier-two description' }]);
+    const { description, attribution } = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions(personality)
+    );
+
+    expect(description).toBe('fresh tier-two description');
+    expect(attribution).toEqual({ model: 'itest/tier-two', fromCache: false });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    // The honored entry was not consumed by the advance.
+    const tierOneFailure = await visionDescriptionCache.getFailure({
+      attachmentId: attachment.id,
+      url: attachment.url,
+      model: 'itest/tier-one',
+    });
+    expect(tierOneFailure).not.toBeNull();
+  });
+
+  it('a MEDIA_NOT_FOUND failure short-circuits: one LLM call, placeholder, no tier burn', async () => {
     const attachment = makeAttachment();
     const personality = makePersonality();
     const generate = scriptModelInvocations([
-      { reject: new Error('Image rejected: content policy violation — flagged content') },
+      { reject: new Error('400 Received 404 status code when fetching URL') },
     ]);
 
     const { description, attribution } = await describeImageWithFallback(
@@ -232,8 +272,8 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
       makeAuthOptions(personality)
     );
 
-    // The image itself is the problem — no other tier would do better, so the
-    // loop must NOT spend tier-2/floor calls.
+    // The attachment itself cannot be fetched — no other tier could see it either, so
+    // the loop must NOT spend tier-2/floor calls.
     expect(generate).toHaveBeenCalledTimes(1);
     expect(description.startsWith('[Image')).toBe(true);
     expect(attribution).toBeNull();
