@@ -50,6 +50,7 @@ const USER_ACCOUNT_EXPORT = '../user/account/export.js';
 const USER_ACCOUNT_DELETE = '../user/account/delete.js';
 const USER_FEEDBACK = '../user/feedback.js';
 const USER_MODEL_OVERRIDE = '../user/model-override.js';
+const USER_PERSONALITY_DEFAULT_CONFIG = '../user/personality/default-config.js';
 const USER_PERSONA_CRUD = '../user/persona/crud.js';
 const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
 const ADMIN_BROADCAST = '../admin/broadcast.js';
@@ -202,10 +203,12 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   setTtsOverride: USER_TTS_OVERRIDE,
 
   // User personality
+  clearPersonalityDefaultConfig: USER_PERSONALITY_DEFAULT_CONFIG,
   createPersonality: '../user/personality/create.js',
   deletePersonality: '../user/personality/delete.js',
   getPersonality: '../user/personality/get.js',
   listPersonalities: '../user/personality/list.js',
+  setPersonalityDefaultConfig: USER_PERSONALITY_DEFAULT_CONFIG,
   setPersonalityVisibility: '../user/personality/visibility.js',
   updatePersonality: '../user/personality/update.js',
 

@@ -7,7 +7,7 @@
  */
 
 import type { ConformanceEntry } from './types.js';
-import { createPersona, createPersonality } from './seedHelpers.js';
+import { createLlmConfig, createPersona, createPersonality } from './seedHelpers.js';
 
 /** Minimal valid PersonalityCreateSchema body with a per-fixture slug. */
 function personalityBody(slug: string): Record<string, unknown> {
@@ -70,6 +70,21 @@ export const userOwnershipFixtures: Record<string, ConformanceEntry> = {
       await createPersonality(ctx, 'conf-delete-personality');
     },
     params: { slug: 'conf-delete-personality' },
+  },
+
+  setPersonalityDefaultConfig: {
+    seed: async ctx => {
+      await createPersonality(ctx, 'conf-default-config-set');
+      const config = await createLlmConfig(ctx, 'Conf Default Config Set');
+      return { params: { slug: 'conf-default-config-set' }, body: { configId: config.id } };
+    },
+  },
+
+  clearPersonalityDefaultConfig: {
+    seed: async ctx => {
+      await createPersonality(ctx, 'conf-default-config-clear');
+    },
+    params: { slug: 'conf-default-config-clear' },
   },
 
   // ---- Personality aliases ------------------------------------------------
