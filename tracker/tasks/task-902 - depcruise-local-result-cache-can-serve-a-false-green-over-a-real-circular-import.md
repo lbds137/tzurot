@@ -3,9 +3,10 @@ id: TASK-902
 title: >-
   depcruise local result cache can serve a false green over a real circular
   import
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-06 17:08'
+updated_date: '2026-09-12 14:00'
 labels:
   - 'area:tooling'
   - 'size:S'
