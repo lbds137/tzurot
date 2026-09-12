@@ -34,6 +34,44 @@ stt/tts/model-override + AccountEraserService copies. Re-derive the count by
 grep before claiming it.
 <!-- SECTION:DESCRIPTION:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Grounding update 2026-09-12 (drain batch 3 candidate screen): premise is
+HALF-STALE, and the half that is stale is the one that sized the task.
+
+The shared helper this task asks for ALREADY EXISTS:
+`services/api-gateway/src/utils/configOverrideHelpers.ts` exports
+`tryInvalidateCache(fn, context?)` — exactly the reviewer's sketch, one
+callback plus a log-context object, well under the 2-callback ceiling. It
+has a colocated test (`configOverrideHelpers.test.ts`) that pins fail-open
+in both directions, and it is already wired at roughly 15 call sites across
+seven route files (`channel/configOverrides.ts`, `config-overrides.ts`,
+`model-override.ts`, `personality-config-overrides.ts`,
+`personality/default-config.ts`, `stt-override.ts`, `tts-override.ts`).
+Evidence: `git grep -n 'tryInvalidateCache' -- services/api-gateway/src`.
+
+So the remaining work is NOT design-and-build plus a sweep; it is the sweep
+alone — convert the four surviving named per-file copies
+(`channel/activate.ts`, `channel/deactivate.ts`, `persona/crud.ts`,
+`persona/override.ts`, still separate per
+`git grep -ln 'broadcastPersonaInvalidation|broadcastChannelActivationInvalidation'`)
+plus the older inline copies the description enumerates, onto the existing
+helper. Re-derive the count by grep at build time as the description says.
+
+The 2026-09-04 digest comment below states that no shared helper exists
+anywhere under `services/api-gateway/src/utils/`. That is incorrect: its
+evidence grep searched for the two per-file helper NAMES and for a
+consolidated helper FILE, so a generic helper living inside an existing
+util module could not match either pattern. Left in place as the record of
+what was searched; this note supersedes its conclusion.
+
+Not batched into drain batch 3: the grounding pass confirmed zero file
+overlap with TASK-743 (that unit touches the gateway bootstrap and two
+resolver construction sites; this one touches ~10 route files), so riding it
+along would have roughly tripled the diff for a low-priority consolidation.
+<!-- SECTION:NOTES:END -->
+
 ## Comments
 
 <!-- COMMENTS:BEGIN -->
