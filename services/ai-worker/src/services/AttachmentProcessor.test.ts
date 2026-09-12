@@ -5,7 +5,7 @@
  * extracted from ReferencedMessageFormatter.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -64,6 +64,7 @@ describe('AttachmentProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
 
     mockPersonality = {
       id: 'test-personality',
@@ -81,6 +82,10 @@ describe('AttachmentProcessor', () => {
       personalityTraits: 'Test traits',
       voiceEnabled: false,
     };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('processAttachmentsParallel', () => {
@@ -441,7 +446,7 @@ describe('AttachmentProcessor', () => {
     it('should handle image processing failures gracefully', async () => {
       mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
 
-      const result = await processAttachmentsParallel({
+      const promise = processAttachmentsParallel({
         attachments: [
           {
             url: 'https://example.com/broken.png',
@@ -454,6 +459,8 @@ describe('AttachmentProcessor', () => {
         personality: mockPersonality,
         isGuestMode: false,
       });
+      await vi.runAllTimersAsync();
+      const result = await promise;
 
       expect(result).toHaveLength(1);
       // Still rendered, and it says WHY there is no description — an attachment
@@ -469,7 +476,7 @@ describe('AttachmentProcessor', () => {
     it('should handle voice transcription failures gracefully', async () => {
       mockTranscribeAudio.mockRejectedValue(new Error('STT failed'));
 
-      const result = await processAttachmentsParallel({
+      const promise = processAttachmentsParallel({
         attachments: [
           {
             url: 'https://example.com/voice.ogg',
@@ -484,6 +491,8 @@ describe('AttachmentProcessor', () => {
         personality: mockPersonality,
         isGuestMode: false,
       });
+      await vi.runAllTimersAsync();
+      const result = await promise;
 
       expect(result).toHaveLength(1);
       expect(result[0].attachment).toEqual({
@@ -830,7 +839,7 @@ describe('AttachmentProcessor', () => {
     it('carries source="link-preview" through the vision-failure arm', async () => {
       mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
 
-      const result = await processAttachmentsParallel({
+      const promise = processAttachmentsParallel({
         attachments: [
           {
             url: 'https://example.com/embed-broken.png',
@@ -844,6 +853,8 @@ describe('AttachmentProcessor', () => {
         personality: mockPersonality,
         isGuestMode: false,
       });
+      await vi.runAllTimersAsync();
+      const result = await promise;
 
       // Provenance is identity, not enrichment — it must survive the
       // description failing, not just accompany a successful one.
@@ -930,7 +941,9 @@ describe('AttachmentProcessor', () => {
     it('emits the image failure through a logger bound to the requestId', async () => {
       mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
 
-      await processAttachmentsParallel(imageOptions('req-image'));
+      const promise = processAttachmentsParallel(imageOptions('req-image'));
+      await vi.runAllTimersAsync();
+      await promise;
 
       expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-image' });
       expect(mockChildLogger.error).toHaveBeenCalledWith(
@@ -945,7 +958,7 @@ describe('AttachmentProcessor', () => {
     it('emits the voice failure through the bound logger', async () => {
       mockTranscribeAudio.mockRejectedValue(new Error('STT failed'));
 
-      await processAttachmentsParallel({
+      const promise = processAttachmentsParallel({
         attachments: [
           {
             url: 'https://example.com/voice.ogg',
@@ -961,6 +974,8 @@ describe('AttachmentProcessor', () => {
         isGuestMode: false,
         requestId: 'req-voice',
       });
+      await vi.runAllTimersAsync();
+      await promise;
 
       expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-voice' });
       expect(mockChildLogger.error).toHaveBeenCalledWith(
@@ -1010,7 +1025,9 @@ describe('AttachmentProcessor', () => {
       // would strand exactly the spend evidence next to a correlated failure.
       mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
 
-      await processAttachmentsParallel(imageOptions('req-retry'));
+      const promise = processAttachmentsParallel(imageOptions('req-retry'));
+      await vi.runAllTimersAsync();
+      await promise;
 
       expect(mockChildLogger.warn).toHaveBeenCalled();
       expect(mockLogger.warn).not.toHaveBeenCalled();
@@ -1021,7 +1038,9 @@ describe('AttachmentProcessor', () => {
       // must keep logging exactly as before.
       mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
 
-      await processAttachmentsParallel(imageOptions());
+      const promise = processAttachmentsParallel(imageOptions());
+      await vi.runAllTimersAsync();
+      await promise;
 
       expect(mockLogger.child).not.toHaveBeenCalled();
       expect(mockLogger.error).toHaveBeenCalledWith(

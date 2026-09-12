@@ -23,21 +23,7 @@ import {
 import { ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types/constants/error';
 import { HttpError } from '../../utils/attachmentFetch.js';
 import { ExpiredCdnUrlError } from '../../utils/discordCdnExpiry.js';
-
-/**
- * Adapt an `invoke`-shaped mock to the `generate` seam `invokeModelGuarded`
- * actually calls. `generate` forwards `(messages[0], options)` — exactly the
- * arguments `invoke` received before — and wraps the resolved message in the
- * `LLMResult` shape core's `invoke` unwraps, so rejections still reject and
- * every existing assertion against the inner mock keeps its meaning.
- */
-function generateFromInvokeMock(
-  invokeMock: (...args: unknown[]) => unknown
-): ReturnType<typeof vi.fn> {
-  return vi.fn(async (messages: unknown[], options?: unknown) => ({
-    generations: [[{ text: '', message: await invokeMock(messages[0], options) }]],
-  }));
-}
+import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
 
 /**
  * Factory function to create a mock LoadedPersonality with sensible defaults.
@@ -1183,6 +1169,97 @@ describe('VisionProcessor', () => {
         expect(
           (fixture.additional_kwargs as Record<string, unknown>).__raw_response
         ).toBeUndefined();
+      });
+    });
+
+    describe('finish-reason length warn', () => {
+      const lengthWarnMessage =
+        'Vision description stopped on length; the stored description may be truncated';
+
+      it('fires for a length stop', async () => {
+        const sentinelDescription =
+          'A tabby cat sitting on a windowsill in afternoon light, tail curled.';
+        const fixture = new AIMessage({
+          content: sentinelDescription,
+          response_metadata: { finish_reason: 'length' },
+        });
+
+        mockModelInvoke.mockResolvedValue(fixture);
+        mockCreateChatModel.mockReturnValue({
+          model: { generate: generateFromInvokeMock(mockModelInvoke) },
+          modelName: 'test-model',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'gpt-4-vision-preview',
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        const call = mockLogger.warn.mock.calls.find(
+          ([, message]) => message === lengthWarnMessage
+        );
+        expect(call).toBeDefined();
+        expect(call?.[0]).toEqual({
+          modelName: 'gpt-4-vision-preview',
+          descriptionLength: sentinelDescription.trim().length,
+          finishReason: 'length',
+        });
+      });
+
+      it('does not fire for a normal stop', async () => {
+        const sentinelDescription =
+          'A tabby cat sitting on a windowsill in afternoon light, tail curled.';
+        const fixture = new AIMessage({
+          content: sentinelDescription,
+          response_metadata: { finish_reason: 'stop' },
+        });
+
+        mockModelInvoke.mockResolvedValue(fixture);
+        mockCreateChatModel.mockReturnValue({
+          model: { generate: generateFromInvokeMock(mockModelInvoke) },
+          modelName: 'test-model',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'gpt-4-vision-preview',
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        const call = mockLogger.warn.mock.calls.find(
+          ([, message]) => message === lengthWarnMessage
+        );
+        expect(call).toBeUndefined();
+      });
+
+      it('does not fire when finish reason is absent', async () => {
+        const sentinelDescription =
+          'A tabby cat sitting on a windowsill in afternoon light, tail curled.';
+        const fixture = new AIMessage({
+          content: sentinelDescription,
+          response_metadata: {},
+        });
+
+        mockModelInvoke.mockResolvedValue(fixture);
+        mockCreateChatModel.mockReturnValue({
+          model: { generate: generateFromInvokeMock(mockModelInvoke) },
+          modelName: 'test-model',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'gpt-4-vision-preview',
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        const call = mockLogger.warn.mock.calls.find(
+          ([, message]) => message === lengthWarnMessage
+        );
+        expect(call).toBeUndefined();
       });
     });
 
