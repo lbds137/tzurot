@@ -48,6 +48,8 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  *   just a test), and through it by db/check-migration-safety.ts and
  *   db/inspect-database.ts, so this root gates the checker's own behaviour,
  *   not only a fixture it reads
+ * - db/driftIgnoreSchema.test.ts: prisma/drift-ignore.schema.json, the schema
+ *   it compiles and validates prisma/drift-ignore.json against
  * - turbo-lint-build-edge.test.ts: the root turbo.json and eslint.config.js,
  *   whose RELATIONSHIP it guards — an edit to either is what that test exists
  *   to react to, so both must invalidate the cache or the guard reports on a
@@ -65,6 +67,7 @@ const INLINE_LITERAL_ROOTS = [
   'services/ai-worker/src',
   'tests/e2e/contracts',
   'prisma/drift-ignore.json',
+  'prisma/drift-ignore.schema.json',
   'README.md',
 ];
 

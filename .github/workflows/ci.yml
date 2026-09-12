@@ -88,6 +88,9 @@ jobs:
       - name: Run linter
         run: pnpm run lint
 
+      - name: Check formatting
+        run: pnpm format:check
+
       - name: Run copy-paste detection
         run: pnpm cpd
         continue-on-error: true

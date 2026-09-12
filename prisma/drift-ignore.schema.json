@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lbds137/tzurot/prisma/drift-ignore.schema.json",
   "title": "Prisma drift-ignore registry",
-  "description": "Registry of Prisma drift the migration tooling must handle: indexes Prisma cannot represent and must never silently lose (protectedIndexes), and generated SQL fragments to strip from a freshly-diffed migration (ignorePatterns). ENFORCEMENT BOUNDARY: this schema is advisory — it describes the file FORMAT for an editor, and nothing runs it in CI. The mechanically-enforced subset is whatever protectedIndexRegistry.ts validates at load time, which is narrower: `type` is required here but never read there, so omitting it breaks this schema while every automated gate stays green.",
+  "description": "Registry of Prisma drift the migration tooling must handle: indexes Prisma cannot represent and must never silently lose (protectedIndexes), and generated SQL fragments to strip from a freshly-diffed migration (ignorePatterns). ENFORCEMENT BOUNDARY: this schema is mechanically enforced by packages/tooling/src/db/driftIgnoreSchema.test.ts, which compiles it and validates the committed drift-ignore.json against it on every tooling test run. protectedIndexRegistry.ts's load-time validation remains narrower — `type` is required here but never read there, so it never gates on this field.",
   "type": "object",
   "required": ["description", "protectedIndexes", "ignorePatterns", "documentation"],
   "additionalProperties": false,

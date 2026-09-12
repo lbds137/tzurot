@@ -119,14 +119,12 @@ describe('openCharacterCascadeDashboard', () => {
     await openCharacterCascadeDashboard(context, 'ivy', {
       dashboardConfig,
       sourceTier: 'user-personality',
-      resolveCascade: vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          kind: 'http',
-          error: 'Cascade resolve broke',
-          status: 500,
-        }),
+      resolveCascade: vi.fn().mockResolvedValue({
+        ok: false,
+        kind: 'http',
+        error: 'Cascade resolve broke',
+        status: 500,
+      }),
       noun: 'overrides',
       logger,
     });

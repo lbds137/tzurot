@@ -35,8 +35,7 @@ describe('buildVoiceSttSubcommandGroup', () => {
       s => s.name === 'set'
     );
     const opts = setSub?.options as
-      | { name: string; required?: boolean; choices?: { value: string }[] }[]
-      | undefined;
+      { name: string; required?: boolean; choices?: { value: string }[] }[] | undefined;
 
     expect(opts?.length).toBe(1);
     const provider = opts?.[0];
