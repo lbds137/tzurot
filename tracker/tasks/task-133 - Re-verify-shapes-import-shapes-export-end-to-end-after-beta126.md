@@ -1,10 +1,10 @@
 ---
 id: TASK-133
 title: Re-verify /shapes import + /shapes export end-to-end after beta.126
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-30 00:00'
-updated_date: '2026-09-04 19:35'
+updated_date: '2026-09-13 17:03'
 labels:
   - 'area:ai-worker'
   - 'size:S'
