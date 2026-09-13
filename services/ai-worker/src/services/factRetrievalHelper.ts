@@ -63,8 +63,14 @@ export async function retrieveFactsForPrompt(
     personaId
   );
   if (facts.length > 0) {
+    const reservedFactCount = facts.filter(f => f.reserved === true).length;
     logger.info(
-      { personalityId, factCount: facts.length, sharedScope: shareLtmAcrossPersonalities },
+      {
+        personalityId,
+        factCount: facts.length,
+        sharedScope: shareLtmAcrossPersonalities,
+        reservedFactCount,
+      },
       'Facts retrieved for prompt injection'
     );
   }
