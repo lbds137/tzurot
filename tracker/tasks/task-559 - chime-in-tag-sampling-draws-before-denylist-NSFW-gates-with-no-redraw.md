@@ -22,3 +22,13 @@ Fix shape (owner may prefer either): redraw/filter against gates before sampling
 
 Acceptance: either a redraw test, or the documented tradeoff plus a notice that cannot overclaim. Source: 2026-08-12 review (tags reviewer F2, order CONFIRMED).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: owner-ruling
+created: 2026-09-13
+---
+Owner ruling 2026-09-13: filter the pool against the per-character gates BEFORE sampling (redraw shape), so an eligible never-drawn character cannot lose its slot to a gate-blocked one. Build via the drain; acceptance = the redraw test.
+---
+<!-- COMMENTS:END -->
