@@ -128,6 +128,10 @@ describe('VoiceAnchorFormatter', () => {
       expect(note).toContain('Aria');
       expect(note.match(/Aria/g)).toHaveLength(2);
       expect(note).toContain('drift');
+      expect(note).toContain('Match the register and energy these fields describe.');
+      expect(note).not.toContain('length');
+      expect(note).toContain('recorded in the facts is relationship, not drift');
+      expect(note).not.toContain('Pet names');
     });
   });
 });
