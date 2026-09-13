@@ -36,7 +36,7 @@ Replace string concatenation with typed sections: `{ id, tier, render() }`, wher
 
 S0 before S1 maximizes the cross-personality shared prefix for providers with automatic prefix caching (OpenAI/DeepSeek/Gemini) — every personality shares S0's bytes. (Order today is interleaved: platform constraints render 3rd, protocol 9th; the reorder needs a quality-regression eye — the current order encodes Gemini's "sandwich method" primacy/recency rationale, so the S0/S1 *internal* ordering keeps identity-first, constraints-early, directives-late within the stable block.)
 
-**Layered composition of S1 (absorbs the layered-prompting follow-up)**: S1 is assembled from ordered layers — `platform → channel (future) → personality → user-overrides` — with later layers overriding earlier on conflict. The layer seam is designed now (typed layers into the section model); the channel layer + its schema ship later (its trigger unchanged: channel-topic awareness work).
+**Layered composition of S1 (absorbs the layered-prompting follow-up)**: S1 is assembled from ordered layers — `platform → channel (future) → personality → user-overrides` — with later layers overriding earlier on conflict. The layer seam is designed now (typed layers into the section model); the channel layer + its schema ship later (its trigger unchanged: channel-topic awareness work). **Status note 2026-09-12: "designed" means on paper only — no layer type was ever added to `sections.ts`, which carries `SectionTier` alone. Also read the correction under the Phase 4 row below, which additionally records that this seam may dissolve into the config cascade rather than needing its own engine.**
 
 ### 2.2 Volatile tail placement
 
@@ -354,7 +354,26 @@ Allocation logic survives with container changes: base = S0+S1 (fixed, never tru
 | **1 — typed sections + tier reorder** | Section model `{id, tier, render}`; S0/S1/V partition **within the current 2-message shape** (volatiles hoisted into the user message; absolute timestamps in chat_log); memory-block framing language (§2.2); **prefix-diff tool ships here** (council: it is the cache debugger, needed from the first restructure); **exit gate: 20–30-turn voice-consistency snapshot comparison across 3+ personas before Phase 2 may start** | Structural validation + a modest automatic-caching win (honest sizing, council: the system prefix is the small fraction of input; breakpoint B is the economic event) |
 | **2 — history extraction** | `<chat_log>` → real messages (multi-party mapping §2.3, content headers + kwargs metadata, inline replies §2.4, chunked eviction + invariants §2.5, converter role fix) | The structural payoff: breakpoint B, LangGraph gate, tool-shape readiness |
 | **3 — explicit markers + measurement** | Anthropic cache_control at A+B (per spike's chosen seam); telemetry dashboards; baseline-vs-after cost comparison | The cost win, quantified |
-| **4 — layered S1 composition** | Layer seam already typed in Phase 1; channel layer + schema when its trigger fires | Deferred; design closed now |
+| **4 — layered S1 composition** | ~~Layer seam already typed in Phase 1~~ — **FALSE, corrected 2026-09-12**; channel layer + schema when its trigger fires | Deferred; design closed, seam UNBUILT |
+
+> **⚠️ Correction 2026-09-12 — the layer seam was never typed.** The row above
+> claimed Phase 1 shipped typed layers. It did not: Phase 1 shipped the SECTION
+> model, and `services/ai-worker/src/services/prompt/sections.ts` declares
+> `SectionTier = 'S0' | 'S1' | 'H' | 'V'` and nothing else — grep it for "layer"
+> and every hit is prose about tiers. §2.1's `platform → channel → personality →
+> user-overrides` seam remains a design on paper. TASK-110 recorded this
+> correction against the task in August; the claim survived here because nobody
+> swept back to the source doc, which is exactly the failure
+> `10-working-posture.md` § "A changed premise sweeps its prose" names.
+>
+> Two consequences for whoever picks Phase 4 up. First, re-scope before treating
+> it as a build: the owner ruled 2026-09-12 that sidecar prompts are a tiered
+> **cascade field**, and the config cascade already resolves nearly this tier set
+> (`doc-15`'s accepted design adds a guild tier on top), so most of this phase may
+> dissolve into cascade work rather than needing a second layering engine — see
+> doc-26 § "User System Prompts (Sidecar Prompts)". Second, the open fork is
+> select-one vs accumulate: a config cascade picks ONE winner, while a prompt
+> layer may want platform and character and user text present simultaneously.
 
 Phases 0–1 are cheap and independently valuable. Phase 2 is the risk center (multi-party regression) — it gets the snapshot review + staged rollout.
 
