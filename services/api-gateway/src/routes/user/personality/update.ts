@@ -10,7 +10,7 @@ import {
   type PersonalityUpdateInput,
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types/schemas/api/personality';
-import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
@@ -68,6 +68,16 @@ function buildUpdateData(
   // the value. Absent = leave stored tags alone; [] = clear them.
   if (body.tags !== undefined) {
     updateData.tags = body.tags;
+  }
+
+  // Handled outside simpleFields for the same reason tags are: that loop
+  // launders values through `Record<string, unknown>`, and a Json? column
+  // needs the Prisma null sentinel rather than a plain null. Absent = leave
+  // the stored bag alone; null = clear the column to SQL NULL; an object
+  // replaces it wholesale (no merge).
+  if (body.customFields !== undefined) {
+    updateData.customFields =
+      body.customFields === null ? Prisma.DbNull : (body.customFields as Prisma.InputJsonValue);
   }
 
   if (body.name !== undefined) {

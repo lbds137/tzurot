@@ -309,7 +309,7 @@ describe('Character Export', () => {
       expect('displayName' in exportedJson(mockContext)).toBe(false);
     });
 
-    it('still omits a null customFields (its clear is nullish and gateway-dropped)', async () => {
+    it('still omits a null customFields (empty/null carries no clear form to export)', async () => {
       stub.getPersonality.mockResolvedValue({
         ok: true,
         data: { personality: { ...mockCharacterData, customFields: null }, canEdit: true },

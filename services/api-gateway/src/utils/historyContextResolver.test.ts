@@ -22,7 +22,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 });
 
 vi.mock('@tzurot/identity', () => ({
-  PersonaResolver: vi.fn().mockImplementation(() => ({
+  getOrCreatePersonaResolver: vi.fn().mockImplementation(() => ({
     resolve: vi.fn(),
   })),
 }));

@@ -23,16 +23,19 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-// Partial-mock identity: stub PersonaResolver (the handler constructs it
-// directly) so the factory doesn't start its real cache-cleanup interval, and
-// stub resolveRoutingContext to isolate the HTTP layer. UserService is reached
-// via getOrCreateUserService (the real AuthMiddleware path), so keep the real
+// Partial-mock identity: stub getOrCreatePersonaResolver (the handler calls
+// it directly) so the factory doesn't construct a real PersonaResolver against
+// the mocked prisma and register it in the module-level per-PrismaClient
+// WeakMap (getOrCreatePersonaResolver's registry) — a real instance there
+// would be shared beyond this test via that registry. Also stub
+// resolveRoutingContext to isolate the HTTP layer. UserService is reached via
+// getOrCreateUserService (the real AuthMiddleware path), so keep the real
 // export by spreading the actual module.
 vi.mock('@tzurot/identity', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/identity')>('@tzurot/identity');
   return {
     ...actual,
-    PersonaResolver: vi.fn(),
+    getOrCreatePersonaResolver: vi.fn(),
     resolveRoutingContext: (...args: unknown[]) => mockResolveRoutingContext(...args),
   };
 });

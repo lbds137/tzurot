@@ -415,6 +415,33 @@ const slugSchema = z
   );
 
 /**
+ * Byte ceiling on the serialized `customFields` bag. Arbitrary user-controlled
+ * JSONB needs a bound the way every text field has one; there is no smaller
+ * natural limit because the keys are open-ended. 16 KiB sits above the largest
+ * realistic producer (the Shapes importer's bag: personality history, initial
+ * message, keyword arrays) and below the ~27 KB the declared card text fields
+ * already allow in total, so the unstructured bag can never dwarf the
+ * structured character definition.
+ */
+export const CUSTOM_FIELDS_MAX_BYTES = 16 * 1024;
+
+/**
+ * `customFields` as accepted on INPUT (create + update). Bounded by
+ * CUSTOM_FIELDS_MAX_BYTES on the UTF-8 length of its JSON serialization.
+ * Deliberately NOT applied to PersonalityFullSchema's response-side
+ * `customFields`: a row stored before this bound existed must stay readable,
+ * and a bound on the response would make it unparseable instead.
+ */
+const boundedCustomFieldsSchema = z
+  .record(z.string(), z.unknown())
+  .refine(
+    value => new TextEncoder().encode(JSON.stringify(value)).length <= CUSTOM_FIELDS_MAX_BYTES,
+    `customFields must serialize to ${CUSTOM_FIELDS_MAX_BYTES} bytes or less`
+  )
+  .optional()
+  .nullable();
+
+/**
  * Schema for creating a new personality.
  *
  * This is the unified schema for both admin and user create operations.
@@ -446,8 +473,8 @@ export const PersonalityCreateSchema = z.object({
   // create/import time; the create route maps it (default false when absent).
   definitionPublic: z.boolean().optional(),
 
-  // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
-  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+  // Custom fields (JSONB) - arbitrary nested JSON, size-bounded (see boundedCustomFieldsSchema)
+  customFields: boundedCustomFieldsSchema,
 
   // Discovery tags — comma-separated string (dashboard modal) or array (JSON
   // import). Absent = no tags on the new character.
@@ -493,8 +520,8 @@ export const PersonalityUpdateSchema = z.object({
   // update route's simpleFields loop).
   definitionPublic: z.boolean().optional(),
 
-  // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
-  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+  // Custom fields (JSONB) - arbitrary nested JSON, size-bounded (see boundedCustomFieldsSchema)
+  customFields: boundedCustomFieldsSchema,
 
   // Discovery tags — comma-separated string (dashboard modal) or array (the
   // fetched character's own `tags`, replayed on every section save). Absent =

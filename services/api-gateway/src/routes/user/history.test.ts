@@ -47,7 +47,17 @@ vi.mock('@tzurot/identity', () => {
   class MockPersonaResolver {
     resolve = mockResolve;
   }
-  return { PersonaResolver: MockPersonaResolver };
+  // Lazily instantiated on first call, not at factory-hoist time: `mockResolve`
+  // is a top-level `const` in this file, so constructing the instance eagerly
+  // here (before that const initializes) throws a TDZ error under vi.mock's
+  // hoisting.
+  let sharedInstance: MockPersonaResolver | undefined;
+  return {
+    getOrCreatePersonaResolver: vi.fn(() => {
+      sharedInstance ??= new MockPersonaResolver();
+      return sharedInstance;
+    }),
+  };
 });
 
 vi.mock('../../services/AuthMiddleware.js', () => ({

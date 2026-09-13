@@ -4,12 +4,14 @@
  * The one-per-channel invalidation services the gateway constructs over the
  * shared cache Redis. Each is a thin pub/sub wrapper with no further wiring of
  * its own, so they group here; anything that also SUBSCRIBES (personality,
- * config cascade, system settings) stays in the server bootstrap next to its
- * handler.
+ * config cascade, system settings, persona) owns its handler elsewhere —
+ * either in the server bootstrap next to it, or (persona) in
+ * `personaInvalidationSubscription.ts`, which this factory's caller invokes
+ * on the `personaCacheInvalidation` instance built below.
  *
- * The gateway publishes on these and does not subscribe to them: it mutates its
- * own in-process caches synchronously at each write site, and the broadcast is
- * what reaches the other services' long-lived caches.
+ * For every other channel here, the gateway publishes and does not subscribe:
+ * it mutates its own in-process caches synchronously at each write site, and
+ * the broadcast is what reaches the other services' long-lived caches.
  */
 
 import type { Redis } from 'ioredis';

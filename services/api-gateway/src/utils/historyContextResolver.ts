@@ -5,7 +5,7 @@
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { PersonaResolver } from '@tzurot/identity';
+import { getOrCreatePersonaResolver } from '@tzurot/identity';
 
 const logger = createLogger('history-context');
 
@@ -75,8 +75,12 @@ export async function resolveHistoryContext(
     personaId = explicitPersonaId;
     personaName = persona.name;
   } else {
-    // Resolve persona using the resolver (considers personality override + user default)
-    const personaResolver = new PersonaResolver(prisma);
+    // Resolve persona using the resolver (considers personality override + user default).
+    // Shares the process-wide, per-PrismaClient resolver instance (previously
+    // a fresh one per call, so this path never served a cached persona) — now
+    // correct because the gateway's persona cache-invalidation subscription
+    // evicts this same shared instance on a persona change.
+    const personaResolver = getOrCreatePersonaResolver(prisma);
     const resolved = await personaResolver.resolve(discordUserId, personality.id);
     if (resolved.source === 'system-default' || !resolved.config.personaId) {
       logger.warn({ discordUserId }, 'No persona found for user');
