@@ -139,6 +139,9 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
  * before extending.
  */
 export const KNOWN_NON_PROMPT_TAGS: Record<string, string> = {
+  details:
+    'HTML disclosure block in the account-export markdown transcript (AccountExportMarkdown.ts); written to a ZIP for the user, never to a prompt.',
+  summary: 'The <details> caption in the same export transcript; never emitted to a prompt.',
   digits: 'Doc placeholder in a RateLimitCache error message ("user:<digits>").',
   failed: 'Error-body placeholder string in Mistral voice clients ("<failed to read body...>").',
   typeof:

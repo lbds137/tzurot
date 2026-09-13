@@ -11,13 +11,16 @@ import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 /**
  * Result of model validation.
- * If `error` is set, the request should be rejected with a 400.
+ * If `error` is set, the request should be rejected — with a 503 when
+ * `catalogUnavailable` is set, and a 400 otherwise.
  */
 export interface ModelValidationResult {
   /** Error message if validation failed, undefined if OK */
   error?: string;
   /** Validated context window cap, undefined if model unknown */
   contextWindowCap?: number;
+  /** Set on the catalog-unavailable branch only; the caller maps it to 503 instead of 400. */
+  catalogUnavailable?: true;
 }
 
 /**
@@ -121,6 +124,7 @@ export async function validateModelAndContextWindow(
   if (lookup.kind === 'unavailable') {
     return {
       error: `Could not reach the model catalog to validate '${modelId}'. This is usually temporary — try saving again in a moment.`,
+      catalogUnavailable: true,
     };
   }
 

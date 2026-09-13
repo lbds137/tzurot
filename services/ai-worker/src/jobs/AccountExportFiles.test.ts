@@ -193,6 +193,7 @@ describe('buildAccountExportFiles', () => {
             createdAt: NOW,
             deletedAt: null,
             editedAt: null,
+            thinkingContent: null,
           },
         ] as unknown as AccountExportData['conversationHistory'],
       })

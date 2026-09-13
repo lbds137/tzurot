@@ -82,6 +82,7 @@ function makePayload(): AccountExportData {
         createdAt: NOW,
         deletedAt: null,
         editedAt: null,
+        thinkingContent: null,
       },
       {
         id: 'msg-2',
@@ -94,6 +95,7 @@ function makePayload(): AccountExportData {
         createdAt: NOW,
         deletedAt: null,
         editedAt: null,
+        thinkingContent: null,
       },
     ] as unknown as AccountExportData['conversationHistory'],
     memories: [
