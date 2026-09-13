@@ -1,9 +1,10 @@
 ---
 id: TASK-948
 title: Admin personality update writes a plain null to the customFields Json column
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 00:36'
+updated_date: '2026-09-13 21:39'
 labels:
   - 'area:api-gateway'
   - 'size:S'
