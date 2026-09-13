@@ -128,6 +128,21 @@ describe('classifyGatewayFailure', () => {
     expect(classifyGatewayFailure(err, 'preset').text).toContain('Name taken');
   });
 
+  it('surfaces the catalog-outage message on a 503, not the generic failure line', () => {
+    const catalogMessage =
+      "Could not reach the model catalog to validate 'anthropic/claude-sonnet-4'. This is usually temporary — try saving again in a moment.";
+    const err = new GatewayApiError(
+      `Failed to update preset: 503 - ${catalogMessage}`,
+      503,
+      'http'
+    );
+
+    const spec = classifyGatewayFailure(err, 'preset');
+
+    expect(spec.text).toBe(catalogMessage);
+    expect(spec.outcome).toBe('failed');
+  });
+
   it('http fail-arm surfaces the raw error field (no wrapper prefix to strip)', () => {
     const spec = classifyGatewayFailure(failArm('http', 'Name taken', 409), 'preset');
     expect(spec.text).toContain('Name taken');

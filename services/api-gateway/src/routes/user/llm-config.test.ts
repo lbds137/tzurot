@@ -536,6 +536,38 @@ describe('/user/llm-config routes', () => {
       expect(mockPrisma.llmConfig.create).not.toHaveBeenCalled();
     });
 
+    it('returns 503 with the catalog message when the model catalog is unreachable', async () => {
+      // The real validation chain runs for this one case: the route's wire
+      // contract for a catalog outage is the thing under test, and the module
+      // mock would otherwise stand in for exactly that mapping.
+      const actual = await vi.importActual<typeof import('../../utils/llmConfigValidation.js')>(
+        '../../utils/llmConfigValidation.js'
+      );
+      mockValidateLlmConfigModelFields.mockImplementationOnce(actual.validateLlmConfigModelFields);
+
+      const modelCache = {
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
+        getModelById: vi.fn().mockResolvedValue(null),
+        lookupModelById: vi.fn().mockResolvedValue({ kind: 'unavailable' }),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const handler = buildHandler(handleCreateUserLlmConfig, { ...mockDeps, modelCache });
+      const { req, res } = createMockReqRes({
+        name: 'My Config',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Could not reach the model catalog'),
+        })
+      );
+      expect(mockPrisma.llmConfig.create).not.toHaveBeenCalled();
+    });
+
     it('should reject missing name', async () => {
       const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ model: 'gpt-4' });

@@ -24,6 +24,7 @@ vi.mock('./responseHelpers.js', () => ({
 vi.mock('./errorResponses.js', () => ({
   ErrorResponses: {
     validationError: (msg: string) => ({ error: 'VALIDATION', message: msg }),
+    serviceUnavailable: (msg: string) => ({ error: 'SERVICE_UNAVAILABLE', message: msg }),
   },
 }));
 
@@ -172,6 +173,43 @@ describe('validateLlmConfigModelFields', () => {
         mockRes,
         expect.objectContaining({ message: 'Model not found' })
       );
+    });
+
+    it('sends a 503-shaped error when the catalog was unreachable', async () => {
+      mockValidateModelAndContextWindow.mockResolvedValue({
+        error:
+          "Could not reach the model catalog to validate 'anthropic/claude-sonnet-4'. This is usually temporary — try saving again in a moment.",
+        catalogUnavailable: true,
+      });
+
+      const result = await validateLlmConfigModelFields({
+        res: mockRes,
+        modelCache: mockModelCache,
+        body: { model: 'anthropic/claude-sonnet-4' },
+      });
+
+      expect(result.ok).toBe(false);
+      expect(mockSendError).toHaveBeenCalledWith(mockRes, {
+        error: 'SERVICE_UNAVAILABLE',
+        message:
+          "Could not reach the model catalog to validate 'anthropic/claude-sonnet-4'. This is usually temporary — try saving again in a moment.",
+      });
+    });
+
+    it('keeps the 400 validation shape for a genuine bad value', async () => {
+      mockValidateModelAndContextWindow.mockResolvedValue({ error: 'Model not found' });
+
+      const result = await validateLlmConfigModelFields({
+        res: mockRes,
+        modelCache: mockModelCache,
+        body: { model: 'invalid-model' },
+      });
+
+      expect(result.ok).toBe(false);
+      expect(mockSendError).toHaveBeenCalledWith(mockRes, {
+        error: 'VALIDATION',
+        message: 'Model not found',
+      });
     });
 
     it('does not fetch current model on create path (no fallback)', async () => {

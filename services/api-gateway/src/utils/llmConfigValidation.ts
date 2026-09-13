@@ -184,7 +184,10 @@ export async function ensureVisionCapableModel(
 
 /** Outcome of the model/context-window/thinking validation pass. */
 export interface LlmConfigFieldValidation {
-  /** `false` means a 400 has already been sent and the route must return. */
+  /**
+   * `false` means an error response (400, or 503 on a catalog outage) has
+   * already been sent and the route must return.
+   */
   ok: boolean;
   /**
    * Advisory notes for a save that succeeded. Always empty when `ok` is
@@ -198,7 +201,8 @@ export interface LlmConfigFieldValidation {
  * model cache, handling both create and update paths, and collect non-blocking
  * warnings about the effective `thinking` level.
  *
- * On failure, sends a 400 validation error response and returns `ok: false`.
+ * On failure, sends an error response and returns `ok: false` — a 503 when
+ * the model catalog was unreachable, a 400 validation error otherwise.
  * On success (or skipped validation), returns `ok: true` plus any warnings.
  */
 export async function validateLlmConfigModelFields(
@@ -223,8 +227,8 @@ export async function validateLlmConfigModelFields(
 
   // Hard validation runs only when the patch actually touches a model field.
   // A params-only update (thinking/temperature/...) previously skipped model
-  // validation entirely, and must not acquire a NEW way to 400 on catalog
-  // state it isn't editing — an unreachable catalog or a since-delisted stored
+  // validation entirely, and must not acquire a NEW way to REJECT on catalog
+  // state (400 or 503) it isn't editing — an unreachable catalog or a since-delisted stored
   // model would otherwise reject a save that changes neither. Warning
   // collection below still runs; it fail-quiets on an unresolvable model.
   const touchesModelFields =
@@ -238,13 +242,21 @@ export async function validateLlmConfigModelFields(
     );
 
     if (result.error !== undefined) {
-      sendError(res, ErrorResponses.validationError(result.error));
+      // A catalog outage is a server-side condition, not a bad value the user
+      // typed — it maps to 503 so clients can tell "try again shortly" apart
+      // from "fix your input". Every other rejection keeps its 400.
+      sendError(
+        res,
+        result.catalogUnavailable === true
+          ? ErrorResponses.serviceUnavailable(result.error)
+          : ErrorResponses.validationError(result.error)
+      );
       return { ok: false, warnings: [] };
     }
   }
 
   // Warning collection runs only past the error gate, so a rejected save never
-  // carries advisory noise alongside its 400.
+  // carries advisory noise alongside its 400 or 503.
   const capabilities =
     effective.model === undefined
       ? null

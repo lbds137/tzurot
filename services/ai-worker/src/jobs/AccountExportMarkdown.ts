@@ -164,6 +164,26 @@ function messageMarkers(row: ExportConversationRow): string {
 }
 
 /**
+ * A row's reasoning trace as a collapsed `<details>` block. The blank lines
+ * inside the block are load-bearing: CommonMark only renders markdown nested
+ * in an HTML block when a blank line separates it from the surrounding tags.
+ *
+ * The guard is on the FIELD, not on `row.role` — only assistant turns are
+ * expected to carry a trace, but the field is what decides. The trace is
+ * emitted as written, except a literal closing `</details>` is entity-escaped
+ * so it can't close the wrapper block early and spill the rest of the
+ * transcript out as loose text.
+ */
+function reasoningBlock(row: ExportConversationRow): string[] {
+  const trace = row.thinkingContent;
+  if (trace === null || trace.trim() === '') {
+    return [];
+  }
+  const safeTrace = trace.replace(/<\s*\/\s*details\s*>/gi, '&lt;/details&gt;');
+  return ['<details><summary>Reasoning</summary>', '', safeTrace, '', '</details>'];
+}
+
+/**
  * Transcript for one character: grouped by channel, ordered chronologically,
  * day headers with per-message clock times (sweeps return id order, which is
  * NOT chronological — the sort here is load-bearing).
@@ -203,6 +223,7 @@ export function formatConversationsMd(
       lines.push(
         `**[${formatClock(row.createdAt)}] ${speaker}:**${messageMarkers(row)} ${row.content}`
       );
+      lines.push(...reasoningBlock(row));
     }
   }
   lines.push('');
