@@ -24,3 +24,13 @@ Fix shape: probe first (one OpenRouter call to z-ai/glm-4.7 with frequency_penal
 
 Acceptance: the probe result is recorded here; the denylist matches the models that actually reject, pinned by a test on the pattern.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: owner-ruling
+created: 2026-09-13
+---
+Owner ruling 2026-09-13: run the paid probe (one OpenRouter call to z-ai/glm-4.7 with frequency_penalty set). Record the result here; widen the pattern to the z-ai namespace only if it 400s with code 1210.
+---
+<!-- COMMENTS:END -->

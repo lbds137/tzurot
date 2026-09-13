@@ -29,3 +29,13 @@ Fix shape: one test mirroring the asterisk three-run rejection for underscores, 
 
 Acceptance: a `___`-prefixed fixture is pinned and reddens when only the underscore delimiter is mutated while the asterisk case stays green; the decorChar comment names the allowlist false-negative as an accepted direction and says why the complement form was rejected; the ai-worker suite, lint, typecheck and typecheck:spec stay green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: owner-ruling
+created: 2026-09-13
+---
+Owner ruling 2026-09-13 on the carried self-header call: the emphasis-run residual (short italic action beats surviving as possible leak shapes) is ACCEPTED as shipped; one strip in 171 measured turns. This task stays scoped to its two Low findings; no matcher widening.
+---
+<!-- COMMENTS:END -->
