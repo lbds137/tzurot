@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-13 21:39'
+updated_date: '2026-09-13 22:10'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 966000
@@ -24,3 +25,12 @@ Recommendation: leave it alone — an import file is additive by intent, and cle
 Fix shape if the ruling is clear: forward null as null for the nullable fields (the gateway update schema already accepts null for customFields; check each other nullable field schema before forwarding) and pin one re-import case in the command test.
 Acceptance: either the ruling is recorded at the builder as a comment and the task closes, or a re-import with a null field clears the stored value and a test pins it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-13 22:10
+---
+Owner ruling 2026-09-13: leave it alone — a null field in an import file is skipped, not a clear. An import file is additive by intent; clearing is what the dashboard and the update route are for. Build: a one-line comment at the builder recording that null means skip on purpose.
+---
+<!-- COMMENTS:END -->

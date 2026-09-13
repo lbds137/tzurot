@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-13 18:02'
+updated_date: '2026-09-13 22:10'
 labels:
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 963000
@@ -24,3 +25,16 @@ Owner question: should a channel-scoped /history purge stop writing the context 
 Recommendation: stop writing it on purge (shape a) — no migration, the delete already does the purge’s job, and clear keeps its persona-wide epoch for the explicit whole-history reset; pick (b) only if the git log shows the epoch write covered a case the delete does not.
 Acceptance: after a channel-scoped purge, a payload from another channel for the same persona and character still includes the older cross-channel messages; the purge confirmation names the scope of what becomes hidden; a unit test pins that purge no longer changes (or now channel-scopes) the epoch; the debug payload shows the active epoch.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-13 22:10
+---
+Owner ruling 2026-09-13: shape (a) — purge stops writing the context epoch.
+
+Evidence for the conditional in the fix shape: git log -L over the epoch-write block traces it to a4230f61a (2025-12-13, the original epoch-based /history implementation) and b74ac6fd0, whose message states the change was made so that all history commands follow the same pattern. Neither commit records a case the row delete does not cover — no late-arriving synced rows, no undo-count dependency. So there is no reason to keep the write.
+
+Build note: after this change, /history undo following a purge becomes a no-op, which is correct — deleted rows cannot be restored, and the 1,494 messages the owner recovered were cross-channel rows the epoch had hidden, not purged rows. The purge and clear confirmations still need to state their scope.
+---
+<!-- COMMENTS:END -->
