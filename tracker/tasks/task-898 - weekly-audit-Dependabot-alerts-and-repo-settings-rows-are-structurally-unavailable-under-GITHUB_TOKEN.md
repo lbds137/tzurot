@@ -43,4 +43,14 @@ created: 2026-09-11 19:26
 ---
 Correction 2026-09-11: the workflow half is ALREADY built. weekly-audit.yml exports GH_TOKEN from secrets.WEEKLY_AUDIT_GH_TOKEN with a github.token fallback on the ops health step, and its permissions comment already names the three read scopes. The secret name is WEEKLY_AUDIT_GH_TOKEN (not the name in the previous comment). Remaining step is the owner only: mint the fine-grained PAT (this repo; Dependabot alerts: read, Administration: read, Metadata: read) and gh secret set WEEKLY_AUDIT_GH_TOKEN, then a workflow_dispatch of weekly-audit shows whether both rows turn from unavailable to values. Close when they do; fall back to (b) for any row that stays unavailable.
 ---
+author: agent
+created: 2026-09-13
+---
+WEEKLY_AUDIT_GH_TOKEN set by the owner 2026-09-13 (fine-grained PAT: Dependabot alerts read, Administration read, Metadata read). Run 34764876429 (manual dispatch): the Dependabot row now reads correctly (1 open, the adm-zip advisory) — that half of the premise is confirmed. The deletion-safety row STILL reads unavailable (repository response has no boolean delete_branch_on_merge) even with Administration: read granted. Open probe (owner-run, PAT stays off the session): GH_TOKEN=<pat> gh api repos/lbds137/tzurot --jq .delete_branch_on_merge. Null there means the field is withheld from fine-grained tokens and the row takes fix shape (b) for that half only: accept local-only (release preflight covers it with the owner token) and correct the workflow comment. A boolean there means a workflow-side difference to chase.
+---
+author: agent
+created: 2026-09-13
+---
+PROBE RESULT (owner-run, same PAT): REST GET repos/lbds137/tzurot returns delete_branch_on_merge = null even though permissions.admin = true — the REST repository object withholds the setting from a fine-grained token regardless of Administration: read. GraphQL repository { deleteBranchOnMerge } returns false under the same token. Fix shape (c), supersedes (b): fetchDeleteBranchOnMerge in packages/tooling/src/dev/check-repo-settings.ts reads the GraphQL field instead of the REST object; the weekly run then closes both rows with the PAT already set.
+---
 <!-- COMMENTS:END -->

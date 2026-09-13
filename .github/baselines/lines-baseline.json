@@ -7,9 +7,9 @@
       "bytesGraceMargin": 12000
     },
     "current": {
-      "lines": 96,
+      "lines": 85,
       "graceMargin": 20,
-      "bytes": 35237,
+      "bytes": 26208,
       "bytesGraceMargin": 4000
     },
     "skills": {
@@ -23,7 +23,7 @@
     "toolVersion": "lines-check/3",
     "configHash": "3631b168bcb2",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "3b4ab749949a0b08dc087a82bda935c506335237",
-    "generatedAt": "2026-09-03T00:29:08.477Z"
+    "generatedFromSha": "ee42f96996fe8ed2630846cdacbd3729299e6d25",
+    "generatedAt": "2026-09-13T15:57:19.589Z"
   }
 }
