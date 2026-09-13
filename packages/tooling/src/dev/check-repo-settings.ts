@@ -549,11 +549,11 @@ export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
     // deletion rule with NO bypass actors holds against the admin-privileged
     // path (see `isDeletionReachable` for the measurement).
     return [
-      '✓ No deletion-safety findings. What each branch actually carries is in the',
-      '  per-branch state below: a deletion rule with no bypass actors is probe-verified',
-      '  to hold against the admin-privileged path; a fully bypassable rule carries no',
-      '  such guarantee. Still CONFIGURATION, not a proof of sufficiency —',
-      '  delete_branch_on_merge below is the protection that assumes nothing.',
+      '✓ No deletion-safety findings. What each branch actually carries is in the ' +
+        'per-branch state below: a deletion rule with no bypass actors is probe-verified ' +
+        'to hold against the admin-privileged path; a fully bypassable rule carries no ' +
+        'such guarantee. Still CONFIGURATION, not a proof of sufficiency — ' +
+        'delete_branch_on_merge below is the protection that assumes nothing.',
       `  delete_branch_on_merge: ${String(surface.deleteBranchOnMerge)}`,
       ...stateLines,
     ].join('\n');
