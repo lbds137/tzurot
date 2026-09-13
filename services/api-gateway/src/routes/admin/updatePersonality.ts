@@ -11,6 +11,7 @@ import {
 } from '@tzurot/common-types/schemas/api/personality';
 import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { toNullableJsonInput } from '@tzurot/common-types/utils/prismaJsonInput';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -65,7 +66,9 @@ function buildUpdateData(
   }
 
   if (validated.customFields !== undefined) {
-    updateData.customFields = validated.customFields;
+    updateData.customFields = toNullableJsonInput(
+      validated.customFields
+    ) satisfies Prisma.PersonalityUpdateInput['customFields'];
   }
   if (processedAvatarData !== undefined) {
     updateData.avatarData = new Uint8Array(processedAvatarData);

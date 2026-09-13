@@ -115,6 +115,35 @@ describe('customFields round-trip (real PGLite)', () => {
     expect(stored?.customFields).toEqual({ foo: 'bar', nested: { n: 1 } });
   });
 
+  it('create with customFields: null lands the column as SQL NULL', async () => {
+    const handler = handleCreatePersonality(deps());
+    const req = provisionedReq({
+      name: 'CF Create Null Target',
+      slug: 'cf-create-null-target',
+      characterInfo: 'Info',
+      personalityTraits: 'Traits',
+      customFields: null,
+    });
+    const res = mockRes();
+
+    await handler(req, res, vi.fn());
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const stored = await prisma.personality.findUnique({
+      where: { slug: 'cf-create-null-target' },
+    });
+    expect(stored?.customFields).toBeNull();
+
+    // SQL NULL, not a stored JSON null: jsonb_typeof returns NULL for the
+    // former and the string 'null' for the latter.
+    const raw = await prisma.$queryRaw<{ isNull: boolean; jsonType: string | null }[]>`
+      SELECT custom_fields IS NULL AS "isNull", jsonb_typeof(custom_fields) AS "jsonType"
+      FROM personalities WHERE slug = 'cf-create-null-target'
+    `;
+    expect(raw[0]?.isNull).toBe(true);
+    expect(raw[0]?.jsonType).toBeNull();
+  });
+
   it('update persists customFields', async () => {
     await prisma.personality.create({
       data: {
@@ -188,5 +217,14 @@ describe('customFields round-trip (real PGLite)', () => {
     expect(res.status).not.toHaveBeenCalledWith(400);
     const stored = await prisma.personality.findUnique({ where: { slug: 'cf-clear-target' } });
     expect(stored?.customFields).toBeNull();
+
+    // SQL NULL, not a stored JSON null: jsonb_typeof returns NULL for the
+    // former and the string 'null' for the latter.
+    const raw = await prisma.$queryRaw<{ isNull: boolean; jsonType: string | null }[]>`
+      SELECT custom_fields IS NULL AS "isNull", jsonb_typeof(custom_fields) AS "jsonType"
+      FROM personalities WHERE slug = 'cf-clear-target'
+    `;
+    expect(raw[0]?.isNull).toBe(true);
+    expect(raw[0]?.jsonType).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleUpdateGlobalPersonality } from './updatePersonality.js';
-import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { stubRouteResolvers, attachMockTransaction } from '../../test/shared-route-test-utils.js';
@@ -368,7 +368,7 @@ describe('PATCH /api/admin/personality/:slug', () => {
       expect(response.status).toBe(200);
       expect(prisma.personality.update).toHaveBeenCalledWith({
         where: { slug: 'test-bot' },
-        data: { customFields: null },
+        data: { customFields: Prisma.DbNull },
       });
     });
   });

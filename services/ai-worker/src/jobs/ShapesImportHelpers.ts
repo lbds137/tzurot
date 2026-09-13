@@ -11,6 +11,7 @@ import {
   SHAPES_USER_AGENT,
 } from '@tzurot/common-types/types/shapes-import';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { toNullableJsonInput } from '@tzurot/common-types/utils/prismaJsonInput';
 import {
   mapShapesConfigToPersonality,
   type MappedPersonalityData,
@@ -75,8 +76,7 @@ async function upsertPersonality(
   mapped: MappedPersonalityData,
   ownerId: string
 ): Promise<void> {
-  const customFieldsJson = (mapped.personality.customFields ?? undefined) as
-    Prisma.InputJsonValue | undefined;
+  const customFieldsJson = toNullableJsonInput(mapped.personality.customFields);
   // Transaction-scoped like the four api-gateway write paths, and for a sharper
   // reason on the UPDATE branch: a re-import that crashed between the two
   // statements would leave the row carrying its PREVIOUS card hash rather than
