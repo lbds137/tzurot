@@ -163,12 +163,42 @@ function fetchRulesetIdsNdjson(timeoutMs: number): string {
   return ghApi('repos/{owner}/{repo}/rulesets', timeoutMs, '--paginate', '--jq', '.[].id');
 }
 
-/** Fetch `delete_branch_on_merge`; throws when the field is missing or not a boolean. */
+/** The GraphQL read behind {@link fetchDeleteBranchOnMerge}. */
+const DELETE_BRANCH_ON_MERGE_QUERY =
+  'query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { deleteBranchOnMerge } }';
+
+/**
+ * Fetch `deleteBranchOnMerge`; throws when the field is missing or not a boolean.
+ *
+ * Read over GraphQL rather than the REST repository object, because REST
+ * WITHHOLDS the setting from a fine-grained token: `GET repos/{owner}/{repo}`
+ * returns `delete_branch_on_merge: null` even when that same response reports
+ * `permissions.admin: true`, while the GraphQL `deleteBranchOnMerge` field
+ * returns the real boolean under the identical token. Verified by probing both
+ * endpoints with the weekly audit's fine-grained PAT; the classic token used
+ * locally answers on both, which is why the REST form read as correct until the
+ * weekly run degraded this row to "unavailable".
+ *
+ * The call still goes through `ghApi`, so the sweep's remaining-budget timeout
+ * covers it exactly as it covered the REST read. `{owner}` and `{repo}` are
+ * substituted by `gh` inside `-F` values, not only in the endpoint path
+ * (documented in `gh api --help`).
+ */
 export function fetchDeleteBranchOnMerge(timeoutMs: number = GH_TIMEOUT_MS): boolean {
-  const parsed = safeParse(ghApi('repos/{owner}/{repo}', timeoutMs), 'repository');
-  const value = asRecord(parsed)?.delete_branch_on_merge;
+  const raw = ghApi(
+    'graphql',
+    timeoutMs,
+    '-F',
+    'owner={owner}',
+    '-F',
+    'name={repo}',
+    '-f',
+    `query=${DELETE_BRANCH_ON_MERGE_QUERY}`
+  );
+  const repository = asRecord(asRecord(asRecord(safeParse(raw, 'repository'))?.data)?.repository);
+  const value = repository?.deleteBranchOnMerge;
   if (typeof value !== 'boolean') {
-    throw new Error('repository response has no boolean delete_branch_on_merge');
+    throw new Error('graphql response has no boolean repository.deleteBranchOnMerge');
   }
   return value;
 }
