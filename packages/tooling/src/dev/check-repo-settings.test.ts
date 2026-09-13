@@ -649,6 +649,9 @@ describe('formatRepoSettingsReport', () => {
     expect(text).not.toContain('every long-lived branch');
     expect(text).toContain('✓ No deletion-safety findings. What each branch actually carries');
     expect(text).toContain('probe-verified');
+    // One paragraph: Discord renders every '\n' as a hard break, so wrapped
+    // prose lands in the owner channel as jagged half-lines. State lines only.
+    expect(text.split('\n')[0]).toContain('assumes nothing.');
     expect(text).toContain('delete_branch_on_merge: false');
     expect(text).toContain('main: deletion rule present, not bypassable');
     expect(text).toContain('develop: deletion rule present but fully bypassable');
