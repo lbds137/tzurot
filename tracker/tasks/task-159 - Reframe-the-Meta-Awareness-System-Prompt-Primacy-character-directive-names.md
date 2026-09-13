@@ -1,10 +1,10 @@
 ---
 id: TASK-159
 title: Reframe the Meta-Awareness / System Prompt Primacy character-directive names
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-23 00:00'
-updated_date: '2026-09-04 19:39'
+updated_date: '2026-09-13 14:48'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -52,5 +52,10 @@ author: digest-pass
 created: 2026-09-04 19:39
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): OWNER RULING (C5): keep, retargeted. The directive names are not in code: both live in the shared Default system prompt row (system_prompts id 39e0f96c-c59c-58df-9aa8-c9ee0bd54136, is_default, used by 205 of 208 personalities, identical on dev and prod, verified by query 2026-09-04). No admin write path exists for system_prompts content (TASK-363), so the fix is a one-row data edit applied to both environments, sync-tracked table. Trigger unchanged: next edit of the Default prompt, or an observed meta-awareness leak.
+---
+author: agent
+created: 2026-09-13
+---
+2026-09-13: renames APPLIED on dev in the same one-row edit as TASK-949 part 1 — Meta-Awareness Handling -> Fourth-Wall Discipline, System Prompt Primacy -> Precedence Over History (bodies unchanged). Prod applies via the owner's apply-default-prompt command; mark Done when prod confirms.
 ---
 <!-- COMMENTS:END -->
