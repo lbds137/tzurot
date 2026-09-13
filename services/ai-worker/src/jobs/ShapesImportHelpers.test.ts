@@ -7,7 +7,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
+import { mapShapesConfigToPersonality } from '../services/shapes/ShapesPersonalityMapper.js';
 import {
   hashRosterBlurbCard,
   type RosterBlurbCard,
@@ -213,6 +215,19 @@ describe('createFullPersonality', () => {
     const upsertCall = mockPrisma.personality.upsert.mock.calls[0][0];
     expect(upsertCall.create.customFields).toEqual({ importSource: 'shapes_inc' });
     expect(upsertCall.update.customFields).toEqual({ importSource: 'shapes_inc' });
+  });
+
+  it('clears customFields on a re-import when the mapper yields null (no custom fields collected)', async () => {
+    vi.mocked(mapShapesConfigToPersonality).mockReturnValueOnce({
+      ...mockMapResult,
+      personality: { ...mockMapResult.personality, customFields: null },
+    });
+
+    await createFullPersonality(mockPrisma as never, MOCK_CONFIG, 'test-shape', 'owner-id');
+
+    const upsertCall = mockPrisma.personality.upsert.mock.calls[0][0];
+    expect(upsertCall.create.customFields).toBe(Prisma.DbNull);
+    expect(upsertCall.update.customFields).toBe(Prisma.DbNull);
   });
 
   it('should serialize advancedParameters as JSON for llmConfig upsert', async () => {

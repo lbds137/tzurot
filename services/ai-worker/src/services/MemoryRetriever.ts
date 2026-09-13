@@ -199,7 +199,7 @@ export class MemoryRetriever {
           hasConversationHistory: context.conversationHistory !== undefined,
           historyMessageCount: context.conversationHistory?.length ?? 0,
         },
-        'WARNING: No oldestHistoryTimestamp - STM/LTM deduplication DISABLED. ' +
+        'No oldestHistoryTimestamp - STM/LTM deduplication DISABLED. ' +
           'Recent memories may duplicate conversation history content.'
       );
     }

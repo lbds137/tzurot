@@ -628,9 +628,9 @@ export class LLMInvoker {
     }
 
     if (finishReason === FINISH_REASONS.LENGTH) {
-      logger.info(
+      logger.warn(
         logContext,
-        'WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
+        'Model hit token limit (finish_reason: length); the response may be truncated'
       );
     } else if (isNaturalStop(finishReason)) {
       logger.debug(logContext, 'Model completed naturally');

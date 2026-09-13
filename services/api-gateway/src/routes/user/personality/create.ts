@@ -13,6 +13,7 @@ import {
 import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { generatePersonalityUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { toNullableJsonInput } from '@tzurot/common-types/utils/prismaJsonInput';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -65,9 +66,7 @@ function buildCreateData(
     definitionPublic: body.definitionPublic ?? false,
     // Already normalized/deduped/capped by PersonalityTagsInputSchema.
     tags: body.tags ?? [],
-    ...(body.customFields !== null && body.customFields !== undefined
-      ? { customFields: body.customFields as Prisma.InputJsonValue }
-      : {}),
+    customFields: toNullableJsonInput(body.customFields),
     ownerId,
     systemPromptId,
     avatarData: media.avatarBuffer !== undefined ? new Uint8Array(media.avatarBuffer) : null,

@@ -1009,7 +1009,7 @@ describe('LLMInvoker', () => {
           modelName: 'test-model',
         });
 
-        const lengthLog = mockLoggerInfo.mock.calls.find(call =>
+        const lengthLog = mockLoggerWarn.mock.calls.find(call =>
           (call[1] as string)?.includes('token limit')
         );
         expect(lengthLog?.[0]).toMatchObject({
@@ -1035,7 +1035,7 @@ describe('LLMInvoker', () => {
           modelName: 'test-model',
         });
 
-        const lengthLog = mockLoggerInfo.mock.calls.find(call =>
+        const lengthLog = mockLoggerWarn.mock.calls.find(call =>
           (call[1] as string)?.includes('token limit')
         );
         expect(lengthLog?.[0]).toMatchObject({ promptTokens: 100 });
@@ -1438,7 +1438,7 @@ describe('LLMInvoker', () => {
         expect(mockModel.invoke).toHaveBeenCalledTimes(1);
       });
 
-      it('should log info with WARNING prefix when finish_reason is length', async () => {
+      it('should warn with finishReason and modelName fields when finish_reason is length', async () => {
         const mockModel = mockChatModel(
           vi.fn().mockResolvedValue({
             content: 'Truncated response...',
@@ -1459,6 +1459,14 @@ describe('LLMInvoker', () => {
 
         expect(result.content).toBe('Truncated response...');
         expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+          expect.objectContaining({ modelName: 'test-model', finishReason: 'length' }),
+          expect.stringContaining('token limit')
+        );
+        expect(mockLoggerInfo).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('WARNING:')
+        );
       });
 
       it('should log debug when finish_reason is stop (natural completion)', async () => {
