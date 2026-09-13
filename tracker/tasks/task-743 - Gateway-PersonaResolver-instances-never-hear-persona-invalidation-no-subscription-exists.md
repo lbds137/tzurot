@@ -3,9 +3,10 @@ id: TASK-743
 title: >-
   Gateway PersonaResolver instances never hear persona invalidation - no
   subscription exists
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-23 09:42'
+updated_date: '2026-09-13 03:54'
 labels:
   - 'area:api-gateway'
   - 'size:S'
