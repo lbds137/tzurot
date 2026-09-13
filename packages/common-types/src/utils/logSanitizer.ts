@@ -28,6 +28,46 @@ const API_KEY_METADATA_FIELDS = new Set<string>([
 ]);
 
 /**
+ * HTTP header names whose values are secrets or PII and must never reach a
+ * log line. Matched on the EXACT lowercase header name — never as a substring
+ * — and for STRING values or arrays of strings (a repeated header arrives as
+ * an array via Node's header APIs), mirroring the token-field rule below: a
+ * substring match on `auth` would blank `authStep`-style debugging fields, and
+ * over-redaction has blinded debugging here before.
+ *
+ * `x-user-id` is deliberately absent: ids are safe to log, and redacting them
+ * would remove the only handle for correlating a request.
+ */
+const SENSITIVE_HEADER_NAMES = new Set<string>([
+  // Internal service-to-service shared secret
+  'x-service-auth',
+  // Session material
+  'cookie',
+  'set-cookie',
+  // Credential-bearing headers not caught by the `authorization` substring arm
+  'x-api-key',
+  'proxy-authorization',
+  // Discord user-context headers — usernames and display names are PII that
+  // `00-critical.md` bans from logs
+  'x-user-username',
+  'x-user-displayname',
+  // Client IP headers — `00-critical.md` bans IPs from logs
+  'x-forwarded-for',
+  'x-real-ip',
+  'cf-connecting-ip',
+  'true-client-ip',
+]);
+
+/**
+ * Field names — NOT header names — that pino-std-serializers emits on the
+ * serialized `req` object itself and that must never reach a log line.
+ * Matched with the same exact-lowercase-name, string-or-string-array rule as
+ * `SENSITIVE_HEADER_NAMES`. `remotePort` is deliberately absent: a port
+ * number is not PII.
+ */
+const SENSITIVE_FIELD_NAMES = new Set<string>(['remoteaddress']);
+
+/**
  * Sensitive patterns to redact from logs.
  * Each pattern captures the key format and replaces with [REDACTED].
  *
@@ -86,6 +126,52 @@ export function sanitizeLogMessage(message: string): string {
 }
 
 /**
+ * Exact-name redaction check shared by SENSITIVE_HEADER_NAMES and
+ * SENSITIVE_FIELD_NAMES. Redacts string values and arrays of strings — Node's
+ * header APIs return an array for a repeated header, so a string-only check
+ * would let a repeated `set-cookie` through one element at a time.
+ */
+function isRedactedExactName(lowerKey: string, value: unknown): boolean {
+  if (!SENSITIVE_HEADER_NAMES.has(lowerKey) && !SENSITIVE_FIELD_NAMES.has(lowerKey)) {
+    return false;
+  }
+  return (
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every(item => typeof item === 'string'))
+  );
+}
+
+/**
+ * Determines whether a key/value pair on a plain object should be fully
+ * redacted rather than recursed into. Extracted from `sanitizeObject` to keep
+ * that function's complexity under the lint threshold.
+ */
+function isSensitiveField(lowerKey: string, value: unknown): boolean {
+  const matchesApiKeyPattern = lowerKey.includes('apikey') || lowerKey.includes('api_key');
+  // Allowlist for `apikey*` metadata fields whose VALUE is a discriminator
+  // (e.g., `'user'` / `'system'`) — not the key itself. Without this, fields
+  // like `apiKeySource` get over-redacted because they contain `apikey` as
+  // a substring but reveal nothing sensitive. Add explicit names here when
+  // adding new metadata fields with `apikey`-prefixed names.
+  const isApiKeyMetadata = matchesApiKeyPattern && API_KEY_METADATA_FIELDS.has(lowerKey);
+  // 'token'-named fields: redact only STRING values. Auth/access/bearer
+  // tokens are string SECRETS; token COUNTS (tokensUsed, contextWindowTokens,
+  // historyTokensUsed, maxTokens, …) are numeric METRICS that carry no
+  // sensitive material — blanking them was over-redaction that blinded us to
+  // context-budget/perf debugging. A numeric value can't be a secret token,
+  // so this stays fail-safe while un-redacting the counts.
+  const isSensitiveTokenField = lowerKey.includes('token') && typeof value === 'string';
+  return (
+    (matchesApiKeyPattern && !isApiKeyMetadata) ||
+    lowerKey.includes('secret') ||
+    isSensitiveTokenField ||
+    isRedactedExactName(lowerKey, value) ||
+    lowerKey.includes('password') ||
+    lowerKey.includes('authorization')
+  );
+}
+
+/**
  * Recursively sanitizes an object, redacting sensitive values in strings.
  *
  * @param obj - The object to sanitize
@@ -126,27 +212,7 @@ export function sanitizeObject(obj: unknown, depth = 0): unknown {
     for (const [key, value] of Object.entries(obj)) {
       // Check if the key itself suggests sensitive data
       const lowerKey = key.toLowerCase();
-      const matchesApiKeyPattern = lowerKey.includes('apikey') || lowerKey.includes('api_key');
-      // Allowlist for `apikey*` metadata fields whose VALUE is a discriminator
-      // (e.g., `'user'` / `'system'`) — not the key itself. Without this, fields
-      // like `apiKeySource` get over-redacted because they contain `apikey` as
-      // a substring but reveal nothing sensitive. Add explicit names here when
-      // adding new metadata fields with `apikey`-prefixed names.
-      const isApiKeyMetadata = matchesApiKeyPattern && API_KEY_METADATA_FIELDS.has(lowerKey);
-      // 'token'-named fields: redact only STRING values. Auth/access/bearer
-      // tokens are string SECRETS; token COUNTS (tokensUsed, contextWindowTokens,
-      // historyTokensUsed, maxTokens, …) are numeric METRICS that carry no
-      // sensitive material — blanking them was over-redaction that blinded us to
-      // context-budget/perf debugging. A numeric value can't be a secret token,
-      // so this stays fail-safe while un-redacting the counts.
-      const isSensitiveTokenField = lowerKey.includes('token') && typeof value === 'string';
-      const isSensitiveKey =
-        (matchesApiKeyPattern && !isApiKeyMetadata) ||
-        lowerKey.includes('secret') ||
-        isSensitiveTokenField ||
-        lowerKey.includes('password') ||
-        lowerKey.includes('authorization');
-      if (isSensitiveKey) {
+      if (isSensitiveField(lowerKey, value)) {
         sanitized[key] = '[REDACTED]';
       } else {
         sanitized[key] = sanitizeObject(value, depth + 1);

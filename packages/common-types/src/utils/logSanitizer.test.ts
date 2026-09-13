@@ -217,6 +217,137 @@ describe('logSanitizer', () => {
     });
   });
 
+  describe('sanitizeObject - sensitive header names', () => {
+    const SENTINEL = 'a'.repeat(64);
+
+    it('should redact x-service-auth in a pino-http-shaped req object while leaving ids and host alone', () => {
+      const obj = {
+        req: {
+          headers: {
+            'x-service-auth': SENTINEL,
+            'x-user-id': '278863839632818186',
+            host: 'api.example.test',
+          },
+        },
+      };
+      const result = sanitizeObject(obj) as {
+        req: { headers: { 'x-service-auth': string; 'x-user-id': string; host: string } };
+      };
+      expect(result.req.headers['x-service-auth']).toBe('[REDACTED]');
+      expect(result.req.headers['x-user-id']).toBe('278863839632818186');
+      expect(result.req.headers.host).toBe('api.example.test');
+      expect(JSON.stringify(result)).not.toContain(SENTINEL);
+    });
+
+    it('should redact a cookie header', () => {
+      const obj = { headers: { cookie: 'session=abc123' } };
+      const result = sanitizeObject(obj) as { headers: { cookie: string } };
+      expect(result.headers.cookie).toBe('[REDACTED]');
+    });
+
+    it('should redact a set-cookie header', () => {
+      const obj = { headers: { 'set-cookie': 'session=abc123; Path=/' } };
+      const result = sanitizeObject(obj) as { headers: { 'set-cookie': string } };
+      expect(result.headers['set-cookie']).toBe('[REDACTED]');
+    });
+
+    it('should redact an x-user-username header (PII)', () => {
+      const obj = { headers: { 'x-user-username': 'someuser' } };
+      const result = sanitizeObject(obj) as { headers: { 'x-user-username': string } };
+      expect(result.headers['x-user-username']).toBe('[REDACTED]');
+    });
+
+    it('should leave a non-string cookie value as-is', () => {
+      const obj = { headers: { cookie: 3 } };
+      const result = sanitizeObject(obj) as { headers: { cookie: number } };
+      expect(result.headers.cookie).toBe(3);
+    });
+
+    it('should redact a set-cookie header whose value is an array of strings', () => {
+      const obj = { headers: { 'set-cookie': ['a=1', 'b=2'] } };
+      const result = sanitizeObject(obj) as { headers: { 'set-cookie': string } };
+      expect(result.headers['set-cookie']).toBe('[REDACTED]');
+    });
+
+    it('should redact an x-service-auth header whose value is an array of strings', () => {
+      const obj = { headers: { 'x-service-auth': ['a', 'b'] } };
+      const result = sanitizeObject(obj) as { headers: { 'x-service-auth': string } };
+      expect(result.headers['x-service-auth']).toBe('[REDACTED]');
+    });
+
+    it('should leave a non-string, non-string-array x-service-auth value as-is (recursed, not blanked)', () => {
+      const obj = { headers: { 'x-service-auth': { nested: 'x' } } };
+      const result = sanitizeObject(obj) as { headers: { 'x-service-auth': { nested: string } } };
+      expect(result.headers['x-service-auth']).toEqual({ nested: 'x' });
+    });
+
+    it('should redact client-IP fields and headers while leaving remotePort alone', () => {
+      const obj = {
+        req: {
+          remoteAddress: '203.0.113.7',
+          remotePort: 51234,
+          headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' },
+        },
+      };
+      const result = sanitizeObject(obj) as {
+        req: { remoteAddress: string; remotePort: number; headers: { 'x-forwarded-for': string } };
+      };
+      expect(result.req.remoteAddress).toBe('[REDACTED]');
+      expect(result.req.headers['x-forwarded-for']).toBe('[REDACTED]');
+      expect(result.req.remotePort).toBe(51234);
+    });
+
+    it('should NOT redact near-miss field/header names', () => {
+      // `x-service-authorized` does not contain the substring `authorization`
+      // (…authoriz-ED vs. …authoriz-ATION), so it must not trip the existing
+      // `lowerKey.includes('authorization')` arm either.
+      const obj = { authStep: 'verify', 'x-service-authorized': 'yes' };
+      const result = sanitizeObject(obj) as { authStep: string; 'x-service-authorized': string };
+      expect(result.authStep).toBe('verify');
+      expect(result['x-service-authorized']).toBe('yes');
+    });
+
+    // Mirrors SENSITIVE_HEADER_NAMES in logSanitizer.ts (unexported). A name removed from the
+    // set reds its case below; a name ADDED to the set needs a case added here by hand — the
+    // count pin only guards this list against losing an entry.
+    const SENSITIVE_HEADER_NAME_CASES = [
+      'x-service-auth',
+      'cookie',
+      'set-cookie',
+      'x-api-key',
+      'proxy-authorization',
+      'x-user-username',
+      'x-user-displayname',
+      'x-forwarded-for',
+      'x-real-ip',
+      'cf-connecting-ip',
+      'true-client-ip',
+    ];
+
+    it('should keep all 11 header cases (a dropped case reds; a new set member does not)', () => {
+      expect(SENSITIVE_HEADER_NAME_CASES).toHaveLength(11);
+    });
+
+    it.each(SENSITIVE_HEADER_NAME_CASES)('should redact the %s header', name => {
+      const obj = { headers: { [name]: `value-for-${name}` } };
+      const result = sanitizeObject(obj) as { headers: Record<string, unknown> };
+      expect(result.headers[name]).toBe('[REDACTED]');
+    });
+
+    // Mirrors SENSITIVE_FIELD_NAMES in logSanitizer.ts (unexported); same one-way guard as above.
+    const SENSITIVE_FIELD_NAME_CASES = ['remoteAddress'];
+
+    it('should keep the 1 field case (a dropped case reds; a new set member does not)', () => {
+      expect(SENSITIVE_FIELD_NAME_CASES).toHaveLength(1);
+    });
+
+    it.each(SENSITIVE_FIELD_NAME_CASES)('should redact the %s field', key => {
+      const obj = { req: { [key]: `value-for-${key}` } };
+      const result = sanitizeObject(obj) as { req: Record<string, unknown> };
+      expect(result.req[key]).toBe('[REDACTED]');
+    });
+  });
+
   describe('createSanitizedSerializers', () => {
     it('should return object with req and res serializers', async () => {
       const { createSanitizedSerializers } = await import('./logSanitizer.js');

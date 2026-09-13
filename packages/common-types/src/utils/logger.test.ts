@@ -3,6 +3,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Writable } from 'node:stream';
+
+function createCaptureStream(): { stream: Writable; lines: string[] } {
+  const lines: string[] = [];
+  const stream = new Writable({
+    write(chunk: Buffer, _encoding: string, callback: () => void) {
+      lines.push(chunk.toString().trim());
+      callback();
+    },
+  });
+  return { stream, lines };
+}
 
 describe('createLogger', () => {
   const originalEnv = process.env;
@@ -117,6 +129,18 @@ describe('createLogger', () => {
       // If pino-pretty is not installed, that's okay
       expect((error as Error).message).toContain('pino-pretty');
     }
+  });
+
+  it('should write to an explicit destination even when ENABLE_PRETTY_LOGS is true', async () => {
+    process.env.ENABLE_PRETTY_LOGS = 'true';
+
+    const { createLogger } = await import('./logger.js');
+    const { stream, lines } = createCaptureStream();
+    const logger = createLogger('test', { destination: stream });
+
+    logger.info('destination takes precedence over the pretty transport');
+
+    expect(lines.length).toBeGreaterThan(0);
   });
 
   describe('error serializer', () => {
@@ -399,12 +423,13 @@ describe('createLogger', () => {
 
       const { createLogger } = await import('./logger.js');
 
-      // We need to create a logger that writes to our capture stream
-      // Since createLogger doesn't support custom streams, we'll just verify it doesn't throw
-      const logger = createLogger('test');
-      expect(() => {
-        logger.error({ err: openRouterError }, 'OpenRouter style error');
-      }).not.toThrow();
+      const { stream, lines } = createCaptureStream();
+      const logger = createLogger('test', { destination: stream });
+      logger.error({ err: openRouterError }, 'OpenRouter style error');
+
+      const entry = JSON.parse(lines[0]) as { err: { message: string; code: number } };
+      expect(entry.err.message).toBe('Invalid API key provided');
+      expect(entry.err.code).toBe(401);
     });
 
     it('should provide raw JSON fallback when no useful properties extracted', async () => {
