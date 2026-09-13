@@ -3,9 +3,10 @@ id: TASK-957
 title: >-
   Gateway request logs carry the raw x-service-auth header value on every
   request line
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:02'
+updated_date: '2026-09-13 21:09'
 labels:
   - 'area:api-gateway'
   - 'size:S'

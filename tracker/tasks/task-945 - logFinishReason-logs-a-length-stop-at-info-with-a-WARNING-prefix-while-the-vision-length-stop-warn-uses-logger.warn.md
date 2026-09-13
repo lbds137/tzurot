@@ -3,9 +3,10 @@ id: TASK-945
 title: >-
   logFinishReason logs a length stop at info with a WARNING prefix while the
   vision length-stop warn uses logger.warn
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 17:05'
+updated_date: '2026-09-13 21:39'
 labels:
   - 'area:ai-worker'
   - 'size:S'
