@@ -15,7 +15,6 @@
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import type { Redis } from 'ioredis';
-import { createRequire } from 'module';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { fastPoolConnectionOptions } from '@tzurot/common-types/services/poolConfig';
@@ -124,11 +123,7 @@ import {
   disposeDeduplicationCache,
 } from './utils/deduplicationCache.js';
 import { syncAvatars } from './migrations/sync-avatars.js';
-
-// Import pino-http (CommonJS) via require
-const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- pino-http is CommonJS-only and lacks ESM type definitions. require() returns 'any' type unavoidably.
-const pinoHttp = require('pino-http');
+import { createRequestLogger } from './middleware/requestLogger.js';
 
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();
@@ -566,8 +561,7 @@ async function main(): Promise<void> {
   // 20MB to accommodate base64-encoded voice reference audio (up to 10MB raw → ~13.3MB base64).
   // Applied globally — acceptable for single-tenant bot. Could be scoped per-route if needed.
   app.use(express.json({ limit: '20mb' }));
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- pino-http is imported via CommonJS require() and has 'any' type. Functionally correct, just lacks type definitions.
-  app.use(pinoHttp({ logger }));
+  app.use(createRequestLogger(logger));
   app.use(createCorsMiddleware({ origins: config.corsOrigins }));
 
   // Initialize services and register routes

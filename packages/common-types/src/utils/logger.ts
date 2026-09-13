@@ -1,4 +1,4 @@
-import { pino, type Logger, type LoggerOptions } from 'pino';
+import { pino, type Logger, type LoggerOptions, type DestinationStream } from 'pino';
 import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
 
 /**
@@ -255,8 +255,12 @@ function sanitizedObjectSerializer(obj: unknown): unknown {
  * - Filters out static constants (ABORT_ERR, DATA_CLONE_ERR, etc.)
  *
  * ESLint Rule: no-restricted-syntax enforces this pattern in eslint.config.js
+ *
+ * @param name - Logger name, attached to every log line.
+ * @param options.destination - An explicit destination stream. For tests that
+ *   need to capture output; production callers pass nothing and keep stdout.
  */
-export function createLogger(name?: string): Logger {
+export function createLogger(name?: string, options?: { destination?: DestinationStream }): Logger {
   const usePrettyLogs = process.env.ENABLE_PRETTY_LOGS === 'true';
 
   const config: LoggerOptions = {
@@ -278,12 +282,15 @@ export function createLogger(name?: string): Logger {
   };
 
   // Only use pino-pretty when explicitly enabled (requires pino-pretty to be installed)
-  if (usePrettyLogs) {
+  // A configured transport takes precedence over an explicit destination
+  // stream — pino silently ignores the stream argument — so a caller-supplied
+  // destination skips the pretty transport rather than being dropped.
+  if (usePrettyLogs && options?.destination === undefined) {
     config.transport = {
       target: 'pino-pretty',
       options: { colorize: true },
     };
   }
 
-  return pino(config);
+  return options?.destination !== undefined ? pino(config, options.destination) : pino(config);
 }
