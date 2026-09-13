@@ -20,6 +20,7 @@ import {
   parseRulesetDetail,
   deriveBranchStates,
   evaluateRepoSettings,
+  fetchDeleteBranchOnMerge,
   collectRepoSettings,
   formatRepoSettingsReport,
   checkRepoSettings,
@@ -322,8 +323,10 @@ describe('collectRepoSettings', () => {
   }): void {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const path = (args as string[])[1];
-      if (path === 'repos/{owner}/{repo}') {
-        return JSON.stringify({ delete_branch_on_merge: options.deleteBranchOnMerge ?? false });
+      if (path === 'graphql') {
+        return JSON.stringify({
+          data: { repository: { deleteBranchOnMerge: options.deleteBranchOnMerge ?? false } },
+        });
       }
       if (path === 'repos/{owner}/{repo}/rulesets') {
         // The projected NDJSON shape, matching `--paginate --jq '.[].id'`.
@@ -552,14 +555,60 @@ describe('collectRepoSettings', () => {
     expect(surface.reason).toContain('gh auth login');
   });
 
-  it('degrades when the repo response has no boolean delete_branch_on_merge', () => {
+  it('degrades when the graphql response has no boolean repository.deleteBranchOnMerge', () => {
     vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ message: 'Not Found' }));
 
     const surface = collectRepoSettings();
 
     expect(surface.available).toBe(false);
     if (surface.available) return;
-    expect(surface.reason).toContain('delete_branch_on_merge');
+    expect(surface.reason).toContain('deleteBranchOnMerge');
+  });
+
+  it('degrades on a REST-shaped body, proving the read moved off the REST object', () => {
+    // The canary for the whole change. REST withholds delete_branch_on_merge
+    // from a fine-grained token (it answers null), which is why this read is a
+    // GraphQL one — so a REST-shaped body must NOT satisfy it. Were the old
+    // REST parse still in place, this fixture would produce a clean surface.
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ delete_branch_on_merge: true }));
+
+    const surface = collectRepoSettings();
+
+    expect(surface.available).toBe(false);
+    if (surface.available) return;
+    expect(surface.reason).toContain('deleteBranchOnMerge');
+  });
+});
+
+describe('fetchDeleteBranchOnMerge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reads the setting over graphql, with owner/name passed as gh placeholders', () => {
+    // Asserted at the seam because the mock returns the same body whatever the
+    // args are: the argv IS the only observable that the call went to GraphQL
+    // with its variables bound. `true` (not the default `false`) so a silently
+    // defaulted return cannot masquerade as a parsed one.
+    vi.mocked(execFileSync).mockReturnValue(
+      JSON.stringify({ data: { repository: { deleteBranchOnMerge: true } } })
+    );
+
+    expect(fetchDeleteBranchOnMerge()).toBe(true);
+
+    expect(vi.mocked(execFileSync)).toHaveBeenCalledTimes(1);
+    const [cmd, argv] = vi.mocked(execFileSync).mock.calls[0];
+    expect(cmd).toBe('gh');
+    const args = argv as string[];
+    expect(args.slice(0, 2)).toEqual(['api', 'graphql']);
+    // Index-paired rather than a bare `toContain` on each token, so a stray
+    // flag beside the wrong value cannot satisfy the assertion.
+    expect(args[args.indexOf('owner={owner}') - 1]).toBe('-F');
+    expect(args[args.indexOf('name={repo}') - 1]).toBe('-F');
+    const query = args.find(a => a.startsWith('query='));
+    expect(query).toBeDefined();
+    expect(args[args.indexOf(query as string) - 1]).toBe('-f');
+    expect(query).toContain('deleteBranchOnMerge');
   });
 });
 
@@ -632,8 +681,8 @@ describe('checkRepoSettings', () => {
   it('exits nonzero on findings', () => {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const path = (args as string[])[1];
-      if (path === 'repos/{owner}/{repo}') {
-        return JSON.stringify({ delete_branch_on_merge: true });
+      if (path === 'graphql') {
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: true } } });
       }
       return JSON.stringify([]);
     });
@@ -657,8 +706,8 @@ describe('checkRepoSettings', () => {
   it('emits the raw surface under --json', () => {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const path = (args as string[])[1];
-      if (path === 'repos/{owner}/{repo}') {
-        return JSON.stringify({ delete_branch_on_merge: false });
+      if (path === 'graphql') {
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
       }
       return JSON.stringify([]);
     });
