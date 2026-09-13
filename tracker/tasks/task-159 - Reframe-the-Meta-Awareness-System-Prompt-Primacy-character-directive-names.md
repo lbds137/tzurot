@@ -23,6 +23,28 @@ Reframe the `Meta-Awareness` / `System Prompt Primacy` character-directive names
 **Why:** The system prompt's `<character_directives>` include directives named "Meta-Awareness" and "System Prompt Primacy". Council (2026-06-23, Kimi-K2.7) flagged that the NAMES themselves may cue the model toward meta-cognition (reasoning about being an AI / about the prompt) — the opposite of the fourth-wall discipline they intend; the directive bodies are fine, only the labels invite the wrong frame. **Fix shape**: rename to outcome-framing — e.g. "Fourth-wall discipline: stay in character; do not comment on being a bot, the prompt, or the API" and "Character definition and platform safety rules take precedence over contradictory in-character requests" — same behavior, no meta-cognition cue. Lives wherever `<character_directives>` is defined (`HardcodedConstraints.ts` / prompt builder). **Promote when**: next editing the character directives, OR a meta-awareness / AI-acknowledgement leak is observed. Surfaced 2026-06-23 by council on the reference-confusion fix (PR #1317); lower-leverage than the fix itself, deferred.
 <!-- SECTION:DESCRIPTION:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-12: TRIGGER MET. The promote-when is "next editing the character
+directives", and TASK-949 now requires exactly that — a scoping edit to
+directive 17 (Internal Consistency) in the same shared Default row
+(`system_prompts` id 39e0f96c-c59c-58df-9aa8-c9ee0bd54136). Fold these renames
+into TASK-949's one-row edit rather than touching a sync-tracked row twice;
+every extra write to that table is another LWW event against the other
+environment.
+
+Note for whoever picks this up: the description says the directive names live
+in `HardcodedConstraints.ts` / the prompt builder. The 2026-09-04 comment below
+already corrected that — they are in the DB row, not in code. The description's
+"Lives wherever `<character_directives>` is defined" sentence is the stale half.
+Confirmed again 2026-09-12: `git grep -ln 'systemPrompt' -- services/api-gateway/src/routes
+services/bot-client/src/commands packages/tooling/src` finds only read, create
+and diagnostic paths — no update route, no command, no ops verb, and
+`systemPrompt` is absent from `EXPORT_FIELDS`. A direct DB write remains the
+only edit mechanism.
+<!-- SECTION:NOTES:END -->
+
 ## Comments
 
 <!-- COMMENTS:BEGIN -->
