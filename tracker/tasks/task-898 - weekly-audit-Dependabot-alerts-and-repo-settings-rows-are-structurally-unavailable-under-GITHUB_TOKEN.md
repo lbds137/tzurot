@@ -3,10 +3,10 @@ id: TASK-898
 title: >-
   weekly-audit: Dependabot-alerts and repo-settings rows are structurally
   unavailable under GITHUB_TOKEN
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-05 13:02'
-updated_date: '2026-09-11 19:26'
+updated_date: '2026-09-13 16:01'
 labels:
   - 'area:ci'
   - 'size:S'
@@ -52,5 +52,10 @@ author: agent
 created: 2026-09-13
 ---
 PROBE RESULT (owner-run, same PAT): REST GET repos/lbds137/tzurot returns delete_branch_on_merge = null even though permissions.admin = true — the REST repository object withholds the setting from a fine-grained token regardless of Administration: read. GraphQL repository { deleteBranchOnMerge } returns false under the same token. Fix shape (c), supersedes (b): fetchDeleteBranchOnMerge in packages/tooling/src/dev/check-repo-settings.ts reads the GraphQL field instead of the REST object; the weekly run then closes both rows with the PAT already set.
+---
+author: agent
+created: 2026-09-13
+---
+CLOSED 2026-09-13: #2413 merged (GraphQL read); weekly-audit run 34767217136 dispatched on develop with the PAT reports Dependabot alerts open: 1 and No deletion-safety findings, delete_branch_on_merge: false. Both rows live. The scheduled run reads main, so prod-side confirmation arrives at the beta.224 cut.
 ---
 <!-- COMMENTS:END -->
