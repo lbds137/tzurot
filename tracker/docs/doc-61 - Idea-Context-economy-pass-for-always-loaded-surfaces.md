@@ -84,3 +84,9 @@ The agent proposing rule additions should not be the sole judge of what is exces
 - `07-documentation.md` — the constraint this pass enforces.
 - `/tzurot-doc-audit` sections 2 and 3 — the accuracy pass this sits beside.
 - doc-58 (docs/reference drift rewrite) — different corpus (`docs/`) and different axis (accuracy); not a duplicate.
+
+## Member added 2026-09-13 (owner ask): split the large skills by invocation moment
+
+Measured 2026-09-13: no skill uses supplemental reference files; the three largest bodies are tzurot-git-workflow 40,057 B, tzurot-review-response 33,591 B, tzurot-orchestration 31,782 B (about 26k tokens together, all three invoked in an ordinary PR session, and replayed by compaction per TASK-815). Skills total 229,834 B against a 240,880 limit that only bounds growth.
+
+Shape, progressive disclosure: SKILL.md keeps the procedure the invoking moment needs; material a single step consults moves to `references/<name>.md` under the skill, read only when that step runs. Splits by moment: git-workflow — the release procedure (cut, premigrate, finalize, publish) to a reference loaded at cut time; review-response — the edit-shape whitelist and the deferral routing table to a reference; orchestration — the mode table and the spec template to a reference; doc-audit — one reference per audit section. Acceptance: each of the three bodies under ~15 KB with its references present, `pnpm ops lines:check` skills baseline written DOWN, and every moved passage reachable by a named pointer from the step that needs it (the guard:hook-probes / skill-name guards untouched). Runs inside the economy pass scheduled after TASK-838 (owner ruling 2026-09-13).
