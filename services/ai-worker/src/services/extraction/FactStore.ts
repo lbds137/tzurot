@@ -46,6 +46,8 @@ export interface SimilarFact {
   similarity: number;
   isLocked: boolean;
   tier: string;
+  /** Set by FactRetriever's reserved merge; absent on the extraction path. */
+  reserved?: boolean;
 }
 
 /** One fact linked to a memory, keyed for the split memory-archive render. */
@@ -190,6 +192,78 @@ export class FactStore {
       statement: r.statement,
       entityTags: r.entity_tags,
       similarity: r.similarity,
+      isLocked: r.is_locked,
+      tier: r.tier,
+    }));
+  }
+
+  /**
+   * Top-N reserved-class facts regardless of similarity to the current query —
+   * `FactRetriever`'s guaranteed-render slots (locked / corrected-tier / a
+   * commitment:address tag), so a stable identity fact still renders when the
+   * turn's message happens not to resemble it. Same scope + active-row
+   * filters as {@link findSimilarActiveFacts}, but no `embedding IS NOT NULL`
+   * guard — a reservable fact with no embedding yet must still be reservable.
+   * `similarity` is a sentinel `0` here (this query does no similarity math);
+   * nothing on the prompt path branches on it, so the sentinel is inert there
+   * — not verified beyond the generation path; the extraction caller of the
+   * SIBLING query does read `similarity`, and is unaffected by this method.
+   */
+  async findReservedActiveFacts(
+    /** null = ALL personalities for this persona (the shareLtmAcrossPersonalities
+     * widening — mirrors findSimilarActiveFacts). */
+    personalityId: string | null,
+    personaId: string | null,
+    limit: number
+  ): Promise<SimilarFact[]> {
+    // Mirrors findSimilarActiveFacts's persona branch exactly (never `IS NOT
+    // DISTINCT FROM`): that operator isn't btree-indexable, and when
+    // personalityId is null (the shareLtmAcrossPersonalities widening) the
+    // personality predicate is vacuously true, leaving persona_id as the only
+    // selective column — losing its index there means a full-table scan on
+    // the generation hot path.
+    const personaPredicate =
+      personaId === null
+        ? Prisma.sql`f.persona_id IS NULL`
+        : Prisma.sql`f.persona_id = ${personaId}::uuid`;
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: string;
+        statement: string;
+        entity_tags: string[];
+        is_locked: boolean;
+        tier: string;
+      }[]
+    >`
+      SELECT f.id, f.statement, f.entity_tags, f.is_locked, f.tier
+      FROM memory_facts f
+      WHERE (${personalityId}::uuid IS NULL OR f.personality_id = ${personalityId}::uuid)
+        AND ${personaPredicate}
+        AND f.superseded_at IS NULL
+        AND f.forgotten = false
+        AND f.visibility = 'normal'
+        AND (
+          f.is_locked = true
+          OR f.tier = 'corrected'
+          OR f.entity_tags && ARRAY['commitment:address']::text[]
+        )
+      ORDER BY
+        CASE
+          WHEN f.is_locked THEN 0
+          WHEN f.tier = 'corrected' THEN 1
+          ELSE 2
+        END,
+        -- Salience before recency, reversing the sibling: with no distance to
+        -- rank by, which identity fact matters beats which one is newest.
+        f.salience DESC,
+        f.valid_from DESC
+      LIMIT ${limit}
+    `;
+    return rows.map(r => ({
+      id: r.id,
+      statement: r.statement,
+      entityTags: r.entity_tags,
+      similarity: 0, // sentinel — not meaningful; see method doc
       isLocked: r.is_locked,
       tier: r.tier,
     }));

@@ -100,6 +100,40 @@ describe('retrieveFactsForPrompt (flag/scope gate)', () => {
     expect(facts.map(f => f.statement)).toEqual(['user likes tea']);
   });
 
+  it('logs the reserved-fact count carried on the retrieved facts', async () => {
+    const facts: SimilarFact[] = [
+      {
+        id: '1',
+        statement: 'a reserved fact',
+        entityTags: [],
+        similarity: 0,
+        isLocked: true,
+        tier: 'observed',
+        reserved: true,
+      },
+      {
+        id: '2',
+        statement: 'a similarity-only fact',
+        entityTags: [],
+        similarity: 0.8,
+        isLocked: false,
+        tier: 'observed',
+      },
+    ];
+    const retriever = {
+      retrieveFacts: vi.fn().mockResolvedValue(facts),
+    } as unknown as FactRetriever;
+
+    await retrieveFactsForPrompt(retriever, 'pers', 'persona', 'q', false);
+
+    const call = mockLogger.info.mock.calls.find(
+      call => call[1] === 'Facts retrieved for prompt injection'
+    );
+    expect(call).toBeDefined();
+    expect((call?.[0] as Record<string, unknown>).reservedFactCount).toBe(1);
+    expect((call?.[0] as Record<string, unknown>).factCount).toBe(2);
+  });
+
   it('shareLtmAcrossPersonalities drops the personality filter — parity with episode retrieval', async () => {
     const retriever = mockRetriever();
     await retrieveFactsForPrompt(retriever, 'pers', 'persona', 'q', true);

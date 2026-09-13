@@ -1,5 +1,6 @@
 /**
- * Component test: `FactStore.findSimilarActiveFacts` and
+ * Component test: `FactStore.findSimilarActiveFacts`,
+ * `FactStore.findReservedActiveFacts`, and
  * `FactStore.findActiveFactsBySourceMemoryIds` over REAL PGLite + pgvector.
  *
  * The unit suite (`FactStore.test.ts`) mocks `$queryRaw`, so the actual retrieval
@@ -24,6 +25,7 @@ import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { FactStore } from './FactStore.js';
+import { FactRetriever } from '../FactRetriever.js';
 
 const USER = '5a1c0f66-0000-4000-8000-00000000c001';
 const PERSONA = '5a1c0f66-0000-4000-8000-00000000c002';
@@ -110,19 +112,31 @@ describe('FactStore (component, PGLite)', () => {
     isLocked?: boolean;
     tier?: string;
     sourceMemoryIds?: string[];
+    entityTags?: string[];
+    /** Seed a NULL embedding column (a reservable fact whose embedding never
+     * generated must still be reservable — findReservedActiveFacts has no
+     * `embedding IS NOT NULL` guard). */
+    nullEmbedding?: boolean;
   }
 
   async function seedFact(opts: SeedOpts): Promise<string> {
     const id = nextId();
-    const vec = await embeddings.getEmbedding(opts.embedText);
-    const vecLiteral = `[${Array.from(vec ?? []).join(',')}]`;
     const personaId = opts.personaId === undefined ? PERSONA : opts.personaId;
+    // The vector literal is inlined (not a placeholder) because the pglite
+    // adapter's ::vector cast rejects a bound text parameter — mirrors
+    // FactStore's own writes. NULL is inlined directly for nullEmbedding.
+    let vecSql = 'NULL';
+    if (!opts.nullEmbedding) {
+      const vec = await embeddings.getEmbedding(opts.embedText);
+      const vecLiteral = `[${Array.from(vec ?? []).join(',')}]`;
+      vecSql = `'${vecLiteral}'::vector`;
+    }
     await prisma.$executeRawUnsafe(
       `INSERT INTO memory_facts
          (id, personality_id, persona_id, statement, embedding, salience, valid_from,
-          superseded_at, forgotten, visibility, is_locked, tier, source_memory_ids, created_at, updated_at)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, '${vecLiteral}'::vector, $5, $6::timestamptz,
-          $7::timestamptz, $8, $9, $10, $11, $12::text[], NOW(), NOW())`,
+          superseded_at, forgotten, visibility, is_locked, tier, source_memory_ids, entity_tags, created_at, updated_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, ${vecSql}, $5, $6::timestamptz,
+          $7::timestamptz, $8, $9, $10, $11, $12::text[], $13::text[], NOW(), NOW())`,
       id,
       opts.personalityId ?? PERSONALITY,
       personaId,
@@ -134,7 +148,8 @@ describe('FactStore (component, PGLite)', () => {
       opts.visibility ?? 'normal',
       opts.isLocked ?? false,
       opts.tier ?? 'observed',
-      opts.sourceMemoryIds ?? []
+      opts.sourceMemoryIds ?? [],
+      opts.entityTags ?? []
     );
     return id;
   }
@@ -429,6 +444,220 @@ describe('FactStore (component, PGLite)', () => {
     expect(row?.forgotten).toBe(true);
   });
 
+  describe('findReservedActiveFacts', () => {
+    it('selects a LOCKED fact even with no similarity to any query', async () => {
+      const id = await seedFact({
+        statement: 'a locked reserved fact',
+        embedText: 'a locked reserved fact',
+        isLocked: true,
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits.map(h => h.id)).toEqual([id]);
+    });
+
+    it('selects a CORRECTED-tier fact', async () => {
+      const id = await seedFact({
+        statement: 'a corrected reserved fact',
+        embedText: 'a corrected reserved fact',
+        tier: 'corrected',
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits.map(h => h.id)).toEqual([id]);
+    });
+
+    it('selects a fact tagged commitment:address', async () => {
+      const id = await seedFact({
+        statement: 'lives at 123 Main St',
+        embedText: 'lives at 123 Main St',
+        entityTags: ['commitment:address'],
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits.map(h => h.id)).toEqual([id]);
+    });
+
+    it('does NOT select a plain observed, unlocked, untagged fact', async () => {
+      await seedFact({
+        statement: 'a completely ordinary fact',
+        embedText: 'a completely ordinary fact',
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits).toEqual([]);
+    });
+
+    it.each(['commitment:promise', 'commitment:decision', 'commitment:advice'])(
+      'does NOT select a fact tagged %s — deliberate non-widening',
+      async tag => {
+        await seedFact({
+          statement: `a fact tagged ${tag}`,
+          embedText: `a fact tagged ${tag}`,
+          entityTags: [tag],
+        });
+
+        const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+        expect(hits).toEqual([]);
+      }
+    );
+
+    it('excludes a superseded reserved-class fact', async () => {
+      await seedFact({
+        statement: 'a superseded locked fact',
+        embedText: 'a superseded locked fact',
+        isLocked: true,
+        supersededAt: '2026-05-01T00:00:00Z',
+      });
+
+      expect(await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3)).toEqual([]);
+    });
+
+    it('excludes a forgotten reserved-class fact', async () => {
+      await seedFact({
+        statement: 'a forgotten locked fact',
+        embedText: 'a forgotten locked fact',
+        isLocked: true,
+        forgotten: true,
+      });
+
+      expect(await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3)).toEqual([]);
+    });
+
+    it('excludes a cascade-deleted (visibility != normal) reserved-class fact', async () => {
+      await seedFact({
+        statement: 'a deleted locked fact',
+        embedText: 'a deleted locked fact',
+        isLocked: true,
+        visibility: 'deleted',
+      });
+
+      expect(await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3)).toEqual([]);
+    });
+
+    it('returns a reserved-class fact with a NULL embedding', async () => {
+      const id = await seedFact({
+        statement: 'a locked fact with no embedding yet',
+        embedText: 'unused',
+        isLocked: true,
+        nullEmbedding: true,
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits.map(h => h.id)).toEqual([id]);
+    });
+
+    it('orders by class priority: locked, then corrected, then address-tagged', async () => {
+      const addressId = await seedFact({
+        statement: 'address-tagged fact',
+        embedText: 'address-tagged fact',
+        entityTags: ['commitment:address'],
+        salience: 0.9,
+        validFrom: '2026-06-01T00:00:00Z',
+      });
+      const correctedId = await seedFact({
+        statement: 'corrected fact',
+        embedText: 'corrected fact',
+        tier: 'corrected',
+        salience: 0.1,
+        validFrom: '2025-01-01T00:00:00Z',
+      });
+      const lockedId = await seedFact({
+        statement: 'locked fact',
+        embedText: 'locked fact',
+        isLocked: true,
+        salience: 0.1,
+        validFrom: '2025-01-01T00:00:00Z',
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits.map(h => h.id)).toEqual([lockedId, correctedId, addressId]);
+    });
+
+    it('within one class, orders by salience DESC then valid_from DESC', async () => {
+      const lowSalienceOlder = await seedFact({
+        statement: 'locked, low salience, older',
+        embedText: 'locked, low salience, older',
+        isLocked: true,
+        salience: 0.1,
+        validFrom: '2025-01-01T00:00:00Z',
+      });
+      const highSalience = await seedFact({
+        statement: 'locked, high salience',
+        embedText: 'locked, high salience',
+        isLocked: true,
+        salience: 0.9,
+        validFrom: '2025-01-01T00:00:00Z',
+      });
+      const sameSalienceNewer = await seedFact({
+        statement: 'locked, high salience, newer',
+        embedText: 'locked, high salience, newer',
+        isLocked: true,
+        salience: 0.9,
+        validFrom: '2026-06-01T00:00:00Z',
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 3);
+
+      expect(hits.map(h => h.id)).toEqual([sameSalienceNewer, highSalience, lowSalienceOlder]);
+    });
+
+    it('respects the LIMIT', async () => {
+      await seedFact({ statement: 'locked 1', embedText: 'locked 1', isLocked: true });
+      await seedFact({ statement: 'locked 2', embedText: 'locked 2', isLocked: true });
+      await seedFact({ statement: 'locked 3', embedText: 'locked 3', isLocked: true });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, PERSONA, 2);
+
+      expect(hits).toHaveLength(2);
+    });
+
+    it('personaId=null returns only persona_id IS NULL rows (no leak from a real persona)', async () => {
+      await seedFact({
+        statement: 'a locked fact owned by a real persona',
+        embedText: 'a locked fact owned by a real persona',
+        isLocked: true,
+        personaId: PERSONA,
+      });
+      const worldId = await seedFact({
+        statement: 'a locked world/canon fact',
+        embedText: 'a locked world/canon fact',
+        isLocked: true,
+        personaId: null,
+      });
+
+      const hits = await factStore.findReservedActiveFacts(PERSONALITY, null, 3);
+
+      expect(hits.map(h => h.id)).toEqual([worldId]);
+    });
+
+    it("personalityId=null widens across ALL of the persona's personalities", async () => {
+      const idA = await seedFact({
+        statement: 'locked fact on personality A',
+        embedText: 'locked fact on personality A',
+        isLocked: true,
+        personalityId: PERSONALITY,
+      });
+      const idB = await seedFact({
+        statement: 'locked fact on personality B',
+        embedText: 'locked fact on personality B',
+        isLocked: true,
+        personalityId: PERSONALITY_B,
+      });
+
+      const hits = await factStore.findReservedActiveFacts(null, PERSONA, 5);
+
+      expect(hits.map(h => h.id).sort()).toEqual([idA, idB].sort());
+    });
+  });
+
   describe('findActiveFactsBySourceMemoryIds', () => {
     it('MEM-ARCH-007: linked facts exclude deleted, forgotten, and superseded rows', async () => {
       const sourceMemoryId = '40000000-0000-0000-0000-000000000001';
@@ -492,6 +721,96 @@ describe('FactStore (component, PGLite)', () => {
       );
 
       expect(linked).toEqual([]);
+    });
+  });
+
+  /**
+   * The wiring/seam test (02-code-standards.md § 7) for the
+   * `FactRetriever` → `FactStore` → SQL chain. The two tiers around it each
+   * verify only their own half: `FactRetriever.test.ts` hands the merge a
+   * hand-built mock `FactStore`, so the merge never sees a real row shape, and
+   * the suites above drive `findReservedActiveFacts` directly, so the SQL is
+   * verified but its consumer is not. Nothing is mocked here — a real
+   * `FactStore` over real PGLite, a real `LocalEmbeddingService`, and the real
+   * `FactRetriever` — so a row-mapping break between the SQL's snake_case
+   * columns and `SimilarFact`'s camelCase fields fails here and nowhere else.
+   */
+  describe('FactRetriever → FactStore seam (nothing mocked)', () => {
+    const SEAM_QUERY = 'what time is the standup meeting tomorrow morning';
+    const SEAM_LIMIT = 4;
+    /** Far enough from SEAM_QUERY that similarity alone can never surface it:
+     *  measured cosine similarity 0.38 against the query, versus 0.62–0.76 for
+     *  the four decoys below. With SEAM_LIMIT decoys filling every slot it
+     *  ranks last of five — strictly inside the falsifying region rather than
+     *  on its boundary, which the margin assertion below pins rather than
+     *  assumes. */
+    const RESERVED_STATEMENT = 'Lila addresses Emily as her angelic girlfriend';
+    const RESERVED_TAGS = ['commitment:address', 'person:emily'];
+
+    it('surfaces a far-from-query reserved fact FIRST, with every field mapped from real columns', async () => {
+      // Every asserted field below is seeded to a NON-default value (is_locked
+      // defaults false, tier defaults 'observed', entity_tags defaults []), so
+      // no assertion can pass off a mis-mapped column as the expected value.
+      const reservedId = await seedFact({
+        statement: RESERVED_STATEMENT,
+        embedText: RESERVED_STATEMENT,
+        entityTags: RESERVED_TAGS,
+        isLocked: true,
+        tier: 'corrected',
+      });
+      // SEAM_LIMIT decoys, all closer to the query than the reserved fact, so
+      // the similarity path alone fills every slot without it.
+      for (const decoy of [
+        'The user schedules the daily standup at 9am',
+        'The user prefers morning meetings over afternoon ones',
+        'The user moved tomorrow meeting to a later slot',
+        'The user keeps a calendar reminder for every standup',
+      ]) {
+        await seedFact({ statement: decoy, embedText: decoy });
+      }
+
+      const queryVec = Array.from((await embeddings.getEmbedding(SEAM_QUERY)) ?? []);
+      const similarityOnly = await factStore.findSimilarActiveFacts(
+        queryVec,
+        PERSONALITY,
+        PERSONA,
+        SEAM_LIMIT
+      );
+      // Precondition: the reserved fact is genuinely unreachable by similarity
+      // at this limit — otherwise the test would pass through the similarity
+      // path by accident and verify nothing about the reservation.
+      expect(similarityOnly).toHaveLength(SEAM_LIMIT);
+      expect(similarityOnly.map(f => f.id)).not.toContain(reservedId);
+
+      // ...and it is outside the cut by a wide margin, not sitting on it.
+      const allFive = await factStore.findSimilarActiveFacts(queryVec, PERSONALITY, PERSONA, 10);
+      const reservedSimilarity = allFive.find(f => f.id === reservedId)?.similarity ?? 1;
+      const weakestIncluded = similarityOnly[similarityOnly.length - 1].similarity;
+      expect(reservedSimilarity).toBeLessThan(weakestIncluded - 0.15);
+
+      const facts = await new FactRetriever(factStore).retrieveFacts(
+        SEAM_QUERY,
+        PERSONALITY,
+        PERSONA,
+        SEAM_LIMIT
+      );
+
+      // The reserved fact leads, and it displaces the weakest similarity hit
+      // rather than extending the list past the limit.
+      expect(facts.map(f => f.id)).toEqual([
+        reservedId,
+        ...similarityOnly.slice(0, SEAM_LIMIT - 1).map(f => f.id),
+      ]);
+      // The half that catches a column-mapping break: these values came out of
+      // real SQL rows, not a mock object the unit suite hand-built.
+      expect(facts[0]).toMatchObject({
+        id: reservedId,
+        statement: RESERVED_STATEMENT,
+        entityTags: RESERVED_TAGS,
+        isLocked: true,
+        tier: 'corrected',
+        reserved: true,
+      });
     });
   });
 });
