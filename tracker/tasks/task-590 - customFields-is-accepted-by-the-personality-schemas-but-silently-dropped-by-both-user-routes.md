@@ -3,10 +3,10 @@ id: TASK-590
 title: >-
   customFields is accepted by the personality schemas but silently dropped by
   both user routes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 18:08'
-updated_date: '2026-08-14 22:31'
+updated_date: '2026-09-13 03:54'
 labels:
   - 'area:api-gateway'
   - 'size:M'
