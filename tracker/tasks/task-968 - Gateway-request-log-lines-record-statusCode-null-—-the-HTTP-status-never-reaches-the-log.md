@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-13 19:23'
+updated_date: '2026-09-13 22:14'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -22,3 +23,12 @@ Why: surfaced 2026-09-13 while building TASK-957. The seam test over the real cr
 Fix shape: reproduce in the seam test (assert entry.res.statusCode === 200 — it will red), then find why pino-std-serializers reads null on the express response object at log time (express sets statusCode on res; check whether pino-http logs on the finish event before express writes the head, or whether a wrapped/proxied res object is being serialized), fix at the middleware (a custom res serializer reading res.statusCode explicitly is the fallback), and keep the assertion as the pin. Also read the currently-pinned test does not carry response headers into the log line, which asserts the exact key set [statusCode] — it stays true.
 Acceptance: a request completed line carries the real HTTP status for 2xx and 4xx; the seam test asserts it; the existing header-redaction assertions are unchanged.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-13 22:14
+---
+Runtime-confirmed in PROD 2026-09-13 on beta.224, not only in the seam test: of 23 gateway request lines pulled to a file, 23 carry "statusCode":null and 0 carry a numeric status. The defect is live in production, not a test artifact.
+---
+<!-- COMMENTS:END -->
