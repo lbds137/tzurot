@@ -1,9 +1,10 @@
 ---
 id: TASK-621
 title: Account-export markdown transcript omits the reasoning trace
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 17:16'
+updated_date: '2026-09-13 17:39'
 labels:
   - 'area:api-gateway'
   - 'size:S'

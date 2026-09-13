@@ -3,9 +3,10 @@ id: TASK-540
 title: >-
   Catalog-unavailable save rejection returns 400, not a transient-retryable
   status
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 02:49'
+updated_date: '2026-09-13 17:39'
 labels:
   - 'area:api-gateway'
   - 'size:S'
