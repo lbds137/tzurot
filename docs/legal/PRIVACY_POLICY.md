@@ -99,6 +99,7 @@ Your conversation content is sent to AI providers to generate responses. Which p
 
 - **OpenRouter** — the primary AI provider (a router across many models). Receives the assembled conversation context (character definition, recent history, retrieved memories, your message, and any images) when it generates a response.
 - **z.ai** — an alternative AI provider. Receives the same class of conversation context when it generates a response. Free-tier requests are served by OpenRouter or z.ai depending on operator configuration and available capacity at the time.
+- **z.ai (memory summaries)** — memories may also be sent to z.ai asynchronously, after a conversation, to produce the short summaries the bot recalls instead of the full text. The same z.ai API terms apply.
 - **Mistral / ElevenLabs** — optional voice providers, used only if you connect your own key. Each can provide both transcription (receiving your voice-message audio) and speech synthesis (receiving the character's response text), and both can receive your uploaded voice-reference audio for voice cloning.
 - **Self-hosted voice engine** — the default voice pipeline runs on our own infrastructure, not a third party: your voice messages are transcribed and response audio is synthesized there.
 - **shapes.inc** — contacted only if you explicitly run an import/export of your own shapes.inc data, using credentials you supply.

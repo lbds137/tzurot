@@ -44,4 +44,9 @@ created: 2026-09-05 17:45
 ---
 Merged as #2345 (2026-09-05, six review rounds, the last at the cap with both findings declined for reasons in the PR body). The command is `pnpm ops deploy:var-delete`; the variable is `TZUROT_RAILWAY_API_TOKEN` because the Railway CLI reads `RAILWAY_API_TOKEN` as its own login (probed). STAYS OPEN until the owner mints the project-scoped token into the local `.env` and runs the first real delete (`AUTO_DEPLOY_COMMANDS` on both bot-client services, dev then prod) — that run is the first live test of the endpoint and mutation shape. Carried from round 6: after that run, tighten `!data.variableDelete` to a strict `!== true` and pin the observed response shape with a Zod schema mirroring `railway-status.ts`; writing it against an unobserved shape is a guess.
 ---
+author: agent
+created: 2026-09-13
+---
+Owner probe 2026-09-13: the Railway dashboard mints PROJECT-scoped tokens per ENVIRONMENT (one for development, one for production), while packages/tooling/src/deployment/railway-api.ts requireRailwayApiToken() reads a single TZUROT_RAILWAY_API_TOKEN and passes environmentId per call — the single-variable design assumed one project token spans both environments, and it does not. Fix shape: read TZUROT_RAILWAY_API_TOKEN_DEV / TZUROT_RAILWAY_API_TOKEN_PROD selected by the --env flag every consumer already carries (deploy:var-delete); UsageError names the env-suffixed variable that is missing; RAILWAY_CLI_REFERENCE.md section updated to say two tokens. Owner mints both and adds both to the local .env under the suffixed names. The account-scoped alternative (one token, all projects) stays ruled out — project scope was the 2026-08-14 blast-radius ruling.
+---
 <!-- COMMENTS:END -->

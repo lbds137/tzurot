@@ -30,3 +30,13 @@ Token-usage note (part of the owner ask): the rules economy pass is one of the s
 
 Acceptance: cadence:status lists every seeded pass with days-since-last-run and flags overdue ones; mark updates the stamp; the SessionStart surface shows overdue passes without being asked; a unit test covers status/mark and the overdue computation.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: owner-ruling
+created: 2026-09-13
+---
+Owner ruling 2026-09-13: SCHEDULED — this builds as the next process unit after TASK-951, on the Opus drain lane; the doc-61 economy pass over .claude/rules and backlog/now.md runs right after it so the trim has an owner that nags before it regrows. Measured that day: ~280 KB (~70k tokens) always-loaded per session (rules 162,211 B, CURRENT.md 38,911, now.md 27,369, active-epic 24,482, MEMORY.md 9,695); the rules regrew from 142,502 B after the 2026-08-09 trim to 162,211.
+---
+<!-- COMMENTS:END -->
