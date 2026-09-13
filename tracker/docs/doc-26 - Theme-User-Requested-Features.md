@@ -85,6 +85,51 @@ Two further notes from the same session:
   adopt as their own memories. Whether a user can switch that one off is a product-
   ethics call rather than a taste call, and it is the only member of the set that
   wants a deliberate owner decision rather than a default.
+
+  ⚠️ **CORRECTED the same session, after mapping the sources properly** — the owner
+  pushed back on assuming which half was which, and was right. The taxonomy above
+  assumed PLACEMENT matches CATEGORY. It does not. Output-format content lives on
+  BOTH sides: the hardcoded `OUTPUT_CONSTRAINTS` shape output, and so do the three
+  DB-side `formattingRules` (asterisks for non-dialogue actions; dialogue as plain
+  text without quotation marks; no bullets/numbered lists/structured summaries
+  unless asked). The current split is historical, not principled. The four
+  categories are still a useful lens for DECIDING what should be overridable; they
+  are NOT a description of where things currently live. Verified map below.
+
+- **The source map, verified 2026-09-12** (`PromptBuilder.ts` section list plus
+  `PersonalityFieldsFormatter.ts`): HARDCODED in
+  `services/ai-worker/src/services/prompt/HardcodedConstraints.ts` —
+  `platform_constraints` (S0), `output_constraints` (S0, plus three flag-gated
+  real-messages constraints), and `identity_constraints` (S1, built by
+  `buildIdentityConstraints(personalityName, realMessagesEnabled)`). FROM THE DB —
+  only `protocol` (S1), out of `system_prompts.content`. Everything else is runtime
+  (`location`, `participants`, `chat_log`) or V-tier.
+
+- **`system_prompts.content` is JSON, not XML — and that is load-bearing for this
+  feature.** The shape is `ProtocolContent { permissions, characterDirectives,
+  formattingRules }`, three string arrays. The XML in the assembled prompt is
+  rendered IN CODE by `formatProtocolAsXml` (`permissions` → `<permitted>`,
+  `characterDirectives` → `<directive>`, `formattingRules` → `<rule>`), with every
+  value passed through `escapeXmlContent`. The type's own docblock states the
+  reason: JSON is preferred in the database to prevent prompt injection via XML tag
+  breaking. User-authored sidecar text carries exactly that risk, so the design must
+  KEEP this shape — structured JSON in storage, escaped XML at render — rather than
+  inventing a text-blob field. Confirmed the Default row uses the JSON path, not the
+  legacy one: the rendered element counts (6 permitted / 20 directive / 3 rule) match
+  `formatProtocolAsXml`'s output exactly.
+
+- **A legacy XML fallback path exists** (`PersonalityFieldsFormatter.ts`: content
+  that does not parse as the JSON schema is passed through as raw XML with
+  placeholder replacement), so two formats may be live in that table at once. Check
+  which format the three non-Default rows use before any migration touches them.
+
+- **The demand signal is one array element.** "Can the bots stop doing roleplay
+  actions" is `formattingRules[0]` — the asterisks rule. It already lives in a
+  per-personality-joinable JSON object with the right decomposition. So the smallest
+  honest slice of this feature is not the layered-architecture epic: it is giving the
+  EXISTING `ProtocolContent` object a tier dimension and a write path. The schema for
+  customization is already built; what is missing is cascade resolution over it and a
+  UI.
 - **Precedence is the risk this design runs on.** TASK-949 records two instruction
   sources with no stated precedence between them (the voice anchor and protocol
   directive 17) producing measurably wrong behaviour — a model re-litigating one rule
