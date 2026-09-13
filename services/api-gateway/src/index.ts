@@ -108,6 +108,7 @@ import {
   validateServiceAuthConfig,
 } from './bootstrap/index.js';
 import { createChannelInvalidationServices } from './bootstrap/invalidationServices.js';
+import { subscribePersonaInvalidation } from './bootstrap/personaInvalidationSubscription.js';
 
 // Queue
 import {
@@ -201,6 +202,12 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   logger.info('Subscribed to personality cache invalidation events');
 
   const channelInvalidation = createChannelInvalidationServices(cacheRedis);
+  // Subscribes the shared, per-PrismaClient PersonaResolver instance so its
+  // in-process cache is evicted on a persona change.
+  await subscribePersonaInvalidation({
+    prisma,
+    personaCacheInvalidation: channelInvalidation.personaCacheInvalidation,
+  });
 
   const cascadeInvalidation = new ConfigCascadeCacheInvalidationService(cacheRedis);
   logger.info('Config cascade cache invalidation service initialized');
