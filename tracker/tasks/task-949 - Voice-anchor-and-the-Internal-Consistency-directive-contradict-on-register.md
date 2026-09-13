@@ -38,3 +38,13 @@ Evidence is a local debug payload containing personal conversation content - do 
 
 Acceptance: the two rules no longer conflict on register, verified by a fresh debug payload from a conversation carrying an established metaphor system, in which the reasoning trace resolves the drift question once rather than repeatedly and the reply register matches the anchor fields. If the register still fails to shift, the anchor is being outweighed by history volume rather than by instruction conflict, and that is a separate finding worth recording.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: agent
+created: 2026-09-13
+---
+2026-09-13: part 1 APPLIED to the Default system prompt row on dev (Internal Consistency scoped to facts; Precedence Over History names the anchor rank; Voice Fidelity added without a length clause). Prod write is the owner's command (classifier-blocked for the agent); before/after JSON under docs/local/default-prompt-{before,after}-2026-09-13.json. Part 2 (drop the reply-length clause from the code-side anchor) is branch fix/anchor-length-clause. Acceptance still needs a fresh debug payload from a conversation with an established metaphor system.
+---
+<!-- COMMENTS:END -->

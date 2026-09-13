@@ -28,3 +28,13 @@ Fix shape: measure first. Query prod usage_logs for tokensOut on extraction requ
 
 Acceptance: invokeSystemModel sends a bounded max_tokens derived from measured output sizes, with a seam test that reddens when the default is removed.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: agent
+created: 2026-09-13
+---
+MEASURED 2026-09-13 on prod usage_logs (owner-run query, aggregates only), tokens_out by request_type: fact_extraction n=1278 p50=3199 p90=7290 p99=11159 max=13517 (2026-07-11 to 2026-09-13); roster_blurb n=221 p50=1261 p90=2001 p99=2641 max=3027; llm_generation n=28342 p50=619 p99=5675 max=10636. Recommended cap: AI_DEFAULTS.EXTRACTION_MAX_TOKENS = 32768 (~2.4x the observed max, so a truncated JSON array is not a realistic outcome at current batch sizes); roster_blurb rides the same seam and fits under it. state:ready for the drain; the measurement clause of the fix shape is satisfied.
+---
+<!-- COMMENTS:END -->
