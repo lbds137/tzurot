@@ -48,10 +48,9 @@ const EXPORT_FIELDS = [
   'conversationalGoals',
   'conversationalExamples',
   'errorMessage',
-  // Import accepts customFields, but neither USER personality route (create.ts
-  // buildCreateData / update.ts buildUpdateData) writes the column, so the
-  // value is dropped gateway-side and the round-trip still loses it. Exported
-  // anyway so the file is a faithful snapshot; TASK-590 owns the gateway gap.
+  // customFields round-trips through both user personality routes
+  // (create.ts buildCreateData / update.ts buildUpdateData), size-bounded on
+  // input. See CLEARABLE_FIELDS below for the one remaining gap: clearing it.
   'customFields',
   // Import accepts a tag array.
   'tags',
@@ -72,8 +71,10 @@ const EXPORT_FIELDS = [
  *   store an empty one.
  * - `isPublic` / `definitionPublic` — booleans; `false` is not empty and
  *   already survives the filter below.
- * - `customFields` — its clear is `null`, which `buildImportPayload`'s
- *   `?? undefined` collapses back to "no change" (and see TASK-590 above).
+ * - `customFields` — a SET value round-trips, but its clear form is `null`,
+ *   which `buildImportPayload`'s `?? undefined` collapses back to "no
+ *   change" rather than clearing the stored value. Restoring a cleared
+ *   customFields would need a change to that mapping.
  */
 export const CLEARABLE_FIELDS: readonly (typeof EXPORT_FIELDS)[number][] = [
   'personalityTone',

@@ -25,6 +25,7 @@ import {
   TAG_LIMITS,
   TAG_INPUT_LIMITS,
   MAX_JOINED_TAGS_LENGTH,
+  CUSTOM_FIELDS_MAX_BYTES,
   normalizeTag,
   PersonalityTagSchema,
   PersonalityTagsInputSchema,
@@ -37,6 +38,24 @@ import {
   PersonalityAliasEntrySchema,
   RemovePersonalityAliasResponseSchema,
 } from './personality.js';
+
+/**
+ * Build a `customFields` object whose JSON serialization is EXACTLY
+ * `targetBytes` long, by growing a single string value until the serialized
+ * length hits the target. Avoids eyeballing fixture sizes.
+ */
+function customFieldsOfExactSize(targetBytes: number): Record<string, unknown> {
+  const key = 'pad';
+  // `{"pad":""}` is the empty-value skeleton; grow the value to fill the rest.
+  const skeletonBytes = new TextEncoder().encode(JSON.stringify({ [key]: '' })).length;
+  const padLength = targetBytes - skeletonBytes;
+  const value = { [key]: 'x'.repeat(padLength) };
+  const actual = new TextEncoder().encode(JSON.stringify(value)).length;
+  if (actual !== targetBytes) {
+    throw new Error(`customFieldsOfExactSize computed ${actual} bytes, expected ${targetBytes}`);
+  }
+  return value;
+}
 
 describe('Personality API Contract Tests', () => {
   describe('EntityPermissionsSchema', () => {
@@ -444,6 +463,42 @@ describe('Personality API Contract Tests', () => {
       expect(PersonalityCreateSchema.safeParse(inputTrue).success).toBe(true);
       expect(PersonalityCreateSchema.safeParse(inputFalse).success).toBe(true);
     });
+
+    describe('customFields size bound', () => {
+      it('accepts customFields serializing to exactly CUSTOM_FIELDS_MAX_BYTES', () => {
+        const atLimit = customFieldsOfExactSize(CUSTOM_FIELDS_MAX_BYTES);
+        const result = PersonalityCreateSchema.safeParse({
+          ...validCreateInput,
+          customFields: atLimit,
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('rejects customFields one byte over CUSTOM_FIELDS_MAX_BYTES', () => {
+        const overLimit = customFieldsOfExactSize(CUSTOM_FIELDS_MAX_BYTES + 1);
+        const result = PersonalityCreateSchema.safeParse({
+          ...validCreateInput,
+          customFields: overLimit,
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('accepts customFields: null', () => {
+        const result = PersonalityCreateSchema.safeParse({
+          ...validCreateInput,
+          customFields: null,
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('accepts an absent customFields', () => {
+        const result = PersonalityCreateSchema.safeParse(validCreateInput);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.customFields).toBeUndefined();
+        }
+      });
+    });
   });
 
   describe('PersonalityUpdateSchema', () => {
@@ -535,6 +590,36 @@ describe('Personality API Contract Tests', () => {
 
       expect(toggleOn.success).toBe(true);
       expect(toggleOff.success).toBe(true);
+    });
+
+    describe('customFields size bound', () => {
+      it('accepts customFields serializing to exactly CUSTOM_FIELDS_MAX_BYTES', () => {
+        const atLimit = customFieldsOfExactSize(CUSTOM_FIELDS_MAX_BYTES);
+        const result = PersonalityUpdateSchema.safeParse({ customFields: atLimit });
+        expect(result.success).toBe(true);
+      });
+
+      it('rejects customFields one byte over CUSTOM_FIELDS_MAX_BYTES', () => {
+        const overLimit = customFieldsOfExactSize(CUSTOM_FIELDS_MAX_BYTES + 1);
+        const result = PersonalityUpdateSchema.safeParse({ customFields: overLimit });
+        expect(result.success).toBe(false);
+      });
+
+      it('accepts customFields: null', () => {
+        const result = PersonalityUpdateSchema.safeParse({ customFields: null });
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.customFields).toBeNull();
+        }
+      });
+
+      it('accepts an absent customFields', () => {
+        const result = PersonalityUpdateSchema.safeParse({});
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.customFields).toBeUndefined();
+        }
+      });
     });
   });
 

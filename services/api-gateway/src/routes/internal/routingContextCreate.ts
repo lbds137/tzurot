@@ -25,7 +25,7 @@ import {
   type RoutingContextResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { PersonaResolver, resolveRoutingContext } from '@tzurot/identity';
+import { getOrCreatePersonaResolver, resolveRoutingContext } from '@tzurot/identity';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendContractSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -38,10 +38,11 @@ const logger = createLogger('internal-routing-context');
 /** POST /api/internal/v1/routing-context — hot-path routing-fact resolution. */
 export const handleRoutingContextCreate = (deps: RouteDeps): RequestHandler => {
   // Shared per-PrismaClient UserService (registry-wide cache + invalidation).
-  // PersonaResolver is constructed once at mount (not per request) so its
-  // in-memory cache stays warm across requests.
+  // PersonaResolver is the same shared, per-PrismaClient instance the
+  // gateway's persona cache-invalidation subscription evicts — a private
+  // instance here would keep serving stale personas after invalidation.
   const userService = getOrCreateUserService(deps.prisma);
-  const personaResolver = new PersonaResolver(deps.prisma);
+  const personaResolver = getOrCreatePersonaResolver(deps.prisma);
 
   return asyncHandler(async (req, res: Response) => {
     const parseResult = RoutingContextRequestSchema.safeParse(req.body);

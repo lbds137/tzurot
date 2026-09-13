@@ -3,13 +3,16 @@
  *
  * Redis pub/sub service for broadcasting persona cache invalidation events across microservices.
  * When a persona-input write commits, this service ensures all ai-worker instances
- * invalidate their local PersonaResolver caches.
+ * AND the api-gateway's own shared PersonaResolver invalidate their PersonaResolver caches.
  *
  * Architecture:
  * - Publishers: api-gateway persona-input write routes — CRUD, per-personality
  *   overrides, and set-default (per-user events) — plus the admin db-sync
  *   route (invalidate-all on bulk writes)
- * - Subscribers: ai-worker instances (to invalidate PersonaResolver cache)
+ * - Subscribers: ai-worker instances (to invalidate PersonaResolver cache), plus
+ *   api-gateway itself (self-subscribe, so its own shared resolver instance —
+ *   used by the routing-context route and the history-context helper — stays
+ *   coherent instead of only expiring on its own TTL)
  *
  * Events:
  * - { type: 'user', discordId } - Invalidate persona cache for specific user

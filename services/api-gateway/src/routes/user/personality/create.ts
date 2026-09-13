@@ -65,6 +65,9 @@ function buildCreateData(
     definitionPublic: body.definitionPublic ?? false,
     // Already normalized/deduped/capped by PersonalityTagsInputSchema.
     tags: body.tags ?? [],
+    ...(body.customFields !== null && body.customFields !== undefined
+      ? { customFields: body.customFields as Prisma.InputJsonValue }
+      : {}),
     ownerId,
     systemPromptId,
     avatarData: media.avatarBuffer !== undefined ? new Uint8Array(media.avatarBuffer) : null,
