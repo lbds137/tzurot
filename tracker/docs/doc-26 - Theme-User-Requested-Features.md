@@ -34,6 +34,66 @@ Per-user text injected into the system message, shaping how characters interact 
 
 **The architecture half is TASK-110**, which now carries the grounding: the layer seam is designed (§2.1 of `docs/proposals/backlog/prompt-assembly-architecture.md`) but NOT built (`sections.ts` has tiers, no layers), and — the finding that unblocks this — the user-overrides layer is separable from the channel layer that Phase 4's deferral was actually gated on. Two open questions recorded there rather than here: the per-user-global vs per-user-per-character choice this entry leaves open (it drives the schema), and the tension with the caching epic, since S1 is inside the cacheable prefix and a per-user override fragments it per user. Read TASK-110 before scoping; do not open a third record for this feature.
 
+🔷 **OWNER RULING 2026-09-12 — it is a CASCADE FIELD, not a global-vs-per-character
+pick.** The open question above is closed: the answer is both, tiered, the way the
+existing settings cascade already works. Owner's words: not wanting to pick one or
+the other, and asking whether the config cascade can be standardized to carry more
+than the settings it holds today — "maybe we just add this to the existing config
+cascade as another field."
+
+That reframes the architecture half substantially. TASK-110 designs a prompt layering
+(platform → channel → personality → user-overrides); the config cascade already
+resolves user-per-personality → user-default → personality-default → global-default,
+and doc-15's accepted design (`docs/proposals/backlog/config-cascade-semantics.md`)
+adds a guild tier on top. **These are two independently-designed cascades over nearly
+the same tier set, in two docs that do not cite each other.** If sidecar lands as a
+cascade field, most of TASK-110's layered-composition engine dissolves into work
+doc-15 already owns; what survives is the channel layer, which was trigger-gated
+regardless.
+
+**The real design fork, which replaces the closed one:** a config cascade SELECTS ONE
+winner (a model id, a TTL, a boolean). A prompt layer may want to ACCUMULATE —
+platform and character and user text all present at once. Select-one vs concatenate
+is the question to answer, and its natural home is doc-15 item 2, which is already
+where cascade resolution semantics get made explicit (the off-vs-inherit
+`{ kind: 'inherit' } | { kind: 'off' } | { kind: 'value' }` work).
+
+**Sequencing consequence, owner discussion 2026-09-12:** doc-15 item 2 — standardize
+the cascade UX and write the canonical pattern into `.claude/rules/` — is the SPINE
+this entry waits on. With the pattern written down, sidecar is a field addition
+rather than a design project, and the same is true of the guild tier and off-vs-
+inherit. doc-72 (two-level dashboard navigation) is the other prerequisite by
+argument rather than by dependency: every member of this cluster ADDS settings
+surface, and doc-72 is what keeps that surface navigable — building it after the
+cascade expands means shipping the mess first.
+
+Two further notes from the same session:
+
+- **Category taxonomy for what is overridable at all.** The owner's framing is two
+  tiers (hard platform constraints users may never override; everything else fair
+  game). Reading the assembled prompt suggests four, and the middle two matter:
+  (1) platform invariants — the four in `PLATFORM_CONSTRAINTS`, never overridable;
+  (2) **assembly contracts** — the nine in `OUTPUT_CONSTRAINTS`, which describe our
+  own wire format (do not emit scaffolding tags, how to read the platform-stamped
+  header, role attributes, image provenance). Not safety and not taste; a user
+  overriding them gets visible artifacts and misattributed quotes, so they stay fixed
+  for a different reason than the safety four and that reason should be stated;
+  (3) behavioural defaults — response length, structural variety, narrative
+  continuity, roleplay-action style. This is what the demand signal actually asked
+  for, and what the cascade should carry; (4) **duty-of-care** — the User-Led
+  Narrative directive, which exists to stop the model inventing details a user may
+  adopt as their own memories. Whether a user can switch that one off is a product-
+  ethics call rather than a taste call, and it is the only member of the set that
+  wants a deliberate owner decision rather than a default.
+- **Precedence is the risk this design runs on.** TASK-949 records two instruction
+  sources with no stated precedence between them (the voice anchor and protocol
+  directive 17) producing measurably wrong behaviour — a model re-litigating one rule
+  five times in a single reasoning trace and resolving it against the anchor. A
+  cascade means four or five such sources. Fix TASK-949 first and read one fresh
+  trace: it is the smallest available test of whether an explicit precedence
+  statement actually stops the litigation, before a design built entirely on
+  precedence commits to it.
+
 #### ➡️ Channel Allowlist/Denylist — MOVED to doc-75 (Guild / Server Management), Phase 3
 
 Its rationale ("reduces server kicks") and its command scope ("for server
