@@ -33,7 +33,7 @@
 
 **beta.224 watch checklist (observability, not smoke; no owner round requested):**
 
-1. **Request-log redaction** (#2417): the first prod gateway request line after the deploy carries `req.headers["x-service-auth"]` = `[REDACTED]`, and `x-forwarded-for` / `remoteAddress` read `[REDACTED]` too; `pnpm ops logs --env prod` on api-gateway. Log-closable. Closes TASK-957's runtime clause and releases the owner's rotation. **Status: pending.**
+1. **Request-log redaction** (#2417): the first prod gateway request line after the deploy carries `req.headers["x-service-auth"]` = `[REDACTED]`, and `x-forwarded-for` / `remoteAddress` read `[REDACTED]` too; pull with `pnpm ops logs --env prod` INTO A FILE and grep it for `[REDACTED]` — never print raw gateway lines until `railway status` shows the beta.224 deployment live, because the previous deployment’s lines carry the raw secret (that is how it reached one transcript today). Log-closable. Closes TASK-957's runtime clause and releases the owner's rotation. **Status: pending.**
 2. **Admin `customFields: null`** (#2416): no runtime signal expected; the PGLite probes are the evidence. High.
 3. **Catalog-outage 503** (#2414): only fires on a real OpenRouter catalog outage; the bot-client copy on a 503 is the observable. High.
 4. **Persona invalidation subscription** (#2411): a persona edit followed by a reply in another channel reflects the edit without the 5-minute TTL; boot line `PersonaResolver subscribed to persona cache invalidation` on the gateway, then `Invalidated persona cache for user` on an edit. Log-closable. **Status: pending.**
