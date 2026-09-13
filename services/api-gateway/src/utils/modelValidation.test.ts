@@ -269,6 +269,7 @@ describe('validateModelAndContextWindow', () => {
       expect(result.error).toBe(
         "Could not reach the model catalog to validate 'anthropic/claude-sonnet-4'. This is usually temporary — try saving again in a moment."
       );
+      expect(result.catalogUnavailable).toBe(true);
     });
 
     it('keeps the ORIGINAL not-found error, unchanged, for a genuine catalog miss', async () => {
@@ -278,6 +279,7 @@ describe('validateModelAndContextWindow', () => {
         "Model 'nonexistent/model' not found in the available models list. " +
           'Use the model autocomplete to select a valid model, or check if the model ID is correct.'
       );
+      expect(result.catalogUnavailable).toBeUndefined();
     });
 
     it('does not let the unavailable branch swallow the z.ai-only keyless error', async () => {
@@ -288,6 +290,7 @@ describe('validateModelAndContextWindow', () => {
       const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', undefined, false);
       expect(result.error).toContain("Model 'z-ai/glm-5.2' is served by the z.ai Coding Plan");
       expect(result.error).toContain('/settings apikey set');
+      expect(result.catalogUnavailable).toBeUndefined();
     });
 
     it('still REJECTS (returns an error) when the catalog is unavailable — stays fail-closed', async () => {

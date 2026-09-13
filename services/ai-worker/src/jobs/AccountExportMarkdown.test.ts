@@ -31,6 +31,7 @@ function makeConversationRow(overrides: Partial<ExportConversationRow>): ExportC
     createdAt: new Date('2026-07-14T10:00:00Z'),
     deletedAt: null,
     editedAt: null,
+    thinkingContent: null,
     ...overrides,
   } as ExportConversationRow;
 }
@@ -185,6 +186,69 @@ describe('formatConversationsMd', () => {
     expect(md).toContain('## Direct messages (channel chan-1)');
     expect(md).toContain('## Channel chan-2 (server guild-9)');
     expect(md).toContain('**[10:00] You:** _(deleted, edited)_ hello');
+  });
+
+  it('renders a reasoning trace as a collapsed block directly under its turn', () => {
+    const md = formatConversationsMd(
+      'Azura',
+      [
+        makeConversationRow({
+          id: 'with-trace',
+          role: 'assistant',
+          content: 'the answer',
+          thinkingContent: 'first I considered A\nthen I chose B',
+        }),
+      ],
+      personaNames
+    );
+
+    expect(md).toContain(
+      '**[10:00] Azura:** the answer\n' +
+        '<details><summary>Reasoning</summary>\n' +
+        '\n' +
+        'first I considered A\nthen I chose B\n' +
+        '\n' +
+        '</details>'
+    );
+  });
+
+  it('renders no reasoning block when the row carries no trace', () => {
+    const md = formatConversationsMd(
+      'Azura',
+      [makeConversationRow({ role: 'assistant', content: 'the answer', thinkingContent: null })],
+      personaNames
+    );
+
+    expect(md).toContain('**[10:00] Azura:** the answer');
+    expect(md).not.toContain('<details>');
+  });
+
+  it('renders no reasoning block for a whitespace-only trace', () => {
+    const md = formatConversationsMd(
+      'Azura',
+      [makeConversationRow({ role: 'assistant', content: 'the answer', thinkingContent: '   ' })],
+      personaNames
+    );
+
+    expect(md).not.toContain('<details>');
+  });
+
+  it('escapes a literal closing details tag in the trace so it cannot end the block early', () => {
+    const md = formatConversationsMd(
+      'Azura',
+      [
+        makeConversationRow({
+          role: 'assistant',
+          content: 'the answer',
+          thinkingContent: 'thinking about </details> and </DETAILS > tags',
+        }),
+      ],
+      personaNames
+    );
+
+    expect(md.split('&lt;/details&gt;').length - 1).toBe(2);
+    expect(md.split('</details>').length - 1).toBe(1);
+    expect(md).toContain('thinking about &lt;/details&gt; and &lt;/details&gt; tags\n\n</details>');
   });
 });
 
