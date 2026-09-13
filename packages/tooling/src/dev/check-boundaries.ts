@@ -48,6 +48,8 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
   'PrismaClient',
   'Prisma',
   'verifyPoolTimeouts',
+  // utils/prismaJsonInput — returns Prisma.DbNull; only meaningful beside a Prisma write.
+  'toNullableJsonInput',
   // services/SystemSettingsService — DB-backed settings read path. The ambient
   // accessors are banned too: bot-client can never register an instance (that
   // takes a PrismaClient), so getSystemSetting there would silently serve

@@ -10,9 +10,10 @@ import {
   type PersonalityUpdateInput,
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types/schemas/api/personality';
-import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { toNullableJsonInput } from '@tzurot/common-types/utils/prismaJsonInput';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -76,8 +77,7 @@ function buildUpdateData(
   // the stored bag alone; null = clear the column to SQL NULL; an object
   // replaces it wholesale (no merge).
   if (body.customFields !== undefined) {
-    updateData.customFields =
-      body.customFields === null ? Prisma.DbNull : (body.customFields as Prisma.InputJsonValue);
+    updateData.customFields = toNullableJsonInput(body.customFields);
   }
 
   if (body.name !== undefined) {
