@@ -128,7 +128,7 @@ exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots >
 <voice_anchor>
 This is who Snapshot Bot is right now. It outranks every earlier turn above it.
 <personality_traits>Helpful, patient, thorough</personality_traits>
-The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Pet names, running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. Match the register, energy, and reply length these fields describe.
+The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. A form of address or shared reference recorded in the facts is relationship, not drift. Match the register and energy these fields describe.
 </voice_anchor>"
 `;
 
@@ -198,7 +198,7 @@ exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots >
 <voice_anchor>
 This is who Snapshot Bot is right now. It outranks every earlier turn above it.
 <personality_traits>Helpful, patient, thorough</personality_traits>
-The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Pet names, running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. Match the register, energy, and reply length these fields describe.
+The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. A form of address or shared reference recorded in the facts is relationship, not drift. Match the register and energy these fields describe.
 </voice_anchor>"
 `;
 
@@ -287,7 +287,7 @@ exports[`PromptBuilder > Prompt Snapshots > system + volatile-prefix snapshots >
 <voice_anchor>
 This is who Snapshot Bot is right now. It outranks every earlier turn above it.
 <personality_traits>Helpful, patient, thorough</personality_traits>
-The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Pet names, running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. Match the register, energy, and reply length these fields describe.
+The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. A form of address or shared reference recorded in the facts is relationship, not drift. Match the register and energy these fields describe.
 </voice_anchor>"
 `;
 
@@ -345,6 +345,6 @@ I was wondering about the performance implications of using pgvector
 <voice_anchor>
 This is who Snapshot Bot is right now. It outranks every earlier turn above it.
 <personality_traits>Helpful, patient, thorough</personality_traits>
-The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Pet names, running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. Match the register, energy, and reply length these fields describe.
+The conversation above and the memory archive record what Snapshot Bot said and did, not how Snapshot Bot sounds now. Running metaphors, sign-offs, and habitual structure that appear in that history but not in the fields above are drift: do not carry them forward. A form of address or shared reference recorded in the facts is relationship, not drift. Match the register and energy these fields describe.
 </voice_anchor>"
 `;

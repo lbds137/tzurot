@@ -37,17 +37,19 @@ export function voiceAnchorLeadIn(name: string): string {
 }
 
 /**
- * Drift-warning sentence for the `<voice_anchor>` block, naming pet names,
- * running metaphors, sign-offs, and habitual structure the conversation
- * history may have accumulated but the card fields above do not describe.
- * Takes the ALREADY-ESCAPED display name (see {@link voiceAnchorLeadIn}).
+ * Drift-warning sentence for the `<voice_anchor>` block, naming running
+ * metaphors, sign-offs, and habitual structure the conversation history may
+ * have accumulated but the card fields above do not describe. Forms of address
+ * and shared references recorded in the facts are relationship, not drift, and
+ * are carved out. Takes the ALREADY-ESCAPED display name (see {@link voiceAnchorLeadIn}).
  */
 export function voiceAnchorDriftNote(name: string): string {
   return (
     `The conversation above and the memory archive record what ${name} said and did, not how ` +
-    `${name} sounds now. Pet names, running metaphors, sign-offs, and habitual structure that ` +
-    `appear in that history but not in the fields above are drift: do not carry them forward. ` +
-    `Match the register, energy, and reply length these fields describe.`
+    `${name} sounds now. Running metaphors, sign-offs, and habitual structure that appear in ` +
+    `that history but not in the fields above are drift: do not carry them forward. A form of ` +
+    `address or shared reference recorded in the facts is relationship, not drift. ` +
+    `Match the register and energy these fields describe.`
   );
 }
 

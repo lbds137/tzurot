@@ -148,6 +148,8 @@ describe('renderVoiceAnchor', () => {
     expect(xml).toContain(
       'This is who Nova is right now. It outranks every earlier turn above it.'
     );
-    expect(xml).toContain('Pet names, running metaphors, sign-offs');
+    expect(xml).toContain('Running metaphors, sign-offs, and habitual structure');
+    expect(xml).toContain('recorded in the facts is relationship, not drift');
+    expect(xml).not.toContain('Pet names');
   });
 });
