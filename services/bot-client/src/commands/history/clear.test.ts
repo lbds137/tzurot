@@ -121,6 +121,12 @@ describe('handleClear', () => {
       'Context Cleared',
       expect.stringContaining('lilith')
     );
+    // Clear is persona-wide, not channel-local — the copy must say so, since
+    // the user reads "cleared" while standing in one channel.
+    expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
+      'Context Cleared',
+      expect.stringContaining('cleared everywhere')
+    );
     expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 

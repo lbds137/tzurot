@@ -1191,7 +1191,7 @@
           {
             "type": 1,
             "name": "clear",
-            "description": "Clear conversation context (soft reset)",
+            "description": "Clear conversation context everywhere (soft reset)",
             "options": [
               {
                 "autocomplete": true,
