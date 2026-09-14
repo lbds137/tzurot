@@ -56,6 +56,8 @@ _beta.224 CUT 2026-09-13 (12 PRs / 9 runtime / 161 range files; no migrations; P
 
 _Small tasks that can be done between major features. Good for momentum._
 
+**🧹 `[CHORE]` Dependabot batch + the claude-workflow main-cut (OWNER APPROVED 2026-09-14)** — owner agreed to merge the claude-workflow bump directly to `main` and run `release:finalize` to resync develop, and to address the rest of the dependabot queue. **#2423** (`anthropics/claude-code-action` 1.0.216→1.0.222) touches ONLY `.github/workflows/claude-code-review.yml` and `.github/workflows/claude.yml` and was opened against `develop` — merging it there would silently disable claude-review on every PR until the next cut. Sequence, and the ORDER is load-bearing: (1) let PR #2427 merge first — `release:finalize` rewrites `develop`, which force-rebases every open feature branch, so doing it under an in-review PR costs a needless CI cycle; (2) cut a branch from `main`, cherry-pick #2423's two workflow hunks, PR against `main`, owner-approve the merge (main merges always need a per-merge ask); (3) `pnpm ops release:finalize` IMMEDIATELY after — main carrying the new workflow bytes while develop carries the old ones is the same skip-everything state, just inverted, so the gap between (2) and (3) must be minutes; (4) close #2423 as superseded; (5) then #2424 (ci.yml + weekly-audit.yml), #2425 (production deps), #2426 (dev deps) ride develop normally, rebasing each onto the resynced develop before merge. Also open: Dependabot alert 159, 1 moderate on the default branch — run `pnpm ops security:advisories` at the beta.225 security preflight to classify it (direct / transitive / direct+transitive) and ride any fix into the release.
+
 
 
 ### 📥 Untriaged (max 10)
