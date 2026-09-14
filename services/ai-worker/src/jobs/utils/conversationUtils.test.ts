@@ -12,12 +12,17 @@ import {
   extractParticipants,
   convertConversationHistory,
   formatConversationHistoryAsXml,
+  formatSingleHistoryEntryAsXml,
   formatCrossChannelHistoryAsXml,
   getPriorConversationsWrapperOverheadText,
   PRIOR_CONVERSATIONS_INSTRUCTION,
 } from './conversationUtils.js';
 import type { StructuredHistoryEntry } from './conversationTypes.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
+import {
+  formatAbsoluteTimestamp,
+  formatRelativeTime,
+} from '@tzurot/common-types/utils/dateFormatting';
 import {
   type CrossChannelHistoryGroupEntry,
   type StoredReferencedMessage,
@@ -429,6 +434,104 @@ describe('Conversation Utilities', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].content).toBe('Plain message');
+    });
+
+    // formatRelativeTime is mocked file-wide (see the vi.mock block above), so
+    // the assertion is on the FORWARDED argument rather than the rendered
+    // clock — the weaker form the spec authorizes when a shared mock strips
+    // the real zone-dependent output. `formatRelativeTime`'s own >7-day
+    // branch (`packages/common-types/src/utils/dateFormatting.ts`) IS
+    // zone-dependent (it falls through to `formatDateOnly(date, timezone)`),
+    // confirmed by reading the source; this test pins the wiring into it,
+    // not that branch's own zone math, which belongs to that package's tests.
+    it('threads a non-default timezone into formatRelativeTime for a user row', () => {
+      const history = [
+        {
+          role: MessageRole.User,
+          content: 'hi',
+          personaName: 'Vlad',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ];
+
+      convertConversationHistory(history, 'TestBot', 'America/Los_Angeles');
+
+      expect(vi.mocked(formatRelativeTime)).toHaveBeenCalledWith(
+        '2026-01-01T00:00:00.000Z',
+        'America/Los_Angeles'
+      );
+    });
+
+    it('threads a non-default timezone into formatRelativeTime for an assistant row', () => {
+      const history = [
+        { role: MessageRole.Assistant, content: 'hi', createdAt: '2026-01-01T00:00:00.000Z' },
+      ];
+
+      convertConversationHistory(history, 'TestBot', 'America/Los_Angeles');
+
+      expect(vi.mocked(formatRelativeTime)).toHaveBeenCalledWith(
+        '2026-01-01T00:00:00.000Z',
+        'America/Los_Angeles'
+      );
+    });
+
+    it('omitting timezone forwards undefined, never a silently coalesced default', () => {
+      const history = [
+        {
+          role: MessageRole.User,
+          content: 'hi',
+          personaName: 'Vlad',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ];
+
+      convertConversationHistory(history, 'TestBot');
+
+      expect(vi.mocked(formatRelativeTime)).toHaveBeenCalledWith(
+        '2026-01-01T00:00:00.000Z',
+        undefined
+      );
+    });
+  });
+
+  describe('formatSingleHistoryEntryAsXml', () => {
+    // formatAbsoluteTimestamp is mocked file-wide (see the vi.mock block
+    // above) to a fixed string regardless of arguments, so — same as the
+    // convertConversationHistory timezone tests above — the assertion is on
+    // the FORWARDED argument crossing the mocked seam, not the rendered t=""
+    // text.
+    it('threads a non-default timezone into the t="" attribute\'s formatAbsoluteTimestamp call', () => {
+      const entry = {
+        role: 'user',
+        content: 'hi',
+        personaId: 'persona-1',
+        personaName: 'Vlad',
+        createdAt: '2026-09-14T19:05:00.000Z',
+      } as StructuredHistoryEntry;
+
+      formatSingleHistoryEntryAsXml(entry, 'TestBot', {
+        realMessagesEnabled: false,
+        timezone: 'America/Los_Angeles',
+      });
+
+      expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(
+        entry.createdAt,
+        'America/Los_Angeles'
+      );
+    });
+
+    it('omitting timezone forwards undefined, never a silently coalesced default', () => {
+      const entry = {
+        role: 'user',
+        content: 'hi',
+        personaId: 'persona-1',
+        personaName: 'Vlad',
+        createdAt: '2026-09-14T19:05:00.000Z',
+      } as StructuredHistoryEntry;
+
+      formatSingleHistoryEntryAsXml(entry, 'TestBot', { realMessagesEnabled: false });
+
+      expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(entry.createdAt, undefined);
     });
   });
 
@@ -2588,6 +2691,41 @@ describe('formatCrossChannelHistoryAsXml', () => {
   it('computes the wrapper overhead text with the instruction, matching the render prefix', () => {
     expect(getPriorConversationsWrapperOverheadText()).toBe(
       `<prior_conversations>\n<instruction>${PRIOR_CONVERSATIONS_INSTRUCTION}</instruction>\n</prior_conversations>`
+    );
+  });
+
+  it('forwards the timezone argument to the timestamp formatter, undefined staying undefined', () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [
+          {
+            role: MessageRole.User,
+            content: 'Zone-sensitive message',
+            createdAt: '2026-02-26T10:00:00Z',
+          },
+        ],
+      },
+    ];
+
+    formatCrossChannelHistoryAsXml(groups, 'TestAI', false, undefined, 'Asia/Tokyo');
+    expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(
+      '2026-02-26T10:00:00Z',
+      'Asia/Tokyo'
+    );
+
+    vi.clearAllMocks();
+
+    // No timezone argument at all: the 5th positional parameter must stay
+    // undefined rather than being coalesced to a fallback at this hop.
+    formatCrossChannelHistoryAsXml(groups, 'TestAI', false, undefined);
+    expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(
+      '2026-02-26T10:00:00Z',
+      undefined
     );
   });
 });

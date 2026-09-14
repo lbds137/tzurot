@@ -125,6 +125,7 @@ export class ContentBudgetManager {
       realMessagesEnabled,
       headerSpoofNeutralizeEnabled,
       headerIdTags,
+      timezone: context.userTimezone,
     };
 
     const historyTokens = this.contextWindowManager.countHistoryTokens(
@@ -389,6 +390,7 @@ export class ContentBudgetManager {
       realMessagesEnabled,
       headerSpoofNeutralizeEnabled,
       headerIdTags,
+      timezone: context.userTimezone,
       telemetry: { channelId: context.channelId, requestId: context.requestId },
     });
 
