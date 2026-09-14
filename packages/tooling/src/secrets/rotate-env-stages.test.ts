@@ -4,6 +4,7 @@ vi.mock('../deployment/railway-api.js', () => ({
   upsertRailwayVariable: vi.fn(),
   deleteRailwayVariable: vi.fn(),
   readRailwayVariableValue: vi.fn(),
+  listRailwayVariableNames: vi.fn(),
 }));
 
 vi.mock('../utils/confirm.js', () => ({
@@ -29,6 +30,7 @@ import {
   upsertRailwayVariable,
   deleteRailwayVariable,
   readRailwayVariableValue,
+  listRailwayVariableNames,
 } from '../deployment/railway-api.js';
 import { confirmPrompt } from '../utils/confirm.js';
 import { checkDeployedCodeAcceptsPrevious } from './deployed-code-gate.js';
@@ -44,6 +46,7 @@ import { UsageError } from '../utils/errors.js';
 const mockUpsert = vi.mocked(upsertRailwayVariable);
 const mockDelete = vi.mocked(deleteRailwayVariable);
 const mockReadValue = vi.mocked(readRailwayVariableValue);
+const mockListNames = vi.mocked(listRailwayVariableNames);
 const mockConfirm = vi.mocked(confirmPrompt);
 const mockGate = vi.mocked(checkDeployedCodeAcceptsPrevious);
 const mockRedeploy = vi.mocked(redeployServices);
@@ -60,6 +63,16 @@ const SERVICES = [
   { id: 'svc-bot', name: 'bot-client' },
   { id: 'svc-ai', name: 'ai-worker' },
 ];
+
+/**
+ * A stand-in for the verifier's EFFECTIVE variable set. Stage 1 both WRITES
+ * `_PREVIOUS` and then READS the verifier's names back, so one static mock
+ * return cannot serve both calls — observing what the write did is the whole
+ * point of the read-back. Only a SERVICE-SCOPED upsert lands here, which is
+ * exactly Railway's behaviour: a newly created SHARED variable is inherited by
+ * nothing until it is enabled for a service.
+ */
+let verifierNames: Set<string>;
 
 function makeContext(overrides: Partial<RotationContext> = {}): RotationContext {
   return {
@@ -89,7 +102,13 @@ describe('runStagedRotation', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    mockUpsert.mockReset().mockResolvedValue(undefined);
+    verifierNames = new Set([VAR_NAME]);
+    mockUpsert.mockReset().mockImplementation(async args => {
+      if (args.serviceId !== undefined) {
+        verifierNames.add(args.name);
+      }
+    });
+    mockListNames.mockReset().mockImplementation(async () => [...verifierNames]);
     mockDelete.mockReset().mockResolvedValue(undefined);
     // Default: a NORMAL (non-degenerate) open window — the primary and
     // `_PREVIOUS` read back as DIFFERENT values. Tests exercising the
@@ -129,7 +148,8 @@ describe('runStagedRotation', () => {
     async stage => {
       // The window is deliberately OPEN here: with it closed, stage 3 would
       // refuse anyway and this case would pass without discriminating.
-      const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+      verifierNames.add(PREVIOUS_NAME);
+      const context = makeContext();
 
       await expect(runStagedRotation(makeOptions({ stage }), context)).rejects.toThrow(UsageError);
       expect(mockDelete).not.toHaveBeenCalled();
@@ -145,7 +165,7 @@ describe('runStagedRotation', () => {
 
   it("stage 1 refuses when the verifier's live commit does not accept the previous value", async () => {
     mockGate.mockResolvedValue({ ok: false, commit: 'abc123', reason: 'no token' });
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '1' }), context)).rejects.toThrow(
       UsageError
@@ -155,7 +175,8 @@ describe('runStagedRotation', () => {
 
   it('stage 1 refuses to open a second window while one is already open', async () => {
     mockGate.mockResolvedValue({ ok: true, commit: 'abc123' });
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '1' }), context)).rejects.toThrow(
       UsageError
@@ -173,7 +194,8 @@ describe('runStagedRotation', () => {
     // Degenerate window: both reads return the SAME value, the signature of a
     // stage 1 that upserted `_PREVIOUS` but died before minting a fresh primary.
     mockReadValue.mockReset().mockResolvedValue(SENTINEL_VALUE);
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1' }), context);
 
@@ -190,7 +212,7 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 1 preserves the current value as _PREVIOUS and mints a new primary', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1' }), context);
 
@@ -199,17 +221,18 @@ describe('runStagedRotation', () => {
     expect(firstCall.name).toBe(PREVIOUS_NAME);
     expect(firstCall.value).toBe(SENTINEL_VALUE);
     expect(firstCall.skipDeploys).toBe(true);
-    expect(Object.hasOwn(firstCall, 'serviceId')).toBe(false);
+    expect(firstCall.serviceId).toBe('svc-gateway');
 
     const secondCall = mockUpsert.mock.calls[1][0];
     expect(secondCall.name).toBe(VAR_NAME);
     expect(secondCall.value).toMatch(/^[0-9a-f]{64}$/);
     expect(secondCall.value).not.toBe(SENTINEL_VALUE);
     expect(secondCall.skipDeploys).toBe(true);
+    expect(Object.hasOwn(secondCall, 'serviceId')).toBe(false);
   });
 
   it('stage 1 leaves a degenerate state when the first upsert succeeds but the second rejects', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
     mockUpsert
       .mockReset()
       .mockResolvedValueOnce(undefined)
@@ -224,7 +247,7 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 1 redeploys only the verifier', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1' }), context);
 
@@ -237,22 +260,22 @@ describe('runStagedRotation', () => {
   // redeploy" banner plus repair instructions, so calling it with an empty list
   // tells the operator a successful stage failed.
   it.each([
-    { stage: '1', sharedNames: [VAR_NAME] },
-    { stage: '2', sharedNames: [VAR_NAME, PREVIOUS_NAME] },
-    { stage: '3', sharedNames: [VAR_NAME, PREVIOUS_NAME] },
+    { stage: '1', openWindow: false },
+    { stage: '2', openWindow: true },
+    { stage: '3', openWindow: true },
   ])('stage $stage prints no failure banner when every redeploy succeeded', async fixture => {
     mockRedeploy.mockResolvedValue([]);
+    if (fixture.openWindow) {
+      verifierNames.add(PREVIOUS_NAME);
+    }
 
-    await runStagedRotation(
-      makeOptions({ stage: fixture.stage }),
-      makeContext({ sharedNames: fixture.sharedNames })
-    );
+    await runStagedRotation(makeOptions({ stage: fixture.stage }), makeContext());
 
     expect(mockReportFailures).not.toHaveBeenCalled();
   });
 
   it('stage 1 does not stamp the ledger', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1' }), context);
 
@@ -260,7 +283,7 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 1 never prints the current value', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1' }), context);
 
@@ -269,7 +292,8 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 2 redeploys every inheriting service except the verifier and writes no variables', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '2' }), context);
 
@@ -284,7 +308,7 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 2 refuses when no window is open', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '2' }), context)).rejects.toThrow(
       UsageError
@@ -292,19 +316,21 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 3 deletes _PREVIOUS rather than emptying it', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '3' }), context);
 
     expect(mockDelete).toHaveBeenCalledTimes(1);
     const deleteArg = mockDelete.mock.calls[0][0];
     expect(deleteArg.name).toBe(PREVIOUS_NAME);
-    expect(Object.hasOwn(deleteArg, 'serviceId')).toBe(false);
+    expect(deleteArg.serviceId).toBe('svc-gateway');
     expect(mockUpsert).not.toHaveBeenCalled();
   });
 
   it('stage 3 redeploys the verifier and stamps the ledger', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '3' }), context);
 
@@ -316,7 +342,8 @@ describe('runStagedRotation', () => {
 
   it('stage 3 does not stamp the ledger when the verifier redeploy fails, and does not claim the window is closed', async () => {
     mockRedeploy.mockResolvedValue([{ name: 'api-gateway', error: new Error('boom') }]);
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '3' }), context)).rejects.toThrow(
       /secrets:mark-rotated/
@@ -338,7 +365,7 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 3 refuses when no window is open', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '3' }), context)).rejects.toThrow(
       UsageError
@@ -349,7 +376,8 @@ describe('runStagedRotation', () => {
     // Degenerate window: the primary was never rotated — only stage 1's first
     // upsert (preserving `_PREVIOUS`) landed.
     mockReadValue.mockReset().mockResolvedValue(SENTINEL_VALUE);
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '3' }), context)).rejects.toThrow(
       UsageError
@@ -363,7 +391,8 @@ describe('runStagedRotation', () => {
 
   it('a dry run of stage 3 against a degenerate window prints REFUSE and changes nothing', async () => {
     mockReadValue.mockReset().mockResolvedValue(SENTINEL_VALUE);
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '3', dryRun: true }), context);
 
@@ -379,7 +408,8 @@ describe('runStagedRotation', () => {
 
   it('neither the stage 1 resume path nor the stage 3 refuse path prints a secret value', async () => {
     mockReadValue.mockReset().mockResolvedValue(SENTINEL_VALUE);
-    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1' }), context);
     await expect(runStagedRotation(makeOptions({ stage: '3' }), context)).rejects.toThrow(
@@ -392,7 +422,7 @@ describe('runStagedRotation', () => {
   });
 
   it('a dry run of stage 1 prints the gate verdict and changes nothing', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1', dryRun: true }), context);
 
@@ -407,7 +437,7 @@ describe('runStagedRotation', () => {
 
   it('a dry run of stage 1 with a refusing gate prints REFUSE and suppresses the plan', async () => {
     mockGate.mockResolvedValue({ ok: false, commit: 'abc123', reason: 'no token' });
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1', dryRun: true }), context);
 
@@ -420,11 +450,52 @@ describe('runStagedRotation', () => {
   });
 
   it('--yes is refused on prod', async () => {
-    const context = makeContext({ sharedNames: [VAR_NAME] });
+    const context = makeContext();
 
     await expect(
       runStagedRotation(makeOptions({ env: 'prod', yes: true }), context)
     ).rejects.toThrow(/refused on prod/);
     expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 refuses to redeploy when _PREVIOUS did not reach the verifier', async () => {
+    // The shipped bug, reproduced: the upsert lands somewhere the verifier's
+    // effective set never shows it (a shared-tier write it does not inherit).
+    mockUpsert.mockReset().mockResolvedValue(undefined);
+
+    await expect(runStagedRotation(makeOptions({ stage: '1' }), makeContext())).rejects.toThrow(
+      /not visible in "api-gateway"'s effective variable set/
+    );
+
+    // The ordering is the whole point: refusing is recoverable, redeploying is the outage.
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('the stage 1 read-back refusal names no secret value', async () => {
+    mockUpsert.mockReset().mockResolvedValue(undefined);
+
+    const error = await runStagedRotation(makeOptions({ stage: '1' }), makeContext()).catch(
+      (err: unknown) => err
+    );
+
+    expect(String(error)).not.toContain(SENTINEL_VALUE);
+    expect(String(error)).not.toContain(SENTINEL_PREVIOUS_VALUE);
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).not.toContain(SENTINEL_VALUE);
+  });
+
+  it('window detection asks the verifier, not the shared tier', async () => {
+    // A `_PREVIOUS` sitting at the shared tier that the verifier does not
+    // inherit is NOT an open window — reading `sharedNames` would call it one.
+    const context = makeContext({ sharedNames: [VAR_NAME, PREVIOUS_NAME] });
+
+    await runStagedRotation(makeOptions({ stage: '1' }), context);
+
+    expect(mockListNames).toHaveBeenCalled();
+    const listArg = mockListNames.mock.calls[0][0];
+    expect(listArg.serviceId).toBe('svc-gateway');
+    // Stage 1 proceeded rather than refusing "a window is already open".
+    expect(mockUpsert).toHaveBeenCalledTimes(2);
   });
 });
