@@ -178,7 +178,7 @@ railway variables --json
 railway variables --set "KEY=value" --service api-gateway
 
 # Delete variable - the CLI cannot; tzurot wraps the public API instead
-pnpm ops deploy:var-delete --env dev --service api-gateway --name KEY   # needs TZUROT_RAILWAY_API_TOKEN
+pnpm ops deploy:var-delete --env dev --service api-gateway --name KEY   # needs TZUROT_RAILWAY_API_TOKEN_DEV (or _PROD for --env prod)
 # Dashboard fallback: Railway Dashboard → Service → Variables → Delete
 ```
 

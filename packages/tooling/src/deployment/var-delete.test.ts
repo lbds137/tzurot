@@ -90,6 +90,7 @@ describe('runVarDelete', () => {
       environmentId: 'env-1',
       serviceId: 'svc-1',
       name: 'SOME_KEY',
+      env: 'dev',
     });
   });
 
