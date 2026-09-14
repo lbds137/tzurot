@@ -6,7 +6,7 @@ vi.mock('node:child_process', () => ({
 
 import { execFileSync } from 'node:child_process';
 import { UsageError } from '../utils/errors.js';
-import { resolveRailwayIds } from './railway-status.js';
+import { resolveRailwayIds, listRailwayServices } from './railway-status.js';
 
 // `railway-status.ts` calls execFileSync with `encoding: 'utf-8'`, so the real
 // return value is a string; execFileSync's overload set would otherwise force
@@ -143,5 +143,62 @@ describe('resolveRailwayIds', () => {
     }
     expect(caught).toBeInstanceOf(UsageError);
     expect((caught as Error).message).toContain('railway link');
+  });
+});
+
+describe('listRailwayServices', () => {
+  beforeEach(() => {
+    mockExecFileSync.mockReset();
+  });
+
+  it('returns the project/environment ids and every service with id + name', () => {
+    mockExecFileSync.mockReturnValue(JSON.stringify(statusPayload()));
+
+    const result = listRailwayServices('dev');
+
+    expect(result).toEqual({
+      projectId: 'proj-1',
+      environmentId: 'env-dev',
+      services: [
+        { id: 'svc-bot', name: 'bot-client' },
+        { id: 'svc-redis', name: 'Redis' },
+      ],
+    });
+  });
+
+  it('throws UsageError listing environment names when the environment is not found', () => {
+    mockExecFileSync.mockReturnValue(
+      JSON.stringify(
+        statusPayload({ environments: { edges: [{ node: { id: 'x', name: 'staging' } }] } })
+      )
+    );
+
+    let caught: unknown;
+    try {
+      listRailwayServices('dev');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(UsageError);
+    expect((caught as Error).message).toContain('staging');
+  });
+
+  it('throws UsageError naming the failing path when the schema does not match', () => {
+    mockExecFileSync.mockReturnValue(
+      JSON.stringify(
+        statusPayload({
+          environments: { edges: [{ node: { name: 'development' } }] }, // missing id
+        })
+      )
+    );
+
+    let caught: unknown;
+    try {
+      listRailwayServices('dev');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(UsageError);
+    expect((caught as Error).message).toContain('environments');
   });
 });
