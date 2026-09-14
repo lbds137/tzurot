@@ -1463,7 +1463,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
 exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > history-command-options 1`] = `
 [
   {
-    "description": "Clear conversation context (soft reset)",
+    "description": "Clear conversation context everywhere (soft reset)",
     "description_localizations": undefined,
     "name": "clear",
     "name_localizations": undefined,

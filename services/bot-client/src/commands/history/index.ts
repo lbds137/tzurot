@@ -282,7 +282,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('clear')
-        .setDescription('Clear conversation context (soft reset)')
+        .setDescription('Clear conversation context everywhere (soft reset)')
         .addStringOption(option =>
           option
             .setName('character')
