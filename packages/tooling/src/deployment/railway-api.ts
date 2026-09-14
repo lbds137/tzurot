@@ -261,6 +261,55 @@ export async function listRailwayVariableNames(
   return Object.keys(parsed.data.variables);
 }
 
+/**
+ * The value-reading sibling of `VariablesResponseSchema`, deliberately kept
+ * SEPARATE rather than widening that one: `VariablesResponseSchema` types its
+ * values `unknown` on purpose so reading one is a type error, and it is
+ * pinned by the "returns only the keys, never the fixture values" case.
+ * Widening it would silently remove that guarantee for every other caller, so
+ * the one reader that genuinely needs a value gets its own schema.
+ */
+const VariableValuesResponseSchema = z
+  .object({ variables: z.record(z.string(), z.string()) })
+  .passthrough();
+
+export interface ReadRailwayVariableValueArgs {
+  projectId: string;
+  environmentId: string;
+  /** Omitted to read the shared (project-level) tier. */
+  serviceId?: string;
+  name: string;
+  env: RailwayEnv;
+}
+
+/**
+ * Read ONE variable's value at a scope, or `undefined` when the key is absent.
+ *
+ * Value safety: the returned value is a secret. It is handed to the caller and
+ * nothing else — never printed, never logged, never interpolated into an error
+ * message. A shape-parse failure throws `unexpectedShapeError('variables')`,
+ * which carries no payload. Pinned by the "never writes the value to stdout or
+ * into an error message" case in `railway-api.test.ts`.
+ */
+export async function readRailwayVariableValue(
+  args: ReadRailwayVariableValueArgs
+): Promise<string | undefined> {
+  const variables = {
+    projectId: args.projectId,
+    environmentId: args.environmentId,
+    ...(args.serviceId === undefined ? {} : { serviceId: args.serviceId }),
+  };
+
+  const rawData = await railwayGraphql<unknown>(VARIABLES_QUERY, variables, args.env);
+
+  const parsed = VariableValuesResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError('variables');
+  }
+
+  return parsed.data.variables[args.name];
+}
+
 const VARIABLE_UPSERT_MUTATION = `
   mutation VariableUpsert($input: VariableUpsertInput!) {
     variableUpsert(input: $input)
@@ -398,4 +447,85 @@ export async function redeployRailwayService(args: RedeployRailwayServiceArgs): 
   if (parsed.data.serviceInstanceRedeploy === false) {
     throw new Error(`Railway rejected the redeploy for service "${args.serviceId}"`);
   }
+}
+
+const SERVICE_INSTANCE_DEPLOYMENT_QUERY = `
+  query ServiceInstanceDeployment($environmentId: String!, $serviceId: String!) {
+    serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+      latestDeployment { id status meta }
+    }
+  }
+`;
+
+/**
+ * `meta` is a Railway GraphQL SCALAR (opaque JSON) rather than a selectable
+ * object type, so it arrives whole and is parsed here. Only `commitHash` is
+ * required; the other keys Railway carries (`branch`, `repo`, `commitAuthor`,
+ * `commitMessage`) ride along unvalidated via `passthrough`.
+ *
+ * `commitHash` is regex-constrained to a hex string, not just `z.string()`:
+ * this value is later passed as an argv element to `git cat-file` and `git
+ * grep` as a revision. It is never shell-interpolated, so this is not an
+ * injection risk, but a value beginning with `-` would be read by git as a
+ * FLAG rather than a revision, producing a confusing failure in place of the
+ * intended "commit not in this clone" message. The length range is 7-40
+ * (short SHA through full SHA) rather than exactly 40, since both `git
+ * cat-file` and `git grep` accept abbreviated SHAs.
+ */
+const DeploymentMetaSchema = z
+  .object({ commitHash: z.string().regex(/^[0-9a-f]{7,40}$/) })
+  .passthrough();
+
+const ServiceInstanceDeploymentResponseSchema = z
+  .object({
+    serviceInstance: z
+      .object({
+        latestDeployment: z
+          .object({ id: z.string(), status: z.string(), meta: DeploymentMetaSchema })
+          .passthrough(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export interface GetLiveDeploymentCommitArgs {
+  environmentId: string;
+  serviceId: string;
+  env: RailwayEnv;
+}
+
+/**
+ * The commit SHA of a service instance's latest deployment, required to be
+ * SUCCESS.
+ *
+ * Observed once, against one service in one environment: `latestDeployment`
+ * returned the SUCCESS build rather than a newer SKIPPED record. That single
+ * observation says nothing about how the field behaves when the latest record
+ * is BUILDING or FAILED, so this throws unless `status === 'SUCCESS'` instead
+ * of trusting the field's selection rule to mean "the live build". Pinned by
+ * the "refuses a non-SUCCESS latestDeployment" case in `railway-api.test.ts`.
+ */
+export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs): Promise<string> {
+  const variables = { environmentId: args.environmentId, serviceId: args.serviceId };
+
+  const rawData = await railwayGraphql<unknown>(
+    SERVICE_INSTANCE_DEPLOYMENT_QUERY,
+    variables,
+    args.env
+  );
+
+  const parsed = ServiceInstanceDeploymentResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError('service-instance-deployment');
+  }
+
+  const deployment = parsed.data.serviceInstance.latestDeployment;
+  if (deployment.status !== 'SUCCESS') {
+    throw new Error(
+      `The latest deployment for service "${args.serviceId}" is ${deployment.status}, not SUCCESS ` +
+        '— its commit is not what the environment is running. Wait for the deploy to settle, then retry.'
+    );
+  }
+
+  return deployment.meta.commitHash;
 }

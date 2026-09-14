@@ -87,10 +87,15 @@ the staged command, `pnpm ops secrets:rotate-byok --env prod --stage 1|2|3`
 `common-types/utils/encryption.ts`). Intervals: BYOK 180d, others 365d; a
 daily bot-client check nags the owner channel when one lapses.
 
-Rotating any other shared service secret (e.g. `INTERNAL_SERVICE_SECRET`) is
-`pnpm ops secrets:rotate-env --env <env> --name <KEY>`, never the dashboard —
-it derives the inheriting services, skips Railway's implicit deploys, and
-stamps the ledger; expect a brief 401 mismatch window while services redeploy.
+Rotating any other shared service secret is `pnpm ops secrets:rotate-env
+--env <env> --name <KEY>`, never the dashboard — it derives the inheriting
+services, skips Railway's implicit deploys, and stamps the ledger. For a name
+whose verifier dual-accepts `<KEY>_PREVIOUS` (`INTERNAL_SERVICE_SECRET`,
+verified by api-gateway) `--stage 1|2|3` is REQUIRED and there is no window:
+stage 1 preserves the old value and redeploys only the verifier, stage 2
+rolls the presenters, stage 3 clears `_PREVIOUS`. Every other shared name
+takes the single-shot path and still has a brief 401 mismatch window while
+services redeploy.
 
 ### Security Advisories
 

@@ -7,8 +7,10 @@ import {
   deleteRailwayVariable,
   requireRailwayApiToken,
   listRailwayVariableNames,
+  readRailwayVariableValue,
   upsertRailwayVariable,
   redeployRailwayService,
+  getLiveDeploymentCommit,
 } from './railway-api.js';
 
 const SENTINEL_TOKEN = 'tok-SENTINEL-do-not-leak';
@@ -675,6 +677,223 @@ describe('railway-api', () => {
       await expect(
         redeployRailwayService({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
       ).rejects.toThrow('svc-1');
+    });
+  });
+
+  describe('readRailwayVariableValue', () => {
+    it('returns the value for the named key', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, { data: { variables: { FOO: 'val-foo', BAR: 'val-bar' } } })
+      );
+
+      const value = await readRailwayVariableValue({
+        projectId: 'p',
+        environmentId: 'e',
+        name: 'FOO',
+        env: 'dev',
+      });
+
+      expect(value).toBe('val-foo');
+    });
+
+    it('returns undefined when the key is absent', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, { data: { variables: { FOO: 'val-foo', BAR: 'val-bar' } } })
+      );
+
+      const value = await readRailwayVariableValue({
+        projectId: 'p',
+        environmentId: 'e',
+        name: 'MISSING',
+        env: 'dev',
+      });
+
+      expect(value).toBeUndefined();
+    });
+
+    it('omits the serviceId key entirely when none is given', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variables: {} } }));
+
+      await readRailwayVariableValue({
+        projectId: 'p',
+        environmentId: 'e',
+        name: 'FOO',
+        env: 'dev',
+      });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        variables: Record<string, unknown>;
+      };
+      expect(Object.hasOwn(parsedBody.variables, 'serviceId')).toBe(false);
+    });
+
+    it('never writes the value to stdout or into an error message', async () => {
+      const sentinelValue = 'SENTINEL-SECRET-VALUE-DO-NOT-PRINT';
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      try {
+        process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+        mockFetch.mockResolvedValue(
+          jsonResponse(200, { data: { variables: { FOO: sentinelValue } } })
+        );
+
+        const value = await readRailwayVariableValue({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'FOO',
+          env: 'dev',
+        });
+
+        expect(value).toBe(sentinelValue);
+        expect(logSpy).not.toHaveBeenCalled();
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(warnSpy).not.toHaveBeenCalled();
+        expect(writeSpy).not.toHaveBeenCalled();
+      } finally {
+        logSpy.mockRestore();
+        errorSpy.mockRestore();
+        warnSpy.mockRestore();
+        writeSpy.mockRestore();
+      }
+    });
+
+    it('throws a shape error carrying no payload when values are not strings', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variables: { FOO: 12345 } } }));
+
+      await expect(
+        readRailwayVariableValue({ projectId: 'p', environmentId: 'e', name: 'FOO', env: 'dev' })
+      ).rejects.toThrow(/unexpected shape/i);
+      await expect(
+        readRailwayVariableValue({ projectId: 'p', environmentId: 'e', name: 'FOO', env: 'dev' })
+      ).rejects.not.toThrow(/12345/);
+    });
+  });
+
+  describe('getLiveDeploymentCommit', () => {
+    it('returns the commitHash of a SUCCESS latest deployment', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-1',
+                status: 'SUCCESS',
+                meta: {
+                  commitHash: 'db783ced15f2efe99cbf1e13bf89d51e03e52203',
+                  branch: 'develop',
+                  repo: 'lbds137/tzurot',
+                  commitAuthor: 'someone',
+                  commitMessage: 'a message',
+                },
+              },
+            },
+          },
+        })
+      );
+
+      const commit = await getLiveDeploymentCommit({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+        env: 'dev',
+      });
+
+      expect(commit).toBe('db783ced15f2efe99cbf1e13bf89d51e03e52203');
+    });
+
+    it('refuses a non-SUCCESS latestDeployment', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-1',
+                status: 'BUILDING',
+                meta: { commitHash: 'abc1234' },
+              },
+            },
+          },
+        })
+      );
+
+      await expect(
+        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+      ).rejects.toThrow(/BUILDING/);
+      await expect(
+        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+      ).rejects.toThrow(/not SUCCESS/);
+    });
+
+    it('throws a shape error when commitHash is missing', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-1',
+                status: 'SUCCESS',
+                meta: { branch: 'develop' },
+              },
+            },
+          },
+        })
+      );
+
+      await expect(
+        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+      ).rejects.toThrow(/unexpected shape/i);
+    });
+
+    it('throws a shape error when commitHash begins with a flag-shaped dash', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-1',
+                status: 'SUCCESS',
+                meta: { commitHash: '-nonsense' },
+              },
+            },
+          },
+        })
+      );
+
+      await expect(
+        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+      ).rejects.toThrow(/unexpected shape/i);
+    });
+
+    it('throws a shape error when commitHash is not hex', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-1',
+                status: 'SUCCESS',
+                meta: { commitHash: 'not-hex-at-all' },
+              },
+            },
+          },
+        })
+      );
+
+      await expect(
+        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+      ).rejects.toThrow(/unexpected shape/i);
     });
   });
 });
