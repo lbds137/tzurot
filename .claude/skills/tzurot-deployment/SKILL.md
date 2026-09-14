@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-09-05'
+lastUpdated: '2026-09-13'
 ---
 
 # Deployment Procedures
@@ -196,7 +196,7 @@ railway variables --service api-gateway --json
 # Set single variable
 railway variables --set "KEY=value" --service ai-worker --environment development
 
-# DELETE - the CLI cannot; use pnpm ops deploy:var-delete (needs TZUROT_RAILWAY_API_TOKEN), dashboard as fallback
+# DELETE - the CLI cannot; use pnpm ops deploy:var-delete (needs TZUROT_RAILWAY_API_TOKEN_DEV/_PROD per --env), dashboard as fallback
 ```
 
 ## Database Migration Procedure

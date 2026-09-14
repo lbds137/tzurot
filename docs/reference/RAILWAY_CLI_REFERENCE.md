@@ -126,24 +126,39 @@ railway login --2fa-code 123456
 export RAILWAY_TOKEN="your-token-here"
 ```
 
-### Railway API Token (`TZUROT_RAILWAY_API_TOKEN`)
+### Railway API Token (`TZUROT_RAILWAY_API_TOKEN_DEV` / `TZUROT_RAILWAY_API_TOKEN_PROD`)
 
 `RAILWAY_TOKEN` and `RAILWAY_API_TOKEN` are **the Railway CLI's own**
 authentication variables — setting `RAILWAY_API_TOKEN` to an unrelated value
 breaks `railway status --json` with `Unauthorized. Please login with
 \`railway login\``, while an unrelated variable set the same way returns
-normal JSON (probed). tzurot's own variable is deliberately named
-`TZUROT_RAILWAY_API_TOKEN` so it can never collide with that CLI-owned name.
+normal JSON (probed). tzurot's own variables are deliberately named
+`TZUROT_RAILWAY_API_TOKEN_DEV`/`TZUROT_RAILWAY_API_TOKEN_PROD` so they can
+never collide with that CLI-owned name.
 
-`TZUROT_RAILWAY_API_TOKEN` is what tzurot uses for direct calls to Railway's
-**public GraphQL API**, for the handful of operations the CLI does not
-expose (variable deletion is the first one — `pnpm ops deploy:var-delete`).
+`TZUROT_RAILWAY_API_TOKEN_DEV` / `TZUROT_RAILWAY_API_TOKEN_PROD` are what
+tzurot uses for direct calls to Railway's **public GraphQL API**, for the
+handful of operations the CLI does not expose (variable deletion is the
+first one — `pnpm ops deploy:var-delete`).
 
-It should be a **project-scoped** token, minted in the Railway dashboard
-(Project Settings → Tokens) — the narrowest blast radius available. It lives
-only in a developer's local `.env`: it is never set as a variable on a
-Railway service, and never committed. `pnpm ops` reads it transiently at
-call time and never logs it.
+**There are two of them, one per environment, because Railway mints
+project-scoped tokens PER ENVIRONMENT** (probed): the
+dashboard has no single token that authenticates both `development` and
+`production` calls, so `pnpm ops` selects between the two by the `--env`
+flag every consumer already carries. There is no unsuffixed fallback — a
+missing token for the requested environment fails with a `UsageError`
+naming that specific variable, never silently authenticating with the
+other environment's token.
+
+Each should be a **project-scoped** token, minted in the Railway dashboard
+(Project Settings → Tokens) for its own environment — the narrowest blast
+radius available. A project-scoped token authenticates via the
+`Project-Access-Token` request header, not `Authorization: Bearer` — that
+header is for Railway's account-scoped tokens, and a project-scoped token
+sent that way is rejected. Both live only in a developer's local `.env`:
+neither is ever set as a variable on a Railway service, and neither is ever
+committed. `pnpm ops` reads the one selected by `--env` transiently at call time and
+never logs it.
 
 ### Check Current User
 
@@ -321,7 +336,8 @@ pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY
 pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY
 ```
 
-Requires `TZUROT_RAILWAY_API_TOKEN` (see "Railway API Token" above) and a linked,
+Requires `TZUROT_RAILWAY_API_TOKEN_DEV` or `TZUROT_RAILWAY_API_TOKEN_PROD`
+(whichever `--env` selects — see "Railway API Token" above) and a linked,
 logged-in checkout: even `--dry-run` resolves ids through `railway status --json`
 before it stops. The dashboard remains the manual fallback:
 
