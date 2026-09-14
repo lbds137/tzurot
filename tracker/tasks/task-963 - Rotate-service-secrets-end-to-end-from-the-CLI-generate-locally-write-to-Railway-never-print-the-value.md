@@ -26,4 +26,12 @@ Fix shape: packages/tooling/src/secrets/rotate-env-secret.ts (colocated test; re
 Dependencies: TASK-62 (the token plumbing and the GraphQL ops); TASK-957 must ship before the first real prod rotation, or the new value is logged too.
 Owner note 2026-09-13: if the rotation can be automated it should also become a skill or tooling entry — the command is the tooling half; the other half is the decision-point trigger written into 05-tooling.md § Secret Rotation (and the deployment skill if a redeploy order is involved), so the next rotation reaches for the command instead of the dashboard.
 Acceptance: a dry run lists the services and the tier it would write; a dev run rotates the variable with no value in stdout, the ledger, or the transcript; the shared-tier question is answered in the task body with the probe output.
+
+PROBE ANSWER 2026-09-13 (Opus, beta.225 lane, dev token, throwaway variable TZUROT_PROBE_DELETE_ME, created and deleted in one run): the SHARED (environment) tier is fully reachable through the public GraphQL API with serviceId OMITTED. Round trip, all status 200:
+- read (query variables, no serviceId) -> 5 keys: BOT_OWNER_ID, INTERNAL_SERVICE_SECRET, LOG_LEVEL, NODE_ENV, ZAI_CODING_API_KEY
+- variableUpsert (input without serviceId) -> returned true; read-back showed 6 keys including the probe name
+- variableDelete (input without serviceId) -> returned true, typeof boolean; read-back returned to 5 keys, probe name gone
+So the per-service fallback is NOT needed. INTERNAL_SERVICE_SECRET lives at the shared tier and is inherited by services (the api-gateway service-scoped read returns 30 keys and includes it), which means the rotation is ONE variableUpsert at the shared tier rather than a write per referencing service. Design the command that way.
+GATING CORRECTION, same probe: a PROJECT-scoped Railway token does NOT authenticate with Authorization: Bearer. Both reads returned status 200 with GraphQL errors "Not Authorized" under Bearer and succeeded immediately under the header Project-Access-Token. railway-api.ts ships the Bearer form, so deploy:var-delete has never been able to work with the project-scoped token TASK-62 told the owner to mint. Being fixed in the TASK-62 follow-up PR, which is where that file is already open.
+Redeploy behaviour on a shared-variable write was NOT observed in this probe - do not assume it from the docs line in var-delete.ts.
 <!-- SECTION:DESCRIPTION:END -->
