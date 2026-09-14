@@ -28,7 +28,7 @@
     "@tzurot/conversation-history": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "@tzurot/identity": "workspace:*",
-    "bullmq": "^5.81.4",
+    "bullmq": "^5.81.5",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "http-status-codes": "^2.3.0",
@@ -37,7 +37,7 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "sharp": "^0.35.4",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -46,7 +46,7 @@
     "@types/supertest": "^7.2.1",
     "@tzurot/clients": "workspace:*",
     "@tzurot/test-utils": "workspace:*",
-    "fast-check": "^4.9.0",
+    "fast-check": "^4.10.0",
     "supertest": "^7.2.2"
   }
 }
