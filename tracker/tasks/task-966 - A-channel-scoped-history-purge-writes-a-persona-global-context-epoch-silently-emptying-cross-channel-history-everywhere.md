@@ -3,10 +3,10 @@ id: TASK-966
 title: >-
   A channel-scoped /history purge writes a persona-global context epoch,
   silently emptying cross-channel history everywhere
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 18:02'
-updated_date: '2026-09-13 22:10'
+updated_date: '2026-09-14 00:51'
 labels:
   - 'area:api-gateway'
   - 'size:M'
