@@ -2,9 +2,10 @@
  * The staged, three-stage rotation for a shared Railway secret whose verifier
  * dual-accepts `<NAME>_PREVIOUS`.
  *
- * Stage 1 (`1|stage`) preserves the current value as `<NAME>_PREVIOUS`, mints
- * a new primary, and redeploys ONLY the verifier — the presenters (bot-client,
- * ai-worker, …) are deliberately NOT redeployed here, because they still hold
+ * Stage 1 (`1|stage`) preserves the current value as `<NAME>_PREVIOUS` in the
+ * VERIFIER's own variable scope (the shared tier would not be inherited by
+ * it), mints a new primary, and redeploys ONLY the verifier — the presenters
+ * (bot-client, ai-worker, …) are deliberately NOT redeployed here, because they still hold
  * the outgoing value and the restarted verifier now accepts it as
  * `<NAME>_PREVIOUS`. Given the verifier's redeploy from a stage completes
  * before the next stage runs, there is no 401 window: every presenter's held
@@ -15,7 +16,7 @@
  * Stage 2 (`2|roll`) redeploys every OTHER inheriting service onto the new
  * primary. No variable is written at this stage.
  *
- * Stage 3 (`3|finalize`) deletes `<NAME>_PREVIOUS`, redeploys the verifier
+ * Stage 3 (`3|finalize`) deletes `<NAME>_PREVIOUS` from that same scope, redeploys the verifier
  * once more (so it stops accepting the retired value), and stamps the
  * rotation ledger — only stage 3 stamps it, since an abandoned stage 1 must
  * not read as a completed rotation.
@@ -38,6 +39,16 @@ import {
   stampLedger,
   type RotationContext,
 } from './rotate-env-context.js';
+import {
+  isWindowOpenForVerifier,
+  assertPreviousReachesVerifier,
+  isDegenerateWindow,
+} from './rotate-env-window.js';
+import {
+  printDryRunNotice,
+  refuseIfWindowClosed,
+  printGateVerdict,
+} from './rotate-env-stage-output.js';
 
 /**
  * Names whose VERIFIER service accepts `<NAME>_PREVIOUS` alongside the current
@@ -93,78 +104,6 @@ interface StageArgs {
   windowOpen: boolean;
 }
 
-const DRY_RUN_NOTICE = '\n[DRY RUN] No changes made.';
-
-function printDryRunNotice(): void {
-  console.log(chalk.green(DRY_RUN_NOTICE));
-}
-
-/**
- * Shared refusal for stage 2 and stage 3, which both require an OPEN window
- * (`windowOpen === false` is the failure). Returns `true` when the caller
- * should return immediately (the dry-run arm); throws on a real run.
- */
-function refuseIfWindowClosed(windowOpen: boolean, dryRun: boolean, previousName: string): boolean {
-  if (windowOpen) {
-    return false;
-  }
-  const summary = `No rotation window is open ("${previousName}" is not set)`;
-  if (dryRun) {
-    console.log(chalk.red(`\n⚠️  ${summary}. A real run would REFUSE.`));
-    printDryRunNotice();
-    return true;
-  }
-  throw new UsageError(`${summary} — run stage 1 first.`);
-}
-
-/**
- * Read the primary and `_PREVIOUS` values and report whether they are EQUAL —
- * the signature of a stage 1 that upserted `_PREVIOUS` but died before
- * minting a fresh primary (a half-completed run, not a real rotation
- * window). Shared by stage 1 (to resume a half-completed run instead of
- * refusing) and stage 3 (to refuse to stamp a rotation that never happened).
- *
- * Both reads are of SECRET VALUES: compared and discarded here, never
- * printed, logged, or included in a thrown error.
- */
-async function isDegenerateWindow(args: {
-  context: RotationContext;
-  options: StagedRotationOptions;
-  previousName: string;
-}): Promise<boolean> {
-  const { context, options, previousName } = args;
-  const [primaryValue, previousValue] = await Promise.all([
-    readRailwayVariableValue({
-      projectId: context.projectId,
-      environmentId: context.environmentId,
-      name: options.name,
-      env: options.env,
-    }),
-    readRailwayVariableValue({
-      projectId: context.projectId,
-      environmentId: context.environmentId,
-      name: previousName,
-      env: options.env,
-    }),
-  ]);
-  return primaryValue === previousValue;
-}
-
-function printGateVerdict(
-  result: Awaited<ReturnType<typeof checkDeployedCodeAcceptsPrevious>>
-): void {
-  if (result.ok) {
-    console.log(
-      chalk.dim(
-        `  Deploy gate: PASS — the verifier is running ${result.commit}, which carries the ` +
-          '"_PREVIOUS" acceptance.'
-      )
-    );
-  } else {
-    console.log(chalk.red(`  Deploy gate: REFUSE — ${result.reason}`));
-  }
-}
-
 async function runStage1(args: StageArgs): Promise<void> {
   const { options, context, verifier, previousName, windowOpen } = args;
 
@@ -181,7 +120,13 @@ async function runStage1(args: StageArgs): Promise<void> {
     // A degenerate window (`_PREVIOUS` already equal to the current primary) is a
     // half-completed stage 1 — its second upsert (minting the fresh primary) never
     // landed — not a real rotation in progress. Resume it instead of refusing.
-    const degenerate = await isDegenerateWindow({ context, options, previousName });
+    const degenerate = await isDegenerateWindow({
+      context,
+      env: options.env,
+      verifier,
+      previousName,
+      primaryName: options.name,
+    });
     if (!degenerate) {
       if (options.dryRun) {
         console.log(
@@ -267,6 +212,7 @@ async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
   await upsertRailwayVariable({
     projectId: context.projectId,
     environmentId: context.environmentId,
+    serviceId: verifier.id,
     name: previousName,
     value: currentValue,
     skipDeploys: true,
@@ -279,6 +225,18 @@ async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
     value: crypto.randomBytes(32).toString('hex'),
     skipDeploys: true,
     env: options.env,
+  });
+
+  // Read back the verifier's EFFECTIVE names before redeploying it. The deploy
+  // gate above proves it RUNS code that accepts `_PREVIOUS`; this proves the
+  // VALUE actually reaches that code. Refusing is the safe state — nothing has
+  // been redeployed — and recovery is NOT another stage 1 run; see
+  // `assertPreviousReachesVerifier` for why.
+  await assertPreviousReachesVerifier({
+    context,
+    env: options.env,
+    verifier,
+    previousName,
   });
 
   const failures = await redeployServices([verifier], {
@@ -387,7 +345,13 @@ async function runStage3(args: StageArgs): Promise<void> {
   // primary). Closing the window in that state would stamp the ledger for a
   // rotation that did not happen, silently defeating the cadence guarantee. Checked
   // before the dry-run plan below so `--dry-run` reports what a real run would do.
-  const degenerate = await isDegenerateWindow({ context, options, previousName });
+  const degenerate = await isDegenerateWindow({
+    context,
+    env: options.env,
+    verifier,
+    previousName,
+    primaryName: options.name,
+  });
   if (degenerate) {
     if (options.dryRun) {
       console.log(
@@ -408,7 +372,7 @@ async function runStage3(args: StageArgs): Promise<void> {
   }
 
   if (options.dryRun) {
-    console.log(chalk.dim(`  Plan: delete "${previousName}" at the shared tier`));
+    console.log(chalk.dim(`  Plan: delete "${previousName}" from "${verifier.name}"'s scope`));
     console.log(chalk.dim(`  Plan: redeploy "${verifier.name}"`));
     console.log(chalk.dim('  Plan: stamp the ledger'));
     printDryRunNotice();
@@ -439,6 +403,7 @@ async function runStage3(args: StageArgs): Promise<void> {
   await deleteRailwayVariable({
     projectId: context.projectId,
     environmentId: context.environmentId,
+    serviceId: verifier.id,
     name: previousName,
     env: options.env,
   });
@@ -512,7 +477,15 @@ export async function runStagedRotation(
   }
 
   const previousName = `${options.name}_PREVIOUS`;
-  const windowOpen = context.sharedNames.includes(previousName);
+  // Asked of the VERIFIER's effective set, not the shared tier: `_PREVIOUS` is
+  // written to the verifier's own scope, and a shared-tier read would report
+  // closed for an open window (and open for a stranded one).
+  const windowOpen = await isWindowOpenForVerifier({
+    context,
+    env: options.env,
+    verifier,
+    previousName,
+  });
 
   const stageArgs: StageArgs = { options, context, verifier, previousName, windowOpen };
 
