@@ -66,6 +66,12 @@ export const envSchema = z.object({
   FEEDBACK_CHANNEL_ID: optionalDiscordId(),
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
   INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
+  /**
+   * Rotation-window twin of INTERNAL_SERVICE_SECRET. Set only while a staged
+   * rotation is open (`pnpm ops secrets:rotate-env --stage 1`) and cleared at
+   * finalize; api-gateway accepts either value while it is set.
+   */
+  INTERNAL_SERVICE_SECRET_PREVIOUS: optionalNonEmptyString(),
 
   // AI Provider Configuration
   AI_PROVIDER: z.nativeEnum(AIProvider).default(AIProvider.OpenRouter),
@@ -408,6 +414,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     FEEDBACK_CHANNEL_ID: undefined,
     BOT_MENTION_CHAR: '@',
     INTERNAL_SERVICE_SECRET: undefined,
+    INTERNAL_SERVICE_SECRET_PREVIOUS: undefined,
 
     // AI Provider
     AI_PROVIDER: AIProvider.OpenRouter,

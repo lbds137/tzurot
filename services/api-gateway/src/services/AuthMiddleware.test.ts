@@ -770,6 +770,76 @@ describe('authMiddleware', () => {
       expect(isValidServiceSecret('ghijkl')).toBe(false);
       expect(isValidServiceSecret('abcdef')).toBe(true);
     });
+
+    it('should return true when the key matches the configured current value', () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        INTERNAL_SERVICE_SECRET_PREVIOUS: 'previous-value',
+      } as any);
+
+      expect(isValidServiceSecret('current-value')).toBe(true);
+    });
+
+    it('should return true when the key matches the configured previous value', () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        INTERNAL_SERVICE_SECRET_PREVIOUS: 'previous-value',
+      } as any);
+
+      expect(isValidServiceSecret('previous-value')).toBe(true);
+    });
+
+    it('should return false when the key matches neither current nor previous', () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        INTERNAL_SERVICE_SECRET_PREVIOUS: 'previous-value',
+      } as any);
+
+      expect(isValidServiceSecret('neither-of-them')).toBe(false);
+    });
+
+    it('should return false for a non-matching key when _PREVIOUS is unset', () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        INTERNAL_SERVICE_SECRET_PREVIOUS: undefined,
+      } as any);
+
+      expect(isValidServiceSecret('previous-value')).toBe(false);
+    });
+
+    it('should return false for a non-matching key when _PREVIOUS is an empty string', () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        INTERNAL_SERVICE_SECRET_PREVIOUS: '',
+      } as any);
+
+      expect(isValidServiceSecret('previous-value')).toBe(false);
+    });
+
+    it('should return false for an empty provided secret while _PREVIOUS is set', () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        INTERNAL_SERVICE_SECRET_PREVIOUS: 'previous-value',
+      } as any);
+
+      expect(isValidServiceSecret('')).toBe(false);
+    });
+
+    it('reads the previous value even when the current value matched (no short-circuit)', () => {
+      let previousReads = 0;
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'current-value',
+        get INTERNAL_SERVICE_SECRET_PREVIOUS(): string {
+          previousReads += 1;
+          return 'previous-value';
+        },
+      } as any);
+
+      expect(isValidServiceSecret('current-value')).toBe(true);
+      // A short-circuiting `f(current) || f(previous)` never evaluates the
+      // second argument expression, so this counter would stay at 0.
+      expect(previousReads).toBe(1);
+    });
   });
 
   describe('requireServiceAuth middleware', () => {
