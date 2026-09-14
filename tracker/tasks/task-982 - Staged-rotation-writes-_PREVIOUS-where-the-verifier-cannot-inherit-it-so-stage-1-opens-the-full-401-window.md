@@ -34,4 +34,14 @@ WHY THE EXISTING GATE DID NOT CATCH IT: checkDeployedCodeAcceptsPrevious proves 
 Acceptance: a dev staged rotation produces ZERO authentication failures in the gateway request log across all three stages, with a presenter that was demonstrably NOT redeployed making at least one authenticated request during the stage 1 to stage 2 window; AND stage 1 refuses, before redeploying, when the verifier effective key list lacks <NAME>_PREVIOUS.
 
 Blocks: the first prod INTERNAL_SERVICE_SECRET rotation, which is a beta.225 cut criterion. Supersedes the zero-401s acceptance clause on TASK-976, which this run did NOT meet.
+
+GROUNDING 2026-09-14 (read of packages/tooling/src/secrets/rotate-env-stages.ts at develop 22f9a9175; cites drift, re-verify before editing). Moving the write to service scope is NOT a one-line change, because the window-DETECTION reads the same tier:
+
+- `const windowOpen = context.sharedNames.includes(previousName)` decides whether a rotation window is open. If the upsert moves to the verifier service scope but this keeps reading the SHARED names, stages 2 and 3 both refuse with "No rotation window is open" and the rotation is unfinishable. This is the trap: it fails CLOSED and looks like a different bug entirely. Window detection must read the VERIFIER effective names, the same scope the write now targets.
+- The `_PREVIOUS` upsert and the stage 3 `deleteRailwayVariable` must BOTH carry `serviceId: verifier.id`, or stage 3 deletes at a tier the value no longer lives at and the retired value is orphaned.
+- `isDegenerateWindow` reads the `_PREVIOUS` VALUE to compare it against the primary. That read must move to the verifier scope too, or it reads a variable that is not there and the half-completed-stage-1 recovery path misfires.
+
+So the fix touches four things that must move together: the upsert scope, the delete scope, the window-detection read, and the degenerate-window read. A partial move is worse than no move, because three of the four fail closed in ways that read as unrelated bugs.
+
+The read-back assertion is the separate half and is what makes the whole class detectable: after the upsert and BEFORE the verifier redeploy, re-read the verifier EFFECTIVE key list and refuse unless `<NAME>_PREVIOUS` is present. That single check would have caught the original defect, and it also catches every partial-move mistake above.
 <!-- SECTION:DESCRIPTION:END -->
