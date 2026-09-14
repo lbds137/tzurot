@@ -103,6 +103,30 @@ describe('promptTime', () => {
     expect(promptTime('')).toBeUndefined();
     expect(promptTime('not a date')).toBeUndefined();
   });
+
+  it('honours a threaded timezone, and falls back to the default zone when omitted', () => {
+    // Recent (minutes-old) so formatPromptTimestamp's <7-day branch includes
+    // a clock; expected values are derived from the SAME instant via
+    // Intl.DateTimeFormat rather than hand-written, so the test holds at
+    // whatever real time it runs.
+    const ts = new Date(Date.now() - 5 * 60_000).toISOString();
+    const clockIn = (timezone: string): string =>
+      new Date(ts).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: timezone,
+      });
+
+    const laResult = promptTime(ts, 'America/Los_Angeles');
+    const defaultResult = promptTime(ts);
+
+    expect(laResult).toContain(clockIn('America/Los_Angeles'));
+    // The APP_SETTINGS.TIMEZONE fallback — an omitted second argument must
+    // still resolve to this zone, never 'UTC'.
+    expect(defaultResult).toContain(clockIn('America/New_York'));
+    expect(laResult).not.toBe(defaultResult);
+  });
 });
 
 describe('dedupeReference', () => {

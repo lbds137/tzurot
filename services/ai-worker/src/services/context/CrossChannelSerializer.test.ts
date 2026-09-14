@@ -9,6 +9,20 @@ import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/s
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { getPriorConversationsWrapperOverheadText } from '../../jobs/utils/conversationUtils.js';
+import type { RealRenderSettings } from './RealMessagesBuilder.js';
+
+/** Builds a {@link RealRenderSettings} for a test call site — only
+ *  `realMessagesEnabled` and `timezone` vary across these tests;
+ *  `headerSpoofNeutralizeEnabled`/`headerIdTags` are unused by cross-channel
+ *  serialization but required by the interface. */
+function render(realMessagesEnabled: boolean, timezone?: string): RealRenderSettings {
+  return {
+    realMessagesEnabled,
+    headerSpoofNeutralizeEnabled: false,
+    headerIdTags: new Map(),
+    timezone,
+  };
+}
 
 // Mock logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -84,7 +98,7 @@ describe('serializeCrossChannelHistory', () => {
         'BrandNewName',
         5000,
         'p-self',
-        false
+        render(false)
       );
 
       expect(result.xml).toContain('role="assistant"');
@@ -99,7 +113,7 @@ describe('serializeCrossChannelHistory', () => {
         'BrandNewName',
         5000,
         undefined,
-        false
+        render(false)
       );
 
       expect(result.xml).toContain('role="character"');
@@ -114,13 +128,19 @@ describe('serializeCrossChannelHistory', () => {
   });
 
   it('should return empty for empty groups', () => {
-    const result = serializeCrossChannelHistory([], 'TestAI', 1000, undefined, false);
+    const result = serializeCrossChannelHistory([], 'TestAI', 1000, undefined, render(false));
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
 
   it('should return empty when budget is 0', () => {
-    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 0, undefined, false);
+    const result = serializeCrossChannelHistory(
+      [createGroup()],
+      'TestAI',
+      0,
+      undefined,
+      render(false)
+    );
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
@@ -128,13 +148,25 @@ describe('serializeCrossChannelHistory', () => {
   it('should return empty when budget is positive but less than wrapper overhead', () => {
     // Budget of 1 is positive (passes tokenBudget <= 0 check) but smaller than
     // the <prior_conversations> wrapper overhead, so availableBudget <= 0
-    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 1, undefined, false);
+    const result = serializeCrossChannelHistory(
+      [createGroup()],
+      'TestAI',
+      1,
+      undefined,
+      render(false)
+    );
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
 
   it('should serialize a single group with location block', () => {
-    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 5000, undefined, false);
+    const result = serializeCrossChannelHistory(
+      [createGroup()],
+      'TestAI',
+      5000,
+      undefined,
+      render(false)
+    );
     expect(result.xml).toContain('<prior_conversations>');
     expect(result.xml).toContain('</prior_conversations>');
     expect(result.xml).toContain('<channel_history>');
@@ -146,6 +178,36 @@ describe('serializeCrossChannelHistory', () => {
     expect(result.messagesIncluded).toBe(2);
   });
 
+  it('renders the threaded timezone, not the New York fallback', () => {
+    // The fixture instant below is 05:00 in the APP_SETTINGS.TIMEZONE fallback
+    // (America/New_York, winter — no DST) and 19:00 in the threaded zone
+    // (Asia/Tokyo), so a dropped `render` argument renders the wrong hour.
+    const group = createGroup({
+      messages: [
+        {
+          id: 'msg-1',
+          role: MessageRole.User,
+          content: 'Cross-channel message at a zone-sensitive hour',
+          createdAt: '2026-02-26T10:00:00Z',
+          personaName: 'TestUser',
+          tokenCount: 10,
+        },
+      ],
+    });
+
+    const result = serializeCrossChannelHistory(
+      [group],
+      'TestAI',
+      5000,
+      undefined,
+      render(false, 'Asia/Tokyo')
+    );
+
+    expect(result.xml).toContain('t="');
+    expect(result.xml).toMatch(/t="[^"]*19:00[^"]*"/);
+    expect(result.xml).not.toMatch(/t="[^"]*05:00[^"]*"/);
+  });
+
   it('should serialize DM groups correctly', () => {
     const dmGroup = createGroup({
       channelEnvironment: {
@@ -154,7 +216,13 @@ describe('serializeCrossChannelHistory', () => {
       },
     });
 
-    const result = serializeCrossChannelHistory([dmGroup], 'TestAI', 5000, undefined, false);
+    const result = serializeCrossChannelHistory(
+      [dmGroup],
+      'TestAI',
+      5000,
+      undefined,
+      render(false)
+    );
     expect(result.xml).toContain('<location type="dm" scope="prior">');
     expect(result.xml).toContain('Direct Message');
   });
@@ -173,7 +241,7 @@ describe('serializeCrossChannelHistory', () => {
       'TestAI',
       5000,
       undefined,
-      false
+      render(false)
     );
 
     // Exclude the static `<location>` mention inside the <instruction> text
@@ -205,7 +273,7 @@ describe('serializeCrossChannelHistory', () => {
       'TestAI',
       budget,
       undefined,
-      false
+      render(false)
     );
 
     expect(result).toEqual({ xml: '', messagesIncluded: 0 });
@@ -231,7 +299,13 @@ describe('serializeCrossChannelHistory', () => {
     // the constant can't silently stop meaning "fits two".
     const budget = 220;
     expect(budget).toBeGreaterThan(countTextTokens(getPriorConversationsWrapperOverheadText()));
-    const result = serializeCrossChannelHistory([group], 'TestAI', budget, undefined, false);
+    const result = serializeCrossChannelHistory(
+      [group],
+      'TestAI',
+      budget,
+      undefined,
+      render(false)
+    );
     // Recency: should keep newest (msg-4, msg-3), drop oldest (msg-1, msg-2)
     expect(result.xml).toContain('Newest message');
     expect(result.xml).toContain('Third message');
@@ -255,7 +329,7 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     // Budget can't fit msg-3 (newest), so contiguous-tail strategy skips entire group
-    const result = serializeCrossChannelHistory([group], 'TestAI', 200, undefined, false);
+    const result = serializeCrossChannelHistory([group], 'TestAI', 200, undefined, render(false));
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
@@ -266,7 +340,7 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     // Budget of 5 is too small for even the wrapper overhead + location block + one message
-    const result = serializeCrossChannelHistory([group], 'TestAI', 5, undefined, false);
+    const result = serializeCrossChannelHistory([group], 'TestAI', 5, undefined, render(false));
     expect(result.xml).toBe('');
     expect(result.messagesIncluded).toBe(0);
   });
@@ -305,7 +379,7 @@ describe('serializeCrossChannelHistory', () => {
       'TestAI',
       150,
       undefined,
-      false
+      render(false)
     );
     expect(result.xml).not.toContain('expensive');
     expect(result.xml).toContain('cheap');
@@ -331,7 +405,13 @@ describe('serializeCrossChannelHistory', () => {
       ],
     });
 
-    const result = serializeCrossChannelHistory([group1, group2], 'TestAI', 5000, undefined, false);
+    const result = serializeCrossChannelHistory(
+      [group1, group2],
+      'TestAI',
+      5000,
+      undefined,
+      render(false)
+    );
     expect(result.xml).toContain('general');
     expect(result.xml).toContain('random');
     expect(result.xml).toContain('In the random channel');
@@ -397,7 +477,7 @@ describe('serializeCrossChannelHistory', () => {
         'TestAI',
         5000,
         undefined,
-        true
+        render(true)
       );
 
       expect(result.xml).toContain('appears earlier in the conversation');
@@ -410,7 +490,7 @@ describe('serializeCrossChannelHistory', () => {
         'TestAI',
         5000,
         undefined,
-        false
+        render(false)
       );
 
       expect(result.xml).toContain('in the chat log');

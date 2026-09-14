@@ -128,6 +128,7 @@ describe('roster note <-> shipped header agreement', () => {
       headerIdTags: map,
       headerSpoofNeutralizeEnabled: false,
       telemetry: {},
+      timezone: undefined,
     });
     const header = String(historyMessages[0]?.content).split('\n')[0];
     expect(header).toContain('(id:aaaa)');
@@ -150,6 +151,7 @@ describe('buildShippedHistoryMessages', () => {
       headerIdTags: new Map(),
       headerSpoofNeutralizeEnabled: false,
       telemetry: {},
+      timezone: undefined,
     });
 
     expect(result.historyMessages).toEqual([]);
@@ -186,6 +188,7 @@ describe('buildShippedHistoryMessages', () => {
       headerSpoofNeutralizeEnabled: false,
       headerIdTags,
       telemetry: {},
+      timezone: undefined,
     });
 
     expect(result.historyMessages).toHaveLength(1);
@@ -212,6 +215,7 @@ describe('buildShippedHistoryMessages', () => {
       headerIdTags: new Map(),
       headerSpoofNeutralizeEnabled: false,
       telemetry: {},
+      timezone: undefined,
     });
 
     expect(result.historyMessages).toHaveLength(1);
@@ -229,6 +233,7 @@ describe('buildShippedHistoryMessages', () => {
       headerIdTags: new Map(),
       headerSpoofNeutralizeEnabled: false,
       telemetry: {},
+      timezone: undefined,
     });
     expect(present.crossChannelMessage).toBeInstanceOf(HumanMessage);
     expect(present.crossChannelMessage?.content).toBe(
@@ -244,6 +249,7 @@ describe('buildShippedHistoryMessages', () => {
       headerIdTags: new Map(),
       headerSpoofNeutralizeEnabled: false,
       telemetry: {},
+      timezone: undefined,
     });
     expect(absent.crossChannelMessage).toBeUndefined();
   });

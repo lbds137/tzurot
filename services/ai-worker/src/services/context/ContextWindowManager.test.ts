@@ -788,6 +788,7 @@ describe('ContextWindowManager', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       expect(messages).toHaveLength(1);
       expect(String(messages[0].content)).toContain('the words the skipped row once carried');
@@ -879,6 +880,7 @@ describe('ContextWindowManager', () => {
             realMessagesEnabled: true,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           }),
         0
       );

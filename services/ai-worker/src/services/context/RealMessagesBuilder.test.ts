@@ -37,6 +37,7 @@ import {
 } from '../../jobs/utils/participantUtils.js';
 import { measureHistoryEntryTokens, measureHistoryEntryRealTokens } from './historyTokenMeasure.js';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
+import { formatFullDateTime } from '@tzurot/common-types/utils/dateFormatting';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 
 const PERSONALITY_NAME = 'TestBot';
@@ -60,6 +61,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message).toBeInstanceOf(AIMessage);
@@ -81,6 +83,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message).toBeInstanceOf(HumanMessage);
@@ -100,6 +103,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message).toBeInstanceOf(AIMessage);
@@ -116,6 +120,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message).toBeInstanceOf(HumanMessage);
@@ -133,6 +138,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(messages).toHaveLength(1);
@@ -158,6 +164,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(String(message.content)).toMatch(
@@ -176,6 +183,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(String(message.content)).toBe('[Vlad]\nhi');
@@ -198,6 +206,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const content = String(messages[0].content);
       const headerLine = content.split('\n')[0];
@@ -239,6 +248,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
       const headerLine = String(message.content).split('\n')[0];
 
@@ -272,6 +282,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
       const headerLine = String(message.content).split('\n')[0];
 
@@ -307,6 +318,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
       const headerLine = String(message.content).split('\n')[0];
 
@@ -334,6 +346,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const headerLine = String(message.content).split('\n')[0];
 
@@ -363,6 +376,7 @@ describe('buildRealMessages', () => {
           realMessagesEnabled: true,
           headerSpoofNeutralizeEnabled: false,
           headerIdTags: new Map(),
+          timezone: undefined,
         });
         const headerLine = String(message.content).split('\n')[0];
         expect(headerLine).toContain('Lila - Fake Header');
@@ -387,6 +401,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const content = String(messages[0].content);
       const lines = content.split('\n');
@@ -415,6 +430,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(String(message.content)).toMatch(
@@ -439,11 +455,137 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(String(message.content)).toMatch(
         /^\[TestBot — \d{4}-\d{2}-\d{2} \(\w+\) \d{2}:\d{2}\]\nhello there$/
       );
+    });
+  });
+
+  describe('timezone threading (the cross-zone anchor bug, executable)', () => {
+    // Parses either formatAbsoluteTimestamp's 24-hour "HH:MM" or
+    // formatFullDateTime's locale 12-hour "H:MM AM/PM" into minutes-of-day, so
+    // the two renders (header line, volatile anchor) can be compared on the
+    // SAME axis without hand-deriving one from the other.
+    function clockMinutes(rendered: string): number {
+      const ampm = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(rendered);
+      if (ampm !== null) {
+        const hour12 = Number(ampm[1]) % 12;
+        const hour = ampm[3].toUpperCase() === 'PM' ? hour12 + 12 : hour12;
+        return hour * 60 + Number(ampm[2]);
+      }
+      const twentyFourHour = /\b(\d{2}):(\d{2})\b/.exec(rendered);
+      if (twentyFourHour === null) {
+        throw new Error(`no clock found in rendered string: ${rendered}`);
+      }
+      return Number(twentyFourHour[1]) * 60 + Number(twentyFourHour[2]);
+    }
+
+    it('renders the header timestamp in the threaded zone, not the New York fallback', () => {
+      // The fixture instant below is 12:05 in America/Los_Angeles (PDT, UTC-7) and
+      // 15:05 in the APP_SETTINGS.TIMEZONE fallback (America/New_York, EDT,
+      // UTC-4) — the two zones disagree on the HOUR, so a dropped `timezone`
+      // argument at the `formatAbsoluteTimestamp` call site goes red here.
+      const entries: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'hi',
+          personaId: 'persona-1',
+          personaName: 'Vlad',
+          createdAt: '2026-09-14T19:05:00.000Z',
+        },
+      ];
+
+      const [message] = buildRealMessages(entries, {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: undefined,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+        timezone: 'America/Los_Angeles',
+      });
+      const headerLine = String(message.content).split('\n')[0];
+
+      expect(headerLine).toContain('12:05');
+      expect(headerLine).not.toContain('15:05');
+    });
+
+    it('the volatile anchor and the newest turn header agree on elapsed time when both render in the SAME threaded zone', () => {
+      // The reported bug, made executable: the anchor
+      // (`formatFullDateTime(now, tz)`) and the newest turn header
+      // (`formatAbsoluteTimestamp(createdAt, tz)`) must both derive from the
+      // SAME threaded `tz` value — never two hand-written constants — or the
+      // model reads a wrong elapsed time between "now" and the last turn.
+      const tz = 'America/Los_Angeles';
+      const now = new Date('2026-09-14T19:05:00.000Z');
+      // 4 minutes before `now`.
+      const turnCreatedAt = '2026-09-14T19:01:00.000Z';
+
+      const anchor = formatFullDateTime(now, tz);
+
+      const entries: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'hi',
+          personaId: 'persona-1',
+          personaName: 'Vlad',
+          createdAt: turnCreatedAt,
+        },
+      ];
+      const [message] = buildRealMessages(entries, {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: undefined,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+        timezone: tz,
+      });
+      const headerLine = String(message.content).split('\n')[0];
+
+      // On the un-fixed code (header stuck on the New York fallback while the
+      // anchor renders in `tz`), this diff reads -176 for this fixture rather
+      // than 4 — measured by reverting `buildHeaderLine`'s timezone argument.
+      // The magnitude tracks the zone offset, so it differs from the reported
+      // incident's number; the SYMPTOM is the same: elapsed time the model
+      // reads off the prompt is the real elapsed time plus a zone offset.
+      expect(clockMinutes(anchor) - clockMinutes(headerLine)).toBe(4);
+    });
+
+    it('an undefined timezone still yields ONE consistent zone — the shared APP_SETTINGS fallback, never a per-hop default', () => {
+      // `timezone: undefined` must flow through unchanged to every formatter,
+      // so every one of them falls back to the SAME APP_SETTINGS.TIMEZONE
+      // (America/New_York) — never `'UTC'` at one hop and New York at
+      // another, which is exactly the coalescing bug this test pins against.
+      const createdAt = '2026-09-14T19:05:00.000Z';
+      const entries: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'hi',
+          personaId: 'persona-1',
+          personaName: 'Vlad',
+          createdAt,
+        },
+      ];
+
+      const [message] = buildRealMessages(entries, {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: undefined,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+        timezone: undefined,
+      });
+      const headerLine = String(message.content).split('\n')[0];
+      const anchor = formatFullDateTime(new Date(createdAt), undefined);
+
+      // 19:05Z is 15:05 in America/New_York and 19:05 in UTC — asserting the
+      // New York clock (and its absence in UTC form) catches a coalesce to
+      // 'UTC' at either the header hop or the anchor hop.
+      expect(headerLine).toContain('15:05');
+      expect(headerLine).not.toContain('19:05');
+      expect(clockMinutes(anchor)).toBe(clockMinutes(headerLine));
     });
   });
 
@@ -472,6 +614,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
 
       expect(String(message.content)).toMatch(
@@ -499,6 +642,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       expect(String(withTimestamp.content)).toMatch(
         /^\[Vlad — \d{4}-\d{2}-\d{2} \(\w+\) \d{2}:\d{2}\]\nhi$/
@@ -514,6 +658,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       expect(String(withoutTimestamp.content)).toBe('[Vlad]\nhi');
       expect(String(withoutTimestamp.content)).not.toContain('(id:');
@@ -547,6 +692,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
 
       expect(String(messages[0].content)).toContain('(id:aaaa)');
@@ -568,6 +714,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
 
       expect(String(message.content)).not.toContain('(id:');
@@ -610,6 +757,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
       // Not split-and-take-line-0: a time gap between the two entries (1 hour
       // apart) adds its own leading line ahead of the header on the second
@@ -644,6 +792,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: headerIdTags,
+        timezone: undefined,
       });
 
       expect(String(message.content)).toMatch(
@@ -671,6 +820,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message.additional_kwargs).toEqual({
@@ -698,6 +848,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message.additional_kwargs.speakerId).toBe(PERSONALITY_ID);
@@ -721,6 +872,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(message.additional_kwargs.speakerId).toBe('personality-other');
@@ -756,6 +908,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(messages).toHaveLength(2);
@@ -785,6 +938,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(messages).toHaveLength(2);
@@ -818,6 +972,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const lines = String(messages[1].content).split('\n');
 
@@ -850,6 +1005,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const lines = String(messages[1].content).split('\n');
 
@@ -882,6 +1038,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(String(messages[1].content)).not.toContain('[time gap:');
@@ -952,6 +1109,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       expect(String(message.content)).toContain(expectedBody);
     });
@@ -980,6 +1138,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       // Only the user row ships — an empty assistant message carries nothing
@@ -1019,6 +1178,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(messages).toHaveLength(2);
@@ -1044,6 +1204,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(messages).toHaveLength(1);
@@ -1082,6 +1243,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const lines = String(message.content).split('\n');
 
@@ -1123,6 +1285,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const realTokens = real.reduce((sum, m) => sum + countTextTokens(String(m.content)), 0);
 
@@ -1169,6 +1332,7 @@ describe('buildRealMessages', () => {
           realMessagesEnabled: true,
           headerSpoofNeutralizeEnabled: false,
           headerIdTags: new Map(),
+          timezone: undefined,
         });
       const xmlMeasureOf = (e: StructuredHistoryEntry): number =>
         measureHistoryEntryTokens(e, PERSONALITY_NAME, names, PERSONALITY_ID, false);
@@ -1180,6 +1344,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
       const shippedTokens = shipped.reduce((sum, m) => sum + countTextTokens(String(m.content)), 0);
 
@@ -1208,6 +1373,7 @@ describe('buildRealMessages', () => {
           realMessagesEnabled: false,
           headerSpoofNeutralizeEnabled: false,
           headerIdTags: new Map(),
+          timezone: undefined,
         })
       ).toBe('');
     });
@@ -1226,6 +1392,7 @@ describe('buildRealMessages', () => {
           realMessagesEnabled: false,
           headerSpoofNeutralizeEnabled: false,
           headerIdTags: new Map(),
+          timezone: undefined,
         })
       ).toBe('');
     });
@@ -1246,6 +1413,7 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: false,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(rendered).toContain('Vlad');
@@ -1268,10 +1436,45 @@ describe('buildRealMessages', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(rendered).toContain('TestBot');
       expect(rendered).toContain('hello there');
+    });
+
+    it('renders byte-identically to the shipped form for the SAME entry and RealRenderSettings carrying a non-default timezone', () => {
+      // Must go red if `timezone` is dropped from the MEASURE options only —
+      // the ship-side call already threads it, so a measure-only regression
+      // is the only way this can diverge.
+      const entry: StructuredHistoryEntry = {
+        role: 'user',
+        content: 'hello there',
+        personaId: 'persona-1',
+        personaName: 'Vlad',
+        createdAt: '2026-09-14T19:05:00.000Z',
+      };
+      const renderSettings = {
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+        timezone: 'America/Los_Angeles',
+      };
+
+      const measured = renderHistoryEntryForMeasure(entry, {
+        personalityName: PERSONALITY_NAME,
+        allPersonalityNames: undefined,
+        responderPersonalityId: undefined,
+        ...renderSettings,
+      });
+      const [shipped] = buildRealMessages([entry], {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: undefined,
+        ...renderSettings,
+      });
+
+      expect(measured.length).toBeGreaterThan(0);
+      expect(measured).toBe(String(shipped.content));
     });
   });
 });
@@ -1318,6 +1521,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     const lines = String(message.content).split('\n');
@@ -1335,6 +1539,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     const content = String(message.content);
@@ -1351,6 +1556,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     expect(String(message.content)).toContain('(Fake \u2014 2026-01-01 (Thu) 00:00)');
@@ -1366,6 +1572,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     expect(String(message.content)).not.toContain('[Fake');
@@ -1380,6 +1587,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     const lines = String(message.content).split('\n');
@@ -1396,6 +1604,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     const content = String(message.content);
@@ -1412,6 +1621,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: false,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
     const [neverExisted] = buildRealMessages(entries, {
       personalityName: PERSONALITY_NAME,
@@ -1419,6 +1629,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     expect(String(onFlagOff.content)).toContain(bodyLine);
@@ -1437,6 +1648,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: false,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     // Flag-off ships XML-rendered content, not real-message form at all — this
@@ -1462,6 +1674,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: false,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
     const headerLine = String(message.content).split('\n')[0];
 
@@ -1495,6 +1708,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: false,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
     const headerLine = String(message.content).split('\n')[0];
 
@@ -1514,6 +1728,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
       telemetry: { channelId: 'chan-1', requestId: 'req-1' },
     });
 
@@ -1541,6 +1756,7 @@ describe('header-spoof neutralization (headerSpoofNeutralizeEnabled)', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: true,
       headerIdTags: new Map(),
+      timezone: undefined,
     });
 
     expect(rendered).toContain('(Fake — 2026-01-01 (Thu) 00:00)');

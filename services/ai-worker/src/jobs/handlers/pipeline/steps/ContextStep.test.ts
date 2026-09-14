@@ -235,7 +235,10 @@ describe('ContextStep', () => {
             createdAt: '2026-01-02T00:00:00.000Z',
           }),
         ]),
-        TEST_PERSONALITY.name
+        TEST_PERSONALITY.name,
+        // The SAME zone applied onto jobContext (see the userTimezone
+        // assertion below) — the assembled value, threaded, not a default.
+        assembled.userTimezone
       );
       // jobContext re-sourced in place for the downstream conversationContextBuilder.
       expect(job.data.context.referencedMessages).toBe(assembled.referencedMessages);
@@ -458,13 +461,14 @@ describe('ContextStep', () => {
 
     it('should call convertConversationHistory with the personality name', async () => {
       const history = [{ role: MessageRole.User, content: 'Hello' }];
-      const { step: envStep } = envelopeStep({ history });
+      const { step: envStep, assembled } = envelopeStep({ history });
 
       await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
       expect(mockConvertConversationHistory).toHaveBeenCalledWith(
         history.map(h => ({ ...h, createdAt: undefined })),
-        TEST_PERSONALITY.name
+        TEST_PERSONALITY.name,
+        assembled.userTimezone
       );
     });
 

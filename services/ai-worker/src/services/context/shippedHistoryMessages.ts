@@ -64,6 +64,9 @@ export interface BuildShippedHistoryMessagesOptions {
   headerSpoofNeutralizeEnabled: boolean;
   headerIdTags: HeaderIdTagMap;
   telemetry: HeaderSpoofTelemetry;
+  /** See {@link RealRenderSettings.timezone}. Threaded unchanged into the
+   *  shipped real-message render. */
+  timezone: string | undefined;
 }
 
 export interface ShippedHistoryMessages {
@@ -97,6 +100,7 @@ export function buildShippedHistoryMessages(
     headerSpoofNeutralizeEnabled: opts.headerSpoofNeutralizeEnabled,
     headerIdTags: opts.headerIdTags,
     telemetry: opts.telemetry,
+    timezone: opts.timezone,
   });
   const crossChannelMessage = buildCrossChannelMessage(opts.crossChannelXml);
 

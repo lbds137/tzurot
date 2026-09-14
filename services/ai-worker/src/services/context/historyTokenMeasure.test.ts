@@ -232,6 +232,7 @@ describe('measureHistoryEntryRealTokens', () => {
       realMessagesEnabled: true,
       headerSpoofNeutralizeEnabled: false,
       headerIdTags: NO_TAGS,
+      timezone: undefined,
       ...overrides,
     };
   }
@@ -347,6 +348,7 @@ describe('measureHistoryEntryRealTokens', () => {
         realMessagesEnabled: true,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: taggedMap,
+        timezone: undefined,
       });
       const shippedContent = String(shipped.content);
 

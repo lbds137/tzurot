@@ -15,14 +15,15 @@ import type { StructuredHistoryEntry } from './conversationTypes.js';
 function formatUserMessageContent(
   content: string,
   personaName: string | undefined,
-  createdAt: string | undefined
+  createdAt: string | undefined,
+  timezone: string | undefined
 ): string {
   const parts: string[] = [];
   if (personaName !== undefined && personaName.length > 0) {
     parts.push(`${personaName}:`);
   }
   if (createdAt !== undefined && createdAt.length > 0) {
-    parts.push(`[${formatRelativeTime(createdAt)}]`);
+    parts.push(`[${formatRelativeTime(createdAt, timezone)}]`);
   }
   return parts.length > 0 ? `${parts.join(' ')} ${content}` : content;
 }
@@ -31,11 +32,12 @@ function formatUserMessageContent(
 function formatAssistantMessageContent(
   content: string,
   personalityName: string,
-  createdAt: string | undefined
+  createdAt: string | undefined,
+  timezone: string | undefined
 ): string {
   const parts: string[] = [`${personalityName}:`];
   if (createdAt !== undefined && createdAt.length > 0) {
-    parts.push(`[${formatRelativeTime(createdAt)}]`);
+    parts.push(`[${formatRelativeTime(createdAt, timezone)}]`);
   }
   return `${parts.join(' ')} ${content}`;
 }
@@ -49,15 +51,26 @@ export function convertConversationHistory(
     StructuredHistoryEntry,
     'role' | 'content' | 'createdAt' | 'personaId' | 'personaName'
   >[],
-  personalityName: string
+  personalityName: string,
+  timezone?: string
 ): BaseMessage[] {
   return history.map(msg => {
     if (isRoleMatch(msg.role, MessageRole.User)) {
-      const content = formatUserMessageContent(msg.content, msg.personaName, msg.createdAt);
+      const content = formatUserMessageContent(
+        msg.content,
+        msg.personaName,
+        msg.createdAt,
+        timezone
+      );
       return new HumanMessage(content);
     }
     if (isRoleMatch(msg.role, MessageRole.Assistant)) {
-      const content = formatAssistantMessageContent(msg.content, personalityName, msg.createdAt);
+      const content = formatAssistantMessageContent(
+        msg.content,
+        personalityName,
+        msg.createdAt,
+        timezone
+      );
       return new AIMessage(content);
     }
     // System messages are handled separately in the prompt
