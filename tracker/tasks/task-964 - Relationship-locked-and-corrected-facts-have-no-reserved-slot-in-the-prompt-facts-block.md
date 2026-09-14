@@ -3,9 +3,10 @@ id: TASK-964
 title: >-
   Relationship, locked, and corrected facts have no reserved slot in the prompt
   facts block
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:49'
+updated_date: '2026-09-14 01:40'
 labels:
   - 'area:ai-worker'
   - 'size:S'
