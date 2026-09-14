@@ -72,6 +72,12 @@ export interface HistoryWindowOptions {
    * has no header id-tag concept).
    */
   headerIdTags: HeaderIdTagMap;
+  /** This turn's `context.userTimezone`, threaded unchanged into the render
+   *  settings so the turn headers render in the SAME zone as the volatile
+   *  prefix's `<datetime>` anchor. Optional here (direct/test callers need
+   *  not supply it) but NEVER defaulted: `undefined` is the correct value
+   *  when the user has no configured zone. */
+  timezone?: string;
 }
 
 /**
@@ -297,11 +303,13 @@ export class ContextWindowManager {
       realMessagesEnabled = false,
       headerSpoofNeutralizeEnabled = false,
       headerIdTags,
+      timezone,
     } = options;
     const render: RealRenderSettings = {
       realMessagesEnabled,
       headerSpoofNeutralizeEnabled,
       headerIdTags,
+      timezone,
     };
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
@@ -365,7 +373,7 @@ export class ContextWindowManager {
           responder,
           historyBudget,
           adjustedTokensUsed,
-          realMessagesEnabled
+          render
         )
       : { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
 
@@ -489,6 +497,7 @@ export class ContextWindowManager {
     const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, responder.name, {
       responderPersonalityId: responder.id,
       realMessagesEnabled,
+      timezone: render.timezone,
     });
     const tokensUsed =
       selectedEntries.length === 0
@@ -565,7 +574,7 @@ export class ContextWindowManager {
     responder: ResponderIdentity,
     historyBudget: number,
     currentChannelTokensUsed: number,
-    realMessagesEnabled: boolean
+    render: RealRenderSettings
   ): { crossChannelXml: string; crossChannelMessagesIncluded: number; crossTokens: number } {
     if (currentChannelTokensUsed >= historyBudget) {
       return { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
@@ -576,7 +585,7 @@ export class ContextWindowManager {
       responder.name,
       historyBudget - currentChannelTokensUsed,
       responder.id,
-      realMessagesEnabled
+      render
     );
 
     if (crossResult.xml.length === 0) {
@@ -602,7 +611,7 @@ export class ContextWindowManager {
     // pays, charged here once rather than per cross-channel entry.
     const crossTokens =
       countTextTokens(crossResult.xml) +
-      (realMessagesEnabled ? PER_MESSAGE_WIRE_OVERHEAD_TOKENS : 0);
+      (render.realMessagesEnabled ? PER_MESSAGE_WIRE_OVERHEAD_TOKENS : 0);
     const totalTokens = currentChannelTokensUsed + crossTokens;
     logger.info(
       {

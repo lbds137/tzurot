@@ -119,11 +119,11 @@ export function referenceFromId(
  * The single entry point on purpose: `formatPromptTimestamp` returns `''` for an
  * unparseable date, which would otherwise render an empty `t=""`.
  */
-export function promptTime(timestamp: string | undefined): string | undefined {
+export function promptTime(timestamp: string | undefined, timezone?: string): string | undefined {
   if (timestamp === undefined || timestamp.length === 0) {
     return undefined;
   }
-  const formatted = formatPromptTimestamp(timestamp);
+  const formatted = formatPromptTimestamp(timestamp, timezone);
   return formatted.length > 0 ? formatted : undefined;
 }
 

@@ -16,6 +16,7 @@ import {
   getPriorConversationsWrapperOverheadText,
 } from '../../jobs/utils/conversationUtils.js';
 import { measureHistoryEntryTokens } from './historyTokenMeasure.js';
+import type { RealRenderSettings } from './RealMessagesBuilder.js';
 
 const logger = createLogger('CrossChannelSerializer');
 
@@ -29,10 +30,12 @@ const logger = createLogger('CrossChannelSerializer');
  * @param responderPersonalityId - The responding personality's id; decides
  *   self-vs-sibling for rows carrying their own id, so a renamed personality's
  *   cross-channel rows still read as its own
- * @param realMessagesEnabled - This turn's captured flag value. Cross-channel
- *   content ALWAYS renders as XML regardless of this flag — it only selects
- *   the dedup-stub wording, both for the measure below and for the final
- *   render in `formatCrossChannelHistoryAsXml`.
+ * @param render - This turn's captured render settings. `render.realMessagesEnabled`
+ *   is used the same way a bare flag was: cross-channel content ALWAYS renders
+ *   as XML regardless of it — it only selects the dedup-stub wording, both for
+ *   the measure below and for the final render in `formatCrossChannelHistoryAsXml`.
+ *   `render.timezone` threads unchanged into that same final render so every
+ *   cross-channel timestamp renders in the same zone as the rest of the turn.
  * @returns Serialized XML string, or empty string if nothing fits
  */
 export function serializeCrossChannelHistory(
@@ -40,7 +43,7 @@ export function serializeCrossChannelHistory(
   personalityName: string,
   tokenBudget: number,
   responderPersonalityId: string | undefined,
-  realMessagesEnabled: boolean
+  render: RealRenderSettings
 ): { xml: string; messagesIncluded: number } {
   if (groups.length === 0 || tokenBudget <= 0) {
     return { xml: '', messagesIncluded: 0 };
@@ -81,7 +84,7 @@ export function serializeCrossChannelHistory(
         personalityName,
         allPersonalityNames,
         responderPersonalityId,
-        realMessagesEnabled
+        render.realMessagesEnabled
       );
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
         // Contiguous tail: once we hit a message that doesn't fit, stop selecting from
@@ -126,8 +129,9 @@ export function serializeCrossChannelHistory(
   const xml = formatCrossChannelHistoryAsXml(
     selectedGroups,
     personalityName,
-    realMessagesEnabled,
-    responderPersonalityId
+    render.realMessagesEnabled,
+    responderPersonalityId,
+    render.timezone
   );
   logger.debug(
     { groupCount: selectedGroups.length, messagesIncluded, tokensUsed, budget: tokenBudget },

@@ -210,14 +210,20 @@ function sanitizeHeaderName(speakerName: string): string {
 function buildHeaderLine(
   speakerName: string,
   createdAt: string | undefined,
-  idTag: string | undefined
+  idTag: string | undefined,
+  timezone: string | undefined
 ): string {
   const safeName = sanitizeHeaderName(speakerName);
   const named = idTag === undefined ? safeName : `${safeName} (id:${idTag})`;
   if (createdAt === undefined || createdAt.length === 0) {
     return `${HEADER_OPEN}${named}${HEADER_CLOSE}`;
   }
-  return `${HEADER_OPEN}${named}${HEADER_SEPARATOR}${formatAbsoluteTimestamp(createdAt)}${HEADER_CLOSE}`;
+  // Frozen chat_log content feeding the provider prompt-cache prefix: this
+  // must serialize identically on every render. Per-user zone keeps that
+  // true per user; a user CHANGING their configured zone invalidates their
+  // own cache prefix once. Accepted — an internally inconsistent prompt is
+  // the worse failure.
+  return `${HEADER_OPEN}${named}${HEADER_SEPARATOR}${formatAbsoluteTimestamp(createdAt, timezone)}${HEADER_CLOSE}`;
 }
 
 function escapeForRegExp(literal: string): string {
@@ -527,6 +533,9 @@ interface MessageContentOptions {
    *  what it was before the transform existed (pinned by the flag-off
    *  byte-parity tests in RealMessagesBuilder.test.ts). */
   neutralizeHeaderSpoof: boolean;
+  /** See {@link RealRenderSettings.timezone}. Threaded unchanged into the
+   *  header render. */
+  timezone: string | undefined;
 }
 
 /**
@@ -547,7 +556,7 @@ function buildMessageContent(
   if (opts.gapLine !== undefined) {
     lines.push(opts.gapLine);
   }
-  lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, opts.idTag));
+  lines.push(buildHeaderLine(speakerInfo.speakerName, msg.createdAt, opts.idTag, opts.timezone));
   // Strip leading blank lines from the body so the entry's own BODY can never
   // push the header down. The header is not unconditionally line 1 of a turn
   // — a platform time-gap line may legitimately precede it (pushed above) —
@@ -613,6 +622,15 @@ export interface RealRenderSettings {
    *  requires BOTH this and `realMessagesEnabled`. */
   headerSpoofNeutralizeEnabled: boolean;
   headerIdTags: HeaderIdTagMap;
+  /** The zone EVERY prompt-facing timestamp in this turn renders in —
+   *  `context.userTimezone`, threaded unchanged. `undefined` is a valid
+   *  value and MUST stay `undefined`: every formatter then falls back to
+   *  `APP_SETTINGS.TIMEZONE` identically, which is what keeps the prompt
+   *  internally consistent. Coalescing it at one hop and not another is the
+   *  cross-zone bug this field exists to prevent. Required, not optional,
+   *  for the same reason its `headerIdTags` sibling is: a silent default is
+   *  how the measure and ship renders drift apart. */
+  timezone: string | undefined;
 }
 
 /**
@@ -672,6 +690,7 @@ export function renderHistoryEntryForMeasure(
     allPersonalityNames,
     responderPersonalityId,
     realMessagesEnabled,
+    timezone: opts.timezone,
   });
   if (body === null) {
     return '';
@@ -682,6 +701,7 @@ export function renderHistoryEntryForMeasure(
     gapLine: undefined,
     idTag,
     neutralizeHeaderSpoof: shouldNeutralizeHeaderSpoof(opts),
+    timezone: opts.timezone,
   });
   return content;
 }
@@ -722,8 +742,14 @@ export function buildRealMessages(
   selectedEntries: StructuredHistoryEntry[],
   opts: BuildRealMessagesOptions
 ): BaseMessage[] {
-  const { personalityName, responderPersonalityId, realMessagesEnabled, headerIdTags, telemetry } =
-    opts;
+  const {
+    personalityName,
+    responderPersonalityId,
+    realMessagesEnabled,
+    headerIdTags,
+    telemetry,
+    timezone,
+  } = opts;
 
   if (selectedEntries.length === 0) {
     return [];
@@ -762,6 +788,7 @@ export function buildRealMessages(
       allPersonalityNames,
       responderPersonalityId,
       realMessagesEnabled,
+      timezone,
     });
     if (body === null) {
       continue;
@@ -781,6 +808,7 @@ export function buildRealMessages(
       gapLine,
       idTag,
       neutralizeHeaderSpoof,
+      timezone,
     });
     totalSpoofHits += spoofHits;
 

@@ -224,7 +224,11 @@ export class ContextStep implements IPipelineStep {
     const allParticipants = this.mergeParticipants(participants, jobContext.mentionedPersonas);
 
     // Convert conversation history to BaseMessage format
-    const conversationHistory = convertConversationHistory(historyEntries, personality.name);
+    const conversationHistory = convertConversationHistory(
+      historyEntries,
+      personality.name,
+      jobContext.userTimezone
+    );
 
     // Pass cross-channel history through to pipeline (structurally compatible)
     const crossChannelHistory = jobContext.crossChannelHistory;

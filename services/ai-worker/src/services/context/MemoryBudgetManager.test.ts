@@ -315,6 +315,7 @@ describe('MemoryBudgetManager', () => {
         realMessagesEnabled: false,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(result).toBe(0);
@@ -325,6 +326,7 @@ describe('MemoryBudgetManager', () => {
         realMessagesEnabled: false,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       expect(result).toBe(0);
@@ -342,6 +344,7 @@ describe('MemoryBudgetManager', () => {
         realMessagesEnabled: false,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       // Mock formats as: <message from="User" role="user">Hello</message> = 46 chars
@@ -361,6 +364,7 @@ describe('MemoryBudgetManager', () => {
         realMessagesEnabled: false,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       // Mock formats each message as XML and uses countTextTokens (chars/4)
@@ -380,6 +384,7 @@ describe('MemoryBudgetManager', () => {
         realMessagesEnabled: false,
         headerSpoofNeutralizeEnabled: false,
         headerIdTags: new Map(),
+        timezone: undefined,
       });
 
       // 4 messages, each formatted as XML and counted with tiktoken
@@ -395,6 +400,7 @@ describe('MemoryBudgetManager', () => {
           realMessagesEnabled: false,
           headerSpoofNeutralizeEnabled: false,
           headerIdTags: new Map(),
+          timezone: undefined,
         }
       );
       expect(result).toBeGreaterThan(twoMessageResult);
@@ -407,6 +413,7 @@ describe('MemoryBudgetManager', () => {
             realMessagesEnabled: true,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           })
         ).toBe(0);
         expect(
@@ -414,6 +421,7 @@ describe('MemoryBudgetManager', () => {
             realMessagesEnabled: false,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           })
         ).toBe(0);
       });
@@ -424,6 +432,7 @@ describe('MemoryBudgetManager', () => {
             realMessagesEnabled: true,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           })
         ).toBe(0);
         expect(
@@ -431,6 +440,7 @@ describe('MemoryBudgetManager', () => {
             realMessagesEnabled: false,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           })
         ).toBe(0);
       });
@@ -478,11 +488,13 @@ describe('MemoryBudgetManager', () => {
             realMessagesEnabled: false,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           });
           const flagOn = manager.countHistoryTokens(history, 'TestBot', undefined, {
             realMessagesEnabled: true,
             headerSpoofNeutralizeEnabled: false,
             headerIdTags: new Map(),
+            timezone: undefined,
           });
 
           expect(flagOn).toBeGreaterThan(0);

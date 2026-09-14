@@ -117,6 +117,9 @@ export interface HistoryEntryBodyOptions {
    * cannot silently fall back to reading the setting itself.
    */
   realMessagesEnabled: boolean;
+  /** This turn's `context.userTimezone`, threaded unchanged into the
+   *  forwarded-quote timestamp (see {@link RealRenderSettings.timezone}). */
+  timezone?: string;
 }
 
 /**
@@ -210,7 +213,7 @@ export function renderHistoryEntryBody(
       // is told to match against the <participants> roster, so a Discord
       // snowflake there is an identity token that can never resolve.
       fromId: forwardedFrom?.authorPersonalityId,
-      timeFormatted: promptTime(forwardedFrom?.timestamp),
+      timeFormatted: promptTime(forwardedFrom?.timestamp, opts.timezone),
       channel: forwardedFrom?.channelName,
       textContent: msg.content,
       embedsXml: msg.messageMetadata?.embedsXml,
@@ -250,6 +253,9 @@ export interface SingleHistoryEntryOptions {
    * same reason: no call site may silently fall back to reading the setting.
    */
   realMessagesEnabled: boolean;
+  /** This turn's `context.userTimezone` — see
+   *  {@link HistoryEntryBodyOptions.timezone}. */
+  timezone?: string;
 }
 
 /**
@@ -279,7 +285,13 @@ export function formatSingleHistoryEntryAsXml(
   personalityName: string,
   opts: SingleHistoryEntryOptions
 ): string {
-  const { historyEntries, allPersonalityNames, responderPersonalityId, realMessagesEnabled } = opts;
+  const {
+    historyEntries,
+    allPersonalityNames,
+    responderPersonalityId,
+    realMessagesEnabled,
+    timezone,
+  } = opts;
   const speakerInfo = resolveSpeakerInfo(
     msg,
     personalityName,
@@ -299,7 +311,7 @@ export function formatSingleHistoryEntryAsXml(
   // in the <time_gap> markers, which are inter-message deltas and stable.
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` t="${escapeXml(formatAbsoluteTimestamp(msg.createdAt))}"`
+      ? ` t="${escapeXml(formatAbsoluteTimestamp(msg.createdAt, timezone))}"`
       : '';
 
   // Escape speaker name for use in attribute (quotes could break the XML)
@@ -313,6 +325,7 @@ export function formatSingleHistoryEntryAsXml(
     allPersonalityNames,
     responderPersonalityId,
     realMessagesEnabled,
+    timezone,
   });
 
   return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${body}</message>`;
@@ -339,6 +352,9 @@ interface FormatConversationHistoryOptions {
    * `HistoryEntryBodyOptions.realMessagesEnabled`).
    */
   realMessagesEnabled?: boolean;
+  /** This turn's `context.userTimezone` — see
+   *  {@link HistoryEntryBodyOptions.timezone}. */
+  timezone?: string;
 }
 
 /**
@@ -471,6 +487,7 @@ export function formatConversationHistoryAsXml(
       allPersonalityNames,
       responderPersonalityId: options?.responderPersonalityId,
       realMessagesEnabled,
+      timezone: options?.timezone,
     });
     if (formatted.length > 0) {
       messages.push(formatted);
@@ -522,13 +539,21 @@ export function getPriorConversationsWrapperOverheadText(): string {
  *   history ALWAYS renders as XML, in both flag states — the flag only
  *   selects the dedup-stub WORDING inside it, so this is required (not
  *   defaulted) to keep that decision from silently reading stale/wrong state.
+ * @param responderPersonalityId - The responding personality's id, forwarded unchanged.
+ * @param timezone - The zone every prompt-facing timestamp in this turn renders
+ *   in. `undefined` is a valid value and MUST stay `undefined` when forwarded —
+ *   every formatter then falls back to `APP_SETTINGS.TIMEZONE` identically.
+ *   Positional (not bundled into an options object) because `RealRenderSettings`
+ *   cannot be imported here without creating a circular import with
+ *   `RealMessagesBuilder.ts`, which imports from this module.
  * @returns Formatted XML string, or empty string if no groups
  */
 export function formatCrossChannelHistoryAsXml(
   groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
   realMessagesEnabled: boolean,
-  responderPersonalityId?: string
+  responderPersonalityId?: string,
+  timezone?: string
 ): string {
   if (groups.length === 0) {
     return '';
@@ -550,6 +575,7 @@ export function formatCrossChannelHistoryAsXml(
     const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName, {
       responderPersonalityId,
       realMessagesEnabled,
+      timezone,
     });
     if (messagesXml.length > 0) {
       parts.push(messagesXml);
