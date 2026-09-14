@@ -383,13 +383,16 @@ Reports come from `pnpm --filter @tzurot/<pkg> test:mutation`. When `mutation:ch
 
 Rotation ledger (`secret_rotations`, per-env, sync-excluded) driving the daily owner-channel nag:
 
-| Command                                             | Description                                                       |
-| --------------------------------------------------- | ----------------------------------------------------------------- |
-| `pnpm ops secrets:rotation-status --env prod`       | Show the ledger with overdue state                                |
-| `pnpm ops secrets:mark-rotated <name> --env prod`   | Stamp the ledger: `<name>` was rotated now (manual rotations)     |
-| `pnpm ops secrets:rotate-byok --env prod --stage 1` | Staged BYOK key rotation (1=stage, 2=re-encrypt rows, 3=finalize) |
+| Command                                                                | Description                                                                  |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm ops secrets:rotation-status --env prod`                          | Show the ledger with overdue state                                           |
+| `pnpm ops secrets:mark-rotated <name> --env prod`                      | Stamp the ledger: `<name>` was rotated now (manual rotations)                |
+| `pnpm ops secrets:rotate-byok --env prod --stage 1`                    | Staged BYOK key rotation (1=stage, 2=re-encrypt rows, 3=finalize)            |
+| `pnpm ops secrets:rotate-env --env dev --name INTERNAL_SERVICE_SECRET` | Rotate a shared Railway secret: generate, upsert, redeploy inheritors, stamp |
 
 BYOK rotation is breakage-free via the dual-key window in `common-types/utils/encryption.ts` — never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable.
+
+`secrets:rotate-env` rotates a plain shared secret (e.g. `INTERNAL_SERVICE_SECRET`) with no dual-key window, so there is a brief 401 mismatch window while services redeploy on the new value at different times.
 
 ## Security Commands
 
