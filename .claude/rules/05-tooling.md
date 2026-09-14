@@ -87,6 +87,11 @@ the staged command, `pnpm ops secrets:rotate-byok --env prod --stage 1|2|3`
 `common-types/utils/encryption.ts`). Intervals: BYOK 180d, others 365d; a
 daily bot-client check nags the owner channel when one lapses.
 
+Rotating any other shared service secret (e.g. `INTERNAL_SERVICE_SECRET`) is
+`pnpm ops secrets:rotate-env --env <env> --name <KEY>`, never the dashboard —
+it derives the inheriting services, skips Railway's implicit deploys, and
+stamps the ledger; expect a brief 401 mismatch window while services redeploy.
+
 ### Security Advisories
 
 `pnpm ops security:advisories` classifies each open Dependabot advisory from

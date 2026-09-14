@@ -44,6 +44,12 @@ export interface RailwayIds {
   serviceId?: string;
 }
 
+export interface RailwayServiceList {
+  projectId: string;
+  environmentId: string;
+  services: { id: string; name: string }[];
+}
+
 function fetchRailwayStatus(): unknown {
   let raw: string;
   try {
@@ -66,8 +72,19 @@ function fetchRailwayStatus(): unknown {
   }
 }
 
-/** Resolve the project, environment, and (optional) service ids for `env`/`service`. */
-export function resolveRailwayIds(env: 'dev' | 'prod', service: string | null): RailwayIds {
+type RailwayStatus = z.infer<typeof RailwayStatusSchema>;
+
+/**
+ * Parse the raw `railway status --json` payload and locate the environment
+ * node for `env` — the shape-check and environment-lookup logic every caller
+ * needs, single-sourced so `resolveRailwayIds` and `listRailwayServices`
+ * throw byte-identical "unexpected shape" and "environment not found"
+ * errors.
+ */
+function parseStatusAndFindEnvironment(env: 'dev' | 'prod'): {
+  status: RailwayStatus;
+  environmentNode: { id: string; name: string };
+} {
   const raw = fetchRailwayStatus();
 
   const parsed = RailwayStatusSchema.safeParse(raw);
@@ -91,6 +108,13 @@ export function resolveRailwayIds(env: 'dev' | 'prod', service: string | null): 
     );
   }
 
+  return { status, environmentNode };
+}
+
+/** Resolve the project, environment, and (optional) service ids for `env`/`service`. */
+export function resolveRailwayIds(env: 'dev' | 'prod', service: string | null): RailwayIds {
+  const { status, environmentNode } = parseStatusAndFindEnvironment(env);
+
   if (service === null) {
     return { projectId: status.id, environmentId: environmentNode.id };
   }
@@ -102,4 +126,19 @@ export function resolveRailwayIds(env: 'dev' | 'prod', service: string | null): 
   }
 
   return { projectId: status.id, environmentId: environmentNode.id, serviceId: serviceNode.id };
+}
+
+/**
+ * List every service in the project/environment for `env`, with ids —
+ * so a caller can derive which services inherit a shared variable without
+ * hardcoding the service set.
+ */
+export function listRailwayServices(env: 'dev' | 'prod'): RailwayServiceList {
+  const { status, environmentNode } = parseStatusAndFindEnvironment(env);
+
+  return {
+    projectId: status.id,
+    environmentId: environmentNode.id,
+    services: status.services.edges.map(edge => ({ id: edge.node.id, name: edge.node.name })),
+  };
 }

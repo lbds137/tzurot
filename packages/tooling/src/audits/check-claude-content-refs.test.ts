@@ -377,6 +377,7 @@ describe('findContentRefs (against real repo)', () => {
       'secrets:mark-rotated',
       'secrets:rotation-status',
       'secrets:rotate-byok',
+      'secrets:rotate-env',
       'security:advisories',
       'db:status',
       'deploy:dev',

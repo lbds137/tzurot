@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-09-13'
+lastUpdated: '2026-09-14'
 ---
 
 # Deployment Procedures
@@ -197,6 +197,9 @@ railway variables --service api-gateway --json
 railway variables --set "KEY=value" --service ai-worker --environment development
 
 # DELETE - the CLI cannot; use pnpm ops deploy:var-delete (needs TZUROT_RAILWAY_API_TOKEN_DEV/_PROD per --env), dashboard as fallback
+# ROTATE a shared secret - pnpm ops secrets:rotate-env --env <env> --name <KEY>, which owns the
+# redeploy ORDER (upserts with skipDeploys, then redeploys each inheriting service) - never
+# rotate by hand-setting the variable, which races Railway's implicit deploys
 ```
 
 ## Database Migration Procedure
