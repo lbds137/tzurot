@@ -1048,7 +1048,7 @@ describe('/user/history routes', () => {
       );
     });
 
-    it('should set irreversible context epoch instead of deleting config', async () => {
+    it('should not write a context epoch (purge is channel-scoped, the epoch is not)', async () => {
       const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
@@ -1060,34 +1060,14 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      // Should upsert with irreversible epoch (previousContextReset = null blocks undo)
-      expect(mockPrisma.userPersonaHistoryConfig.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            userId_personalityId_personaId: {
-              userId: TEST_USER_ID,
-              personalityId: TEST_PERSONALITY_ID,
-              personaId: TEST_PERSONA_ID,
-            },
-          },
-          update: expect.objectContaining({
-            lastContextReset: expect.any(Date),
-            previousContextReset: null, // Blocks undo - makes this irreversible
-          }),
-          create: expect.objectContaining({
-            userId: TEST_USER_ID,
-            personalityId: TEST_PERSONALITY_ID,
-            personaId: TEST_PERSONA_ID,
-            lastContextReset: expect.any(Date),
-            previousContextReset: null,
-          }),
-        })
-      );
+      // UserPersonaHistoryConfig has no channel column, so an epoch written
+      // here would hide history in every OTHER channel for this persona too.
+      expect(mockPrisma.userPersonaHistoryConfig.upsert).not.toHaveBeenCalled();
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should succeed and set epoch even when no messages to delete', async () => {
+    it('should not write a context epoch even when no messages to delete', async () => {
       mockClearHistory.mockResolvedValue(0);
 
       const handler = buildHandler(handleHardDeleteHistory, {
@@ -1104,8 +1084,8 @@ describe('/user/history routes', () => {
       // clearHistory should still be called
       expect(mockClearHistory).toHaveBeenCalled();
 
-      // upsert should be called to set irreversible epoch
-      expect(mockPrisma.userPersonaHistoryConfig.upsert).toHaveBeenCalled();
+      // no epoch write, even on a zero-message purge
+      expect(mockPrisma.userPersonaHistoryConfig.upsert).not.toHaveBeenCalled();
 
       expect(res.status).toHaveBeenCalledWith(200);
     });

@@ -69,7 +69,8 @@ yours to inspect:
   _reading_ its long-term memories of you — they're kept, just not used;
   **incognito mode** (`/memory incognito`) stops it from _writing_ new
   memories, with a retroactive forget when you turn it off.
-- `/history clear` resets the recent conversation (with undo).
+- `/history clear` resets the recent conversation with a character everywhere
+  — every channel and DM, not just the one you're in (with undo).
 
 ## Voice
 

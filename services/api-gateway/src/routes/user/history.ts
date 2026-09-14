@@ -354,7 +354,7 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
       return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
     }
 
-    const { userId, personalityId, personaId } = context;
+    const { personalityId, personaId } = context;
 
     if (scope === 'everyone') {
       logger.info(
@@ -371,19 +371,11 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
         ? await retentionService.clearHistory(channelId, personalityId)
         : await retentionService.clearHistory(channelId, personalityId, personaId);
 
-    const now = new Date();
-    await prisma.userPersonaHistoryConfig.upsert({
-      where: { userId_personalityId_personaId: { userId, personalityId, personaId } },
-      update: { lastContextReset: now, previousContextReset: null },
-      create: {
-        id: generateUserPersonaHistoryConfigUuid(userId, personalityId, personaId),
-        userId,
-        personalityId,
-        personaId,
-        lastContextReset: now,
-        previousContextReset: null,
-      },
-    });
+    // Purge is channel-scoped, but UserPersonaHistoryConfig is keyed by
+    // (userId, personalityId, personaId) with no channel dimension — writing
+    // an epoch here would hide history in every OTHER channel for this
+    // persona too, not just the one being purged. The row delete above
+    // already covers the purged channel; the epoch stays untouched.
 
     logger.info(
       {
