@@ -1,8 +1,19 @@
 /**
  * `pnpm ops secrets:rotate-env` — rotate a SHARED (project-level) Railway
- * variable end to end: generate a new value locally, upsert it via the
- * Railway public GraphQL API, redeploy exactly the services that inherit
- * the name, then stamp the rotation ledger.
+ * variable end to end.
+ *
+ * Two paths, resolved by whether the name is registered in
+ * `./rotate-env-stages.ts`'s dual-acceptance registry:
+ *
+ * - A registry name (its VERIFIER service accepts `<NAME>_PREVIOUS`) MUST go
+ *   through the staged flow in `./rotate-env-stages.ts` — `--stage` is
+ *   required, and there is no 401 window at any point in the three stages.
+ * - Every other name takes the single-shot path below: generate a new value
+ *   locally, upsert it via the Railway public GraphQL API, redeploy exactly
+ *   the services that inherit the name, then stamp the rotation ledger. This
+ *   path still has the mismatch window described below, because api-gateway
+ *   (or whichever service verifies the secret) compares against ONE value
+ *   loaded at startup with no `_PREVIOUS` acceptance.
  *
  * Value safety: the new value travels in an HTTPS request BODY via
  * `upsertRailwayVariable` — it never reaches argv and never reaches stdout.
@@ -12,15 +23,11 @@
  * the duration of that call. This command deliberately does NOT route
  * through `setServiceVariables` for exactly that reason.
  *
- * The mismatch window: api-gateway compares against ONE value loaded at
- * startup — there is no `_PREVIOUS` acceptance for a plain shared secret
- * (contrast the staged BYOK rotation in `./rotation.ts`, which has one).
- * bot-client and ai-worker PRESENT the secret; api-gateway VERIFIES it. With
- * a single shared value, no redeploy ordering removes the window: whichever
- * side restarts first, the other briefly holds the stale value and gets a
- * 401 until its own redeploy completes. This command does not attempt a
- * staged rotation for this class of secret — eliminating the window needs
- * dual-secret acceptance in api-gateway, a runtime change out of scope here.
+ * The mismatch window (single-shot path only): the verifier compares against
+ * ONE value loaded at startup. bot-client and ai-worker PRESENT the secret;
+ * api-gateway VERIFIES it. With a single shared value, no redeploy ordering
+ * removes the window: whichever side restarts first, the other briefly holds
+ * the stale value and gets a 401 until its own redeploy completes.
  *
  * If the process is interrupted between the upsert and the redeploy loop
  * (killed, crashed, network drop), the result is the same hazard as a
@@ -34,93 +41,29 @@
 import crypto from 'node:crypto';
 import chalk from 'chalk';
 
-import {
-  requireRailwayApiToken,
-  upsertRailwayVariable,
-  redeployRailwayService,
-  listRailwayVariableNames,
-} from '../deployment/railway-api.js';
-import { listRailwayServices } from '../deployment/railway-status.js';
+import { upsertRailwayVariable } from '../deployment/railway-api.js';
 import { confirmPrompt } from '../utils/confirm.js';
-import { getRailwayEnvName } from '../utils/env-runner.js';
 import { UsageError } from '../utils/errors.js';
-import { markSecretRotated } from './rotation.js';
+import { getDualAcceptance, resolveStageAlias, runStagedRotation } from './rotate-env-stages.js';
+import {
+  resolveRotationContext,
+  redeployServices,
+  reportRedeployFailures,
+  stampLedger,
+} from './rotate-env-context.js';
 
 export interface RotateEnvSecretOptions {
   env: 'dev' | 'prod';
   name: string;
   dryRun: boolean;
   yes: boolean;
+  stage?: string;
 }
 
 const MISMATCH_WINDOW_NOTE =
   'Mismatch window: api-gateway verifies against a single value loaded at startup, so ' +
   'whichever service (bot-client/ai-worker/api-gateway) redeploys first is briefly out of ' +
   'sync with the others and may see a 401 until every redeploy completes.';
-
-interface RedeployFailure {
-  name: string;
-  error: unknown;
-}
-
-/** Print each redeploy failure loudly, with the repair instruction — never "re-run this command". */
-function reportRedeployFailures(failures: RedeployFailure[]): void {
-  console.log(chalk.red(`\n⚠️  ${failures.length} service(s) failed to redeploy:`));
-  for (const failure of failures) {
-    console.log(
-      chalk.red(
-        `  - ${failure.name}: ${failure.error instanceof Error ? failure.error.message : 'unknown error'}`
-      )
-    );
-  }
-  console.log(
-    chalk.red(
-      '\nThe variable WAS rotated successfully. Repair the lagging service(s) from the Railway ' +
-        'dashboard or `railway redeploy --service <name>` — do NOT re-run ' +
-        '`pnpm ops secrets:rotate-env`, which would mint a THIRD value and widen the split.'
-    )
-  );
-}
-
-interface RailwayListContext {
-  projectId: string;
-  environmentId: string;
-  env: 'dev' | 'prod';
-}
-
-/**
- * Derived, never hardcoded — a service's variable list is the only source of truth for
- * whether it inherits the shared name.
- *
- * Unverified assumption: `listRailwayVariableNames` returns Railway's MERGED per-service
- * view, so a service carrying its OWN service-level override of `name` is indistinguishable
- * here from one that only inherits the shared value — both simply have `name` in `names`.
- * If that ever happens, this function still marks the service "affected": it gets redeployed
- * and reported as rotated, but its override means it keeps running its unchanged local value.
- * That failure is silent — no error, just a misleading rotation summary.
- */
-async function computeAffectedServices(
-  services: { id: string; name: string }[],
-  name: string,
-  context: RailwayListContext
-): Promise<{ id: string; name: string }[]> {
-  const affected: { id: string; name: string }[] = [];
-  for (const svc of services) {
-    let names: string[];
-    try {
-      names = await listRailwayVariableNames({ ...context, serviceId: svc.id });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Listing variables for service "${svc.name}" failed: ${message}`, {
-        cause: error,
-      });
-    }
-    if (names.includes(name)) {
-      affected.push(svc);
-    }
-  }
-  return affected;
-}
 
 /**
  * Guard against rotating a variable no service actually inherits — the new value would go
@@ -157,7 +100,7 @@ interface RotationSummaryArgs {
   name: string;
   railwayEnvName: string;
   affectedServices: { id: string; name: string }[];
-  failures: RedeployFailure[];
+  failures: { name: string; error: unknown }[];
   ledgerName: string;
   ledgerStamped: boolean;
 }
@@ -198,48 +141,12 @@ function printRotationSummary(args: RotationSummaryArgs): void {
   console.log(chalk.dim(`  ${MISMATCH_WINDOW_NOTE}`));
 }
 
-/** Stamp the ledger; a failure here is reported, never mistaken for a failed rotation. */
-async function stampLedger(env: 'dev' | 'prod', ledgerName: string): Promise<boolean> {
-  try {
-    await markSecretRotated({ env, name: ledgerName });
-    return true;
-  } catch (error) {
-    console.log(
-      chalk.red(
-        `\n⚠️  Rotation succeeded but the ledger stamp failed ` +
-          `(${error instanceof Error ? error.message : 'unknown error'}). Run this by hand:\n` +
-          `  pnpm ops secrets:mark-rotated ${ledgerName} --env ${env}`
-      )
-    );
-    return false;
-  }
-}
+async function runSingleShotRotation(
+  options: RotateEnvSecretOptions,
+  context: Awaited<ReturnType<typeof resolveRotationContext>>
+): Promise<void> {
+  const { projectId, environmentId, railwayEnvName, affectedServices } = context;
 
-export async function runRotateEnvSecret(options: RotateEnvSecretOptions): Promise<void> {
-  requireRailwayApiToken(options.env);
-
-  const { projectId, environmentId, services } = listRailwayServices(options.env);
-
-  const sharedNames = await listRailwayVariableNames({
-    projectId,
-    environmentId,
-    env: options.env,
-  });
-  if (!sharedNames.includes(options.name)) {
-    throw new UsageError(
-      `"${options.name}" is not a shared (project-level) variable in Railway ` +
-        `${getRailwayEnvName(options.env)} — secrets:rotate-env ROTATES an existing shared ` +
-        'variable, it does not create one.'
-    );
-  }
-
-  const affectedServices = await computeAffectedServices(services, options.name, {
-    projectId,
-    environmentId,
-    env: options.env,
-  });
-
-  const railwayEnvName = getRailwayEnvName(options.env);
   const affectedNames = affectedServices.map(svc => svc.name).join(', ') || '(none)';
   console.log(chalk.yellow(`\nAbout to rotate Railway variable "${options.name}"`));
   console.log(chalk.dim(`  Environment: ${railwayEnvName}`));
@@ -284,14 +191,7 @@ export async function runRotateEnvSecret(options: RotateEnvSecretOptions): Promi
     env: options.env,
   });
 
-  const failures: RedeployFailure[] = [];
-  for (const svc of affectedServices) {
-    try {
-      await redeployRailwayService({ environmentId, serviceId: svc.id, env: options.env });
-    } catch (error) {
-      failures.push({ name: svc.name, error });
-    }
-  }
+  const failures = await redeployServices(affectedServices, { environmentId, env: options.env });
 
   const ledgerName = options.name.toLowerCase().replaceAll('_', '-');
   const ledgerStamped = await stampLedger(options.env, ledgerName);
@@ -306,7 +206,10 @@ export async function runRotateEnvSecret(options: RotateEnvSecretOptions): Promi
   });
 
   if (failures.length > 0) {
-    reportRedeployFailures(failures);
+    reportRedeployFailures(
+      failures,
+      'The variable was rotated successfully; re-running would mint a THIRD value and widen the split.'
+    );
     throw new Error(
       `secrets:rotate-env: the variable was rotated successfully, but ${failures.length} ` +
         `service(s) failed to redeploy: ${failures.map(f => f.name).join(', ')}. Do NOT re-run ` +
@@ -314,4 +217,50 @@ export async function runRotateEnvSecret(options: RotateEnvSecretOptions): Promi
         '`railway redeploy --service <name>`).'
     );
   }
+}
+
+export async function runRotateEnvSecret(options: RotateEnvSecretOptions): Promise<void> {
+  // Routing is resolved BEFORE any IO: a name/stage mismatch is a usage error,
+  // not something to discover after a Railway round trip. The same applies to
+  // an invalid stage VALUE on a registered name — resolving it here means an
+  // unknown stage never reaches `resolveRotationContext`'s Railway calls.
+  const dual = getDualAcceptance(options.name);
+  const stage = options.stage;
+
+  if (dual === undefined && stage !== undefined) {
+    throw new UsageError(
+      `No verifier accepts a "${options.name}_PREVIOUS" value, so staging the rotation of ` +
+        `"${options.name}" would open a window nothing closes. Re-run without --stage.`
+    );
+  }
+  if (dual !== undefined && stage === undefined) {
+    throw new UsageError(
+      `"${options.name}" rotates through the staged flow — --stage is required ` +
+        '(1|stage, 2|roll, 3|finalize). Stage 1 preserves the current value as ' +
+        `"${options.name}_PREVIOUS" and redeploys only the verifier; stage 2 rolls the ` +
+        'presenters; stage 3 closes the window.'
+    );
+  }
+  if (dual !== undefined && stage !== undefined && resolveStageAlias(stage) === undefined) {
+    throw new UsageError(`Unknown stage "${stage}" — use 1|stage, 2|roll, or 3|finalize.`);
+  }
+
+  const context = await resolveRotationContext({ env: options.env, name: options.name });
+
+  if (dual !== undefined && stage !== undefined) {
+    await runStagedRotation(
+      {
+        env: options.env,
+        name: options.name,
+        stage,
+        dryRun: options.dryRun,
+        yes: options.yes,
+        verifierService: dual.verifierService,
+      },
+      context
+    );
+    return;
+  }
+
+  await runSingleShotRotation(options, context);
 }

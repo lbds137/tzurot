@@ -344,36 +344,58 @@ export function extractServiceSecret(req: Request): string | undefined {
 }
 
 /**
- * Verify service secret matches configured secret
+ * Compare a provided secret against a configured one with an XOR accumulate
+ * over the whole string rather than an early exit on the first differing
+ * character.
  *
- * Uses constant-time comparison to prevent timing attacks.
+ * The comparison is constant-time GIVEN EQUAL LENGTHS only — the length check
+ * returns early and therefore leaks the configured value's length. An absent
+ * or empty `configured` never matches anything, including an empty
+ * `provided`; pinned by the `_PREVIOUS is unset` and `_PREVIOUS is an empty
+ * string` cases in `AuthMiddleware.test.ts`.
+ */
+function constantTimeEquals(provided: string, configured: string | undefined): boolean {
+  if (configured === undefined || configured.length === 0) {
+    return false;
+  }
+
+  if (provided.length !== configured.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let i = 0; i < provided.length; i++) {
+    result |= provided.charCodeAt(i) ^ configured.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
+ * Verify a service secret against the configured CURRENT or PREVIOUS value.
+ *
+ * `INTERNAL_SERVICE_SECRET_PREVIOUS` is set only while a staged rotation
+ * window is open, so a presenter still holding the outgoing value is accepted
+ * until the window closes.
+ *
+ * Both comparisons are computed before the `||` rather than short-circuited,
+ * so the number of comparisons performed does not depend on WHICH value
+ * matched; pinned by the "reads the previous value even when the current
+ * value matched" case in `AuthMiddleware.test.ts`. Each comparison is
+ * constant-time only given equal lengths — see `constantTimeEquals`.
  *
  * @param providedSecret - The secret to verify
  * @returns true if valid, false otherwise
  */
 export function isValidServiceSecret(providedSecret: string | undefined): boolean {
   const config = getConfig();
-  const configuredSecret = config.INTERNAL_SERVICE_SECRET;
 
-  if (
-    providedSecret === undefined ||
-    providedSecret.length === 0 ||
-    configuredSecret === undefined ||
-    configuredSecret.length === 0
-  ) {
+  if (providedSecret === undefined || providedSecret.length === 0) {
     return false;
   }
 
-  // Constant-time comparison to prevent timing attacks
-  if (providedSecret.length !== configuredSecret.length) {
-    return false;
-  }
-
-  let result = 0;
-  for (let i = 0; i < providedSecret.length; i++) {
-    result |= providedSecret.charCodeAt(i) ^ configuredSecret.charCodeAt(i);
-  }
-  return result === 0;
+  const currentMatch = constantTimeEquals(providedSecret, config.INTERNAL_SERVICE_SECRET);
+  const previousMatch = constantTimeEquals(providedSecret, config.INTERNAL_SERVICE_SECRET_PREVIOUS);
+  return currentMatch || previousMatch;
 }
 
 /**

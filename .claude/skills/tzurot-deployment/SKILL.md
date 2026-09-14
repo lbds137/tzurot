@@ -200,6 +200,7 @@ railway variables --set "KEY=value" --service ai-worker --environment developmen
 # ROTATE a shared secret - pnpm ops secrets:rotate-env --env <env> --name <KEY>, which owns the
 # redeploy ORDER (upserts with skipDeploys, then redeploys each inheriting service) - never
 # rotate by hand-setting the variable, which races Railway's implicit deploys
+# For a dual-accepting name (INTERNAL_SERVICE_SECRET) add --stage 1|2|3 - no 401 window
 ```
 
 ## Database Migration Procedure
