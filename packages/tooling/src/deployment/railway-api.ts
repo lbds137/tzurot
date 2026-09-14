@@ -6,13 +6,24 @@
  * wrapper per operation, so the next CLI-missing operation plugs in beside
  * `deleteRailwayVariable` without reshaping this module.
  *
- * The endpoint URL and the `variableDelete` mutation signature come from
- * Railway's public API docs (and TASK-62) — not probed here: a Railway API
- * token is a dev-machine secret that does not exist in CI or in this
- * checkout, so there is nothing to call from a test.
+ * The endpoint URL, the `Project-Access-Token` auth header, and the
+ * `variableDelete` request/response shapes are observed from a live call
+ * against the real API with a project-scoped token — not
+ * from Railway's docs, which describe a Bearer-token account-scoped auth
+ * header that a project-scoped token cannot use (it comes back HTTP 200 with
+ * a GraphQL `Not Authorized` error). There is still nothing to call from a
+ * test: a Railway API token is a dev-machine secret that does not exist in
+ * CI or in this checkout.
+ *
+ * Every call is env-scoped: the Railway dashboard mints project-scoped
+ * tokens PER ENVIRONMENT, so `requireRailwayApiToken`/`railwayGraphql` take a
+ * `RailwayEnv` and select `TZUROT_RAILWAY_API_TOKEN_DEV` or `_PROD`
+ * accordingly — there is no unsuffixed fallback.
  *
  * No `console.*` in this file: it stays unit-testable and secret-safe.
  */
+
+import { z } from 'zod';
 
 import { UsageError } from '../utils/errors.js';
 
@@ -33,15 +44,30 @@ interface GraphqlResponseBody<T> {
 }
 
 /**
- * Read the Railway API token from the environment, or throw a `UsageError`
- * naming what's required. Read at CALL time (never at import time) so the
- * dotenv load in `cli.ts` has already populated `process.env`.
+ * The Railway dashboard mints project-scoped API tokens PER ENVIRONMENT —
+ * one for `development`, one for `production` — so a single token cannot
+ * authenticate calls against both.
  */
-export function requireRailwayApiToken(): string {
-  const token = process.env.TZUROT_RAILWAY_API_TOKEN;
+export type RailwayEnv = 'dev' | 'prod';
+
+const RAILWAY_API_TOKEN_ENV_VAR: Record<RailwayEnv, string> = {
+  dev: 'TZUROT_RAILWAY_API_TOKEN_DEV',
+  prod: 'TZUROT_RAILWAY_API_TOKEN_PROD',
+};
+
+/**
+ * Read the env-scoped Railway API token, or throw a `UsageError` naming the
+ * specific missing variable. Read at CALL time (never at import time) so the
+ * dotenv load in `cli.ts` has already populated `process.env`. There is no
+ * fallback to an unsuffixed variable name: a dev token must never be able to
+ * authenticate a prod call.
+ */
+export function requireRailwayApiToken(env: RailwayEnv): string {
+  const varName = RAILWAY_API_TOKEN_ENV_VAR[env];
+  const token = process.env[varName];
   if (token === undefined || token.length === 0) {
     throw new UsageError(
-      'TZUROT_RAILWAY_API_TOKEN is not set. Mint a PROJECT-scoped token in the Railway ' +
+      `${varName} is not set. Mint a PROJECT-scoped token for this environment in the Railway ` +
         'dashboard (Project Settings → Tokens) and add it to your local .env.'
     );
   }
@@ -60,12 +86,21 @@ export function requireRailwayApiToken(): string {
  * The body is parsed BEFORE the `response.ok` check, so a non-2xx response
  * that carries GraphQL `errors` reports Railway's specific message instead
  * of just the HTTP status.
+ *
+ * Takes the ENVIRONMENT, never the token value, and reads the token itself
+ * via `requireRailwayApiToken` — the secret never appears in a caller's
+ * scope or in a signature a stack trace or log line could render.
+ *
+ * Authenticates via the `Project-Access-Token` header — a project-scoped
+ * token is rejected under a Bearer-token header (HTTP 200 with a GraphQL
+ * `Not Authorized` error, observed live).
  */
 export async function railwayGraphql<T>(
   query: string,
-  variables: Record<string, unknown>
+  variables: Record<string, unknown>,
+  env: RailwayEnv
 ): Promise<T> {
-  const token = requireRailwayApiToken();
+  const token = requireRailwayApiToken(env);
 
   let response: Response;
   try {
@@ -73,7 +108,7 @@ export async function railwayGraphql<T>(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'Project-Access-Token': token,
       },
       body: JSON.stringify({ query, variables }),
       signal: AbortSignal.timeout(RAILWAY_API_TIMEOUT_MS),
@@ -115,11 +150,19 @@ export interface DeleteRailwayVariableArgs {
   /** Omitted for a shared (project-level) variable. */
   serviceId?: string;
   name: string;
+  /** Selects which env-suffixed API token authenticates the call. */
+  env: RailwayEnv;
 }
 
-interface VariableDeleteResponse {
-  variableDelete: boolean;
-}
+/**
+ * Only the field this module reads, required and boolean-typed. A missing
+ * field or a non-boolean value is a SHAPE change (the mutation's return
+ * type evolved) rather than a rejection, and is reported as one — a scalar
+ * `variableDelete` becoming e.g. `{ id: "…" }` must not be misread as
+ * Railway saying no. `passthrough()` so any other field Railway's response
+ * carries rides along unvalidated rather than tripping the parse.
+ */
+const VariableDeleteResponseSchema = z.object({ variableDelete: z.boolean() }).passthrough();
 
 /**
  * Delete one Railway environment variable via the public GraphQL API.
@@ -129,10 +172,9 @@ interface VariableDeleteResponse {
  * a shared (project-level) delete, rather than depending on how an
  * `undefined` value happens to serialize — pinned by the "omits the
  * serviceId key entirely" case in `railway-api.test.ts`, which asserts
- * `Object.hasOwn(input, 'serviceId') === false`. Per Railway's public API
- * docs and TASK-62 (not probed here, per the module doc above), a shared
- * variable is expected to be identified by omitting `serviceId` rather than
- * sending it as null.
+ * `Object.hasOwn(input, 'serviceId') === false`. Observed live: omitting
+ * `serviceId` addresses the shared (project-level) tier, and the mutation
+ * returns a bare boolean.
  */
 export async function deleteRailwayVariable(args: DeleteRailwayVariableArgs): Promise<void> {
   const input = {
@@ -142,9 +184,18 @@ export async function deleteRailwayVariable(args: DeleteRailwayVariableArgs): Pr
     name: args.name,
   };
 
-  const data = await railwayGraphql<VariableDeleteResponse>(VARIABLE_DELETE_MUTATION, { input });
+  const rawData = await railwayGraphql<unknown>(VARIABLE_DELETE_MUTATION, { input }, args.env);
 
-  if (!data.variableDelete) {
+  // Never include the raw response body in this error: any Railway payload can carry a secret.
+  const parsed = VariableDeleteResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw new Error(
+      'Railway API returned an unexpected shape for a variable-delete response ' +
+        '(the mutation return type may have changed)'
+    );
+  }
+
+  if (parsed.data.variableDelete === false) {
     throw new Error(`Railway rejected the delete for variable "${args.name}"`);
   }
 }

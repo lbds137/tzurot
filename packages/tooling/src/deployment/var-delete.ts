@@ -28,7 +28,7 @@ export interface VarDeleteOptions {
  * `deleteRailwayVariable` — hence before any fetch — is reached.
  */
 export async function runVarDelete(options: VarDeleteOptions): Promise<void> {
-  requireRailwayApiToken();
+  requireRailwayApiToken(options.env);
 
   const { projectId, environmentId, serviceId } = resolveRailwayIds(options.env, options.service);
 
@@ -57,6 +57,7 @@ export async function runVarDelete(options: VarDeleteOptions): Promise<void> {
     environmentId,
     ...(serviceId === undefined ? {} : { serviceId }),
     name: options.name,
+    env: options.env,
   });
 
   console.log(chalk.green(`\n✓ Deleted "${options.name}" from Railway ${railwayEnvName}`));
