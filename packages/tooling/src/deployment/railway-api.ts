@@ -1,6 +1,8 @@
 /**
  * Minimal Railway public-API GraphQL client, for the operations the Railway
- * CLI does not expose (variable deletion is the first one).
+ * CLI does not expose: variable deletion, variable listing (names only —
+ * values are secrets and are never returned), variable upsert, and
+ * service-instance redeploy.
  *
  * The seam is deliberately one generic `railwayGraphql` call plus one typed
  * wrapper per operation, so the next CLI-missing operation plugs in beside
@@ -41,6 +43,19 @@ const VARIABLE_DELETE_MUTATION = `
 interface GraphqlResponseBody<T> {
   data?: T;
   errors?: { message?: string }[];
+}
+
+/**
+ * The shared "the return type may have changed" message shape for every
+ * operation in this file — a Zod parse failure is reported as a SHAPE
+ * change, never as a rejection, so a mutation's return type evolving from a
+ * bare boolean to e.g. `{ id: "…" }` is never misread as Railway saying no.
+ */
+function unexpectedShapeError(operationLabel: string): Error {
+  return new Error(
+    `Railway API returned an unexpected shape for a ${operationLabel} response ` +
+      '(the operation return type may have changed)'
+  );
 }
 
 /**
@@ -189,13 +204,198 @@ export async function deleteRailwayVariable(args: DeleteRailwayVariableArgs): Pr
   // Never include the raw response body in this error: any Railway payload can carry a secret.
   const parsed = VariableDeleteResponseSchema.safeParse(rawData);
   if (!parsed.success) {
-    throw new Error(
-      'Railway API returned an unexpected shape for a variable-delete response ' +
-        '(the mutation return type may have changed)'
-    );
+    throw unexpectedShapeError('variable-delete');
   }
 
   if (parsed.data.variableDelete === false) {
     throw new Error(`Railway rejected the delete for variable "${args.name}"`);
+  }
+}
+
+const VARIABLES_QUERY = `
+  query Variables($projectId: String!, $environmentId: String!, $serviceId: String) {
+    variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+  }
+`;
+
+/**
+ * Only the field this module reads: a map of variable name to value. Values
+ * are typed `unknown` and never inspected — this module only ever reads the
+ * KEYS off this shape, never the values. Pinned by the "returns only the
+ * keys, never the fixture values" case in `railway-api.test.ts`.
+ */
+const VariablesResponseSchema = z
+  .object({ variables: z.record(z.string(), z.unknown()) })
+  .passthrough();
+
+export interface ListRailwayVariableNamesArgs {
+  projectId: string;
+  environmentId: string;
+  /** Omitted to read the shared (project-level) tier. */
+  serviceId?: string;
+  env: RailwayEnv;
+}
+
+/**
+ * List the NAMES of variables visible at a scope (shared, when `serviceId`
+ * is omitted, or one service's). The values are secrets — this returns
+ * `Object.keys` of the response only; a value must never be returned,
+ * logged, or included in an error message.
+ */
+export async function listRailwayVariableNames(
+  args: ListRailwayVariableNamesArgs
+): Promise<string[]> {
+  const variables = {
+    projectId: args.projectId,
+    environmentId: args.environmentId,
+    ...(args.serviceId === undefined ? {} : { serviceId: args.serviceId }),
+  };
+
+  const rawData = await railwayGraphql<unknown>(VARIABLES_QUERY, variables, args.env);
+
+  const parsed = VariablesResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError('variables');
+  }
+
+  return Object.keys(parsed.data.variables);
+}
+
+const VARIABLE_UPSERT_MUTATION = `
+  mutation VariableUpsert($input: VariableUpsertInput!) {
+    variableUpsert(input: $input)
+  }
+`;
+
+/**
+ * Only the field this module reads, required and boolean-typed — see the
+ * doc comment on `VariableDeleteResponseSchema` for why this shape (rather
+ * than a rejection) is how a return-type change is reported.
+ */
+const VariableUpsertResponseSchema = z.object({ variableUpsert: z.boolean() }).passthrough();
+
+export interface UpsertRailwayVariableArgs {
+  projectId: string;
+  environmentId: string;
+  /** Omitted for a shared (project-level) variable. */
+  serviceId?: string;
+  name: string;
+  /** The secret value. Travels in the HTTPS request body — never argv, never stdout. */
+  value: string;
+  /**
+   * `true` lets the caller own redeploy ordering instead of racing Railway's
+   * implicit per-variable deploys.
+   */
+  skipDeploys: boolean;
+  env: RailwayEnv;
+}
+
+/**
+ * Upsert one Railway variable via the public GraphQL API.
+ *
+ * `serviceId` is spread in conditionally, exactly as in `deleteRailwayVariable`,
+ * so a shared (project-level) upsert omits the key entirely rather than
+ * depending on how `undefined` happens to serialize.
+ *
+ * This is the one operation in this file whose request body carries a secret
+ * VALUE (delete and redeploy send only ids and names). `railwayGraphql`'s own
+ * error path interpolates Railway's GraphQL error message verbatim, and that
+ * message can echo the submitted value back in a shape we cannot reliably
+ * recognise — not just verbatim, but truncated, case-shifted, or embedded in
+ * some other diagnostic. A scrub keyed on recognising the value (e.g.
+ * `.includes(args.value)`) is therefore incomplete by construction: it only
+ * catches the shape it was written for. So this catch discards Railway's own
+ * wording ENTIRELY for this operation, with exactly one exception:
+ * `UsageError` is rethrown untouched, because `requireRailwayApiToken` builds
+ * it from a variable NAME (never the value) and it carries the actionable
+ * "set TZUROT_RAILWAY_API_TOKEN_..." message the operator needs. Every other
+ * error becomes a generic message naming the operation and `args.name` (the
+ * variable name is not a secret) — no Railway-supplied text, no `cause`.
+ * Dropping `cause` is deliberate: Node's default uncaught-exception printer
+ * renders the full `[cause]` chain, so attaching the original (Railway-worded)
+ * error as `cause` would re-leak it despite the generic `.message`; losing the
+ * original fetch-internals stack is the correct trade; the shape-change and
+ * rejection errors below stay untouched — they never carry the value and are
+ * thrown after this catch, from the parsed response.
+ */
+export async function upsertRailwayVariable(args: UpsertRailwayVariableArgs): Promise<void> {
+  const input = {
+    projectId: args.projectId,
+    environmentId: args.environmentId,
+    ...(args.serviceId === undefined ? {} : { serviceId: args.serviceId }),
+    name: args.name,
+    value: args.value,
+    skipDeploys: args.skipDeploys,
+  };
+
+  let rawData: unknown;
+  try {
+    rawData = await railwayGraphql<unknown>(VARIABLE_UPSERT_MUTATION, { input }, args.env);
+  } catch (error) {
+    if (error instanceof UsageError) {
+      throw error;
+    }
+    // Deliberately dropping `cause` and discarding Railway's own wording entirely: no
+    // partial-match heuristic can reliably recognise every shape Railway might echo the
+    // submitted value back in, so nothing short of a full discard is complete. Attaching the
+    // original error as `cause` would also re-leak it through Node's default
+    // uncaught-exception printer, which renders the full `[cause]` chain.
+    // eslint-disable-next-line preserve-caught-error -- see justification above
+    throw new Error(
+      `Railway API upsert failed for variable "${args.name}". Railway's own error text is withheld here because it can echo the submitted value; check the Railway dashboard for the detail.`
+    );
+  }
+
+  const parsed = VariableUpsertResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError('variable-upsert');
+  }
+
+  if (parsed.data.variableUpsert === false) {
+    throw new Error(`Railway rejected the upsert for variable "${args.name}"`);
+  }
+}
+
+const SERVICE_INSTANCE_REDEPLOY_MUTATION = `
+  mutation ServiceInstanceRedeploy($environmentId: String!, $serviceId: String!) {
+    serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
+  }
+`;
+
+/**
+ * Only the field this module reads, required and boolean-typed — same shape
+ * discipline as the other response schemas in this file.
+ */
+const ServiceInstanceRedeployResponseSchema = z
+  .object({ serviceInstanceRedeploy: z.boolean() })
+  .passthrough();
+
+export interface RedeployRailwayServiceArgs {
+  environmentId: string;
+  serviceId: string;
+  env: RailwayEnv;
+}
+
+/**
+ * Redeploy one service instance via the public GraphQL API. This mutation
+ * takes the environment and service ids at the top level — no input object,
+ * and no deployment id — verified by live read-only schema introspection.
+ */
+export async function redeployRailwayService(args: RedeployRailwayServiceArgs): Promise<void> {
+  const variables = { environmentId: args.environmentId, serviceId: args.serviceId };
+
+  const rawData = await railwayGraphql<unknown>(
+    SERVICE_INSTANCE_REDEPLOY_MUTATION,
+    variables,
+    args.env
+  );
+
+  const parsed = ServiceInstanceRedeployResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError('service-redeploy');
+  }
+
+  if (parsed.data.serviceInstanceRedeploy === false) {
+    throw new Error(`Railway rejected the redeploy for service "${args.serviceId}"`);
   }
 }

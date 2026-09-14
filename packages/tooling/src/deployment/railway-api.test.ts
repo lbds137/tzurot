@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import util from 'node:util';
 
 import { UsageError } from '../utils/errors.js';
-import { railwayGraphql, deleteRailwayVariable, requireRailwayApiToken } from './railway-api.js';
+import {
+  railwayGraphql,
+  deleteRailwayVariable,
+  requireRailwayApiToken,
+  listRailwayVariableNames,
+  upsertRailwayVariable,
+  redeployRailwayService,
+} from './railway-api.js';
 
 const SENTINEL_TOKEN = 'tok-SENTINEL-do-not-leak';
 const SENTINEL_TOKEN_DEV = 'tok-SENTINEL-dev-do-not-leak';
@@ -332,6 +340,341 @@ describe('railway-api', () => {
         deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'K', env: 'dev' })
       ).resolves.toBeUndefined();
       expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('listRailwayVariableNames', () => {
+    it('returns only the keys, never the fixture values', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: { variables: { FOO_KEY: 'secret-value-1', BAR_KEY: 'secret-value-2' } },
+        })
+      );
+
+      const names = await listRailwayVariableNames({
+        projectId: 'p',
+        environmentId: 'e',
+        env: 'dev',
+      });
+
+      expect(names.sort()).toEqual(['BAR_KEY', 'FOO_KEY']);
+      expect(names).not.toContain('secret-value-1');
+      expect(names).not.toContain('secret-value-2');
+    });
+
+    it('omits the serviceId key entirely when none is given', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variables: {} } }));
+
+      await listRailwayVariableNames({ projectId: 'p', environmentId: 'e', env: 'dev' });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        variables: Record<string, unknown>;
+      };
+      expect(Object.hasOwn(parsedBody.variables, 'serviceId')).toBe(false);
+    });
+
+    it('sends the serviceId key when one is given', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variables: {} } }));
+
+      await listRailwayVariableNames({
+        projectId: 'p',
+        environmentId: 'e',
+        serviceId: 'svc-1',
+        env: 'dev',
+      });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        variables: Record<string, unknown>;
+      };
+      expect(parsedBody.variables.serviceId).toBe('svc-1');
+    });
+
+    it('rejects a non-record variables response as a shape change', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variables: 'not-a-record' } }));
+
+      await expect(
+        listRailwayVariableNames({ projectId: 'p', environmentId: 'e', env: 'dev' })
+      ).rejects.toThrow('unexpected shape');
+    });
+  });
+
+  describe('upsertRailwayVariable', () => {
+    const SENTINEL_VALUE = 'sentinel-secret-value-do-not-leak';
+
+    it('omits the serviceId key entirely for a shared (project-level) upsert', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableUpsert: true } }));
+
+      await upsertRailwayVariable({
+        projectId: 'p',
+        environmentId: 'e',
+        name: 'SOME_KEY',
+        value: SENTINEL_VALUE,
+        skipDeploys: true,
+        env: 'dev',
+      });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        variables: { input: Record<string, unknown> };
+      };
+      expect(Object.hasOwn(parsedBody.variables.input, 'serviceId')).toBe(false);
+    });
+
+    it('sends the serviceId key when one is given (positive control)', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableUpsert: true } }));
+
+      await upsertRailwayVariable({
+        projectId: 'p',
+        environmentId: 'e',
+        serviceId: 'svc-1',
+        name: 'SOME_KEY',
+        value: SENTINEL_VALUE,
+        skipDeploys: true,
+        env: 'dev',
+      });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        variables: { input: Record<string, unknown> };
+      };
+      expect(parsedBody.variables.input.serviceId).toBe('svc-1');
+    });
+
+    it('sends skipDeploys: true through to the request body', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableUpsert: true } }));
+
+      await upsertRailwayVariable({
+        projectId: 'p',
+        environmentId: 'e',
+        name: 'SOME_KEY',
+        value: SENTINEL_VALUE,
+        skipDeploys: true,
+        env: 'dev',
+      });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        variables: { input: Record<string, unknown> };
+      };
+      expect(parsedBody.variables.input.skipDeploys).toBe(true);
+    });
+
+    it('rejects a non-boolean variableUpsert response as a shape error, not a rejection', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableUpsert: { id: 'x' } } }));
+
+      let caught: unknown;
+      try {
+        await upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const message = caught instanceof Error ? caught.message : '';
+      expect(message).toContain('unexpected shape');
+      expect(message).not.toContain('rejected');
+    });
+
+    it('throws the rejection error naming the variable when variableUpsert is false', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableUpsert: false } }));
+
+      await expect(
+        upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        })
+      ).rejects.toThrow('SOME_KEY');
+    });
+
+    it('discards a Railway error message that echoes the secret value verbatim', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          errors: [{ message: `value must not contain X, got: ${SENTINEL_VALUE}` }],
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      // The leak surface is whatever Node's default uncaught-exception printer renders —
+      // message, stack, AND cause chain — not just `.message`. `util.inspect` at depth null
+      // renders all three, which is exactly what would hit stderr on an uncaught rethrow.
+      const inspected = util.inspect(caught, { depth: null });
+      expect(inspected).not.toContain(SENTINEL_VALUE);
+      // Railway's own wording is discarded wholesale, not selectively scrubbed.
+      expect(inspected).not.toContain('value must not contain X');
+    });
+
+    it('discards a PARTIAL echo of the secret value that no full-string match would catch', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      const fragment = SENTINEL_VALUE.slice(0, 16);
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          errors: [{ message: `value rejected, saw prefix: ${fragment}...` }],
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const inspected = util.inspect(caught, { depth: null });
+      expect(inspected).not.toContain(fragment);
+      expect(inspected).not.toContain(SENTINEL_VALUE);
+    });
+
+    it('discards Railway wording from an ordinary error that carries no secret at all', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          errors: [{ message: 'internal validation error: field "region" is unrecognized' }],
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const inspected = util.inspect(caught, { depth: null });
+      expect(inspected).not.toContain('region');
+      expect(inspected).not.toContain('unrecognized');
+      expect(inspected).toContain('SOME_KEY');
+    });
+
+    it('still propagates UsageError intact when the token is missing', async () => {
+      // No TZUROT_RAILWAY_API_TOKEN_DEV set — requireRailwayApiToken throws UsageError
+      // before any network call.
+
+      let caught: unknown;
+      try {
+        await upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(UsageError);
+      const message = caught instanceof Error ? caught.message : '';
+      expect(message).toContain('TZUROT_RAILWAY_API_TOKEN_DEV');
+    });
+
+    it('never leaks the secret value in an error message or console output', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableUpsert: false } }));
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      let caught: unknown;
+      try {
+        await upsertRailwayVariable({
+          projectId: 'p',
+          environmentId: 'e',
+          name: 'SOME_KEY',
+          value: SENTINEL_VALUE,
+          skipDeploys: true,
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const message = caught instanceof Error ? caught.message : '';
+      expect(message).not.toContain(SENTINEL_VALUE);
+      expect(String(caught)).not.toContain(SENTINEL_VALUE);
+      for (const spy of [logSpy, errSpy, warnSpy]) {
+        for (const call of spy.mock.calls) {
+          for (const arg of call) {
+            expect(String(arg)).not.toContain(SENTINEL_VALUE);
+          }
+        }
+      }
+    });
+  });
+
+  describe('redeployRailwayService', () => {
+    it('sends both ids in the request', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { serviceInstanceRedeploy: true } }));
+
+      await redeployRailwayService({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as { variables: Record<string, unknown> };
+      expect(parsedBody.variables).toEqual({ environmentId: 'env-1', serviceId: 'svc-1' });
+    });
+
+    it('throws on a false response', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { serviceInstanceRedeploy: false } }));
+
+      await expect(
+        redeployRailwayService({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+      ).rejects.toThrow('svc-1');
     });
   });
 });

@@ -1,7 +1,8 @@
 /**
- * Secret-rotation commands: the per-environment rotation ledger and the
- * staged BYOK encryption-key rotation. Implementation + rationale in
- * ../secrets/rotation.ts.
+ * Secret-rotation commands: the per-environment rotation ledger, the staged
+ * BYOK encryption-key rotation, and shared Railway secret rotation.
+ * Implementation + rationale in ../secrets/rotation.ts and
+ * ../secrets/rotate-env-secret.ts.
  */
 
 import type { CAC } from 'cac';
@@ -16,6 +17,16 @@ const ENV_DEFAULT = { default: 'dev' };
 /** One lazy-import site so the module path literal exists exactly once. */
 async function loadRotation(): Promise<typeof import('../secrets/rotation.js')> {
   return import('../secrets/rotation.js');
+}
+
+/**
+ * A separate lazy-import site from `loadRotation()` above, deliberately: this
+ * module (`rotate-env-secret.js`) does not import Prisma-heavy `rotation.js`
+ * at CLI startup, so keeping its own dynamic import avoids paying that cost
+ * for commands that never touch it.
+ */
+async function loadRotateEnvSecret(): Promise<typeof import('../secrets/rotate-env-secret.js')> {
+  return import('../secrets/rotate-env-secret.js');
 }
 
 export function registerSecretsCommands(cli: CAC): void {
@@ -59,4 +70,35 @@ export function registerSecretsCommands(cli: CAC): void {
       const { rotateByokKey } = await loadRotation();
       await rotateByokKey({ env: options.env, stage: options.stage });
     });
+
+  cli
+    .command(
+      'secrets:rotate-env',
+      'Rotate a shared Railway secret: generate, upsert, redeploy inheritors, stamp the ledger'
+    )
+    .option(ENV_OPTION_FLAG, ENV_OPTION_HELP, ENV_DEFAULT)
+    .option('--name <name>', 'Shared variable to rotate (e.g. INTERNAL_SERVICE_SECRET)')
+    .option('--dry-run', 'Print the plan and exit without changing anything')
+    .option('--yes', 'Skip the confirmation prompt (dev only; refused on prod)')
+    .example('ops secrets:rotate-env --env dev --name INTERNAL_SERVICE_SECRET --dry-run')
+    .action(
+      async (options: { env: SecretsEnv; name?: string; dryRun?: boolean; yes?: boolean }) => {
+        // cac's underlying parser (mri) coerces a whitespace-only or empty flag value to the
+        // NUMBER 0 via `Number(x)` rather than leaving it a string, so the `typeof` guard below
+        // is load-bearing, not defensive filler.
+        const name = typeof options.name === 'string' ? options.name.trim() : undefined;
+        if (name === undefined || name.length === 0) {
+          throw new UsageError(
+            '--name is required (the shared variable to rotate, e.g. INTERNAL_SERVICE_SECRET)'
+          );
+        }
+        const { runRotateEnvSecret } = await loadRotateEnvSecret();
+        await runRotateEnvSecret({
+          env: options.env,
+          name,
+          dryRun: options.dryRun === true,
+          yes: options.yes === true,
+        });
+      }
+    );
 }
