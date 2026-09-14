@@ -5,6 +5,8 @@ vi.mock('../deployment/railway-api.js', () => ({
   upsertRailwayVariable: vi.fn(),
   redeployRailwayService: vi.fn(),
   listRailwayVariableNames: vi.fn(),
+  readRailwayVariableValue: vi.fn(),
+  deleteRailwayVariable: vi.fn(),
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -21,6 +23,28 @@ vi.mock('../utils/confirm.js', () => ({
   confirmPrompt: vi.fn(),
 }));
 
+vi.mock('./rotate-env-stages.js', () => ({
+  getDualAcceptance: vi.fn(),
+  runStagedRotation: vi.fn(),
+  // Real alias-table logic, not a real import: keeps this file's other tests
+  // (which never touch the resolver) free of network-side-effect risk from
+  // whatever `./rotate-env-stages.js` pulls in, while still letting the
+  // routing tests exercise real stage-string behavior instead of a fixed
+  // stub. Mirrors the alias table in `./rotate-env-stages.ts`.
+  resolveStageAlias: vi.fn((rawStage: string) => {
+    const aliases: Record<string, 1 | 2 | 3> = {
+      '1': 1,
+      stage: 1,
+      '2': 2,
+      roll: 2,
+      '3': 3,
+      finalize: 3,
+    };
+    const trimmed = rawStage.trim();
+    return Object.hasOwn(aliases, trimmed) ? aliases[trimmed] : undefined;
+  }),
+}));
+
 import {
   requireRailwayApiToken,
   upsertRailwayVariable,
@@ -31,6 +55,7 @@ import { listRailwayServices } from '../deployment/railway-status.js';
 import { UsageError } from '../utils/errors.js';
 import { markSecretRotated } from './rotation.js';
 import { confirmPrompt } from '../utils/confirm.js';
+import { getDualAcceptance, runStagedRotation, resolveStageAlias } from './rotate-env-stages.js';
 import { runRotateEnvSecret, type RotateEnvSecretOptions } from './rotate-env-secret.js';
 
 const mockRequireToken = vi.mocked(requireRailwayApiToken);
@@ -40,8 +65,14 @@ const mockListNames = vi.mocked(listRailwayVariableNames);
 const mockListServices = vi.mocked(listRailwayServices);
 const mockMarkRotated = vi.mocked(markSecretRotated);
 const mockConfirm = vi.mocked(confirmPrompt);
+const mockGetDualAcceptance = vi.mocked(getDualAcceptance);
+const mockRunStagedRotation = vi.mocked(runStagedRotation);
+const mockResolveStageAlias = vi.mocked(resolveStageAlias);
 
-const VAR_NAME = 'INTERNAL_SERVICE_SECRET';
+// A single-shot fixture name deliberately OUTSIDE the dual-acceptance
+// registry (`INTERNAL_SERVICE_SECRET` is registered and now routes through
+// the staged flow) — this is the honest fixture for the single-shot path.
+const VAR_NAME = 'SOME_SHARED_SECRET';
 
 const SERVICES = [
   { id: 'svc-gateway', name: 'api-gateway' },
@@ -72,6 +103,17 @@ describe('runRotateEnvSecret', () => {
     mockListServices.mockReset();
     mockMarkRotated.mockReset();
     mockConfirm.mockReset();
+    mockGetDualAcceptance.mockReset();
+    mockRunStagedRotation.mockReset();
+    // mockClear, not mockReset: this mock carries a real-alias-table
+    // implementation set in the vi.mock factory above, and mockReset would
+    // wipe it back to a no-op, breaking every test that reaches it via a
+    // valid --stage. Only the call history needs clearing between tests.
+    mockResolveStageAlias.mockClear();
+
+    // The single-shot fixtures in this file rotate a name with no dual
+    // acceptance; only the routing-specific tests below override this.
+    mockGetDualAcceptance.mockReturnValue(undefined);
 
     mockRequireToken.mockReturnValue('tok-SENTINEL-do-not-leak');
     mockListServices.mockReturnValue({
@@ -206,7 +248,7 @@ describe('runRotateEnvSecret', () => {
 
     const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
     expect(allOutput).not.toMatch(/✓ Rotated/);
-    expect(allOutput).toMatch(/Rotated "INTERNAL_SERVICE_SECRET".*but 1 service\(s\) failed/);
+    expect(allOutput).toMatch(new RegExp(`Rotated "${VAR_NAME}".*but 1 service\\(s\\) failed`));
   });
 
   it('the generated value never reaches stdout', async () => {
@@ -322,7 +364,7 @@ describe('runRotateEnvSecret', () => {
   it('derives the ledger name as the kebab-case form of --name', async () => {
     await runRotateEnvSecret(BASE_OPTIONS);
 
-    expect(mockMarkRotated).toHaveBeenCalledWith({ env: 'dev', name: 'internal-service-secret' });
+    expect(mockMarkRotated).toHaveBeenCalledWith({ env: 'dev', name: 'some-shared-secret' });
   });
 
   it('a --name absent from the shared tier rejects with UsageError', async () => {
@@ -355,7 +397,7 @@ describe('runRotateEnvSecret', () => {
     await expect(runRotateEnvSecret(BASE_OPTIONS)).resolves.toBeUndefined();
 
     const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
-    expect(allOutput).toContain('pnpm ops secrets:mark-rotated internal-service-secret --env dev');
+    expect(allOutput).toContain('pnpm ops secrets:mark-rotated some-shared-secret --env dev');
   });
 
   it('a missing token fails before any network call', async () => {
@@ -366,4 +408,74 @@ describe('runRotateEnvSecret', () => {
     await expect(runRotateEnvSecret(BASE_OPTIONS)).rejects.toThrow('missing token');
     expect(mockListServices).not.toHaveBeenCalled();
   });
+
+  it('a registry name without --stage is a usage error naming the three stages', async () => {
+    mockGetDualAcceptance.mockReturnValue({ verifierService: 'api-gateway' });
+
+    await expect(
+      runRotateEnvSecret({ ...BASE_OPTIONS, name: 'INTERNAL_SERVICE_SECRET' })
+    ).rejects.toThrow(UsageError);
+    await expect(
+      runRotateEnvSecret({ ...BASE_OPTIONS, name: 'INTERNAL_SERVICE_SECRET' })
+    ).rejects.toThrow(/1\|stage.*2\|roll.*3\|finalize/s);
+    expect(mockListServices).not.toHaveBeenCalled();
+  });
+
+  it('--stage is refused for a name with no dual acceptance', async () => {
+    mockGetDualAcceptance.mockReturnValue(undefined);
+
+    await expect(
+      runRotateEnvSecret({ ...BASE_OPTIONS, name: VAR_NAME, stage: '1' })
+    ).rejects.toThrow(UsageError);
+    await expect(
+      runRotateEnvSecret({ ...BASE_OPTIONS, name: VAR_NAME, stage: '1' })
+    ).rejects.toThrow(/No verifier accepts/);
+    expect(mockListServices).not.toHaveBeenCalled();
+  });
+
+  it('a registry name with --stage routes to the staged flow', async () => {
+    mockGetDualAcceptance.mockReturnValue({ verifierService: 'api-gateway' });
+    mockRunStagedRotation.mockResolvedValue(undefined);
+    mockListNames.mockImplementation(async args => {
+      if (args.serviceId === undefined) {
+        return ['INTERNAL_SERVICE_SECRET', 'OTHER_SHARED_VAR'];
+      }
+      return INHERITING_IDS.has(args.serviceId) ? ['INTERNAL_SERVICE_SECRET'] : ['REDIS_URL'];
+    });
+
+    await runRotateEnvSecret({
+      ...BASE_OPTIONS,
+      name: 'INTERNAL_SERVICE_SECRET',
+      stage: '1',
+    });
+
+    expect(mockRunStagedRotation).toHaveBeenCalledTimes(1);
+    const [stagedOptions] = mockRunStagedRotation.mock.calls[0];
+    expect(stagedOptions.name).toBe('INTERNAL_SERVICE_SECRET');
+    expect(stagedOptions.stage).toBe('1');
+    expect(stagedOptions.verifierService).toBe('api-gateway');
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it.each(['5', 'bogus'])(
+    'an unknown --stage %s on a registered name throws before any Railway call',
+    async invalidStage => {
+      mockGetDualAcceptance.mockReturnValue({ verifierService: 'api-gateway' });
+
+      await expect(
+        runRotateEnvSecret({
+          ...BASE_OPTIONS,
+          name: 'INTERNAL_SERVICE_SECRET',
+          stage: invalidStage,
+        })
+      ).rejects.toThrow(`Unknown stage "${invalidStage}" — use 1|stage, 2|roll, or 3|finalize.`);
+
+      // The seam this test exists to pin: resolving an invalid stage must
+      // happen BEFORE `resolveRotationContext`'s Railway calls, not after.
+      expect(mockResolveStageAlias).toHaveBeenCalledWith(invalidStage);
+      expect(mockListServices).not.toHaveBeenCalled();
+      expect(mockListNames).not.toHaveBeenCalled();
+      expect(mockRunStagedRotation).not.toHaveBeenCalled();
+    }
+  );
 });
