@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-14 12:15'
+updated_date: '2026-09-14 15:19'
 labels:
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 972000
