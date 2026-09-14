@@ -49,4 +49,13 @@ created: 2026-09-13
 ---
 Owner probe 2026-09-13: the Railway dashboard mints PROJECT-scoped tokens per ENVIRONMENT (one for development, one for production), while packages/tooling/src/deployment/railway-api.ts requireRailwayApiToken() reads a single TZUROT_RAILWAY_API_TOKEN and passes environmentId per call — the single-variable design assumed one project token spans both environments, and it does not. Fix shape: read TZUROT_RAILWAY_API_TOKEN_DEV / TZUROT_RAILWAY_API_TOKEN_PROD selected by the --env flag every consumer already carries (deploy:var-delete); UsageError names the env-suffixed variable that is missing; RAILWAY_CLI_REFERENCE.md section updated to say two tokens. Owner mints both and adds both to the local .env under the suffixed names. The account-scoped alternative (one token, all projects) stays ruled out — project scope was the 2026-08-14 blast-radius ruling.
 ---
+
+author: agent
+created: 2026-09-13
+---
+Probe 2026-09-13 (Opus, beta.225 lane), two findings, both live against dev:
+
+1. WRONG AUTH HEADER, shipped. railway-api.ts sends `Authorization: Bearer <token>`. A PROJECT-scoped Railway token is rejected that way: the `variables` query returned HTTP 200 with GraphQL errors `Not Authorized`, both with and without serviceId. The same query with the header `Project-Access-Token: <token>` succeeded immediately (200, 5 shared keys / 30 service keys). So `deploy:var-delete` as merged in #2345 could never have worked with the token this task told the owner to mint — the close-out note's "first real delete is the first live test" is exactly why it went unnoticed. Folded into the env-suffixed-token follow-up PR, where that file is already open.
+
+2. FIRST LIVE TEST OF variableDelete, done. Round trip on a throwaway shared variable `TZUROT_PROBE_DELETE_ME` in dev: `variableUpsert` (input without serviceId) returned `true`; read-back showed it at the shared tier; `variableDelete` (input without serviceId) returned `true`, `typeof` boolean; read-back showed it gone. That retires the round-6 carry-over — the response shape IS a bare boolean, so the strict `!== true` check and a Zod schema mirroring railway-status.ts can now be written against an observed shape rather than a guess. Also confirms the shared tier is reachable with serviceId omitted, which is what TASK-963 was gated on.
 <!-- COMMENTS:END -->
