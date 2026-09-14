@@ -66,7 +66,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
     const embed = createSuccessEmbed(
       'Context Cleared',
-      `Conversation context with **${personalitySlug}** has been cleared.\n\n` +
+      `Conversation context with **${personalitySlug}** has been cleared everywhere — every channel and DM with this character, not just this one.\n\n` +
         'Previous messages will no longer be included in AI responses.'
     ).addFields({
       name: 'Undo Available',
