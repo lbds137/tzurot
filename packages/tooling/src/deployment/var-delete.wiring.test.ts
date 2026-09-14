@@ -49,14 +49,14 @@ describe('wiring (real chain, external boundary mocked only)', () => {
     mockExecFileSync.mockReturnValue(JSON.stringify(RAILWAY_STATUS_FIXTURE));
     mockFetch = vi.fn().mockResolvedValue(jsonResponse(200, { data: { variableDelete: true } }));
     vi.stubGlobal('fetch', mockFetch);
-    process.env.TZUROT_RAILWAY_API_TOKEN = 'tok-SENTINEL-do-not-leak';
+    process.env.TZUROT_RAILWAY_API_TOKEN_DEV = 'tok-SENTINEL-do-not-leak';
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    delete process.env.TZUROT_RAILWAY_API_TOKEN;
+    delete process.env.TZUROT_RAILWAY_API_TOKEN_DEV;
   });
 
   it('service-scoped delete resolves ids through the real chain into the fetch body', async () => {
@@ -76,7 +76,7 @@ describe('wiring (real chain, external boundary mocked only)', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe('Bearer tok-SENTINEL-do-not-leak');
+    expect(headers['Project-Access-Token']).toBe('tok-SENTINEL-do-not-leak');
     const parsedBody = JSON.parse(init.body as string) as {
       variables: { input: Record<string, unknown> };
     };

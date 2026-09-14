@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { UsageError } from '../utils/errors.js';
-import { railwayGraphql, deleteRailwayVariable } from './railway-api.js';
+import { railwayGraphql, deleteRailwayVariable, requireRailwayApiToken } from './railway-api.js';
 
 const SENTINEL_TOKEN = 'tok-SENTINEL-do-not-leak';
+const SENTINEL_TOKEN_DEV = 'tok-SENTINEL-dev-do-not-leak';
+const SENTINEL_TOKEN_PROD = 'tok-SENTINEL-prod-do-not-leak';
 
 function jsonResponse(status: number, body: unknown): Response {
   return {
@@ -20,32 +22,56 @@ describe('railway-api', () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);
-    delete process.env.TZUROT_RAILWAY_API_TOKEN;
+    delete process.env.TZUROT_RAILWAY_API_TOKEN_DEV;
+    delete process.env.TZUROT_RAILWAY_API_TOKEN_PROD;
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    delete process.env.TZUROT_RAILWAY_API_TOKEN;
+    delete process.env.TZUROT_RAILWAY_API_TOKEN_DEV;
+    delete process.env.TZUROT_RAILWAY_API_TOKEN_PROD;
+  });
+
+  describe('requireRailwayApiToken', () => {
+    it('reads the DEV-suffixed variable for env "dev" and not the PROD one', () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN_DEV;
+      process.env.TZUROT_RAILWAY_API_TOKEN_PROD = SENTINEL_TOKEN_PROD;
+
+      expect(requireRailwayApiToken('dev')).toBe(SENTINEL_TOKEN_DEV);
+    });
+
+    it('reads the PROD-suffixed variable for env "prod" and not the DEV one', () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN_DEV;
+      process.env.TZUROT_RAILWAY_API_TOKEN_PROD = SENTINEL_TOKEN_PROD;
+
+      expect(requireRailwayApiToken('prod')).toBe(SENTINEL_TOKEN_PROD);
+    });
+
+    it('names the specific missing suffixed variable for the requested env', () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN_DEV;
+
+      expect(() => requireRailwayApiToken('prod')).toThrow('TZUROT_RAILWAY_API_TOKEN_PROD');
+    });
   });
 
   describe('railwayGraphql', () => {
     it('rejects with UsageError and makes no request when the token is missing', async () => {
-      delete process.env.TZUROT_RAILWAY_API_TOKEN;
+      delete process.env.TZUROT_RAILWAY_API_TOKEN_DEV;
 
-      await expect(railwayGraphql('query {}', {})).rejects.toBeInstanceOf(UsageError);
+      await expect(railwayGraphql('query {}', {}, 'dev')).rejects.toBeInstanceOf(UsageError);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it('rejects with UsageError and makes no request when the token is an empty string', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = '';
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = '';
 
-      await expect(railwayGraphql('query {}', {})).rejects.toBeInstanceOf(UsageError);
+      await expect(railwayGraphql('query {}', {}, 'dev')).rejects.toBeInstanceOf(UsageError);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it('never leaks the token in an error message on a non-2xx response', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(500, {}));
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -53,7 +79,7 @@ describe('railway-api', () => {
 
       let caught: unknown;
       try {
-        await railwayGraphql('query {}', {});
+        await railwayGraphql('query {}', {}, 'dev');
       } catch (error) {
         caught = error;
       }
@@ -72,7 +98,7 @@ describe('railway-api', () => {
     });
 
     it('never leaks the token in an error message when the API returns errors', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { errors: [{ message: 'Not authorized' }] }));
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -80,7 +106,7 @@ describe('railway-api', () => {
 
       let caught: unknown;
       try {
-        await railwayGraphql('query {}', {});
+        await railwayGraphql('query {}', {}, 'dev');
       } catch (error) {
         caught = error;
       }
@@ -100,10 +126,10 @@ describe('railway-api', () => {
     });
 
     it('sends the expected request shape', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: { ok: true } }));
 
-      await railwayGraphql('query { foo }', { bar: 'baz' });
+      await railwayGraphql('query { foo }', { bar: 'baz' }, 'dev');
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
@@ -111,7 +137,7 @@ describe('railway-api', () => {
       expect(init.method).toBe('POST');
       const headers = init.headers as Record<string, string>;
       expect(headers['Content-Type']).toBe('application/json');
-      expect(headers.Authorization).toBe(`Bearer ${SENTINEL_TOKEN}`);
+      expect(headers['Project-Access-Token']).toBe(SENTINEL_TOKEN);
       const parsedBody = JSON.parse(init.body as string) as {
         query: string;
         variables: Record<string, unknown>;
@@ -122,13 +148,13 @@ describe('railway-api', () => {
     });
 
     it('rejects with a timed-out message (never the token) when fetch aborts on timeout', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       const timeoutError = new DOMException('The operation was aborted', 'TimeoutError');
       mockFetch.mockRejectedValue(timeoutError);
 
       let caught: unknown;
       try {
-        await railwayGraphql('query {}', {});
+        await railwayGraphql('query {}', {}, 'dev');
       } catch (error) {
         caught = error;
       }
@@ -140,7 +166,7 @@ describe('railway-api', () => {
     });
 
     it('rejects when the response body is not valid JSON, naming only the status', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
@@ -148,13 +174,13 @@ describe('railway-api', () => {
         json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
       } as unknown as Response);
 
-      await expect(railwayGraphql('query {}', {})).rejects.toThrow(
+      await expect(railwayGraphql('query {}', {}, 'dev')).rejects.toThrow(
         'Railway API returned a non-JSON body (status 200)'
       );
     });
 
     it('rejects on a non-JSON body from a non-2xx response, naming only the status', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue({
         ok: false,
         status: 500,
@@ -162,18 +188,18 @@ describe('railway-api', () => {
         json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
       } as unknown as Response);
 
-      await expect(railwayGraphql('query {}', {})).rejects.toThrow(
+      await expect(railwayGraphql('query {}', {}, 'dev')).rejects.toThrow(
         'Railway API returned a non-JSON body (status 500)'
       );
     });
 
     it('surfaces the GraphQL error body on a non-2xx response instead of just the status', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(401, { errors: [{ message: 'Not Authorized' }] }));
 
       let caught: unknown;
       try {
-        await railwayGraphql('query {}', {});
+        await railwayGraphql('query {}', {}, 'dev');
       } catch (error) {
         caught = error;
       }
@@ -186,29 +212,29 @@ describe('railway-api', () => {
     });
 
     it('rejects when the response carries no data', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, {}));
 
-      await expect(railwayGraphql('query {}', {})).rejects.toThrow('no data');
+      await expect(railwayGraphql('query {}', {}, 'dev')).rejects.toThrow('no data');
     });
 
     it('rejects cleanly when data and errors are explicit nulls', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: null, errors: null }));
-      await expect(railwayGraphql('query {}', {})).rejects.toThrow('no data');
+      await expect(railwayGraphql('query {}', {}, 'dev')).rejects.toThrow('no data');
     });
     it('resolves with the parsed data on a happy path', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: { hello: 'world' } }));
 
-      await expect(railwayGraphql('query {}', {})).resolves.toEqual({ hello: 'world' });
+      await expect(railwayGraphql('query {}', {}, 'dev')).resolves.toEqual({ hello: 'world' });
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('deleteRailwayVariable', () => {
     it('sends the query text and all four fields for a service-scoped delete', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableDelete: true } }));
 
       await deleteRailwayVariable({
@@ -216,6 +242,7 @@ describe('railway-api', () => {
         environmentId: 'env-1',
         serviceId: 'svc-1',
         name: 'SOME_KEY',
+        env: 'dev',
       });
 
       const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
@@ -233,13 +260,14 @@ describe('railway-api', () => {
     });
 
     it('omits the serviceId key entirely for a shared (project-level) delete', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableDelete: true } }));
 
       await deleteRailwayVariable({
         projectId: 'proj-1',
         environmentId: 'env-1',
         name: 'SOME_KEY',
+        env: 'dev',
       });
 
       const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
@@ -250,29 +278,58 @@ describe('railway-api', () => {
     });
 
     it('rejects when the GraphQL API returns errors', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { errors: [{ message: 'Not authorized' }] }));
 
       await expect(
-        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'K' })
+        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'K', env: 'dev' })
       ).rejects.toThrow('Not authorized');
     });
 
     it('rejects when Railway reports the delete as rejected', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableDelete: false } }));
 
       await expect(
-        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'SOME_KEY' })
+        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'SOME_KEY', env: 'dev' })
       ).rejects.toThrow('SOME_KEY');
     });
 
+    it('rejects a non-boolean response as a shape change instead of silently succeeding', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableDelete: 'true' } }));
+
+      await expect(
+        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'SOME_KEY', env: 'dev' })
+      ).rejects.toThrow('unexpected shape');
+    });
+
+    it('rejects with a shape-changed error when the response is missing variableDelete entirely', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: {} }));
+
+      await expect(
+        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'SOME_KEY', env: 'dev' })
+      ).rejects.toThrow('unexpected shape');
+    });
+
+    it('uses the PROD-suffixed token when env is "prod"', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_PROD = SENTINEL_TOKEN_PROD;
+      mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableDelete: true } }));
+
+      await deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'K', env: 'prod' });
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = init.headers as Record<string, string>;
+      expect(headers['Project-Access-Token']).toBe(SENTINEL_TOKEN_PROD);
+    });
+
     it('resolves on a happy path', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN = SENTINEL_TOKEN;
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(jsonResponse(200, { data: { variableDelete: true } }));
 
       await expect(
-        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'K' })
+        deleteRailwayVariable({ projectId: 'p', environmentId: 'e', name: 'K', env: 'dev' })
       ).resolves.toBeUndefined();
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
