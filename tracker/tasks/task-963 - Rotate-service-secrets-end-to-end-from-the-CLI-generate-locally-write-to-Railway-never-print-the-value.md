@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-13 17:39'
-updated_date: '2026-09-13 22:04'
+updated_date: '2026-09-14 02:49'
 labels:
   - 'area:tooling'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 960000
@@ -37,4 +37,15 @@ Redeploy behaviour on a shared-variable write was NOT observed in this probe - d
 REDEPLOY QUESTION, partially answered by observation - read scope before relying on it. The shared-variable upsert and delete above ran at roughly 02:03:40-02:03:50Z. Querying the dev deployment history afterwards (GraphQL deployments(input: {projectId, environmentId}), 25 newest) shows NO deployment record created between 01:40:33Z and 02:05:04Z, and the 02:05:04Z batch is the develop push 4ffcb7e5c (pushed 02:04:54Z, ten seconds earlier), not the variable change. So no deployment appeared in the ~74-second window between the write and the next push.
 That is evidence against automatic redeploy on a shared-variable change, NOT a demonstration of the mechanism: the window is short, the delete followed the upsert within seconds so a debounce could have collapsed the pair, and every deployment in the listing shows status SKIPPED (Railway watch-path filtering), so a variable-triggered deployment might not be distinguishable from a path-skipped one anyway.
 Design consequence either way: secrets:rotate-env must trigger its redeploys EXPLICITLY rather than relying on Railway to notice the write. If Railway does also auto-redeploy, the cost is a redundant restart; if it does not, relying on it would leave the rotation silently ineffective until something else redeployed. Do not let the docs-sourced comment in var-delete.ts (hedged as not probed) become the premise.
+
+SCHEMA PROBE 2026-09-14 (Opus, read-only GraphQL introspection against backboard.railway.app with the dev project token; no mutation executed, introspection is enabled and returns 244 mutations):
+- The redeploy operation exists and is per-service, taking no deployment id: serviceInstanceRedeploy(environmentId: String!, serviceId: String!) -> Boolean! — a bare boolean, the same response shape variableDelete returns, so it pins with the same Zod-schema-plus-value-check pattern. deploymentRedeploy(id: String!) is the other form and would need a deployment id looked up first; serviceInstanceRedeploy does not.
+- variableUpsert takes VariableUpsertInput { projectId!, environmentId!, name!, value!, serviceId, skipDeploys } -> Boolean!. serviceId being NULLABLE is what addresses the shared tier, matching the 2026-09-13 round trip.
+- skipDeploys REFRAMES the redeploy observation above. A skip flag on the upsert input is schema-level evidence that a variable write does normally trigger deploys, which the 74-second window appeared to contradict. The two reconcile: TZUROT_PROBE_DELETE_ME was a brand-new shared variable with NO service referencing it (Railway gates shared-variable inheritance per service — see sharedVariableConfigure's enabledServiceIds / disabledServiceIds), so there was nothing for a write to redeploy. That makes the earlier reading weak rather than wrong: it is evidence about an UNREFERENCED variable only, and says nothing about a write to a referenced one. Neither reading changes the design consequence, and skipDeploys makes it cleaner than "redeploy explicitly and accept a redundant restart": upsert with skipDeploys true, then fire serviceInstanceRedeploy per service, so the command owns the ordering instead of racing Railway's implicit deploys.
+
+WHICH SERVICES, probed read-only on dev (per-service variables query, key names only, values never read): exactly three inherit INTERNAL_SERVICE_SECRET — api-gateway (30 keys), bot-client (26), ai-worker (28). pgvector, Redis, voice-engine and tzurot-website do not. That matches docs/reference/testing/BYOK_MANUAL_TESTING.md's table, and grep -rn INTERNAL_SERVICE_SECRET services/voice-engine --include=*.py returns nothing. The command should DERIVE this set per run — query each service's variables and redeploy those whose key list contains --name — rather than hardcode three service names, so it stays correct for another variable name and for a fourth service later.
+
+MISMATCH WINDOW, settled as DOCUMENTED rather than eliminated: api-gateway verifies with a single constant-time compare against config.INTERNAL_SERVICE_SECRET, loaded at startup (isValidServiceSecret in services/api-gateway/src/services/AuthMiddleware.ts). There is no _PREVIOUS acceptance the way BYOK's dual-key window has. So with ONE shared value, no redeploy ordering removes the window: whichever side restarts first, the other is presenting or expecting the stale value and gets a 401 (bot-client and ai-worker present, api-gateway verifies). Eliminating it means dual-secret acceptance in api-gateway, a runtime change outside this task's tooling scope. This task's own acceptance sanctions "documents the brief mismatch window", so that is what ships: the three redeploys fired back to back, and the window stated in the command output, in 05-tooling.md's Secret Rotation section, and in the deployment skill.
+
+LOCAL .env IS UNAFFECTED: packages/tooling/src/utils/gateway-client.ts reads INTERNAL_SERVICE_SECRET from the ambient process env only for env === 'local'; dev and prod read the gateway service's Railway variables. The repo .env carries no INTERNAL_SERVICE_SECRET key (grep -c on it returned 0), so rotating dev or prod stales no local file.
 <!-- SECTION:DESCRIPTION:END -->
