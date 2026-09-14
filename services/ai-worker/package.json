@@ -21,23 +21,23 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.2.9",
-    "@langchain/openai": "^1.5.11",
+    "@langchain/core": "^1.2.10",
+    "@langchain/openai": "^1.5.12",
     "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
     "@tzurot/conversation-history": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "@tzurot/identity": "workspace:*",
-    "bullmq": "^5.81.4",
+    "bullmq": "^5.81.5",
     "fast-xml-parser": "^5.11.1",
     "fflate": "^0.8.3",
     "ioredis": "^5.11.1",
-    "langchain": "^1.5.10",
+    "langchain": "^1.5.11",
     "onnxruntime-node": "^1.29.0",
     "pino": "^10.3.1",
     "sharp": "^0.35.4",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
