@@ -15,7 +15,7 @@
     "dotenv": "^17.4.2",
     "ioredis": "^5.11.1",
     "tsx": "^4.23.13",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
