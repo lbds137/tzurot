@@ -15,7 +15,7 @@
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
 import { DISCORD_LIMITS, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types/constants/discord';
-import { TIMEZONE_OPTIONS } from '@tzurot/common-types/constants/timezone';
+import { TIMEZONE_OPTIONS, timezoneOffsetLabel } from '@tzurot/common-types/constants/timezone';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
@@ -166,18 +166,34 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
   if (focusedOption.name === 'timezone') {
     // Inline timezone autocomplete
     const query = focusedOption.value.toLowerCase();
+    // One instant for all 24 options, so the rendered offsets are mutually
+    // consistent even across a transition boundary.
+    const now = new Date();
 
-    const filtered = TIMEZONE_OPTIONS.filter(
-      tz =>
-        tz.value.toLowerCase().includes(query) ||
-        tz.label.toLowerCase().includes(query) ||
-        tz.offset.toLowerCase().includes(query)
-    ).slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
-
-    const choices = filtered.map(tz => ({
-      name: `${tz.label} (${tz.value}) - ${tz.offset}`,
+    const withOffset = TIMEZONE_OPTIONS.map(tz => ({
       value: tz.value,
+      label: tz.label,
+      offset: timezoneOffsetLabel(tz.value, now),
     }));
+
+    // Every derived offset contains the literal 'UTC', so a flat filter lets
+    // the query 'utc' match all 24 options and sorts the real UTC entry last.
+    // Value and label matches therefore rank ahead of offset-only matches,
+    // list order preserved within each rank.
+    const nameMatches = withOffset.filter(
+      tz => tz.value.toLowerCase().includes(query) || tz.label.toLowerCase().includes(query)
+    );
+    const nameMatched = new Set(nameMatches.map(tz => tz.value));
+    const offsetOnlyMatches = withOffset.filter(
+      tz => !nameMatched.has(tz.value) && tz.offset.toLowerCase().includes(query)
+    );
+
+    const choices = [...nameMatches, ...offsetOnlyMatches]
+      .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES)
+      .map(tz => ({
+        name: `${tz.label} (${tz.value}) - ${tz.offset}`,
+        value: tz.value,
+      }));
 
     await interaction.respond(choices);
   } else {

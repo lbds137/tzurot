@@ -3,7 +3,7 @@
  * Handles /settings timezone view command
  */
 
-import { TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types/constants/timezone';
+import { timezoneDisplayName } from '@tzurot/common-types/constants/timezone';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -39,9 +39,9 @@ export async function handleTimezoneView(context: DeferredCommandContext): Promi
 
     const data = result.data;
 
-    // Find the label for the timezone
-    const tzChoice = TIMEZONE_DISCORD_CHOICES.find(tz => tz.value === data.timezone);
-    const displayName = tzChoice?.name ?? data.timezone;
+    // Known zones render '<label> - <offset>'; an unlisted zone falls back to
+    // its raw IANA value, as before.
+    const displayName = timezoneDisplayName(data.timezone);
 
     const description =
       data.isDefault === true

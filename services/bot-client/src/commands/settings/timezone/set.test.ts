@@ -5,7 +5,7 @@
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleTimezoneSet } from './set.js';
 import { mockSetTimezoneResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
@@ -106,6 +106,68 @@ describe('handleTimezoneSet', () => {
           data: expect.objectContaining({ title: '⏰ Timezone Updated' }),
         }),
       ],
+    });
+  });
+
+  describe('rendered display name', () => {
+    // The offset is derived from the current instant, so pin it mid-July,
+    // months from any DST transition.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renders a listed zone as its label with the derived offset, not the gateway label', async () => {
+      stub.setTimezone.mockResolvedValue(
+        makeOk(
+          mockSetTimezoneResponse({
+            timezone: 'America/New_York',
+            label: 'Eastern Time (US & Canada)',
+          })
+        )
+      );
+
+      await handleTimezoneSet(createMockContext({ timezone: 'America/New_York' }));
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: 'Your timezone has been set to **Eastern Time (US) - UTC-4**',
+            }),
+          }),
+        ],
+      });
+    });
+
+    it('renders an unlisted zone with the gateway label', async () => {
+      // The label differs from the raw zone so a fallback to the zone string
+      // cannot pass this assertion.
+      stub.setTimezone.mockResolvedValue(
+        makeOk(
+          mockSetTimezoneResponse({
+            timezone: 'Antarctica/Troll',
+            label: 'Troll Station',
+            offset: 'UTC+02:00',
+          })
+        )
+      );
+
+      await handleTimezoneSet(createMockContext({ timezone: 'Antarctica/Troll' }));
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: 'Your timezone has been set to **Troll Station**',
+            }),
+          }),
+        ],
+      });
     });
   });
 

@@ -255,7 +255,10 @@ describe('/user/timezone routes', () => {
           success: true,
           timezone: 'America/Los_Angeles',
           label: expect.any(String),
-          offset: expect.any(String),
+          // 'Unknown' was the old answer for an unlisted zone, and a bare
+          // String assertion accepts it. Shape-matching pins a real derived
+          // offset; the exact value is not asserted, it moves with DST.
+          offset: expect.stringMatching(/^UTC[+-]\d/),
         })
       );
     });
