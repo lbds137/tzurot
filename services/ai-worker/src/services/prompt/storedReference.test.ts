@@ -13,6 +13,7 @@ const { mockLogger } = vi.hoisted(() => ({
 }));
 vi.mock('@tzurot/common-types/utils/logger', () => ({ createLogger: () => mockLogger }));
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { type BuiltAttachment } from './QuoteFormatter.js';
 import {
   buildStoredAttachments,
@@ -313,15 +314,20 @@ describe('fromStoredReference', () => {
     locationContext: '<location channel="general"/>',
   };
 
+  // A quote older than seven days renders with no clock at all, so a fixture
+  // separated only by the hour renders identically in both zones. This one
+  // moves the rendered DATE between them.
+  const ZONED_TIMESTAMP = '2026-01-15T02:00:00.000Z';
+
   it('never numbers a replayed quote — there is no marker to point at', () => {
-    expect(fromStoredReference(stored, 'Ref Bot').number).toBeUndefined();
+    expect(fromStoredReference({ ref: stored, personalityName: 'Ref Bot' }).number).toBeUndefined();
   });
 
   it('prefers the hydrated persona name over the Discord display name', () => {
-    const renderable = fromStoredReference(
-      { ...stored, resolvedPersonaName: 'Alicia', resolvedPersonaId: 'persona-9' },
-      'Ref Bot'
-    );
+    const renderable = fromStoredReference({
+      ref: { ...stored, resolvedPersonaName: 'Alicia', resolvedPersonaId: 'persona-9' },
+      personalityName: 'Ref Bot',
+    });
 
     expect(renderable.from).toBe('Alicia');
     expect(renderable.fromId).toBe('persona-9');
@@ -330,19 +336,19 @@ describe('fromStoredReference', () => {
   it('derives the role from the DISCORD name, not the hydrated persona name', () => {
     // A human whose persona name collides with the responding personality must
     // not be promoted to assistant by hydration...
-    const collision = fromStoredReference(
-      { ...stored, resolvedPersonaName: 'Ref Bot', resolvedPersonaId: 'persona-9' },
-      'Ref Bot'
-    );
+    const collision = fromStoredReference({
+      ref: { ...stored, resolvedPersonaName: 'Ref Bot', resolvedPersonaId: 'persona-9' },
+      personalityName: 'Ref Bot',
+    });
     expect(collision.from).toBe('Ref Bot');
     expect(collision.role).toBe('user');
 
     // ...and a webhook line (Discord display name IS the character name, no
     // persona resolves for a webhook id) still self-matches.
-    const ownLine = fromStoredReference(
-      { ...stored, authorUsername: 'ref-bot', authorDisplayName: 'Ref Bot' },
-      'Ref Bot'
-    );
+    const ownLine = fromStoredReference({
+      ref: { ...stored, authorUsername: 'ref-bot', authorDisplayName: 'Ref Bot' },
+      personalityName: 'Ref Bot',
+    });
     expect(ownLine.role).toBe('assistant');
   });
 
@@ -350,8 +356,8 @@ describe('fromStoredReference', () => {
     const SELF = '11111111-2222-4333-8444-555555555555';
     const SIBLING = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
-    const renderable = fromStoredReference(
-      {
+    const renderable = fromStoredReference({
+      ref: {
         ...stored,
         authorRole: 'assistant',
         authorDisplayName: 'Ha-Shem',
@@ -360,10 +366,9 @@ describe('fromStoredReference', () => {
         // non-user role that id is the wrong space, so it must not win.
         resolvedPersonaId: 'persona-9',
       },
-      'Ref Bot',
-      undefined,
-      SELF
-    );
+      personalityName: 'Ref Bot',
+      responderPersonalityId: SELF,
+    });
 
     expect(renderable.role).toBe('character');
     expect(renderable.fromId).toBe(SIBLING);
@@ -372,24 +377,56 @@ describe('fromStoredReference', () => {
   it('reads the responder own replayed line as assistant, with no from_id', () => {
     const SELF = '11111111-2222-4333-8444-555555555555';
 
-    const renderable = fromStoredReference(
-      { ...stored, authorRole: 'assistant', authorPersonalityId: SELF },
+    const renderable = fromStoredReference({
+      ref: { ...stored, authorRole: 'assistant', authorPersonalityId: SELF },
       // A name that matches NOTHING, so only the id can produce `assistant`.
-      'Ref Bot',
-      undefined,
-      SELF
-    );
+      personalityName: 'Ref Bot',
+      responderPersonalityId: SELF,
+    });
 
     expect(renderable.role).toBe('assistant');
     expect(renderable.fromId).toBeUndefined();
   });
 
   it('suppresses a pre-XML location block rather than rendering it as prose', () => {
-    const renderable = fromStoredReference(
-      { ...stored, locationContext: '**Server**: Test\nThis conversation is taking place in #x' },
-      'Ref Bot'
-    );
+    const renderable = fromStoredReference({
+      ref: {
+        ...stored,
+        locationContext: '**Server**: Test\nThis conversation is taking place in #x',
+      },
+      personalityName: 'Ref Bot',
+    });
 
     expect(renderable.locationContext).toBeUndefined();
+  });
+
+  it('threads the caller timezone into the rendered quote time', () => {
+    // Fixture validity: were these two renderings equal, the assertions below
+    // would pass with the threading deleted.
+    expect(formatPromptTimestamp(ZONED_TIMESTAMP, 'Europe/London')).not.toBe(
+      formatPromptTimestamp(ZONED_TIMESTAMP, 'America/New_York')
+    );
+
+    const renderable = fromStoredReference({
+      ref: { ...stored, timestamp: ZONED_TIMESTAMP },
+      personalityName: 'Ref Bot',
+      timezone: 'Europe/London',
+    });
+
+    expect(renderable.time).toBe(formatPromptTimestamp(ZONED_TIMESTAMP, 'Europe/London'));
+    // The shared fallback zone, which the threaded value must beat.
+    expect(renderable.time).not.toBe(formatPromptTimestamp(ZONED_TIMESTAMP, 'America/New_York'));
+  });
+
+  it('leaves an absent timezone absent rather than defaulting it locally', () => {
+    const renderable = fromStoredReference({
+      ref: { ...stored, timestamp: ZONED_TIMESTAMP },
+      personalityName: 'Ref Bot',
+    });
+
+    // Identical to a bare call: the absent zone reaches `formatPromptTimestamp`
+    // still absent, and only that shared resolution supplies a default.
+    expect(renderable.time).toBe(formatPromptTimestamp(ZONED_TIMESTAMP));
+    expect(renderable.time).not.toBe(formatPromptTimestamp(ZONED_TIMESTAMP, 'Europe/London'));
   });
 });

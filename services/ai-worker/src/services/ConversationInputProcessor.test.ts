@@ -390,6 +390,65 @@ describe('ConversationInputProcessor', () => {
       );
     });
 
+    it("forwards the context's userTimezone so a quote renders in the turn's zone", async () => {
+      // The only hop that carries the user's zone onto the live reference
+      // path. It crosses a mocked seam and changes no byte this test can see
+      // downstream, so the argument is the assertion.
+      const referencedMessages: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'Referenced content',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '<location/>',
+        },
+      ];
+      const context = createMockContext({ referencedMessages, userTimezone: 'Europe/London' });
+
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
+        isGuestMode: false,
+      });
+
+      expect(mockReferencedMessageFormatter.formatReferencedMessages).toHaveBeenCalledWith(
+        referencedMessages,
+        mockPersonality,
+        false,
+        undefined,
+        expect.objectContaining({ timezone: 'Europe/London' })
+      );
+    });
+
+    it('forwards an absent userTimezone as undefined, never a locally chosen default', async () => {
+      const referencedMessages: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'Referenced content',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '<location/>',
+        },
+      ];
+      const context = createMockContext({ referencedMessages });
+
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        realMessagesEnabled: false,
+        isGuestMode: false,
+      });
+
+      const renderContext = vi.mocked(mockReferencedMessageFormatter.formatReferencedMessages).mock
+        .calls[0][4];
+      expect(renderContext).toHaveProperty('timezone', undefined);
+    });
+
     it("forwards the formatter's durable references verbatim", async () => {
       // The hop between building a reference and writing it down. A test that
       // only checked the prompt XML would pass with this dropped, and the

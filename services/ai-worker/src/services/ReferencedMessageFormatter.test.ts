@@ -2782,4 +2782,41 @@ describe('ReferencedMessageFormatter', () => {
       expect(formatted).toContain(VISION_SENTINEL);
     });
   });
+
+  describe('reference timestamp zone', () => {
+    // `formatPromptTimestamp` is stubbed to a fixed string file-wide (see the
+    // vi.mock block above), so its rendered output carries no zone at all.
+    // These assert the zone where it CROSSES that mocked seam — the weaker
+    // form, and the only one available while the formatter is stubbed.
+    const ZONED_TIMESTAMP = '2026-01-15T02:00:00.000Z';
+
+    const zonedRef = (): ReferencedMessage => ({
+      referenceNumber: 1,
+      discordMessageId: 'msg-zone',
+      discordUserId: 'discord-zone',
+      authorUsername: 'testuser',
+      authorDisplayName: 'Test User',
+      content: 'quoted text',
+      embeds: '',
+      timestamp: ZONED_TIMESTAMP,
+      locationContext: '',
+    });
+
+    it("threads the render context's zone into a live reference's timestamp", async () => {
+      await formatter.formatReferencedMessages([zonedRef()], mockPersonality, false, undefined, {
+        timezone: 'Europe/London',
+      });
+
+      expect(mockFormatPromptTimestamp).toHaveBeenCalledWith(ZONED_TIMESTAMP, 'Europe/London');
+    });
+
+    it('forwards an absent zone as undefined rather than a locally chosen default', async () => {
+      // Only the formatter itself may resolve the fallback; a default applied
+      // here would put this timestamp in a different zone from the rest of the
+      // prompt whenever the turn's own zone is also absent.
+      await formatter.formatReferencedMessages([zonedRef()], mockPersonality);
+
+      expect(mockFormatPromptTimestamp).toHaveBeenCalledWith(ZONED_TIMESTAMP, undefined);
+    });
+  });
 });
