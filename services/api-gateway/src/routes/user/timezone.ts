@@ -6,7 +6,11 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { isValidTimezone, getTimezoneInfo } from '@tzurot/common-types/constants/timezone';
+import {
+  isValidTimezone,
+  getTimezoneInfo,
+  timezoneOffsetLabel,
+} from '@tzurot/common-types/constants/timezone';
 import { SetTimezoneInputSchema } from '@tzurot/common-types/schemas/api/timezone';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -82,7 +86,7 @@ export const handleSetTimezone = (deps: RouteDeps): RequestHandler => {
         success: true,
         timezone,
         label: tzInfo?.label ?? timezone,
-        offset: tzInfo?.offset ?? 'Unknown',
+        offset: timezoneOffsetLabel(timezone),
       },
       StatusCodes.OK
     );

@@ -3,7 +3,7 @@
  * Handles /settings timezone set command
  */
 
-import { TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types/constants/timezone';
+import { getTimezoneInfo, timezoneDisplayName } from '@tzurot/common-types/constants/timezone';
 import { settingsTimezoneSetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -33,9 +33,10 @@ export async function handleTimezoneSet(context: DeferredCommandContext): Promis
 
     const data = result.data;
 
-    // Find the label for the timezone
-    const tzChoice = TIMEZONE_DISCORD_CHOICES.find(tz => tz.value === timezone);
-    const displayName = tzChoice?.name ?? data.label ?? timezone;
+    // Known zones render '<label> - <offset>'; anything else shows the gateway's
+    // label, which SetTimezoneResponseSchema requires and the route fills itself.
+    const displayName =
+      getTimezoneInfo(timezone) !== undefined ? timezoneDisplayName(timezone) : data.label;
 
     const embed = createSuccessEmbed(
       '⏰ Timezone Updated',
