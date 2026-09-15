@@ -3,10 +3,10 @@ id: TASK-985
 title: >-
   Timezone picker: the offset labels are DST-blind and a "utc" query matches
   every option
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 23:16'
-updated_date: '2026-09-14 23:16'
+updated_date: '2026-09-15 19:20'
 labels:
   - 'area:bot-client'
   - 'size:S'
