@@ -1,0 +1,53 @@
+{
+  "passes": [
+    {
+      "name": "doc-audit",
+      "what": "Docs, rules, skills and references re-verified against the code so stale guidance stops steering sessions",
+      "cadenceDays": 90,
+      "lastRun": null,
+      "trigger": "/tzurot-doc-audit (full run)"
+    },
+    {
+      "name": "memory-prune",
+      "what": "Auto-memory entries promoted into rules/skills/docs or deleted so the machine-local store stays small and non-duplicative",
+      "cadenceDays": 14,
+      "lastRun": "2026-09-01",
+      "trigger": "/tzurot-doc-audit § 0"
+    },
+    {
+      "name": "economy-pass",
+      "what": "Always-loaded rules, CURRENT.md and skill bodies cut by the four-question test so per-session context cost stops regrowing",
+      "cadenceDays": 30,
+      "lastRun": "2026-09-02",
+      "trigger": "/tzurot-doc-audit § 3b"
+    },
+    {
+      "name": "session-mining",
+      "what": "Recurring friction mined from session logs and converted into rules, skills or hooks",
+      "cadenceDays": 42,
+      "lastRun": "2026-09-09",
+      "trigger": "/tzurot-session-mining"
+    },
+    {
+      "name": "arch-audit",
+      "what": "Service boundaries, package health, suppressions, dead code, duplication and coverage re-measured",
+      "cadenceDays": 30,
+      "lastRun": null,
+      "trigger": "/tzurot-arch-audit"
+    },
+    {
+      "name": "usage-audit",
+      "what": "Weighted token spend measured against plan capacity so the delegation posture stays calibrated",
+      "cadenceDays": 7,
+      "lastRun": "2026-08-26",
+      "trigger": "/tzurot-usage-audit"
+    },
+    {
+      "name": "ratchet-tighten",
+      "what": "Every ratchet re-measured and slack baselines tightened down so gates stop tolerating silent regrowth",
+      "cadenceDays": 30,
+      "lastRun": null,
+      "trigger": "doc-63 Phase 1 audit"
+    }
+  ]
+}

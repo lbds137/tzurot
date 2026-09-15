@@ -137,15 +137,15 @@ Arm the CI Monitor immediately after `gh pr create` per `05-tooling.md` § PR Mo
 
 ### Direct doc commits to `develop` (narrow exception)
 
-| Allowed on `develop` directly                                                                                 | Still requires a PR                                                          |
-| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `BACKLOG.md` + `backlog/**/*.md` + `tracker/**/*.md` (post-merge updates, task filing/triage, status changes) | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
-| `CURRENT.md` (session-status / handoff notes)                                                                 | Schema or migration files (`prisma/`, `*.sql`)                               |
-| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides)     | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
-| Release-notes / changelog edits                                                                               | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
-|                                                                                                               | `.claude/hooks/*` (automation hooks that run on every contributor's session) |
-|                                                                                                               | Anything that touches `.env`, secrets, or CI config (`.github/`)             |
-|                                                                                                               | Single doc changes >300 lines (worth review on a diff UI)                    |
+| Allowed on `develop` directly                                                                                                                 | Still requires a PR                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `BACKLOG.md` + `backlog/**/*.md` + `backlog/cadence-ledger.json` + `tracker/**/*.md` (post-merge updates, task filing/triage, status changes) | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
+| `CURRENT.md` (session-status / handoff notes)                                                                                                 | Schema or migration files (`prisma/`, `*.sql`)                               |
+| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides)                                     | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
+| Release-notes / changelog edits                                                                                                               | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
+|                                                                                                                                               | `.claude/hooks/*` (automation hooks that run on every contributor's session) |
+|                                                                                                                                               | Anything that touches `.env`, secrets, or CI config (`.github/`)             |
+|                                                                                                                                               | Single doc changes >300 lines (worth review on a diff UI)                    |
 
 **Apply the test, not just the file extension**: when in doubt, ask "would `claude-bot`, codecov, or lint produce useful output on this diff?" Yes → PR. No (a status update, a typo fix, a stale-link replacement) → direct commit is fine.
 

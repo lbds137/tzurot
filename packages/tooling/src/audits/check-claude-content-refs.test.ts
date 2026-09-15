@@ -360,6 +360,8 @@ describe('findContentRefs (against real repo)', () => {
       'backlog:digest',
       'cache:clear',
       'cache:inspect',
+      'cadence:mark',
+      'cadence:status',
       'context',
       'cpd:check',
       'cpd:filtered',

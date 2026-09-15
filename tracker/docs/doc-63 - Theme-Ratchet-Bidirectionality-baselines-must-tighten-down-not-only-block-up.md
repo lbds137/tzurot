@@ -27,7 +27,7 @@ Per ratchet: (1) does a down-tightening moment exist at all? (2) who/what owns i
 
 - **Phase 1 — audit**: run each ratchet's measurement fresh; compare actual vs baseline; every slack gap (actual well under baseline) is a free tighten. Output: per-ratchet delta table.
 - **Phase 2 — down-writes**: apply the free tightens via each tool's sanctioned update path (never hand-edits); one PR, before/after in the body.
-- **Phase 3 — cadence**: give down-tightening an owner-moment (candidate: the release preflight or the periodic doc-audit) so this theme doesn't itself become a one-off.
+- **Phase 3 — cadence**: give down-tightening an owner-moment (candidate: the release preflight or the periodic doc-audit) so this theme doesn't itself become a one-off. The cadence itself now lives in `backlog/cadence-ledger.json` as `ratchet-tighten` (30 days; the session-start hook nags when it lapses); stamp each Phase 1 audit with `pnpm ops cadence:mark ratchet-tighten`. The owner-moment is still open, so this phase is not closed by that.
 
 ### Members / relations
 
