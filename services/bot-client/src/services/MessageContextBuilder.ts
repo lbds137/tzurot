@@ -64,10 +64,12 @@ interface ContextBuildResult {
 interface ExtendedContextResult {
   history: ConversationMessage[];
   /**
-   * Raw-envelope snapshot (present only when CONTEXT_RAW_ENVELOPE=true):
-   * the Discord-fetched messages BEFORE persona-ID resolution mutates them
-   * in place, plus the user lists feeding the batch upsert — exactly what
-   * the worker-side shadow assembler needs to re-run that resolution.
+   * Raw-envelope snapshot: the Discord-fetched messages with their persona-ID
+   * placeholders intact, plus the extended-context and reactor user lists —
+   * what the worker-side context assembler needs to run the user upserts and
+   * persona resolution itself. Absent when no extended context is fetched
+   * (extended context not configured, no bot user id, or a channel type that
+   * cannot fetch).
    */
   raw?: RawExtendedContextSnapshot;
 }

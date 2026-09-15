@@ -29,8 +29,8 @@ import type { Redis } from 'ioredis';
 /**
  * The minimal cache surface this service drives. PersonalityService
  * satisfies it structurally; so does any other personality cache that needs
- * pub/sub-driven invalidation (e.g. bot-client's HttpPersonalityLoader in
- * CONTEXT_MODE=service).
+ * pub/sub-driven invalidation (e.g. bot-client's HttpPersonalityLoader, its
+ * gateway-backed routing personality cache).
  */
 export interface PersonalityCacheTarget {
   /** Invalidation events always carry the personality UUID, never a name. */

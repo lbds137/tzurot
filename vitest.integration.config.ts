@@ -7,7 +7,8 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 // Real-Redis integration tests (vision fallback loop) import service modules whose
 // module-level singletons connect at load time — point them at the local container.
-process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
+// `||=`, not `??=`: a blank REDIS_URL (a `REDIS_URL=` row exported from .env) is unset.
+process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
 // DATABASE_URL is deliberately NOT defaulted here. Real-Postgres integration
 // tests seed and mutate rows, so a default would have to carry credentials —
 // which secretlint rejects in tracked source, and which would silently aim at

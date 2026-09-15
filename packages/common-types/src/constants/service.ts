@@ -8,8 +8,6 @@
  * Network and service defaults
  */
 export const SERVICE_DEFAULTS = {
-  /** Default Redis port */
-  REDIS_PORT: 6379,
   /** Default API gateway port */
   API_GATEWAY_PORT: 3000,
 } as const;

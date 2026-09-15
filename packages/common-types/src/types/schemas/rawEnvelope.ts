@@ -2,11 +2,10 @@
  * Raw assembly envelope schemas.
  *
  * The raw Discord-origin inputs bot-client ships so ai-worker's context
- * assembler can re-derive the LLM context worker-side. During burn-in these
- * ride ALONGSIDE the legacy assembled payload (behind CONTEXT_RAW_ENVELOPE);
- * at cutover the legacy assembled fields stop shipping and this object (plus
- * the always-Discord fields like attachments and environment) becomes the
- * job's context source.
+ * assembler can derive the LLM context worker-side. Every job is a thin
+ * `kind: 'envelope'` payload: the legacy assembled fields no longer ship, and
+ * this object (plus the always-Discord fields like attachments and
+ * environment) is the job's context source.
  *
  * Everything in here is Discord-origin or pure-computed — no DB-derived data.
  */

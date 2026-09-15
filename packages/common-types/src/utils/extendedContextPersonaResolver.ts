@@ -10,22 +10,22 @@
  * ReactionProcessor, ParticipantContextCollector) construct the format, and
  * this module strips or resolves it. The prefix constant
  * (`INTERNAL_DISCORD_ID_PREFIX`) lives in `constants/personaId.ts`. The
- * format is used in the two-step fetch → resolve pipeline:
+ * format is used in a two-step fetch → resolve pipeline that spans the
+ * bot-client → ai-worker boundary:
  *
- *   1. DiscordChannelFetcher / ReactionProcessor create ConversationMessage /
- *      reactor records with personaId = `discord:{discordId}` before any
- *      identity resolution
- *   2. resolveExtendedContextPersonaIds() resolves registered users'
- *      discord: → UUID, then STRIPS any remaining discord: placeholders
- *      (unregistered users) so the format NEVER leaves bot-client
+ *   1. bot-client's DiscordChannelFetcher / ReactionProcessor create
+ *      ConversationMessage / reactor records with personaId =
+ *      `discord:{discordId}` before any identity resolution, and the raw
+ *      assembly envelope carries those PRE-resolution snapshots, placeholders
+ *      intact, to ai-worker
+ *   2. ai-worker's ContextAssembler calls resolveExtendedContextPersonaIds(),
+ *      which resolves registered users' discord: → UUID, then STRIPS any
+ *      remaining discord: placeholders (unregistered users)
  *
  * Postcondition of resolveExtendedContextPersonaIds: no message or reactor
  * exits with a `discord:XXXX` personaId — resolved outputs carry UUIDs (or
- * the empty-string sentinel for unregistered users). Note: the raw assembly
- * envelope (CONTEXT_RAW_ENVELOPE) carries PRE-resolution snapshots — with
- * placeholders intact — across to ai-worker so its context assembler can
- * re-run this exact resolution; that is why this module lives in
- * common-types and is shared by both sides.
+ * the empty-string sentinel for unregistered users). Because the placeholder
+ * format crosses the service boundary, this module lives in common-types.
  */
 
 import { createLogger } from './logger.js';

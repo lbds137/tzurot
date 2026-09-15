@@ -34,6 +34,11 @@ fi
 # TZUROT_ALLOW_UNCOMMITTED_TRACKER=1 git push ...
 .claude/hooks/tracker-dirty-push-gate.sh || exit 1
 
+# 1c. .env / .env.example key-set sync. It lives only here: .env is gitignored,
+# so pre-commit never sees it change and CI never has one. Runs before the
+# docs-only early exit below, and skips itself when .env is absent.
+pnpm ops guard:env-example || exit 1
+
 # 2. Determine what files are being pushed
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "")
 

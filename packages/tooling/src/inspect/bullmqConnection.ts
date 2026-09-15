@@ -74,7 +74,8 @@ function announceTarget(env: Environment, url: string): string {
 
 /**
  * Get a Redis URL reachable FROM THIS MACHINE for the environment.
- * - local: `REDIS_URL` env var or the localhost default.
+ * - local: `REDIS_URL` env var or the localhost default. A blank value (a
+ *   `REDIS_URL=` row in .env loads as '') counts as unset.
  * - dev/prod: fetched from the Railway CLI, preferring `REDIS_PUBLIC_URL`
  *   (the proxy address) — the internal `REDIS_URL` does not resolve
  *   off-platform, so returning it produces a client that hangs/retries
@@ -85,7 +86,11 @@ export async function getRailwayRedisUrl(
   execFn?: ExecFn
 ): Promise<string | null> {
   if (env === 'local') {
-    return announceTarget(env, process.env.REDIS_URL ?? 'redis://localhost:6379');
+    const localUrl = process.env.REDIS_URL;
+    return announceTarget(
+      env,
+      localUrl !== undefined && localUrl.length > 0 ? localUrl : 'redis://localhost:6379'
+    );
   }
 
   const exec = execFn ?? (await defaultExec());
