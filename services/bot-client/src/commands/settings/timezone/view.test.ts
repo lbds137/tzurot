@@ -5,7 +5,7 @@
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleTimezoneView } from './view.js';
 import { mockGetTimezoneResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
@@ -116,6 +116,55 @@ describe('handleTimezoneView', () => {
           }),
         }),
       ],
+    });
+  });
+
+  describe('rendered display name', () => {
+    // The offset is derived from the current instant, so pin it mid-July,
+    // months from any DST transition.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renders a listed zone as its label with the derived offset', async () => {
+      stub.getTimezone.mockResolvedValue(
+        makeOk(mockGetTimezoneResponse({ timezone: 'America/New_York', isDefault: false }))
+      );
+
+      await handleTimezoneView(createMockContext());
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: 'Your timezone is set to: **Eastern Time (US) - UTC-4**',
+            }),
+          }),
+        ],
+      });
+    });
+
+    it('renders an unlisted zone as its bare IANA value', async () => {
+      stub.getTimezone.mockResolvedValue(
+        makeOk(mockGetTimezoneResponse({ timezone: 'Antarctica/Troll', isDefault: false }))
+      );
+
+      await handleTimezoneView(createMockContext());
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: 'Your timezone is set to: **Antarctica/Troll**',
+            }),
+          }),
+        ],
+      });
     });
   });
 

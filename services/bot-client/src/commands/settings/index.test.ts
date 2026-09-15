@@ -421,6 +421,23 @@ describe('Settings Command Index', () => {
       expect(choices.some((c: { value: string }) => c.value.includes('New_York'))).toBe(true);
     });
 
+    it('ranks the real UTC entry first for a "utc" query', async () => {
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'timezone', value: 'utc' }),
+          getSubcommandGroup: () => 'timezone',
+        },
+        respond: vi.fn(),
+      } as any;
+
+      await autocomplete(interaction);
+
+      const choices = interaction.respond.mock.calls[0][0];
+      // A flat value/label/offset filter matches all 24 options and leaves the
+      // real UTC entry last, because every derived offset contains 'UTC'.
+      expect(choices[0].value).toBe('UTC');
+    });
+
     it('should return empty array for unknown options', async () => {
       const interaction = {
         options: {
