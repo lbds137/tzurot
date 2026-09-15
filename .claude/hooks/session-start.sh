@@ -48,4 +48,17 @@ echo "=== CURRENT.md (auto-injected by session-start hook) ==="
 cat "$ROOT/CURRENT.md" 2>/dev/null || echo "(CURRENT.md not found)"
 echo "=== End CURRENT.md — next: read backlog/now.md (+ active-epic.md) before pulling work ==="
 
+# Overdue periodic passes: fail-open but VISIBLE. Any failure (no pnpm on PATH,
+# a broken ledger, the timeout) prints the unavailable line instead of silence;
+# an empty result means nothing is overdue. DOTENV_CONFIG_QUIET pins dotenv
+# quiet: the installed version printed no load banner when probed, but its
+# logger writes to stdout whenever quiet is off, and any stdout line would make
+# the result never empty.
+CADENCE=$(cd "$ROOT" && DOTENV_CONFIG_QUIET=true timeout 15 pnpm -s ops cadence:status --overdue-only 2>/dev/null) \
+  || CADENCE="(cadence status unavailable — run: pnpm ops cadence:status)"
+if [ -n "$CADENCE" ]; then
+  echo "=== Overdue periodic passes (backlog/cadence-ledger.json) ==="
+  printf '%s\n' "$CADENCE"
+fi
+
 exit 0

@@ -90,6 +90,16 @@ Focused (changed-packages-only) task runs plus the standalone dev audits:
 
 `pnpm ops backlog` is wired into `pnpm quality` and the CI lint job (via the `pnpm backlog:lint` shortcut); `backlog:digest` is informational and never gates.
 
+## Cadence Commands
+
+The periodic-maintenance ledger, `backlog/cadence-ledger.json`: every recurring process pass (doc audit, memory prune, economy pass, session mining, arch audit, usage audit, ratchet tightening) with its cadence and last run. It is a nag, not a gate — the session-start hook prints the overdue rows.
+
+| Command                                            | Description                                                                                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops cadence:status`                          | Every pass with cadence, last run, days since, and state (`ok`, `OVERDUE Nd`, or `never recorded`); exits 0 whatever is overdue |
+| `pnpm ops cadence:status --overdue-only`           | Only the overdue rows, and nothing at all when none are overdue (the session-start hook's form)                                 |
+| `pnpm ops cadence:mark <name> [--date YYYY-MM-DD]` | Stamp a pass as run (default: today's local date); commit the ledger to develop afterwards                                      |
+
 ## Memory Commands
 
 Commands for analyzing and managing pgvector memories:

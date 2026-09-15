@@ -1,7 +1,7 @@
 ---
 name: tzurot-session-mining
 description: 'Mine Claude session logs for recurring friction and convert findings into structural fixes (rules/skills/hooks). Invoke with /tzurot-session-mining periodically or when a failure pattern feels recurrent but unquantified.'
-lastUpdated: '2026-08-20'
+lastUpdated: '2026-09-15'
 ---
 
 # Session Friction Mining
@@ -200,6 +200,8 @@ Structurally: **rule** (hard constraint, every contributor) → **skill**
   `task-<N>` that no longer resolves.
 - Session-end: any deferred finding gets a backlog entry per `06-backlog.md`
   — a report row is not a tracking surface.
+- Stamp the run: `pnpm ops cadence:mark session-mining`, then commit
+  `backlog/cadence-ledger.json` to develop.
 
 ## Anti-patterns
 
