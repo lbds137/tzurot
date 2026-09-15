@@ -1,9 +1,10 @@
 ---
 id: TASK-838
 title: 'Periodic-maintenance cadence ledger: overdue nag for the audit skills'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-31 02:30'
+updated_date: '2026-09-15 22:45'
 labels:
   - 'area:tooling'
   - 'size:M'
