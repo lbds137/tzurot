@@ -3,10 +3,10 @@ id: TASK-983
 title: >-
   Reference and quote timestamps still render in the fallback zone, so the
   one-zone-per-prompt invariant has a hole
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 21:32'
-updated_date: '2026-09-14 22:31'
+updated_date: '2026-09-15 18:43'
 labels:
   - 'area:ai-worker'
   - 'size:M'
