@@ -51,6 +51,12 @@ export interface QuotedSectionInput {
    * value must be the SAME one every other decision this turn makes.
    */
   realMessagesEnabled: boolean;
+  /**
+   * This turn's user timezone, threaded unchanged into every quote's
+   * timestamp. `undefined` stays `undefined` — only `promptTime` resolves
+   * the shared `APP_SETTINGS.TIMEZONE` fallback.
+   */
+  timezone?: string;
 }
 
 export function formatQuotedSection(input: QuotedSectionInput): string {
@@ -62,6 +68,7 @@ export function formatQuotedSection(input: QuotedSectionInput): string {
     allPersonalityNames,
     responderPersonalityId,
     realMessagesEnabled,
+    timezone,
   } = input;
   if (normalizedRole !== 'user') {
     return '';
@@ -93,7 +100,13 @@ export function formatQuotedSection(input: QuotedSectionInput): string {
 
   const formattedFull = fullRefs.map(ref =>
     renderReference(
-      fromStoredReference(ref, personalityName, allPersonalityNames, responderPersonalityId)
+      fromStoredReference({
+        ref,
+        personalityName,
+        allPersonalityNames,
+        responderPersonalityId,
+        timezone,
+      })
     )
   );
 
@@ -107,7 +120,13 @@ export function formatQuotedSection(input: QuotedSectionInput): string {
     const entry = historyEntries?.get(ref.discordMessageId);
     return renderReference(
       dedupeReference(
-        fromStoredReference(ref, personalityName, allPersonalityNames, responderPersonalityId),
+        fromStoredReference({
+          ref,
+          personalityName,
+          allPersonalityNames,
+          responderPersonalityId,
+          timezone,
+        }),
         realMessagesEnabled,
         entry === undefined
           ? undefined

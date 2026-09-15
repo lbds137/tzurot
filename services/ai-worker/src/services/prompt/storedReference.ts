@@ -168,18 +168,41 @@ export function buildStoredAttachments(ref: StoredReferencedMessage): Renderable
 }
 
 /**
+ * Everything `fromStoredReference` needs to adapt one stored row.
+ *
+ * Bundled as one object rather than five positional parameters — three of them
+ * optional, two of those transposable strings — so adding the next input is an
+ * edit to this interface instead of a wider signature. Same reasoning as
+ * `LiveReferenceContext` on the live side.
+ */
+export interface FromStoredReferenceOptions {
+  /** The stored reference row to adapt into the canonical renderable shape. */
+  ref: StoredReferencedMessage;
+  /** The responding personality's name, for the role name-match fallback. */
+  personalityName: string;
+  /** Personalities visible in history, for the sibling-persona quote demotion in `deriveRefRole`. */
+  allPersonalityNames?: Set<string>;
+  /** The responding personality's id, for the self-vs-sibling role decision. */
+  responderPersonalityId?: string;
+  /**
+   * This turn's user timezone, threaded unchanged into `promptTime`.
+   * `undefined` is a valid value — every formatter that resolves a quote
+   * timestamp falls back to the same shared `APP_SETTINGS.TIMEZONE` default,
+   * so an absent zone here reaches the same resolution as an absent zone
+   * anywhere else in the render path.
+   */
+  timezone?: string;
+}
+
+/**
  * Adapt a stored history reference into the canonical renderable shape.
  *
  * `number` stays absent by design — a replayed quote has no `[Reference N]`
  * marker in the current message to point at, so numbering it would invent a
  * referent.
  */
-export function fromStoredReference(
-  ref: StoredReferencedMessage,
-  personalityName: string,
-  allPersonalityNames?: Set<string>,
-  responderPersonalityId?: string
-): RenderableReference {
+export function fromStoredReference(options: FromStoredReferenceOptions): RenderableReference {
+  const { ref, personalityName, allPersonalityNames, responderPersonalityId, timezone } = options;
   // Hydrated persona name where one resolved, else the Discord display name.
   const from = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
 
@@ -204,7 +227,7 @@ export function fromStoredReference(
     fromId: referenceFromId(role, ref.authorPersonalityId, ref.resolvedPersonaId),
     username: ref.authorUsername,
     role,
-    time: promptTime(ref.timestamp),
+    time: promptTime(ref.timestamp, timezone),
     content: ref.content,
     locationContext: usableLocationContext(ref.locationContext),
     embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,

@@ -21,6 +21,7 @@ import type { StructuredHistoryEntry } from './conversationTypes.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   formatAbsoluteTimestamp,
+  formatPromptTimestamp,
   formatRelativeTime,
 } from '@tzurot/common-types/utils/dateFormatting';
 import {
@@ -532,6 +533,84 @@ describe('Conversation Utilities', () => {
       formatSingleHistoryEntryAsXml(entry, 'TestBot', { realMessagesEnabled: false });
 
       expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(entry.createdAt, undefined);
+    });
+
+    describe('one zone per prompt: the turn header beside a replayed quote', () => {
+      // A turn header and the quote replayed inside it are two timestamps the
+      // model reads side by side in ONE rendered element, so a zone that
+      // reaches only one of them is a visible contradiction. The header half is
+      // asserted at the mocked `formatAbsoluteTimestamp` seam (it is stubbed to
+      // a fixed string file-wide, which strips the zone from its output); the
+      // quote half renders through the real `formatPromptTimestamp` and is
+      // asserted on its rendered text.
+
+      // 02:00Z on the 15th is still the 14th in America/New_York and already
+      // the 15th in Europe/London, so DATE and weekday move with the zone.
+      // That matters because a quote older than seven days renders without a
+      // clock at all — a fixture separated only by the hour would render
+      // identically in both zones and pass with the threading deleted.
+      const REF_TIMESTAMP = '2026-01-15T02:00:00.000Z';
+      const ENTRY_CREATED_AT = '2026-01-15T02:05:00.000Z';
+
+      const entryWithQuote = (): StructuredHistoryEntry => {
+        const quoted: StoredReferencedMessage = {
+          discordMessageId: 'msg-quoted',
+          authorUsername: 'bob',
+          authorDisplayName: 'Bob',
+          content: 'Original message',
+          timestamp: REF_TIMESTAMP,
+          locationContext: '<location channel="general"/>',
+        };
+        return {
+          role: 'user',
+          content: 'Replying to that',
+          personaId: 'persona-1',
+          personaName: 'Vlad',
+          createdAt: ENTRY_CREATED_AT,
+          messageMetadata: { referencedMessages: [quoted] },
+        } as StructuredHistoryEntry;
+      };
+
+      it('renders the replayed quote in the threaded zone, not the shared fallback', () => {
+        // Fixture validity: were these two renderings equal, every assertion
+        // below would pass with the threading deleted.
+        expect(formatPromptTimestamp(REF_TIMESTAMP, 'Europe/London')).not.toBe(
+          formatPromptTimestamp(REF_TIMESTAMP, 'America/New_York')
+        );
+
+        const rendered = formatSingleHistoryEntryAsXml(entryWithQuote(), 'TestBot', {
+          realMessagesEnabled: false,
+          timezone: 'Europe/London',
+        });
+
+        expect(rendered).toContain(formatPromptTimestamp(REF_TIMESTAMP, 'Europe/London'));
+        expect(rendered).not.toContain(formatPromptTimestamp(REF_TIMESTAMP, 'America/New_York'));
+        // The same render's header hop, at the seam — one zone, both halves.
+        expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(
+          ENTRY_CREATED_AT,
+          'Europe/London'
+        );
+      });
+
+      it('leaves an omitted zone on the shared fallback rather than coalescing mid-chain', () => {
+        const rendered = formatSingleHistoryEntryAsXml(entryWithQuote(), 'TestBot', {
+          realMessagesEnabled: false,
+        });
+
+        // `APP_SETTINGS.TIMEZONE` is America/New_York, which puts this quote on
+        // the 14th; a `?? 'UTC'` inserted at any intermediate hop would render
+        // the 15th instead. The first assertion pins that equivalence rather
+        // than assuming it.
+        expect(formatPromptTimestamp(REF_TIMESTAMP, undefined)).toBe(
+          formatPromptTimestamp(REF_TIMESTAMP, 'America/New_York')
+        );
+        expect(rendered).toContain(formatPromptTimestamp(REF_TIMESTAMP, undefined));
+        expect(rendered).not.toContain(formatPromptTimestamp(REF_TIMESTAMP, 'Europe/London'));
+        expect(vi.mocked(formatAbsoluteTimestamp)).toHaveBeenCalledWith(
+          ENTRY_CREATED_AT,
+          undefined
+        );
+      });
     });
   });
 
