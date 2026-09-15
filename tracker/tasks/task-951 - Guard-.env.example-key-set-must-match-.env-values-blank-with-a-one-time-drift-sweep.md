@@ -3,9 +3,10 @@ id: TASK-951
 title: >-
   Guard: .env.example key set must match .env (values blank), with a one-time
   drift sweep
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 15:38'
+updated_date: '2026-09-15 22:50'
 labels:
   - 'area:tooling'
   - 'size:M'
