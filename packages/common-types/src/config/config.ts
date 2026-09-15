@@ -161,7 +161,10 @@ export const envSchema = z.object({
   RAILWAY_ENVIRONMENT_NAME: optionalNonEmptyString(),
 
   // Logging
-  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+  LOG_LEVEL: z
+    .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+    .default('info')
+    .or(z.literal('').transform(() => 'info' as const)), // blank (`LOG_LEVEL=`) means the default
 
   /**
    * Explicit opt-in for `logDetailedPromptAssembly`'s dump of the assembled
