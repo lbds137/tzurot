@@ -22,6 +22,13 @@ CORRECTION from the owner, same day, before any work started: an earlier draft o
 
 Evidence from the payload (debug-1853210a): llmConfig.provider is z-ai and llmResponse.modelUsed is z-ai/glm-5.2, while llmResponse.reasoningDebug.upstreamProvider is DigitalOcean. Read together with the footer actually saying via OpenRouter, the call went through OpenRouter while the CONFIGURED provider on the same record still reads z-ai.
 
+OBSERVED FOOTER STRINGS, from owner screenshots the same day - these are read off the rendered output, not inferred from fields:
+
+- Fallback render: Model: z-ai/glm-5.2 - via OpenRouter
+- Normal render, same model on the plan: Model: glm-5.2 - via Z.AI Coding Plan
+
+Both are ACCURATE. Note the model string legitimately differs between them, because OpenRouter addresses the model by its vendor-namespaced id while the plan uses the bare id - so the z-ai prefix in the fallback render is the MODEL namespace, not the platform, and it is not a bug. The platform half is right in both. Nothing in either string says the second one was not the configured destination.
+
 That pairing is the important part, and it makes the fix smaller than first assumed. The configured provider and the resolved platform are BOTH already on the record and both already reach the render path - they are simply never compared. A divergence between them IS the fallback, so this may need no new marker field at all, only the comparison and a label. Verify that before adding a field: grep for fallbackFrom, didFallback, wasFallback, fallbackUsed and routedVia across services and packages returns nothing outside tests, so no explicit marker exists today, but the absence of a marker is not evidence that one is needed.
 
 Fix shape (verify the premise above first): derive the fallback from the divergence already present, and label it. The display stays collapsed - one model name - while gaining a marker that the route was not the configured one. Whether the sibling log-channel task shares this cause is now OPEN rather than likely, since the footer clearly had the routing data and still did not report a fallback.
