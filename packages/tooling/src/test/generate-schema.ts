@@ -580,10 +580,14 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
   console.log(chalk.cyan('Generating PGLite schema from Prisma...'));
 
   try {
-    // Set dummy DATABASE_URL if not already set
+    // Set dummy DATABASE_URL if not already set (a blank value counts as unset)
+    const localDatabaseUrl = process.env.DATABASE_URL;
     const env = {
       ...process.env,
-      DATABASE_URL: process.env.DATABASE_URL ?? DUMMY_DATABASE_URL,
+      DATABASE_URL:
+        localDatabaseUrl !== undefined && localDatabaseUrl.length > 0
+          ? localDatabaseUrl
+          : DUMMY_DATABASE_URL,
     };
 
     // Run prisma migrate diff using execFileSync (no shell injection)

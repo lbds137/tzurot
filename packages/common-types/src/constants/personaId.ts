@@ -7,9 +7,9 @@
  * `resolveExtendedContextPersonaIds()` resolves registered users to UUIDs
  * and strips the placeholder for unregistered ones.
  *
- * Since the raw assembly envelope (CONTEXT_RAW_ENVELOPE), the PRE-resolution
- * snapshot deliberately crosses the bot-client → ai-worker boundary so the
- * worker-side context assembler can re-run the same resolution — which is
- * why both the constant and the resolver live here rather than in bot-client.
+ * The raw assembly envelope carries the PRE-resolution snapshot across the
+ * bot-client → ai-worker boundary on purpose: the worker-side context
+ * assembler runs the resolution — which is why both the constant and the
+ * resolver live here rather than in either service.
  */
 export const INTERNAL_DISCORD_ID_PREFIX = 'discord:';

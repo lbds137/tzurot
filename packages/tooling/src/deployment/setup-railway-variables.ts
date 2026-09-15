@@ -89,13 +89,6 @@ const GITHUB_API_TOKEN_VARIABLE: VariableConfig = {
 const BOT_CLIENT_VARIABLES: VariableConfig[] = [
   { key: 'DISCORD_TOKEN', description: 'Discord bot token', isSecret: true, required: true },
   { key: 'DISCORD_CLIENT_ID', description: 'Discord client ID', isSecret: false, required: true },
-  {
-    key: 'AUTO_TRANSCRIBE_VOICE',
-    description: 'Auto-transcribe voice messages',
-    isSecret: false,
-    required: false,
-    defaultValue: 'false',
-  },
   GITHUB_API_TOKEN_VARIABLE,
 ];
 

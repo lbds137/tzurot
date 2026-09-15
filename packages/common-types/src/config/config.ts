@@ -87,9 +87,6 @@ export const envSchema = z.object({
     .url()
     .optional()
     .or(z.literal('').transform(() => undefined)), // Railway provides this, no default!
-  REDIS_HOST: z.string().default('localhost'),
-  REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(SERVICE_DEFAULTS.REDIS_PORT),
-  REDIS_PASSWORD: optionalNonEmptyString(),
 
   // Database Configuration
   DATABASE_URL: z
@@ -161,7 +158,10 @@ export const envSchema = z.object({
   RAILWAY_ENVIRONMENT_NAME: optionalNonEmptyString(),
 
   // Logging
-  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+  LOG_LEVEL: z
+    .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+    .default('info')
+    .or(z.literal('').transform(() => 'info' as const)), // blank (`LOG_LEVEL=`) means the default
 
   /**
    * Explicit opt-in for `logDetailedPromptAssembly`'s dump of the assembled
@@ -424,9 +424,6 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
 
     // Redis
     REDIS_URL: undefined,
-    REDIS_HOST: 'localhost',
-    REDIS_PORT: SERVICE_DEFAULTS.REDIS_PORT,
-    REDIS_PASSWORD: undefined,
 
     // Database
     DATABASE_URL: undefined,
