@@ -83,6 +83,12 @@ interface ReferenceRenderContext {
   allPersonalityNames?: Set<string>;
   requestId?: string;
   /**
+   * This turn's user timezone, threaded unchanged into every reference
+   * timestamp. `undefined` stays `undefined` — only `promptTime` resolves
+   * the shared `APP_SETTINGS.TIMEZONE` fallback.
+   */
+  timezone?: string;
+  /**
    * Per-reference: the enrichment `<chat_log>` will already render for that
    * reference's own history entry, keyed by Discord message id. Batch-invariant
    * (one derivation for the whole set) and READ-ONLY here — the caller derives
@@ -298,8 +304,9 @@ export class ReferencedMessageFormatter {
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
    * @param renderContext - Vision/STT auth plus the batch-invariant render inputs: the
-   *   personality-name set for role derivation and the per-reference set of
-   *   enrichment `<chat_log>` already carries (see `carriedByChatLog`)
+   *   personality-name set for role derivation, the per-reference set of
+   *   enrichment `<chat_log>` already carries (see `carriedByChatLog`), and the
+   *   user timezone each quote timestamp renders in
    * @returns The prompt XML plus the plain-text search rendering
    */
   async formatReferencedMessages(
@@ -459,7 +466,7 @@ export class ReferencedMessageFormatter {
         fromId: referenceFromId(role, ref.authorPersonalityId, persona?.personaId),
         username: ref.authorUsername,
         role,
-        time: promptTime(ref.timestamp),
+        time: promptTime(ref.timestamp, renderContext?.timezone),
         content: ref.content,
         locationContext: ref.locationContext,
         embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,

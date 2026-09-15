@@ -177,6 +177,7 @@ export function renderHistoryEntryBody(
     allPersonalityNames,
     responderPersonalityId,
     realMessagesEnabled,
+    timezone: opts.timezone,
   });
   const imageSection = formatImageSection(msg);
   const embedsSection = formatEmbedsSection(msg);

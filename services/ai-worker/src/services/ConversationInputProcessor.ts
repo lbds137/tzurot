@@ -233,6 +233,9 @@ export class ConversationInputProcessor {
               // the request that paid for the lost vision/transcription work.
               requestId: context.requestId,
               realMessagesEnabled,
+              // This turn's user zone, so a quote's timestamp renders in the
+              // same zone as the rest of the prompt.
+              timezone: context.userTimezone,
             }
           )
         : undefined;
