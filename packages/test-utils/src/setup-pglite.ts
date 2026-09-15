@@ -23,6 +23,7 @@ import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveTestRedisUrl } from './testRedisUrl.js';
 
 /**
  * Test environment interface
@@ -112,7 +113,7 @@ export function loadPGliteSchema(): string {
  * ```
  */
 export async function setupTestEnvironment(): Promise<TestEnvironment> {
-  const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
+  const redisUrl = resolveTestRedisUrl(process.env.REDIS_URL);
   const url = new URL(redisUrl);
   const port = parseInt(url.port, 10) || 6379;
   const redis = new IORedis({

@@ -268,8 +268,9 @@ export const requestContextSchema = z.object({
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
   // Whether the triggering message was a voice message (for voice-only TTS mode)
   isVoiceMessage: z.boolean().optional(),
-  // Raw Discord-origin assembly inputs (worker-side context assembly burn-in;
-  // present only when bot-client's CONTEXT_RAW_ENVELOPE=true)
+  // Raw Discord-origin assembly inputs the worker assembles context from.
+  // Optional here like `kind`; the job-schema layer (llmGenerationContextSchema)
+  // rejects a generation job without it.
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
 });
 

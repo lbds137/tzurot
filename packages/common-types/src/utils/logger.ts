@@ -262,9 +262,12 @@ function sanitizedObjectSerializer(obj: unknown): unknown {
  */
 export function createLogger(name?: string, options?: { destination?: DestinationStream }): Logger {
   const usePrettyLogs = process.env.ENABLE_PRETTY_LOGS === 'true';
+  // A blank LOG_LEVEL (a `LOG_LEVEL=` row in .env) counts as unset: pino throws
+  // on level '' ("default level: must be included in custom levels").
+  const envLevel = process.env.LOG_LEVEL;
 
   const config: LoggerOptions = {
-    level: process.env.LOG_LEVEL ?? 'info',
+    level: envLevel !== undefined && envLevel.length > 0 ? envLevel : 'info',
     name,
     // Custom serializers that sanitize sensitive data (API keys, tokens, etc.)
     serializers: {

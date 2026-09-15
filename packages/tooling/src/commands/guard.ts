@@ -40,6 +40,7 @@ export function registerGuardCommands(cli: CAC): void {
     });
 
   registerSyncGuards(cli);
+  registerLocalSyncGuards(cli);
 
   cli
     .command(
@@ -212,6 +213,23 @@ function registerSyncGuards(cli: CAC): void {
     .action(async () => {
       const { checkOpsDoc } = await import('../dev/check-ops-doc.js');
       checkOpsDoc();
+    });
+}
+
+/**
+ * Binary sync-checks over machine-local files, run from `.husky/pre-push`
+ * rather than CI because the file they read never reaches CI.
+ */
+function registerLocalSyncGuards(cli: CAC): void {
+  cli
+    .command(
+      'guard:env-example',
+      'Fail when .env and .env.example declare different active keys (key names only; skips without .env)'
+    )
+    .example('ops guard:env-example')
+    .action(async () => {
+      const { checkEnvExample } = await import('../dev/check-env-example.js');
+      checkEnvExample();
     });
 }
 

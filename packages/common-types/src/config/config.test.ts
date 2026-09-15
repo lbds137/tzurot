@@ -153,6 +153,11 @@ describe('config', () => {
       expect(result.LOG_LEVEL).toBe('debug');
     });
 
+    it('parses a blank LOG_LEVEL to the info default', () => {
+      expect(envSchema.parse({ LOG_LEVEL: '' }).LOG_LEVEL).toBe('info');
+      expect(envSchema.parse({}).LOG_LEVEL).toBe('info');
+    });
+
     it('should validate NODE_ENV enum', () => {
       expect(() =>
         envSchema.parse({
@@ -210,13 +215,11 @@ describe('config', () => {
 
     it('should transform numeric string fields to numbers', () => {
       const result = envSchema.parse({
-        REDIS_PORT: '6380',
         API_GATEWAY_PORT: '4000',
         WORKER_CONCURRENCY: '10',
         PORT: '8080',
       });
 
-      expect(result.REDIS_PORT).toBe(6380);
       expect(result.API_GATEWAY_PORT).toBe(4000);
       expect(result.WORKER_CONCURRENCY).toBe(10);
       expect(result.PORT).toBe(8080);

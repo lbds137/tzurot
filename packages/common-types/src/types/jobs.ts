@@ -108,9 +108,10 @@ export interface JobContext {
   /** Whether the triggering message was a voice message (used for voice-only TTS mode) */
   isVoiceMessage?: boolean;
   /**
-   * Raw Discord-origin assembly inputs for worker-side context assembly
-   * (burn-in instrumentation; present only when bot-client ships them via
-   * CONTEXT_RAW_ENVELOPE=true). See rawAssemblyInputsSchema.
+   * Raw Discord-origin assembly inputs, the source worker-side context
+   * assembly derives the job's context from. See rawAssemblyInputsSchema.
+   * Optional on this type; llmGenerationContextSchema rejects a generation
+   * job without it.
    */
   rawAssemblyInputs?: RawAssemblyInputs;
 }

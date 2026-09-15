@@ -80,6 +80,25 @@ describe('generateSchema', () => {
       expect(args).toContain('--script');
     });
 
+    it('passes a dummy DATABASE_URL to prisma when the variable is blank', async () => {
+      const saved = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = '';
+      try {
+        const { generateSchema } = await import('./generate-schema.js');
+        await generateSchema();
+      } finally {
+        if (saved === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = saved;
+      }
+
+      const [, , options] = execFileSyncMock.mock.calls[0] as [
+        string,
+        string[],
+        { env: Record<string, string | undefined> },
+      ];
+      expect(options.env.DATABASE_URL).toBe('postgres://x:x@x/x');
+    });
+
     it('should write SQL to output file', async () => {
       execFileSyncMock.mockReturnValue('CREATE TABLE test (id INT);');
 
