@@ -153,6 +153,11 @@ describe('config', () => {
       expect(result.LOG_LEVEL).toBe('debug');
     });
 
+    it('parses a blank LOG_LEVEL to the info default', () => {
+      expect(envSchema.parse({ LOG_LEVEL: '' }).LOG_LEVEL).toBe('info');
+      expect(envSchema.parse({}).LOG_LEVEL).toBe('info');
+    });
+
     it('should validate NODE_ENV enum', () => {
       expect(() =>
         envSchema.parse({

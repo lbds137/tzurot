@@ -7,8 +7,9 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 // 127.0.0.1, not `localhost`: on hosts where `localhost` resolves to ::1 (IPv6)
 // first, an IPv4-only Redis bind refuses the connection (ECONNREFUSED ::1). CI
-// sets REDIS_URL explicitly, so this default only affects local runs.
-process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
+// sets REDIS_URL explicitly, so this default only affects local runs. `||=`,
+// not `??=`: a blank REDIS_URL (a `REDIS_URL=` row exported from .env) is unset.
+process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
 
 /**
  * Vitest configuration for component tests (*.component.test.ts)

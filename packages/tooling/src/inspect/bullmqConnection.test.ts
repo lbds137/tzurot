@@ -27,6 +27,11 @@ describe('getRailwayRedisUrl', () => {
     expect(await getRailwayRedisUrl('local')).toBe('redis://localhost:6379');
   });
 
+  it('local: treats a blank REDIS_URL (a `REDIS_URL=` row in .env) as unset', async () => {
+    process.env.REDIS_URL = '';
+    expect(await getRailwayRedisUrl('local')).toBe('redis://localhost:6379');
+  });
+
   it('remote: prefers REDIS_PUBLIC_URL over the internal REDIS_URL', async () => {
     // The internal URL only resolves inside Railway's network — returning it
     // off-platform produces a client that hangs instead of connecting.

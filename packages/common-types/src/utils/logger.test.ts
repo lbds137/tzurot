@@ -49,6 +49,16 @@ describe('createLogger', () => {
     expect(logger.level).toBe('debug');
   });
 
+  it('treats a blank LOG_LEVEL as unset and defaults to info without throwing', async () => {
+    process.env.LOG_LEVEL = '';
+    delete process.env.ENABLE_PRETTY_LOGS;
+
+    const { createLogger } = await import('./logger.js');
+    const logger = createLogger('test-logger');
+
+    expect(logger.level).toBe('info');
+  });
+
   it('should include name in logger', async () => {
     delete process.env.ENABLE_PRETTY_LOGS;
 
