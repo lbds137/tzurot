@@ -1,7 +1,7 @@
 ---
 name: tzurot-usage-audit
 description: 'Measure weekly Claude Code plan usage — weighted token totals per model, delegation ratio, implied capacity, and a machine-local drift ledger. Invoke with /tzurot-usage-audit near the weekly reset, after an unusually heavy day, or whenever the owner asks how much of the plan has been spent.'
-lastUpdated: '2026-08-25'
+lastUpdated: '2026-09-15'
 ---
 
 # Weekly Usage Audit
@@ -204,6 +204,11 @@ The two rows agree on **capacity ≈450M weighted/week**, which is the working
 figure until a later reading moves it. At a 7-day spread that is a sustainable
 pace of **≈64M weighted/day**.
 
+Then stamp the run in the TRACKED cadence ledger — it holds only the date,
+never usage figures, and is a different file from the machine-local ledger
+above: `pnpm ops cadence:mark usage-audit`, then commit
+`backlog/cadence-ledger.json` to develop.
+
 ## Anti-patterns
 
 | Don't                                                            | Why it breaks the measurement                                                                                              |
@@ -211,7 +216,7 @@ pace of **≈64M weighted/day**.
 | Count output tokens only                                         | Misses the cache bill, which is ~75-80% of the weighted total — the answer comes out roughly 4x low                        |
 | Aggregate over the main session files alone                      | Subagent spend is real spend; skipping `subagents/` understates every delegated unit and inverts the delegation-ratio call |
 | Read a low total from deleted/rotated session files as low usage | An empty or sparse result indicts the query first — check the slug, the `CUTOFF`, and the `find` scope before concluding   |
-| Commit the ledger, or reference it from a tracked doc            | It is machine-local by design; the repo is public                                                                          |
+| Commit the usage ledger, or reference it from a tracked doc      | It is machine-local by design; the repo is public                                                                          |
 | Quote a session id, path, or URL in any tracked surface          | Session identifiers are secrets per `00-critical.md`                                                                       |
 | Adopt a new implied capacity from one reading                    | A wrong `CUTOFF` looks identical to a moved limit; require a second reading or a re-derived window                         |
 

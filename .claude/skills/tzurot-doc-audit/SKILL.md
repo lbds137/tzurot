@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost.'
-lastUpdated: '2026-09-02'
+lastUpdated: '2026-09-15'
 ---
 
 # Documentation Audit Procedure
@@ -92,7 +92,7 @@ After processing each file, the order matters — for migrate verdicts especiall
 
 Doing them out of order risks orphaning the memory's nuance: if you delete the memory file before the destination has the content, the nuance is gone (the verdict table's bold "Verify the target..." callouts above guard against this).
 
-Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — there is no separate backlog item to track. If this section grows expensive enough to warrant its own cadence (e.g., audited weekly, while docs are quarterly), split it out then.
+Auto-memory audit runs inside `/tzurot-doc-audit` but on its own shorter cadence (`memory-prune` in `backlog/cadence-ledger.json`), so this section may run alone. **Stamp it when done:** `pnpm ops cadence:mark memory-prune`, then commit `backlog/cadence-ledger.json` to develop.
 
 ### 1. docs/README.md Index
 
@@ -206,6 +206,8 @@ owner restoring one line is cheaper than the corpus keeping ten.
   surface DOWN. **Scope it**: the unscoped write also ratchets a grown surface
   UP in the same commit, which is how a previous post-trim refresh got skipped
   entirely and the trim went unrecorded.
+- Stamp the pass: `pnpm ops cadence:mark economy-pass`, then commit
+  `backlog/cadence-ledger.json` to develop.
 
 ### 4. Reference Docs by Subdirectory
 
@@ -315,6 +317,7 @@ These catch drift between docs and code:
 2. Update `lastUpdated` on any modified skill files
 3. Note any larger doc rewrites needed in `backlog/now.md` (📥 Untriaged) or the right `backlog/cold/` file
 4. Commit documentation fixes: `docs: audit and refresh documentation`
+5. Stamp the full run: `pnpm ops cadence:mark doc-audit`, then commit `backlog/cadence-ledger.json` to develop (§ 0 and § 3b stamp their own passes)
 
 ## References
 

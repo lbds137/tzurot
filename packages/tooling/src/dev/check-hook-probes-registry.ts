@@ -138,11 +138,7 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   },
   {
     hook: '.claude/hooks/session-start.sh',
-    probe: null,
-    unprobedReason:
-      'Emits static text selected by the `source` field; a regression is visible in ' +
-      'context on the next session start rather than silent. Lowest value in the set — ' +
-      'probe it only if the branching grows past the current source switch.',
+    probe: '.claude/hooks/session-start.probe.sh',
   },
   {
     // Was unprobed ("a miss degrades to a missing suggestion, never a wrong

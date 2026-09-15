@@ -1,7 +1,7 @@
 ---
 name: tzurot-arch-audit
 description: 'Architecture health audit. Invoke with /tzurot-arch-audit to run static analysis, check boundaries, and assess code health.'
-lastUpdated: '2026-06-17'
+lastUpdated: '2026-09-15'
 ---
 
 # Architecture Audit Procedure
@@ -264,6 +264,7 @@ Use this format to report audit results:
    ```
 3. Add "Track" items to `backlog/now.md` (📥 Untriaged), then route per the granularity ladder
 4. Commit: `docs: architecture audit YYYY-MM-DD` or `fix: address architecture audit findings`
+5. Stamp the run: `pnpm ops cadence:mark arch-audit`, then commit `backlog/cadence-ledger.json` to develop
 
 ## References
 
