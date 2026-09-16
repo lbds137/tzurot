@@ -9,7 +9,7 @@
 
 ## 0. The concern at the center
 
-A character that has talked for months stops sounding like its card. The measured mechanism (`doc-97`): the card sits ~45k tokens upstream behind the prompt-cache boundary while ~43k tokens of the character's **own prior prose** sit at the generation point — half of it cross-channel history, the rest the memory archive, which stores every reply verbatim and renders it back on every retrieval. The voice anchor (#2348) restates the card next to the turn; this artifact removes the archive's half of the feedback loop. The history half is the prompt-caching epic's Phase 2 (`doc-17`), queued behind this.
+A character that has talked for months stops sounding like its card. The measured mechanism (`doc-97`): the card sits ~45k tokens upstream behind the prompt-cache boundary while ~43k tokens of the character's **own prior prose** sit at the generation point — half of it cross-channel history, the rest the memory archive, which stores every reply verbatim and renders it back on every retrieval. The voice anchor (#2348) restates the card next to the turn; this artifact removes the archive's half of the feedback loop. The history half is designed in `recent-days-digest.md` (ACCEPTED 2026-09-16, `doc-97` Phase 4); the earlier assignment to `doc-17` Phase 2 was stale — that phase is a caching restructure. Note also the 2026-09-13 fresh-thread A/B: the archive was present in both arms and the register held with cross-channel history off, so the archive is not a co-vector of the drift; this artifact stands on size and recall grounds.
 
 The same concern has a second instance: under `shareLtmAcrossPersonalities`, retrieval can surface a memory another character authored, and a character re-reading another character's prose as its own is the identical failure the card-drift mechanism names, just triggered by a different personality's words instead of its own. The per-note foreign render (MEM-ARCH-031) closes this — a cross-personality note renders as a third-party record, `with=` naming its author, independent of whether the responding personality is itself on the `archiveSplitRenderPersonalities` allowlist.
 
@@ -69,7 +69,7 @@ _Rejected_: pure lazy — the first retrieval of every hot row renders the wrong
 
 ## 3. What this deliberately does NOT do
 
-- Touch cross-channel or channel history (`doc-17` Phase 2, queued behind this by owner call).
+- Touch cross-channel or channel history — designed separately in `recent-days-digest.md` (`doc-97` Phase 4).
 - Change what `/memory browse`, exports, or the sync pipeline show — all read `content`; `/memory view` only gains the summary line.
 - Re-embed anything, change the knapsack's selection, or alter fact extraction beyond a possible "commitment" fact type.
 - Summarize the user side.
