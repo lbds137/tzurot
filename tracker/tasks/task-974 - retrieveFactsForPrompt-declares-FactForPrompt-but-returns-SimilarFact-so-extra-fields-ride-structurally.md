@@ -3,9 +3,10 @@ id: TASK-974
 title: >-
   retrieveFactsForPrompt declares FactForPrompt but returns SimilarFact, so
   extra fields ride structurally
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 01:32'
+updated_date: '2026-09-16 18:11'
 labels:
   - 'area:ai-worker'
   - 'size:S'

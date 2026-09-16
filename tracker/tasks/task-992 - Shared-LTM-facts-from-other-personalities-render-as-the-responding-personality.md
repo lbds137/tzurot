@@ -1,9 +1,10 @@
 ---
 id: TASK-992
 title: Shared-LTM facts from other personalities render as the responding personality
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-16 16:11'
+updated_date: '2026-09-16 18:11'
 labels:
   - 'area:ai-worker'
   - 'size:M'
