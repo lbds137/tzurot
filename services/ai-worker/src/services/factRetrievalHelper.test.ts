@@ -62,6 +62,8 @@ function mockRetriever(): FactRetriever {
       similarity: 0.9,
       isLocked: false,
       tier: 'observed',
+      personalityId: 'pers',
+      personalityName: 'TestBot',
     },
   ];
   return { retrieveFacts: vi.fn().mockResolvedValue(facts) } as unknown as FactRetriever;
@@ -110,6 +112,8 @@ describe('retrieveFactsForPrompt (flag/scope gate)', () => {
         isLocked: true,
         tier: 'observed',
         reserved: true,
+        personalityId: 'pers',
+        personalityName: 'TestBot',
       },
       {
         id: '2',
@@ -118,6 +122,8 @@ describe('retrieveFactsForPrompt (flag/scope gate)', () => {
         similarity: 0.8,
         isLocked: false,
         tier: 'observed',
+        personalityId: 'pers',
+        personalityName: 'TestBot',
       },
     ];
     const retriever = {
@@ -132,6 +138,35 @@ describe('retrieveFactsForPrompt (flag/scope gate)', () => {
     expect(call).toBeDefined();
     expect((call?.[0] as Record<string, unknown>).reservedFactCount).toBe(1);
     expect((call?.[0] as Record<string, unknown>).factCount).toBe(2);
+  });
+
+  it('MEM-ARCH-032: returns only the FactForPrompt fields, dropping the store-layer fields', async () => {
+    const facts: SimilarFact[] = [
+      {
+        id: '1',
+        statement: 'user likes tea',
+        entityTags: ['x'],
+        similarity: 0.9,
+        isLocked: true,
+        tier: 'corrected',
+        reserved: true,
+        personalityId: 'pers',
+        personalityName: 'TestBot',
+      },
+    ];
+    const retriever = {
+      retrieveFacts: vi.fn().mockResolvedValue(facts),
+    } as unknown as FactRetriever;
+
+    const result = await retrieveFactsForPrompt(retriever, 'pers', 'persona', 'q', false);
+
+    expect(result).toEqual([
+      { id: '1', statement: 'user likes tea', personalityId: 'pers', personalityName: 'TestBot' },
+    ]);
+    const call = mockLogger.info.mock.calls.find(
+      call => call[1] === 'Facts retrieved for prompt injection'
+    );
+    expect((call?.[0] as Record<string, unknown>).reservedFactCount).toBe(1);
   });
 
   it('shareLtmAcrossPersonalities drops the personality filter — parity with episode retrieval', async () => {

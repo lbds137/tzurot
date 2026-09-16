@@ -456,24 +456,54 @@ export function getFactsWrapperOverheadText(subjectName?: string): string {
 }
 
 /**
+ * Resolve the `{assistant}` substitution for one fact: the AUTHOR's name when
+ * the fact was authored by a different personality than the responder, or the
+ * responder's own name otherwise. Foreign iff both ids are present and
+ * differ — an absent id on EITHER side reads as own, never as foreign, since
+ * absence is not evidence the fact was authored elsewhere. Id compare only,
+ * never by name. On a foreign fact with no usable stored author name, falls
+ * back to {@link MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL}.
+ */
+// @spec MEM-ARCH-032 — foreign-fact detection: id compare, absent id on either side reads as own
+function resolveFactAssistantName(
+  fact: FactForPrompt,
+  names?: FactRenderNames
+): string | undefined {
+  const isForeign =
+    fact.personalityId !== undefined &&
+    names?.personalityId !== undefined &&
+    fact.personalityId !== names.personalityId;
+  if (isForeign) {
+    return fact.personalityName !== undefined && fact.personalityName.length > 0
+      ? fact.personalityName
+      : MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL;
+  }
+  return names?.personalityName;
+}
+
+/**
  * Format a single fact as `<fact>statement</fact>` (content escaped for
  * injection safety). Extraction episodes are `{user}`/`{assistant}`-templated
  * (LongTermMemoryService), so extracted statements can carry those literal
  * placeholders — resolve them to real names exactly like the episode render
  * path does (`mapQueryResultToDocument`), so a fact reads "Lila is a pastor",
  * never "{user} is a pastor". No names → statement passes through unchanged
- * (raw placeholders are still better escaped than substituted wrongly).
+ * (raw placeholders are still better escaped than substituted wrongly). A
+ * fact authored by a DIFFERENT personality than the responder resolves
+ * `{assistant}` to that author's name (or `another character`), so another
+ * character's commitment never reads as the responder's own.
  */
 export function formatSingleFact(fact: FactForPrompt, names?: FactRenderNames): string {
+  const assistantName = resolveFactAssistantName(fact, names);
   const resolved =
     names?.subjectName !== undefined &&
     names.subjectName.length > 0 &&
-    names.personalityName !== undefined &&
-    names.personalityName.length > 0
+    assistantName !== undefined &&
+    assistantName.length > 0
       ? replacePromptPlaceholders(
           fact.statement,
           names.subjectName,
-          names.personalityName,
+          assistantName,
           names.discordUsername
         )
       : fact.statement;

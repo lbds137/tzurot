@@ -334,6 +334,17 @@ export interface FactForPrompt {
    *  to avoid saying the same thing twice. Optional because pre-existing
    *  fixtures omit it; a fact with no id is never dropped by D10. */
   id?: string;
+  /** The personality that authored this fact. Compared by id against
+   *  `FactRenderNames.personalityId` to decide whether `{assistant}` names the
+   *  author or the responder. Optional because pre-existing fixtures omit it;
+   *  an absent id reads as OWN (the same invariant as MEM-ARCH-031's
+   *  absent-id rule for archive notes). */
+  personalityId?: string;
+  /** The authoring personality's display name, used as the `{assistant}`
+   *  substitution on a foreign fact. Optional for the same reason; when a
+   *  fact is foreign but this is absent or empty, the render falls back to
+   *  `MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL`. */
+  personalityName?: string;
 }
 
 /** Names used to resolve `{user}`/`{assistant}` placeholders in fact statements. */
@@ -344,6 +355,10 @@ export interface FactRenderNames {
   personalityName?: string;
   /** Discord username — disambiguates when the persona name collides with the personality name (episode-path parity). */
   discordUsername?: string;
+  /** The RESPONDING personality's id — the comparand for foreign-fact
+   *  detection in `formatSingleFact`. Absent reads as own, so a caller that
+   *  omits it gets the pre-existing responder-name resolution unchanged. */
+  personalityId?: string;
 }
 
 /**

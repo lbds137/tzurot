@@ -299,6 +299,8 @@ describe('FactExtractionService', () => {
           entityTags: ['user:alice'],
           similarity: 0.95,
           isLocked: true,
+          personalityId: PERSONALITY,
+          personalityName: 'TestBot',
         },
       ],
       modelResponse: JSON.stringify({
@@ -339,6 +341,8 @@ describe('FactExtractionService', () => {
           similarity: 0.95,
           isLocked: false,
           tier: 'corrected',
+          personalityId: PERSONALITY,
+          personalityName: 'TestBot',
         },
       ],
       modelResponse: JSON.stringify({
@@ -367,6 +371,8 @@ describe('FactExtractionService', () => {
           entityTags: ['user:alice'],
           similarity: 0.93,
           isLocked: false,
+          personalityId: PERSONALITY,
+          personalityName: 'TestBot',
         },
         {
           id: 'similar-wrong-entity',
@@ -374,6 +380,8 @@ describe('FactExtractionService', () => {
           entityTags: ['user:bob'],
           similarity: 0.92,
           isLocked: false,
+          personalityId: PERSONALITY,
+          personalityName: 'TestBot',
         },
         {
           id: 'similar-below-threshold',
@@ -381,6 +389,8 @@ describe('FactExtractionService', () => {
           entityTags: ['user:alice'],
           similarity: 0.5,
           isLocked: false,
+          personalityId: PERSONALITY,
+          personalityName: 'TestBot',
         },
       ],
     });
