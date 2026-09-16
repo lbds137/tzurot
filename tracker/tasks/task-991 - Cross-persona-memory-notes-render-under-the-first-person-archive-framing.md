@@ -1,9 +1,10 @@
 ---
 id: TASK-991
 title: Cross-persona memory notes render under the first-person archive framing
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-16 12:30'
+updated_date: '2026-09-16 17:19'
 labels:
   - 'area:ai-worker'
   - 'size:M'
