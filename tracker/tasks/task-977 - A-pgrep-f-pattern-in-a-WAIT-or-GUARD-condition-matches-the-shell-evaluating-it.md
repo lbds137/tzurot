@@ -3,9 +3,10 @@ id: TASK-977
 title: >-
   A pgrep -f pattern in a WAIT or GUARD condition matches the shell evaluating
   it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 15:19'
+updated_date: '2026-09-16 15:27'
 labels:
   - 'area:tooling'
   - 'size:S'
