@@ -3,10 +3,10 @@ id: TASK-455
 title: >-
   Session mining only sees user turns, so agent-side misses the owner never
   noticed are invisible
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 01:05'
-updated_date: '2026-08-07 12:33'
+updated_date: '2026-09-16 12:03'
 labels:
   - 'area:process'
   - 'size:M'
