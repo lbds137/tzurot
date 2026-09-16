@@ -192,23 +192,24 @@ Total rows: 125
 | `claim-shape-guard.sh` (`.husky/pre-commit` step) | PARAM | Scans staged diff added-lines for runtime-claim phrasing — detection mechanism general, framing cites a specific rule doc and path list. | Excluded-path list (`tracker/`, `backlog/`, `docs/`, `.claude/`, `.husky/`, `*.md`); citation to `00-critical.md § producer is authoritative`. |
 | `cwd-drift-guard.sh` (+ `.probe.sh`) | PARAM | Blocks a `git` command with a repo-root-relative pathspec from a drifted cwd — general shell-safety, but the detector is a hardcoded dir/file list. | Directory list (`services\|packages\|backlog\|docs\|prisma\|scripts\|.claude\|.github\|.husky`) and root filenames (`CURRENT.md`/`BACKLOG.md`); citation to `/tzurot-git-workflow`. |
 | `develop-code-commit-guard.sh` (+ `.probe.sh`) | PARAM | Blocks committing code directly on a protected long-lived branch — general branch-protection mechanism, values project-specific. | Branch names (`develop`/`main`); gated-extension blocklist; `.claude/{rules,skills,hooks}` carve-out; env `TZUROT_ALLOW_DEVELOP_CODE_COMMIT`. |
-| `eslint-on-edit.sh` | PARAM | Unregistered dead hook (kept for reference); generic lint-on-edit, project-specific invocation. | `pnpm exec eslint` shape; `.ts`/`.tsx` scope; inert (not wired). |
+| `eslint-on-edit.sh` | DELETED (never wired; TASK-458 decision) | Unregistered dead hook, since removed from the tree; generic lint-on-edit, project-specific invocation. | `pnpm exec eslint` shape; `.ts`/`.tsx` scope; inert (not wired). |
 | `husky-pre-commit.probe.sh` (pins temporal-marker block) | PARAM | Pins the regex blocking dated/PR-ref comments entering code — general comment-hygiene, project framing. | Env `TZUROT_SKIP_TEMPORAL_CHECK`; path-exclusion list; citation to `02-code-standards.md`. |
 | `lossy-pipe-guard.sh` (+ `.probe.sh`) | PARAM | Blocks filtered `git commit/push` output and truncated `gh` reads — general "protect must-read-whole output". | Enumerated `gh:` ops-wrapper subcommand names tied to `packages/tooling/src/commands/gh.ts`; skill/rule citations. |
 | `pr-merge-review-check.sh` (+ `.probe.sh`) | PARAM (borderline) | Forces the latest AI-reviewer comment into context before `gh pr merge` — valuable general pattern, deeply wired to this repo's release sequence. | Hardcoded repo slug `lbds137/tzurot`; `pnpm ops release:finalize/premigrate` strings; branch names; `claude[bot]` login; ack-file scheme. |
 | `pr-monitor-reminder.sh` (+ `.probe.sh`) | PARAM | Post-push assignee backfill + monitor reminder — general PR hygiene, one project command. | `pnpm ops gh:ci-gate` command string; doc citations. |
 | `promise-ledger-check.sh` (+ `.probe.sh`) | PARAM | Blocks turn end on a deferred-work promise without a same-turn backlog write — general "promise ledger" pattern, filing surface project-specific. | Backlog/tracker file patterns; tracker CLI shape; citation to `06-backlog.md`. |
 | `queued-message-receipt.sh` (+ `.probe.sh`) | PORTABLE | Detects mid-turn-queued user messages via transcript `queue-operation` entries — pure harness mechanism (sole project bit: swappable doc citation in banner). | — |
+| `self-matching-pattern-guard.sh` (+ `.probe.sh`) | PORTABLE | Blocks a full-cmdline `pgrep`/`pkill` match whose pattern is not the bracket idiom, since the pattern matches the invoking shell's own cmdline — pure shell-safety, no repo logic. | — |
 | `session-start.sh` | PARAM | Injects status file + post-compaction checklist at session start — general structural grounding, content project-specific. | `CURRENT.md` name/content; `backlog/now.md` pointer; hand-synced compaction checklist. |
 | `skill-eval.sh` | PARAM (borderline) | Deterministic keyword→skill reminder compensating for unreliable auto-activation — mechanism general, content 100% this repo's skill inventory. | Entire 14-skill keyword regex table — per-project rewrite, not value swap. |
-| `settings.json` → `hooks` wiring block | PARAM (borderline) | Event→hook registration shape is standard harness convention; the script list is this repo's inventory. | The 10 wired script filenames + event/matcher assignments. Note: claim-shape-guard runs via `.husky/pre-commit`; eslint-on-edit unwired. |
+| `settings.json` → `hooks` wiring block | PARAM (borderline) | Event→hook registration shape is standard harness convention; the script list is this repo's inventory. | The wired script filenames (10 at collation time; 20 as of the self-matching guard's addition) + event/matcher assignments. Note: claim-shape-guard runs via `.husky/pre-commit`. |
 
 **Borderline (awaiting orchestrator adjudication):**
 - `pr-merge-review-check.sh` — pattern broadly valuable, but extraction ≈ rewrite (repo slug, release-command strings, ack-file scheme keyed to this repo's cadence).
 - `skill-eval.sh` — the compensation mechanism is a portable idea, but none of its actual content is reusable data; PARAM overstates what a consumer inherits.
 - `settings.json` hooks wiring — the shape is portable convention, but "the wiring" isn't a coherent extraction unit apart from deciding which hooks travel.
 
-Total rows: 14 (2 PORTABLE / 12 PARAM; 3 borderline)
+Total rows: 15 (3 PORTABLE / 11 PARAM / 1 DELETED; 3 borderline)
 # doc-64 Phase 0 collation — slice: skills (.claude/skills/tzurot-*)
 
 | skill | class | why (≤1 sentence) | param surface (if PARAM) |

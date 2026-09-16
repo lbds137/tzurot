@@ -486,10 +486,22 @@ if [ -n "$HDR_VERDICT" ] && [ "$HDR_VERDICT" != "ok" ]; then
     else
       chmod 600 "$ACK_FILE" 2>/dev/null || true
       case "$HDR_REASON" in
-        taskopen) REASON_TEXT="opens with a task id (TASK-N) — commit subjects must not lead with the task id" ;;
-        length) REASON_TEXT="is too long: commitlint header-max-length caps the full header at 100 characters" ;;
-        case) REASON_TEXT="starts with an uppercase letter — commitlint subject-case requires lowercase" ;;
-        *) REASON_TEXT="fails the commit header shape check" ;;
+        taskopen)
+          REASON_TEXT="opens with a task id (TASK-N) — commit subjects must not lead with the task id"
+          WHICH_TEXT="task-id-leading-subject (subject opens with TASK-N)"
+          ;;
+        length)
+          REASON_TEXT="is too long: commitlint header-max-length caps the full header at 100 characters"
+          WHICH_TEXT="header-max-length ($HDR_LEN > 100)"
+          ;;
+        case)
+          REASON_TEXT="starts with an uppercase letter — commitlint subject-case requires lowercase"
+          WHICH_TEXT="subject-case (subject starts with an uppercase letter)"
+          ;;
+        *)
+          REASON_TEXT="fails the commit header shape check"
+          WHICH_TEXT="unknown ($HDR_REASON)"
+          ;;
       esac
       cat >&2 <<HDRBANNER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -498,6 +510,7 @@ COMMIT HEADER PRE-CHECK — commit blocked before husky ever runs
 This commit's subject $REASON_TEXT (05-tooling.md § Commit Message
 Format; commitlint header-max-length / subject-case).
 
+which: $WHICH_TEXT
 Measured length: $HDR_LEN
 Subject: $HDR_SUBJECT
 
@@ -590,6 +603,12 @@ fi
 cat >&2 <<'FOOTER'
 
 Fix: git checkout -b <type>/<name> first, then commit there.
+
+Remedy: issue the branch switch as its OWN Bash call, then commit in the
+next call. This gate evaluates the branch BEFORE your && chain runs, and a
+blocked PreToolUse call executes NONE of its chain — an earlier `git add`
+in the same chain did not run either.
+
 Doc-only commit with an incidentally dirty tree? Stage ONLY the doc
 files and prefix the command with TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1
 (assignment position, not prose — deliberate, review-visible friction).

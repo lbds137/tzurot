@@ -173,6 +173,36 @@ run() {
   fi
 }
 
+# run_msg <expected-exit> <label> <command> <needle> [space-separated dirty relpaths]
+# Adapted from run() above: same TARGET_WT/CLAUDE_PROJECT_DIR/dirty-file
+# setup-teardown, but additionally captures stderr and asserts it contains
+# <needle> — run() throws stderr away, so the block MESSAGE text itself had
+# no coverage until this helper.
+run_msg() {
+  local expected="$1" label="$2" cmd="$3" needle="$4" dirty="${5:-}" wt="${TARGET_WT:-$WT}" f out actual
+  for f in $dirty; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  out=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$wt" "$HOOK" 2>&1)
+  actual=$?
+  for f in $dirty; do
+    rm -f "$wt/$f"
+  done
+  if [ "$actual" -ne "$expected" ]; then
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  if ! printf '%s' "$out" | grep -qF "$needle"; then
+    printf 'FAIL  (message missing %q)  %s\n' "$needle" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  printf 'PASS  (exit %d, message ok)  %s\n' "$actual" "$label"
+}
+
 # run_reason <expected-reason-substring> <label> <command>
 # The exit-code table CANNOT discriminate the taskopen branch: every `TASK-N`
 # subject also opens uppercase, so the subject-case rule blocks it even with
@@ -204,6 +234,9 @@ EOF
 git commit -m "x"'
 
 run 2 "plain single-line commit, dirty ts"        'git add -A && git commit -m "x"'                        'services/probe.ts'
+run_msg 2 "long-lived-branch block names the branch-switch remedy" \
+  'git add -A && git commit -m "x"' 'issue the branch switch as its OWN Bash call' \
+  'services/probe.ts'
 run 2 "CANONICAL heredoc commit form, dirty ts"   "$CANONICAL_HEREDOC"                                     'services/probe.ts'
 run 2 "heredoc earlier in compound, dirty ts"     "$EARLY_HEREDOC"                                         'services/probe.ts'
 run 2 "git -C global-flag form, dirty ts"         'git -C /some/path commit -m "x"'                        'services/probe.ts'
@@ -485,6 +518,18 @@ run 2 "heredoc form with an over-length 105-char subject blocks" "$HEREDOC_LONG_
 # is lowercase here ("f" of "feat") — the violation is in the remainder
 # after the conventional-commit prefix is stripped ("Add thing").
 run 2 "subject-case: uppercase after a conventional-commit prefix blocks" 'git commit -m "feat(scope): Add thing"'
+
+# --- header sub-check naming (the `which:` banner line) ---------------------
+# The ack file is keyed by subject hash, so a subject reused from a case above
+# would already be acked by the time these run and pass through unblocked on
+# the second evaluation — every subject below is fresh to this file.
+SUBJECT_101_WHICH="feat: $(printf 'z%.0s' $(seq 1 95))"
+run_msg 2 "which: names header-max-length with the measured length" \
+  "git commit -m \"$SUBJECT_101_WHICH\"" 'which: header-max-length (101 > 100)'
+run_msg 2 "which: names subject-case" \
+  'git commit -m "Wiring Check Subject"' 'which: subject-case'
+run_msg 2 "which: names task-id-leading-subject" \
+  'git commit -m "TASK-9001 wiring probe subject"' 'which: task-id-leading-subject'
 
 # --- header subject extraction is scoped to the commit's OWN segment -------
 # An earlier command's own -m in the same chain (e.g. `git stash push -m
