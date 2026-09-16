@@ -42,6 +42,8 @@ export function createFactRetriever(
  * too). When `shareLtmAcrossPersonalities` is on, the personality filter drops
  * — facts follow the same widening as episode retrieval (owner call: the two
  * channels must not diverge under one flag). The retriever itself fails soft.
+ * The returned facts carry their authoring personality, so a shared-scope
+ * fact renders under its author's name rather than the responder's.
  */
 export async function retrieveFactsForPrompt(
   factRetriever: FactRetriever | undefined,
@@ -74,7 +76,16 @@ export async function retrieveFactsForPrompt(
       'Facts retrieved for prompt injection'
     );
   }
-  return facts;
+  // @spec MEM-ARCH-032 — narrow to FactForPrompt explicitly: the store's
+  // retrieval-layer fields (entityTags/similarity/isLocked/tier/reserved) have
+  // no consumer on the prompt path, and the declared return type said so long
+  // before the code did.
+  return facts.map(f => ({
+    id: f.id,
+    statement: f.statement,
+    personalityId: f.personalityId,
+    personalityName: f.personalityName,
+  }));
 }
 
 /** Options for {@link retrieveMemoriesAndFacts} — the orchestrator's Step 3. */

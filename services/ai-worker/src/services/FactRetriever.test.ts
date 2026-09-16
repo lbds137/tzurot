@@ -12,6 +12,8 @@ function makeFacts(...statements: string[]): SimilarFact[] {
     similarity: 0.9 - i * 0.01,
     isLocked: false,
     tier: 'observed',
+    personalityId: 'pers-1',
+    personalityName: 'TestBot',
   }));
 }
 
@@ -112,6 +114,8 @@ describe('FactRetriever', () => {
         similarity: 0.9 - i * 0.01, // 0.90, 0.89, ..., 0.81
         isLocked: false,
         tier: 'observed',
+        personalityId: 'pers-1',
+        personalityName: 'TestBot',
       }));
     }
 
@@ -123,6 +127,8 @@ describe('FactRetriever', () => {
         similarity: 0.05, // clearly below the similarity list's cut (0.81 lowest)
         isLocked: true,
         tier: 'observed',
+        personalityId: 'pers-1',
+        personalityName: 'TestBot',
       };
       const { factStore } = makeFactStore({
         findSimilarActiveFacts: vi.fn().mockResolvedValue(similarityFacts()),
@@ -173,6 +179,8 @@ describe('FactRetriever', () => {
         similarity: 0.9,
         isLocked: true,
         tier: 'observed',
+        personalityId: 'pers-1',
+        personalityName: 'TestBot',
       };
       const { factStore } = makeFactStore({
         findSimilarActiveFacts: vi.fn().mockResolvedValue(similarityFacts()),
@@ -210,6 +218,8 @@ describe('FactRetriever', () => {
         similarity: 0,
         isLocked: true,
         tier: 'observed',
+        personalityId: 'pers-1',
+        personalityName: 'TestBot',
       };
       const { factStore } = makeFactStore({
         findSimilarActiveFacts: vi.fn().mockRejectedValue(new Error('db down')),
@@ -232,6 +242,8 @@ describe('FactRetriever', () => {
         similarity: 0,
         isLocked: true,
         tier: 'observed',
+        personalityId: 'pers-1',
+        personalityName: 'TestBot',
       };
       const { factStore, findSimilarActiveFacts } = makeFactStore({
         embedStatement: vi.fn().mockRejectedValue(new Error('embedding service not ready')),
@@ -285,6 +297,8 @@ describe('FactRetriever', () => {
         similarity: 0,
         isLocked: true,
         tier: 'observed',
+        personalityId: 'pers-1',
+        personalityName: 'TestBot',
       };
       const { factStore } = makeFactStore({
         findSimilarActiveFacts: vi.fn().mockResolvedValue(makeFacts('user likes tea')),

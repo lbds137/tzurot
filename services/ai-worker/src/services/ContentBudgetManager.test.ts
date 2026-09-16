@@ -200,7 +200,12 @@ describe('ContentBudgetManager', () => {
         memories,
         1000,
         undefined,
-        { subjectName: undefined, personalityName: 'TestBot', discordUsername: undefined }
+        {
+          subjectName: undefined,
+          personalityName: 'TestBot',
+          discordUsername: undefined,
+          personalityId: 'test-personality-id',
+        }
       );
       expect(result.relevantMemories).toHaveLength(1);
       expect(result.memoryTokensUsed).toBe(50);

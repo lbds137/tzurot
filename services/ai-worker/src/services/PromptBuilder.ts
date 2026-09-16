@@ -430,6 +430,7 @@ ${formatCurrentLocationLine(context.environment)}
       subjectName: context.activePersonaName,
       personalityName: personality.name,
       discordUsername: context.discordUsername,
+      personalityId: personality.id,
     };
 
     const relevantMemories = options.relevantMemories ?? [];

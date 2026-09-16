@@ -572,7 +572,7 @@ describe('PromptBuilder', () => {
           { personaName: string; content: string; isActive: boolean; personaId: string }
         >;
         relevantMemories?: MemoryDocument[];
-        facts?: { statement: string }[];
+        facts?: FactForPrompt[];
         context?: ConversationContext;
         referencedMessagesFormatted?: string;
         serializedHistory?: string;
@@ -1285,6 +1285,31 @@ describe('PromptBuilder', () => {
       expect(content).toContain('KNOWN FACTS about Lila — the author of the message');
       expect(content).toContain('is a bot developer</fact>');
       expect(content).not.toContain('{user}');
+    });
+
+    it('MEM-ARCH-032: a foreign fact reaches the rendered facts block under its author name', () => {
+      // This file mocks `replacePromptPlaceholders` to ignore its name
+      // arguments entirely (see the top-of-file vi.mock), so the rendered
+      // TEXT cannot distinguish which name was resolved — asserting on the
+      // mock's call args is the seam assertion this file already uses
+      // (see "name collision disambiguation" below). It still drives the
+      // real `names` construction inside buildVolatilePrefix — a dropped
+      // personalityId at that site would silently pass the responder's name
+      // instead of the author's, which this test would catch.
+      const foreignFact = {
+        statement: '{assistant} promised to help {user}',
+        personalityId: 'other-personality',
+        personalityName: 'Emily',
+      };
+
+      buildContainers({ facts: [foreignFact] });
+
+      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+        foreignFact.statement,
+        'User', // context.activePersonaName
+        'Emily', // the AUTHOR's name, not the responder's ('TestBot')
+        undefined // discordUsername
+      );
     });
 
     it('includes a chat_log role legend naming the responding persona', () => {

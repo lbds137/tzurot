@@ -897,5 +897,81 @@ describe('MemoryFormatter', () => {
       expect(rendered).toContain(openLine);
       expect(rendered).toContain(instructionLine);
     });
+
+    describe('foreign-fact attribution (MEM-ARCH-032)', () => {
+      it('MEM-ARCH-032: a foreign fact resolves {assistant} to the authoring personality name', () => {
+        const out = formatSingleFact(
+          {
+            id: 'f1',
+            statement: '{assistant} promised to call {user}',
+            personalityId: 'p-emily',
+            personalityName: 'Emily',
+          },
+          { subjectName: 'Alice', personalityName: 'Lilith', personalityId: 'p-lilith' }
+        );
+        expect(out).toContain('Emily promised to call Alice');
+        expect(out).not.toContain('Lilith');
+      });
+
+      it('MEM-ARCH-032: a foreign fact with an empty stored name falls back to another character', () => {
+        const out = formatSingleFact(
+          {
+            id: 'f1',
+            statement: '{assistant} promised to call {user}',
+            personalityId: 'p-emily',
+            personalityName: '',
+          },
+          { subjectName: 'Alice', personalityName: 'Lilith', personalityId: 'p-lilith' }
+        );
+        expect(out).toContain('another character promised to call Alice');
+        expect(out).not.toContain('Lilith');
+      });
+
+      it('MEM-ARCH-032: a foreign fact with no stored name falls back to another character', () => {
+        const out = formatSingleFact(
+          {
+            id: 'f1',
+            statement: '{assistant} promised to call {user}',
+            personalityId: 'p-emily',
+          },
+          { subjectName: 'Alice', personalityName: 'Lilith', personalityId: 'p-lilith' }
+        );
+        expect(out).toContain('another character promised to call Alice');
+        expect(out).not.toContain('Lilith');
+      });
+
+      it('MEM-ARCH-032: an own fact resolves {assistant} to the responder name', () => {
+        const out = formatSingleFact(
+          {
+            id: 'f1',
+            statement: '{assistant} promised to call {user}',
+            personalityId: 'p-lilith',
+          },
+          { subjectName: 'Alice', personalityName: 'Lilith', personalityId: 'p-lilith' }
+        );
+        expect(out).toContain('Lilith promised to call Alice');
+      });
+
+      it('MEM-ARCH-032: a fact with no personality id resolves {assistant} to the responder name', () => {
+        const out = formatSingleFact(
+          { id: 'f1', statement: '{assistant} promised to call {user}' },
+          { subjectName: 'Alice', personalityName: 'Lilith', personalityId: 'p-lilith' }
+        );
+        expect(out).toContain('Lilith promised to call Alice');
+      });
+
+      it('MEM-ARCH-032: names with no responder id resolve {assistant} to the responder name', () => {
+        const out = formatSingleFact(
+          {
+            id: 'f1',
+            statement: '{assistant} promised to call {user}',
+            personalityId: 'p-emily',
+            personalityName: 'Emily',
+          },
+          { subjectName: 'Alice', personalityName: 'Lilith' }
+        );
+        expect(out).toContain('Lilith promised to call Alice');
+      });
+    });
   });
 });

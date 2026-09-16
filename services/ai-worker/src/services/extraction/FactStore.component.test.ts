@@ -33,6 +33,7 @@ const OTHER_PERSONA = '5a1c0f66-0000-4000-8000-00000000c005';
 const OTHER_USER = '5a1c0f66-0000-4000-8000-00000000c006';
 const PERSONALITY = '5a1c0f66-0000-4000-8000-00000000c003';
 const PERSONALITY_B = '5a1c0f66-0000-4000-8000-00000000c007';
+const PERSONALITY_C = '5a1c0f66-0000-4000-8000-00000000c008';
 const SYSTEM_PROMPT = '5a1c0f66-0000-4000-8000-00000000c004';
 
 let seq = 0;
@@ -79,6 +80,12 @@ describe('FactStore (component, PGLite)', () => {
     await prisma.$executeRaw`
       INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
       VALUES (${PERSONALITY_B}::uuid, 'QBotB', 'Q Bot B', 'qbot-b', ${SYSTEM_PROMPT}::uuid, 'Second character', 'Precise', ${USER}::uuid, NOW())
+    `;
+    // No display_name — the COALESCE fallback to `name` is what
+    // authoring-personality columns tests (MEM-ARCH-032) exercise below.
+    await prisma.$executeRaw`
+      INSERT INTO personalities (id, name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+      VALUES (${PERSONALITY_C}::uuid, 'QBotC', 'qbot-c', ${SYSTEM_PROMPT}::uuid, 'Third character', 'Precise', ${USER}::uuid, NOW())
     `;
 
     embeddings = new LocalEmbeddingService();
@@ -811,6 +818,55 @@ describe('FactStore (component, PGLite)', () => {
         tier: 'corrected',
         reserved: true,
       });
+    });
+  });
+
+  describe('authoring-personality columns (MEM-ARCH-032)', () => {
+    it('MEM-ARCH-032: both prompt-path queries carry the authoring personality id and COALESCEd name', async () => {
+      const statementA = 'QBot statement for authorship column test';
+      const statementC = 'QBotC statement for authorship column test';
+      await seedFact({
+        statement: statementA,
+        embedText: statementA,
+        personalityId: PERSONALITY,
+      });
+      await seedFact({
+        statement: statementC,
+        embedText: statementC,
+        personalityId: PERSONALITY_C,
+      });
+
+      const vec = Array.from((await embeddings.getEmbedding('authorship column test')) ?? []);
+      const similarRows = await factStore.findSimilarActiveFacts(vec, null, PERSONA, 10);
+
+      const rowA = similarRows.find(f => f.statement === statementA);
+      const rowC = similarRows.find(f => f.statement === statementC);
+      expect(rowA).toMatchObject({ personalityId: PERSONALITY, personalityName: 'Q Bot' });
+      expect(rowC).toMatchObject({ personalityId: PERSONALITY_C, personalityName: 'QBotC' });
+    });
+
+    it('MEM-ARCH-032: findReservedActiveFacts carries the authoring personality id and COALESCEd name', async () => {
+      const statementA = 'QBot reserved statement for authorship column test';
+      const statementC = 'QBotC reserved statement for authorship column test';
+      await seedFact({
+        statement: statementA,
+        embedText: statementA,
+        personalityId: PERSONALITY,
+        isLocked: true,
+      });
+      await seedFact({
+        statement: statementC,
+        embedText: statementC,
+        personalityId: PERSONALITY_C,
+        isLocked: true,
+      });
+
+      const reservedRows = await factStore.findReservedActiveFacts(null, PERSONA, 10);
+
+      const rowA = reservedRows.find(f => f.statement === statementA);
+      const rowC = reservedRows.find(f => f.statement === statementC);
+      expect(rowA).toMatchObject({ personalityId: PERSONALITY, personalityName: 'Q Bot' });
+      expect(rowC).toMatchObject({ personalityId: PERSONALITY_C, personalityName: 'QBotC' });
     });
   });
 });
