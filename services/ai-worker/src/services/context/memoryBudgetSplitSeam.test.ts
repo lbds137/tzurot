@@ -120,4 +120,93 @@ describe('MemoryBudgetManager × real MemoryFormatter — split-mode sizing (A4 
     // silently under-count what the render pass actually resolves.
     expect(withNames.tokensUsed).not.toBe(withoutNames.tokensUsed);
   });
+
+  // @spec MEM-ARCH-031 — the wrapper is sized with the foreign sentence when a turn carries a foreign note
+  it('MEM-ARCH-031: sizes the wrapper with the foreign sentence when a turn carries a foreign note', () => {
+    const ownDoc: MemoryDocument = {
+      pageContent: '{user}: hi\n{assistant}: hello',
+      metadata: {
+        id: 'mem-own',
+        userTurn: 'hi',
+        subjectName: 'Alice',
+        archiveRender: { mode: 'split', linkedFacts: [] },
+      },
+    };
+    const foreignDoc: MemoryDocument = {
+      pageContent: '{user}: bye\n{assistant}: goodbye',
+      metadata: {
+        id: 'mem-foreign',
+        userTurn: 'bye',
+        subjectName: 'Alice',
+        personalityName: 'Emily',
+        archiveRender: { mode: 'split', linkedFacts: [], foreign: true },
+      },
+    };
+
+    const manager = new MemoryBudgetManager();
+    const result = manager.selectMemoriesWithinBudget([ownDoc, foreignDoc], 5000);
+
+    expect(result.selectedMemories).toHaveLength(2);
+
+    const renderedTotal =
+      countTextTokens(formatSingleMemory(ownDoc)) + countTextTokens(formatSingleMemory(foreignDoc));
+    const wrapperOverheadWithForeign = countTextTokens(
+      getMemoryWrapperOverheadText('split', { foreign: true })
+    );
+    const wrapperOverheadWithoutForeign = countTextTokens(getMemoryWrapperOverheadText('split'));
+
+    // The foreign sentence makes the accounted-for wrapper strictly bigger —
+    // proving the budget sizes the LONGER form, not the plain split wrapper.
+    expect(wrapperOverheadWithForeign).toBeGreaterThan(wrapperOverheadWithoutForeign);
+    expect(result.tokensUsed).toBe(renderedTotal + wrapperOverheadWithForeign);
+  });
+
+  // @spec MEM-ARCH-031 — an unrenderable foreign candidate consumes no budget and never appears in selectedMemories
+  it('MEM-ARCH-031: excludes an unrenderable foreign candidate from selection and sizes the wrapper without the foreign sentence', () => {
+    const ownDoc: MemoryDocument = {
+      pageContent: '{user}: hi\n{assistant}: hello',
+      metadata: {
+        id: 'mem-own',
+        userTurn: 'hi',
+        subjectName: 'Alice',
+        archiveRender: { mode: 'split', linkedFacts: [] },
+      },
+    };
+    const foreignLegacyDoc: MemoryDocument = {
+      pageContent: 'SENTINEL_OTHER_CHARACTER_REPLY_7731',
+      metadata: {
+        id: 'mem-foreign-legacy',
+        personalityName: 'Emily',
+        archiveRender: { mode: 'split', foreign: true, linkedFacts: [] },
+      },
+    };
+
+    const manager = new MemoryBudgetManager();
+    const result = manager.selectMemoriesWithinBudget([ownDoc, foreignLegacyDoc], 5000);
+
+    expect(result.selectedMemories).toHaveLength(1);
+    expect(result.selectedMemories).not.toContain(foreignLegacyDoc);
+
+    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText('split'));
+    expect(result.tokensUsed).toBe(countTextTokens(formatSingleMemory(ownDoc)) + wrapperOverhead);
+  });
+
+  // @spec MEM-ARCH-031 — a turn whose only candidate is unrenderable selects nothing and charges no wrapper
+  it('MEM-ARCH-031: a turn whose only candidate is an unrenderable foreign note selects nothing and charges no wrapper', () => {
+    const foreignLegacyDoc: MemoryDocument = {
+      pageContent: 'SENTINEL_OTHER_CHARACTER_REPLY_ONLY',
+      metadata: {
+        id: 'mem-foreign-legacy-only',
+        personalityName: 'Emily',
+        archiveRender: { mode: 'split', foreign: true, linkedFacts: [] },
+      },
+    };
+
+    const manager = new MemoryBudgetManager();
+    const result = manager.selectMemoriesWithinBudget([foreignLegacyDoc], 5000);
+
+    expect(result.selectedMemories).toEqual([]);
+    expect(result.tokensUsed).toBe(0);
+    expect(result.memoriesDropped).toBe(1);
+  });
 });

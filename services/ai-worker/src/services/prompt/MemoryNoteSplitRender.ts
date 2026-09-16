@@ -162,6 +162,9 @@ export function renderSplitNoteBody(doc: MemoryDocument, names?: FactRenderNames
 
 /** Aggregate telemetry for one turn's memory-archive render — IDs/counts only, never text. */
 export interface ArchiveRenderSummary {
+  /** `'split'` iff EVERY note in the turn rendered in split mode; a shared-LTM
+   *  turn mixing own verbatim notes with foreign split notes reports `'verbatim'`
+   *  here even though it carries split notes (see `foreignNotes`). */
   mode: 'split' | 'verbatim';
   notes: number;
   /** D5's `verbatim_fallback_renders` telemetry: split-mode notes that had no
@@ -172,4 +175,11 @@ export interface ArchiveRenderSummary {
   linkedFacts: number;
   /** Split notes rendered from a stored summary (D2's arm S) rather than from linked facts. */
   summaryNotes: number;
+  /** Notes authored by a personality other than the responder (shared-LTM retrieval,
+   *  `with=` on the note's tag). Counts only — never the note's text. */
+  foreignNotes: number;
+  /** Foreign notes with no stored `userTurn`, omitted from the block entirely
+   *  because their only fallback render is the other character's verbatim
+   *  reply. Counts only — never the note's text. */
+  omittedForeignNotes: number;
 }

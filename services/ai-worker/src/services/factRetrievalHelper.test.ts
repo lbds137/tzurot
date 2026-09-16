@@ -652,3 +652,203 @@ describe('retrieveMemoriesAndFacts — archive summary render + lazy enqueue (B2
     ).resolves.toBeDefined();
   });
 });
+
+describe('retrieveMemoriesAndFacts — cross-personality shared-LTM notes (MEM-ARCH-031)', () => {
+  function memoryRetrieverWith(
+    memories: { pageContent: string; metadata: Record<string, unknown> }[]
+  ) {
+    return {
+      retrieveRelevantMemories: vi.fn().mockResolvedValue({
+        memories,
+        freshModeEnabled: false,
+        personaId: 'persona-1',
+      }),
+    } as unknown as MemoryRetriever;
+  }
+
+  it('MEM-ARCH-031: stamps a foreign doc split with foreign: true even when the slug is NOT listed', async () => {
+    setFlag(true, ['other-slug']); // 'nova' is NOT listed
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'own', metadata: { id: 'mem-own', personalityId: 'personality-1' } },
+      {
+        pageContent: 'foreign',
+        metadata: { id: 'mem-foreign', personalityId: 'personality-2', personalityName: 'Emily' },
+      },
+    ]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue([]),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toBeUndefined();
+    expect(result.memories[1]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      foreign: true,
+      linkedFacts: [],
+    });
+  });
+
+  it('MEM-ARCH-031: links no facts to a foreign doc and never queries linked facts for it', async () => {
+    setFlag(true, ['nova']); // listed
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'own', metadata: { id: 'mem-own', personalityId: 'personality-1' } },
+      { pageContent: 'foreign', metadata: { id: 'mem-foreign', personalityId: 'personality-2' } },
+    ]);
+    const linked: LinkedFact[] = [
+      {
+        id: 'f-1',
+        statement: 'a fact about the foreign note',
+        salience: 0.9,
+        sourceMemoryIds: ['mem-foreign'],
+      },
+    ];
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue(linked),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(factRetriever.retrieveLinkedFacts).toHaveBeenCalledWith(['mem-own'], 'personality-1');
+    expect(result.memories[1]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      foreign: true,
+      linkedFacts: [],
+    });
+  });
+
+  it('MEM-ARCH-031: never enqueues a summary refresh for a foreign doc', async () => {
+    setFlag(true, ['nova']); // listed
+    const memoryRetriever = memoryRetrieverWith([
+      {
+        pageContent: 'own',
+        metadata: { id: 'mem-own', personalityId: 'personality-1', summaryRefreshEligible: true },
+      },
+      {
+        pageContent: 'foreign',
+        metadata: {
+          id: 'mem-foreign',
+          personalityId: 'personality-2',
+          summaryRefreshEligible: true,
+        },
+      },
+    ]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue([]),
+    };
+    const trigger = { enqueue: vi.fn().mockResolvedValue(undefined) };
+
+    await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+      archiveSummaryTrigger: trigger as never,
+    });
+
+    expect(trigger.enqueue).toHaveBeenCalledTimes(1);
+    expect(trigger.enqueue).toHaveBeenCalledWith({
+      memoryId: 'mem-own',
+      personalityId: 'personality-1',
+      reason: 'retrieval',
+    });
+  });
+
+  it("MEM-ARCH-031: carries a foreign doc's stored summary into archiveRender", async () => {
+    setFlag(true, ['other-slug']); // unlisted — foreign stamping is independent of the allowlist
+    const memoryRetriever = memoryRetrieverWith([
+      {
+        pageContent: 'foreign',
+        metadata: {
+          id: 'mem-foreign',
+          personalityId: 'personality-2',
+          assistantSummary: 'A neutral summary.',
+        },
+      },
+    ]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn(),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toEqual({
+      mode: 'split',
+      foreign: true,
+      linkedFacts: [],
+      assistantSummary: 'A neutral summary.',
+    });
+  });
+
+  it('MEM-ARCH-031: treats a doc with no personalityId as own', async () => {
+    setFlag(true, ['other-slug']); // unlisted
+    const memoryRetriever = memoryRetrieverWith([{ pageContent: 'm1', metadata: { id: 'mem-1' } }]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn(),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toBeUndefined();
+    expect(factRetriever.retrieveLinkedFacts).not.toHaveBeenCalled();
+  });
+
+  // @spec MEM-ARCH-001 — the guarantee still holds when the doc is own AND the slug is unlisted
+  it('MEM-ARCH-031: stamps nothing when the slug is unlisted and no doc is foreign', async () => {
+    setFlag(true, ['other-slug']); // unlisted
+    const memoryRetriever = memoryRetrieverWith([
+      { pageContent: 'm1', metadata: { id: 'mem-1', personalityId: 'personality-1' } },
+    ]);
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn(),
+    };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'q',
+      context: {} as never,
+      configOverrides: undefined,
+    });
+
+    expect(result.memories[0]?.metadata?.archiveRender).toBeUndefined();
+    expect(factRetriever.retrieveLinkedFacts).not.toHaveBeenCalled();
+  });
+});
