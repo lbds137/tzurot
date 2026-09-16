@@ -37,7 +37,8 @@ export interface ConversationMessage {
 
 /**
  * A group of messages from a single channel, used for cross-channel history results.
- * Groups are ordered by most recent activity (most recent channel first).
+ * Groups are ordered ascending by each channel's newest message (oldest channel
+ * first), so the channel closest in time to the current turn comes last.
  * Messages within each group are in chronological order (oldest first).
  */
 export interface CrossChannelHistoryGroup {

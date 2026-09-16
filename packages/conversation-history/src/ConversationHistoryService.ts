@@ -413,7 +413,8 @@ export class ConversationHistoryService {
         return [];
       }
 
-      // Group by channelId using Map (preserves insertion order = most recent channel first)
+      // Group by channelId using Map. Insertion order here is most-recent-channel
+      // first (the query is createdAt DESC); the groups are re-sorted below.
       const channelGroups = new Map<string, typeof messages>();
       for (const message of messages) {
         const group = channelGroups.get(message.channelId);

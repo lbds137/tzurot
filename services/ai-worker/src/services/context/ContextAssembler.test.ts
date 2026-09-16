@@ -701,6 +701,116 @@ describe('ContextAssembler.assembleCore', () => {
     });
   });
 
+  it('uses crossChannelMaxMessages as the cross-channel limit when set, overriding the channel cap', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+
+    await assembler.assembleCore(makeJobContext(), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: true,
+      crossChannelMaxMessages: 20,
+    } as ResolvedConfigOverrides);
+
+    expect(deps.dataSource.getCrossChannelHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 20 })
+    );
+  });
+
+  it('falls through to the channel cap when crossChannelMaxMessages is null (follow maxMessages)', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+
+    await assembler.assembleCore(makeJobContext(), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: true,
+      crossChannelMaxMessages: null,
+    } as ResolvedConfigOverrides);
+
+    expect(deps.dataSource.getCrossChannelHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 30 })
+    );
+  });
+
+  it('renders both sides of cross-channel history by default (renderMode absent)', async () => {
+    const row = {
+      id: 'cc-both-1',
+      role: MessageRole.User,
+      content: 'user turn',
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+      personaId: 'p1',
+      channelId: 'other-1',
+      guildId: 'g1',
+      discordMessageId: ['d-cc-1'],
+    };
+    const assistantRow = {
+      id: 'cc-both-2',
+      role: MessageRole.Assistant,
+      content: 'assistant turn',
+      createdAt: new Date('2026-06-01T00:01:00Z'),
+      channelId: 'other-1',
+      guildId: 'g1',
+      discordMessageId: ['d-cc-2'],
+    };
+    const deps = makeDeps({
+      dataSource: {
+        getCrossChannelHistory: vi
+          .fn()
+          .mockResolvedValue([
+            { channelId: 'other-1', guildId: 'g1', messages: [row, assistantRow] },
+          ]),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(makeJobContext(), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: true,
+    } as ResolvedConfigOverrides);
+
+    expect(core.crossChannelHistory?.[0].messages).toHaveLength(2);
+  });
+
+  it("renders only the user's turns when crossChannelRenderMode is 'user-only'", async () => {
+    const row = {
+      id: 'cc-uo-1',
+      role: MessageRole.User,
+      content: 'user turn',
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+      personaId: 'p1',
+      channelId: 'other-1',
+      guildId: 'g1',
+      discordMessageId: ['d-cc-3'],
+    };
+    const assistantRow = {
+      id: 'cc-uo-2',
+      role: MessageRole.Assistant,
+      content: 'assistant turn',
+      createdAt: new Date('2026-06-01T00:01:00Z'),
+      channelId: 'other-1',
+      guildId: 'g1',
+      discordMessageId: ['d-cc-4'],
+    };
+    const deps = makeDeps({
+      dataSource: {
+        getCrossChannelHistory: vi
+          .fn()
+          .mockResolvedValue([
+            { channelId: 'other-1', guildId: 'g1', messages: [row, assistantRow] },
+          ]),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(makeJobContext(), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: true,
+      crossChannelRenderMode: 'user-only',
+    } as ResolvedConfigOverrides);
+
+    expect(core.crossChannelHistory?.[0].messages).toHaveLength(1);
+    expect(core.crossChannelHistory?.[0].messages[0].role).toBe(MessageRole.User);
+  });
+
   it('returns plain DB history when the envelope carries no extended context', async () => {
     const dbRow = {
       id: 'db-1',

@@ -73,6 +73,39 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
       'the one they happened in — so leave this disabled if you keep some conversations separate.',
   },
   {
+    id: 'crossChannelRenderMode',
+    label: 'Cross-Channel Content',
+    emoji: '🗣️',
+    description:
+      'What the character sees from your conversations in other channels: both sides, ' +
+      'or only your own messages. Your-messages-only keeps the continuity without the ' +
+      'character re-reading its own past replies.',
+    type: SettingType.ENUM,
+    choices: [
+      { value: 'both', label: 'Both sides', emoji: '💬' },
+      { value: 'user-only', label: 'Your messages only', emoji: '🙋' },
+    ],
+    helpText: 'Only applies when Cross-Channel History is enabled.',
+  },
+  {
+    id: 'crossChannelMaxMessages',
+    label: 'Cross-Channel Max Messages',
+    emoji: '🔢',
+    description:
+      'How many recent messages to pull from other channels, across all of them. ' +
+      'Leave on auto to follow Max Messages.',
+    type: SettingType.NUMERIC,
+    min: 1,
+    max: 100,
+    placeholder: 'Enter a number (1-100) or "auto"',
+    nullDisplay: 'Auto (follows Max Messages)',
+    helpText:
+      'Applies only when Cross-Channel History is enabled. This is a total across ' +
+      'channels, not per channel, and it counts messages as fetched — with ' +
+      'Cross-Channel Content set to your messages only, the character sees fewer ' +
+      'than this number, since the replies are dropped after the fetch.',
+  },
+  {
     id: 'shareLtmAcrossPersonalities',
     label: 'Share Memories',
     emoji: '🧠',

@@ -189,6 +189,43 @@ describe('ConfigOverridesSchema', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it('should reject invalid crossChannelRenderMode value', () => {
+      const result = ConfigOverridesSchema.safeParse({ crossChannelRenderMode: 'nope' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject crossChannelMaxMessages below minimum', () => {
+      const result = ConfigOverridesSchema.safeParse({ crossChannelMaxMessages: 0 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject crossChannelMaxMessages above maximum', () => {
+      const result = ConfigOverridesSchema.safeParse({ crossChannelMaxMessages: 101 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept crossChannelMaxMessages as null (follow maxMessages)', () => {
+      const result = ConfigOverridesSchema.safeParse({ crossChannelMaxMessages: null });
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ crossChannelMaxMessages: null });
+    });
+  });
+
+  describe('crossChannelRenderMode + crossChannelMaxMessages (C5 canary)', () => {
+    it('carries both new fields through the strip-unknown-keys schema unchanged', () => {
+      // ConfigOverridesSchema is `.strip()`, so an unregistered key would be
+      // silently deleted. This pins that both fields are actually registered
+      // in the schema shape, not just present in the TypeScript type.
+      const result = ConfigOverridesSchema.parse({
+        crossChannelRenderMode: 'user-only',
+        crossChannelMaxMessages: 20,
+      });
+      expect(result).toEqual({
+        crossChannelRenderMode: 'user-only',
+        crossChannelMaxMessages: 20,
+      });
+    });
   });
 
   describe('unknown key handling', () => {
@@ -222,6 +259,8 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold).toBe(0.5);
     expect(HARDCODED_CONFIG_DEFAULTS.memoryLimit).toBe(20);
     expect(HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled).toBe(false);
+    expect(HARDCODED_CONFIG_DEFAULTS.crossChannelRenderMode).toBe('both');
+    expect(HARDCODED_CONFIG_DEFAULTS.crossChannelMaxMessages).toBeNull();
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
     expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('always');
     expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
@@ -503,6 +542,11 @@ describe('NULL_TERMINAL_FIELDS registry', () => {
         isNullTerminalField(key)
       );
     }
+  });
+
+  it('registers crossChannelMaxMessages as a null-terminal field', () => {
+    expect(NULL_TERMINAL_FIELDS).toContain('crossChannelMaxMessages');
+    expect(isNullTerminalField('crossChannelMaxMessages')).toBe(true);
   });
 
   it('pins the hardcoded maxAge default to null forever', () => {
