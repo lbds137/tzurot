@@ -150,7 +150,12 @@ function legacyMemoriesContext(memories: MemoryDocument[], timezone?: string): s
 
 function legacyFactsContext(
   facts: FactForPrompt[],
-  names: { subjectName?: string; personalityName?: string; discordUsername?: string }
+  names: {
+    subjectName?: string;
+    personalityName?: string;
+    discordUsername?: string;
+    personalityId?: string;
+  }
 ): string {
   if (facts.length === 0) {
     return '';
@@ -274,6 +279,7 @@ ${locationXml}
     subjectName: context.activePersonaName,
     personalityName: personality.name,
     discordUsername: context.discordUsername,
+    personalityId: personality.id,
   });
 
   const memoryContext = legacyMemoriesContext(relevantMemories, context.userTimezone);

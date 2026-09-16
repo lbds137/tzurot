@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { selectFacts, FACT_BUDGET_MAX_TOKENS, FACT_BUDGET_MAX_FRACTION } from './factBudget.js';
-import type { FactForPrompt } from './ConversationalRAGTypes.js';
+import { formatSingleFact, getFactsWrapperOverheadText } from './prompt/MemoryFormatter.js';
+import type { FactForPrompt, FactRenderNames } from './ConversationalRAGTypes.js';
 
 /** A trivial deterministic counter: every fact/wrapper text costs 100 tokens
  *  regardless of content, so tests can reason about token math by count alone
@@ -52,5 +53,28 @@ describe('selectFacts', () => {
     const expectedCount = Math.floor((FACT_BUDGET_MAX_TOKENS - 50) / 50);
     expect(result.selectedFacts).toHaveLength(expectedCount);
     expect(FACT_BUDGET_MAX_FRACTION).toBe(0.3);
+  });
+
+  it('MEM-ARCH-032: sizes a foreign fact by its author-resolved text', () => {
+    const foreignFact: FactForPrompt = {
+      id: 'f1',
+      statement: '{assistant} promised to help {user}',
+      personalityId: 'p-emily',
+      personalityName: 'Emily',
+    };
+    const names: FactRenderNames = {
+      subjectName: 'Alice',
+      personalityName: 'Lilith',
+      personalityId: 'p-lilith',
+    };
+    const countTokens = (text: string): number => text.length;
+
+    const result = selectFacts([foreignFact], 10_000, countTokens, names);
+
+    const rendered = formatSingleFact(foreignFact, names);
+    expect(rendered).toContain('Emily');
+    expect(rendered).not.toContain('Lilith');
+    const wrapperOverhead = countTokens(getFactsWrapperOverheadText(names.subjectName));
+    expect(result.factTokensUsed).toBe(wrapperOverhead + countTokens(rendered));
   });
 });

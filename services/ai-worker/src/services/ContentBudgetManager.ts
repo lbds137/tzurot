@@ -522,6 +522,12 @@ export class ContentBudgetManager {
       subjectName: context.activePersonaName,
       personalityName: personality.name,
       discordUsername: context.discordUsername,
+      // @spec MEM-ARCH-032 — the responder id is the comparand foreign-fact
+      // detection needs at the sizing site as well as the render site.
+      // The responder id is what lets a foreign fact's SIZED text match its
+      // RENDERED text — without it, budgeting would charge the responder-named
+      // form while the render emits the author-named form.
+      personalityId: personality.id,
     };
 
     // Facts take their reserved slice FIRST; episodes get the remainder — so a

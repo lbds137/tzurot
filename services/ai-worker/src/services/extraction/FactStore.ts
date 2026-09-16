@@ -48,6 +48,14 @@ export interface SimilarFact {
   tier: string;
   /** Set by FactRetriever's reserved merge; absent on the extraction path. */
   reserved?: boolean;
+  /** The personality that authored this fact — `memory_facts.personality_id`,
+   *  NOT NULL in the schema. Required so a new producer of this type cannot
+   *  silently omit the column the prompt path compares against. */
+  personalityId: string;
+  /** The authoring personality's display name, falling back to its internal
+   *  name (`COALESCE(display_name, name)`); `personalities.name` is NOT NULL,
+   *  so this is always a non-empty string. */
+  personalityName: string;
 }
 
 /** One fact linked to a memory, keyed for the split memory-archive render. */
@@ -152,6 +160,8 @@ export class FactStore {
     limit = 5
   ): Promise<SimilarFact[]> {
     const embeddingVector = `[${embedding.join(',')}]`;
+    // @spec MEM-ARCH-032 — join personalities so the prompt path can compare
+    // authorship against the responder and resolve {assistant} correctly
     const rows = await this.prisma.$queryRaw<
       {
         id: string;
@@ -159,17 +169,21 @@ export class FactStore {
         entity_tags: string[];
         is_locked: boolean;
         tier: string;
+        personality_id: string;
+        personality_name: string;
         similarity: number;
       }[]
     >(
       Prisma.join(
         [
           Prisma.sql`
-        SELECT f.id, f.statement, f.entity_tags, f.is_locked, f.tier,
+        SELECT f.id, f.statement, f.entity_tags, f.is_locked, f.tier, f.personality_id,
+               COALESCE(personality.display_name, personality.name) AS personality_name,
                1 - (f.embedding <=> `,
           Prisma.raw(`'${embeddingVector}'::vector`),
           Prisma.sql`) AS similarity
         FROM memory_facts f
+        JOIN personalities personality ON f.personality_id = personality.id
         WHERE (${personalityId}::uuid IS NULL OR f.personality_id = ${personalityId}::uuid)
           AND f.persona_id `,
           personaId === null ? Prisma.sql`IS NULL` : Prisma.sql`= ${personaId}::uuid`,
@@ -194,6 +208,8 @@ export class FactStore {
       similarity: r.similarity,
       isLocked: r.is_locked,
       tier: r.tier,
+      personalityId: r.personality_id,
+      personalityName: r.personality_name,
     }));
   }
 
@@ -226,6 +242,8 @@ export class FactStore {
       personaId === null
         ? Prisma.sql`f.persona_id IS NULL`
         : Prisma.sql`f.persona_id = ${personaId}::uuid`;
+    // @spec MEM-ARCH-032 — join personalities so the prompt path can compare
+    // authorship against the responder and resolve {assistant} correctly
     const rows = await this.prisma.$queryRaw<
       {
         id: string;
@@ -233,10 +251,14 @@ export class FactStore {
         entity_tags: string[];
         is_locked: boolean;
         tier: string;
+        personality_id: string;
+        personality_name: string;
       }[]
     >`
-      SELECT f.id, f.statement, f.entity_tags, f.is_locked, f.tier
+      SELECT f.id, f.statement, f.entity_tags, f.is_locked, f.tier, f.personality_id,
+             COALESCE(personality.display_name, personality.name) AS personality_name
       FROM memory_facts f
+      JOIN personalities personality ON f.personality_id = personality.id
       WHERE (${personalityId}::uuid IS NULL OR f.personality_id = ${personalityId}::uuid)
         AND ${personaPredicate}
         AND f.superseded_at IS NULL
@@ -266,6 +288,8 @@ export class FactStore {
       similarity: 0, // sentinel — not meaningful; see method doc
       isLocked: r.is_locked,
       tier: r.tier,
+      personalityId: r.personality_id,
+      personalityName: r.personality_name,
     }));
   }
 
