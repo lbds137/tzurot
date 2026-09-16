@@ -3,10 +3,10 @@ id: TASK-976
 title: >-
   Dual-secret acceptance for INTERNAL_SERVICE_SECRET: api-gateway accepts
   current or previous so rotation has no 401 window
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 12:15'
-updated_date: '2026-09-14 15:19'
+updated_date: '2026-09-16 00:53'
 labels:
   - 'area:api-gateway'
   - 'size:M'

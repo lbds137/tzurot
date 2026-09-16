@@ -3,9 +3,10 @@ id: TASK-982
 title: >-
   Staged rotation writes _PREVIOUS where the verifier cannot inherit it, so
   stage 1 opens the full 401 window
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 20:51'
+updated_date: '2026-09-16 00:52'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -65,7 +66,7 @@ RUN COMPLETE 2026-09-16 — ALL THREE STAGES RAN, WINDOW CLOSED. Nothing is pend
 - **Stage 2, 00:42Z**: both presenters redeployed onto the new primary. Verified by boot lines dated AFTER a 00:42:00 cutoff (bot-client `Successfully logged in to Discord` 00:42:31Z; ai-worker `Scheduled jobs configured`) rather than by trusting the command's exit code — each presenter had exactly one earlier boot in the preceding 3h, so a bare string match would have false-greened on the OLD boot.
 - **Stage 3, 00:45Z**: `_PREVIOUS` deleted at the verifier scope, gateway redeployed, ledger stamped. Confirmed two independent ways: `secrets:rotation-status` read back `internal-service-secret rotated 2026-09-16`, and a stage-1 dry run now prints the stage-1 PLAN instead of a window-open refusal.
 
-ACCEPTANCE EVIDENCE (clause 1): in the stage-1→2 window, with BOTH presenters still holding the outgoing value, the gateway accepted 20 authenticated bot-client calls (20 of 21 request lines carried `x-service-auth`, all `[REDACTED]`) and ai-worker's hourly reconcile completed at 00:41:09Z — the exact job that failed at 2026-09-14T20:41:03Z with `Service authentication failed`. Zero auth failures at every measured point. Positive controls throughout (21 gateway request lines, 10 ai-worker job completions) prove those windows were busy rather than empty. The failure DETECTOR is itself positive-controlled against source: `AuthMiddleware.ts:489` emits exactly `Service authentication failed` and `isValidServiceSecret` has a single call site (line 480), so there is exactly one place a rejection can be logged. OUTSTANDING: post-closure traffic, since dev has no organic traffic (`/tzurot-deployment`) — awaited via an owner poke or the 01:41 reconcile.
+ACCEPTANCE EVIDENCE (clause 1): in the stage-1→2 window, with BOTH presenters still holding the outgoing value, the gateway accepted 20 authenticated bot-client calls (20 of 21 request lines carried `x-service-auth`, all `[REDACTED]`) and ai-worker's hourly reconcile completed at 00:41:09Z — the exact job that failed at 2026-09-14T20:41:03Z with `Service authentication failed`. Zero auth failures at every measured point. Positive controls throughout (21 gateway request lines, 10 ai-worker job completions) prove those windows were busy rather than empty. The failure DETECTOR is itself positive-controlled against source: `AuthMiddleware.ts:489` emits exactly `Service authentication failed` and `isValidServiceSecret` has a single call site (line 480), so there is exactly one place a rejection can be logged. POST-CLOSURE VERIFIED 00:45–00:51Z: three requests reached the gateway AFTER its post-stage-3 boot at 00:45:47Z — that is, after `_PREVIOUS` was deleted — and ALL THREE carried `x-service-auth` (all `[REDACTED]`), all accepted, zero auth failures, zero ai-worker 401s. The authenticated count is the load-bearing one: a bare `responseTime=` count would have included unauthenticated health checks and proved nothing. No presenter was stranded by stage 2. **Clause 1 is MET and TASK-982 is DONE.**
 
 PROD READINESS, runtime-verified 2026-09-16: a prod stage-1 dry run REFUSED — `Deploy gate: REFUSE — the commit "api-gateway" is running (4b16984820…) carries no "INTERNAL_SERVICE_SECRET_PREVIOUS"`. The deploy-ordering protection is now OBSERVED, not merely read in source. The prod rotation stays a POST-CUT step: after beta.225 deploys, re-run that same dry run, and its flip from REFUSE to PASS is the go/no-go signal. Note prod differs operationally — `--yes` is refused there by design (three interactive confirmations), and the granted permission rule is dev-scoped.
 

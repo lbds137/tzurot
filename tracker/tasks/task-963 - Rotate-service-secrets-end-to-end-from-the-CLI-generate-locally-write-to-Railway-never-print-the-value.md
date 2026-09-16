@@ -3,10 +3,10 @@ id: TASK-963
 title: >-
   Rotate service secrets end-to-end from the CLI: generate locally, write to
   Railway, never print the value
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:39'
-updated_date: '2026-09-14 02:49'
+updated_date: '2026-09-16 00:52'
 labels:
   - 'area:tooling'
   - 'size:M'
