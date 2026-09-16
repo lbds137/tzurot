@@ -1,0 +1,142 @@
+# Recent-days digest — the continuity feed without the character's prose
+
+**Status: ACCEPTED 2026-09-16** (design-boulder pass for `doc-97` Phase 4; four-model council pass folded in §7; owner pass the same day via `AskUserQuestion` — all four calls confirmed as recommended)
+
+**Extends**: `docs/proposals/backlog/memory-archive-format.md` (ACCEPTED 2026-09-05) — reuses its summarizer machinery, switches, and column ledger; supersedes its §0/§3 sentence assigning "the history half" to `doc-17` Phase 2 (that phase is a caching restructure and never proposed reducing the character's prose).
+**Theme**: `doc-97` Phase 4. **Epic**: `doc-8`.
+
+**Owner directives, verbatim-ish** (all recorded in `doc-97`):
+
+1. 2026-09-13 — cross-channel history stays ON for Emily and the drifted voice is accepted until this pass; the value to keep is the USER side of the block, the cost to shed is the CHARACTER side; "any pass that trades away the user side is off the table." Same day, on the summary-join candidate: "the semantics of what the character said must survive; naive dropping of the assistant side is out."
+2. 2026-09-13 — the feed is a CONTINUITY FEED: a rolling ~100-message week across channels because "I talk to her every day", and nothing in memory serves that need (extraction drops non-durable events by design; the archive is similarity-retrieved).
+3. 2026-09-13 — WHAT a character calls someone is a fact and may develop; HOW it sounds is voice. TASK-950 narrows the fact half to forms of address the user welcomed or reciprocated, shared references the user embraced, and the character's standing disposition.
+4. 2026-09-05 — no model-parameter experiments; reordering the card below history is rejected (cache prefix).
+5. 2026-08-21 (`doc-8`) — "I don't want to delete anything." Episodes are the source record; everything above them is derived and rebuildable.
+6. Candidate order from the 2026-09-13 brainstorm: (1) category-indexed standing block → (2) recent-days digest → (3) agentic drill-down, deferred on measured latency. The number to beat: ~4.4k completion tokens / 72 s per turn spent policing the register with the feed on.
+
+**Grounding provenance**: four read-only agent reports, 2026-09-16, under `docs/local/handoffs/ground-doc97p4-{A-history,B-facts,C-summarizer,D-archaeology}.md` (gitignored; cites are `file:line` against `develop` @ `6184072af`). [V] = read in the cited code; [I] = inferred.
+
+---
+
+## 0. The center, restated
+
+The owner's concern is not the voice; the voice is the symptom. The concern is that the character must know what happened in the user's recent days across every channel they share, and the only thing that currently delivers that is a 100-message verbatim feed of which half is the character's own drifted prose. This artifact designs the replacement for the character-side half of that feed. The register fix falls out of shedding the character-side mass; it is measured, not designed for.
+
+## 1. The system as it is (verified)
+
+| Fact | Cite |
+| --- | --- |
+| Cross-channel history is fetched per `(persona_id, personality_id)` from every channel except the current one, newest first, **globally** capped at `min(maxMessages ?? 50, 100)` — the same `cap` that sizes the current channel's window; there is no independent knob. | `channelHistoryHydration.ts:53-56`, `ContextAssembler.ts:215`, `ConversationHistoryService.ts:388-456` [V] |
+| Flag-on (`realMessagesEnabled`, ON in prod) it ships as its **own HumanMessage at array position 2**, between the system message and the current channel's real messages; empty omits the message (§9c of `prompt-assembly-architecture.md`, council-adopted). | `RAGUtils.ts:447-462`, `RealMessagesBuilder.ts:847-859` [V] |
+| Linear order as the model reads it: system → cross-channel (position 2) → the current channel's turns → the final human message whose volatile prefix is `context` → `facts` → `memory_archive` → `contextual_references` → `voice_anchor`, then the live turn. So the V tier is read AFTER the current channel's verbatim turns. | `PromptBuilder.ts:364-377`, `:475-481` [V] |
+| Assistant rows render through the same formatter as user rows — the character's prose ships verbatim, with no `from_id` and no message id. The renderer knows each row's `role`, so a role filter at render is a one-predicate change. | `conversationUtils.ts:95-99`, `:286-333` [V] |
+| Budget: cross-channel gets the LEFTOVER after the current channel; selection is a contiguous newest-first tail per channel group with **no hysteresis**, and the groups are consumed oldest-channel-first so the most recent channel is the one starved under pressure (TASK-994). | `ContextWindowManager.ts:84-181`, `CrossChannelSerializer.ts:64-121` [V] |
+| Measured masses (2026-09-13 arm A): 100 messages, 71.5k tokens of an 85.5k prompt, about half the character's replies; the archive ~4.1k. In the 2026-09-05 payload the block sat INSIDE the cached span. | `doc-97` Phase 1 results; `voice-drift-2026-09-05.md` §1.1 [V] |
+| Retention is 30 days; `/history clear` writes a persona-wide epoch that hides history everywhere for the pair; `/history purge` deletes rows channel-scoped and writes no epoch (TASK-966, Done). | `timing.ts:219`, `history.ts:100-128`, `:317-380` [V] |
+| Facts carry free-text `kind:name` tags the extraction model invents (validation trims only; no vocabulary, no case folding); nothing parses the kind half. Reserved slots exist (TASK-964, Done): 3 of 10 for locked / corrected / `commitment:address`. The durability filter EXCLUDES transient states and time-bound plans but KEEPS commitments (a promise, a standing decision, an agreed form of address, advice) as durable. | `extractionPrompt.ts:23`, `:69-80`, `FactStore.ts:226-298`, `FactRetriever.ts:41-185` [V] |
+| The archive summarizer is a proven background shape: own BullMQ queue, deterministic `jobId`, two global switches (enqueue, model) + a per-character slug-list RENDER switch, a global UTC-day cap (plain INCR/EXPIRE, fail-open), content-guarded raw-SQL writes, one `usage_logs` row per model call with `latency_ms`, third-person contract with a `first_person` failure class, hard route gate to `zai-coding` with thinking off. | `ArchiveSummaryProcessor.ts`, `archiveSummaryStore.ts`, `systemSettingsRegistryOperations.ts:26-78` [V] |
+| `rosterBlurbSweep` is the cron precedent for precomputed prompt text: staleness STAMPED, never discovered; `MAX_GENERATIONS_PER_SWEEP = 10`; the scheduled worker runs at BullMQ default concurrency 1, so a sweep is a single sequential generator; read path `ContextDataSource` → `ContextStep` → `PreparedContext` → `ConversationContext` → `PromptBuilder`. Free cron marks: `:6`, `:8`, `:9`. | `rosterBlurbSweep.ts`, `index.ts:243-273`, `ContextStep.ts:299-340` [V] |
+| `buildVolatilePrefix` runs TWICE per turn (budget pre-pass + shipped); any new V section must be loaded once in `ContextStep` and shared by both renders, never fetched in `PromptBuilder`. A V-tier section is cache-neutral by construction. Two invariant tests pin the V order and the "no V tag in the system message" rule. | `ContentBudgetManager.ts:340`, `:464`; `PromptBuilder.ts:404-411`, `:463-469` [V] |
+| No table is keyed `(persona, personality)` as a singleton. Users carry a timezone (the beta.225 timezone cluster); history timestamps already render in it. | `prisma/schema.prisma`; `conversationUtils.ts:309-317` [V] |
+| The summary-join fallback is not fundable now: `memories.message_ids` holds the user turn's id only, and Emily reads 85.8% of the 95% summary gate with 73 undiagnosed failures (TASK-971). | `LongTermMemoryService.ts:143-151`; TASK-971 [V] |
+
+## 2. Decisions
+
+**D1 — The continuity feed's character side is replaced by a recent-days digest, not by a fact block.** The brainstorm's candidate (1), a deterministic per-category block from stored facts, cannot carry the week: the extraction prompt drops "transient states" and "time-bound plans or upcoming events" by design [V], so "current life state" has no producer, and the other categories have no category signal on the row. Candidate (1) is reframed as a **facts-vocabulary slice** (D9) that improves relationship management independently. _Rejected_: building the standing block first — it would ship a block that by construction says nothing about this week.
+
+**D2 (council-rebuilt) — The feed itself renders the USER side verbatim and drops the character's turns; the digest carries what the character did, agreed, and promised.** This is the owner's ruling implemented literally: a new cascade field `crossChannelRenderMode: 'both' | 'user-only'` (default `both`, so nothing changes at ship), applied in the cross-channel serializer by `role`. With `user-only`, the 71.5k-token block roughly halves with no new model prose, same-day continuity stays verbatim, and the digest is the only character-side prose in the prompt. The owner's "naive dropping of the assistant side is out" is honoured because the semantics of the dropped side survive in the digest (D4); the pair is the design, neither half alone. _The draft had this as an owner call after measurement; the whole council found the ruling's literal implementation missing. Rebuilt._ _Rejected_: capping both sides — a cap trades user verbatim for character verbatim at the same ratio, which is the trade directive 1 forbids.
+
+**D3 — One digest per `(persona, personality)` over ALL channels in the window, each entry attributed to its place.** One row, one generation, reused across channels. The current channel's rows are included because the digest is generated off the reply path with no channel context; where the digest and the verbatim thread overlap, **the verbatim thread is authoritative and the framing says so** (D11). Each entry names where it happened ("in #general", "in DMs") so a cross-channel merge does not strip context. _The draft's rationale ("the verbatim turns follow it") was backwards — the V tier is read AFTER the current channel; corrected on the council's catch._ _Rejected_: per `(pair, channel)` digests — N× spend and N× staleness; the council's duplication concern is met by attribution + the authority rule + the narrate-back clause rather than by N rows.
+
+**D4 (council-rebuilt) — Contract, input policy, and enforced failure classes.** Input: both sides' rows, framed to the generator as untrusted DATA — the user's rows as what the user said and reported, the character's rows as what the character did and agreed, never as style. Output: third person; absolute dates in the persona owner's timezone; the persona's preferred name and the character's name as subjects; one entry per day or thread with its place; ≤ ~250 words (soft 350 tokens, hard 450 → `overflow`). It MUST record what the character agreed, promised, or undertook, and a form of address ONLY when the user welcomed or reciprocated it (directive 3 as TASK-950 narrows it) — a name the character alone uses is drift and is omitted. It MUST NOT carry sign-offs, running metaphors, or house structure. **Failure classes, each a validator, not a prompt hope**: `first_person` (copied from the summarizer); `quotation` — any 8-gram of the digest that occurs in a source ASSISTANT row fails the generation (the character's phrasing cannot re-enter); `overflow`. One regeneration on failure, then `failed`; `dead` after 3 billed attempts. _Rejected_: user-side-only digest — drops the character's agreements directive 3 protects and leaves the `user-only` feed with no record of what the character undertook.
+
+**D5 — Placement: a new V-tier section `recent_days`, between `facts` and `memory_archive`, in the final human message.** Distilled current state (facts) → the recent week (digest) → the historical archive → references → the anchor last. Cache-neutral by construction; ~400 uncached tokens per turn, accepted. The §9c position-2 slot keeps the `user-only` feed (D2). Loaded ONCE in `ContextStep` and shared by both renders (the roster-blurb path). _Council 3–1 accept; the dissent (Qwen) preferred the position-2 slot for prefix reuse. Declined: the block is a few hundred tokens, position 2 is the farthest point from generation, and a digest at position 2 would invalidate the current channel's cached prefix at every regeneration._
+
+**D6 — The feed's cap gets its own knob; the ordering bug ships with it.** A new cascade field `crossChannelMaxMessages` (default = today's coupled value) decouples the cross-channel pull from `maxMessages` [fixes S5]; TASK-994's oldest-first fix ships with it. Together with D2's render mode, the owner has three feed states to measure: `both`, `user-only`, off. _Rejected_: hard-replacing the feed — directive 1.
+
+**D7 — Storage: a new table `persona_personality_digests`, unique `(persona_id, personality_id)`, NOT sync-tracked.** Columns copy the summarizer's ledger: `digest_text`, `digest_status` (`null|pending|done|failed|dead`), `digest_attempts`, `digest_model`, `digest_prompt_version`, `source_watermark` (newest included row's `created_at`), `window_start` (oldest included row's `created_at`), `source_row_count`, `source_row_ids text[]` (auditability: which rows produced this text), `source_epoch` (the pair's `lastContextReset` at generation), `generated_at`, `requested_at` (manual refresh), `last_error`. FK cascade on both ids. Derived data: never synced, regenerated per environment. _Rejected_: columns on `UserPersonalityConfig` (wrong grain, a config tier) or `UserPersonaHistoryConfig` (the STM-epoch row); a column on `conversation_history` (sync-LWW audit + duplication).
+
+**D8 (council-amended) — The job.** A cron sweep `recent-days-digest-sweep` on the `scheduled-jobs` queue at `:6`, sequential (worker concurrency 1, so no double generation of a pair), `MAX_DIGEST_GENERATIONS_PER_SWEEP = 10`. Selection: pairs whose personality is in `recentDaysDigestPersonalities` (one list gates BOTH generation and render, so no spend on a character nobody renders) AND with rows newer than `source_watermark` AND `generated_at` older than `DIGEST_MIN_REGEN_INTERVAL` (**2 h**, down from the draft's 6 h — the `user-only` feed carries same-day continuity verbatim, so the digest's cadence covers the week, not the hour) AND ≥1 row in the 7-day window after the epoch cutoff; `requested_at` newer than `generated_at` bypasses the interval (manual refresh: `/memory` or an ops command). Input: the newest `DIGEST_MAX_SOURCE_MESSAGES = 200` rows / ~40k tokens of the window — the cap drops the OLDEST rows, never newer ones, so nothing is skipped permanently; `window_start` records what was covered and the framing renders "since <date>" when truncated. Generation via `invokeSystemModel` on `extractionModel`, the identical `zai-coding` route gate (delay, never bill, on any other route), thinking off, `maxTokens 768`, 60 s timeout, one `usage_logs` row per call (`request_type = 'recent_days_digest'`, `userId` = persona owner, `personalityId`, `latency_ms`). Global kill switch `recentDaysDigestEnabled`. Spend ceiling: 10 × 6/h = 1,440/day hard; expected ≈ listed pairs × ≤12/day. **Decision rules for the gates**: G2 pairs × 12 > 1,440 → raise the interval before enabling; G1 p95 × 10 > 10 min → lower the per-tick count. _Rejected_: reusing `archiveSummaryDailyCap` (a shared meter makes either flip unreadable); incremental regeneration (see D10).
+
+**D9 — The facts-vocabulary slice (was candidate 1), scheduled separately.** Extend the extraction prompt to a CLOSED kind vocabulary (`commitment:*` as today, plus `relationship:*`, `preference:*`), validate and lowercase tags at write (closes TASK-993 by construction), widen the reserved query to `relationship:*` kinds by exact-tag enumeration on the existing GIN index, fold TASK-950's three relationship kinds. No backfill in the slice. _Rejected_: a `category` column + migration — write-only storage until the vocabulary exists.
+
+**D10 (council-rebuilt) — Lifecycle: invalidation, freshness, regeneration.** (a) `/history clear` DELETES the pair's digest row in the same transaction that writes the epoch — the draft left clear to "the next regeneration", and a cleared, quiet pair would have rendered its old digest forever (4 of 4 panelists). (b) `/history purge` NULLs `digest_text`, sets `pending`, stamps `requested_at`, so nothing renders until the next sweep regenerates from the surviving rows — narrower than the draft's whole-row delete, and never a stale render. (c) Persona/account deletion cascades. (d) **Render gate**: a digest renders only when `digest_status = 'done'`, `generated_at` is within the window, AND `source_epoch` equals the pair's current epoch — a digest generated before a clear never renders even if (a) somehow missed. (e) Always regenerate from SOURCE ROWS: a digest is never an input to a digest — the invariant that keeps summarization from compounding, pinned by a test on the generator's input builder. (f) On `failed`/`dead`/missing the section is omitted; the `user-only` feed still renders, so continuity degrades to verbatim user turns, never to nothing, and a missing digest never widens the feed (the archive's null-never-re-injects rule, mirrored).
+
+**D11 (council-amended) — Framing sentence written once and pinned.** `<recent_days usage="continuity_do_not_recite"><instruction>…</instruction>{digest}</recent_days>`: a third-person note of the last days across all places the two have talked, kept for continuity; background, not a style reference; the conversation above is more recent and authoritative where they overlap; locked and user-corrected facts outrank it; do not recite it or cite its dates back to the user — use it silently; untrusted content (the RAG boundary). Pinned by the V-order and cacheability invariant tests plus a render snapshot.
+
+## 3. What this deliberately does NOT do
+
+- Does not remove the feed (D2/D6 give it a render mode and a cap; the owner picks the state after measurement).
+- Does not summarize or alter `conversation_history` rows, the archive, or the facts (directive 5).
+- Does not touch the card, the anchor, the directive, or the message-array order (§9c).
+- Does not build the summary-join fallback (not fundable: TASK-971) or agentic drill-down (deferred on measured latency).
+- Does not give the digest a per-claim correction path: the digest is derived; the corrections are `/history purge` of the offending rows or a manual refresh, and facts (lock/correct) are the authoritative layer above it (D11). Recorded limitation.
+- Does not add a days-8-to-30 continuity layer: durable commitments reach facts through extraction (the prompt keeps them), specifics reach the archive by similarity; the digest is the week. Recorded scope.
+- Does not run model-parameter experiments, and does not fix TASK-949 — it is a prerequisite READ (one fresh trace after the digest renders).
+
+## 4. Open calls (owner) — every row CONFIRMED 2026-09-16 as recommended
+
+| # | Call | Recommendation (→ CONFIRMED) |
+| --- | --- | --- |
+| 1 | **D2's `user-only` feed render**: the user's turns verbatim, the character's turns dropped, the digest carrying what the character did and agreed. Your 2026-09-13 note ruled "naive dropping of the assistant side" out; this is the non-naive form. Confirm? | **Confirm.** It is the literal ruling, halves the mass with no new model prose, and keeps same-day continuity verbatim. |
+| 2 | Cadence 2 h + manual refresh, 7-day window, regenerate only on new rows. | Accept; constants, tunable. |
+| 3 | One digest per pair over all channels with place attribution (D3), placement V-tier (D5) — the council's two 3–1 items. | Accept both. |
+| 4 | Council-unanimous rebuilds (D4 validators, D10 lifecycle, D11 framing) and the facts-vocabulary reframe (D1/D9). | Confirm all. |
+| 5 | The three-arm probe (feed `both` @20 / `user-only` @20 / off) once slice 0 lands, with pre-registered metrics. | Run it. |
+
+## 5. Pre-pass gates (before slice 1 builds)
+
+- **G1 — summarizer latency from prod data** (read-only): p50/p95 of `usage_logs.latency_ms WHERE request_type='archive_summary'`; the digest's per-call latency will be higher (a week of rows), but this bounds the timeout and the per-tick count (decision rule in D8).
+- **G2 — active pairs**: distinct `(persona_id, personality_id)` with a `conversation_history` row in the last 7 days on prod (decision rule in D8).
+- **G3 — the honest A/B on dev, two axes**: replay arm A's exact prompt (the 2026-09-13 payload) with the feed in `user-only` mode plus a REAL digest of the same rows, one generation, `glm-5.3` at the owner's temperature; (i) register and cost — completion tokens and latency against 4,411 / 72.5 s, exclamations per 1k, pet names absent from the card, courtroom vocabulary; (ii) **continuity correctness** — a pre-registered set of ~10 questions about the week (dates, promises, states, places) scored against the verbatim feed's answers; the archive pilot's −18-point summary penalty is the prior to beat, and a digest that keeps register but loses the week fails the gate. n=1 per arm decides whether to BUILD, not whether it works; TASK-996's standing telemetry is what runs afterward.
+
+## 6. Phasing
+
+| Slice | Contents | Gate to next |
+| --- | --- | --- |
+| **0** — the feed knobs (small, ships first, any train) | `crossChannelRenderMode` + `crossChannelMaxMessages` cascade fields (defaults = today), the serializer role filter, TASK-994's ordering fix + test, dashboard rows. | The three-arm probe (open call 5) with TASK-996's metrics logged. |
+| **1** — generation, no render | Migration + Prisma model + `structure.test.ts`; the sweep at `:6`; the prompt + `RECENT_DAYS_DIGEST_PROMPT_VERSION = 1`; the three validators; the store (content-guarded writes); usage rows; D10 (a)–(c) hooks; `recentDaysDigestEnabled` + `recentDaysDigestPersonalities`; an ops command with `--dry-run` printing pairs, watermarks, and an estimate, plus `--refresh <pair>`. | Digests exist on dev for the owner's pair; G3 uses a REAL one. |
+| **2** — render | `ContextDataSource.getRecentDaysDigest(personaId, personalityId)`; `ContextStep` load → `PreparedContext.recentDaysDigest` → `ConversationContext` → `PromptBuilder` section `recent_days` (D5, D11) with the D10(d) render gate; seam test (the `rosterBlurbSeam.test.ts` precedent); the two invariant tests updated. | Flip Emily to `user-only` + digest; read one fresh trace (TASK-949); measure the number to beat; then the owner's feed-state ruling. |
+| **3** — facts vocabulary (D9) | Separate PR after the digest lands. | — |
+
+**Map impact** (`system-model.md`): the continuity feed is absent from the map today; slice 2 adds it as a named concept in flow 4 within the 150-line budget (something is evicted; named at landing).
+
+## 7. Council record (2026-09-16; GLM 5.3, Kimi K3, Qwen 3.8 Max, DeepSeek v4 Pro — all four answered)
+
+**Adopted, unanimous (4 of 4):**
+- `/history clear` left the digest renderable indefinitely (the sweep never selects a pair with zero rows in window). → D10(a) same-transaction delete + D10(d) epoch gate.
+- The owner's ruling had a literal implementation the draft skipped: render the feed without the character's turns. → D2 rebuilt; open call 1 reframed from "does a paraphrase count" to "confirm the non-naive drop".
+- The A/B measured register and cost but not continuity correctness, the axis the feed exists for and the one the archive pilot priced at −18. → G3 axis (ii).
+- The anti-drift contract was unenforced prose. → D4 validators (`first_person`, `quotation` 8-gram against assistant rows, `overflow`); forms of address only when welcomed/reciprocated.
+- Narrate-back ("as you mentioned on Tuesday") unmitigated. → D11 `do_not_recite` clause; G3 scores recitation.
+- The draft's D2 ordering rationale was backwards (the V tier is read after the current channel). → D3 corrected; D11 states the thread above is authoritative.
+- Truncation accounting under the 200-row cap. → D7 `window_start`/`source_row_ids`; the cap drops oldest rows only; "since <date>" framing.
+- ContextStep single-load not stated in the brief (it was in the artifact). → stated in D5, §1.
+
+**Adopted, majority or single-source:**
+- Cadence too stale for daily channel switching (GLM, Qwen, DeepSeek). → 2 h + manual refresh (Kimi's dead `requested_at` column now has a reader); the `user-only` feed carries same-day continuity, which is why 2 h rather than event-driven.
+- Render-time freshness gate (Qwen). → D10(d).
+- Purge whole-row delete overbroad (Qwen). → D10(b) null + regenerate.
+- Per-entry place attribution (Kimi). → D3.
+- Locked/corrected facts outrank the digest (Qwen). → D11.
+- Generation for pairs nobody renders (Kimi). → one list gates both.
+- Decision rules attached to G1/G2 (Kimi, DeepSeek). → D8.
+- No standing register telemetry (GLM, Kimi, Qwen). → TASK-996 filed, medium.
+- Provenance (DeepSeek, Qwen). → `source_row_ids`.
+
+**Declined, with reason:**
+- Carry confirmed commitments forward across regenerations (Qwen): a digest-to-digest input is the compounding path D10(e) forbids; durable commitments reach facts through extraction, which keeps them (verified: the durability filter's commitment exception), so the day-8 cliff (Kimi, DeepSeek) applies to transient material only, by design.
+- Position-2 placement (Qwen, 1 of 4): declined per D5.
+- Per `(pair, channel)` digests / exclude the current channel (Qwen, DeepSeek): declined per D3; the concern is met by attribution + authority + `do_not_recite`.
+- Precedence cleanup of today's free-text facts before D9 (Qwen): out of scope; D11 gives locked/corrected facts precedence, and the facts block is unchanged by this design.
+- Per-channel privacy opt-out for the digest (Qwen): the feed already blends channels by design (dashboard help text acknowledges it); a digest inherits the feed's scope. Recorded, not built.
+- Concurrency locking (Qwen): the scheduled worker is a single sequential generator [V]; no lock needed.
+
+**Splits, as read**: no 2–2. Placement 3–1, facts reframe 3–1, cadence 3–1 against the draft (adopted), scope 4–0 change in two directions (adopted the attribution direction, declined the exclusion direction with reason).
+
+## 8. Absorption map (at acceptance)
+
+- `memory-archive-format.md` §0/§3: strike the "`doc-17` Phase 2 owns the history half" sentence, point here.
+- `doc-97` Phase 4: mark the design pass DONE, link this artifact, strike the "TASK-964 is the minimal fix" and "TASK-966 silently empties" sentences (both shipped), replace the 09-05 masses with the 09-13 set in § Evidence, note the archive is not a co-vector (the 09-13 A/B), and note the summary-join candidate is the recorded fallback.
+- `backlog/now.md`: the beta.226 waiting-on item becomes slice 0 + slice 1.
+- TASK-993: closed by D9 at build (or earlier); TASK-994: closed by slice 0; TASK-996: independent, medium.
