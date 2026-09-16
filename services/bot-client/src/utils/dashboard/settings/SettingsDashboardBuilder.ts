@@ -106,7 +106,8 @@ function formatSettingValue(
       break;
     }
     case SettingType.NUMERIC: {
-      display = String(effectiveValue);
+      const numericValue = effectiveValue as number | null;
+      display = numericValue === null ? (setting.nullDisplay ?? 'Auto') : String(numericValue);
       break;
     }
     case SettingType.DURATION: {
@@ -233,6 +234,12 @@ function formatInheritedDisplay(setting: SettingDefinition, parentValue: unknown
       // Value for them) — present so a future cascading list setting renders
       // correctly instead of falling through to String([...]).
       return formatListValue(parentValue);
+    case SettingType.NUMERIC: {
+      const numericParentValue = parentValue as number | null;
+      return numericParentValue === null
+        ? (setting.nullDisplay ?? 'Auto')
+        : String(numericParentValue);
+    }
     default:
       return String(parentValue);
   }

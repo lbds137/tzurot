@@ -85,6 +85,8 @@ describe('Character Settings Dashboard', () => {
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
     crossChannelHistoryEnabled: false,
+    crossChannelRenderMode: 'both',
+    crossChannelMaxMessages: null,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
     voiceResponseMode: 'always' as const,
@@ -97,6 +99,8 @@ describe('Character Settings Dashboard', () => {
       memoryScoreThreshold: 'personality',
       memoryLimit: 'personality',
       crossChannelHistoryEnabled: 'personality',
+      crossChannelRenderMode: 'personality',
+      crossChannelMaxMessages: 'personality',
       shareLtmAcrossPersonalities: 'personality',
       showModelFooter: 'hardcoded',
       voiceResponseMode: 'hardcoded' as const,
@@ -110,6 +114,8 @@ describe('Character Settings Dashboard', () => {
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
       crossChannelHistoryEnabled: false,
+      crossChannelRenderMode: 'both',
+      crossChannelMaxMessages: null,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
       voiceResponseMode: 'always',
@@ -211,7 +217,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 10 settings fields', async () => {
+    it('should include all 12 settings fields', async () => {
       const context = createMockContext();
       stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
       stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
@@ -221,7 +227,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(10);
+      expect(embedJson.fields).toHaveLength(12);
     });
 
     it('should extract personality-tier overrides as local values', async () => {

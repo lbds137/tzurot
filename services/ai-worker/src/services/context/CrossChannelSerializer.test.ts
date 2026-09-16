@@ -497,4 +497,109 @@ describe('serializeCrossChannelHistory', () => {
       expect(result.xml).not.toContain('appears earlier in the conversation');
     });
   });
+
+  describe('budget spends newest-channel-first (array arrives oldest-first)', () => {
+    /** A named channel group with two distinctly-content-tagged messages. */
+    function namedGroup(
+      channelId: string,
+      tagA: string,
+      tagB: string
+    ): CrossChannelHistoryGroupEntry {
+      return createGroup({
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'Test Server' },
+          channel: { id: channelId, name: channelId, type: 'text' },
+        },
+        messages: [
+          { id: `${tagA}-id`, role: MessageRole.User, content: tagA },
+          { id: `${tagB}-id`, role: MessageRole.Assistant, content: tagB },
+        ],
+      });
+    }
+
+    // Producer order: oldest channel first, newest channel last.
+    const g1 = namedGroup('ch-g1', 'g1-a', 'g1-b');
+    const g2 = namedGroup('ch-g2', 'g2-a', 'g2-b');
+    const g3 = namedGroup('ch-g3', 'g3-a', 'g3-b');
+
+    /** Binary-searches the minimal integer budget at which `messagesIncluded`
+     *  reaches `target` against production serialization — avoids hand-derived
+     *  token-count constants that would drift with the tokenizer or renderer. */
+    function minimalBudgetFor(
+      groups: CrossChannelHistoryGroupEntry[],
+      target: number,
+      hi = 4000
+    ): number {
+      let lo = 0;
+      let upper = hi;
+      while (lo < upper) {
+        const mid = Math.floor((lo + upper) / 2);
+        const { messagesIncluded } = serializeCrossChannelHistory(
+          groups,
+          'TestAI',
+          mid,
+          undefined,
+          render(false)
+        );
+        if (messagesIncluded >= target) {
+          upper = mid;
+        } else {
+          lo = mid + 1;
+        }
+      }
+      return lo;
+    }
+
+    it('funds the newest two channels and drops the oldest, preserving array (chronological) order in the output', () => {
+      const budgetForTwoNewest = minimalBudgetFor([g2, g3], 4);
+      // Sanity: the same budget against all three groups still yields exactly
+      // the two newest — it must not accidentally also admit part of g1.
+      const cut = serializeCrossChannelHistory(
+        [g1, g2, g3],
+        'TestAI',
+        budgetForTwoNewest,
+        undefined,
+        render(false)
+      );
+
+      expect(cut.messagesIncluded).toBe(4);
+      expect(cut.xml).toContain('g2-a');
+      expect(cut.xml).toContain('g3-a');
+      expect(cut.xml).not.toContain('g1-a');
+      expect(cut.xml.indexOf('g2-a')).toBeLessThan(cut.xml.indexOf('g3-a'));
+
+      // A larger budget admits the oldest (third) channel too.
+      const budgetForAllThree = minimalBudgetFor([g1, g2, g3], 6);
+      expect(budgetForAllThree).toBeGreaterThan(budgetForTwoNewest);
+      const full = serializeCrossChannelHistory(
+        [g1, g2, g3],
+        'TestAI',
+        budgetForAllThree,
+        undefined,
+        render(false)
+      );
+      expect(full.messagesIncluded).toBe(6);
+      expect(full.xml).toContain('g1-a');
+    });
+
+    it('counts only the rows it is given: a single pre-filtered group with two user rows yields messagesIncluded=2', () => {
+      const preFiltered = createGroup({
+        messages: [
+          { id: 'uo-a', role: MessageRole.User, content: 'user row a' },
+          { id: 'uo-b', role: MessageRole.User, content: 'user row b' },
+        ],
+      });
+
+      const result = serializeCrossChannelHistory(
+        [preFiltered],
+        'TestAI',
+        5000,
+        undefined,
+        render(false)
+      );
+
+      expect(result.messagesIncluded).toBe(2);
+    });
+  });
 });

@@ -13,6 +13,8 @@
  * built here when resolution fails.
  */
 
+import { MessageRole } from '../constants/message.js';
+import type { CrossChannelRenderMode } from '../schemas/api/configOverrides.js';
 import type { ConversationMessage } from '../types/conversationMessage.js';
 import type { DiscordEnvironment } from '../types/schemas/discord.js';
 import type { CrossChannelHistoryGroupEntry } from '../types/schemas/message.js';
@@ -64,4 +66,33 @@ export function mapCrossChannelToApiFormat(
       personalityName: msg.personalityName,
     })),
   }));
+}
+
+/**
+ * Apply the cross-channel render mode to mapped groups.
+ *
+ * `'both'` returns the input array itself — no copy, no reorder — so the default
+ * path stays allocation-free. `'user-only'` keeps each group's `role === 'user'`
+ * rows and drops any group left with none, so the rendered block carries the
+ * user's turns alone and an all-assistant channel contributes nothing. Pure: the
+ * input groups and their message arrays are never mutated.
+ *
+ * Filtering here rather than in the serializer keeps the token budget honest —
+ * the budget then measures only rows that will render.
+ */
+export function applyCrossChannelRenderMode(
+  groups: CrossChannelHistoryGroupEntry[],
+  mode: CrossChannelRenderMode
+): CrossChannelHistoryGroupEntry[] {
+  if (mode === 'both') {
+    return groups;
+  }
+  const filtered: CrossChannelHistoryGroupEntry[] = [];
+  for (const group of groups) {
+    const messages = group.messages.filter(msg => msg.role === MessageRole.User);
+    if (messages.length > 0) {
+      filtered.push({ channelEnvironment: group.channelEnvironment, messages });
+    }
+  }
+  return filtered;
 }

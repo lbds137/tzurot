@@ -10,6 +10,7 @@ import {
   HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrides,
   type ConfigOverrideSource,
+  type CrossChannelRenderMode,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { SettingsData, SettingValue } from './types.js';
@@ -77,6 +78,8 @@ export interface ResolveDefaultsResponse {
   maxAge: number | null;
   maxImages: number;
   crossChannelHistoryEnabled: boolean;
+  crossChannelRenderMode: CrossChannelRenderMode;
+  crossChannelMaxMessages: number | null;
   shareLtmAcrossPersonalities: boolean;
   memoryScoreThreshold: number;
   memoryLimit: number;
@@ -103,6 +106,8 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     maxAge: response.maxAge,
     maxImages: response.maxImages,
     crossChannelHistoryEnabled: response.crossChannelHistoryEnabled,
+    crossChannelRenderMode: response.crossChannelRenderMode,
+    crossChannelMaxMessages: response.crossChannelMaxMessages,
     shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
     memoryScoreThreshold: response.memoryScoreThreshold,
     memoryLimit: response.memoryLimit,

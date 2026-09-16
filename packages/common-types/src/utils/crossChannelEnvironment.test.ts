@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { MessageRole } from '../constants/index.js';
 import type { CrossChannelHistoryGroup } from '../types/conversationMessage.js';
-import { buildFallbackEnvironment, mapCrossChannelToApiFormat } from './crossChannelEnvironment.js';
+import type { CrossChannelHistoryGroupEntry } from '../types/schemas/message.js';
+import {
+  applyCrossChannelRenderMode,
+  buildFallbackEnvironment,
+  mapCrossChannelToApiFormat,
+} from './crossChannelEnvironment.js';
 
 describe('buildFallbackEnvironment', () => {
   it('builds a DM environment when guildId is null', () => {
@@ -95,5 +100,93 @@ describe('mapCrossChannelToApiFormat', () => {
     expect(msg.discordUsername).toBe('alice#1234');
     expect(msg.personalityId).toBe('pers-1');
     expect(msg.personalityName).toBe('TestBot');
+  });
+});
+
+describe('applyCrossChannelRenderMode', () => {
+  const dmEnvironment = {
+    type: 'dm' as const,
+    channel: { id: 'ch-1', name: 'DM', type: 'dm' },
+  };
+
+  function makeGroup(
+    channelId: string,
+    messages: CrossChannelHistoryGroupEntry['messages']
+  ): CrossChannelHistoryGroupEntry {
+    return {
+      channelEnvironment: {
+        ...dmEnvironment,
+        channel: { ...dmEnvironment.channel, id: channelId },
+      },
+      messages,
+    };
+  }
+
+  it("mode 'both' returns the same array and group references (no copy, no reorder)", () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      makeGroup('ch-1', [{ role: MessageRole.User, content: 'hi' }]),
+    ];
+
+    const result = applyCrossChannelRenderMode(groups, 'both');
+
+    expect(result).toBe(groups);
+    expect(result[0]).toBe(groups[0]);
+  });
+
+  it("mode 'user-only' keeps only the user rows, in order, preserving channelEnvironment", () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      makeGroup('ch-1', [
+        { role: MessageRole.User, content: 'user-1' },
+        { role: MessageRole.Assistant, content: 'assistant-1' },
+        { role: MessageRole.User, content: 'user-2' },
+        { role: MessageRole.Assistant, content: 'assistant-2' },
+      ]),
+    ];
+
+    const result = applyCrossChannelRenderMode(groups, 'user-only');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].channelEnvironment).toEqual(groups[0].channelEnvironment);
+    expect(result[0].messages.map(m => m.content)).toEqual(['user-1', 'user-2']);
+  });
+
+  it("mode 'user-only' drops a group left with no messages (all-assistant channel)", () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      makeGroup('ch-1', [
+        { role: MessageRole.Assistant, content: 'assistant-only-1' },
+        { role: MessageRole.Assistant, content: 'assistant-only-2' },
+      ]),
+    ];
+
+    const result = applyCrossChannelRenderMode(groups, 'user-only');
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("mode 'user-only' does not mutate the input group's messages array", () => {
+    const original = [
+      { role: MessageRole.User, content: 'user-1' },
+      { role: MessageRole.Assistant, content: 'assistant-1' },
+      { role: MessageRole.User, content: 'user-2' },
+      { role: MessageRole.Assistant, content: 'assistant-2' },
+    ];
+    const groups: CrossChannelHistoryGroupEntry[] = [makeGroup('ch-1', original)];
+
+    applyCrossChannelRenderMode(groups, 'user-only');
+
+    expect(groups[0].messages).toHaveLength(4);
+    expect(groups[0].messages).toBe(original);
+  });
+
+  it("mode 'user-only' with mixed groups keeps only the group that has user rows", () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      makeGroup('ch-1', [{ role: MessageRole.User, content: 'ch1-user' }]),
+      makeGroup('ch-2', [{ role: MessageRole.Assistant, content: 'ch2-assistant' }]),
+    ];
+
+    const result = applyCrossChannelRenderMode(groups, 'user-only');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].channelEnvironment.channel.id).toBe('ch-1');
   });
 });

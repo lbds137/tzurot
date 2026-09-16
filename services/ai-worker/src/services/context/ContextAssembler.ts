@@ -40,6 +40,7 @@ import {
   type SummonAnonymity,
 } from '@tzurot/common-types/types/summon-anonymity';
 import {
+  applyCrossChannelRenderMode,
   buildFallbackEnvironment,
   mapCrossChannelToApiFormat,
 } from '@tzurot/common-types/utils/crossChannelEnvironment';
@@ -212,7 +213,8 @@ export class ContextAssembler {
     const crossChannelHistory = await this.assembleCrossChannel(jobContext, personality, summon, {
       crossChannelEnabled: configOverrides?.crossChannelHistoryEnabled === true,
       excludeChannelId: channelId,
-      limit: cap,
+      renderMode: configOverrides?.crossChannelRenderMode ?? 'both',
+      limit: configOverrides?.crossChannelMaxMessages ?? cap,
       maxAgeSeconds: configOverrides?.maxAge ?? undefined,
       contextEpoch,
     });
@@ -360,6 +362,7 @@ export class ContextAssembler {
       crossChannelEnabled: boolean;
       /** The narrowed current-channel id from assembleCore's guard. */
       excludeChannelId: string;
+      renderMode: ResolvedConfigOverrides['crossChannelRenderMode'];
       limit: number;
       maxAgeSeconds: number | undefined;
       contextEpoch: Date | undefined;
@@ -386,7 +389,7 @@ export class ContextAssembler {
     });
 
     const envByChannelId = jobContext.rawAssemblyInputs?.knownChannelEnvironments ?? {};
-    return mapCrossChannelToApiFormat(
+    const mapped = mapCrossChannelToApiFormat(
       groups.map(group => ({
         channelEnvironment:
           envByChannelId[group.channelId] ??
@@ -394,6 +397,7 @@ export class ContextAssembler {
         messages: group.messages,
       }))
     );
+    return applyCrossChannelRenderMode(mapped, opts.renderMode);
   }
 
   /**

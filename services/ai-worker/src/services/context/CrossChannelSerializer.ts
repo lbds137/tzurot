@@ -22,9 +22,15 @@ const logger = createLogger('CrossChannelSerializer');
 
 /**
  * Serialize cross-channel history groups within a token budget.
- * Iterates groups (most recent channel first), selecting messages that fit.
  *
- * @param groups - Cross-channel groups ordered by most recent channel first
+ * Groups arrive OLDEST-channel-first (the producer sorts ascending by each
+ * channel's newest message, so the channel closest in time to the current turn
+ * renders last, nearest the live conversation). The budget is therefore spent
+ * NEWEST-channel-first — walking the array backwards — so a tight budget starves
+ * the stalest channel rather than the freshest one; the selected groups are then
+ * emitted in the array's original order, leaving the render order unchanged.
+ *
+ * @param groups - Cross-channel groups ordered oldest channel first
  * @param personalityName - AI personality name for message formatting
  * @param tokenBudget - Remaining budget for the cross-channel block
  * @param responderPersonalityId - The responding personality's id; decides
@@ -61,7 +67,10 @@ export function serializeCrossChannelHistory(
     return { xml: '', messagesIncluded: 0 };
   }
 
-  for (const group of groups) {
+  // Budget newest-channel-first (the array is oldest-first), then emit in the
+  // array's original order — `unshift` below restores it as we walk backwards.
+  for (let g = groups.length - 1; g >= 0; g--) {
+    const group = groups[g];
     // Estimate per-channel overhead (location block + channel_history tags)
     const channelOverhead = estimateChannelOverhead(group);
 
@@ -99,7 +108,7 @@ export function serializeCrossChannelHistory(
     // skipped, but the loop continues — a later group with smaller messages may still
     // fit within the remaining budget.
     if (selectedMessages.length > 0) {
-      selectedGroups.push({
+      selectedGroups.unshift({
         channelEnvironment: group.channelEnvironment,
         messages: selectedMessages,
       });

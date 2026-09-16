@@ -37,6 +37,20 @@ export const ConfigOverridesSchema = z
     memoryLimit: z.number().int().min(0).optional(),
     /** Fill unused context budget with history from other channels */
     crossChannelHistoryEnabled: z.boolean().optional(),
+    /** What the cross-channel history block renders: 'both' = the user's turns and
+     * the character's replies, 'user-only' = the user's turns alone, so the character
+     * does not re-read its own past prose. Only consulted when
+     * `crossChannelHistoryEnabled` resolves true. */
+    crossChannelRenderMode: z.enum(['both', 'user-only']).optional(),
+    /** Cap on the cross-channel fetch (1-100), as a TOTAL across all other channels,
+     * not per channel. Stored `null` is terminal and means "follow `maxMessages`" —
+     * the cross-channel pull then uses the same cap as the current channel's window;
+     * key absent = inherit. This field has no OFF state, so the wire sentinel
+     * CONFIG_WIRE_OFF (-1) maps to that same stored null, i.e. follow. The
+     * dashboard's numeric input has no keyword for that sentinel yet, so a lower
+     * tier can clear its override (inherit) but cannot yet force follow over an
+     * ancestor's number. */
+    crossChannelMaxMessages: z.number().int().min(1).max(100).nullable().optional(),
     /** Share long-term memories across all personalities (migrated from Persona column) */
     shareLtmAcrossPersonalities: z.boolean().optional(),
     /** Whether to show the model indicator footer on AI responses */
@@ -63,6 +77,9 @@ export type ConfigOverrides = z.infer<typeof ConfigOverridesSchema>;
 export type ShareHistoryAcrossPersonalitiesMode = NonNullable<
   ConfigOverrides['shareHistoryAcrossPersonalities']
 >;
+
+/** The `crossChannelRenderMode` enum values, as a standalone type. */
+export type CrossChannelRenderMode = NonNullable<ConfigOverrides['crossChannelRenderMode']>;
 
 /**
  * Given the resolved `shareHistoryAcrossPersonalities` mode and whether the
@@ -94,8 +111,10 @@ export function shouldScopeHistoryToPersonality(
 // ============================================================================
 
 /**
- * Fields whose domain has an explicit OFF state expressed as stored JSON `null`
- * (absence = inherit, stored null = OFF and terminal in cascade resolution).
+ * Fields whose domain has a terminal null state expressed as stored JSON `null`
+ * (absence = inherit, stored null = terminal, stopping cascade fall-through).
+ * What the terminal null MEANS is per field: OFF (no age limit) for `maxAge`,
+ * "follow `maxMessages`" for `crossChannelMaxMessages`.
  *
  * The wire contract keeps `null` meaning "clear this override" for EVERY field
  * (the pre-existing dashboard contract); OFF travels as CONFIG_WIRE_OFF and the
@@ -110,6 +129,7 @@ export function shouldScopeHistoryToPersonality(
  */
 export const NULL_TERMINAL_FIELDS = [
   'maxAge',
+  'crossChannelMaxMessages',
 ] as const satisfies readonly (keyof ConfigOverrides)[];
 
 /** Membership predicate for the registry (string-in, so wire-layer callers can pass raw keys). */
@@ -150,6 +170,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly memoryScoreThreshold: typeof AI_DEFAULTS.MEMORY_SCORE_THRESHOLD;
   readonly memoryLimit: typeof AI_DEFAULTS.MEMORY_LIMIT;
   readonly crossChannelHistoryEnabled: false;
+  readonly crossChannelRenderMode: 'both';
+  readonly crossChannelMaxMessages: null;
   readonly shareLtmAcrossPersonalities: false;
   readonly showModelFooter: true;
   readonly voiceResponseMode: 'always';
@@ -162,6 +184,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
   memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
   crossChannelHistoryEnabled: false,
+  crossChannelRenderMode: 'both',
+  crossChannelMaxMessages: null,
   shareLtmAcrossPersonalities: false,
   showModelFooter: true,
   voiceResponseMode: 'always',
@@ -195,6 +219,8 @@ export interface ResolvedConfigOverrides {
   memoryScoreThreshold: number;
   memoryLimit: number;
   crossChannelHistoryEnabled: boolean;
+  crossChannelRenderMode: CrossChannelRenderMode;
+  crossChannelMaxMessages: number | null;
   shareLtmAcrossPersonalities: boolean;
   showModelFooter: boolean;
   voiceResponseMode: 'always' | 'voice-only' | 'never';
@@ -237,6 +263,8 @@ export const CONFIG_OVERRIDES_KEYS = [
   'memoryScoreThreshold',
   'memoryLimit',
   'crossChannelHistoryEnabled',
+  'crossChannelRenderMode',
+  'crossChannelMaxMessages',
   'shareLtmAcrossPersonalities',
   'showModelFooter',
   'voiceResponseMode',
