@@ -3,9 +3,10 @@ id: TASK-994
 title: >-
   Cross-channel history budget starves the most recent channel: groups are
   consumed oldest-first
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-16 20:17'
+updated_date: '2026-09-16 23:46'
 labels:
   - 'area:ai-worker'
   - 'size:S'
