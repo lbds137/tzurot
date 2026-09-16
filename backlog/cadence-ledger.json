@@ -25,7 +25,7 @@
       "name": "session-mining",
       "what": "Recurring friction mined from session logs and converted into rules, skills or hooks",
       "cadenceDays": 42,
-      "lastRun": "2026-09-09",
+      "lastRun": "2026-09-16",
       "trigger": "/tzurot-session-mining"
     },
     {
