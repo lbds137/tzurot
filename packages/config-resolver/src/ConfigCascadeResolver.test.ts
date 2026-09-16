@@ -76,6 +76,10 @@ describe('ConfigCascadeResolver', () => {
       expect(result.crossChannelHistoryEnabled).toBe(
         HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled
       );
+      expect(result.crossChannelRenderMode).toBe(HARDCODED_CONFIG_DEFAULTS.crossChannelRenderMode);
+      expect(result.crossChannelMaxMessages).toBe(
+        HARDCODED_CONFIG_DEFAULTS.crossChannelMaxMessages
+      );
       expect(result.shareLtmAcrossPersonalities).toBe(
         HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities
       );

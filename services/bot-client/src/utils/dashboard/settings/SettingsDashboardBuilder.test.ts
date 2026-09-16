@@ -27,7 +27,7 @@ import {
   DashboardView,
 } from './types.js';
 import type { APIButtonComponentWithCustomId, APIStringSelectComponent } from 'discord.js';
-import { EXTENDED_CONTEXT_SETTINGS, ALL_SETTINGS } from './settingsConfig.js';
+import { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS, ALL_SETTINGS } from './settingsConfig.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 
 // Test fixtures
@@ -466,6 +466,79 @@ describe('SettingsDashboardBuilder', () => {
 
       expect(parentValueField?.value).toBe('30 days');
       expect(parentValueField?.value).not.toBe('Off');
+    });
+
+    describe('NUMERIC setting with nullDisplay', () => {
+      // crossChannelMaxMessages declares `nullDisplay: 'Auto (follows Max
+      // Messages)'` — pins that a null effective/parent value renders that
+      // text (never the literal string "null").
+      const numericWithNullDisplay = MEMORY_SETTINGS.find(s => s.id === 'crossChannelMaxMessages');
+      if (numericWithNullDisplay === undefined) {
+        throw new Error('crossChannelMaxMessages setting not found in MEMORY_SETTINGS');
+      }
+
+      const numericConfig: SettingsDashboardConfig = {
+        level: 'global',
+        entityType: 'test-settings',
+        titlePrefix: 'Test',
+        color: DISCORD_COLORS.BLURPLE,
+        settings: [numericWithNullDisplay],
+      };
+
+      it('Current Value renders the nullDisplay text when the effective value is null', () => {
+        const session = createTestSession({
+          crossChannelMaxMessages: {
+            localValue: null,
+            hasLocalOverride: false,
+            effectiveValue: null,
+            source: 'hardcoded',
+            parentValue: null,
+          },
+        });
+
+        const embed = buildSettingEmbed(numericConfig, session, numericWithNullDisplay);
+        const fields = getEmbedFields(embed);
+        const currentValue = fields.find(f => f.name === 'Current Value');
+
+        expect(currentValue?.value).toContain('Auto (follows Max Messages)');
+        expect(currentValue?.value).not.toContain('null');
+      });
+
+      it('Parent Value renders the nullDisplay text when the parent value is null', () => {
+        const session = createTestSession({
+          crossChannelMaxMessages: {
+            localValue: 20,
+            hasLocalOverride: true,
+            effectiveValue: 20,
+            source: 'channel',
+            parentValue: null,
+          },
+        });
+
+        const embed = buildSettingEmbed(numericConfig, session, numericWithNullDisplay);
+        const fields = getEmbedFields(embed);
+        const parentValueField = fields.find(f => f.name === 'Parent Value');
+
+        expect(parentValueField?.value).toBe('Auto (follows Max Messages)');
+      });
+
+      it('renders the numeric value plainly when not null', () => {
+        const session = createTestSession({
+          crossChannelMaxMessages: {
+            localValue: 20,
+            hasLocalOverride: true,
+            effectiveValue: 20,
+            source: 'channel',
+            parentValue: null,
+          },
+        });
+
+        const embed = buildSettingEmbed(numericConfig, session, numericWithNullDisplay);
+        const fields = getEmbedFields(embed);
+        const currentValue = fields.find(f => f.name === 'Current Value');
+
+        expect(currentValue?.value).toContain('20');
+      });
     });
   });
 

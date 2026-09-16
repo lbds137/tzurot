@@ -534,7 +534,8 @@ export function getPriorConversationsWrapperOverheadText(): string {
  * Wraps all groups in `<prior_conversations>`, with each channel group in
  * `<channel_history>` containing a `<location>` block and formatted messages.
  *
- * @param groups - Cross-channel history groups (ordered by most recent channel first)
+ * @param groups - Cross-channel history groups (ordered oldest channel first, so the
+ *   channel closest in time to the current turn renders last)
  * @param personalityName - Name of the AI personality (for message formatting)
  * @param realMessagesEnabled - This turn's captured flag value. Cross-channel
  *   history ALWAYS renders as XML, in both flag states — the flag only

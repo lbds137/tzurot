@@ -280,6 +280,9 @@ export class ConfigCascadeResolver {
       memoryScoreThreshold: values.memoryScoreThreshold as number,
       memoryLimit: values.memoryLimit as number,
       crossChannelHistoryEnabled: values.crossChannelHistoryEnabled as boolean,
+      crossChannelRenderMode:
+        values.crossChannelRenderMode as ResolvedConfigOverrides['crossChannelRenderMode'],
+      crossChannelMaxMessages: values.crossChannelMaxMessages as number | null,
       shareLtmAcrossPersonalities: values.shareLtmAcrossPersonalities as boolean,
       showModelFooter: values.showModelFooter as boolean,
       voiceResponseMode: values.voiceResponseMode as 'always' | 'voice-only' | 'never',

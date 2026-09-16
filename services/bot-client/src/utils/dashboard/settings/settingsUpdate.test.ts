@@ -67,6 +67,28 @@ describe('mapSettingToApiUpdate', () => {
     });
   });
 
+  describe('crossChannelRenderMode', () => {
+    it('should map enum value', () => {
+      expect(mapSettingToApiUpdate('crossChannelRenderMode', 'user-only')).toEqual({
+        crossChannelRenderMode: 'user-only',
+      });
+    });
+  });
+
+  describe('crossChannelMaxMessages', () => {
+    it('should map numeric value', () => {
+      expect(mapSettingToApiUpdate('crossChannelMaxMessages', 20)).toEqual({
+        crossChannelMaxMessages: 20,
+      });
+    });
+
+    it('should map null (auto/clear)', () => {
+      expect(mapSettingToApiUpdate('crossChannelMaxMessages', null)).toEqual({
+        crossChannelMaxMessages: null,
+      });
+    });
+  });
+
   describe('retired settings', () => {
     it('returns null for the removed focusModeEnabled knob', () => {
       expect(mapSettingToApiUpdate('focusModeEnabled', true)).toBeNull();

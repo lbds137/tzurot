@@ -33,6 +33,8 @@ const SETTING_FIELDS = [
   'maxMessages',
   'maxImages',
   'crossChannelHistoryEnabled',
+  'crossChannelRenderMode',
+  'crossChannelMaxMessages',
   'shareLtmAcrossPersonalities',
   'shareHistoryAcrossPersonalities',
   'memoryScoreThreshold',

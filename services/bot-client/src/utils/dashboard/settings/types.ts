@@ -54,6 +54,9 @@ interface BaseSettingFields {
   max?: number;
   /** For numeric/duration/text: placeholder hint */
   placeholder?: string;
+  /** For NUMERIC: what to display when the resolved value is null (a terminal
+   * null whose meaning is field-specific, e.g. "follow another setting"). */
+  nullDisplay?: string;
   /** Help text for the modal */
   helpText?: string;
   /** For text: modal input max length (defaults per type in SettingsModalFactory) */
