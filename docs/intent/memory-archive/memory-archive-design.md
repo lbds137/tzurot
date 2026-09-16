@@ -62,11 +62,20 @@ bullet list of linked facts sorted salience-descending when any exist. A
 legacy row with no stored `userTurn` renders its verbatim `pageContent`
 through the SAME strip → cap → escape pipeline, with no speaker label, no
 quote stripping, and no facts section — `usedFallback: true` in the returned
-stats. `formatMemoriesContext` picks the mode from the FIRST doc (A3 stamps
-all-or-none across one turn's retrieved set) and selects between
-`MEMORY_ARCHIVE_INSTRUCTION` (verbatim) and `MEMORY_ARCHIVE_SPLIT_INSTRUCTION`
-(split) via `buildMemoryArchiveXml`. Verbatim-mode output is byte-identical to
-before this slice.
+stats. `formatMemoriesContext` selects `MEMORY_ARCHIVE_SPLIT_INSTRUCTION` only
+when EVERY rendered note is split, otherwise `MEMORY_ARCHIVE_INSTRUCTION`, via
+`buildMemoryArchiveXml`. A doc retrieved under `shareLtmAcrossPersonalities`
+whose `personalityId` differs from the responder's (a foreign note,
+MEM-ARCH-031) is stamped split regardless of `archiveSplitRenderPersonalities`,
+so one turn can mix a foreign split note with the responder's own verbatim
+notes; that mixed block uses the verbatim instruction. A foreign note's tag
+always carries `with="<author>"` (the literal `another character` when no
+display name is stored), the instruction appends
+`MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE` whenever any rendered note is foreign,
+and a foreign row with no stored `userTurn` is omitted from the block and the
+budget entirely, since its only fallback render is the other character's
+verbatim reply. Verbatim-mode output for the responder's own notes is
+byte-identical to before this slice.
 
 ## The fallback
 
@@ -275,7 +284,10 @@ commitments out of that ban — a promise, a standing decision, an agreed form
 of address, or advice the assistant gave — with worked examples that keep the
 literal `{assistant}`
 placeholder as the subject, so the render resolves it to the personality name
-through `replacePromptPlaceholders`. The durable-fact definition line names
+through `replacePromptPlaceholders` — the AUTHORING personality's name when the
+fact's `personalityId` differs from the responder's under shared LTM
+(MEM-ARCH-032; `another character` when no name is stored), the responder's
+own otherwise. The durable-fact definition line names
 commitments as a member and the salience line suggests 0.6–0.8 for one. The
 other exclusions are unchanged: a time-bound plan ("dinner tonight") is still
 not a commitment fact; a standing promise is.
