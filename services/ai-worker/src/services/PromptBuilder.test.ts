@@ -722,6 +722,33 @@ describe('PromptBuilder', () => {
         expect(prefix).toContain('<fact>covered by mem-1</fact>');
       });
 
+      // @spec MEM-ARCH-031 — a mixed own/foreign turn is split only when EVERY note is
+      it('MEM-ARCH-031: does not dedup facts when only some notes are split', () => {
+        const facts: FactForPrompt[] = [{ id: 'f-covered', statement: 'covered by mem-1' }];
+        const memories: MemoryDocument[] = [
+          {
+            pageContent: '{user}: hi\n{assistant}: hello',
+            metadata: {
+              id: 'mem-1',
+              userTurn: 'hi',
+              archiveRender: {
+                mode: 'split',
+                linkedFacts: [{ id: 'f-covered', statement: 'covered by mem-1', salience: 0.5 }],
+              },
+            },
+          },
+          { pageContent: 'plain verbatim content', metadata: { id: 'mem-2' } },
+        ];
+        const prefix = promptBuilder.buildVolatilePrefix({
+          personality: minimalPersonality,
+          context: minimalContext,
+          facts,
+          relevantMemories: memories,
+        });
+        // Not every note is split (mem-2 is verbatim), so dedup must not fire.
+        expect(prefix).toContain('<fact>covered by mem-1</fact>');
+      });
+
       it("drops a fact whose id matches a rendered memory's linkedFacts in split mode", () => {
         const facts: FactForPrompt[] = [
           { id: 'f-covered', statement: 'covered by mem-1' },

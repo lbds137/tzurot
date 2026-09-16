@@ -166,13 +166,66 @@ function assignLinkedFactsByMemory(
 }
 
 /**
+ * True when `doc`'s stamped personality id differs from the responder's —
+ * shared-LTM retrieval crossing a personality boundary. Id compare only,
+ * never by name (`personalityName` is a display label, never a gate). A doc
+ * with no stamped id renders as OWN: absence is not evidence the row was
+ * authored elsewhere.
+ */
+// @spec MEM-ARCH-031 — foreign-doc detection: id compare, absent id reads as own
+function isForeignDoc(
+  doc: MemoryRetrievalResult['memories'][number],
+  personalityId: string
+): boolean {
+  const docPersonalityId = doc.metadata?.personalityId;
+  return typeof docPersonalityId === 'string' && docPersonalityId !== personalityId;
+}
+
+/**
+ * Stamp one doc's `archiveRender` in place: split mode, linked facts already
+ * assigned to OWN docs only (a foreign or summarized doc always renders
+ * `linkedFacts: []`), and `foreign: true` on a cross-personality note — never
+ * written as `false`.
+ */
+function stampOneDoc(
+  doc: MemoryRetrievalResult['memories'][number],
+  foreign: boolean,
+  factsByMemoryId: Map<string, { id: string; statement: string; salience: number }[]>
+): void {
+  const docId = doc.metadata?.id;
+  const summary = doc.metadata?.assistantSummary;
+  const hasSummary = docHasSummary(doc);
+  const docFacts =
+    foreign || hasSummary || typeof docId !== 'string' ? [] : (factsByMemoryId.get(docId) ?? []);
+  doc.metadata = {
+    ...doc.metadata,
+    archiveRender: {
+      mode: 'split',
+      linkedFacts: docFacts,
+      ...(foreign ? { foreign: true as const } : {}),
+      ...(hasSummary ? { assistantSummary: summary } : {}),
+    },
+  };
+}
+
+/**
  * Stamp every retrieved memory doc's `metadata.archiveRender` for the
  * memory-archive split render (A3/A4) — mutates `memories` in place, matching
  * how the rest of this pipeline threads metadata through the shared doc
- * objects. A no-op (never writes the field) unless the personality's slug is
- * listed in `archiveSplitRenderPersonalities` — absence of the field is what
- * the split renderer reads as verbatim mode, so this must never write a
- * default when the switch is off.
+ * objects.
+ *
+ * When the personality's slug is listed in `archiveSplitRenderPersonalities`,
+ * every retrieved doc is stamped. When it is NOT listed, only docs authored
+ * by a DIFFERENT personality (shared-LTM cross-personality retrieval) are
+ * stamped — in split mode with `foreign: true` — independent of the
+ * allowlist: a foreign note must never render as the responder's own
+ * verbatim memory (MEM-ARCH-031). Absence of the field is still what the
+ * split renderer reads as verbatim mode, so an own doc under an unlisted
+ * slug is never touched.
+ *
+ * Facts are linked, and summary refreshes enqueued, for OWN docs only — a
+ * foreign doc's facts and summary lifecycle belong to its authoring
+ * personality, never to this one.
  */
 // @spec MEM-ARCH-010 — kill-switch read: per turn, by personality slug
 async function stampArchiveRenderMode(
@@ -182,36 +235,31 @@ async function stampArchiveRenderMode(
   factRetriever: FactRetriever | undefined,
   archiveSummaryTrigger: ArchiveSummaryTrigger | undefined
 ): Promise<void> {
-  if (!getSystemSetting('archiveSplitRenderPersonalities').includes(personalitySlug)) {
+  const listed = getSystemSetting('archiveSplitRenderPersonalities').includes(personalitySlug);
+  // @spec MEM-ARCH-031 — an unlisted personality still stamps foreign notes
+  const stampSet = listed ? memories : memories.filter(doc => isForeignDoc(doc, personalityId));
+  if (stampSet.length === 0) {
     return;
   }
-  const memoryIds = memories
+
+  const ownDocs = stampSet.filter(doc => !isForeignDoc(doc, personalityId));
+  const ownMemoryIds = ownDocs
     .map(doc => doc.metadata?.id)
     .filter((id): id is string => typeof id === 'string');
+  // @spec MEM-ARCH-031 — never link facts to, or query linked facts for, a foreign doc
   const linkedFacts =
     factRetriever === undefined
       ? []
-      : await factRetriever.retrieveLinkedFacts(memoryIds, personalityId);
+      : await factRetriever.retrieveLinkedFacts(ownMemoryIds, personalityId);
 
-  const factsByMemoryId = assignLinkedFactsByMemory(memories, linkedFacts);
+  const factsByMemoryId = assignLinkedFactsByMemory(ownDocs, linkedFacts);
 
-  for (const doc of memories) {
-    const docId = doc.metadata?.id;
-    const summary = doc.metadata?.assistantSummary;
-    const hasSummary = docHasSummary(doc);
-    const docFacts =
-      hasSummary || typeof docId !== 'string' ? [] : (factsByMemoryId.get(docId) ?? []);
-    doc.metadata = {
-      ...doc.metadata,
-      archiveRender: {
-        mode: 'split',
-        linkedFacts: docFacts,
-        ...(hasSummary ? { assistantSummary: summary } : {}),
-      },
-    };
+  for (const doc of stampSet) {
+    stampOneDoc(doc, isForeignDoc(doc, personalityId), factsByMemoryId);
   }
 
-  enqueueSummaryRefreshes(memories, personalityId, archiveSummaryTrigger);
+  // @spec MEM-ARCH-031 — never enqueue a summary refresh for a foreign doc
+  enqueueSummaryRefreshes(ownDocs, personalityId, archiveSummaryTrigger);
 }
 
 /**
