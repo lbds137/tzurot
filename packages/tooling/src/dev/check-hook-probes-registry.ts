@@ -118,6 +118,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/queued-message-receipt.probe.sh',
   },
   {
+    hook: '.claude/hooks/self-matching-pattern-guard.sh',
+    probe: '.claude/hooks/self-matching-pattern-guard.probe.sh',
+  },
+  {
     // Decision logic for the pre-push tracker gate lives here (probeable)
     // rather than inline in .husky/pre-push, which stays a composer per its
     // own unprobedReason.
@@ -127,14 +131,6 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   {
     hook: '.claude/hooks/turn-end-shape-gate.sh',
     probe: '.claude/hooks/turn-end-shape-gate.probe.sh',
-  },
-  {
-    hook: '.claude/hooks/eslint-on-edit.sh',
-    probe: null,
-    unprobedReason:
-      'Unregistered — retained as a reference file, not wired into .claude/settings.json, ' +
-      'so it never executes. A harness would pin behaviour nothing invokes. If it is ever ' +
-      're-registered, it needs a probe in the same change.',
   },
   {
     hook: '.claude/hooks/session-start.sh',

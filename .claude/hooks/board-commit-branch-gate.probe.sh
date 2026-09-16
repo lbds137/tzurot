@@ -51,6 +51,37 @@ run() {
   fi
 }
 
+# run_msg <expected-exit> <label> <command> <needle>
+# Asserts the exit code AND that the block message contains <needle>. The
+# existing run() throws stderr away, so the message text itself had no
+# coverage: a remedy line could be deleted and every probe stay green.
+run_msg() {
+  local expected="$1" label="$2" cmd="$3" needle="$4"
+  shift 4
+  local dir out actual
+  dir=$(make_repo feat/x)
+  mkdir -p "$dir/tracker/tasks"
+  echo t > "$dir/tracker/tasks/task-1 - probe.md"
+  git -C "$dir" add tracker/
+  out=$(
+    cd "$dir" || exit 99
+    jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+      | "$HOOK" 2>&1
+  )
+  actual=$?
+  if [ "$actual" -ne "$expected" ]; then
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  if ! printf '%s' "$out" | grep -qF "$needle"; then
+    printf 'FAIL  (message missing %q)  %s\n' "$needle" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  printf 'PASS  (exit %d, message ok)  %s\n' "$actual" "$label"
+}
+
 # assert_cmd <expected-exit> <command> <label> — the canonical BLOCKING fixture
 # (feature branch, board-only staged set) with a custom command string. Every
 # bypass-detection case shares that fixture on purpose: an existing case already
@@ -113,6 +144,9 @@ mkdir -p "$DIR/tracker/tasks"
 echo t > "$DIR/tracker/tasks/task-1 - probe.md"
 git -C "$DIR" add tracker/
 run 2 "tracker-only commit on feat/x blocks" "$DIR"
+
+run_msg 2 "block message names the branch-switch remedy" \
+  'git commit -m msg' 'issue the branch switch as its OWN Bash call'
 
 # CURRENT.md counts as board too
 DIR=$(make_repo feat/x)

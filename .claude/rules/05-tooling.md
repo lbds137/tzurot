@@ -228,7 +228,7 @@ The gate waits for the `CI` run to complete and for nothing else on that SHA to 
 
 When the monitor fires, **all four** of the following must happen — do not stop after step 1 even if every check passed:
 
-1. Note the final CI state from `gh pr checks N`, **and run the SHA-pinned run-list query below** — a green check list is not proof CI ran.
+1. Note the final CI state from `gh pr checks N`, **and run the SHA-pinned run-list query below** — a green check list is not proof CI ran. Numbers and enumerations in the PR body and the commit body are re-derived against the head REF (`git grep <pat> HEAD`, `git show HEAD:<path>`), never the working tree: a working-tree grep run while standing on the wrong branch produced a stale zero that only the merge gate caught.
 2. Fetch new reviewer feedback. GitHub splits it across **three** endpoints that `gh api /issues/N/comments` does not cover together:
    - `pnpm ops gh:pr-comments N` — conversation + inline line-level review comments
    - `pnpm ops gh:pr-reviews N` — review summaries (Approve / Request Changes / Comment)

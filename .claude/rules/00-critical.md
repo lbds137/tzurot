@@ -24,6 +24,13 @@ execSync('git status');
 - Never commit `.env`, credentials, tokens, API keys
 - Use Railway env vars for production secrets
 - Validate required env vars at startup with fail-fast
+- Never read a file wholesale when one line is the need and the file may carry
+  a secret — `~/.bashrc`, `.env`, a raw log pull, a config dump: grep for the
+  line, read key NAMES only, never values. Two vectors hit in one day — a
+  `cat ~/.bashrc` and a raw gateway-log pull carrying `x-service-auth`.
+- A value the owner must supply is elicited with `read -rs -p 'KEY: ' VAR` in a
+  command the OWNER runs, so it never lands in the transcript or in bash
+  history.
 
 ### Claude Session URLs Are Secrets (CRITICAL)
 
@@ -123,6 +130,14 @@ gh pr merge 714 --rebase                  # ✅ develop survives
 
 **Uncommitted changes = HOURS OF WORK.** When user says "get changes" → COMMIT, not DISCARD.
 
+**A permission gate or classifier block is satisfied or escalated, never routed
+around.** When the auto-mode classifier or a hook blocks an action, either
+change the action so it meets the gate's intent, or hand the owner a ready,
+minimal `!`-prefixed command with one line on what it will do. Rephrasing the
+same action until the literal check stops matching is the failure this sentence
+exists for — the correct shape was reached four times in one window by judgment
+alone, and judgment decays.
+
 **`git stash pop` caveat**: stashes are a global LIFO stack, NOT per-branch — always `git stash list` and inspect before any pop.
 
 ### Standing permission: feature-branch commits and pushes
@@ -196,6 +211,14 @@ The hook covers only `claude[bot]` issue-level comments — formal review summar
 - **Coverage required**: 80% minimum, Codecov blocks PRs below threshold
 - Run `pnpm test` before pushing - no exceptions
 - Run `pnpm test:component` after slash-command structure changes (snapshot tests) — trigger table in `/tzurot-testing`.
+- **Ops tooling that writes to a live environment ships only after an
+  end-to-end dev exercise.** Unit tests and review rounds verify the code, not
+  the deployment: for a tool that mutates Railway variables, redeploys a
+  service, or migrates a database, "the mechanism is pinned" is not a claim
+  they can support. Exercise it in dev end to end, with the effect observed in
+  the service logs, before the prod path is offered — the secrets-rotation
+  tool passed six review rounds and a full unit suite, then 401'd dev on its
+  first live run.
 
 ### Test Coverage Baseline
 
@@ -259,8 +282,11 @@ Before modifying config/infrastructure: Search ALL instances → List affected f
 **Positive-control the pattern before trusting its absence.** Run it against one
 instance you KNOW is present and confirm it matches; if you cannot name a
 known-present instance, the sweep has no floor and an empty result means
-nothing. Trigger: before writing "the enumeration is N sites" into any PR body,
-commit message, or backlog entry. This is not the 3-variant vocabulary rule
+nothing. Trigger: before writing ANY absence, zero, or count into a durable
+surface — a PR body, commit message, task, report, or close-out — "no callers",
+"0 matches", "the enumeration is N sites" alike: run the pattern against one
+known-present instance first, or the number is a claim about your grep, not
+about the code. This is not the 3-variant vocabulary rule
 above — variants don't help when all of them share a broken boundary
 assumption (`\bpersonalit(y|ies)\b` cannot match `personality_name`: `_` is a
 word character, so there is no `\b`).
