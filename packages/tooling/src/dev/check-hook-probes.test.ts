@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -296,13 +296,26 @@ describe('checkHookProbes (over a fixture tree)', () => {
     while (fixtures.length > 0) rmSync(fixtures.pop() as string, { recursive: true, force: true });
   });
 
-  /** A throwaway repo root with `.claude/hooks` + `.husky` populated. */
+  /**
+   * A throwaway repo root with `.claude/hooks` + `.husky` populated, plus a
+   * synthesized `.claude/settings.json` that mentions every hook file's own
+   * basename — checkHookProbes now runs the wiring gate (check-hook-wiring.ts)
+   * before its probe loop, and these fixtures predate that gate, so without
+   * this every hook-name basename created here needs a wiring reference or
+   * the unrelated probe/registry assertions below fail on wiring instead.
+   */
   const fixtureRoot = (files: Record<string, string>): string => {
     const root = mkdtempSync(join(tmpdir(), 'hook-probes-'));
     fixtures.push(root);
     mkdirSync(join(root, '.claude/hooks'), { recursive: true });
     mkdirSync(join(root, '.husky/_'), { recursive: true });
     for (const [rel, body] of Object.entries(files)) writeFileSync(join(root, rel), body);
+    if (!('.claude/settings.json' in files)) {
+      const hookNames = Object.keys(files)
+        .filter(rel => rel.startsWith('.claude/hooks/'))
+        .map(rel => rel.split('/').pop());
+      writeFileSync(join(root, '.claude/settings.json'), JSON.stringify({ wired: hookNames }));
+    }
     return root;
   };
 
@@ -385,6 +398,53 @@ describe('checkHookProbes (over a fixture tree)', () => {
     checkHookProbes({ rootDir: root, entries: [] });
     expect(process.exitCode).toBeUndefined();
     expect(log).toHaveBeenCalled();
+  });
+
+  // The wiring gate short-circuits before the probe loop — an unwired
+  // registered hook must fail on the wiring check without the probe body ever
+  // executing.
+  it('fails on an unwired registered hook without running any probe', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const marker = '#!/bin/bash\ntouch "$(dirname "$0")/ran.marker"\nexit 0\n';
+    const root = fixtureRoot({
+      '.claude/hooks/a.sh': PASSING,
+      '.claude/hooks/a.probe.sh': marker,
+      '.claude/settings.json': '{}',
+    });
+    chmodSync(join(root, '.claude/hooks/a.probe.sh'), 0o755);
+
+    checkHookProbes({
+      rootDir: root,
+      entries: [{ hook: '.claude/hooks/a.sh', probe: '.claude/hooks/a.probe.sh' }],
+    });
+
+    expect(process.exitCode).toBe(1);
+    expect(error.mock.calls.flat().join('\n')).toMatch(/a\.sh.*wire it or delete it/);
+    expect(existsSync(join(root, '.claude/hooks/ran.marker'))).toBe(false);
+  });
+
+  // Positive control for the absence assertion above: the SAME marker-writing
+  // probe body actually runs (and writes its marker) once the fixture's
+  // auto-synthesized settings.json wires the hook — proving the marker's
+  // absence in the previous test is a real short-circuit, not a probe body
+  // that never writes its marker at all.
+  it('runs the probe and writes its marker once the hook is wired', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const marker = '#!/bin/bash\ntouch "$(dirname "$0")/ran.marker"\nexit 0\n';
+    const root = fixtureRoot({
+      '.claude/hooks/a.sh': PASSING,
+      '.claude/hooks/a.probe.sh': marker,
+    });
+    chmodSync(join(root, '.claude/hooks/a.probe.sh'), 0o755);
+
+    checkHookProbes({
+      rootDir: root,
+      entries: [{ hook: '.claude/hooks/a.sh', probe: '.claude/hooks/a.probe.sh' }],
+    });
+
+    expect(process.exitCode).toBeUndefined();
+    expect(log).toHaveBeenCalled();
+    expect(existsSync(join(root, '.claude/hooks/ran.marker'))).toBe(true);
   });
 
   it('fails and surfaces the failing probe output', () => {

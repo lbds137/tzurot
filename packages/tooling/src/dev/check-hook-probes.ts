@@ -39,6 +39,7 @@ import {
   PROBE_TIMEOUT_MS,
   type HookProbeEntry,
 } from './check-hook-probes-registry.js';
+import { findHookWiringProblems, reportHookWiringProblems } from './check-hook-wiring.js';
 
 /**
  * Hook scripts on disk, excluding harnesses, colocated tests, and the lib
@@ -289,6 +290,16 @@ export function checkHookProbes(options: CheckHookProbesOptions = {}): void {
   const problems = findRegistryProblems(entries, hooksOnDisk, probesOnDisk, existingPaths);
   if (hasRegistryProblems(problems)) {
     reportRegistryProblems(problems);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Same short-circuit reasoning as the registry check above: a hook nothing
+  // invokes is a probe whose green means nothing, so this runs before any
+  // probe does rather than alongside the probe results.
+  const wiringProblems = findHookWiringProblems({ rootDir, entries });
+  if (wiringProblems.length > 0) {
+    reportHookWiringProblems(wiringProblems);
     process.exitCode = 1;
     return;
   }

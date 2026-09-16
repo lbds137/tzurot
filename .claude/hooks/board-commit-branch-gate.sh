@@ -533,6 +533,10 @@ NC='\033[0m'
   printf "${YELLOW}  A tracker/board commit here strands: the develop push no-ops as${NC}\n"
   printf "${YELLOW}  \"Everything up-to-date\" and the state is invisible to every query.${NC}\n"
   printf "${YELLOW}  Fix: git stash (or leave staged) → git switch develop → commit there → switch back.${NC}\n"
+  printf "${YELLOW}  Remedy: issue the branch switch as its OWN Bash call, then commit in the${NC}\n"
+  printf "${YELLOW}  next call. This gate evaluates the branch BEFORE your && chain runs, and${NC}\n"
+  printf "${YELLOW}  a blocked PreToolUse call executes NONE of its chain — an earlier \`git${NC}\n"
+  printf "${YELLOW}  add\` in the same chain did not run either.${NC}\n"
   printf "${YELLOW}  If this doc genuinely belongs WITH this PR, bypass once:${NC}\n"
   printf "${YELLOW}    TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit ...${NC}\n"
 } >&2

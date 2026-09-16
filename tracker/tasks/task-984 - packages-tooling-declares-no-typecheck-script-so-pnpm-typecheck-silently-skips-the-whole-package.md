@@ -29,4 +29,6 @@ Fix shape: add typecheck (tsc --noEmit) and typecheck:spec (tsc --noEmit --proje
 Verify before shipping the exclusion: TASK-598 records that the eslint plugin entry is resolved out of tooling dist, so confirm nothing imports a compiled test file before dropping 212 files from dist.
 
 Acceptance: npx turbo run typecheck --dry=json lists no package with command=<NONEXISTENT>, and a deliberate type error planted in a tooling test file turns pnpm typecheck:spec red.
+
+Partially shipped with the session-mining operationalizations: typecheck + typecheck:spec scripts and tsconfig.spec.json are in place; the tsconfig.json test-file exclusion is deliberately NOT shipped, because TASK-598 records the eslint plugin resolving out of tooling dist and dropping the emitted test files needs that verified first.
 <!-- SECTION:DESCRIPTION:END -->
