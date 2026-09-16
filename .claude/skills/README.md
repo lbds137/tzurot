@@ -21,7 +21,7 @@
 | [tzurot-reuse-scout](./tzurot-reuse-scout/SKILL.md)         | Pre-write reuse scouting, drifted-duplicate consolidation                      | `/tzurot-reuse-scout`     |
 | [tzurot-review-response](./tzurot-review-response/SKILL.md) | PR review-response: edit-shape triage, auto-apply vs ASK                       | `/tzurot-review-response` |
 | [tzurot-design-boulder](./tzurot-design-boulder/SKILL.md)   | Grounded, council-reviewed design sessions → ACCEPTED artifact                 | `/tzurot-design-boulder`  |
-| [tzurot-session-mining](./tzurot-session-mining/SKILL.md)   | Mine session logs for recurring friction → structural fixes                    | `/tzurot-session-mining`  |
+| [tzurot-session-mining](./tzurot-session-mining/SKILL.md)   | Mine session logs in two lenses (owner friction + agent record) → dispositions | `/tzurot-session-mining`  |
 | [tzurot-orchestration](./tzurot-orchestration/SKILL.md)     | Delegation posture, worker spec template, full-diff review gate                | `/tzurot-orchestration`   |
 | [tzurot-usage-audit](./tzurot-usage-audit/SKILL.md)         | Weekly plan-usage measurement: weighted tokens, delegation ratio, drift ledger | `/tzurot-usage-audit`     |
 
@@ -58,4 +58,4 @@ The following rules load automatically every session — no invocation needed:
 
 **Session End**: `/tzurot-docs` → update CURRENT.md
 
-**Audits**: `/tzurot-doc-audit` (docs + memory) · `/tzurot-arch-audit` (boundaries + health) · `/tzurot-session-mining` (session friction → structural fixes) · `/tzurot-usage-audit` (plan spend + delegation ratio)
+**Audits**: `/tzurot-doc-audit` (docs + memory) · `/tzurot-arch-audit` (boundaries + health) · `/tzurot-session-mining` (owner friction + agent-side misses and keepers → structural dispositions) · `/tzurot-usage-audit` (plan spend + delegation ratio)
