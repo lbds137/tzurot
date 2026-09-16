@@ -224,4 +224,4 @@ above: `pnpm ops cadence:mark usage-audit`, then commit
 
 - `10-working-posture.md` § Delegation posture — the rule this measurement justifies
 - `/tzurot-orchestration` — the dispatch mechanics whose cost this quantifies
-- `/tzurot-session-mining` — the qualitative sibling; this skill counts tokens, that one counts friction
+- `/tzurot-session-mining` — the qualitative sibling; this skill counts tokens, that one counts friction and keepers
