@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryBudgetManager } from './MemoryBudgetManager.js';
 import { formatSingleHistoryEntryAsXml } from '../../jobs/utils/conversationUtils.js';
+import { getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 // Mock common-types
@@ -57,6 +58,13 @@ vi.mock('../prompt/MemoryFormatter.js', () => ({
   getMemoryWrapperOverheadText: vi.fn(
     () =>
       '<memory_archive usage="context_only_do_not_repeat">\n<instruction>SUMMARIZED NOTES from past interactions</instruction>\n</memory_archive>'
+  ),
+  // Real predicate, not a stub: it is pure and self-contained, and the
+  // MEM-ARCH-031 wrapper-sizing tests below need it to actually exclude an
+  // unrenderable foreign candidate before the sizing call is asserted.
+  isUnrenderableForeignNote: vi.fn(
+    (doc: MemoryDocument) =>
+      doc.metadata?.archiveRender?.foreign === true && doc.metadata?.userTurn === undefined
   ),
 }));
 
@@ -190,6 +198,45 @@ describe('MemoryBudgetManager', () => {
 
       // tokensUsed should be more than just the memory content (includes wrapper)
       expect(result.tokensUsed).toBeGreaterThan(0);
+    });
+
+    // @spec MEM-ARCH-031 — the wrapper is sized at the longest form any renderable candidate could render
+    describe('wrapper sizing (MEM-ARCH-031)', () => {
+      it('MEM-ARCH-031: sizes the wrapper with mode "split" and foreign:false when any candidate is split', () => {
+        const memories: MemoryDocument[] = [
+          { pageContent: 'Own verbatim note, no archiveRender', metadata: { score: 0.9 } },
+          {
+            pageContent: 'Own split note',
+            metadata: {
+              score: 0.8,
+              userTurn: 'hi',
+              archiveRender: { mode: 'split', linkedFacts: [] },
+            },
+          },
+        ];
+
+        manager.selectMemoriesWithinBudget(memories, 10000);
+
+        expect(getMemoryWrapperOverheadText).toHaveBeenCalledWith('split', { foreign: false });
+      });
+
+      it('MEM-ARCH-031: sizes the wrapper with foreign:true when any candidate is foreign', () => {
+        const memories: MemoryDocument[] = [
+          { pageContent: 'Own verbatim note, no archiveRender', metadata: { score: 0.9 } },
+          {
+            pageContent: 'Foreign split note with a stored user turn',
+            metadata: {
+              score: 0.8,
+              userTurn: 'bye',
+              archiveRender: { mode: 'split', linkedFacts: [], foreign: true },
+            },
+          },
+        ];
+
+        manager.selectMemoriesWithinBudget(memories, 10000);
+
+        expect(getMemoryWrapperOverheadText).toHaveBeenCalledWith('split', { foreign: true });
+      });
     });
   });
 

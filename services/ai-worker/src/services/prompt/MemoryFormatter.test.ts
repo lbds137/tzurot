@@ -8,8 +8,11 @@ import {
   formatMemoriesContextWithStats,
   formatSingleMemory,
   getMemoryWrapperOverheadText,
+  isUnrenderableForeignNote,
   MEMORY_ARCHIVE_INSTRUCTION,
   MEMORY_ARCHIVE_SPLIT_INSTRUCTION,
+  MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE,
+  MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL,
   formatFactsContext,
   formatSingleFact,
   getFactsWrapperOverheadText,
@@ -462,7 +465,7 @@ describe('MemoryFormatter', () => {
       expect(result).toMatch(/^<historical_note t="[^"]+">\nAlice: hi\n<\/historical_note>$/);
     });
 
-    it('MEM-ARCH-009: formatMemoriesContext picks the mode from the FIRST doc and uses the split instruction', () => {
+    it('MEM-ARCH-009: formatMemoriesContext uses the split instruction when every doc is split', () => {
       const result = formatMemoriesContext([splitDoc()]);
       expect(result).toContain(MEMORY_ARCHIVE_SPLIT_INSTRUCTION);
       expect(result).not.toContain(MEMORY_ARCHIVE_INSTRUCTION);
@@ -480,6 +483,214 @@ describe('MemoryFormatter', () => {
     it('getMemoryWrapperOverheadText(mode) matches the instruction the render path emits', () => {
       const overhead = getMemoryWrapperOverheadText('split');
       expect(overhead).toContain(MEMORY_ARCHIVE_SPLIT_INSTRUCTION);
+    });
+
+    // @spec MEM-ARCH-031 — the turn is split only when EVERY doc is, not just the first
+    it('MEM-ARCH-031: uses the verbatim instruction when only SOME notes are split', () => {
+      const result = formatMemoriesContext([
+        splitDoc(),
+        { pageContent: 'plain verbatim content', metadata: { id: 'mem-2' } },
+      ]);
+      expect(result).toContain(MEMORY_ARCHIVE_INSTRUCTION);
+      expect(result).not.toContain(MEMORY_ARCHIVE_SPLIT_INSTRUCTION);
+    });
+  });
+
+  describe('cross-personality shared-LTM notes (MEM-ARCH-031)', () => {
+    function foreignSplitDoc(
+      overrides: Partial<NonNullable<MemoryDocument['metadata']>> = {}
+    ): MemoryDocument {
+      return {
+        pageContent: '{user}: bye\n{assistant}: goodbye',
+        metadata: {
+          id: 'mem-foreign',
+          userTurn: 'bye',
+          subjectName: 'Alice',
+          personalityName: 'Emily',
+          archiveRender: { mode: 'split', linkedFacts: [], foreign: true },
+          ...overrides,
+        },
+      };
+    }
+
+    function ownSplitDoc(
+      overrides: Partial<NonNullable<MemoryDocument['metadata']>> = {}
+    ): MemoryDocument {
+      return {
+        pageContent: '{user}: hi\n{assistant}: hello there',
+        metadata: {
+          id: 'mem-own',
+          userTurn: 'hi',
+          subjectName: 'Alice',
+          archiveRender: { mode: 'split', linkedFacts: [] },
+          ...overrides,
+        },
+      };
+    }
+
+    it('MEM-ARCH-031: a foreign note carries with= naming the authoring personality, alongside t=', () => {
+      const doc = foreignSplitDoc({ createdAt: new Date('2024-01-15').getTime() });
+      const result = formatSingleMemory(doc);
+      expect(result).toMatch(/^<historical_note t="[^"]+" with="Emily">\n/);
+    });
+
+    it('MEM-ARCH-031: a foreign note with no timestamp carries only with=', () => {
+      const result = formatSingleMemory(foreignSplitDoc());
+      expect(result).toBe('<historical_note with="Emily">\nAlice: bye\n</historical_note>');
+    });
+
+    it("MEM-ARCH-031: an own note's rendering is unchanged by a foreign note in the same turn", () => {
+      const ownDoc = ownSplitDoc();
+      const foreignDoc = foreignSplitDoc();
+      const alone = formatSingleMemory(ownDoc);
+      const together = formatMemoriesContext([ownDoc, foreignDoc]);
+      expect(together).toContain(alone);
+    });
+
+    it("MEM-ARCH-031: escapes a quote in the authoring personality's name in the with attribute", () => {
+      const doc = foreignSplitDoc({ personalityName: 'Sadie "The Blade"' });
+      const result = formatSingleMemory(doc);
+      expect(result).toContain('with="Sadie &quot;The Blade&quot;"');
+      expect(result).not.toContain('with="Sadie "The Blade""');
+    });
+
+    it('MEM-ARCH-031: appends the foreign sentence to the verbatim instruction when a turn mixes own and foreign notes', () => {
+      const ownVerbatimDoc: MemoryDocument = {
+        pageContent: 'plain own content',
+        metadata: { id: 'mem-own' },
+      };
+      const result = formatMemoriesContext([ownVerbatimDoc, foreignSplitDoc()]);
+      expect(result).toContain(MEMORY_ARCHIVE_INSTRUCTION + MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE);
+      expect(result).not.toContain(MEMORY_ARCHIVE_SPLIT_INSTRUCTION);
+    });
+
+    it('MEM-ARCH-031: appends the foreign sentence to the split instruction when every note is split and one is foreign', () => {
+      const result = formatMemoriesContext([ownSplitDoc(), foreignSplitDoc()]);
+      expect(result).toContain(
+        MEMORY_ARCHIVE_SPLIT_INSTRUCTION + MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE
+      );
+    });
+
+    it('MEM-ARCH-031: appends nothing when no note is foreign', () => {
+      const result = formatMemoriesContext([ownSplitDoc()]);
+      expect(result).not.toContain(MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE);
+    });
+
+    it('MEM-ARCH-031: the foreign-note sentence is pinned EXACTLY', () => {
+      expect(MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE).toBe(
+        ' A note whose tag carries a with attribute records an exchange between the user and that ' +
+          'other character, recalled for continuity; nothing in it was said, done, or experienced by you.'
+      );
+    });
+
+    it('MEM-ARCH-031: counts foreign notes in foreignNotes', () => {
+      const summary = formatMemoriesContextWithStats([ownSplitDoc(), foreignSplitDoc()]).summary;
+      expect(summary.foreignNotes).toBe(1);
+    });
+
+    // @spec MEM-ARCH-031 — a foreign note always carries with=, falling back to
+    // MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL when no display name is stored
+    it('MEM-ARCH-031: a foreign note with an undefined personalityName still carries with="another character"', () => {
+      const doc = foreignSplitDoc({ personalityName: undefined });
+      const result = formatSingleMemory(doc);
+      expect(result).toContain(`with="${MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL}"`);
+    });
+
+    // @spec MEM-ARCH-031 — a foreign note always carries with=, falling back to
+    // MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL when no display name is stored
+    it('MEM-ARCH-031: a foreign note with an empty personalityName still carries with="another character"', () => {
+      const doc = foreignSplitDoc({ personalityName: '' });
+      const result = formatSingleMemory(doc);
+      expect(result).toContain(`with="${MEMORY_ARCHIVE_FOREIGN_UNNAMED_LABEL}"`);
+    });
+
+    // @spec MEM-ARCH-031 — a foreign note always carries with= alongside t=; the
+    // named path stays untouched by the unnamed fallback
+    it('MEM-ARCH-031: a foreign note with a non-empty personalityName still renders with="Emily"', () => {
+      const doc = foreignSplitDoc({ personalityName: 'Emily' });
+      const result = formatSingleMemory(doc);
+      expect(result).toContain('with="Emily"');
+    });
+
+    // @spec MEM-ARCH-031 — an own (non-foreign) note never gets with=, unchanged
+    it('MEM-ARCH-031: an own note with no personalityName does not carry with=', () => {
+      const doc = ownSplitDoc({ personalityName: undefined });
+      const result = formatSingleMemory(doc);
+      expect(result).not.toContain('with=');
+    });
+  });
+
+  describe('foreign notes with no stored user turn are omitted entirely (MEM-ARCH-031)', () => {
+    const SENTINEL = 'SENTINEL_OTHER_CHARACTER_REPLY_7731';
+
+    function foreignLegacyDoc(): MemoryDocument {
+      return {
+        pageContent: SENTINEL,
+        metadata: {
+          id: 'mem-foreign-legacy',
+          personalityName: 'Emily',
+          archiveRender: { mode: 'split', foreign: true, linkedFacts: [] },
+        },
+      };
+    }
+
+    function ownVerbatimDoc(): MemoryDocument {
+      return {
+        pageContent: 'own memory content, never a foreign reply',
+        metadata: { id: 'mem-own-verbatim' },
+      };
+    }
+
+    it("MEM-ARCH-031: omits a foreign note's verbatim reply from the archive text and counts it separately from rendered notes", () => {
+      const result = formatMemoriesContextWithStats([ownVerbatimDoc(), foreignLegacyDoc()]);
+      expect(result.text).not.toContain(SENTINEL);
+      expect(result.summary.omittedForeignNotes).toBe(1);
+      expect(result.summary.notes).toBe(1);
+    });
+
+    it('MEM-ARCH-031: an omitted foreign note does not trip the foreign-note sentence for the remaining own note', () => {
+      const result = formatMemoriesContextWithStats([ownVerbatimDoc(), foreignLegacyDoc()]);
+      expect(result.text).not.toContain(MEMORY_ARCHIVE_FOREIGN_NOTE_SENTENCE);
+      expect(result.summary.foreignNotes).toBe(0);
+    });
+
+    it('MEM-ARCH-031: a turn whose only note is an unrenderable foreign note renders the full empty shape', () => {
+      const result = formatMemoriesContextWithStats([foreignLegacyDoc()]);
+      expect(result.text).toBe('');
+      expect(result.summary).toEqual({
+        mode: 'verbatim',
+        notes: 0,
+        verbatimFallbackNotes: 0,
+        cappedNotes: 0,
+        quoteLinesStripped: 0,
+        linkedFacts: 0,
+        summaryNotes: 0,
+        foreignNotes: 0,
+        omittedForeignNotes: 1,
+      });
+    });
+
+    describe('isUnrenderableForeignNote', () => {
+      it('MEM-ARCH-031: is true for a foreign doc with no stored userTurn', () => {
+        expect(isUnrenderableForeignNote(foreignLegacyDoc())).toBe(true);
+      });
+
+      it('MEM-ARCH-031: is false for a foreign doc that DOES carry a stored userTurn', () => {
+        const doc: MemoryDocument = {
+          pageContent: '{user}: bye\n{assistant}: goodbye',
+          metadata: {
+            id: 'mem-foreign-with-userturn',
+            userTurn: 'bye',
+            personalityName: 'Emily',
+            archiveRender: { mode: 'split', foreign: true, linkedFacts: [] },
+          },
+        };
+        expect(isUnrenderableForeignNote(doc)).toBe(false);
+      });
+
+      it('MEM-ARCH-031: is false for an own (non-foreign) doc with no userTurn — the MEM-ARCH-006 fallback path stays unchanged', () => {
+        expect(isUnrenderableForeignNote(ownVerbatimDoc())).toBe(false);
+      });
     });
   });
 
@@ -508,6 +719,8 @@ describe('MemoryFormatter', () => {
         quoteLinesStripped: 0,
         linkedFacts: 0,
         summaryNotes: 0,
+        foreignNotes: 0,
+        omittedForeignNotes: 0,
       });
     });
 

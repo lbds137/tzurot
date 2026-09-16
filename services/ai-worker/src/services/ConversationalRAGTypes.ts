@@ -52,6 +52,11 @@ export interface MemoryDocument {
     messageIds?: string[] | null;
     /** Channel the memory was formed in — scopes the dedup rescue. */
     channelId?: string | null;
+    /** The personality this row was originally authored under, stamped by `mapQueryResultToDocument`
+     *  from the query's `personality_id` column. Compared against the responding personality's id to
+     *  detect a foreign note under shared-LTM retrieval (`shareLtmAcrossPersonalities`); never compared
+     *  by name. */
+    personalityId?: string;
     /** The user half of the stored `{user}: … \n{assistant}: …` template, placeholder-resolved,
      *  referenced block excluded. Stamped by `mapQueryResultToDocument`; ABSENT for legacy rows that
      *  do not match the template — absence is meaningful (it selects the verbatim fallback render),
@@ -60,9 +65,11 @@ export interface MemoryDocument {
     /** The speaker name for `userTurn` — this row's own persona, so a remembered turn keeps its own
      *  speaker in a multi-user channel. Stamped beside `userTurn`. */
     subjectName?: string;
-    /** The responding personality's display name for this row, stamped by
-     *  `mapQueryResultToDocument` from the query's `personality_name` column. Used as the
-     *  arm-S summary note's speaker label when the render call site's own `names` are absent. */
+    /** The AUTHORING personality's display name for this row, stamped by
+     *  `mapQueryResultToDocument` from the query's `personality_name` column — equal to the
+     *  responder's own name except on a foreign (shared-LTM) doc, where it is the `with=` value.
+     *  Also the arm-S summary note's speaker label when the render call site's own `names` are
+     *  absent. */
     personalityName?: string;
     /** The stored assistant-side summary for this row, stamped by `mapQueryResultToDocument`
      *  ONLY when `summary_status` is `done` and the column is non-empty — regardless of prompt
@@ -80,6 +87,11 @@ export interface MemoryDocument {
        *  render reads it from HERE (never from the doc's own metadata) so verbatim mode — which
        *  never gets an `archiveRender` — can never render a summary. */
       assistantSummary?: string;
+      /** Stamped `true` only when this row was authored by a DIFFERENT personality than the
+       *  responder (shared-LTM retrieval). Never written as `false` — absence IS "own", so
+       *  never write a default here. Selects the `with=` attribute and the foreign-note
+       *  sentence in the block instruction. */
+      foreign?: true;
     };
   };
 }

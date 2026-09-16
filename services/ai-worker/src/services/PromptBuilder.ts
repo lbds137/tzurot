@@ -434,7 +434,12 @@ ${formatCurrentLocationLine(context.environment)}
 
     const relevantMemories = options.relevantMemories ?? [];
     // @spec MEM-ARCH-008 — D10 dedup applies in split mode only
-    const isSplitTurn = relevantMemories[0]?.metadata?.archiveRender?.mode === 'split';
+    // @spec MEM-ARCH-031 — dedup keys on rendered linked-fact ids; a mixed
+    // own/foreign turn has notes (the own ones) that render NO linked facts
+    // at all, so dedup must not fire unless EVERY note is split.
+    const isSplitTurn =
+      relevantMemories.length > 0 &&
+      relevantMemories.every(m => m.metadata?.archiveRender?.mode === 'split');
     const facts = isSplitTurn
       ? dropFactsCoveredByArchive(options.facts ?? [], relevantMemories)
       : (options.facts ?? []);

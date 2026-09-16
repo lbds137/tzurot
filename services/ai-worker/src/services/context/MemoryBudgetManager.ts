@@ -14,7 +14,11 @@
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
-import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
+import {
+  formatSingleMemory,
+  getMemoryWrapperOverheadText,
+  isUnrenderableForeignNote,
+} from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument, FactRenderNames } from '../ConversationalRAGTypes.js';
 import { collectPersonalityNames } from '../../jobs/utils/conversationUtils.js';
 import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
@@ -71,16 +75,43 @@ export class MemoryBudgetManager {
       };
     }
 
+    // @spec MEM-ARCH-031 — a foreign candidate with no stored user turn is
+    // unrenderable (its only fallback is the other character's verbatim
+    // reply), so it is excluded from sizing and selection entirely: it must
+    // consume no budget and can never appear in selectedMemories.
+    // memoriesDropped is still computed against the ORIGINAL `memories`
+    // below, so an excluded candidate counts as dropped naturally.
+    const renderableCandidates = memories.filter(m => !isUnrenderableForeignNote(m));
+
+    if (renderableCandidates.length === 0) {
+      return {
+        selectedMemories: [],
+        tokensUsed: 0,
+        memoriesDropped: memories.length,
+        droppedDueToSize: 0,
+      };
+    }
+
     const selectedMemories: MemoryDocument[] = [];
     let tokensUsed = 0;
     let droppedDueToSize = 0;
 
     // Account for memory archive wrapper overhead (single source of truth in
-    // MemoryFormatter). The mode rides on the doc — all memories in one turn
-    // share it (A3 stamps all-or-none) — so the FIRST memory's mode is the
-    // wrapper the render path will actually emit.
-    const mode = memories[0]?.metadata?.archiveRender?.mode;
-    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText(mode));
+    // MemoryFormatter), sized at the LONGEST form any renderable candidate
+    // could render: selection below runs AFTER this sizing and can drop
+    // candidates, so a mixed set can still render at the longer split
+    // instruction even when not every SELECTED note ends up split. The
+    // wrapper is therefore 'split' when ANY renderable candidate is split
+    // (not "every"), and carries the foreign sentence when ANY renderable
+    // candidate is foreign. Over-counting by the instruction delta is the
+    // safe direction — under-counting would let the rendered block overflow
+    // the budget it was sized against.
+    // @spec MEM-ARCH-031 — size the wrapper at the longest form the render path could emit
+    const mode = renderableCandidates.some(m => m.metadata?.archiveRender?.mode === 'split')
+      ? 'split'
+      : undefined;
+    const foreign = renderableCandidates.some(m => m.metadata?.archiveRender?.foreign === true);
+    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText(mode, { foreign }));
     const budgetRemaining = tokenBudget - wrapperOverhead;
 
     if (budgetRemaining <= 0) {
@@ -93,8 +124,8 @@ export class MemoryBudgetManager {
       };
     }
 
-    // Iterate through memories (already sorted by relevance from pgvector)
-    for (const memory of memories) {
+    // Iterate through renderable candidates (already sorted by relevance from pgvector)
+    for (const memory of renderableCandidates) {
       // Count tokens for this specific memory entry
       const memoryText = formatSingleMemory(memory, timezone, names);
       const memoryTokens = countTextTokens(memoryText);
