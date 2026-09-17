@@ -1,9 +1,10 @@
 /**
- * System-settings registry entries for the `operations` and `memory-archive`
- * groups — split out of `systemSettingsRegistry.ts` purely to stay under the
- * `max-lines` limit as the registry grew past it. NOT a re-export module: the
- * entries here are spread directly into `SYSTEM_SETTINGS_REGISTRY`, so this
- * file is one more piece of that single object, just declared separately.
+ * System-settings registry entries for the `operations`, `memory-archive`,
+ * and `recent-days` groups — split out of `systemSettingsRegistry.ts` purely
+ * to stay under the `max-lines` limit as the registry grew past it. NOT a
+ * re-export module: the entries here are spread directly into
+ * `SYSTEM_SETTINGS_REGISTRY`, so this file is one more piece of that single
+ * object, just declared separately.
  */
 
 import type { SystemSettings } from './systemSettings.js';
@@ -19,6 +20,7 @@ import {
 
 const GROUP_OPERATIONS: SystemSettingGroup = 'operations';
 const GROUP_MEMORY_ARCHIVE: SystemSettingGroup = 'memory-archive';
+const GROUP_RECENT_DAYS: SystemSettingGroup = 'recent-days';
 
 export const SYSTEM_SETTINGS_REGISTRY_OPERATIONS: {
   readonly [K in OperationsRegistryKey]: SystemSettingMeta<K>;
@@ -131,6 +133,30 @@ export const SYSTEM_SETTINGS_REGISTRY_OPERATIONS: {
     // exit is an owner flip when false-positive volume outweighs the
     // invariant, not a dark default.
     fallback: true,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
+  },
+  recentDaysDigestEnabled: {
+    key: 'recentDaysDigestEnabled',
+    label: 'Recent Days Digest Enabled',
+    description:
+      'Global kill switch for the recent-days digest sweep: when off, no digest is generated.',
+    group: GROUP_RECENT_DAYS,
+    control: 'boolean',
+    liveness: 'live',
+    fallback: false,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
+  },
+  recentDaysDigestPersonalities: {
+    key: 'recentDaysDigestPersonalities',
+    label: 'Recent Days Digest Personalities',
+    description:
+      'Personality slugs the recent-days digest is generated for — the same list gates rendering. Empty = no character has a digest.',
+    group: GROUP_RECENT_DAYS,
+    control: 'list',
+    liveness: 'live',
+    fallback: [] as SystemSettings['recentDaysDigestPersonalities'],
     // No predecessor: this setting is new, not migrated from an env var.
     seedSource: SEED_SOURCE_NEW,
   },

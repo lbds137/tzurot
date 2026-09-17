@@ -25,11 +25,13 @@ const SYSTEM_PAGE_LABELS: Record<SystemSettingGroup, string> = {
   limits: 'System · Limits',
   operations: 'System · Operations',
   'memory-archive': 'System · Memory Archive',
+  'recent-days': 'System · Recent Days',
 };
 
 const SYSTEM_GROUP_ORDER: SystemSettingGroup[] = [
   'extraction',
   'memory-archive',
+  'recent-days',
   'free-tier-fair-share',
   'free-tier-zai',
   'models',
@@ -67,6 +69,8 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   archiveSummaryEnqueueEnabled: '📥',
   archiveSummaryModelEnabled: '✍️',
   archiveSummaryDailyCap: '🧾',
+  recentDaysDigestEnabled: '📆',
+  recentDaysDigestPersonalities: '🗂️',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */
@@ -142,7 +146,7 @@ function toSettingDefinition(meta: SystemSettingMeta): SettingDefinition {
         type: SettingType.LIST,
         placeholder: 'slug-one, slug-two',
         helpText:
-          'Comma-separated list of personality slugs. Empty means every character renders verbatim.',
+          'Comma-separated list of personality slugs. What an empty list means is stated in the description above — it differs per setting.',
       };
   }
 }

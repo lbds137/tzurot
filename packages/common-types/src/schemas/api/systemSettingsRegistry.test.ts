@@ -137,6 +137,11 @@ describe('fallbacks (the floor beneath the floor)', () => {
     expect(isFreeModel(SYSTEM_SETTINGS_FALLBACKS.fallbackTextModelFree)).toBe(true);
     expect(isFreeModel(SYSTEM_SETTINGS_FALLBACKS.fallbackVisionModelFree)).toBe(true);
   });
+
+  it('the recent-days digest falls back OFF with an empty personality list (a lost DB never starts generating)', () => {
+    expect(SYSTEM_SETTINGS_FALLBACKS.recentDaysDigestEnabled).toBe(false);
+    expect(SYSTEM_SETTINGS_FALLBACKS.recentDaysDigestPersonalities).toEqual([]);
+  });
 });
 
 describe('buildSystemSettingsSeed', () => {
