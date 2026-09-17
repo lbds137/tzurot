@@ -215,3 +215,13 @@ fall back to name+Discord-description for Lottie.
   that task to poll-question edits only.
 - `doc-26` message-actions design, `doc-54` diegetic Discord events — adjacent
   Discord-surface work.
+
+## Revisit OPENED 2026-09-17 — the doc's own trigger fired (owner ruling pending)
+
+The rule-out above carried its revisit clause: "only if real logs show specific custom emoji are repeatedly ambiguous to the model." Owner-supplied data point 2026-09-17 (screenshot + debug export `2aeb536e-ac3f-431d-9709-380fb12993a0`): `<a:SilvervaleSprays:1406074680338813041>` sent alone as the whole message. The model resolved it, but only because the previous turn's `spray_bottle_animated` had seeded the context (the thinking trace starts from "a different one this time (SilvervaleSprays vs spray_bottle_animated)"). From a cold start the name carries "Silvervale" plus a guessable verb and hides the object; the image shows the spray bottle. The owner's read: do not count on the seeding.
+
+Two council arguments read weaker against this case than in the abstract: (1) "where the name fails, vision fails too" assumed opaque emoji carry CONVENTIONAL meaning; an action emoji is the opposite — the pixels carry exactly the payload the name half-hides; (2) the recurring-token objection was computed for inline expansion per occurrence per window — a per-prompt LEGEND of distinct emoji ids (one ≤8-word caption each, emitted once beside the chat log, inline markup untouched) costs ~a dozen tokens per distinct emoji per prompt and makes a spammed emoji cost its caption once. Two rulings carry over unchanged: descriptions are system-key funded (the permanent-artifact-quality argument), and the reversal is asymmetric.
+
+Owner's own proposal the same day: a DB table of emoji descriptions keyed by emoji id, plus an image checksum for re-description. The table is this doc's unbuilt PR-2; the checksum is unnecessary per grounded fact 1 above (an image change mints a new snowflake), so the id is the write-once key.
+
+**Proposed shape if the owner reverses**: build PR-2 (`discord_asset_descriptions`, also making sticker descriptions durable), describe custom emoji into it with a short caption on the system key, render as a per-prompt legend rather than inline, and read the prompt-token delta on Emily's channel from the `Generated response` line (TASK-996). Record the reversal reason here at the moment of the ruling. **Not yet ruled.**
