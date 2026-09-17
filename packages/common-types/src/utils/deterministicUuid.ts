@@ -392,6 +392,21 @@ export function generateFactExtractionJobUuid(
 }
 
 /**
+ * Generate deterministic UUID for PersonaPersonalityDigest
+ * Seed: persona_personality_digest:{personaId}:{personalityId}
+ *
+ * One row per pair (the table's own unique constraint), so the id is
+ * deterministic over the pair alone — a retried `materializePendingRows`
+ * insert resolves to the same id and the `ON CONFLICT` clause no-ops.
+ */
+export function generatePersonaPersonalityDigestUuid(
+  personaId: string,
+  personalityId: string
+): string {
+  return uuidv5(`persona_personality_digest:${personaId}:${personalityId}`, TZUROT_NAMESPACE);
+}
+
+/**
  * Generate deterministic UUID for UserApiKey
  * Seed: user_api_key:{userId}:{provider}
  *

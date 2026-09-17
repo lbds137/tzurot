@@ -19,6 +19,7 @@ import {
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
 } from '@tzurot/common-types/schemas/api/history';
+import { RECENT_DAYS_DIGEST_STATUS } from '@tzurot/common-types/constants/recentDaysDigest';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonaHistoryConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
@@ -48,6 +49,32 @@ interface HistoryHandlerDeps {
 }
 
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
+
+/**
+ * Null the digest text and re-queue it for regeneration. Used twice around a
+ * purge: once BEFORE the delete, to invalidate any generation already in
+ * flight against rows about to be purged, and once AFTER the delete resolves,
+ * to invalidate a sweep tick that selected the pair between the pre-delete
+ * stamp and the last committed batch — `clearHistory` commits per batch, not
+ * atomically end to end, so such a tick's `requestedAt` guard would otherwise
+ * pass and let it write a digest built from rows that no longer exist. The
+ * two writes race harmlessly: whichever tick's write lands, the later stamp's
+ * `requestedAt` bump invalidates it under the store's `requested_at IS NOT
+ * DISTINCT FROM` guard.
+ */
+function markDigestsPendingForPurge(
+  prisma: PrismaClient,
+  where: { personalityId: string } | { personaId: string; personalityId: string }
+): Promise<{ count: number }> {
+  return prisma.personaPersonalityDigest.updateMany({
+    where,
+    data: {
+      digestText: null,
+      digestStatus: RECENT_DAYS_DIGEST_STATUS.PENDING,
+      requestedAt: new Date(),
+    },
+  });
+}
 
 /**
  * Handle POST /api/user/history/clear
@@ -376,11 +403,12 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
     // to end, so a mid-sweep throw must never leave a `done` digest built from
     // rows that are about to be purged. A channel-wide purge invalidates every
     // pair of the personality: over-invalidation regenerates from surviving
-    // rows, under-invalidation would render a purged turn.
-    await prisma.personaPersonalityDigest.updateMany({
-      where: scope === 'everyone' ? { personalityId } : { personaId, personalityId },
-      data: { digestText: null, digestStatus: 'pending', requestedAt: new Date() },
-    });
+    // rows, under-invalidation would render a purged turn. The stamp is
+    // repeated after the delete resolves below, closing the window where a
+    // sweep tick selects the pair between this stamp and the last committed
+    // batch.
+    const digestWhere = scope === 'everyone' ? { personalityId } : { personaId, personalityId };
+    await markDigestsPendingForPurge(prisma, digestWhere);
 
     // A channel-wide purge omits the persona filter entirely —
     // `clearHistory` adds `personaId` to the where-clause only when one is
@@ -389,6 +417,12 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
       scope === 'everyone'
         ? await retentionService.clearHistory(channelId, personalityId)
         : await retentionService.clearHistory(channelId, personalityId, personaId);
+
+    // Second stamp: invalidates a sweep tick that selected the pair after the
+    // pre-delete stamp but before the last committed batch, and whose success
+    // write would otherwise pass the store's `requested_at` guard against the
+    // stale pre-delete value.
+    await markDigestsPendingForPurge(prisma, digestWhere);
 
     // Purge is channel-scoped, but UserPersonaHistoryConfig is keyed by
     // (userId, personalityId, personaId) with no channel dimension — writing
