@@ -58,6 +58,8 @@ export const EXCLUDED_TABLES: Record<string, string> = {
     'Environment-local secret-rotation ledger — each env rotates (and nags) on its own clock',
   retention_purge_log:
     'Environment-local retention purge audit + off-DB reconciliation ledger — each env purges its own userbase',
+  persona_personality_digests:
+    'Derived recent-days digests regenerated per environment from conversation_history by the sweep; syncing would carry one env epoch state into the other',
 };
 
 export interface TableSyncConfig {

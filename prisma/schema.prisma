@@ -315,6 +315,7 @@ model Persona {
   shapesPersonaMappings ShapesPersonaMapping[]
   personalityConfigs    UserPersonalityConfig[]
   historyConfigs        UserPersonaHistoryConfig[] @relation("personaHistoryConfigs")
+  digests               PersonaPersonalityDigest[] @relation("personaDigests")
 
   @@unique([ownerId, name])
   @@index([ownerId])
@@ -561,6 +562,7 @@ model Personality {
   owners                  PersonalityOwner[]
   userConfigs             UserPersonalityConfig[]
   personaHistoryConfigs   UserPersonaHistoryConfig[]
+  digests                 PersonaPersonalityDigest[]
   importJobs              ImportJob[]
 
   @@index([slug])
@@ -691,6 +693,80 @@ model UserPersonaHistoryConfig {
   @@index([personalityId])
   @@index([personaId])
   @@map("user_persona_history_configs")
+}
+
+/// The recent-days digest: one third-person note per (persona, personality)
+/// pair covering the last days across every channel the two have talked in,
+/// regenerated from source conversation_history rows by a scheduled sweep.
+/// Derived data — never synced between environments (EXCLUDED_TABLES), each
+/// environment regenerates its own. Design: docs/proposals/backlog/recent-days-digest.md
+/// (D7 storage, D8 job, D10 lifecycle).
+model PersonaPersonalityDigest {
+  id            String   @id @db.Uuid
+  personaId     String   @map("persona_id") @db.Uuid
+  personalityId String   @map("personality_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  /// Deferred-set: null until a generation lands, and nulled again by a purge
+  /// (the row then waits, status 'pending', for the next sweep). Only a row
+  /// with text AND status 'done' is ever rendered.
+  digestText          String?   @map("digest_text")
+  /// State machine: null = never requested; 'pending' = selected for the next
+  /// sweep (or purged and awaiting regeneration); 'done' = digest_text is
+  /// current for source_watermark + prompt version; 'failed' = the last
+  /// billed attempt produced nothing storable (retry allowed); 'dead' = the
+  /// billed-attempt cap was reached. A dead row is re-admitted by new source
+  /// rows or a prompt-version bump.
+  digestStatus        String?   @map("digest_status") @db.VarChar(10)
+  /// Billed generation attempts against the current source watermark; zero-spend
+  /// failures (timeouts, rate limits) do not count. Reset when the watermark moves.
+  digestAttempts      Int       @default(0) @map("digest_attempts")
+  /// Deferred-set: the model id that produced digest_text; null until a
+  /// generation lands.
+  digestModel         String?   @map("digest_model")
+  /// Deferred-set: the prompt version that produced digest_text; null until a
+  /// generation lands. A bump re-admits every row.
+  digestPromptVersion Int?      @map("digest_prompt_version")
+  /// Deferred-set: created_at of the NEWEST source row the digest covers; the
+  /// sweep selects pairs with rows newer than this. Null until a generation lands.
+  sourceWatermark     DateTime? @map("source_watermark")
+  /// Deferred-set: created_at of the OLDEST source row the digest covers — when
+  /// the input cap dropped older rows, the render says "since <window_start>".
+  /// Null until a generation lands.
+  windowStart         DateTime? @map("window_start")
+  /// How many source rows produced digest_text (0 until a generation lands).
+  sourceRowCount      Int       @default(0) @map("source_row_count")
+  /// Audit: the conversation_history row ids that produced digest_text
+  /// (empty until a generation lands).
+  sourceRowIds        String[]  @map("source_row_ids")
+  /// The pair's lastContextReset at generation time. Null means the digest was
+  /// generated while no clear epoch was active. Intended for the render gate
+  /// (design D10 d, not yet built): compare with the pair's CURRENT epoch by
+  /// null-aware equality so a digest that predates a clear is never rendered.
+  sourceEpoch         DateTime? @map("source_epoch")
+  /// Deferred-set: when digest_text was last written; null until done. The
+  /// sweep skips pairs regenerated within DIGEST_MIN_REGEN_INTERVAL of this.
+  generatedAt         DateTime? @map("generated_at")
+  /// Deferred-set: stamped by a manual refresh (/memory or the ops command);
+  /// null when no refresh is pending. Newer than generated_at bypasses the
+  /// regeneration interval on the next sweep.
+  requestedAt         DateTime? @map("requested_at")
+  /// Deferred-set: the error CLASS of the last failed or dead attempt
+  /// (the generator's validator classes per design D4 — first_person, quotation,
+  /// overflow, parse_failure — never message text; no writer exists yet);
+  /// null while no failure is recorded, cleared when a digest lands.
+  lastError           String?   @map("last_error") @db.VarChar(40)
+
+  persona     Persona     @relation("personaDigests", fields: [personaId], references: [id], onDelete: Cascade)
+  personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  @@unique([personaId, personalityId])
+  // Backs the channel-wide purge's `updateMany({ where: { personalityId } })`
+  // (history.ts) and the FK cascade from personalities; the compound unique
+  // leads with persona_id and cannot serve a personality-only lookup.
+  @@index([personalityId])
+  @@map("persona_personality_digests")
 }
 
 model ConversationHistory {
