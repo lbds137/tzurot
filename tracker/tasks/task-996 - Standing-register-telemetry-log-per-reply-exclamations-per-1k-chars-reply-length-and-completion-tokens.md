@@ -3,9 +3,10 @@ id: TASK-996
 title: >-
   Standing register telemetry: log per-reply exclamations per 1k chars, reply
   length, and completion tokens
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-16 20:46'
+updated_date: '2026-09-17 00:48'
 labels:
   - 'area:ai-worker'
   - 'size:S'
