@@ -300,6 +300,34 @@ describe('invokeModelAndClean', () => {
     expect(generatedResponseFields()).not.toHaveProperty('shippedHistoryCount');
   });
 
+  it('sources exclamationsPer1kChars from the CLEANED text, not the raw response', async () => {
+    mockInvokeWithRetry.mockResolvedValue(
+      new AIMessage({
+        content: 'raw!!! model output!!!',
+        usage_metadata: { input_tokens: 100, output_tokens: 57, total_tokens: 157 },
+      })
+    );
+    mockProcessResponse.mockReturnValue({
+      cleanedContent: 'Oh, that is lovely! Tell me more.',
+      thinkingContent: null,
+      wasDeduplicated: false,
+      onlyThinkingProduced: false,
+    });
+
+    const result = await invokeModelAndClean(deps, baseOpts);
+
+    // "Oh, that is lovely! Tell me more." is 33 chars with 1 `!` —
+    // 1 * 1000 / 33 = 30.303030... -> rounds to 30.3. The raw text ("raw!!!
+    // model output!!!") carries 6 `!` characters, so sourcing the metric from
+    // it instead would produce a different value entirely.
+    expect(generatedResponseFields().exclamationsPer1kChars).toBe(30.3);
+    expect(generatedResponseFields().completionTokens).toBe(57);
+    // The log field and the returned `tokensOut` read the SAME binding, so
+    // both consumers are pinned here: a change to that one source must not
+    // silently reach only one of them.
+    expect(result.tokensOut).toBe(57);
+  });
+
   describe('content cleanup debug log', () => {
     function cleanupDebugFields(): Record<string, unknown> {
       const call = mockLoggerDebug.mock.calls.find(
