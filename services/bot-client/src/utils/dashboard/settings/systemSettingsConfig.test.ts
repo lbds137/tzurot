@@ -30,6 +30,10 @@ describe('SYSTEM_SETTINGS_DEFINITIONS (registry derivation)', () => {
     // A list control (comma-separated slugs) is its own SettingType, not TEXT
     // — TEXT's empty-input rejection would make the list unclearable.
     expect(byId.get('archiveSplitRenderPersonalities')?.type).toBe(SettingType.LIST);
+    // The shared list help text must not state one entry's empty-state meaning: the two list settings disagree on it.
+    expect(byId.get('recentDaysDigestPersonalities')?.helpText).not.toMatch(
+      /verbatim|no character has a digest/i
+    );
   });
 
   it('integer definitions ALWAYS carry an explicit max (the modal parser defaults an absent max to 100)', () => {
@@ -91,6 +95,7 @@ describe('SYSTEM_SETTINGS_PAGES', () => {
     expect(SYSTEM_SETTINGS_PAGES.map(p => p.label)).toEqual([
       'System · Extraction',
       'System · Memory Archive',
+      'System · Recent Days',
       'System · Free Tier — Fair Share',
       'System · Free Tier — z.ai',
       'System · Fallback Models',

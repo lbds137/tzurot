@@ -98,6 +98,10 @@ const mockPrisma = {
   conversationHistory: {
     count: vi.fn(),
   },
+  personaPersonalityDigest: {
+    deleteMany: vi.fn(),
+    updateMany: vi.fn(),
+  },
   // Transaction mock - executes callback with mockPrisma as transaction client
   $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
@@ -196,6 +200,8 @@ describe('/user/history routes', () => {
     mockPrisma.userPersonaHistoryConfig.update.mockResolvedValue({});
     mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.conversationHistory.count.mockResolvedValue(0);
+    mockPrisma.personaPersonalityDigest.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.personaPersonalityDigest.updateMany.mockResolvedValue({ count: 0 });
 
     mockGetHistoryStats.mockResolvedValue({
       totalMessages: 10,
@@ -396,6 +402,20 @@ describe('/user/history routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('deletes the pair digest in the same transaction (D10a)', async () => {
+      const handler = buildHandler(handleClearHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personaPersonalityDigest.deleteMany).toHaveBeenCalledWith({
+        where: { personaId: TEST_PERSONA_ID, personalityId: TEST_PERSONALITY_ID },
+      });
     });
   });
 
@@ -1111,6 +1131,77 @@ describe('/user/history routes', () => {
           message: 'Permanently deleted 0 messages from conversation history.',
         })
       );
+    });
+
+    it('marks the persona-scoped pair digest pending (D10b)', async () => {
+      const handler = buildHandler(handleHardDeleteHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        channelId: TEST_CHANNEL_ID,
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledWith({
+        where: { personaId: TEST_PERSONA_ID, personalityId: TEST_PERSONALITY_ID },
+        data: {
+          digestText: null,
+          digestStatus: 'pending',
+          requestedAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('marks every pair of the personality pending for scope: everyone (D10b)', async () => {
+      const handler = buildHandler(handleHardDeleteHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        channelId: TEST_CHANNEL_ID,
+        scope: 'everyone',
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledWith({
+        where: { personalityId: TEST_PERSONALITY_ID },
+        data: {
+          digestText: null,
+          digestStatus: 'pending',
+          requestedAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('invalidates the digest before the delete, so a mid-sweep throw still marks it pending (D10b)', async () => {
+      mockClearHistory.mockRejectedValueOnce(new Error('batch 2 failed'));
+
+      const handler = buildHandler(handleHardDeleteHistory, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        channelId: TEST_CHANNEL_ID,
+      });
+
+      // `asyncHandler` is stubbed to the identity function in this file, so the
+      // throw surfaces here; mounted for real it is caught and sent as a 500.
+      await expect(handler(req, res)).rejects.toThrow('batch 2 failed');
+
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledWith({
+        where: { personaId: TEST_PERSONA_ID, personalityId: TEST_PERSONALITY_ID },
+        data: {
+          digestText: null,
+          digestStatus: 'pending',
+          requestedAt: expect.any(Date),
+        },
+      });
     });
   });
 });

@@ -22,7 +22,8 @@ export type SystemSettingGroup =
   | 'models'
   | 'limits'
   | 'operations'
-  | 'memory-archive';
+  | 'memory-archive'
+  | 'recent-days';
 
 /**
  * `seedSource` for settings with no env-var predecessor — born as system
@@ -108,4 +109,6 @@ export type OperationsRegistryKey =
   | 'nightlySyncEnabled'
   | 'nightlySyncHourUtc'
   | 'realMessagesEnabled'
-  | 'headerSpoofNeutralizeEnabled';
+  | 'headerSpoofNeutralizeEnabled'
+  | 'recentDaysDigestEnabled'
+  | 'recentDaysDigestPersonalities';

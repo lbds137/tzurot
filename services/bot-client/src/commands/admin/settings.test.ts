@@ -234,8 +234,10 @@ describe('Admin Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      // D14 page 1 = Memory (7 settings); the other 12 cascade + 19 system
-      // settings live on later pages.
+      // D14 page 1 = Memory (7 settings); every remaining cascade and system
+      // setting lives on a later page. The total page count is derived from
+      // the cascade pages plus SYSTEM_GROUP_ORDER, so adding a system group
+      // shifts it — assert the count, not a hand-maintained settings tally.
       expect(embedJson.fields).toHaveLength(7);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
@@ -248,7 +250,7 @@ describe('Admin Settings Dashboard', () => {
           expect.stringContaining('Memory Limit'),
         ])
       );
-      expect(embedJson.footer.text).toContain('Page 1/10 · Memory');
+      expect(embedJson.footer.text).toContain('Page 1/11 · Memory');
     });
 
     it('should include select menu and pagination row (no Close on paged dashboards)', async () => {
@@ -261,7 +263,7 @@ describe('Admin Settings Dashboard', () => {
       expect(editReplyCall.components).toHaveLength(2);
       const secondRow = editReplyCall.components[1].toJSON();
       const labels = secondRow.components.map((c: { label?: string }) => c.label);
-      expect(labels).toEqual(['Prev', 'Page 1/10 · Memory', 'Next']);
+      expect(labels).toEqual(['Prev', 'Page 1/11 · Memory', 'Next']);
       expect(labels).not.toContain('Close');
     });
 

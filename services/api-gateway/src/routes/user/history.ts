@@ -101,6 +101,12 @@ function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
         },
       });
 
+      // D10(a): the pair's digest dies with the epoch, in the SAME transaction —
+      // a cleared, quiet pair would otherwise render its pre-clear digest forever.
+      // The undo path needs nothing: a deleted digest regenerates from the
+      // surviving source rows on the next sweep.
+      await tx.personaPersonalityDigest.deleteMany({ where: { personaId, personalityId } });
+
       return { previousEpoch: prevEpoch };
     });
 
@@ -362,6 +368,19 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
         'Channel-wide history purge requested'
       );
     }
+
+    // D10(b): the purged rows may have produced the pair's digest, so null the
+    // text and re-queue it rather than deleting the row — nothing renders until
+    // the next sweep regenerates from what survived. This runs BEFORE the
+    // delete on purpose: `clearHistory` commits per batch, not atomically end
+    // to end, so a mid-sweep throw must never leave a `done` digest built from
+    // rows that are about to be purged. A channel-wide purge invalidates every
+    // pair of the personality: over-invalidation regenerates from surviving
+    // rows, under-invalidation would render a purged turn.
+    await prisma.personaPersonalityDigest.updateMany({
+      where: scope === 'everyone' ? { personalityId } : { personaId, personalityId },
+      data: { digestText: null, digestStatus: 'pending', requestedAt: new Date() },
+    });
 
     // A channel-wide purge omits the persona filter entirely —
     // `clearHistory` adds `personaId` to the where-clause only when one is
