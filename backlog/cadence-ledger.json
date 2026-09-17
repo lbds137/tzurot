@@ -11,7 +11,7 @@
       "name": "memory-prune",
       "what": "Auto-memory entries promoted into rules/skills/docs or deleted so the machine-local store stays small and non-duplicative",
       "cadenceDays": 14,
-      "lastRun": "2026-09-01",
+      "lastRun": "2026-09-16",
       "trigger": "/tzurot-doc-audit § 0"
     },
     {
