@@ -92,6 +92,17 @@ The owner's concern is not the voice; the voice is the symptom. The concern is t
 
 ## 6. Phasing
 
+**Slice 0 gate — the three-arm probe, READ 2026-09-17 on dev** (owner-run, Emily, one fresh thread per arm, five turns each; metrics from the `Generated response` line, TASK-996; exports under `docs/local/handoffs/debug-2026-09-17-arm*.json`). Dev's archive render switch was EMPTY for arms A–C (prod lists Emily), so a fourth arm re-ran B after listing her:
+
+| Arm | Feed | Memory render | Chars (mean) | `!` per 1k (pooled) | Turns with any `!` |
+| --- | --- | --- | --- | --- | --- |
+| A | both @20 | verbatim | 939 | 0 | 0 of 5 |
+| B | user-only @20 | verbatim | 409 | 1.5 | 3 of 5 |
+| C | off | verbatim | 747 | 0 | 0 of 5 |
+| B2 | user-only @20 | split (`mode="split"`, 15–20 notes, 0 verbatim fallbacks) | 908 | 1.8 | 5 of 5 |
+
+Reading: the archive render switch is the register lever (C, feed off, stayed at zero while memory rendered her verbatim replies; B2 is the only arm where every reply carries the card's punctuation, and the owner heard the difference); the feed's `user-only` mode is the mass lever (B halved length). None of the retrieved memories in any arm came from the day's other arms (checked). The 2026-09-13 OFF reading (241 chars, 4.1/1k, one turn) was not reproduced and is not explained. B2 is prod's eventual state once slice 2 flips the feed, so slice 1 proceeds as designed with B2 as the continuity baseline to beat; Emily stays listed on dev's render switch so later dev probes match prod.
+
 | Slice | Contents | Gate to next |
 | --- | --- | --- |
 | **0** — the feed knobs (small, ships first, any train) | `crossChannelRenderMode` + `crossChannelMaxMessages` cascade fields (defaults = today), the serializer role filter, TASK-994's ordering fix + test, dashboard rows. | The three-arm probe (open call 5) with TASK-996's metrics logged. |
