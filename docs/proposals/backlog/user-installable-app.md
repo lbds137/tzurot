@@ -71,7 +71,7 @@ Grouped by the wave they belong to; each names the mechanism it rests on and its
 
 **Wave 0 — prerequisites, not features**
 
-- **Spend gating.** User install multiplies the surface from "channels Tzurot is in" to "every server every installing user is in". Gate user-install chat on BYOK (`/settings apikey`, already shipped) or a small per-user allowance; make every quota key on user, never channel. Without this, user install is an uncapped spend multiplier.
+- **Spend policy — RULED 2026-09-17: the ordinary policy, nothing surface-specific.** User-install chat spends under exactly the rules every other surface does (the free tier, BYOK, the existing quotas). The one engineering consequence stands: every quota must key on the user, never the channel, because the channel set is now unbounded.
 - **A per-command flag in `defineCommand`** (`userInstallable: true`, the esmBot pattern) that drives both fields at registration, rather than a hand-maintained list. Default off; opt commands in one at a time.
 - **The forced-ephemeral probe** (§2, unverified row) and the `interaction.channel` null check, both by hand on dev, before the DM-summon wave is designed.
 
@@ -112,7 +112,15 @@ Checked through Discord's public application-directory endpoint (`integration_ty
 5. Wave 1 commands flagged on; Wave 2 behind the consent card and the spend gate; Wave 3 behind an owner ruling on third-party content.
 6. Privacy policy: one sentence on what a user-installed Tzurot can and cannot see, and the Wave 3 storage rule once decided.
 
-**Open decisions for the owner**: the spend policy (BYOK-only vs allowance); whether a summoned character may store anything from a DM beyond the invoker's own text and the reply; whether "Remember this" on other people's messages is allowed at all; whether per-context persona switching is wanted. None of these blocks Wave 0 or Wave 1.
+**Owner rulings (2026-09-17)**, replacing the open-decision list this section carried:
+
+1. **Spend**: the ordinary policy applies everywhere; no user-install-specific gate.
+2. **Capture**: store as much as we can and are allowed to, within reason and within hard policy. The privacy policy is the boundary, not the surface; the consent card (Wave 2) and the author-id plus transitive-deletion rules (Wave 3) are how "allowed to" is met, not reasons to store less.
+3. **Consistency**: whatever the capture and consent rules are, they are the same anywhere the bot is used. Nothing is unique to the DM context, and a rule adopted for user-install contexts is adopted for guild and bot-DM contexts too.
+4. **Parity**: as much feature parity in DMs as outside them as the platform allows. The "not possible" list in §5 is the platform's ceiling, not a product choice; everything above it is in scope.
+5. **Per-context persona switching**: not ruled; stays a Wave 1 option for later.
+
+A sixth thread opened the same day: whether bot-DM replies should render as a rich embed (character name and avatar) instead of the bold-name prefix, which would also be the one renderer this surface needs. Tracked separately (TASK-1003); if adopted it becomes Wave 0's renderer rather than Wave 2's.
 
 ## 8. Related
 
