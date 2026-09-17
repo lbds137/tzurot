@@ -299,6 +299,10 @@ export interface GeneratedResponseLogInputs extends CacheObservabilityInputs {
   charCount: number;
   personalityName: string;
   modelName: string;
+  /** `!` characters per 1000 chars of the cleaned response text. See `registerMetrics.ts`. */
+  exclamationsPer1kChars: number;
+  /** Provider-reported completion (output) token count for this generation. */
+  completionTokens: number | undefined;
 }
 
 /**
@@ -309,10 +313,19 @@ export interface GeneratedResponseLogInputs extends CacheObservabilityInputs {
  * the prod cache-hit-rate measurement greps that pair.
  */
 export function logGeneratedResponse(logger: Logger, inputs: GeneratedResponseLogInputs): void {
-  const { charCount, personalityName, modelName, ...observability } = inputs;
+  const {
+    charCount,
+    personalityName,
+    modelName,
+    exclamationsPer1kChars,
+    completionTokens,
+    ...observability
+  } = inputs;
   logger.info(
     {
       charCount,
+      exclamationsPer1kChars,
+      completionTokens,
       personalityName,
       modelName,
       promptTokens: observability.inputTokens,

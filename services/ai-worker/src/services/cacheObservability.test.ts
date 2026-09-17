@@ -452,6 +452,8 @@ describe('buildCacheObservability', () => {
       charCount: 42,
       personalityName: 'Ada',
       modelName: 'test-model',
+      exclamationsPer1kChars: 12.34,
+      completionTokens: 57,
       ...args,
     });
 
@@ -462,6 +464,8 @@ describe('buildCacheObservability', () => {
       charCount: 42,
       personalityName: 'Ada',
       modelName: 'test-model',
+      exclamationsPer1kChars: 12.34,
+      completionTokens: 57,
       // The grepped pair keeps its historical names and values.
       promptTokens: 1200,
       cachedPromptTokens: 300,

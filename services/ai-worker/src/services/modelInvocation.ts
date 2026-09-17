@@ -25,6 +25,7 @@ import {
 import { checkModelReasoningSupport } from '../redis.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
 import { interveningShippedText, logGeneratedResponse } from './cacheObservability.js';
+import { exclamationsPer1kChars } from './registerMetrics.js';
 import {
   parseResponseMetadata,
   recordPreInvocationDiagnostics,
@@ -145,6 +146,10 @@ export async function invokeModelAndClean(
   // Extract token usage, finish reason, and reasoning details
   const metadata = parseResponseMetadata(response);
   const { usageMetadata, additionalKwargs, responseMetadata } = metadata;
+  // Read once and reused below (the log line and the returned result) rather
+  // than repeating the optional chain, which would otherwise count as two
+  // separate branch points for the `complexity` lint rule.
+  const completionTokens = usageMetadata?.output_tokens;
 
   // Read off the raw response rather than the parsed metadata: parseResponseMetadata
   // returns a narrowly-typed ParsedResponseMetadata that does not declare model_name.
@@ -225,6 +230,8 @@ export async function invokeModelAndClean(
     charCount: cleanedContent.length,
     personalityName: personality.name,
     modelName,
+    exclamationsPer1kChars: exclamationsPer1kChars(cleanedContent),
+    completionTokens,
     systemPromptText: contentToText(systemPrompt.content),
     systemPromptSections,
     serializedHistory,
@@ -242,7 +249,7 @@ export async function invokeModelAndClean(
     modelName,
     routedModel,
     tokensIn: usageMetadata?.input_tokens,
-    tokensOut: usageMetadata?.output_tokens,
+    tokensOut: completionTokens,
     thinkingContent: thinkingContent ?? undefined,
     onlyThinkingProduced,
   };
