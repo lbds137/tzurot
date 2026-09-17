@@ -17,7 +17,7 @@ _Focus: let a user install Tzurot on their account so its commands work in their
 ### Phase 0 — prerequisites (NEXT when picked up)
 
 - [ ] Manual probe on dev with a throwaway app: are follow-ups still forced ephemeral in DMs (a documented 2024 preview limitation the GA note never retracted)? Is `interaction.channel` null in a group DM without `Partials.Channel`?
-- [ ] Owner rulings: spend policy for user-install chat (BYOK-only vs a small allowance); whether a summoned character may store anything from a friend DM beyond the invoker's own text and the reply; whether "Remember this" on other people's messages is allowed at all; per-context persona switching wanted or not.
+- [x] Owner rulings (2026-09-17, recorded in the proposal § 7): spend = the ordinary policy everywhere; capture = as much as allowed within hard policy; consistency = the same rules anywhere the bot is used, nothing DM-unique; parity = as much DM/non-DM feature parity as the platform allows. Per-context persona switching stays open. The embed-in-bot-DMs question is TASK-1003.
 - [ ] `defineCommand` gains `userInstallable` (default off) driving `setIntegrationTypes` + `setContexts` at registration; Developer Portal user-install context enabled; re-register.
 
 ### Phase 1 — portable data commands (ephemeral everywhere)
