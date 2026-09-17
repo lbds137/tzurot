@@ -72,6 +72,11 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
   'getGuildMemberInfos',
   'deleteGuildMemberInfo',
   'isEmptyGuildInfo',
+  // services/recentDaysDigestSelection — runs the digest sweep's candidate
+  // query through a Prisma client. Its two callers are the ai-worker sweep and
+  // the tooling ops command; bot-client renders a digest from the gateway, so
+  // it never selects candidates.
+  'selectDigestCandidatePairs',
 ] as const;
 
 // The specifier arm spans ANY @tzurot/common-types subpath: the package's

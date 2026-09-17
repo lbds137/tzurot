@@ -35,6 +35,7 @@ import {
   generateUserFeedbackUuid,
   generatePersonalityAliasUuid,
   generateUserPersonalityAliasUuid,
+  generatePersonaPersonalityDigestUuid,
 } from './deterministicUuid.js';
 
 describe('Deterministic UUID Generation', () => {
@@ -123,6 +124,20 @@ describe('Deterministic UUID Generation', () => {
     it('should generate different UUIDs for different combinations', () => {
       const uuid1 = generateUserPersonalityConfigUuid('user-1', 'personality-1');
       const uuid2 = generateUserPersonalityConfigUuid('user-1', 'personality-2');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generatePersonaPersonalityDigestUuid', () => {
+    it('should generate consistent UUIDs for the same pair', () => {
+      const uuid1 = generatePersonaPersonalityDigestUuid('persona-1', 'personality-1');
+      const uuid2 = generatePersonaPersonalityDigestUuid('persona-1', 'personality-1');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different pairs', () => {
+      const uuid1 = generatePersonaPersonalityDigestUuid('persona-1', 'personality-1');
+      const uuid2 = generatePersonaPersonalityDigestUuid('persona-1', 'personality-2');
       expect(uuid1).not.toBe(uuid2);
     });
   });

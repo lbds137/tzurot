@@ -22,7 +22,7 @@
  * boot and can't be unit-tested against fixtures.
  *
  * So the scan reads the registrar sources directly. Verified equivalent: the
- * scan and `pnpm ops --help` produce the identical 103-command set. The
+ * scan and `pnpm ops --help` produce the identical 105-command set. The
  * fail-open risk of a regex (a registration written in a shape the pattern
  * misses would silently need no doc row) is closed by
  * `findUnparsedRegistrations` — every `.command(` occurrence that the name

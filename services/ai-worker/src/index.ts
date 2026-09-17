@@ -18,6 +18,12 @@ import { NullVectorReembedder } from './jobs/NullVectorReembedder.js';
 import { setupBackgroundQueues, disposeBackgroundQueues } from './jobs/backgroundQueues.js';
 import type { ArchiveSummaryTrigger } from './services/archiveSummary/ArchiveSummaryTrigger.js';
 import { sweepRosterBlurbs } from './jobs/rosterBlurbSweep.js';
+import { sweepRecentDaysDigests } from './services/recentDaysDigest/recentDaysDigestSweep.js';
+import {
+  SCHEDULED_JOBS,
+  REPEATABLE_JOB_SCHEDULE,
+  registerRepeatableJobs,
+} from './jobs/scheduledJobSchedule.js';
 import { logZaiFreeTierBootCoherence } from './services/ZaiFreeTierAdmission.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupCommandEvents } from './jobs/CleanupCommandEvents.js';
@@ -48,25 +54,6 @@ import {
 } from '@tzurot/common-types/utils/redis';
 import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
 import { setupCacheInvalidation } from './cacheInvalidation.js';
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/** Scheduled job names */
-const SCHEDULED_JOBS = {
-  PROCESS_PENDING_MEMORIES: 'process-pending-memories',
-  CLEANUP_DIAGNOSTIC_LOGS: 'cleanup-diagnostic-logs',
-  CLEANUP_STUCK_IMPORTS: 'cleanup-stuck-imports',
-  CLEANUP_STUCK_EXPORTS: 'cleanup-stuck-exports',
-  CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
-  CLEANUP_CONVERSATION_RETENTION: 'cleanup-conversation-retention',
-  CLEANUP_NOTIFICATIONS_RETENTION: 'cleanup-notifications-retention',
-  CLEANUP_COMMAND_EVENTS: 'cleanup-command-events',
-  REEMBED_NULL_VECTORS: 'reembed-null-vectors',
-  RELEASE_RECONCILE: 'release-reconcile',
-  ROSTER_BLURB_SWEEP: 'roster-blurb-sweep',
-} as const;
 
 // ============================================================================
 // TYPES
@@ -237,43 +224,6 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
 }
 
 /**
- * Repeatable-job schedule. Minute offsets are deliberate: they spread the
- * hourly/15-min jobs across the hour so runs don't stack on shared resources.
- * Conversation retention runs daily at 09:10 UTC — off-peak for the
- * primarily-US user base, offset off the hourly jobs' minute marks.
- */
-const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
-  { name: SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES, pattern: '*/10 * * * *' },
-  { name: SCHEDULED_JOBS.REEMBED_NULL_VECTORS, pattern: '13 * * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS, pattern: '0 * * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS, pattern: '*/15 * * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS, pattern: '7,22,37,52 * * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS, pattern: '30 * * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION, pattern: '25 9 * * *' },
-  { name: SCHEDULED_JOBS.CLEANUP_COMMAND_EVENTS, pattern: '35 9 * * *' },
-  { name: SCHEDULED_JOBS.RELEASE_RECONCILE, pattern: '41 * * * *' },
-  // Every 10 minutes, on marks no other job in this list uses. The offset is
-  // load-bearing, not cosmetic: a tick can run up to MAX_GENERATIONS_PER_SWEEP
-  // sequential model calls at a 60s timeout each, and this worker sets no
-  // concurrency (BullMQ default 1) — so any job sharing a mark queues behind a
-  // generation storm rather than running.
-  //
-  // The marks above occupy {0,7,10,13,15,20,22,25,30,37,40,41,45,50,52}. An
-  // earlier revision used :3,13,… which dodged process-pending-memories and
-  // landed squarely on reembed-null-vectors' :13 — so derive the free set from
-  // the whole list rather than from the one job you are avoiding. The evenly
-  // spaced sets that miss everything are :4, :6, :8 and :9.
-  { name: SCHEDULED_JOBS.ROSTER_BLURB_SWEEP, pattern: '4,14,24,34,44,54 * * * *' },
-];
-
-async function registerRepeatableJobs(scheduledQueue: Queue): Promise<void> {
-  for (const { name, pattern } of REPEATABLE_JOB_SCHEDULE) {
-    await scheduledQueue.add(name, {}, { repeat: { pattern }, jobId: name });
-  }
-}
-
-/**
  * Set up scheduled jobs queue and worker for periodic maintenance tasks
  */
 async function setupScheduledJobs(
@@ -349,6 +299,12 @@ async function setupScheduledJobs(
         // returned stats are the tick's verification trail (and its spend).
         logger.debug('Running roster blurb sweep');
         return sweepRosterBlurbs(prisma);
+      }
+      if (job.name === SCHEDULED_JOBS.RECENT_DAYS_DIGEST_SWEEP) {
+        // No-ops unless the recentDaysDigestEnabled system setting is on;
+        // the returned stats are the tick's verification trail (and its spend).
+        logger.debug('Running recent-days digest sweep');
+        return sweepRecentDaysDigests(prisma);
       }
       return null;
     },

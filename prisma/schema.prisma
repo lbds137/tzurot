@@ -754,8 +754,9 @@ model PersonaPersonalityDigest {
   requestedAt         DateTime? @map("requested_at")
   /// Deferred-set: the error CLASS of the last failed or dead attempt
   /// (the generator's validator classes per design D4 — first_person, quotation,
-  /// overflow, parse_failure — never message text; no writer exists yet);
-  /// null while no failure is recorded, cleared when a digest lands.
+  /// overflow, parse_failure — never message text; written by the sweep's
+  /// billed-failure path); null while no failure is recorded, cleared when a
+  /// digest lands.
   lastError           String?   @map("last_error") @db.VarChar(40)
 
   persona     Persona     @relation("personaDigests", fields: [personaId], references: [id], onDelete: Cascade)

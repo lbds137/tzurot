@@ -118,6 +118,7 @@ import {
   handleHardDeleteHistory,
   handleUndoHistory,
 } from './history.js';
+import { RECENT_DAYS_DIGEST_STATUS } from '@tzurot/common-types/constants/recentDaysDigest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   asRouteHandler,
@@ -1133,7 +1134,7 @@ describe('/user/history routes', () => {
       );
     });
 
-    it('marks the persona-scoped pair digest pending (D10b)', async () => {
+    it('marks the persona-scoped pair digest pending both before and after the delete (D10b)', async () => {
       const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
@@ -1145,17 +1146,35 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledWith({
+      const expectedCall = {
         where: { personaId: TEST_PERSONA_ID, personalityId: TEST_PERSONALITY_ID },
         data: {
           digestText: null,
-          digestStatus: 'pending',
+          digestStatus: RECENT_DAYS_DIGEST_STATUS.PENDING,
           requestedAt: expect.any(Date),
         },
-      });
+      };
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenNthCalledWith(
+        1,
+        expectedCall
+      );
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenNthCalledWith(
+        2,
+        expectedCall
+      );
+
+      // the second stamp must land AFTER clearHistory resolves, closing the
+      // window where a sweep tick selects the pair between the pre-delete
+      // stamp and the last committed batch
+      const updateManyOrders =
+        mockPrisma.personaPersonalityDigest.updateMany.mock.invocationCallOrder;
+      const clearHistoryOrder = mockClearHistory.mock.invocationCallOrder[0];
+      expect(updateManyOrders[0]).toBeLessThan(clearHistoryOrder);
+      expect(updateManyOrders[1]).toBeGreaterThan(clearHistoryOrder);
     });
 
-    it('marks every pair of the personality pending for scope: everyone (D10b)', async () => {
+    it('marks every pair of the personality pending for scope: everyone, before and after the delete (D10b)', async () => {
       const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
@@ -1168,14 +1187,29 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledWith({
+      const expectedCall = {
         where: { personalityId: TEST_PERSONALITY_ID },
         data: {
           digestText: null,
-          digestStatus: 'pending',
+          digestStatus: RECENT_DAYS_DIGEST_STATUS.PENDING,
           requestedAt: expect.any(Date),
         },
-      });
+      };
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenNthCalledWith(
+        1,
+        expectedCall
+      );
+      expect(mockPrisma.personaPersonalityDigest.updateMany).toHaveBeenNthCalledWith(
+        2,
+        expectedCall
+      );
+
+      const updateManyOrders =
+        mockPrisma.personaPersonalityDigest.updateMany.mock.invocationCallOrder;
+      const clearHistoryOrder = mockClearHistory.mock.invocationCallOrder[0];
+      expect(updateManyOrders[0]).toBeLessThan(clearHistoryOrder);
+      expect(updateManyOrders[1]).toBeGreaterThan(clearHistoryOrder);
     });
 
     it('invalidates the digest before the delete, so a mid-sweep throw still marks it pending (D10b)', async () => {
@@ -1198,7 +1232,7 @@ describe('/user/history routes', () => {
         where: { personaId: TEST_PERSONA_ID, personalityId: TEST_PERSONALITY_ID },
         data: {
           digestText: null,
-          digestStatus: 'pending',
+          digestStatus: RECENT_DAYS_DIGEST_STATUS.PENDING,
           requestedAt: expect.any(Date),
         },
       });
