@@ -127,6 +127,15 @@ Commands for analyzing and managing pgvector memories:
 
 **Use case:** After migrations or data imports, check for and clean up duplicate memory embeddings.
 
+## Digest Commands
+
+Recent-days digest generation — the read-only candidate report and the manual refresh trigger:
+
+| Command                                                                   | Description                                                                                                                                                                                         |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops digest:candidates --env dev`                                    | Report every (persona, personality) pair currently due for a digest generation, the 12/day-vs-1,440 gate, and a rough per-generation token estimate — read-only                                     |
+| `pnpm ops digest:refresh --env dev --persona <uuid> --personality <slug>` | Force one pair back to `pending` with a fresh `requested_at`, bypassing the routine regeneration interval; `--dry-run` previews without writing, `--force` skips the production confirmation prompt |
+
 ## Retention Commands
 
 Data-minimization tooling for the inactivity retention/purge epic:
