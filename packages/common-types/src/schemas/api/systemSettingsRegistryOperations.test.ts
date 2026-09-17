@@ -20,9 +20,9 @@ describe('SYSTEM_SETTINGS_REGISTRY_OPERATIONS', () => {
     }
   });
 
-  it('every entry belongs to the operations or memory-archive group', () => {
+  it('every entry belongs to the operations, memory-archive, or recent-days group', () => {
     for (const meta of Object.values(SYSTEM_SETTINGS_REGISTRY_OPERATIONS)) {
-      expect(['operations', 'memory-archive']).toContain(meta.group);
+      expect(['operations', 'memory-archive', 'recent-days']).toContain(meta.group);
     }
   });
 });

@@ -79,6 +79,10 @@ export const SystemSettingsSchema = z.object({
   nightlySyncEnabled: z.boolean(),
   /** UTC hour (0–23) the nightly sync fires in. */
   nightlySyncHourUtc: z.number().int().min(0).max(23),
+  /** Global kill switch for the recent-days digest sweep: when off, no digest is generated. */
+  recentDaysDigestEnabled: z.boolean(),
+  /** Personality slugs the recent-days digest is generated for — the same list gates rendering. Empty = no character has a digest. */
+  recentDaysDigestPersonalities: z.array(z.string().regex(/^[a-z0-9-]+$/)),
 });
 
 export type SystemSettings = z.infer<typeof SystemSettingsSchema>;
