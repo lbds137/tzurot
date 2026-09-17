@@ -67,3 +67,16 @@ pass before plan-mode** — the two-level navigation is complex enough UX that
 independent perspectives should pressure-test it (index-landing threshold,
 component-row budget, whether the jump control belongs in browse utils or
 dashboard machinery) before anything is built.
+
+## Owner reiteration (2026-09-17, while running the doc-97 probe on a phone)
+
+Editing overrides and settings is dense enough that finding one row is
+annoying, and the missing index (this doc's hub page) is the thing the owner
+reached for by name. Two members added from that session:
+
+- **Reset ALL to default on the hub page** — one control on the index that
+  clears every override the dashboard owns for that scope, with a confirm.
+  Pairs with the per-page reset (tracker task filed the same day, "Reset to
+  defaults button on every settings page").
+- **Density**: the hub page is also the answer to the row count — a group page
+  should hold one concern, not every setting of the scope.

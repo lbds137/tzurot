@@ -33,3 +33,16 @@ The preset cascade (`LlmConfigResolver.resolveConfig`) has user-tier commands (`
 **Start**: `packages/common-types/src/services/LlmConfigResolver.ts:141` (cascade logic); `services/bot-client/src/commands/preset/override/` (user-tier template); `services/bot-client/src/commands/character/dashboardButtons.ts` (add section); `services/ai-worker/src/jobs/ShapesImportHelpers.ts:41` (shapes pin path to preserve).
 
 **Related proposal**: [`docs/proposals/backlog/config-cascade-design.md`](../../docs/proposals/backlog/config-cascade-design.md) covers the broader "unified configuration cascade" vision. Phase 1 (model validation + context window enforcement) shipped 2026-02-16. Phases 2–5 (LlmConfig slimming, lightweight overlay system, voice/image user overrides, focus mode tier expansion) are the deferred work that overlaps with this theme.
+
+### Member — one naming scheme across the tiers (owner intake 2026-09-17)
+
+`/admin settings`, the user defaults dashboard, and `/character overrides`
+touch more or less the same settings at three tiers, and their names share
+nothing — a user cannot guess from one that the others exist. The owner's
+read: docs and `/help` exist, but few read them, so discoverability has to
+live in the command names and the dashboard chrome. This theme's spine (item
+2) is where the tiers get one vocabulary; this member is the naming half of it:
+each tier's command and title should say WHICH tier it is in the same words
+(e.g. defaults / character / channel / server), and each dashboard should
+name its neighbours (TASK-527 is the "whose conversations" half of the same
+gap). Cross-ref doc-25 (discoverability) and doc-72 (the hub page).
