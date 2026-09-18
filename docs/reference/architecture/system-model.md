@@ -51,7 +51,7 @@
    precision until retrieval earns trust) → fact extraction distills semantic facts
    every 6 turns per channel+character → a cron (`:06`) digests the last 7 days per
    persona×character in third person (the continuity feed, `<recent_days>`, gated by
-   an allowlist switch + the pair's clear epoch) → `/memory` + facts surfaces
+   an allowlist switch + the pair's clear epoch; stale rows erased daily) → `/memory` + facts surfaces
    browse/edit/lock/forget; incognito gates writes, fresh gates retrieval. What
    surfaced is invisible in-conversation by design — `/inspect` is the window.
 5. **Config resolution.** Per-field, lowest → highest: hardcoded baseline (always
