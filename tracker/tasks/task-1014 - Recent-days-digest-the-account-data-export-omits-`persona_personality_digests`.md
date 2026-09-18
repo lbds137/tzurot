@@ -3,9 +3,10 @@ id: TASK-1014
 title: >-
   Recent-days digest: the account data export omits
   `persona_personality_digests`
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 13:20'
+updated_date: '2026-09-18 17:03'
 labels:
   - 'area:ai-worker'
   - 'size:S'
