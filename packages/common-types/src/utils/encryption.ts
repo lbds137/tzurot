@@ -161,6 +161,25 @@ export function parseEncryptionKeyMaterial(value: string, label: string): Buffer
 }
 
 /**
+ * Whether the SERVICE's encryption configuration is usable right now —
+ * distinct from whether any particular stored credential decrypts.
+ *
+ * Re-runs the same key resolution `decryptApiKey`/`encryptApiKey` depend on,
+ * so this cannot drift from what they actually require: `false` means
+ * `API_KEY_ENCRYPTION_KEY` (or a present `API_KEY_ENCRYPTION_KEY_PREVIOUS`)
+ * is missing or malformed, never that a specific row's ciphertext is bad.
+ */
+export function isEncryptionConfigured(): boolean {
+  try {
+    getEncryptionKey();
+    getPreviousEncryptionKey();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validate that a string looks like a valid encrypted data structure.
  * Useful for validating database values before attempting decryption.
  *

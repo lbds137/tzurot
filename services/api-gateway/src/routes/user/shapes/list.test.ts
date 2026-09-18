@@ -50,7 +50,9 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { handleListShapes } from './list.js';
+import { handleListShapes, EXPIRED_CREDENTIAL_MESSAGE } from './list.js';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { UNDECRYPTABLE_CREDENTIAL_MESSAGE } from '@tzurot/common-types/types/shapes-import';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
@@ -211,6 +213,156 @@ describe('Shapes List Routes', () => {
       };
       expect(fields.bodyPreview).toBe(failingBody);
       expect(fields.bodyLength).toBe(failingBody.length);
+
+      vi.unstubAllGlobals();
+    });
+
+    it('returns 401 with the undecryptable-credential message when the stored cookie cannot be decrypted', async () => {
+      const realEncryption = await vi.importActual<
+        typeof import('@tzurot/common-types/utils/encryption')
+      >('@tzurot/common-types/utils/encryption');
+
+      const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
+      const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+
+      try {
+        const encrypted = realEncryption.encryptApiKey(
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef'
+        );
+
+        const corruptedTag = `${encrypted.tag[0] === '0' ? '1' : '0'}${encrypted.tag.slice(1)}`;
+        const corruptedCredential = { ...encrypted, tag: corruptedTag };
+
+        vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
+        mockPrisma.userCredential.findFirst.mockResolvedValue(corruptedCredential);
+
+        const mockFetch = vi.fn();
+        vi.stubGlobal('fetch', mockFetch);
+
+        const { res } = await callListHandler();
+
+        expect(res.status).toHaveBeenCalledWith(401);
+        const payload = vi.mocked(res.json).mock.calls[0][0] as { message: string };
+        expect(payload.message).toBe(UNDECRYPTABLE_CREDENTIAL_MESSAGE);
+        expect(payload.message).toContain('/shapes auth');
+        expect(mockFetch).not.toHaveBeenCalled();
+
+        // Pins that the caught failure is the GCM auth-tag mismatch (the
+        // fixture's actual failure mode), not a missing-encryption-key
+        // config error that would also produce a caught `unknown` here.
+        const loggedFields = mockLogger.warn.mock.calls[0][0] as { err: unknown };
+        expect((loggedFields.err as Error).message).toBe(
+          'Unsupported state or unable to authenticate data'
+        );
+
+        vi.unstubAllGlobals();
+      } finally {
+        if (previousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY = previousKey;
+        }
+        if (previousPreviousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
+        }
+      }
+    });
+
+    it('lets a decrypt failure propagate instead of answering re-authenticate when the service itself is misconfigured', async () => {
+      const realEncryption = await vi.importActual<
+        typeof import('@tzurot/common-types/utils/encryption')
+      >('@tzurot/common-types/utils/encryption');
+
+      const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
+      const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      delete process.env.API_KEY_ENCRYPTION_KEY;
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+
+      try {
+        vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
+        mockPrisma.userCredential.findFirst.mockResolvedValue({
+          iv: 'iv',
+          content: 'content',
+          tag: 'tag',
+        });
+
+        const mockFetch = vi.fn();
+        vi.stubGlobal('fetch', mockFetch);
+
+        const { req, res } = createMockReqRes();
+        const handler = handleListShapes({
+          ...stubRouteResolvers(),
+          prisma: mockPrisma as unknown as PrismaClient,
+        });
+
+        await expect(handler(req, res, vi.fn())).rejects.toThrow(
+          'API_KEY_ENCRYPTION_KEY environment variable is required'
+        );
+        expect(res.status).not.toHaveBeenCalledWith(401);
+        expect(mockFetch).not.toHaveBeenCalled();
+
+        vi.unstubAllGlobals();
+      } finally {
+        if (previousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY = previousKey;
+        }
+        if (previousPreviousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
+        }
+      }
+    });
+
+    it('returns the expired-cookie message, distinct from the undecryptable one, when shapes.inc rejects the cookie', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({
+        iv: 'iv',
+        content: 'content',
+        tag: 'tag',
+      });
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        redirected: false,
+        status: 401,
+        url: 'https://shapes.inc/api/shapes?category=self',
+        text: vi.fn().mockResolvedValue('unauthorized'),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const { res } = await callListHandler();
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      const payload = vi.mocked(res.json).mock.calls[0][0] as { message: string };
+      expect(payload.message).toBe(EXPIRED_CREDENTIAL_MESSAGE);
+      expect(EXPIRED_CREDENTIAL_MESSAGE).not.toBe(UNDECRYPTABLE_CREDENTIAL_MESSAGE);
+
+      vi.unstubAllGlobals();
+    });
+
+    it('lets a non-decrypt failure inside the handler propagate instead of answering re-authenticate', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({
+        iv: 'iv',
+        content: 'content',
+        tag: 'tag',
+      });
+
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network boom')));
+
+      const { req, res } = createMockReqRes();
+      const handler = handleListShapes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+
+      await expect(handler(req, res, vi.fn())).rejects.toThrow('network boom');
+      expect(res.status).not.toHaveBeenCalledWith(401);
 
       vi.unstubAllGlobals();
     });

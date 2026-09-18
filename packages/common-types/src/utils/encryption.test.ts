@@ -6,6 +6,7 @@ import {
   decryptWithKey,
   parseEncryptionKeyMaterial,
   isValidEncryptedData,
+  isEncryptionConfigured,
   type EncryptedData,
 } from './encryption.js';
 
@@ -259,6 +260,44 @@ describe('Encryption Utilities', () => {
       vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'b'.repeat(64));
 
       expect(() => decryptApiKey(encrypted)).toThrow();
+    });
+  });
+
+  describe('isEncryptionConfigured', () => {
+    it('returns true when the master key is valid and no previous key is set', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', '');
+
+      expect(isEncryptionConfigured()).toBe(true);
+    });
+
+    it('returns true when both the master and a rotation-window previous key are valid', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', 'b'.repeat(64));
+
+      expect(isEncryptionConfigured()).toBe(true);
+    });
+
+    it('returns false when API_KEY_ENCRYPTION_KEY is missing', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', '');
+
+      expect(isEncryptionConfigured()).toBe(false);
+    });
+
+    it('returns false when API_KEY_ENCRYPTION_KEY is the wrong length', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'a'.repeat(32));
+
+      expect(isEncryptionConfigured()).toBe(false);
+    });
+
+    it('returns false when API_KEY_ENCRYPTION_KEY is non-hex', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'g'.repeat(64));
+
+      expect(isEncryptionConfigured()).toBe(false);
+    });
+
+    it('returns false when a present API_KEY_ENCRYPTION_KEY_PREVIOUS is malformed, even with a valid master key', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', 'not-hex-and-wrong-length');
+
+      expect(isEncryptionConfigured()).toBe(false);
     });
   });
 
