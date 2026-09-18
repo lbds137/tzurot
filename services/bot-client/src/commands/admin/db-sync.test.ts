@@ -334,6 +334,43 @@ describe('handleDbSync', () => {
     );
   });
 
+  it('preserves report newlines in the inline-fallback chunked follow-ups (lineAware)', async () => {
+    // A stats map large enough that buildSyncReportText's per-table code-fence
+    // section (a blank-line-free block) pushes the whole report over the
+    // 2000-char cap — the shape splitMessage's paragraph chunking flattens
+    // (word-splits and rejoins with spaces) once a run like this exceeds it.
+    const stats: Record<
+      string,
+      { devToProd: number; prodToDev: number; conflicts: number; deleted: number }
+    > = {};
+    for (let i = 0; i < 50; i++) {
+      stats[`table_${i.toString().padStart(3, '0')}`] = {
+        devToProd: i,
+        prodToDev: 0,
+        conflicts: 0,
+        deleted: 0,
+      };
+    }
+    stub.dbSync.mockResolvedValue(
+      ok({ success: true, timestamp: 'now', schemaVersion: '1.0.0', stats })
+    );
+
+    const context = createMockContext(false);
+    await handleDbSync(context);
+
+    const contents = vi
+      .mocked(context.followUp)
+      .mock.calls.map(call => (call[0] as { content: string }).content);
+    expect(contents.length).toBeGreaterThan(1);
+
+    // The 50-row per-table code-fence block alone carries 49 internal
+    // newlines with no blank line to give splitMessage's paragraph pass a
+    // boundary — flattening that single block into space-joined text would
+    // sink the total well below this floor.
+    const totalNewlines = contents.reduce((sum, c) => sum + (c.match(/\n/g)?.length ?? 0), 0);
+    expect(totalNewlines).toBeGreaterThan(30);
+  });
+
   it('still never reports sync failure when the recovery notice also fails', async () => {
     // Double Discord API failure: report chunk AND the partial-delivery
     // notice both throw. The outer catch must still not fire — the sync
@@ -412,6 +449,33 @@ describe('handleDbSyncDetailsButton', () => {
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('# Database Sync Report') })
     );
+  });
+
+  it('preserves report newlines across multiple chunked follow-ups (lineAware)', async () => {
+    // A bullet-list fixture with no blank lines between entries — the shape
+    // splitMessage's paragraph-aware chunking flattens (word-splits and
+    // rejoins with spaces) once a blank-line-free block exceeds the cap.
+    const lines: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      lines.push(
+        `- item ${i.toString().padStart(3, '0')}: some descriptive detail padding this bullet line out`
+      );
+    }
+    const report = lines.join('\n');
+    mockFetchReport.mockResolvedValue(report);
+    const interaction = createButtonInteraction([]);
+
+    await handleDbSyncDetailsButton(interaction as never);
+
+    const contents = interaction.followUp.mock.calls.map(
+      call => (call[0] as { content: string }).content
+    );
+    expect(contents.length).toBeGreaterThan(1);
+
+    const totalNewlines = contents.reduce((sum, c) => sum + (c.match(/\n/g)?.length ?? 0), 0);
+    // 39 internal newlines in the source; a preserved delivery keeps most of
+    // them, a flattened one (space-joined) keeps close to none.
+    expect(totalNewlines).toBeGreaterThan(20);
   });
 
   it('answers with an expiry notice when the stash is gone', async () => {

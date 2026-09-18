@@ -21,7 +21,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
-import { splitMessage } from '@tzurot/common-types/utils/discord';
+import { splitMessage, splitMessageByLines } from '@tzurot/common-types/utils/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from './commandContext/types.js';
 
@@ -39,6 +39,27 @@ export interface ChunkedReplyOptions {
   content: string;
   header: string;
   continuedHeader: string;
+  /** When true, chunking goes through `splitMessageByLines`, so every source
+   * newline survives into the delivered chunks; default (absent/false) keeps
+   * `splitMessage`.
+   *
+   * Opt-in rather than the default: `splitMessage` protects fenced code
+   * blocks (placeholder substitution plus fence rebalancing when a block is
+   * split) and `splitMessageByLines` does not, so callers that mainly render
+   * fenced content keep the default.
+   *
+   * Callers that opt in accept that trade knowingly: for line-oriented
+   * reports, `splitMessage` flattens EVERY newline in a blank-line-free run
+   * (its paragraph pass finds no boundary, so the sentence/word passes rejoin
+   * fragments with spaces), which destroys the whole report — while the only
+   * costs of this option are a fenced block straddling a chunk boundary
+   * (unbalanced across that pair) and an empty chunk under an empty header.
+   *
+   * Pinned by 'lineAware selects the line-preserving splitter, and newlines
+   * survive', 'the default (no lineAware) still goes through splitMessage',
+   * and 'short content with lineAware: true is delivered unsplit' in
+   * `chunkedReply.test.ts`. */
+  lineAware?: boolean;
   /** Component rows attached to the FIRST chunk only (follow-ups are plain). */
   components?: ActionRowBuilder<MessageActionRowComponentBuilder>[];
   /** Where the FIRST chunk goes. 'editReply' (default) edits the deferred
@@ -77,6 +98,7 @@ export async function sendChunkedReply(options: ChunkedReplyOptions): Promise<vo
     content,
     header,
     continuedHeader,
+    lineAware = false,
     components,
     via = 'editReply',
     maxChunks,
@@ -107,8 +129,11 @@ export async function sendChunkedReply(options: ChunkedReplyOptions): Promise<vo
     return;
   }
 
-  // Use smart chunking that preserves paragraphs, sentences, and code blocks
-  const contentChunks = splitMessage(content, maxContentLength);
+  // Use smart chunking: `splitMessage` preserves paragraphs, sentences, and
+  // code blocks; `splitMessageByLines` preserves every source newline
+  // instead, trading fence rebalancing for that. See `lineAware` above.
+  const split = lineAware ? splitMessageByLines : splitMessage;
+  const contentChunks = split(content, maxContentLength);
 
   // Add headers to each chunk
   const allMessages = contentChunks.map((chunk, index) => {
