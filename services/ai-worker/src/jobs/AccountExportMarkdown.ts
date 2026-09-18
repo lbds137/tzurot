@@ -65,6 +65,23 @@ export function formatProfileMd(profile: ExportProfile): string {
   return lines.join('\n');
 }
 
+/** The `## Recent-days digests` block: one subsection per character, each with
+ *  its window/generation stamps and the digest text. */
+function personaDigestLines(digests: ExportPersona['digests']): string[] {
+  const lines: string[] = ['', '## Recent-days digests'];
+  for (const digest of digests) {
+    lines.push('', `### ${digest.personalityName} (${digest.personalitySlug})`, '');
+    lines.push(
+      ...fieldLines([
+        ['Window start', digest.windowStart === null ? null : formatTimestamp(digest.windowStart)],
+        ['Generated', digest.generatedAt === null ? null : formatTimestamp(digest.generatedAt)],
+      ])
+    );
+    lines.push('', digest.digestText);
+  }
+  return lines;
+}
+
 export function formatPersonaMd(persona: ExportPersona): string {
   const lines = [
     `# ${persona.name}`,
@@ -80,6 +97,9 @@ export function formatPersonaMd(persona: ExportPersona): string {
   }
   if (persona.content !== '') {
     lines.push('', '## About', '', persona.content);
+  }
+  if (persona.digests.length > 0) {
+    lines.push(...personaDigestLines(persona.digests));
   }
   lines.push('');
   return lines.join('\n');

@@ -30,4 +30,52 @@ describe('REPEATABLE_JOB_SCHEDULE', () => {
     const overlap = [...digestMinutes].filter(m => blurbMinutes.has(m));
     expect(overlap).toEqual([]);
   });
+
+  /** Expand a cron minute field (`*`, `N`, `a,b,c`, or a step field) to the
+   *  set of minutes it fires on. A bare `*` has no finite expansion — the
+   *  caller asserts no row in this schedule uses one instead of expanding it. */
+  function expandMinuteField(field: string): number[] {
+    if (field === '*') {
+      throw new Error('bare * minute field has no finite expansion');
+    }
+    if (field.startsWith('*/')) {
+      const step = Number(field.slice(2));
+      const minutes: number[] = [];
+      for (let m = 0; m < 60; m += step) {
+        minutes.push(m);
+      }
+      return minutes;
+    }
+    return field.split(',').map(Number);
+  }
+
+  it('the retention row is daily, and its minute mark is unique across the schedule', () => {
+    const retentionRow = REPEATABLE_JOB_SCHEDULE.find(
+      job => job.name === SCHEDULED_JOBS.RECENT_DAYS_DIGEST_RETENTION
+    );
+    expect(retentionRow).toBeDefined();
+
+    const [minuteField, hourField, domField, monthField, dowField] =
+      retentionRow!.pattern.split(' ');
+    // Daily: hour is a fixed value, day-of-month/month/day-of-week are `*`.
+    expect(hourField).not.toBe('*');
+    expect(domField).toBe('*');
+    expect(monthField).toBe('*');
+    expect(dowField).toBe('*');
+
+    for (const { name, pattern } of REPEATABLE_JOB_SCHEDULE) {
+      const otherMinuteField = pattern.split(' ')[0];
+      expect(otherMinuteField, `minute field for ${name}`).not.toBe('*');
+    }
+
+    const retentionMinutes = new Set(expandMinuteField(minuteField));
+    for (const { name, pattern } of REPEATABLE_JOB_SCHEDULE) {
+      if (name === SCHEDULED_JOBS.RECENT_DAYS_DIGEST_RETENTION) {
+        continue;
+      }
+      const otherMinutes = expandMinuteField(pattern.split(' ')[0]);
+      const overlap = otherMinutes.filter(m => retentionMinutes.has(m));
+      expect(overlap, `overlap between retention and ${name}`).toEqual([]);
+    }
+  });
 });

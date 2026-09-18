@@ -20,6 +20,7 @@ import { buildAccountExportFiles } from './AccountExportFiles.js';
 
 const USER_A = 'ac0e0000-0000-4000-8000-0000000000a1';
 const PERSONA_A = 'ac0e0000-0000-4000-8000-0000000000a2';
+const PERSONA_A2 = 'ac0e0000-0000-4000-8000-0000000000a3';
 const USER_B = 'ac0e0000-0000-4000-8000-0000000000b1';
 const PERSONA_B = 'ac0e0000-0000-4000-8000-0000000000b2';
 const SYSTEM_PROMPT = 'ac0e0000-0000-4000-8000-0000000000c1';
@@ -160,13 +161,59 @@ describe('assembleAccountExport (component, PGLite)', () => {
     await prisma.userFeedback.create({
       data: { id: nextId(), userId: USER_A, content: 'love the bot', contentHash: 'fb-hash-1' },
     });
+
+    // A second persona for A with no digest row — asserts the "no digest" half
+    // (digests: []) alongside the pair that has one.
+    await prisma.$executeRaw`
+      INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)
+      VALUES (${PERSONA_A2}::uuid, 'Alice Persona Two', 'Alice Two', 'Default persona', '', ${USER_A}::uuid, NOW())
+    `;
+
+    // Recent-days digest rows: a `done` row with text for A×X, a `pending`
+    // row with no text for A×Y (must not appear in the export), and a `done`
+    // row with text for B×X (cross-user isolation).
+    await prisma.$executeRaw`
+      INSERT INTO persona_personality_digests
+        (id, persona_id, personality_id, digest_status, digest_text, generated_at, window_start, created_at, updated_at)
+      VALUES (
+        ${nextId()}::uuid, ${PERSONA_A}::uuid, ${PERSONALITY_X}::uuid, 'done',
+        'alice-line digest of the last few days',
+        NOW(), NOW() - INTERVAL '7 days', NOW(), NOW()
+      )
+    `;
+    await prisma.$executeRaw`
+      INSERT INTO persona_personality_digests
+        (id, persona_id, personality_id, digest_status, digest_text, created_at, updated_at)
+      VALUES (${nextId()}::uuid, ${PERSONA_A}::uuid, ${PERSONALITY_Y}::uuid, 'pending', NULL, NOW(), NOW())
+    `;
+    await prisma.$executeRaw`
+      INSERT INTO persona_personality_digests
+        (id, persona_id, personality_id, digest_status, digest_text, generated_at, window_start, created_at, updated_at)
+      VALUES (
+        ${nextId()}::uuid, ${PERSONA_B}::uuid, ${PERSONALITY_X}::uuid, 'done',
+        'bob-line digest must never reach alice',
+        NOW(), NOW() - INTERVAL '7 days', NOW(), NOW()
+      )
+    `;
+    // A `dead` row still carrying stale text from a since-failed regeneration
+    // — the export must never ship it, even though digest_text is non-null.
+    await prisma.$executeRaw`
+      INSERT INTO persona_personality_digests
+        (id, persona_id, personality_id, digest_status, digest_text, generated_at, window_start, created_at, updated_at)
+      VALUES (
+        ${nextId()}::uuid, ${PERSONA_A2}::uuid, ${PERSONALITY_X}::uuid, 'dead',
+        'dead-line stale text must not export',
+        NOW() - INTERVAL '2 days', NOW() - INTERVAL '7 days', NOW(), NOW()
+      )
+    `;
   });
 
   it('assembles every section for the user, isolated from other users', async () => {
     const payload = await assembleAccountExport(prisma, USER_A);
 
     expect(payload.profile).toEqual(expect.objectContaining({ username: 'exportalice' }));
-    expect(payload.personas).toHaveLength(1);
+    // Two personas for A: PERSONA_A (has a digest) and PERSONA_A2 (does not).
+    expect(payload.personas).toHaveLength(2);
     expect(payload.characters.map(c => c.id)).toEqual([PERSONALITY_X]);
     expect(payload.conversationHistory).toHaveLength(2);
     expect(payload.memories).toHaveLength(1);
@@ -185,6 +232,40 @@ describe('assembleAccountExport (component, PGLite)', () => {
     const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain('bob-line');
     expect(serialized).not.toContain('exportbob');
+  });
+
+  it('exports recent-days digests under their persona, excluding text-less rows and other users', async () => {
+    const payload = await assembleAccountExport(prisma, USER_A);
+
+    const personaA = payload.personas.find(p => p.id === PERSONA_A);
+    expect(personaA?.digests).toHaveLength(1);
+    const digest = personaA?.digests[0];
+    expect(digest?.personalitySlug).toBe('xbot');
+    expect(digest?.personalityName).toBe('XBot');
+    expect(digest?.digestText).toContain('alice-line digest');
+    expect(digest?.generatedAt).toBeInstanceOf(Date);
+    expect(digest?.windowStart).toBeInstanceOf(Date);
+
+    // The pending, text-less A×Y row never appears.
+    expect(digest?.personalityId).not.toBe(PERSONALITY_Y);
+    expect(personaA?.digests.some(d => d.personalityId === PERSONALITY_Y)).toBe(false);
+
+    // A persona with only a `dead` row (stale text, no longer renderable) gets [].
+    const personaA2 = payload.personas.find(p => p.id === PERSONA_A2);
+    expect(personaA2?.digests).toEqual([]);
+
+    const files = buildAccountExportFiles(payload);
+    const everything = Object.values(files).join('\n');
+    // The `dead` row's stale text must never ship, in the payload or the files.
+    expect(JSON.stringify(payload)).not.toContain('dead-line');
+    expect(everything).not.toContain('dead-line');
+    const personaAFile = Object.entries(files).find(
+      ([path, content]) =>
+        path.startsWith('personas/') &&
+        path.endsWith('.md') &&
+        content.includes('alice-line digest')
+    );
+    expect(personaAFile?.[1]).toContain('## Recent-days digests');
   });
 
   it('directory covers unowned characters; the file map folders their content by slug', async () => {

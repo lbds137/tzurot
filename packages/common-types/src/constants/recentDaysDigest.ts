@@ -26,6 +26,9 @@ export const RECENT_DAYS_DIGEST = {
    *  (selectRenderableDigestText) also rejects a digest generated longer ago than
    *  this. One value on purpose — the digest IS the last WINDOW_DAYS days. */
   WINDOW_DAYS: 7,
+  /** The retention sweep erases a digest this many days after the render gate
+   *  stops using it — one day of slack past WINDOW_DAYS. */
+  STALE_SWEEP_GRACE_DAYS: 1,
   /** A pair already at `done` waits at least this long before a routine regeneration. */
   MIN_REGEN_INTERVAL_MS: 2 * 60 * 60_000,
   /** Ceiling on billed generations per sweep tick — the spend bound at this cadence. */
@@ -53,6 +56,9 @@ export const RECENT_DAYS_DIGEST_REQUEST_TYPE = 'recent_days_digest';
 
 /** The scheduled-worker job NAME (not a `JobType`) for the digest sweep tick. */
 export const RECENT_DAYS_DIGEST_SWEEP_JOB = 'recent-days-digest-sweep';
+
+/** The scheduled-worker job NAME (not a `JobType`) for the daily retention sweep. */
+export const RECENT_DAYS_DIGEST_RETENTION_JOB = 'recent-days-digest-retention';
 
 /**
  * Six sweeps an hour at :06, :16, :26, :36, :46, :56 — offset from the
