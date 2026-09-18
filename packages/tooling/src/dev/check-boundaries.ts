@@ -77,6 +77,9 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
   // the tooling ops command; bot-client renders a digest from the gateway, so
   // it never selects candidates.
   'selectDigestCandidatePairs',
+  // Same module, same reason: the operator dry run's one-pair loader. Its only
+  // caller is the ai-worker dry-run script.
+  'loadDigestPairForDryRun',
 ] as const;
 
 // The specifier arm spans ANY @tzurot/common-types subpath: the package's

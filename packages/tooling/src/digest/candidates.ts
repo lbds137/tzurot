@@ -4,7 +4,7 @@
  *
  * Shares `selectDigestCandidatePairs` with the ai-worker sweep so this
  * report can never drift from what the sweep would actually pick — a
- * duplicated query here would let the dry-run report candidates the sweep
+ * duplicated query here would let this report list candidates the sweep
  * would not actually select, or vice versa.
  */
 

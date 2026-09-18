@@ -18,10 +18,13 @@ import {
   runWithRailway,
   requireProductionConfirmation,
 } from '../utils/env-runner.js';
+import { resolveExtraRailwayVars } from '../utils/railway-extra-vars.js';
 
 interface RunWithEnvOptions {
   env: Environment;
   force?: boolean;
+  /** Extra Railway variable NAMES (shared/project tier) to inject; dev/prod only. */
+  withVars?: string[];
 }
 
 /**
@@ -31,12 +34,21 @@ export async function runWithEnv(
   commandParts: string[],
   options: RunWithEnvOptions
 ): Promise<void> {
-  const { env, force } = options;
+  const { env, force, withVars } = options;
 
   if (commandParts.length === 0) {
     console.error(chalk.red('❌ No command specified'));
     console.error(chalk.dim('Usage: pnpm ops run --env dev <command> [args...]'));
     console.error(chalk.dim('Example: pnpm ops run --env dev tsx scripts/<your-db-script>.ts'));
+    process.exit(1);
+  }
+
+  // --with reads Railway variables, so it needs a Railway environment to read from.
+  if (withVars !== undefined && withVars.length > 0 && env === 'local') {
+    console.error(chalk.red('❌ --with requires --env dev or --env prod'));
+    console.error(
+      chalk.dim('There is no Railway environment to read variables from for --env local')
+    );
     process.exit(1);
   }
 
@@ -75,8 +87,14 @@ export async function runWithEnv(
 
     process.exit(result);
   } else {
-    // For dev/prod, use runWithRailway to inject DATABASE_URL
-    const result = await runWithRailway(env, command, args);
+    // For dev/prod, resolve any --with variables (never logged), then use
+    // runWithRailway to inject DATABASE_URL alongside them.
+    const extra = await resolveExtraRailwayVars(env, withVars ?? []);
+    if (Object.keys(extra).length > 0) {
+      console.log(chalk.dim(`injected: ${['DATABASE_URL', ...Object.keys(extra)].join(', ')}`));
+    }
+
+    const result = await runWithRailway(env, command, args, undefined, extra);
     process.exit(result.exitCode);
   }
 }

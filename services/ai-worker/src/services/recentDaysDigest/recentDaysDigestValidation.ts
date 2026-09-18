@@ -7,14 +7,17 @@
  * validator rather than copied — one leak detector, two callers.
  */
 
-import { hasFirstPerson } from '../archiveSummary/archiveSummaryValidation.js';
+import {
+  hasFirstPerson,
+  findFirstPersonToken,
+} from '../archiveSummary/archiveSummaryValidation.js';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
   RECENT_DAYS_DIGEST,
   type DigestFailureClass,
 } from '@tzurot/common-types/constants/recentDaysDigest';
 
-export { hasFirstPerson };
+export { hasFirstPerson, findFirstPersonToken };
 
 export type DigestLengthState = 'within_soft' | 'over_soft' | 'overflow';
 
@@ -96,8 +99,9 @@ export function validateDigest(
   digest: string,
   assistantContents: string[]
 ): DigestValidationResult {
-  if (hasFirstPerson(digest)) {
-    return { ok: false, cls: 'first_person', detail: 'first-person pronoun detected' };
+  const firstPersonToken = findFirstPersonToken(digest);
+  if (firstPersonToken !== null) {
+    return { ok: false, cls: 'first_person', detail: firstPersonToken };
   }
   const quoted = findQuotedNgram(digest, assistantContents);
   if (quoted !== null) {

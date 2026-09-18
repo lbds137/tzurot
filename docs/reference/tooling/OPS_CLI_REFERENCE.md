@@ -35,14 +35,17 @@ Run any command with Railway DATABASE_URL injected:
 pnpm ops run --env <env> <command> [args...]
 ```
 
-| Command                                              | Description                           |
-| ---------------------------------------------------- | ------------------------------------- |
-| `pnpm ops run --env dev tsx scripts/my-script.ts`    | Run script with dev DATABASE_URL      |
-| `pnpm ops run --env prod npx prisma studio`          | Open Prisma Studio against prod       |
-| `pnpm ops run --env dev --force <cmd>`               | Skip confirmation for prod ops        |
-| `pnpm ops run --env prod -- tsx script.ts --dry-run` | Wrapped command carries its own flags |
+| Command                                                                                                                                        | Description                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `pnpm ops run --env dev tsx scripts/my-script.ts`                                                                                              | Run script with dev DATABASE_URL      |
+| `pnpm ops run --env prod npx prisma studio`                                                                                                    | Open Prisma Studio against prod       |
+| `pnpm ops run --env dev --force <cmd>`                                                                                                         | Skip confirmation for prod ops        |
+| `pnpm ops run --env prod -- tsx script.ts --dry-run`                                                                                           | Wrapped command carries its own flags |
+| `pnpm ops run --env dev --with ZAI_CODING_API_KEY -- tsx services/ai-worker/src/scripts/digestDryRun.ts --persona <uuid> --personality <slug>` | Also inject a named Railway variable  |
 
 **Wrapped-command flags need the `--` separator**: cac rejects any bare dash-flag in the command part (`--dry-run`, even `-c`) with an unknown-option error — that error is deliberate (silently stripping a `--dry-run` would run a destructive script for real). Everything after `--` passes through to the wrapped command untouched.
+
+**`--with NAME[,NAME]` injects extra Railway variables**: it reads each named variable from the Railway environment's SHARED (project) tier and injects it into the wrapped command's environment alongside `DATABASE_URL`. Values are never printed — only the injected variable NAMES are echoed (`injected: DATABASE_URL, ...`). Requires `--env dev` or `--env prod` (there is no Railway environment to read from for `--env local`), and needs `TZUROT_RAILWAY_API_TOKEN_DEV` / `TZUROT_RAILWAY_API_TOKEN_PROD` set in the local `.env` — that is what the variable read authenticates with.
 
 **When to use:** One-off scripts that need database access without adding dedicated ops commands.
 

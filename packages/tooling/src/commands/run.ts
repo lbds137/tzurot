@@ -22,6 +22,7 @@
 
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
+import { parseWithVarNames } from '../utils/railway-extra-vars.js';
 
 export function registerRunCommands(cli: CAC): void {
   cli
@@ -33,13 +34,25 @@ export function registerRunCommands(cli: CAC): void {
     .command('run [...command]', 'Run a command with Railway DATABASE_URL injected')
     .option('--env <env>', 'Environment: local, dev, or prod', { default: 'dev' })
     .option('--force', 'Skip confirmation for production operations')
+    .option(
+      '--with <names>',
+      'Also inject these Railway variables (comma-separated names; dev/prod only)'
+    )
     .example('pnpm ops run --env dev tsx scripts/<your-db-script>.ts')
     .example('pnpm ops run --env prod --force npx prisma studio')
     .example('pnpm ops run --env prod -- tsx scripts/backfill.ts --dry-run')
+    .example(
+      'pnpm ops run --env dev --with ZAI_CODING_API_KEY -- tsx services/ai-worker/src/scripts/digestDryRun.ts --persona <uuid> --personality <slug>'
+    )
     .action(
       async (
         commandParts: string[],
-        options: { env?: Environment; force?: boolean; '--'?: string[] }
+        options: {
+          env?: Environment;
+          force?: boolean;
+          with?: string | string[];
+          '--'?: string[];
+        }
       ) => {
         const { runWithEnv } = await import('../db/run-with-env.js');
         // Rest-args after "--" carry the wrapped command's own flags, which
@@ -48,6 +61,7 @@ export function registerRunCommands(cli: CAC): void {
         await runWithEnv(fullCommand, {
           env: options.env ?? 'dev',
           force: options.force,
+          withVars: parseWithVarNames(options.with),
         });
       }
     );

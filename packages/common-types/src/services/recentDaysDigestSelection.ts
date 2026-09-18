@@ -1,14 +1,22 @@
 /**
  * Recent-days digest: the candidate selection query — ONE source of truth.
  *
- * Both the ai-worker sweep and the tooling `digest:candidates` dry-run need
+ * Both the ai-worker sweep and the tooling `digest:candidates` report need
  * the exact same "which (persona, personality) pairs are due" logic, and
  * `packages/tooling` depends on common-types but not on `ai-worker` or
  * `conversation-history` — so this is the only package both callers can
  * import, and the only place the SQL is allowed to live. Duplicating it would
- * let the dry-run drift from what the sweep actually generates.
+ * let that report drift from what the sweep actually generates.
+ *
+ * `loadDigestPairForDryRun` below is the one-pair sibling the operator dry-run
+ * script uses: the same row shape with every due clause dropped. Both queries
+ * are COMPOSED from the same `Prisma.sql` fragments below — the window CTE
+ * (whose only difference is the caller's scope predicate), the pairs CTE, and
+ * the SELECT/JOIN list — so "one SELECT list, one place to change it" is a
+ * property of the code rather than a convention two copies have to honour.
  */
 
+import { Prisma } from '../generated/prisma/client.js';
 import type { PrismaClient } from './prisma.js';
 import {
   RECENT_DAYS_DIGEST,
@@ -92,6 +100,72 @@ function toCandidatePair(row: RawCandidateRow): DigestCandidatePair {
   };
 }
 
+/** The window CTE: every non-deleted `conversation_history` row inside the
+ *  window and past the pair's epoch, narrowed by the caller's `scope`
+ *  predicate over the joined `pl`/`pa` aliases — the ONLY thing the two
+ *  callers differ on (a slug set vs. one named pair). */
+function candidateRowsCte(scope: Prisma.Sql, windowStart: Date): Prisma.Sql {
+  return Prisma.sql`
+    candidate_rows AS (
+      SELECT ch.persona_id, ch.personality_id, ch.created_at
+      FROM conversation_history ch
+      JOIN personalities pl ON pl.id = ch.personality_id
+      JOIN personas pa ON pa.id = ch.persona_id
+      LEFT JOIN user_persona_history_configs cfg
+        ON cfg.user_id = pa.owner_id
+       AND cfg.personality_id = ch.personality_id
+       AND cfg.persona_id = ch.persona_id
+      WHERE ${scope}
+        AND ch.deleted_at IS NULL
+        AND ch.created_at >= ${windowStart}::timestamptz
+        AND (cfg.last_context_reset IS NULL OR ch.created_at >= cfg.last_context_reset)
+    )`;
+}
+
+/** Collapse the window rows to one row per (persona, personality) pair. */
+const PAIRS_CTE = Prisma.sql`
+    pairs AS (
+      SELECT persona_id, personality_id,
+             MAX(created_at) AS newest_row_at,
+             COUNT(*) AS window_row_count
+      FROM candidate_rows
+      GROUP BY persona_id, personality_id
+    )`;
+
+/** The `RawCandidateRow` column list and the joins that produce it — the row
+ *  shape both callers return, ending on the digest LEFT JOIN so either can
+ *  append its own WHERE/ORDER/LIMIT. */
+const PAIR_SELECT = Prisma.sql`
+    SELECT
+      pa.id AS persona_id,
+      pl.id AS personality_id,
+      pl.slug AS personality_slug,
+      pa.owner_id AS owner_id,
+      u.timezone AS owner_timezone,
+      pa.name AS persona_name,
+      pa.preferred_name AS persona_preferred_name,
+      pl.name AS personality_name,
+      pl.display_name AS personality_display_name,
+      cfg.last_context_reset AS epoch,
+      pairs.newest_row_at AS newest_row_at,
+      pairs.window_row_count AS window_row_count,
+      d.id AS digest_id,
+      d.digest_status AS digest_status,
+      d.digest_attempts AS digest_attempts,
+      d.source_watermark AS source_watermark,
+      d.generated_at AS generated_at,
+      d.requested_at AS requested_at
+    FROM pairs
+    JOIN personas pa ON pa.id = pairs.persona_id
+    JOIN personalities pl ON pl.id = pairs.personality_id
+    JOIN users u ON u.id = pa.owner_id
+    LEFT JOIN user_persona_history_configs cfg
+      ON cfg.user_id = pa.owner_id
+     AND cfg.personality_id = pairs.personality_id
+     AND cfg.persona_id = pairs.persona_id
+    LEFT JOIN persona_personality_digests d
+      ON d.persona_id = pairs.persona_id AND d.personality_id = pairs.personality_id`;
+
 /**
  * Select up to `limit` (persona, personality) pairs due for a digest
  * generation, ordered purge/refresh first, then never-generated, then
@@ -123,57 +197,11 @@ export async function selectDigestCandidatePairs(
   const windowStart = new Date(now.getTime() - RECENT_DAYS_DIGEST.WINDOW_DAYS * 86_400_000);
   const regenCutoff = new Date(now.getTime() - RECENT_DAYS_DIGEST.MIN_REGEN_INTERVAL_MS);
 
+  const scope = Prisma.sql`pl.slug = ANY(${personalitySlugs}::text[])`;
   const rows = await prisma.$queryRaw<RawCandidateRow[]>`
-    WITH candidate_rows AS (
-      SELECT ch.persona_id, ch.personality_id, ch.created_at
-      FROM conversation_history ch
-      JOIN personalities pl ON pl.id = ch.personality_id
-      JOIN personas pa ON pa.id = ch.persona_id
-      LEFT JOIN user_persona_history_configs cfg
-        ON cfg.user_id = pa.owner_id
-       AND cfg.personality_id = ch.personality_id
-       AND cfg.persona_id = ch.persona_id
-      WHERE pl.slug = ANY(${personalitySlugs}::text[])
-        AND ch.deleted_at IS NULL
-        AND ch.created_at >= ${windowStart}::timestamptz
-        AND (cfg.last_context_reset IS NULL OR ch.created_at >= cfg.last_context_reset)
-    ),
-    pairs AS (
-      SELECT persona_id, personality_id,
-             MAX(created_at) AS newest_row_at,
-             COUNT(*) AS window_row_count
-      FROM candidate_rows
-      GROUP BY persona_id, personality_id
-    )
-    SELECT
-      pa.id AS persona_id,
-      pl.id AS personality_id,
-      pl.slug AS personality_slug,
-      pa.owner_id AS owner_id,
-      u.timezone AS owner_timezone,
-      pa.name AS persona_name,
-      pa.preferred_name AS persona_preferred_name,
-      pl.name AS personality_name,
-      pl.display_name AS personality_display_name,
-      cfg.last_context_reset AS epoch,
-      pairs.newest_row_at AS newest_row_at,
-      pairs.window_row_count AS window_row_count,
-      d.id AS digest_id,
-      d.digest_status AS digest_status,
-      d.digest_attempts AS digest_attempts,
-      d.source_watermark AS source_watermark,
-      d.generated_at AS generated_at,
-      d.requested_at AS requested_at
-    FROM pairs
-    JOIN personas pa ON pa.id = pairs.persona_id
-    JOIN personalities pl ON pl.id = pairs.personality_id
-    JOIN users u ON u.id = pa.owner_id
-    LEFT JOIN user_persona_history_configs cfg
-      ON cfg.user_id = pa.owner_id
-     AND cfg.personality_id = pairs.personality_id
-     AND cfg.persona_id = pairs.persona_id
-    LEFT JOIN persona_personality_digests d
-      ON d.persona_id = pairs.persona_id AND d.personality_id = pairs.personality_id
+    WITH ${candidateRowsCte(scope, windowStart)},
+    ${PAIRS_CTE}
+    ${PAIR_SELECT}
     WHERE
       (
         d.id IS NULL
@@ -200,4 +228,38 @@ export async function selectDigestCandidatePairs(
   `;
 
   return rows.map(toCandidatePair);
+}
+
+export interface LoadDigestPairInput {
+  personaId: string;
+  personalitySlug: string;
+}
+
+/**
+ * The DRY-RUN loader: the same row shape as `selectDigestCandidatePairs` for
+ * ONE named (persona, personality) pair, with every due-clause (re-admission,
+ * regen-interval, dead-pair) dropped — so an operator can run a pair the sweep
+ * itself would not currently select (dead, or simply not yet due).
+ *
+ * A pair with no non-deleted `conversation_history` rows inside the window
+ * (past its epoch, when one is active) returns `null` — the `pairs` CTE
+ * produces no row, which is the correct answer: there is nothing to digest.
+ */
+export async function loadDigestPairForDryRun(
+  prisma: PrismaClient,
+  input: LoadDigestPairInput,
+  now?: Date
+): Promise<DigestCandidatePair | null> {
+  const resolvedNow = now ?? new Date();
+  const windowStart = new Date(resolvedNow.getTime() - RECENT_DAYS_DIGEST.WINDOW_DAYS * 86_400_000);
+
+  const scope = Prisma.sql`pa.id = ${input.personaId}::uuid AND pl.slug = ${input.personalitySlug}`;
+  const rows = await prisma.$queryRaw<RawCandidateRow[]>`
+    WITH ${candidateRowsCte(scope, windowStart)},
+    ${PAIRS_CTE}
+    ${PAIR_SELECT}
+    LIMIT 1
+  `;
+
+  return rows[0] === undefined ? null : toCandidatePair(rows[0]);
 }
