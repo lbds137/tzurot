@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sendChunkedReply } from './chunkedReply.js';
 import { MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { splitMessage } from '@tzurot/common-types/utils/discord';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -292,5 +293,95 @@ describe('sendChunkedReply', () => {
       components: [],
     });
     expect(interaction.followUp).not.toHaveBeenCalled();
+  });
+
+  describe('lineAware', () => {
+    // A report-shaped fixture: markdown bullet lines joined by single '\n',
+    // no blank lines between them — the shape splitMessage's paragraph-aware
+    // chunking flattens (it word-splits and rejoins with spaces once a
+    // blank-line-free block exceeds the cap).
+    function buildBulletFixture(lineCount: number): { content: string; newlineCount: number } {
+      const lines: string[] = [];
+      for (let i = 0; i < lineCount; i++) {
+        lines.push(
+          `- bullet ${i.toString().padStart(3, '0')} - some descriptive text to pad this line out nicely`
+        );
+      }
+      const content = lines.join('\n');
+      return { content, newlineCount: lineCount - 1 };
+    }
+
+    function allDeliveredContents(
+      interactionArg: ReturnType<typeof createMockInteraction>
+    ): string[] {
+      const editReplyContents = vi
+        .mocked(interactionArg.editReply)
+        .mock.calls.map(call => (call[0] as { content: string }).content);
+      const followUpContents = vi
+        .mocked(interactionArg.followUp)
+        .mock.calls.map(call => (call[0] as { content: string }).content);
+      return [...editReplyContents, ...followUpContents];
+    }
+
+    it('lineAware selects the line-preserving splitter, and newlines survive', async () => {
+      const { content, newlineCount } = buildBulletFixture(90);
+
+      await sendChunkedReply({
+        interaction,
+        content,
+        header: '',
+        continuedHeader: '',
+        lineAware: true,
+      });
+
+      // Seam assertion: the mocked splitMessage never ran.
+      expect(vi.mocked(splitMessage)).not.toHaveBeenCalled();
+
+      const delivered = allDeliveredContents(interaction);
+      expect(delivered.length).toBeGreaterThan(1);
+
+      const totalNewlines = delivered.reduce(
+        (sum, chunk) => sum + (chunk.match(/\n/g)?.length ?? 0),
+        0
+      );
+      // splitMessageByLines only drops the boundary newline BETWEEN chunks
+      // (one line ↔ one join gets absorbed per split point), so the total is
+      // within a couple of the source count — a world apart from splitMessage,
+      // which flattens every internal newline in a blank-line-free block.
+      expect(totalNewlines).toBeGreaterThanOrEqual(newlineCount - delivered.length);
+      expect(totalNewlines).toBeGreaterThan(newlineCount / 2);
+    });
+
+    it('the default (no lineAware) still goes through splitMessage', async () => {
+      const { content } = buildBulletFixture(90);
+      const maxContentLength = DISCORD_LIMITS.MESSAGE_LENGTH;
+
+      await sendChunkedReply({
+        interaction,
+        content,
+        header: '',
+        continuedHeader: '',
+      });
+
+      expect(vi.mocked(splitMessage)).toHaveBeenCalledWith(content, maxContentLength);
+    });
+
+    it('short content with lineAware: true is delivered unsplit', async () => {
+      await sendChunkedReply({
+        interaction,
+        content: 'Short bullet list content',
+        header: '## Report\n\n',
+        continuedHeader: '## Report (continued)\n\n',
+        lineAware: true,
+      });
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: '## Report\n\nShort bullet list content',
+        embeds: [],
+        components: [],
+      });
+      expect(interaction.followUp).not.toHaveBeenCalled();
+      expect(vi.mocked(splitMessage)).not.toHaveBeenCalled();
+    });
   });
 });
