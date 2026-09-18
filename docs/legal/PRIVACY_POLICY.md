@@ -30,18 +30,18 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 ## Retention
 
-| Data                             | Kept for                                                                                                                                                                    |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Conversation history             | 30 days (swept daily)                                                                                                                                                       |
-| Recent-days conversation digests | Rebuilt from the last 7 days of history and unused once 7 days old; deleted by `/history clear`, cleared and rebuilt by `/history purge`, erased with the persona/character |
-| Diagnostic logs                  | 7 days (swept hourly)                                                                                                                                                       |
-| Data exports you request         | 24 hours, then deleted                                                                                                                                                      |
-| Memories and extracted facts     | Hidden from use the moment you forget them; rows erased with their persona/character (see below)                                                                            |
-| Personas, characters, uploads    | Until you delete them                                                                                                                                                       |
-| Feedback you submit              | Deleted once it is both 90 days old and reviewed by the operator — or when you delete your account                                                                          |
-| Release-DM delivery records      | Deleted once 90 days old and settled (the record of your latest notification is kept until it's replaced or you delete it)                                                  |
-| Command telemetry                | 12 months (swept daily)                                                                                                                                                     |
-| Account basics, usage records    | Until you delete your account (see "Your controls"), or until the inactivity rule below applies                                                                             |
+| Data                             | Kept for                                                                                                                                                                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversation history             | 30 days (swept daily)                                                                                                                                                                                                       |
+| Recent-days conversation digests | Rebuilt from the last 7 days of history and unused once 7 days old; a daily sweep erases one left unused for a day; deleted by `/history clear`, cleared and rebuilt by `/history purge`, erased with the persona/character |
+| Diagnostic logs                  | 7 days (swept hourly)                                                                                                                                                                                                       |
+| Data exports you request         | 24 hours, then deleted                                                                                                                                                                                                      |
+| Memories and extracted facts     | Hidden from use the moment you forget them; rows erased with their persona/character (see below)                                                                                                                            |
+| Personas, characters, uploads    | Until you delete them                                                                                                                                                                                                       |
+| Feedback you submit              | Deleted once it is both 90 days old and reviewed by the operator — or when you delete your account                                                                                                                          |
+| Release-DM delivery records      | Deleted once 90 days old and settled (the record of your latest notification is kept until it's replaced or you delete it)                                                                                                  |
+| Command telemetry                | 12 months (swept daily)                                                                                                                                                                                                     |
+| Account basics, usage records    | Until you delete your account (see "Your controls"), or until the inactivity rule below applies                                                                                                                             |
 
 ### Inactive accounts
 

@@ -6,7 +6,7 @@ const NOW = new Date('2026-07-15T12:00:00Z');
 
 function makeData(overrides: Partial<AccountExportData> = {}): AccountExportData {
   return {
-    meta: { exportedAt: NOW.toISOString(), formatVersion: 2, notes: ['no secrets ever'] },
+    meta: { exportedAt: NOW.toISOString(), formatVersion: 3, notes: ['no secrets ever'] },
     profile: {
       username: 'alice',
       discordId: '123456789012345678',
@@ -120,6 +120,7 @@ describe('buildAccountExportFiles', () => {
             ownerId: 'u1',
             createdAt: NOW,
             updatedAt: NOW,
+            digests: [],
           },
         ] as AccountExportData['personas'],
       })
@@ -178,6 +179,7 @@ describe('buildAccountExportFiles', () => {
             ownerId: 'u1',
             createdAt: NOW,
             updatedAt: NOW,
+            digests: [],
           },
         ] as AccountExportData['personas'],
         personalityDirectory: [{ id: 'char-1', name: 'Azura', slug: 'azura' }],

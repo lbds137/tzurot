@@ -12,6 +12,7 @@ import type { Queue } from 'bullmq';
 import {
   RECENT_DAYS_DIGEST_SWEEP_JOB,
   RECENT_DAYS_DIGEST_SWEEP_PATTERN,
+  RECENT_DAYS_DIGEST_RETENTION_JOB,
 } from '@tzurot/common-types/constants/recentDaysDigest';
 
 /** Scheduled job names */
@@ -28,6 +29,7 @@ export const SCHEDULED_JOBS = {
   RELEASE_RECONCILE: 'release-reconcile',
   ROSTER_BLURB_SWEEP: 'roster-blurb-sweep',
   RECENT_DAYS_DIGEST_SWEEP: RECENT_DAYS_DIGEST_SWEEP_JOB,
+  RECENT_DAYS_DIGEST_RETENTION: RECENT_DAYS_DIGEST_RETENTION_JOB,
 } as const;
 
 /**
@@ -66,6 +68,11 @@ export const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }
     name: SCHEDULED_JOBS.RECENT_DAYS_DIGEST_SWEEP,
     pattern: RECENT_DAYS_DIGEST_SWEEP_PATTERN,
   },
+  // Daily at 09:48 UTC, alongside the other daily retention cleanups but on a
+  // minute no recurring job above uses — the occupied marks are
+  // {0,4,6,7,10,13,14,15,16,20,22,24,25,26,30,34,35,36,37,40,41,44,45,46,50,52,54,56}.
+  // One DELETE, so it costs the concurrency-1 worker nothing measurable.
+  { name: SCHEDULED_JOBS.RECENT_DAYS_DIGEST_RETENTION, pattern: '48 9 * * *' },
 ];
 
 export async function registerRepeatableJobs(scheduledQueue: Queue): Promise<void> {

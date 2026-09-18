@@ -43,7 +43,7 @@ const NOW = new Date('2026-07-15T12:00:00Z');
  *  builder + zip, so every field the markdown formatters touch is present. */
 function makePayload(): AccountExportData {
   return {
-    meta: { exportedAt: NOW.toISOString(), formatVersion: 2, notes: ['note one'] },
+    meta: { exportedAt: NOW.toISOString(), formatVersion: 3, notes: ['note one'] },
     profile: {
       username: 'alice',
       discordId: '123456789012345678',
@@ -66,6 +66,7 @@ function makePayload(): AccountExportData {
         ownerId: 'user-uuid-1',
         createdAt: NOW,
         updatedAt: NOW,
+        digests: [],
       },
     ],
     characters: [],

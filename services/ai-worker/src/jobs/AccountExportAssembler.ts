@@ -16,6 +16,7 @@
  */
 
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { RECENT_DAYS_DIGEST_STATUS } from '@tzurot/common-types/constants/recentDaysDigest';
 import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import { isEmptyPersonalityConfig } from '@tzurot/common-types/utils/personalityConfigShape';
 
@@ -38,7 +39,27 @@ const PROFILE_SELECT = {
 
 export type ExportProfile = Prisma.UserGetPayload<{ select: typeof PROFILE_SELECT }>;
 export type ExportAdminSettings = Prisma.AdminSettingsGetPayload<object>;
-export type ExportPersona = Prisma.PersonaGetPayload<object>;
+/** One recent-days digest exported under its persona. Only `done` rows
+ *  that actually hold text ship — the
+ *  export carries what is on file, not what the live render would still
+ *  show. The live render additionally gates on age and clear-epoch, which
+ *  this export does not: an account export is a snapshot of stored data,
+ *  and erasing stale rows is the retention sweep's job, not this one's.
+ *  `digest_status`, attempt counts, and the failure class are operational
+ *  state rather than user content, so they are not exported. */
+export interface ExportPersonaDigest {
+  personalityId: string;
+  personalitySlug: string;
+  personalityName: string;
+  digestText: string;
+  generatedAt: Date | null;
+  windowStart: Date | null;
+}
+
+export type ExportPersona = Prisma.PersonaGetPayload<object> & {
+  /** Recent-days digests for this persona — one per character it has one for. */
+  digests: ExportPersonaDigest[];
+};
 export type ExportCharacter = Omit<
   Prisma.PersonalityGetPayload<object>,
   'avatarData' | 'voiceReferenceData'
@@ -70,7 +91,7 @@ export interface PersonalityDirectoryEntry {
 export interface AccountExportData {
   meta: {
     exportedAt: string;
-    formatVersion: 2;
+    formatVersion: 3;
     notes: string[];
   };
   profile: ExportProfile;
@@ -251,6 +272,47 @@ async function sweepOwnerships(prisma: PrismaClient, userId: string): Promise<st
   }
 }
 
+/** Every recent-days digest that actually holds text, for the exported
+ *  personas, grouped by persona. A persona with no digest gets no entry. */
+async function fetchPersonaDigests(
+  prisma: PrismaClient,
+  personaIds: string[]
+): Promise<Map<string, ExportPersonaDigest[]>> {
+  const rows = await sweep(cursor =>
+    prisma.personaPersonalityDigest.findMany({
+      where: {
+        personaId: { in: personaIds },
+        digestText: { not: null },
+        digestStatus: RECENT_DAYS_DIGEST_STATUS.DONE,
+      },
+      include: { personality: { select: { slug: true, name: true } } },
+      ...pageArgs(cursor),
+    })
+  );
+
+  const grouped = new Map<string, ExportPersonaDigest[]>();
+  for (const row of rows) {
+    if (row.digestText === null || row.digestText.length === 0) {
+      continue;
+    }
+    const entry: ExportPersonaDigest = {
+      personalityId: row.personalityId,
+      personalitySlug: row.personality.slug,
+      personalityName: row.personality.name,
+      digestText: row.digestText,
+      generatedAt: row.generatedAt,
+      windowStart: row.windowStart,
+    };
+    const existing = grouped.get(row.personaId);
+    if (existing === undefined) {
+      grouped.set(row.personaId, [entry]);
+    } else {
+      existing.push(entry);
+    }
+  }
+  return grouped;
+}
+
 /** Owned + co-owned character definitions, via the ownership junction. */
 async function fetchCharacters(prisma: PrismaClient, userId: string): Promise<ExportCharacter[]> {
   const coOwned = await sweepOwnerships(prisma, userId);
@@ -335,10 +397,15 @@ export async function assembleAccountExport(
     ? await prisma.adminSettings.findUnique({ where: { id: ADMIN_SETTINGS_SINGLETON_ID } })
     : null;
 
-  const personas = await sweep(c =>
+  const personaRows = await sweep(c =>
     prisma.persona.findMany({ where: { ownerId: userId }, ...pageArgs(c) })
   );
-  const personaIds = personas.map(persona => persona.id);
+  const personaIds = personaRows.map(persona => persona.id);
+  const digestsByPersona = await fetchPersonaDigests(prisma, personaIds);
+  const personas: ExportPersona[] = personaRows.map(persona => ({
+    ...persona,
+    digests: digestsByPersona.get(persona.id) ?? [],
+  }));
 
   const characters = await fetchCharacters(prisma, userId);
 
@@ -392,7 +459,7 @@ export async function assembleAccountExport(
   return {
     meta: {
       exportedAt: new Date().toISOString(),
-      formatVersion: 2,
+      formatVersion: 3,
       notes: EXPORT_NOTES,
     },
     profile: user,
