@@ -177,6 +177,15 @@ export interface RecordDigestFailureInput {
  * or a purge/refresh (which sets the row `pending`) each restart the count at
  * 1 — the `digest_status <> 'pending'` arm is what stops a purge-marked pair
  * that already sat at the attempt cap from being unable to ever restart.
+ *
+ * This write also clears `requested_at`. A refresh or purge stamp requests
+ * ONE regeneration, and the attempt it triggered consumes that request —
+ * whether the attempt succeeds or fails. Leaving the stamp in place would
+ * keep `requested_at > COALESCE(generated_at, '-infinity')` true forever on a
+ * pair that has never succeeded, so the selection query would re-admit it on
+ * every sweep tick regardless of how many times it has already failed.
+ * `storeDigestSuccess` needs no such clear: it bumps `generated_at` to NOW(),
+ * which ends the stamp's `requested_at > generated_at` arm by construction.
  */
 export async function recordDigestFailure(
   prisma: PrismaClient,
@@ -193,6 +202,7 @@ export async function recordDigestFailure(
         source_watermark = ${input.attemptedWatermark},
         digest_prompt_version = ${input.promptVersion},
         last_error = ${input.errorClass},
+        requested_at = NULL,
         -- attempt-count CASE (2 of 2): must stay textually identical to the one above.
         digest_status = CASE
           WHEN (CASE
