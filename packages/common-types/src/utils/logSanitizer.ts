@@ -56,6 +56,9 @@ const SENSITIVE_HEADER_NAMES = new Set<string>([
   'x-real-ip',
   'cf-connecting-ip',
   'true-client-ip',
+  // The account-export filename embeds the Discord username, which
+  // `00-critical.md` bans from logs
+  'content-disposition',
 ]);
 
 /**
@@ -226,12 +229,119 @@ export function sanitizeObject(obj: unknown, depth = 0): unknown {
 }
 
 /**
+ * Base used only to make a path-relative request target parseable. `new URL()`
+ * throws on a non-absolute string, and nothing about this host is ever read or
+ * compared — the parse is a well-formedness guard, not host validation.
+ */
+const RELATIVE_URL_PARSE_BASE = 'http://log-sanitizer.invalid';
+
+function decodeQueryKey(rawKey: string): string {
+  try {
+    return decodeURIComponent(rawKey.replace(/\+/g, ' '));
+  } catch {
+    // A malformed percent-escape is not a key we can classify; fall back to the
+    // raw form so the sensitive-name check still gets a string to test.
+    return rawKey;
+  }
+}
+
+/**
+ * Redacts an entire query string wholesale, keeping the path exactly as given
+ * and the fragment intact. Used when a target cannot be classified
+ * per-parameter (it failed WHATWG parsing) — the redactor must fail CLOSED,
+ * not return the original value. If there is no `?` at all, there is nothing
+ * to hide and the input is returned unchanged.
+ */
+function redactWholeQuery(url: string): string {
+  const queryStart = url.indexOf('?');
+  if (queryStart === -1) {
+    return url;
+  }
+  const hashStart = url.indexOf('#', queryStart);
+  const tail = hashStart === -1 ? '' : url.slice(hashStart);
+  return `${url.slice(0, queryStart + 1)}[REDACTED]${tail}`;
+}
+
+/**
+ * Redacts the VALUE of any query parameter whose name matches the same
+ * sensitive-name predicate the object sanitizer uses. The path, the fragment,
+ * and every non-sensitive parameter are preserved byte-for-byte: the raw query
+ * substring is edited in place rather than re-serialized, so no encoding is
+ * normalized. `req.url` is attacker-influenced, so a target that fails WHATWG
+ * parsing is NOT returned as-is — it cannot be classified per-parameter, so
+ * the whole query is redacted wholesale rather than risking an unredacted
+ * sensitive value reaching the log.
+ *
+ * Pinned by `logSanitizer.test.ts` › `redactSensitiveQueryValues`.
+ */
+export function redactSensitiveQueryValues(url: string): string {
+  try {
+    // Well-formedness guard only; the parsed result is deliberately unused —
+    // the edit below runs over the raw string so nothing is re-encoded.
+    new URL(url, RELATIVE_URL_PARSE_BASE);
+  } catch {
+    return redactWholeQuery(url);
+  }
+
+  const queryStart = url.indexOf('?');
+  if (queryStart === -1) {
+    return url;
+  }
+  const hashStart = url.indexOf('#', queryStart);
+  const rawQuery =
+    hashStart === -1 ? url.slice(queryStart + 1) : url.slice(queryStart + 1, hashStart);
+  const tail = hashStart === -1 ? '' : url.slice(hashStart);
+
+  let changed = false;
+  const redacted = rawQuery
+    .split('&')
+    .map(pair => {
+      const eq = pair.indexOf('=');
+      if (eq === -1) {
+        return pair;
+      }
+      const rawKey = pair.slice(0, eq);
+      const value = pair.slice(eq + 1);
+      // isSensitiveField was designed for object-key redaction, where values
+      // carry real JS types; here every value is a raw string slice of the
+      // query. It works today because every branch keys off the field name
+      // plus a `typeof` string check — a future value-shape-specific branch
+      // in that predicate would need re-checking against this call site.
+      if (!isSensitiveField(decodeQueryKey(rawKey).toLowerCase(), value)) {
+        return pair;
+      }
+      changed = true;
+      return `${rawKey}=[REDACTED]`;
+    })
+    .join('&');
+
+  return changed ? `${url.slice(0, queryStart + 1)}${redacted}${tail}` : url;
+}
+
+/**
+ * Sanitizes a serialized request object: the key-based object redaction, plus
+ * the query-string VALUE redaction that the key-based pass structurally cannot
+ * see because `url` is a single opaque string.
+ */
+export function sanitizeRequestObject(req: unknown): unknown {
+  const sanitized = sanitizeObject(req);
+  if (typeof sanitized !== 'object' || sanitized === null || Array.isArray(sanitized)) {
+    return sanitized;
+  }
+  const record = sanitized as Record<string, unknown>;
+  if (typeof record.url !== 'string') {
+    return sanitized;
+  }
+  return { ...record, url: redactSensitiveQueryValues(record.url) };
+}
+
+/**
  * Creates Pino serializers that sanitize sensitive data.
  * Use with createLogger() to add automatic sanitization.
  */
 export function createSanitizedSerializers(): Record<string, (obj: unknown) => unknown> {
   return {
-    req: (req: unknown) => sanitizeObject(req),
+    req: (req: unknown) => sanitizeRequestObject(req),
     res: (res: unknown) => sanitizeObject(res),
   };
 }
