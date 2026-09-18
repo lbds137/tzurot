@@ -3,9 +3,10 @@ id: TASK-1008
 title: >-
   Recent-days digest: a one-pair dry run that prints the model output and the
   validator verdict
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 01:59'
+updated_date: '2026-09-18 07:44'
 labels:
   - 'area:ai-worker'
   - 'area:tooling'
