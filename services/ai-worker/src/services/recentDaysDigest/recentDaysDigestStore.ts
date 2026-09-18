@@ -89,6 +89,47 @@ export async function readDigestStatus(
   return rows[0]?.digest_status ?? null;
 }
 
+export interface RenderableDigestRow {
+  text: string;
+  generatedAt: Date;
+  sourceEpoch: Date | null;
+}
+
+/** Read the pair's stored digest for rendering — `null` when there is no
+ *  `done` row, or the row's text/timestamp is unusable. The render gate
+ *  (window freshness, epoch match) is the caller's; this only fetches the
+ *  storable shape. */
+export async function readRenderableDigest(
+  prisma: PrismaClient,
+  personaId: string,
+  personalityId: string
+): Promise<RenderableDigestRow | null> {
+  const rows = await prisma.$queryRaw<
+    { digest_text: string | null; generated_at: Date | null; source_epoch: Date | null }[]
+  >`
+    SELECT digest_text, generated_at, source_epoch
+    FROM persona_personality_digests
+    WHERE persona_id = ${personaId}::uuid
+      AND personality_id = ${personalityId}::uuid
+      AND digest_status = ${RECENT_DAYS_DIGEST_STATUS.DONE}
+      AND digest_text IS NOT NULL
+  `;
+  const row = rows[0];
+  if (
+    row?.digest_text === null ||
+    row?.digest_text === undefined ||
+    row.digest_text.length === 0 ||
+    row.generated_at === null
+  ) {
+    return null;
+  }
+  return {
+    text: row.digest_text,
+    generatedAt: row.generated_at,
+    sourceEpoch: row.source_epoch ?? null,
+  };
+}
+
 export interface StoreDigestSuccessInput {
   id: string;
   seenRequestedAt: Date | null;

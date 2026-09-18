@@ -33,7 +33,11 @@ const {
   mockTranscribeAudio: vi.fn(),
   // Module-level mock logger so tests can assert call shape on warn/info
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  settingsState: { rosterBlurbEnabled: false },
+  settingsState: {
+    rosterBlurbEnabled: false,
+    recentDaysDigestEnabled: false,
+    recentDaysDigestPersonalities: [] as string[],
+  },
 }));
 
 // Mock common-types logger — use the hoisted mockLogger so tests can inspect
@@ -63,7 +67,7 @@ vi.mock('../../../../services/multimodal/AudioProcessor.js', () => ({
 // factory runs at import time, which is before a module-level `let` initializes.
 vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
   getSystemSetting: (key: string) =>
-    key === 'rosterBlurbEnabled' ? settingsState.rosterBlurbEnabled : undefined,
+    key in settingsState ? settingsState[key as keyof typeof settingsState] : undefined,
 }));
 
 const TEST_PERSONALITY: LoadedPersonality = {
@@ -126,6 +130,7 @@ function makeAssembled(overrides: Record<string, unknown> = {}) {
     activePersonaId: 'persona-asm',
     activePersonaName: 'AsmPersona',
     userTimezone: 'America/New_York',
+    contextEpoch: undefined,
     history: [] as unknown[],
     referencedMessages: undefined,
     messageContent: 'assembled message content',
@@ -1128,5 +1133,112 @@ describe('ContextStep roster blurbs', () => {
     const prepared = await run(new ContextStep({ assembleCore } as never));
 
     expect(prepared?.characterBlurbs).toBeUndefined();
+  });
+});
+
+describe('ContextStep recent-days digest', () => {
+  /** A step whose assembler returns `assembledOverrides` and whose data
+   *  source is `getRecentDaysDigest`. */
+  function digestStep(
+    assembledOverrides: Record<string, unknown> = {},
+    getRecentDaysDigest = vi.fn()
+  ) {
+    const assembleCore = vi.fn().mockResolvedValue(makeAssembled(assembledOverrides));
+    const step = new ContextStep({ assembleCore } as never, { getRecentDaysDigest } as never);
+    return { step, getRecentDaysDigest };
+  }
+
+  const run = async (step: ContextStep, job = envelopeJob()) =>
+    (await step.process({ job, config } as unknown as GenerationContext)).preparedContext;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    settingsState.rosterBlurbEnabled = false;
+    settingsState.recentDaysDigestEnabled = false;
+    settingsState.recentDaysDigestPersonalities = [];
+    mockExtractParticipants.mockReturnValue([]);
+    mockConvertConversationHistory.mockReturnValue([]);
+  });
+
+  it('does not query when the feature switch is off', async () => {
+    settingsState.recentDaysDigestPersonalities = [TEST_PERSONALITY.slug];
+    const { step, getRecentDaysDigest } = digestStep(
+      {},
+      vi.fn().mockResolvedValue({ text: 'digest', generatedAt: new Date(), sourceEpoch: null })
+    );
+
+    const prepared = await run(step);
+
+    expect(getRecentDaysDigest).not.toHaveBeenCalled();
+    expect(prepared?.recentDaysDigest).toBeUndefined();
+  });
+
+  it('does not query when the slug is not in the allowlist', async () => {
+    settingsState.recentDaysDigestEnabled = true;
+    settingsState.recentDaysDigestPersonalities = ['someone-else'];
+    const { step, getRecentDaysDigest } = digestStep(
+      {},
+      vi.fn().mockResolvedValue({ text: 'digest', generatedAt: new Date(), sourceEpoch: null })
+    );
+
+    const prepared = await run(step);
+
+    expect(getRecentDaysDigest).not.toHaveBeenCalled();
+    expect(prepared?.recentDaysDigest).toBeUndefined();
+  });
+
+  it('does not query for an incognito summon (no active persona)', async () => {
+    settingsState.recentDaysDigestEnabled = true;
+    settingsState.recentDaysDigestPersonalities = [TEST_PERSONALITY.slug];
+    const { step, getRecentDaysDigest } = digestStep(
+      { activePersonaId: null },
+      vi.fn().mockResolvedValue({ text: 'digest', generatedAt: new Date(), sourceEpoch: null })
+    );
+
+    const prepared = await run(step);
+
+    expect(getRecentDaysDigest).not.toHaveBeenCalled();
+    expect(prepared?.recentDaysDigest).toBeUndefined();
+  });
+
+  it('degrades to undefined when the fetch rejects, rather than failing the turn', async () => {
+    settingsState.recentDaysDigestEnabled = true;
+    settingsState.recentDaysDigestPersonalities = [TEST_PERSONALITY.slug];
+    const { step } = digestStep({}, vi.fn().mockRejectedValue(new Error('db down')));
+
+    const prepared = await run(step);
+
+    expect(prepared?.recentDaysDigest).toBeUndefined();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ personalityId: TEST_PERSONALITY.id }),
+      expect.stringContaining('Recent-days digest')
+    );
+  });
+
+  it('carries the render-gated text onto preparedContext on the happy path', async () => {
+    settingsState.recentDaysDigestEnabled = true;
+    settingsState.recentDaysDigestPersonalities = [TEST_PERSONALITY.slug];
+    const now = new Date();
+    const { step, getRecentDaysDigest } = digestStep(
+      { activePersonaId: 'persona-asm' },
+      vi
+        .fn()
+        .mockResolvedValue({ text: 'RECENT DAYS SENTINEL', generatedAt: now, sourceEpoch: null })
+    );
+
+    const prepared = await run(step);
+
+    expect(getRecentDaysDigest).toHaveBeenCalledWith('persona-asm', TEST_PERSONALITY.id);
+    expect(prepared?.recentDaysDigest).toBe('RECENT DAYS SENTINEL');
+  });
+
+  it('does not query when no data source is wired', async () => {
+    settingsState.recentDaysDigestEnabled = true;
+    settingsState.recentDaysDigestPersonalities = [TEST_PERSONALITY.slug];
+    const assembleCore = vi.fn().mockResolvedValue(makeAssembled({}));
+
+    const prepared = await run(new ContextStep({ assembleCore } as never));
+
+    expect(prepared?.recentDaysDigest).toBeUndefined();
   });
 });

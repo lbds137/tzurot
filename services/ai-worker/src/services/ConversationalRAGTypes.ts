@@ -184,6 +184,9 @@ export interface ConversationContext {
    * remember that `'' != null` is true in JS.
    */
   characterBlurbs?: Record<string, string>;
+  /** The pair's recent-days digest text, when the render gate passed. Rendered
+   *  as its own volatile-prefix section; undefined omits it. */
+  recentDaysDigest?: string;
   conversationHistory?: BaseMessage[];
   rawConversationHistory?: StructuredHistoryEntry[];
   oldestHistoryTimestamp?: number;
