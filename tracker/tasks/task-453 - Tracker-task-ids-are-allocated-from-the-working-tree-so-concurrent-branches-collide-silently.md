@@ -83,3 +83,7 @@ comma form (`-l area:process,size:S,state:ready`) works. This is silent; the
 only reason it was caught is that `pnpm ops backlog` gates on all four label
 axes and failed. Worth a line in 06-backlog.md next time that file is touched.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Second trigger — archived ordinal reuse (2026-09-17)
+
+The allocator scans only live tasks, so an id whose file was archived is handed out again: on 2026-09-17 a new task was created with the ordinal of an archived one and had to be hand-renumbered. Same defect (the allocator reads a partial view), second trigger; the fix must consult the archive directory (and the union across branches) before choosing the next id.
