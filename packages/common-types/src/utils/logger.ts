@@ -1,5 +1,5 @@
 import { pino, type Logger, type LoggerOptions, type DestinationStream } from 'pino';
-import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
+import { sanitizeLogMessage, sanitizeObject, sanitizeRequestObject } from './logSanitizer.js';
 
 /**
  * Error Serialization Pipeline
@@ -228,6 +228,14 @@ function sanitizedObjectSerializer(obj: unknown): unknown {
 }
 
 /**
+ * Request-object serializer: the general object sanitization plus the
+ * query-string value redaction that a key-based pass cannot reach.
+ */
+function sanitizedRequestSerializer(req: unknown): unknown {
+  return sanitizeRequestObject(req);
+}
+
+/**
  * Creates a logger instance with environment-aware configuration.
  * Uses pino-pretty transport ONLY when explicitly enabled via ENABLE_PRETTY_LOGS=true.
  * Defaults to plain JSON logging for production compatibility.
@@ -272,14 +280,30 @@ export function createLogger(name?: string, options?: { destination?: Destinatio
     // Custom serializers that sanitize sensitive data (API keys, tokens, etc.)
     serializers: {
       err: customErrorSerializer,
-      req: sanitizedObjectSerializer,
+      req: sanitizedRequestSerializer,
       res: sanitizedObjectSerializer,
     },
     // Format hook to sanitize the final message string
     formatters: {
       log: (object: Record<string, unknown>) => {
-        // Sanitize the entire log object to catch any API keys
-        return sanitizeObject(object) as Record<string, unknown>;
+        // `req` and `res` are owned by the serializers above, which run after
+        // this hook. Sanitizing them here would rebuild them from
+        // `Object.entries`, dropping the prototype getters and methods
+        // (`headersSent`, `getHeaders`) that pino-std-serializers reads — which
+        // is what nulled the logged status and erased the response headers.
+        // Passing them through loses no redaction: every logger defines
+        // `serializers.req`/`serializers.res`, and the pino-http path replaces
+        // both with `createSanitizedSerializers()`. Pinned by
+        // `requestLogger.test.ts` and by `logger.test.ts`.
+        const { req, res, ...rest } = object;
+        const sanitized = sanitizeObject(rest) as Record<string, unknown>;
+        if ('req' in object) {
+          sanitized.req = req;
+        }
+        if ('res' in object) {
+          sanitized.res = res;
+        }
+        return sanitized;
       },
     },
   };

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
+import { sanitizeLogMessage, sanitizeObject, redactSensitiveQueryValues } from './logSanitizer.js';
 
 describe('logSanitizer', () => {
   describe('sanitizeLogMessage', () => {
@@ -345,6 +345,65 @@ describe('logSanitizer', () => {
       const obj = { req: { [key]: `value-for-${key}` } };
       const result = sanitizeObject(obj) as { req: Record<string, unknown> };
       expect(result.req[key]).toBe('[REDACTED]');
+    });
+  });
+
+  describe('redactSensitiveQueryValues', () => {
+    it('should redact a token query value while preserving the path and a non-sensitive param', () => {
+      const url = '/api/foo?token=canary-alpha-0001&limit=10';
+      const result = redactSensitiveQueryValues(url);
+      expect(result).toBe('/api/foo?token=[REDACTED]&limit=10');
+    });
+
+    it('should redact apiKey, password, and clientSecret query values', () => {
+      expect(redactSensitiveQueryValues('/x?apiKey=canary-bravo-0002')).toBe(
+        '/x?apiKey=[REDACTED]'
+      );
+      expect(redactSensitiveQueryValues('/x?password=canary-charlie-0003')).toBe(
+        '/x?password=[REDACTED]'
+      );
+      expect(redactSensitiveQueryValues('/x?clientSecret=canary-delta-0004')).toBe(
+        '/x?clientSecret=[REDACTED]'
+      );
+    });
+
+    it('should return a non-sensitive query byte-identical, including percent-encoding a re-serialize would normalize', () => {
+      const url = '/api/foo?q=hello%20world&sort=asc';
+      expect(redactSensitiveQueryValues(url)).toBe(url);
+    });
+
+    it('should return a url with no query unchanged', () => {
+      const url = '/api/foo';
+      expect(redactSensitiveQueryValues(url)).toBe(url);
+    });
+
+    it('should preserve a fragment after a redacted query', () => {
+      const url = '/api/foo?token=canary-echo-0005#section';
+      expect(redactSensitiveQueryValues(url)).toBe('/api/foo?token=[REDACTED]#section');
+    });
+
+    it('should redact every occurrence of a repeated sensitive key', () => {
+      const url = '/api/foo?token=canary-foxtrot-0006&token=canary-golf-0007';
+      expect(redactSensitiveQueryValues(url)).toBe('/api/foo?token=[REDACTED]&token=[REDACTED]');
+    });
+
+    it('should leave a bare valueless parameter alone while redacting a sensitive sibling', () => {
+      const url = '/api/foo?flag&token=canary-hotel-0008';
+      expect(redactSensitiveQueryValues(url)).toBe('/api/foo?flag&token=[REDACTED]');
+    });
+
+    it('should redact a token field with an empty string value (isSensitiveField treats "" as a redactable string)', () => {
+      const url = '/api/foo?token=';
+      expect(redactSensitiveQueryValues(url)).toBe('/api/foo?token=[REDACTED]');
+    });
+
+    it('should redact the entire query wholesale when the target fails WHATWG parsing, rather than fail open', () => {
+      // A protocol-relative reference with an invalid bracketed host — verified
+      // by probe to throw on `new URL(input, 'http://log-sanitizer.invalid')`.
+      const url = '//[bad?token=canary-kilo-0011';
+      const result = redactSensitiveQueryValues(url);
+      expect(result).not.toContain('canary-kilo-0011');
+      expect(result).toBe('//[bad?[REDACTED]');
     });
   });
 

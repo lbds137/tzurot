@@ -6,17 +6,19 @@
  *
  * The serializers are where the redaction has to happen: pino-http attaches
  * the request as a pino CHILD BINDING, which bypasses the parent logger's
- * `formatters.log` sanitization entirely, and it overrides the parent's own
- * `req`/`res` serializers. `wrapSerializers` (pino-http's default) runs the
- * standard serializers first and hands these functions the already-serialized
- * plain objects, so `sanitizeObject` applies to them directly.
+ * `formatters.log` sanitization entirely for `req`, and it overrides the
+ * parent's own `req`/`res` serializers. `wrapSerializers` (pino-http's
+ * default) runs the standard serializers first and hands these functions the
+ * already-serialized plain objects, so `sanitizeObject` applies to them
+ * directly. `formatters.log` now passes `req`/`res` through untouched rather
+ * than rebuilding them, so both keys reach these serializers whole.
  *
- * The response direction rides the same call for free. It is defence in depth
- * rather than an active redaction: the serialized `res` on this path holds
- * only `statusCode`, so there is no response header to redact today. If one
- * ever appears, the arm redacts it when its exact lowercase name is in the
- * sensitive set and its value is a string or an array of strings. Both
- * directions are pinned by `requestLogger.test.ts`.
+ * The response direction is an ACTIVE redaction, not defence in depth: the
+ * serialized `res` carries `statusCode` and the full response `headers` map,
+ * so a `set-cookie` would reach the log line unless the arm redacts it. It
+ * redacts a header whose exact lowercase name is in the sensitive set and
+ * whose value is a string or an array of strings. Both directions are pinned
+ * by `requestLogger.test.ts`.
  */
 import { createRequire } from 'module';
 import type { RequestHandler } from 'express';
