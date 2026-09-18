@@ -12,6 +12,7 @@ import {
   storeDigestSuccess,
   recordDigestFailure,
   readDigestStatus,
+  readRenderableDigest,
 } from './recentDaysDigestStore.js';
 
 function fakePrisma(queryRows: unknown[] = []): {
@@ -93,5 +94,86 @@ describe('recordDigestFailure', () => {
     });
     expect(affected).toBe(1);
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('readRenderableDigest', () => {
+  it('returns null when no rows match', async () => {
+    const prisma = fakePrisma([]);
+    const result = await readRenderableDigest(
+      prisma as unknown as PrismaClient,
+      'persona-1',
+      'personality-1'
+    );
+    expect(result).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when digest_text is null', async () => {
+    const prisma = fakePrisma([
+      { digest_text: null, generated_at: new Date(), source_epoch: null },
+    ]);
+    const result = await readRenderableDigest(
+      prisma as unknown as PrismaClient,
+      'persona-1',
+      'personality-1'
+    );
+    expect(result).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when digest_text is empty', async () => {
+    const prisma = fakePrisma([{ digest_text: '', generated_at: new Date(), source_epoch: null }]);
+    const result = await readRenderableDigest(
+      prisma as unknown as PrismaClient,
+      'persona-1',
+      'personality-1'
+    );
+    expect(result).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when generated_at is null', async () => {
+    const prisma = fakePrisma([{ digest_text: 'x', generated_at: null, source_epoch: null }]);
+    const result = await readRenderableDigest(
+      prisma as unknown as PrismaClient,
+      'persona-1',
+      'personality-1'
+    );
+    expect(result).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the renderable shape for a full row', async () => {
+    const generatedAt = new Date('2026-09-01T00:00:00Z');
+    const sourceEpoch = new Date('2026-08-25T00:00:00Z');
+    const prisma = fakePrisma([
+      {
+        digest_text: 'Jules and Nova talked.',
+        generated_at: generatedAt,
+        source_epoch: sourceEpoch,
+      },
+    ]);
+    const result = await readRenderableDigest(
+      prisma as unknown as PrismaClient,
+      'persona-1',
+      'personality-1'
+    );
+    expect(result).toEqual({ text: 'Jules and Nova talked.', generatedAt, sourceEpoch });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults sourceEpoch to null when absent from the row', async () => {
+    const generatedAt = new Date('2026-09-01T00:00:00Z');
+    const prisma = fakePrisma([
+      { digest_text: 'Jules and Nova talked.', generated_at: generatedAt },
+    ]);
+    const result = await readRenderableDigest(
+      prisma as unknown as PrismaClient,
+      'persona-1',
+      'personality-1'
+    );
+    expect(result?.sourceEpoch).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });

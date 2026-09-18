@@ -199,6 +199,13 @@ export interface PreparedContext {
    * around.
    */
   characterBlurbs?: Record<string, string>;
+  /**
+   * The pair's recent-days digest text when the render gate passed; undefined =
+   * omit the section. Fetched in ContextStep rather than at render time for the
+   * same reason as characterBlurbs — the volatile prefix renders twice per turn
+   * and both passes must see identical input.
+   */
+  recentDaysDigest?: string;
 }
 
 /**

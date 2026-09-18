@@ -22,7 +22,9 @@ export type RecentDaysDigestStatus =
 export const RECENT_DAYS_DIGEST_PROMPT_VERSION = 1;
 
 export const RECENT_DAYS_DIGEST = {
-  /** Source rows older than this many days never enter a digest's window. */
+  /** Source rows older than this never enter a digest's window; the render gate
+   *  (selectRenderableDigestText) also rejects a digest generated longer ago than
+   *  this. One value on purpose — the digest IS the last WINDOW_DAYS days. */
   WINDOW_DAYS: 7,
   /** A pair already at `done` waits at least this long before a routine regeneration. */
   MIN_REGEN_INTERVAL_MS: 2 * 60 * 60_000,

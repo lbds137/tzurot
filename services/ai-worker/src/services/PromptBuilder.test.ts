@@ -917,7 +917,7 @@ describe('PromptBuilder', () => {
         expect(participants).toBeLessThan(chatLog);
       });
 
-      it('orders the volatile prefix context → facts → memories → references → voice_anchor', () => {
+      it('orders the volatile prefix context → facts → recent_days → memories → references → voice_anchor', () => {
         const guildEnvironment: DiscordEnvironment = {
           type: 'guild',
           guild: { id: 'guild-1', name: 'Test Server' },
@@ -943,20 +943,26 @@ describe('PromptBuilder', () => {
             },
           ],
           facts: [{ statement: 'Likes tests.' }],
-          context: { ...minimalContext, environment: guildEnvironment },
+          context: {
+            ...minimalContext,
+            environment: guildEnvironment,
+            recentDaysDigest: 'RECENT DAYS SENTINEL 7f3a',
+          },
           referencedMessagesFormatted:
             '<contextual_references>Referenced content</contextual_references>',
         });
 
         const contextPos = prefix.indexOf('<context>');
         const factsPos = prefix.indexOf('<facts');
+        const recentDaysPos = prefix.indexOf('<recent_days');
         const memoriesPos = prefix.indexOf('<memory_archive');
         const referencesPos = prefix.indexOf('<contextual_references>');
         const anchorPos = prefix.indexOf('<voice_anchor>');
 
         expect(contextPos).toBe(0);
         expect(contextPos).toBeLessThan(factsPos);
-        expect(factsPos).toBeLessThan(memoriesPos);
+        expect(factsPos).toBeLessThan(recentDaysPos);
+        expect(recentDaysPos).toBeLessThan(memoriesPos);
         expect(memoriesPos).toBeLessThan(referencesPos);
         // voice_anchor renders LAST, nearest the generation point.
         expect(referencesPos).toBeLessThan(anchorPos);
@@ -965,6 +971,12 @@ describe('PromptBuilder', () => {
         // re-appear here, where they would churn the volatile container.
         expect(prefix).not.toContain('<location');
         expect(prefix).not.toContain('<participants>');
+      });
+
+      it('omits <recent_days> entirely when recentDaysDigest is undefined', () => {
+        const { prefix } = buildContainers({ context: minimalContext });
+
+        expect(prefix).not.toContain('<recent_days');
       });
 
       it('omits <voice_anchor> entirely when traits/tone/examples are all absent', () => {
@@ -1042,7 +1054,7 @@ describe('PromptBuilder', () => {
       it('keeps every V-tier tag OUT of the system message (the cacheability invariant)', () => {
         // The whole restructure exists to make this hold: any volatile tag in
         // the system message re-poisons the cacheable prefix.
-        const { system } = buildContainers({
+        const { system, prefix } = buildContainers({
           participantPersonas: new Map([
             [
               'persona-alice',
@@ -1061,6 +1073,7 @@ describe('PromptBuilder', () => {
             },
           ],
           facts: [{ statement: 'Likes tests.' }],
+          context: { ...minimalContext, recentDaysDigest: 'RECENT DAYS SENTINEL 7f3a' },
           referencedMessagesFormatted:
             '<contextual_references>Referenced content</contextual_references>',
           serializedHistory: '<message from="A" role="user">hi</message>',
@@ -1083,6 +1096,11 @@ describe('PromptBuilder', () => {
         // scaffolding ban list, so assert on the references PAYLOAD instead.
         expect(system).not.toContain('Referenced content');
         expect(system).not.toContain('<voice_anchor>');
+        expect(system).not.toContain('</recent_days>');
+        // Positive control: the digest was actually rendered somewhere, so the
+        // negative assertion above means what it claims rather than passing
+        // because the section never rendered at all.
+        expect(prefix).toContain('</recent_days>');
       });
 
       it('places <voice_anchor> in the human message content, never in contentForStorage', () => {

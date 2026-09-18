@@ -741,9 +741,10 @@ model PersonaPersonalityDigest {
   /// (empty until a generation lands).
   sourceRowIds        String[]  @map("source_row_ids")
   /// The pair's lastContextReset at generation time. Null means the digest was
-  /// generated while no clear epoch was active. Intended for the render gate
-  /// (design D10 d, not yet built): compare with the pair's CURRENT epoch by
-  /// null-aware equality so a digest that predates a clear is never rendered.
+  /// generated while no clear epoch was active. The render gate
+  /// (selectRenderableDigestText) compares it with the pair's CURRENT epoch by
+  /// null-aware, by-value equality so a digest that predates a clear is never
+  /// rendered.
   sourceEpoch         DateTime? @map("source_epoch")
   /// Deferred-set: when digest_text was last written; null until done. The
   /// sweep skips pairs regenerated within DIGEST_MIN_REGEN_INTERVAL of this.

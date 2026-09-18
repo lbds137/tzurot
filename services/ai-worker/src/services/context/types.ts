@@ -36,6 +36,7 @@ import type {
   MentionedPersona,
   ReferencedChannel,
 } from '@tzurot/common-types/types/schemas/personality';
+import type { RenderableDigestRow } from '../recentDaysDigest/recentDaysDigestStore.js';
 
 export interface CrossChannelHistoryParams {
   /** Active persona whose other-channel conversations to fetch */
@@ -124,6 +125,15 @@ export interface ContextDataSource {
    * carrying a real persona are returned; unknown ids are simply absent.
    */
   getUserIdentitiesByDiscordIds(discordIds: string[]): Promise<Map<string, RelayEchoUserIdentity>>;
+
+  /**
+   * The pair's stored recent-days digest when one is `done`; the render gate
+   * (window, epoch) is the caller's.
+   */
+  getRecentDaysDigest(
+    personaId: string,
+    personalityId: string
+  ): Promise<RenderableDigestRow | null>;
 }
 
 /** The human identity behind a persisted (relay-echo) user message. */

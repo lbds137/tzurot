@@ -25,6 +25,7 @@ import { dropFactsCoveredByArchive } from './prompt/dropFactsCoveredByArchive.js
 import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatVoiceAnchor } from './prompt/VoiceAnchorFormatter.js';
+import { formatRecentDays } from './prompt/RecentDaysFormatter.js';
 import {
   formatEnvironmentContext,
   formatCurrentLocationLine,
@@ -452,6 +453,11 @@ ${formatCurrentLocationLine(context.environment)}
     // statement placeholders (extraction episodes are placeholder-templated).
     const factsContext = formatFactsContext(facts, names);
 
+    // The pair's stored recent-days digest, rendered between facts and the
+    // memory archive — its own order is pinned by the volatile-prefix
+    // ordering test below.
+    const recentDaysContext = formatRecentDays(context.recentDaysDigest);
+
     // Relevant memories from past interactions
     const { text: memoryContext, summary: archiveSummary } = formatMemoriesContextWithStats(
       relevantMemories,
@@ -467,14 +473,15 @@ ${formatCurrentLocationLine(context.environment)}
     // the generation point, rendered LAST so it sits closest to the live
     // turn. Cache-neutral: the V tier is uncached every request, unlike the
     // system message's copies of these same fields. Pinned by the ordering
-    // test ("orders the volatile prefix context → facts → memories →
-    // references → voice_anchor") and the cacheability-invariant test
+    // test ("orders the volatile prefix context → facts → recent_days →
+    // memories → references → voice_anchor") and the cacheability-invariant test
     // ("keeps every V-tier tag OUT of the system message").
     const voiceAnchor = formatVoiceAnchor(personality);
 
     const sections: PromptSection[] = [
       { id: 'context', tier: 'V', render: () => contextSection },
       { id: 'facts', tier: 'V', render: () => factsContext },
+      { id: 'recent_days', tier: 'V', render: () => recentDaysContext },
       { id: 'memory_archive', tier: 'V', render: () => memoryContext },
       { id: 'contextual_references', tier: 'V', render: () => referencesContext },
       { id: 'voice_anchor', tier: 'V', render: () => voiceAnchor },

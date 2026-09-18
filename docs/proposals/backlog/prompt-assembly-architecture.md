@@ -40,13 +40,15 @@ S0 before S1 maximizes the cross-personality shared prefix for providers with au
 
 ### 2.2 Volatile tail placement
 
-All V-tier content renders as a structured prefix **inside the current user message**, after which the user's actual turn follows:
+All V-tier content renders as a structured prefix **inside the current user message**, after which the user's actual turn follows. The shipped order (pinned by `PromptBuilder.test.ts`'s volatile-prefix ordering test; `<participants>` moved to the system message):
 
 ```
 <context>datetime, location</context>
-<participants>…</participants>
+<facts>…distilled active facts…</facts>
+<recent_days>…the continuity digest (recent-days-digest.md D5)…</recent_days>
 <memory_archive>…RAG results…</memory_archive>
 <contextual_references>…out-of-window targets only…</contextual_references>
+<voice_anchor>…card register, nearest the generation point…</voice_anchor>
 <from name="…">current message text</from>
 ```
 

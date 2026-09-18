@@ -32,6 +32,11 @@ vi.mock('@tzurot/identity', () => ({
   getOrCreateUserService: () => ({ getUserTimezone: mockGetUserTimezone }),
 }));
 
+const mockReadRenderableDigest = vi.hoisted(() => vi.fn());
+vi.mock('../recentDaysDigest/recentDaysDigestStore.js', () => ({
+  readRenderableDigest: mockReadRenderableDigest,
+}));
+
 import { PrismaContextDataSource } from './PrismaContextDataSource.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -319,6 +324,22 @@ describe('PrismaContextDataSource', () => {
 
       expect(result.size).toBe(0);
       expect(mockConversationHistoryFindMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getRecentDaysDigest', () => {
+    it('delegates to readRenderableDigest with the prisma client and ids', async () => {
+      const row = { text: 'RECENT DAYS SENTINEL', generatedAt: new Date(), sourceEpoch: null };
+      mockReadRenderableDigest.mockResolvedValue(row);
+
+      const result = await source.getRecentDaysDigest('persona-1', 'personality-1');
+
+      expect(mockReadRenderableDigest).toHaveBeenCalledWith(
+        fakePrisma,
+        'persona-1',
+        'personality-1'
+      );
+      expect(result).toBe(row);
     });
   });
 });

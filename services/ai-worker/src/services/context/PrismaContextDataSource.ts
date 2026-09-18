@@ -23,6 +23,10 @@ import {
   type ChannelHistoryWindowResult,
 } from '@tzurot/conversation-history';
 import { getOrCreateUserService, type UserService } from '@tzurot/identity';
+import {
+  readRenderableDigest,
+  type RenderableDigestRow,
+} from '../recentDaysDigest/recentDaysDigestStore.js';
 import type {
   ContextDataSource,
   CrossChannelHistoryParams,
@@ -169,5 +173,12 @@ export class PrismaContextDataSource implements ContextDataSource {
       }
     }
     return byDiscordId;
+  }
+
+  async getRecentDaysDigest(
+    personaId: string,
+    personalityId: string
+  ): Promise<RenderableDigestRow | null> {
+    return readRenderableDigest(this.prisma, personaId, personalityId);
   }
 }
