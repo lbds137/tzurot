@@ -131,10 +131,10 @@ Commands for analyzing and managing pgvector memories:
 
 Recent-days digest generation — the read-only candidate report and the manual refresh trigger:
 
-| Command                                                                   | Description                                                                                                                                                                                         |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm ops digest:candidates --env dev`                                    | Report every (persona, personality) pair currently due for a digest generation, the 12/day-vs-1,440 gate, and a rough per-generation token estimate — read-only                                     |
-| `pnpm ops digest:refresh --env dev --persona <uuid> --personality <slug>` | Force one pair back to `pending` with a fresh `requested_at`, bypassing the routine regeneration interval; `--dry-run` previews without writing, `--force` skips the production confirmation prompt |
+| Command                                                                   | Description                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm ops digest:candidates --env dev`                                    | Report every (persona, personality) pair currently due for a digest generation, the 12/day-vs-1,440 gate, and a rough per-generation token estimate — read-only                                                                                              |
+| `pnpm ops digest:refresh --env dev --persona <uuid> --personality <slug>` | Force one pair back to `pending` with a fresh `requested_at`, bypassing the routine regeneration interval; the next attempt consumes the stamp, success or failure; `--dry-run` previews without writing, `--force` skips the production confirmation prompt |
 
 ## Retention Commands
 

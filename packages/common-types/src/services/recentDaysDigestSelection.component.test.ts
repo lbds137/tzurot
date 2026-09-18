@@ -24,7 +24,8 @@ let pglite: PGlite;
 let prisma: PrismaClient;
 
 /** Maps a fixture letter to a stable 2-digit hex suffix so letters past 'f'
- *  (g, h, i, j — used by the ordering fixture) still produce a valid UUID. */
+ *  (g, h, i, j — used by the ordering fixture; k, l, m, n — used by the
+ *  dead-pair re-admission fixtures) still produce a valid UUID. */
 const LETTER_HEX: Record<string, string> = {
   a: '0a',
   b: '0b',
@@ -36,6 +37,10 @@ const LETTER_HEX: Record<string, string> = {
   h: '11',
   i: '12',
   j: '13',
+  k: '14',
+  l: '15',
+  m: '16',
+  n: '17',
 };
 
 function personalityId(letter: string): string {
@@ -355,5 +360,96 @@ describe('selectDigestCandidatePairs', () => {
       now: NOW,
     });
     expect(result).toHaveLength(1);
+  });
+
+  it('(k) dead + refresh stamp + unchanged watermark -> NOT selected', async () => {
+    await seedPersonality('k', 'char-k');
+    const NEWEST = hoursAgo(1);
+    await seedHistoryRow('k', NEWEST);
+    await seedDigest({
+      letter: 'k',
+      status: 'dead',
+      attempts: 3,
+      promptVersion: PROMPT_VERSION,
+      sourceWatermark: NEWEST,
+      generatedAt: null,
+      requestedAt: NOW,
+    });
+    const result = await selectDigestCandidatePairs(prisma, {
+      personalitySlugs: ['char-k'],
+      promptVersion: PROMPT_VERSION,
+      limit: 10,
+      now: NOW,
+    });
+    expect(result).toHaveLength(0);
+  });
+
+  it('(l) dead + stamp, but a source row NEWER than the watermark -> selected', async () => {
+    await seedPersonality('l', 'char-l');
+    const NEWEST = hoursAgo(1);
+    await seedHistoryRow('l', NEWEST);
+    await seedDigest({
+      letter: 'l',
+      status: 'dead',
+      attempts: 3,
+      promptVersion: PROMPT_VERSION,
+      sourceWatermark: new Date(NEWEST.getTime() - 1000),
+      generatedAt: null,
+      requestedAt: NOW,
+    });
+    const result = await selectDigestCandidatePairs(prisma, {
+      personalitySlugs: ['char-l'],
+      promptVersion: PROMPT_VERSION,
+      limit: 10,
+      now: NOW,
+    });
+    expect(result).toHaveLength(1);
+  });
+
+  it('(m) dead, NO stamp, stale prompt version -> selected', async () => {
+    await seedPersonality('m', 'char-m');
+    const NEWEST = hoursAgo(1);
+    await seedHistoryRow('m', NEWEST);
+    await seedDigest({
+      letter: 'm',
+      status: 'dead',
+      attempts: 3,
+      promptVersion: 0,
+      sourceWatermark: NEWEST,
+      generatedAt: hoursAgo(3),
+      requestedAt: null,
+    });
+    const result = await selectDigestCandidatePairs(prisma, {
+      personalitySlugs: ['char-m'],
+      promptVersion: PROMPT_VERSION,
+      limit: 10,
+      now: NOW,
+    });
+    expect(result).toHaveLength(1);
+  });
+
+  // Pins the strict `>` on the new group's watermark arm at the equality
+  // boundary, and differs from (k) by reaching the interval group through
+  // `requested_at > generated_at` rather than the `generated_at IS NULL` arm.
+  it('(n) dead + stamp on a pair that once succeeded, watermark EQUAL to the newest row -> NOT selected', async () => {
+    await seedPersonality('n', 'char-n');
+    const NEWEST = hoursAgo(1);
+    await seedHistoryRow('n', NEWEST);
+    await seedDigest({
+      letter: 'n',
+      status: 'dead',
+      attempts: 3,
+      promptVersion: PROMPT_VERSION,
+      sourceWatermark: NEWEST,
+      generatedAt: hoursAgo(3),
+      requestedAt: NOW,
+    });
+    const result = await selectDigestCandidatePairs(prisma, {
+      personalitySlugs: ['char-n'],
+      promptVersion: PROMPT_VERSION,
+      limit: 10,
+      now: NOW,
+    });
+    expect(result).toHaveLength(0);
   });
 });

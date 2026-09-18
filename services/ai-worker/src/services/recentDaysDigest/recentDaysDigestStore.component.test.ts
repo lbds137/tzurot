@@ -266,6 +266,31 @@ describe('recordDigestFailure', () => {
     expect(row?.digest_attempts).toBe(1);
     expect(row?.digest_status).toBe('failed');
   });
+
+  // Without this clear, the selection query's `requested_at >
+  // COALESCE(generated_at, -infinity)` arm would stay true forever on a pair
+  // that has never succeeded, re-admitting it on every sweep tick.
+  it('clears requested_at — a refresh stamp buys exactly one generation cycle, failed or not', async () => {
+    const id = await seedPendingRow();
+    const stamp = new Date('2026-09-10T01:00:00.000Z');
+    await prisma.$executeRaw`
+      UPDATE persona_personality_digests SET requested_at = ${stamp}::timestamptz WHERE id = ${id}::uuid
+    `;
+
+    const affected = await recordDigestFailure(prisma, {
+      id,
+      seenRequestedAt: stamp,
+      attemptedWatermark: new Date('2026-09-10T00:00:00.000Z'),
+      promptVersion: 1,
+      errorClass: 'parse_failure',
+    });
+
+    expect(affected).toBe(1);
+    const row = await readRow(id);
+    expect(row?.requested_at).toBeNull();
+    expect(row?.digest_status).toBe('failed');
+    expect(row?.digest_attempts).toBe(1);
+  });
 });
 
 describe('readRenderableDigest', () => {
