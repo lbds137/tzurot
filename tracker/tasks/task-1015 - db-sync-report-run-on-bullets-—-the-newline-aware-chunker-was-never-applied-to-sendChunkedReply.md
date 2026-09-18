@@ -3,9 +3,10 @@ id: TASK-1015
 title: >-
   db-sync report: run-on bullets — the newline-aware chunker was never applied
   to sendChunkedReply
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 16:15'
+updated_date: '2026-09-18 22:37'
 labels:
   - 'area:bot-client'
   - 'size:S'
