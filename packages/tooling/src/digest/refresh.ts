@@ -1,9 +1,10 @@
 /**
  * `pnpm ops digest:refresh` — force one (persona, personality) pair's digest
  * row back to `pending` with a fresh `requested_at`, bypassing the sweep's
- * routine regeneration interval. `digest_text` is left untouched: the row
- * stays readable until the next sweep tick actually regenerates it, mirroring
- * the `/history purge` hook this command manually replays for one pair.
+ * routine regeneration interval; the next attempt consumes the stamp, success
+ * or failure. `digest_text` is left untouched: the row stays readable until
+ * the next sweep tick actually regenerates it, mirroring the `/history purge`
+ * hook this command manually replays for one pair.
  */
 
 import chalk from 'chalk';

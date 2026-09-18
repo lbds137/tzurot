@@ -35,7 +35,7 @@ export function registerDigestCommands(cli: CAC): void {
   cli
     .command(
       'digest:refresh',
-      'Force one (persona, personality) pair back to pending with a fresh requested_at, bypassing the routine regen interval'
+      'Force one (persona, personality) pair back to pending with a fresh requested_at, bypassing the routine regen interval; the next attempt consumes the stamp, success or failure'
     )
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--persona <uuid>', 'Persona UUID (required)')

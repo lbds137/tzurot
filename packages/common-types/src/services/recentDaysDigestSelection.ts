@@ -10,7 +10,11 @@
  */
 
 import type { PrismaClient } from './prisma.js';
-import { RECENT_DAYS_DIGEST, type RecentDaysDigestStatus } from '../constants/recentDaysDigest.js';
+import {
+  RECENT_DAYS_DIGEST,
+  RECENT_DAYS_DIGEST_STATUS,
+  type RecentDaysDigestStatus,
+} from '../constants/recentDaysDigest.js';
 
 /** One (persona, personality) pair due for a digest generation, plus every
  *  field the prompt builder and the store need to act on it. */
@@ -99,9 +103,13 @@ function toCandidatePair(row: RawCandidateRow): DigestCandidatePair {
  * digest row, has new rows past its watermark, was manually requested since
  * its last generation, or was generated under a different prompt version;
  * AND (for a routine, non-refresh regeneration) at least
- * `MIN_REGEN_INTERVAL_MS` has passed since the last generation. `dead` pairs
- * are not special-cased — the same clauses re-admit them once a new row, a
- * refresh, or a version bump makes them due again.
+ * `MIN_REGEN_INTERVAL_MS` has passed since the last generation. A `dead` pair
+ * is re-admitted only by new source rows past its watermark or a prompt-version
+ * bump. An explicit refresh also re-admits it, but indirectly: `digest:refresh`
+ * and the history purge hook both set `digest_status = 'pending'` alongside the
+ * stamp, so the row is no longer `dead` by the time the next tick selects. A
+ * leftover `requested_at` on a row that STAYED `dead` is exactly the
+ * re-admission this group closes.
  */
 export async function selectDigestCandidatePairs(
   prisma: PrismaClient,
@@ -178,6 +186,11 @@ export async function selectDigestCandidatePairs(
         d.generated_at IS NULL
         OR d.generated_at < ${regenCutoff}::timestamptz
         OR d.requested_at > d.generated_at
+      )
+      AND (
+        d.digest_status IS DISTINCT FROM ${RECENT_DAYS_DIGEST_STATUS.DEAD}
+        OR pairs.newest_row_at > d.source_watermark
+        OR d.digest_prompt_version IS DISTINCT FROM ${promptVersion}
       )
     ORDER BY
       COALESCE(d.requested_at > COALESCE(d.generated_at, '-infinity'::timestamptz), false) DESC,
