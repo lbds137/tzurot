@@ -67,6 +67,11 @@ describe('validateDigest', () => {
     expect(hasFirstPerson('I promised')).toBe(true);
   });
 
+  it('the first_person detail is the matched token', () => {
+    const result = validateDigest('Nova and Jules talked. I will follow up.', []);
+    expect(result).toEqual({ ok: false, cls: 'first_person', detail: 'I' });
+  });
+
   it('flags quotation before overflow when both would trip', () => {
     const digest = `${EIGHT_WORDS} `.repeat(60); // long enough to overflow too
     const result = validateDigest(digest, [EIGHT_WORDS]);

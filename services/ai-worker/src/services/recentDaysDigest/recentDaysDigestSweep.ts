@@ -3,15 +3,16 @@
  *
  * One tick selects up to `MAX_GENERATIONS_PER_SWEEP` due (persona,
  * personality) pairs (the single selection query in
- * `recentDaysDigestSelection.ts`, shared with the tooling dry-run),
- * materializes a row for every never-generated pair, then generates
- * sequentially — same one-try-around-the-whole-row shape as
+ * `recentDaysDigestSelection.ts`, shared with the `digest:candidates`
+ * tooling command), materializes a row for every never-generated pair, then
+ * generates sequentially — same one-try-around-the-whole-row shape as
  * `rosterBlurbSweep.ts`, and the same never-log-content discipline
- * (`00-critical.md` § Logging).
+ * (`00-critical.md` § Logging). The model round itself (window load, prompt
+ * build, first pass + regeneration) lives in `recentDaysDigestGeneration.ts`;
+ * this file owns selecting the due pairs and writing the outcome.
  */
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   RECENT_DAYS_DIGEST,
   RECENT_DAYS_DIGEST_PROMPT_VERSION,
@@ -23,31 +24,24 @@ import {
   type DigestCandidatePair,
 } from '@tzurot/common-types/services/recentDaysDigestSelection';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import { contentDigest } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
-import { extractJsonPayload } from '../extraction/extractionPrompt.js';
 import {
   resolveSystemModelRoute,
   type SystemModelInvoker,
-  type SystemModelResult,
 } from '../systemModel/systemModelCall.js';
 import { makeRecentDaysDigestInvoker } from './makeRecentDaysDigestInvoker.js';
-import { buildDigestInput, type DigestSourceRow } from './recentDaysDigestInput.js';
 import {
-  buildDigestPrompt,
-  buildRegenerateDigestPrompt,
-  buildDigestRegenerationFeedback,
-  digestResponseSchema,
-  type DigestPromptInput,
-} from './recentDaysDigestPrompt.js';
+  buildPairGenerationContext,
+  loadWindowRows,
+  runGeneration,
+} from './recentDaysDigestGeneration.js';
 import {
   materializePendingRows,
   storeDigestSuccess,
   recordDigestFailure,
   readDigestStatus,
 } from './recentDaysDigestStore.js';
-import { decideDigestLength, validateDigest } from './recentDaysDigestValidation.js';
-import { writeRecentDaysDigestUsageLog } from './recentDaysDigestUsageLog.js';
 
 const logger = createLogger('RecentDaysDigestSweep');
 
@@ -88,73 +82,6 @@ function logRouteError(provider: AIProvider): void {
   lastRouteErrorAt = now;
 }
 
-interface RawSourceRow {
-  id: string;
-  role: string;
-  content: string;
-  created_at: Date;
-  channel_id: string;
-  guild_id: string | null;
-}
-
-/** Load one pair's window, newest-first, capped at `MAX_SOURCE_MESSAGES + 1`
- *  — the `+1` is how `buildDigestInput` detects truncation without a
- *  separate count query. */
-async function loadWindowRows(
-  prisma: PrismaClient,
-  pair: DigestCandidatePair,
-  now: Date
-): Promise<DigestSourceRow[]> {
-  const windowFloor = new Date(now.getTime() - RECENT_DAYS_DIGEST.WINDOW_DAYS * 86_400_000);
-  const floor = pair.epoch !== null && pair.epoch > windowFloor ? pair.epoch : windowFloor;
-  const rows = await prisma.$queryRaw<RawSourceRow[]>`
-    SELECT id, role, content, created_at, channel_id, guild_id
-    FROM conversation_history
-    WHERE persona_id = ${pair.personaId}::uuid AND personality_id = ${pair.personalityId}::uuid
-      AND deleted_at IS NULL AND created_at >= ${floor}::timestamptz
-    ORDER BY created_at DESC
-    LIMIT ${RECENT_DAYS_DIGEST.MAX_SOURCE_MESSAGES + 1}
-  `;
-  return rows.map(row => ({
-    id: row.id,
-    role: row.role,
-    content: row.content,
-    createdAt: row.created_at,
-    channelId: row.channel_id,
-    guildId: row.guild_id,
-  }));
-}
-
-/** One model call + usage row + JSON parse. Returns null on a parse failure
- *  — a parse failure is terminal on whichever pass produced it, mirroring
- *  the memory-archive summarizer (no regeneration is attempted FOR a parse
- *  failure itself). */
-async function callAndParse(
-  prisma: PrismaClient,
-  invoke: SystemModelInvoker,
-  prompt: string,
-  pair: DigestCandidatePair
-): Promise<{ digest: string; usage: SystemModelResult } | null> {
-  const start = Date.now();
-  const usage = await invoke(prompt);
-  const latencyMs = Date.now() - start;
-  await writeRecentDaysDigestUsageLog(
-    prisma,
-    usage,
-    { personalityId: pair.personalityId, ownerId: pair.ownerId },
-    latencyMs
-  );
-
-  let payload: unknown;
-  try {
-    payload = JSON.parse(extractJsonPayload(usage.content));
-  } catch {
-    payload = undefined;
-  }
-  const parsed = payload === undefined ? undefined : digestResponseSchema.safeParse(payload);
-  return parsed?.success === true ? { digest: parsed.data.digest, usage } : null;
-}
-
 interface FinishArgs {
   prisma: PrismaClient;
   id: string;
@@ -164,9 +91,13 @@ interface FinishArgs {
 
 /** Apply the guarded failure write and classify the outcome into stats. */
 async function finishFailure(
-  args: FinishArgs & { attemptedWatermark: Date | null; errorClass: DigestFailureClass }
+  args: FinishArgs & {
+    attemptedWatermark: Date;
+    errorClass: DigestFailureClass;
+    detail: string;
+  }
 ): Promise<void> {
-  const { prisma, id, pair, stats, attemptedWatermark, errorClass } = args;
+  const { prisma, id, pair, stats, attemptedWatermark, errorClass, detail } = args;
   const affected = await recordDigestFailure(prisma, {
     id,
     seenRequestedAt: pair.requestedAt,
@@ -182,7 +113,26 @@ async function finishFailure(
     );
     return;
   }
-  const status = await readDigestStatus(prisma, id);
+  const { status, attempts } = await readDigestStatus(prisma, id);
+  // The `quotation` detail is a verbatim n-gram of the character's own
+  // conversation rows, so the log carries only its length and digest; the
+  // literal stays in the validator result for the regeneration feedback and
+  // the operator dry-run report, which prints to the operator terminal only.
+  const logDetail =
+    errorClass === 'quotation'
+      ? `quoted ${detail.split(/\s+/).filter(Boolean).length}-word n-gram, digest ${contentDigest(detail)}`
+      : detail;
+  logger.warn(
+    {
+      personaId: pair.personaId,
+      personalityId: pair.personalityId,
+      cls: errorClass,
+      detail: logDetail,
+      attempts,
+      status,
+    },
+    'Recent-days digest attempt rejected'
+  );
   if (status === 'dead') {
     stats.dead += 1;
   } else {
@@ -236,102 +186,6 @@ async function finishSuccess(
   stats.generated += 1;
 }
 
-/** The model round for one pair: first pass, at most one regeneration, then
- *  the final write. Split out of `processOnePair` to stay under the
- *  per-function line/statement limits. */
-async function runGeneration(ctx: {
-  prisma: PrismaClient;
-  pair: DigestCandidatePair;
-  id: string;
-  invoke: SystemModelInvoker;
-  promptInput: DigestPromptInput;
-  assistantContents: string[];
-  windowInput: {
-    windowStart: Date;
-    sourceWatermark: Date;
-    sourceRowCount: number;
-    sourceRowIds: string[];
-  };
-  stats: RecentDaysDigestSweepStats;
-}): Promise<void> {
-  const { prisma, pair, id, invoke, promptInput, assistantContents, windowInput, stats } = ctx;
-
-  const first = await callAndParse(prisma, invoke, buildDigestPrompt(promptInput), pair);
-  if (first === null) {
-    await finishFailure({
-      prisma,
-      id,
-      pair,
-      stats,
-      attemptedWatermark: windowInput.sourceWatermark,
-      errorClass: 'parse_failure',
-    });
-    return;
-  }
-
-  const firstValidation = validateDigest(first.digest, assistantContents);
-  const firstLength = decideDigestLength(countTextTokens(first.digest));
-  const needsRegen = !firstValidation.ok || firstLength === 'over_soft';
-
-  const final = needsRegen
-    ? await callAndParse(
-        prisma,
-        invoke,
-        buildRegenerateDigestPrompt(
-          promptInput,
-          first.digest,
-          buildDigestRegenerationFeedback({
-            overLength: firstLength !== 'within_soft',
-            firstPerson: !firstValidation.ok && firstValidation.cls === 'first_person',
-            quoted:
-              !firstValidation.ok && firstValidation.cls === 'quotation'
-                ? firstValidation.detail
-                : null,
-          })
-        ),
-        pair
-      )
-    : first;
-
-  if (final === null) {
-    await finishFailure({
-      prisma,
-      id,
-      pair,
-      stats,
-      attemptedWatermark: windowInput.sourceWatermark,
-      errorClass: 'parse_failure',
-    });
-    return;
-  }
-
-  const finalValidation = validateDigest(final.digest, assistantContents);
-  if (!finalValidation.ok) {
-    await finishFailure({
-      prisma,
-      id,
-      pair,
-      stats,
-      attemptedWatermark: windowInput.sourceWatermark,
-      errorClass: finalValidation.cls,
-    });
-    return;
-  }
-
-  await finishSuccess({
-    prisma,
-    id,
-    pair,
-    stats,
-    text: final.digest,
-    model: final.usage.model,
-    sourceWatermark: windowInput.sourceWatermark,
-    windowStart: windowInput.windowStart,
-    sourceRowCount: windowInput.sourceRowCount,
-    sourceRowIds: windowInput.sourceRowIds,
-  });
-}
-
 interface ProcessOnePairArgs {
   prisma: PrismaClient;
   pair: DigestCandidatePair;
@@ -346,32 +200,46 @@ interface ProcessOnePairArgs {
 async function processOnePair(args: ProcessOnePairArgs): Promise<void> {
   const { prisma, pair, id, invoke, stats, now } = args;
   const rows = await loadWindowRows(prisma, pair, now);
-  const names = {
-    personaLabel: pair.personaPreferredName ?? pair.personaName,
-    characterLabel: pair.personalityDisplayName ?? pair.personalityName,
-  };
-  const windowInput = buildDigestInput({ rows, tz: pair.ownerTimezone, names });
-  const promptInput: DigestPromptInput = {
-    personaLabel: names.personaLabel,
-    characterLabel: names.characterLabel,
-    lines: windowInput.lines,
-    truncated: windowInput.truncated,
-    windowStart: windowInput.windowStart,
-    tz: pair.ownerTimezone,
-  };
-  const assistantContents = rows
-    .filter(row => row.role === (MessageRole.Assistant as string))
-    .map(row => row.content);
+  const { windowInput, promptInput, assistantContents } = buildPairGenerationContext(pair, rows);
 
-  await runGeneration({
+  const outcome = await runGeneration({ prisma, pair, invoke, promptInput, assistantContents });
+
+  if (outcome.kind === 'parse_failure') {
+    await finishFailure({
+      prisma,
+      id,
+      pair,
+      stats,
+      attemptedWatermark: windowInput.sourceWatermark,
+      errorClass: 'parse_failure',
+      detail: 'model response did not parse',
+    });
+    return;
+  }
+  if (outcome.kind === 'failed') {
+    await finishFailure({
+      prisma,
+      id,
+      pair,
+      stats,
+      attemptedWatermark: windowInput.sourceWatermark,
+      errorClass: outcome.cls,
+      detail: outcome.detail,
+    });
+    return;
+  }
+
+  await finishSuccess({
     prisma,
-    pair,
     id,
-    invoke,
-    promptInput,
-    assistantContents,
-    windowInput,
+    pair,
     stats,
+    text: outcome.text,
+    model: outcome.model,
+    sourceWatermark: windowInput.sourceWatermark,
+    windowStart: windowInput.windowStart,
+    sourceRowCount: windowInput.sourceRowCount,
+    sourceRowIds: windowInput.sourceRowIds,
   });
 }
 

@@ -13,7 +13,10 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../generated/prisma/client.js';
-import { selectDigestCandidatePairs } from './recentDaysDigestSelection.js';
+import {
+  selectDigestCandidatePairs,
+  loadDigestPairForDryRun,
+} from './recentDaysDigestSelection.js';
 
 const OWNER_ID = '4f9b0f66-0000-4000-8000-0000000000a0';
 const PERSONA_ID = '4f9b0f66-0000-4000-8000-0000000000a1';
@@ -41,6 +44,8 @@ const LETTER_HEX: Record<string, string> = {
   l: '15',
   m: '16',
   n: '17',
+  o: '18',
+  p: '19',
 };
 
 function personalityId(letter: string): string {
@@ -451,5 +456,59 @@ describe('selectDigestCandidatePairs', () => {
       now: NOW,
     });
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('loadDigestPairForDryRun', () => {
+  it('a dead + not-due pair is excluded by selectDigestCandidatePairs but loads for the dry run', async () => {
+    await seedPersonality('o', 'char-o');
+    const newestO = hoursAgo(1);
+    await seedHistoryRow('o', newestO);
+    await seedDigest({
+      letter: 'o',
+      status: 'dead',
+      attempts: 3,
+      promptVersion: PROMPT_VERSION,
+      sourceWatermark: newestO,
+      generatedAt: minutesAgo(30),
+      requestedAt: null,
+    });
+
+    const swept = await selectDigestCandidatePairs(prisma, {
+      personalitySlugs: ['char-o'],
+      promptVersion: PROMPT_VERSION,
+      limit: 10,
+      now: NOW,
+    });
+    expect(swept).toHaveLength(0);
+
+    const dryRun = await loadDigestPairForDryRun(
+      prisma,
+      { personaId: PERSONA_ID, personalitySlug: 'char-o' },
+      NOW
+    );
+    expect(dryRun).not.toBeNull();
+    expect(dryRun?.personaId).toBe(PERSONA_ID);
+    expect(dryRun?.personalitySlug).toBe('char-o');
+    expect(dryRun?.digestStatus).toBe('dead');
+  });
+
+  it('an unknown slug returns null', async () => {
+    const result = await loadDigestPairForDryRun(
+      prisma,
+      { personaId: PERSONA_ID, personalitySlug: 'no-such-personality' },
+      NOW
+    );
+    expect(result).toBeNull();
+  });
+
+  it('a persona with no rows inside the window returns null', async () => {
+    await seedPersonality('p', 'char-p');
+    const result = await loadDigestPairForDryRun(
+      prisma,
+      { personaId: PERSONA_ID, personalitySlug: 'char-p' },
+      NOW
+    );
+    expect(result).toBeNull();
   });
 });

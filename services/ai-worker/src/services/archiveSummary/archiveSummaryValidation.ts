@@ -26,19 +26,29 @@ export function stripQuotedSpans(text: string): string {
   return text.replace(/"[^"]*"|“[^“”]*”/g, '');
 }
 
+// Case-sensitive on purpose: `/i` would match `US`, `OUR`, and other
+// all-caps tokens that are not pronouns, so sentence-initial capitals are
+// enumerated instead.
+const FIRST_PERSON_REGEX =
+  /\b(I['’]m|I['’]ve|I['’]d|I['’]ll|I|me|my|mine|myself|we|our|ours|ourselves|ourself|us|We|My|Me|Our|Ours|Ourselves|Ourself|Us|Mine|Myself)\b/;
+
+/**
+ * Find the first first-person token in `text`, run on quote-stripped text.
+ * Contractions are ordered before bare `I` in the alternation so `I'm` is not
+ * matched as `I`; both straight and curly apostrophes are accepted. Returns
+ * the matched token (for a failure detail) or null.
+ */
+export function findFirstPersonToken(text: string): string | null {
+  const stripped = stripQuotedSpans(text);
+  return FIRST_PERSON_REGEX.exec(stripped)?.[0] ?? null;
+}
+
 /**
  * Case-sensitive first-person leak detector, run on quote-stripped text.
- * Contractions are ordered before bare `I` in the alternation so `I'm` is not
- * matched as `I`; both straight and curly apostrophes are accepted.
+ * Delegates to `findFirstPersonToken` so both callers share one regex.
  */
 export function hasFirstPerson(text: string): boolean {
-  const stripped = stripQuotedSpans(text);
-  // Case-sensitive on purpose: `/i` would match `US`, `OUR`, and other
-  // all-caps tokens that are not pronouns, so sentence-initial capitals are
-  // enumerated instead.
-  return /\b(I['’]m|I['’]ve|I['’]d|I['’]ll|I|me|my|mine|myself|we|our|ours|ourselves|ourself|us|We|My|Me|Our|Ours|Ourselves|Ourself|Us|Mine|Myself)\b/.test(
-    stripped
-  );
+  return findFirstPersonToken(text) !== null;
 }
 
 /** Decide the length outcome of a summarization attempt: `overflow` is judged

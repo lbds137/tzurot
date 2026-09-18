@@ -76,17 +76,28 @@ export async function materializePendingRows(
   return ids;
 }
 
-/** Read back a row's current status — used by the sweep only to classify its
- *  own stats (`failed` vs `dead`) after a `recordDigestFailure` write;
- *  never needed to decide the write itself, which is entirely SQL-side. */
+/** The status + attempt-count pair the sweep reads back after a
+ *  `recordDigestFailure` write — never needed to decide the write itself,
+ *  which is entirely SQL-side. */
+export interface DigestFailureState {
+  status: RecentDaysDigestStatus | null;
+  attempts: number | null;
+}
+
+/** Read back a row's current status and attempt count — used by the sweep
+ *  both to classify its own stats (`failed` vs `dead`) and to log the
+ *  rejected attempt's count. */
 export async function readDigestStatus(
   prisma: PrismaClient,
   id: string
-): Promise<RecentDaysDigestStatus | null> {
-  const rows = await prisma.$queryRaw<{ digest_status: RecentDaysDigestStatus | null }[]>`
-    SELECT digest_status FROM persona_personality_digests WHERE id = ${id}::uuid
+): Promise<DigestFailureState> {
+  const rows = await prisma.$queryRaw<
+    { digest_status: RecentDaysDigestStatus | null; digest_attempts: number | null }[]
+  >`
+    SELECT digest_status, digest_attempts FROM persona_personality_digests WHERE id = ${id}::uuid
   `;
-  return rows[0]?.digest_status ?? null;
+  const row = rows[0];
+  return { status: row?.digest_status ?? null, attempts: row?.digest_attempts ?? null };
 }
 
 export interface RenderableDigestRow {
@@ -164,7 +175,10 @@ export async function storeDigestSuccess(
 export interface RecordDigestFailureInput {
   id: string;
   seenRequestedAt: Date | null;
-  attemptedWatermark: Date | null;
+  /** Always supplied by the caller — a `dead` row's revival arm must never
+   *  be NULL-forever. The SQL's `IS NOT DISTINCT FROM` below still guards the
+   *  COLUMN, which is nullable on a freshly materialized `pending` row. */
+  attemptedWatermark: Date;
   promptVersion: number;
   errorClass: DigestFailureClass;
 }

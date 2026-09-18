@@ -32,6 +32,13 @@ vi.mock('../utils/env-runner.js', () => ({
   requireProductionConfirmation: mockRequireProductionConfirmation,
 }));
 
+// Mock the --with variable resolver
+const mockResolveExtraRailwayVars = vi.fn();
+
+vi.mock('../utils/railway-extra-vars.js', () => ({
+  resolveExtraRailwayVars: mockResolveExtraRailwayVars,
+}));
+
 // Mock chalk
 vi.mock('chalk', () => ({
   default: {
@@ -50,6 +57,9 @@ describe('runWithEnv', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    // Default: no --with names resolved, so existing dev/prod assertions
+    // that predate --with keep working unchanged.
+    mockResolveExtraRailwayVars.mockResolvedValue({});
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     // Mock process.exit to throw so we can catch it
@@ -102,7 +112,7 @@ describe('runWithEnv', () => {
       'process.exit(0)'
     );
 
-    expect(mockRunWithRailway).toHaveBeenCalledWith('dev', 'tsx', ['script.ts']);
+    expect(mockRunWithRailway).toHaveBeenCalledWith('dev', 'tsx', ['script.ts'], undefined, {});
   });
 
   it('should require confirmation for prod without force', async () => {
@@ -134,7 +144,13 @@ describe('runWithEnv', () => {
     );
 
     expect(mockRequireProductionConfirmation).toHaveBeenCalled();
-    expect(mockRunWithRailway).toHaveBeenCalledWith('prod', 'npx', ['prisma', 'studio']);
+    expect(mockRunWithRailway).toHaveBeenCalledWith(
+      'prod',
+      'npx',
+      ['prisma', 'studio'],
+      undefined,
+      {}
+    );
   });
 
   it('should skip confirmation for prod with force flag', async () => {
@@ -147,7 +163,13 @@ describe('runWithEnv', () => {
     ).rejects.toThrow('process.exit(0)');
 
     expect(mockRequireProductionConfirmation).not.toHaveBeenCalled();
-    expect(mockRunWithRailway).toHaveBeenCalledWith('prod', 'npx', ['prisma', 'studio']);
+    expect(mockRunWithRailway).toHaveBeenCalledWith(
+      'prod',
+      'npx',
+      ['prisma', 'studio'],
+      undefined,
+      {}
+    );
   });
 
   it('should exit with command exit code', async () => {
@@ -174,5 +196,51 @@ describe('runWithEnv', () => {
     await expect(promise).rejects.toThrow(
       "Failed to spawn 'nonexistent': spawn nonexistent ENOENT"
     );
+  });
+
+  describe('--with resolution', () => {
+    it('passes the resolved extra vars to runWithRailway alongside DATABASE_URL', async () => {
+      mockResolveExtraRailwayVars.mockResolvedValue({ ZAI_CODING_API_KEY: 'zai-sentinel-value' });
+      mockRunWithRailway.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+
+      const { runWithEnv } = await import('./run-with-env.js');
+
+      await expect(
+        runWithEnv(['tsx', 'script.ts'], { env: 'dev', withVars: ['ZAI_CODING_API_KEY'] })
+      ).rejects.toThrow('process.exit(0)');
+
+      expect(mockResolveExtraRailwayVars).toHaveBeenCalledWith('dev', ['ZAI_CODING_API_KEY']);
+      expect(mockRunWithRailway).toHaveBeenCalledWith('dev', 'tsx', ['script.ts'], undefined, {
+        ZAI_CODING_API_KEY: 'zai-sentinel-value',
+      });
+    });
+
+    it('fails without spawning when --env local is combined with --with names', async () => {
+      const { runWithEnv } = await import('./run-with-env.js');
+
+      await expect(
+        runWithEnv(['echo', 'hi'], { env: 'local', withVars: ['ZAI_CODING_API_KEY'] })
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(mockResolveExtraRailwayVars).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('--with'));
+    });
+
+    it('prints the injected variable NAMES but never a resolved secret VALUE', async () => {
+      mockResolveExtraRailwayVars.mockResolvedValue({ ZAI_CODING_API_KEY: 'zai-sentinel-value' });
+      mockRunWithRailway.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+
+      const { runWithEnv } = await import('./run-with-env.js');
+
+      await expect(
+        runWithEnv(['tsx', 'script.ts'], { env: 'dev', withVars: ['ZAI_CODING_API_KEY'] })
+      ).rejects.toThrow('process.exit(0)');
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('ZAI_CODING_API_KEY');
+      expect(output).toContain('DATABASE_URL');
+      expect(output).not.toContain('zai-sentinel-value');
+    });
   });
 });

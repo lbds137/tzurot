@@ -68,16 +68,16 @@ describe('storeDigestSuccess', () => {
 });
 
 describe('readDigestStatus', () => {
-  it('returns the status column of the matching row', async () => {
-    const prisma = fakePrisma([{ digest_status: 'failed' }]);
-    const status = await readDigestStatus(prisma as unknown as PrismaClient, 'id-1');
-    expect(status).toBe('failed');
+  it('returns the status and attempts columns of the matching row', async () => {
+    const prisma = fakePrisma([{ digest_status: 'failed', digest_attempts: 1 }]);
+    const result = await readDigestStatus(prisma as unknown as PrismaClient, 'id-1');
+    expect(result).toEqual({ status: 'failed', attempts: 1 });
   });
 
-  it('returns null when no row matches', async () => {
+  it('returns nulls for both fields when no row matches', async () => {
     const prisma = fakePrisma([]);
-    const status = await readDigestStatus(prisma as unknown as PrismaClient, 'id-1');
-    expect(status).toBeNull();
+    const result = await readDigestStatus(prisma as unknown as PrismaClient, 'id-1');
+    expect(result).toEqual({ status: null, attempts: null });
   });
 });
 
