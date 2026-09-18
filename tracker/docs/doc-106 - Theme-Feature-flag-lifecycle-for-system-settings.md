@@ -34,9 +34,9 @@ _Focus: some system settings are feature flags in practice — rollout switches 
 
 ### Phase 2 — the first retirements (each its own small PR)
 
-- [ ] `realMessagesEnabled` → the real-messages path becomes the only path (deletes the `<chat_log>` render arm and its tests; TASK-725's 3×-render measurement note is folded or closed). Owner ruling needed: ready?
+- [ ] `realMessagesEnabled` → the real-messages path becomes the only path (deletes the `<chat_log>` render arm and its tests; TASK-725's 3×-render measurement note is folded or closed). **Owner ruling 2026-09-18: yes — the first retirement.**
 - [ ] `headerSpoofNeutralizeEnabled` → always on.
 - [ ] `factsInPromptEnabled`, `rosterBlurbEnabled`, `stickerVisionEnabled` → each on its own observable.
-- [ ] The two personality lists: owner ruling — invert to exclusion lists, or delete once every character is flipped (the archive list's flip sequence is per character by design, D3 in the memory-archive format doc).
+- [ ] The two personality lists: **owner ruling 2026-09-18: DELETE once every character is flipped** — the feature becomes unconditional, the setting, its dashboard row, and the slug filter in the sweep/render go away (an exclusion list would be a new flag by another name; the per-character flip is a rollout, not a policy). The archive list flips per character by design (D3, memory-archive format doc) — the deletion waits on the last gate.
 
 **Related**: TASK-725 (real-messages triple render); `doc-97` (the digest list is its rollout); `docs/proposals/backlog/memory-archive-format.md` (the split-render list's per-character flip). Not a fourth flag mechanism: this reuses the existing registry, tracker, and digest.
