@@ -92,6 +92,11 @@ describe('validateDigest', () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it('accepts a single-quoted first-person span as third-person prose', () => {
+    const result = validateDigest("Lila said 'I love you'; Emily called her best girlfriend.", []);
+    expect(result).toEqual({ ok: true });
+  });
+
   it('does not fail on over_soft alone', () => {
     const digest = 'word '.repeat(RECENT_DAYS_DIGEST.SOFT_CAP_TOKENS + 10);
     const result = validateDigest(digest, []);
