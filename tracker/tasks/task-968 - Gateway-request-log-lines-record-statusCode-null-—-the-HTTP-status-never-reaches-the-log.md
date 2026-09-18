@@ -3,10 +3,10 @@ id: TASK-968
 title: >-
   Gateway request log lines record statusCode: null — the HTTP status never
   reaches the log
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 19:23'
-updated_date: '2026-09-18 21:30'
+updated_date: '2026-09-18 23:57'
 labels:
   - 'area:api-gateway'
   - 'size:M'
