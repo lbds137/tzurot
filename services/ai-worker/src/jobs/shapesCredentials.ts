@@ -6,8 +6,16 @@
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { CREDENTIAL_SERVICES, CREDENTIAL_TYPES } from '@tzurot/common-types/types/shapes-import';
-import { decryptApiKey, encryptApiKey } from '@tzurot/common-types/utils/encryption';
+import {
+  CREDENTIAL_SERVICES,
+  CREDENTIAL_TYPES,
+  UNDECRYPTABLE_CREDENTIAL_MESSAGE,
+} from '@tzurot/common-types/types/shapes-import';
+import {
+  decryptApiKey,
+  encryptApiKey,
+  isEncryptionConfigured,
+} from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ShapesAuthError,
@@ -22,7 +30,9 @@ const logger = createLogger('shapesCredentials');
 
 /**
  * Look up and decrypt the shapes.inc session cookie for a user.
- * @throws ShapesAuthError if no credential is found.
+ * @throws ShapesAuthError if no credential is found, or if a stored credential fails to
+ * decrypt. EXCEPTION: a decrypt failure while the service's encryption config is unusable
+ * rethrows the original error, so matching only on ShapesAuthError will not catch that.
  */
 export async function getDecryptedCookie(prisma: PrismaClient, userId: string): Promise<string> {
   const credential = await prisma.userCredential.findFirst({
@@ -38,11 +48,19 @@ export async function getDecryptedCookie(prisma: PrismaClient, userId: string): 
     throw new ShapesAuthError('No shapes.inc credentials found. Use /shapes auth first.');
   }
 
-  return decryptApiKey({
-    iv: credential.iv,
-    content: credential.content,
-    tag: credential.tag,
-  });
+  try {
+    return decryptApiKey({
+      iv: credential.iv,
+      content: credential.content,
+      tag: credential.tag,
+    });
+  } catch (error) {
+    if (!isEncryptionConfigured()) {
+      throw error;
+    }
+    logger.warn({ err: error, userId }, 'Failed to decrypt stored shapes.inc credential');
+    throw new ShapesAuthError(UNDECRYPTABLE_CREDENTIAL_MESSAGE);
+  }
 }
 
 /**

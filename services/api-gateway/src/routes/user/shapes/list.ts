@@ -15,8 +15,9 @@ import {
   CREDENTIAL_TYPES,
   SHAPES_BASE_URL,
   SHAPES_USER_AGENT,
+  UNDECRYPTABLE_CREDENTIAL_MESSAGE,
 } from '@tzurot/common-types/types/shapes-import';
-import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { decryptApiKey, isEncryptionConfigured } from '@tzurot/common-types/utils/encryption';
 import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -29,6 +30,10 @@ import type { RouteDeps } from '../../routeDeps.js';
 const logger = createLogger('shapes-list');
 
 const REQUEST_TIMEOUT_MS = VALIDATION_TIMEOUTS.EXTERNAL_SHAPES_API_CALL;
+
+/** Sent when shapes.inc rejects the cookie (401/403 or a redirect to login). */
+export const EXPIRED_CREDENTIAL_MESSAGE =
+  'Session cookie expired or invalid. Re-authenticate with /shapes auth.';
 
 interface ShapesListItem {
   id: string;
@@ -57,11 +62,20 @@ function createListHandler(prisma: PrismaClient) {
     }
 
     // Decrypt session cookie
-    const sessionCookie = decryptApiKey({
-      iv: credential.iv,
-      content: credential.content,
-      tag: credential.tag,
-    });
+    let sessionCookie: string;
+    try {
+      sessionCookie = decryptApiKey({
+        iv: credential.iv,
+        content: credential.content,
+        tag: credential.tag,
+      });
+    } catch (error) {
+      if (!isEncryptionConfigured()) {
+        throw error;
+      }
+      logger.warn({ err: error, discordUserId }, 'Failed to decrypt stored shapes.inc credential');
+      return sendError(res, ErrorResponses.unauthorized(UNDECRYPTABLE_CREDENTIAL_MESSAGE));
+    }
 
     // Fetch owned shapes from shapes.inc
     const controller = new AbortController();
@@ -95,12 +109,7 @@ function createListHandler(prisma: PrismaClient) {
         );
 
         if (response.status === 401 || response.status === 403 || wasRedirected) {
-          return sendError(
-            res,
-            ErrorResponses.unauthorized(
-              'Session cookie expired or invalid. Re-authenticate with /shapes auth.'
-            )
-          );
+          return sendError(res, ErrorResponses.unauthorized(EXPIRED_CREDENTIAL_MESSAGE));
         }
         return sendError(
           res,
