@@ -11,7 +11,9 @@ not a stopping point — it's the moment to pick the next unit from the board an
 start it. End a turn only at a decision genuinely the user's, a destructive
 action, or a true blocker. While CI runs on one PR, pre-stage the next unit's
 grounding (read the files, profile the data) instead of idling; monitors exist
-so waiting is never the activity.
+so waiting is never the activity. When the pre-staged unit depends on a gate still
+running — CI, a review, an owner decision — say so at dispatch and name the
+result that makes it discardable.
 
 ## Delegation posture: the main loop dispatches, it does not do
 

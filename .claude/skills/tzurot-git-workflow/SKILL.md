@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-09-12'
+lastUpdated: '2026-09-18'
 ---
 
 # Git Workflow Procedures
@@ -168,13 +168,13 @@ git checkout develop                      # get the main checkout off it
 ```bash
 git fetch -p                                      # --remotes reads LOCAL tracking refs; refresh them first
 git -C <path> status --short                      # empty = no modified or untracked files
-git -C <path> log --oneline --not --remotes       # empty = every commit is on a remote
+git -C <path> log --oneline HEAD --not --remotes  # empty = every commit is on a remote
 git worktree remove <path>                        # only once BOTH are empty
 ```
 
 **Plain `git worktree remove` does not protect you here.** It refuses only on a DIRTY worktree — modified or untracked files. A worktree whose work is **committed but never pushed** is clean by that definition, so plain removal takes it with exit 0, and `--delete-branch` at the merge step below then deletes the only ref holding those commits, leaving them reachable solely through a local reflog. That is precisely the resumed-worker scenario in § Resuming a worktree-isolated worker in `/tzurot-orchestration`, which is why the check is unconditional rather than a `--force` caveat.
 
-**`--not --remotes`, not `@{u}..`** — measured: `@{u}` dies with `fatal: no upstream configured` (exit 128) on a branch that was created but never pushed, which is precisely the state you are checking for, so the check would abort exactly when it matters.
+**`--not --remotes`, not `@{u}..`** — measured: `@{u}` dies with `fatal: no upstream configured` (exit 128) on a branch that was created but never pushed, which is precisely the state you are checking for, so the check would abort exactly when it matters. The explicit `HEAD` is load-bearing: with no positive revision there is no tip to walk from, so `git log --not --remotes` prints nothing even when commits are unpushed — measured, it reported clean on a never-pushed branch holding three.
 
 **If either is non-empty, do NOT remove the worktree yet — get the work to safety first**, then re-run the check and remove:
 
@@ -393,11 +393,15 @@ gh pr list --author "app/dependabot" --state open   # any auto-PRs to ride along
 
 `security:advisories` is the primary check. The ride-along candidate is a transitive or direct+transitive advisory with a fix — Dependabot can never PR one, so widen/add the `pnpm.overrides` entry, `pnpm install`, and verify the lockfile resolves the patched version (`05-tooling.md` § Security Advisories).
 
+**New user-content tables need a data-rights disposition before the cut.** Enumerate models added in the range — `git diff v<prev>..HEAD -- prisma/schema.prisma | grep '^+model '` — and for each one that stores user-derived content, confirm both an export path (`services/ai-worker/src/jobs/AccountExportAssembler.ts`) and an erasure path (`AccountEraserService.ts`, a retention sweep, or the `/history clear` cascade), or state in the release notes why it is excluded.
+
 ```bash
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description" --assignee @me
 ```
 
 ### 4. Pre-Merge Migration (if release includes one)
+
+**Get a fresh yes first.** The prod premigrate writes to prod, so it runs only on an explicit in-session approval from the owner for THIS release — a standing release approval, or a "go" given earlier in the session, does not carry. Ask through `AskUserQuestion` (`09-interaction-style.md` § Blocking Questions): the owner can answer that remotely without running anything, so the default is get the yes and then run it — not hand the command back to their terminal.
 
 Run migrations **before** merging — Railway auto-deploys every service the moment the release PR merges to `main`, so migrating _after_ leaves new code on the old schema for the deploy window (the beta.140 `column ... does not exist` incident). Migrate first, while prod still runs the old code:
 

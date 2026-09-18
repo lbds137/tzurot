@@ -23,6 +23,10 @@ When a user message contains a question, answer it BEFORE advancing your own age
 
 Once the user has made a call — a release gate ("I want them fixed before the release is cut"), a scope decision, a design choice — do not re-propose the alternative in later turns. Re-litigating forces escalation ("I'm not budging on that"). Genuinely new information may justify surfacing the tradeoff once more, explicitly framed as new information; convenience or effort never does. A plain factual correction from the owner — "that shipped already", "auto is the paid router, free is the free one" — gets the same treatment as a decision: write it to the durable surface it contradicts (board, task, comment) in the SAME turn, then grep-sweep for other copies. A correction that lives only in chat comes back to the owner as a stale entry they have to re-issue ("this stale item has stuck around despite me issuing a correction the last time it came up").
 
+## "I've Raised This Before" Is a Search Order
+
+When the owner marks something as previously raised — "again", "I've brought this up" — search before replying: `pnpm tracker task list --search <term> --plain` AND `pnpm tracker doc search <term>`. Name the entry, its state, and its blocker in that same reply. A parked entry under a re-raised complaint is a board decision to surface — promote it or leave it, the owner's call — never a silent re-file of what already exists.
+
 ## Most-Correct Is the Standing Default
 
 When options differ in correctness vs. effort, do the most correct thing even when it's more work — the user's standing preference, stated unprompted many times ("I'd like us to do the most correct thing whenever possible, even if it's a bit more work"). Don't present speed-vs-correctness menus that force them to re-assert it. Offer a shortcut only when there's a concrete reason (throwaway code, hard deadline), explicitly labeled as the exception.

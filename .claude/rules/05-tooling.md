@@ -126,7 +126,7 @@ the ratchet: `02-code-standards.md` § CPD.
 
 All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code-review.yml` and `claude.yml` — those must land via a **main-cut** branch (a develop-first change silently disables claude-review on every PR until the next release); it self-skips on main-cut branches, `--base main` overrides. Other workflow files (`ci.yml`) may land via develop like any code change.
 
-**After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. Local precondition: `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches — `git fetch origin develop:develop` if it fails on a fresh clone.
+**After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. Local precondition: `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches — `git fetch origin develop:develop` if it fails on a fresh clone. A probe for a self-referential guard — one whose trigger pattern appears in its own test text — keeps that pattern in the probe file as fixture data fed on stdin, never in the invoking command line, so it cannot trip the guard it tests.
 
 `pnpm ops lines:check` keeps the always-loaded surfaces (`.claude/rules`
 total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE budgets; `--breakdown` ranks

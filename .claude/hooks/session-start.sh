@@ -61,4 +61,28 @@ if [ -n "$CADENCE" ]; then
   printf '%s\n' "$CADENCE"
 fi
 
+# Orphan reconciliation — PRINT ONLY: never kills, never removes. Two kinds of
+# survivor outlive the session that created them: agent worktrees (nothing reaps
+# them) and CI-gate waiters. The pgrep pattern is written in the bracket form so
+# the listing cannot match the shell evaluating it (self-matching-pattern-guard.sh).
+# `--remotes` reads local tracking refs and this hook does no network I/O, so
+# unpushed can read high until `git fetch -p`; that errs toward not removing.
+SELF=$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)
+ORPHANS=""
+while read -r _ WT; do
+  case "$WT" in *"/.claude/worktrees/"*) ;; *) continue ;; esac
+  [ "$WT" = "$SELF" ] && continue
+  ORPHANS+="  $WT [$(git -C "$WT" rev-parse --abbrev-ref HEAD 2>/dev/null)]"
+  ORPHANS+=" dirty=$(git -C "$WT" status --porcelain 2>/dev/null | wc -l)"
+  ORPHANS+=" unpushed=$(git -C "$WT" log --oneline HEAD --not --remotes 2>/dev/null | wc -l)"$'\n'
+done < <(git -C "$ROOT" worktree list --porcelain 2>/dev/null | grep '^worktree ')
+WAITERS=$(pgrep -af '[g]h:ci-gate' 2>/dev/null)
+if [ -n "$ORPHANS" ] || [ -n "$WAITERS" ]; then
+  echo "=== Orphans from earlier sessions (print-only — reconcile deliberately) ==="
+  [ -n "$ORPHANS" ] && printf '%s' "$ORPHANS"
+  [ -n "$WAITERS" ] && printf '%s\n' "$WAITERS" | sed 's/^/  waiter pid /'
+  echo "  Worktree: dirty=0 and unpushed=0 → git worktree remove <path>; otherwise reconcile first."
+  echo "  Waiter: kill the exact PID above — never a pattern kill (00-critical.md)."
+fi
+
 exit 0

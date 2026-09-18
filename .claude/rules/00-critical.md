@@ -128,6 +128,8 @@ gh pr merge 714 --rebase                  # ✅ develop survives
 | `killall node` / kill by PATTERN | Kills Claude Code — `pkill -f`, `pgrep -f` piped into `xargs kill`, and dynamically built patterns all match the session's own shell; list first, then kill by PID |
 | `rm -rf` on gitignored paths     | Data is UNRECOVERABLE                                                                                                                                              |
 
+**A background waiter is torn down by its exact PID, or by a sentinel file it polls — never by a pattern that could match the shell evaluating it.** In a liveness probe the same self-match fails silently: the pattern matches the prober's own argv, so the check reports the work as running forever.
+
 **Uncommitted changes = HOURS OF WORK.** When user says "get changes" → COMMIT, not DISCARD.
 
 **A permission gate or classifier block is satisfied or escalated, never routed
