@@ -339,8 +339,11 @@ export function splitMessage(
  * Unlike {@link splitMessage}, this does NOT protect or rebalance triple-
  * backtick code fences across chunk boundaries — a fenced block split between
  * two chunks renders as broken markdown in the second. Line-oriented report
- * content has no fences; a caller whose content might should use
- * `splitMessage` or re-close the fence itself.
+ * content is not fence-free in practice — the db-sync report wraps its
+ * per-table stats in a fence and still needs this function, because
+ * `splitMessage` destroys the rest of that report. A caller in that position
+ * accepts an unbalanced fence across the straddled pair, or re-closes it
+ * itself.
  *
  * A chunk may be the empty string, when a blank source line lands alone at a
  * forced boundary. That is content, not noise: callers that cannot transmit

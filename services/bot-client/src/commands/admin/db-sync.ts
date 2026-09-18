@@ -85,6 +85,7 @@ export async function handleDbSyncDetailsButton(interaction: ButtonInteraction):
       content: report,
       header: '',
       continuedHeader: '_(report continued)_\n',
+      lineAware: true,
       via: 'followUp',
     });
   } catch (error) {
@@ -171,6 +172,7 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
         content: reportText,
         header: '',
         continuedHeader: '_(report continued)_\n',
+        lineAware: true,
         via: 'followUp',
       });
     } catch (error) {
