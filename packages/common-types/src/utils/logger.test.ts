@@ -153,6 +153,31 @@ describe('createLogger', () => {
     expect(lines.length).toBeGreaterThan(0);
   });
 
+  it('should round-trip a plain res object while still redacting a sibling field', async () => {
+    delete process.env.ENABLE_PRETTY_LOGS;
+
+    const { createLogger } = await import('./logger.js');
+    const { stream, lines } = createCaptureStream();
+    const logger = createLogger('test', { destination: stream });
+
+    const res = { statusCode: 200, headers: { 'content-type': 'application/json' } };
+    logger.info({ res, apiKey: 'canary-juliet-0010' }, 'msg with res and a secret');
+
+    const entry = JSON.parse(lines[0]) as {
+      res: { statusCode: number; headers: { 'content-type': string } };
+      apiKey: string;
+    };
+    // The sibling non-req/res field still goes through formatters.log's
+    // sanitizeObject pass.
+    expect(entry.apiKey).toBe('[REDACTED]');
+    // Guards only that a plain `res` object still round-trips intact — a plain
+    // object survives either code path, so this does NOT by itself prove the
+    // formatter stopped rebuilding it. The discriminating proof is the real
+    // express + pino-http seam in api-gateway's `requestLogger.test.ts`, where
+    // a rebuilt `res` loses its prototype getters and logs a null status.
+    expect(entry.res).toEqual(res);
+  });
+
   describe('error serializer', () => {
     it('should handle plain objects with error-like properties', async () => {
       delete process.env.ENABLE_PRETTY_LOGS;
