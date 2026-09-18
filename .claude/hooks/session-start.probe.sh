@@ -25,6 +25,7 @@ RC=0
 HEADER="=== Overdue periodic passes"
 UNAVAILABLE="(cadence status unavailable"
 OVERDUE_ROW="usage-audit  7d  2026-08-26  20  OVERDUE 13d  /tzurot-usage-audit"
+ORPHAN_HEADER="=== Orphans from earlier sessions"
 
 # Stub preamble: record the invocation, then refuse (exit 9x) unless the hook
 # called it the way it must — from the project root, with dotenv quieted, with
@@ -42,6 +43,8 @@ make_fixture() {
     echo "CURRENT-MARKER" >"$dir/CURRENT.md"
     printf '#!/bin/bash\n%s\n%s\n' "$STUB_GUARD" "$2" >"$dir/bin/pnpm"
     chmod +x "$dir/bin/pnpm"
+    printf '#!/bin/bash\nexit 1\n' >"$dir/bin/pgrep"
+    chmod +x "$dir/bin/pgrep"
     printf '%s' "$dir"
 }
 
@@ -99,5 +102,50 @@ run_hook "$DIR" startup
 expect "failing command prints the header" present "$HEADER"
 expect "failing command prints the unavailable line" present "$UNAVAILABLE"
 expect "failing command's partial stdout is not shown" absent "partial-row"
+
+# ---- Case e/f: orphan reconciliation ------------------------------------------
+# A real git repo with a real worktree under .claude/worktrees/, plus a bare
+# remote so "unpushed" is a SMALLER number than the repo's total commit count —
+# that gap is what pins the `--not --remotes` semantics.
+setup_repo() {
+    local dir="$1"
+    git init -q "$dir"
+    git -C "$dir" config user.email probe@example.com
+    git -C "$dir" config user.name Probe
+    git -C "$dir" commit -q --allow-empty -m base
+    local remote="$TMPDIR_PROBE/remote-$(basename "$dir").git"
+    git init -q --bare "$remote"
+    git -C "$dir" remote add origin "$remote"
+    git -C "$dir" push -q origin HEAD
+}
+
+DIR=$(make_fixture noorphan "exit 0")
+setup_repo "$DIR"
+run_hook "$DIR" startup
+expect "a repo with no agent worktree prints no orphan section" absent "$ORPHAN_HEADER"
+
+DIR=$(make_fixture orphan "exit 0")
+setup_repo "$DIR"
+git -C "$DIR" worktree add -q -b probe-agent "$DIR/.claude/worktrees/agent-probe"
+git -C "$DIR/.claude/worktrees/agent-probe" commit -q --allow-empty -m unpushed
+touch "$DIR/.claude/worktrees/agent-probe/dirty-file"
+run_hook "$DIR" startup
+expect "an agent worktree is listed" present "agent-probe"
+expect "its dirty count is reported" present "dirty=1"
+expect "its unpushed count excludes what the remote already has" present "unpushed=1"
+
+# A worktree OUTSIDE .claude/worktrees/ is somebody's ordinary checkout, not an
+# agent leftover — the path filter, not the self-exclusion, is what drops it.
+DIR=$(make_fixture plainwt "exit 0")
+setup_repo "$DIR"
+git -C "$DIR" worktree add -q -b plain-branch "$DIR/sidecar"
+run_hook "$DIR" startup
+expect "a worktree outside .claude/worktrees/ is not reported" absent "$ORPHAN_HEADER"
+
+DIR=$(make_fixture waiter "exit 0")
+setup_repo "$DIR"
+printf '#!/bin/bash\necho "4242 bash -c ci-gate-waiter-decoy"\n' >"$DIR/bin/pgrep"
+run_hook "$DIR" startup
+expect "a surviving waiter is listed by exact pid" present "waiter pid 4242"
 
 exit $fail

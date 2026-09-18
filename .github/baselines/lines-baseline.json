@@ -1,9 +1,9 @@
 {
   "surfaces": {
     "rules": {
-      "lines": 2114,
+      "lines": 2203,
       "graceMargin": 150,
-      "bytes": 153882,
+      "bytes": 166630,
       "bytesGraceMargin": 12000
     },
     "current": {
@@ -13,9 +13,9 @@
       "bytesGraceMargin": 4000
     },
     "skills": {
-      "lines": 3607,
+      "lines": 3810,
       "graceMargin": 250,
-      "bytes": 223880,
+      "bytes": 242007,
       "bytesGraceMargin": 17000
     }
   },
@@ -23,7 +23,7 @@
     "toolVersion": "lines-check/3",
     "configHash": "3631b168bcb2",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "ee42f96996fe8ed2630846cdacbd3729299e6d25",
-    "generatedAt": "2026-09-13T15:57:19.589Z"
+    "generatedFromSha": "1cfa44c50ab23513870fbb2d879e1a3dcdbc5812",
+    "generatedAt": "2026-09-18T16:45:05.859Z"
   }
 }
