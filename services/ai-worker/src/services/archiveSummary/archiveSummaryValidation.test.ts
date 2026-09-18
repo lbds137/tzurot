@@ -14,6 +14,24 @@ describe('stripQuotedSpans', () => {
   it('removes curly-quoted spans', () => {
     expect(stripQuotedSpans('Nova called Jules “my dear” once.')).toBe('Nova called Jules  once.');
   });
+
+  it('removes straight single-quoted spans', () => {
+    expect(stripQuotedSpans("Nova called Jules 'my dear' once.")).toBe('Nova called Jules  once.');
+  });
+
+  it('removes curly single-quoted spans', () => {
+    expect(stripQuotedSpans('Nova called Jules ‘my dear’ once.')).toBe('Nova called Jules  once.');
+  });
+
+  it('leaves possessive apostrophes alone', () => {
+    expect(stripQuotedSpans("Lila's 2024 breakthrough; Sera's repentance.")).toBe(
+      "Lila's 2024 breakthrough; Sera's repentance."
+    );
+  });
+
+  it('a dash right after the closing quote still closes it', () => {
+    expect(stripQuotedSpans("Lila said 'goodbye'—then left.")).toBe('Lila said —then left.');
+  });
 });
 
 describe('hasFirstPerson', () => {
@@ -48,6 +66,31 @@ describe('hasFirstPerson', () => {
     expect(hasFirstPerson('Ourselves included, everyone agreed.')).toBe(true);
     expect(hasFirstPerson('They kept the plan to ourselves.')).toBe(true);
     expect(hasFirstPerson('Ourself is an unusual word.')).toBe(true);
+  });
+
+  it('a straight single-quoted span is not a leak, the same words unquoted ARE', () => {
+    expect(hasFirstPerson("Lila said 'I love you'; Emily called her best girlfriend.")).toBe(false);
+    expect(hasFirstPerson("Lila shared the Nightwish song 'Come Cover Me With You'.")).toBe(false);
+    expect(hasFirstPerson("Lila's favourite line 'I love you' came up again.")).toBe(false);
+    expect(hasFirstPerson('Lila said I love you; Emily called her best girlfriend.')).toBe(true);
+  });
+
+  it('a curly single-quoted span is not a leak', () => {
+    expect(hasFirstPerson('Lila said ‘I love you’ again.')).toBe(false);
+  });
+
+  it('an apostrophe neither opens nor closes a span', () => {
+    expect(hasFirstPerson("Lila's 2024 breakthrough; Sera's repentance.")).toBe(false);
+    expect(hasFirstPerson("Sera's repentance, which I doubted, echoed the sisters' vow.")).toBe(
+      true
+    );
+  });
+
+  it('an apostrophe inside a single-quoted span is content, not a closer', () => {
+    expect(hasFirstPerson("Lila said 'I don't know' about that.")).toBe(false);
+    expect(hasFirstPerson('she said ‘don’t leave me’ softly.')).toBe(false);
+    expect(hasFirstPerson("Lila said 'I'm happy' today.")).toBe(false);
+    expect(hasFirstPerson("Lila said I don't know about that.")).toBe(true);
   });
 });
 
