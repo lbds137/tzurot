@@ -3,9 +3,10 @@ id: TASK-1007
 title: >-
   Recent-days digest: a refresh on a never-succeeded pair re-admits it every
   tick forever, dead included
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 01:50'
+updated_date: '2026-09-18 04:19'
 labels:
   - 'area:ai-worker'
   - 'area:common-types'
