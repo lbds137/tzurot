@@ -34,3 +34,18 @@ RESOLVED FOR PR 2288, NOT FOR THE REPO: the owner manually ignored the incident 
 
 Acceptance: it is established, with a cite, whether the GitHub App honors .gitguardian.yaml ignored_paths; the repo file either works or no longer claims to; and the answer is recorded where the next person hitting a false positive will find it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-18 19:20
+---
+SECOND OCCURRENCE, and it confirms the task description's prediction rather than resolving it. PR #2454 failed the GitGuardian check with "5 secrets uncovered", every one a synthetic fixture the PR itself added to test log redaction: four Generic High Entropy Secret hits in packages/common-types/src/utils/logSanitizer.test.ts and one classified Discord Oauth2 Keys in services/api-gateway/src/middleware/requestLogger.test.ts. All five files are .test.ts, which .gitguardian.yaml claims to exclude, and the exclusion again did not fire. That is a second independent data point for the hypothesis in the description, still short of the dashboard or App-docs cite the acceptance asks for.
+
+New information this occurrence adds, beyond a repeat: the trigger is not limited to the RFC UUID family the description analysed. Any high-entropy fixture will do, and a credential-shaped PREFIX is enough on its own — the Discord Oauth2 classification came from a plain 32-character alphanumeric string. So the exposure is wider than one fixture family, and any PR writing a realistic-looking secret into a test is a candidate.
+
+Unblocked WITHOUT a dashboard ignore this time, which is the difference from PR 2288: the fixtures were rewritten to the repo convention already visible in ten other test files (test-secret, webhook-test-secret, TEST-FIXTURE-...-not-a-real-token) using low-entropy self-describing values. That is a better unblock than an incident dismissal because it leaves the detector strict and needs no per-occurrence owner action, and it cost one worker round. The redaction under test keys off the field NAME, never the value, so the rename weakened no assertion.
+
+The practical lesson worth carrying into specs: telling a worker to use a "realistic secret-shaped value" in a fixture is what caused this. The repo convention is the opposite, and the convention is right.
+---
+<!-- COMMENTS:END -->
