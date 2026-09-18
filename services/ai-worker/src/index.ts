@@ -19,6 +19,7 @@ import { setupBackgroundQueues, disposeBackgroundQueues } from './jobs/backgroun
 import type { ArchiveSummaryTrigger } from './services/archiveSummary/ArchiveSummaryTrigger.js';
 import { sweepRosterBlurbs } from './jobs/rosterBlurbSweep.js';
 import { sweepRecentDaysDigests } from './services/recentDaysDigest/recentDaysDigestSweep.js';
+import { sweepStaleRecentDaysDigests } from './services/recentDaysDigest/recentDaysDigestRetention.js';
 import {
   SCHEDULED_JOBS,
   REPEATABLE_JOB_SCHEDULE,
@@ -305,6 +306,12 @@ async function setupScheduledJobs(
         // the returned stats are the tick's verification trail (and its spend).
         logger.debug('Running recent-days digest sweep');
         return sweepRecentDaysDigests(prisma);
+      }
+      if (job.name === SCHEDULED_JOBS.RECENT_DAYS_DIGEST_RETENTION) {
+        // Runs whether or not recentDaysDigestEnabled is on — retention is not
+        // gated on generation. The returned count is the daily run's trail.
+        logger.debug('Running recent-days digest retention sweep');
+        return sweepStaleRecentDaysDigests(prisma);
       }
       return null;
     },

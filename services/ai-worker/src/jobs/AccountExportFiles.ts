@@ -82,7 +82,7 @@ function buildReadme(data: AccountExportData): string {
     'metadata (`configs/`, `account/`, `telemetry/`) is JSON-only.',
     '',
     '- `profile.{json,md}` — your account record',
-    '- `personas/` — one file per persona you authored',
+    '- `personas/` — one file per persona you authored, with its recent-days digests',
     '- `characters/` — full definitions of characters you own or co-own',
     '- `conversations/`, `memories/`, `facts/` — foldered by character slug',
     '- `feedback.{json,md}`, `usage-summary.{json,md}`',

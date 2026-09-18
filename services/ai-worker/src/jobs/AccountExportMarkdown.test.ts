@@ -96,6 +96,7 @@ describe('formatPersonaMd', () => {
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
       ownerId: 'u1',
+      digests: [],
     } as ExportPersona);
 
     expect(md).toContain('# Nyx');
@@ -103,6 +104,52 @@ describe('formatPersonaMd', () => {
     expect(md).toContain('**Pronouns:** she/her');
     expect(md).toContain('## Description\n\nshort desc');
     expect(md).toContain('## About\n\nlonger about text');
+  });
+
+  it('renders a Recent-days digests section when the persona has one', () => {
+    const md = formatPersonaMd({
+      id: 'p1',
+      name: 'Nyx',
+      preferredName: null,
+      pronouns: null,
+      description: null,
+      content: '',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      ownerId: 'u1',
+      digests: [
+        {
+          personalityId: 'char-1',
+          personalitySlug: 'xbot',
+          personalityName: 'XBot',
+          digestText: 'They talked about the weather.',
+          generatedAt: new Date('2026-01-02T00:00:00Z'),
+          windowStart: new Date('2026-01-01T00:00:00Z'),
+        },
+      ],
+    } as ExportPersona);
+
+    expect(md).toContain('## Recent-days digests');
+    expect(md).toContain('### XBot (xbot)');
+    expect(md).toContain('**Generated:**');
+    expect(md).toContain('They talked about the weather.');
+  });
+
+  it('omits the Recent-days digests section when the persona has none', () => {
+    const md = formatPersonaMd({
+      id: 'p1',
+      name: 'Nyx',
+      preferredName: null,
+      pronouns: null,
+      description: null,
+      content: '',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      ownerId: 'u1',
+      digests: [],
+    } as ExportPersona);
+
+    expect(md).not.toContain('## Recent-days digests');
   });
 });
 

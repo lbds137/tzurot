@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { RECENT_DAYS_DIGEST_STATUS } from '@tzurot/common-types/constants/recentDaysDigest';
 import { assembleAccountExport } from './AccountExportAssembler.js';
 
 function emptyModel(): { findMany: ReturnType<typeof vi.fn> } {
@@ -18,6 +19,7 @@ function makePrisma(): Record<string, { findMany?: ReturnType<typeof vi.fn> }> {
     } as never,
     adminSettings: { findUnique: vi.fn().mockResolvedValue(null) } as never,
     persona: emptyModel(),
+    personaPersonalityDigest: emptyModel(),
     personalityOwner: emptyModel(),
     personality: emptyModel(),
     conversationHistory: emptyModel(),
@@ -72,7 +74,7 @@ describe('assembleAccountExport', () => {
     ] as const) {
       expect(payload[section]).toEqual([]);
     }
-    expect(payload.meta.formatVersion).toBe(2);
+    expect(payload.meta.formatVersion).toBe(3);
     expect(payload.meta.notes.join(' ')).toContain('secret material is never exported');
   });
 
@@ -139,6 +141,42 @@ describe('assembleAccountExport', () => {
       createdAt: true,
       expiresAt: true,
     });
+  });
+
+  it('scopes the recent-days digest fetch to the exported personas, text-only, bounded, with the personality directory fields', async () => {
+    prisma.persona.findMany?.mockResolvedValue([{ id: 'persona-1' }, { id: 'persona-2' }]);
+    prisma.personaPersonalityDigest.findMany?.mockResolvedValue([]);
+
+    await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
+
+    const call = prisma.personaPersonalityDigest.findMany?.mock.calls[0][0];
+    // An exact object match: dropping either the persona scope (cross-user
+    // isolation) or the text-only filter reds this test.
+    expect(call.where).toEqual({
+      personaId: { in: ['persona-1', 'persona-2'] },
+      digestText: { not: null },
+      digestStatus: RECENT_DAYS_DIGEST_STATUS.DONE,
+    });
+    expect(call.take).toBeGreaterThan(0);
+    expect(call.include).toEqual({ personality: { select: { slug: true, name: true } } });
+  });
+
+  it('drops a digest row whose text is an empty string', async () => {
+    prisma.persona.findMany?.mockResolvedValue([{ id: 'persona-1' }]);
+    prisma.personaPersonalityDigest.findMany?.mockResolvedValue([
+      {
+        personaId: 'persona-1',
+        personalityId: 'c1',
+        digestText: '',
+        generatedAt: null,
+        windowStart: null,
+        personality: { slug: 's', name: 'n' },
+      },
+    ]);
+
+    const payload = await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
+
+    expect(payload.personas[0].digests).toEqual([]);
   });
 
   it('sweeps the small sections too — feedback past the page boundary is not clipped', async () => {
