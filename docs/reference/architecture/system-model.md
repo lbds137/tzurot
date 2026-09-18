@@ -49,7 +49,9 @@
 4. **Memory.** Delivered turns become episodes → a cron embeds them (pgvector) →
    retrieval at chat time (similarity threshold 0.5, deliberately loose — recall over
    precision until retrieval earns trust) → fact extraction distills semantic facts
-   every 6 turns per channel+character → `/memory` + facts surfaces
+   every 6 turns per channel+character → a cron (`:06`) digests the last 7 days per
+   persona×character in third person (the continuity feed, `<recent_days>`, gated by
+   an allowlist switch + the pair's clear epoch) → `/memory` + facts surfaces
    browse/edit/lock/forget; incognito gates writes, fresh gates retrieval. What
    surfaced is invisible in-conversation by design — `/inspect` is the window.
 5. **Config resolution.** Per-field, lowest → highest: hardcoded baseline (always
@@ -141,6 +143,7 @@
 | the reply pipeline        | `bot-client/handlers` + `composition.ts` → `api-gateway/queue.ts` → `ai-worker/jobs/handlers/pipeline`              |
 | memory / episode          | `memories` (pgvector) · `ai-worker/services/context` · `/api/user/memory/*`                                         |
 | fact                      | `memory_facts` · `ai-worker/services/extraction` · fact routes                                                      |
+| continuity feed / digest  | `persona_personality_digests` · `ai-worker/services/recentDaysDigest` · `prompt/RecentDaysFormatter` · `digest:*`   |
 | preset / cascade          | `llm_configs`/`tts_configs` · `packages/config-resolver` · `/api/user/config-overrides/*`                           |
 | voice                     | `voice-engine/server.py` · `ai-worker/services/voice` · `bot-client/commands/voice`                                 |
 | dashboard                 | `bot-client/utils/dashboard` (sessions in Redis, modals, truncation gate)                                           |

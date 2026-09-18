@@ -18,6 +18,7 @@ import { extractCharacterParticipants } from '../../../utils/participantUtils.js
 import type { AssembledCore, ContextDataSource } from '../../../../services/context/types.js';
 import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
 import { transcribeAudio } from '../../../../services/multimodal/AudioProcessor.js';
+import { selectRenderableDigestText } from '../../../../services/recentDaysDigest/recentDaysDigestRenderGate.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
@@ -144,7 +145,7 @@ export class ContextStep implements IPipelineStep {
     }
 
     const assembler = this.assertEnvelopeJob(jobContext);
-    const historyEntries = await this.sourceHistory(context, assembler);
+    const { historyEntries, contextEpoch } = await this.sourceHistory(context, assembler);
 
     // Calculate oldest timestamp from conversation history AND referenced messages
     // (for LTM deduplication - prevents verbatim repetition when replying to AI messages)
@@ -234,6 +235,11 @@ export class ContextStep implements IPipelineStep {
     const crossChannelHistory = jobContext.crossChannelHistory;
 
     const characterBlurbs = await this.fetchCharacterBlurbs(historyEntries, personality);
+    const recentDaysDigest = await this.fetchRecentDaysDigest(
+      jobContext,
+      personality,
+      contextEpoch
+    );
 
     const preparedContext: PreparedContext = {
       conversationHistory,
@@ -243,6 +249,7 @@ export class ContextStep implements IPipelineStep {
       participants: allParticipants,
       crossChannelHistory,
       characterBlurbs,
+      recentDaysDigest,
     };
 
     // Race-window telemetry: if the bot-client queried DB for history BEFORE
@@ -321,6 +328,57 @@ export class ContextStep implements IPipelineStep {
   }
 
   /**
+   * Fetch and render-gate the pair's stored recent-days digest.
+   *
+   * HERE rather than at render time, for the same reason as
+   * {@link fetchCharacterBlurbs}: `PromptBuilder` is a pure formatter, and the
+   * volatile prefix renders TWICE per turn (the budget pre-pass and the shipped
+   * prompt), so both passes must see identical input.
+   *
+   * `recentDaysDigestPersonalities` is the SAME allowlist the sweep reads to
+   * decide which pairs to generate for — gating the render on it too (not only
+   * the spend) means delisting a character stops its render immediately rather
+   * than waiting for the digest to age out of the freshness window.
+   *
+   * A fetch failure omits the section rather than failing the turn — the
+   * digest is background continuity, not load-bearing context.
+   */
+  private async fetchRecentDaysDigest(
+    jobContext: GenerationContext['job']['data']['context'],
+    personality: { id: string; slug: string },
+    contextEpoch: Date | undefined
+  ): Promise<string | undefined> {
+    if (getSystemSetting('recentDaysDigestEnabled') !== true) {
+      return undefined;
+    }
+    if (!getSystemSetting('recentDaysDigestPersonalities').includes(personality.slug)) {
+      return undefined;
+    }
+    if (this.dataSource === undefined) {
+      return undefined;
+    }
+    if (jobContext.activePersonaId === undefined) {
+      return undefined;
+    }
+    try {
+      const row = await this.dataSource.getRecentDaysDigest(
+        jobContext.activePersonaId,
+        personality.id
+      );
+      return selectRenderableDigestText(row, {
+        now: new Date(),
+        currentEpoch: contextEpoch ?? null,
+      });
+    } catch (err) {
+      logger.warn(
+        { err, personalityId: personality.id },
+        'Recent-days digest fetch failed; rendering without it'
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * Every job is a `kind: 'envelope'` thin payload — worker-side assembly is
    * the only path. The schema now requires the discriminant, but this guard
    * reads RAW job.data (tests and direct dispatch can bypass ValidationStep),
@@ -355,11 +413,13 @@ export class ContextStep implements IPipelineStep {
    * onto jobContext by {@link applyAssembledContext} so the downstream
    * conversationContextBuilder reads them. The `assembler` is the non-undefined
    * value returned by {@link assertEnvelopeJob}, threaded in by {@link process}.
+   * Also returns the assembled `contextEpoch` — needed by
+   * {@link fetchRecentDaysDigest}'s render gate but not written onto jobContext.
    */
   private async sourceHistory(
     context: GenerationContext,
     assembler: ContextAssembler
-  ): Promise<PromptHistorySource> {
+  ): Promise<{ historyEntries: PromptHistorySource; contextEpoch: Date | undefined }> {
     const { job } = context;
     const jobContext = job.data.context;
 
@@ -392,7 +452,7 @@ export class ContextStep implements IPipelineStep {
       'Context assembled'
     );
 
-    return assembled.history.map(m => ({
+    const historyEntries = assembled.history.map(m => ({
       ...m,
       // Normalize Date → ISO for the string-typed prompt consumers. The
       // non-Date branch preserves undefined/string as-is (coercing undefined to
@@ -402,6 +462,7 @@ export class ContextStep implements IPipelineStep {
           ? m.createdAt.toISOString()
           : (m.createdAt as string | undefined),
     }));
+    return { historyEntries, contextEpoch: assembled.contextEpoch };
   }
 
   /**

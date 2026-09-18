@@ -64,6 +64,11 @@ export const PROTECTED_TAGS = [
   // reaches top-level system scope, same boundary class as memory_archive.
   'facts',
   'fact',
+  // Recent-days digest block — a V-tier section boundary wrapping
+  // model-generated prose derived from user rows, same boundary class as
+  // memory_archive: a user statement escaping it reaches top-level
+  // human-message scope.
+  'recent_days',
   // Instruction elements interpolate user-authored names (facts subject
   // binding, chat_log role legend) — a name containing </instruction> must
   // not break out of the element it's framing.

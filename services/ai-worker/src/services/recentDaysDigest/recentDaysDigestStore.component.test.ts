@@ -15,6 +15,7 @@ import {
   materializePendingRows,
   storeDigestSuccess,
   recordDigestFailure,
+  readRenderableDigest,
 } from './recentDaysDigestStore.js';
 
 const OWNER_ID = '4f9b0f66-2222-4000-8000-00000000000a';
@@ -264,5 +265,97 @@ describe('recordDigestFailure', () => {
     const row = await readRow(id);
     expect(row?.digest_attempts).toBe(1);
     expect(row?.digest_status).toBe('failed');
+  });
+});
+
+describe('readRenderableDigest', () => {
+  it('returns the row for a `done` pair with text', async () => {
+    const ids = await materializePendingRows(prisma, [
+      { personaId: PERSONA_ID, personalityId: PERSONALITY_ID, digestId: null },
+    ]);
+    const id = ids.get(`${PERSONA_ID}:${PERSONALITY_ID}`)!;
+    const watermark = new Date('2026-09-10T00:00:00.000Z');
+    const sourceEpoch = new Date('2026-09-01T00:00:00.000Z');
+    await storeDigestSuccess(prisma, {
+      id,
+      seenRequestedAt: null,
+      text: 'Jules and Nova talked.',
+      model: 'z-ai/glm-5.2',
+      promptVersion: 1,
+      sourceWatermark: watermark,
+      windowStart: watermark,
+      sourceRowCount: 1,
+      sourceRowIds: ['r1'],
+      sourceEpoch,
+    });
+
+    const result = await readRenderableDigest(prisma, PERSONA_ID, PERSONALITY_ID);
+    expect(result?.text).toBe('Jules and Nova talked.');
+    expect(result?.generatedAt).toBeInstanceOf(Date);
+    expect(result?.sourceEpoch?.getTime()).toBe(sourceEpoch.getTime());
+  });
+
+  it('returns null for a `failed` pair', async () => {
+    const id = await (async () => {
+      const ids = await materializePendingRows(prisma, [
+        { personaId: PERSONA_ID, personalityId: PERSONALITY_ID, digestId: null },
+      ]);
+      return ids.get(`${PERSONA_ID}:${PERSONALITY_ID}`)!;
+    })();
+    await recordDigestFailure(prisma, {
+      id,
+      seenRequestedAt: null,
+      attemptedWatermark: new Date('2026-09-10T00:00:00.000Z'),
+      promptVersion: 1,
+      errorClass: 'parse_failure',
+    });
+
+    const result = await readRenderableDigest(prisma, PERSONA_ID, PERSONALITY_ID);
+    expect(result).toBeNull();
+  });
+
+  // The status clause, isolated. The case above cannot reach it: a failure
+  // write leaves `digest_text` NULL, so the `digest_text IS NOT NULL` clause
+  // already excludes that row and the status filter could be deleted without
+  // reddening anything. Here the surviving text from an earlier success is
+  // still on the row, so `digest_status <> 'done'` is the ONLY reason to omit.
+  it('returns null for a `failed` pair whose previous digest_text survives', async () => {
+    const ids = await materializePendingRows(prisma, [
+      { personaId: PERSONA_ID, personalityId: PERSONALITY_ID, digestId: null },
+    ]);
+    const id = ids.get(`${PERSONA_ID}:${PERSONALITY_ID}`)!;
+    await prisma.$executeRaw`
+      UPDATE persona_personality_digests
+      SET digest_status = 'failed', digest_text = 'Stale text from an earlier success.',
+          generated_at = NOW()
+      WHERE id = ${id}::uuid
+    `;
+
+    const result = await readRenderableDigest(prisma, PERSONA_ID, PERSONALITY_ID);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for a `done` pair with a null digest_text', async () => {
+    const ids = await materializePendingRows(prisma, [
+      { personaId: PERSONA_ID, personalityId: PERSONALITY_ID, digestId: null },
+    ]);
+    const id = ids.get(`${PERSONA_ID}:${PERSONALITY_ID}`)!;
+    await prisma.$executeRaw`
+      UPDATE persona_personality_digests
+      SET digest_status = 'done', digest_text = NULL, generated_at = NOW()
+      WHERE id = ${id}::uuid
+    `;
+
+    const result = await readRenderableDigest(prisma, PERSONA_ID, PERSONALITY_ID);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for an unknown pair', async () => {
+    const result = await readRenderableDigest(
+      prisma,
+      '4f9b0f66-2222-4000-8000-0000000000fe',
+      '4f9b0f66-2222-4000-8000-0000000000fd'
+    );
+    expect(result).toBeNull();
   });
 });
