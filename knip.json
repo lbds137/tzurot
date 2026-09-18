@@ -14,7 +14,7 @@
       "ignoreDependencies": ["pino"]
     },
     "services/ai-worker": {
-      "entry": ["src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts", "src/scripts/*.ts"],
       "ignoreDependencies": ["langchain", "onnxruntime-node"]
     },
     "services/website": {

@@ -35,12 +35,30 @@ vi.mock('./recentDaysDigestStore.js', () => storeMocks);
 const usageLogMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('./recentDaysDigestUsageLog.js', () => ({ writeRecentDaysDigestUsageLog: usageLogMock }));
 
+const loggerMock = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => loggerMock };
+});
+
 const { sweepRecentDaysDigests } = await import('./recentDaysDigestSweep.js');
 
 const PERSONA_ID = '4f9b0f66-5555-4000-8000-00000000000a';
 const PERSONALITY_ID = '4f9b0f66-5555-4000-8000-00000000000b';
 const OWNER_ID = '4f9b0f66-5555-4000-8000-00000000000c';
 const DIGEST_ROW_ID = '4f9b0f66-5555-4000-8000-00000000000d';
+
+// The assistant line a quoting digest lifts from, and the normalized 8-gram
+// `findQuotedNgram` returns for it.
+const ASSISTANT_LINE = 'the quick brown fox jumps over the lazy dog today';
+const QUOTED_NGRAM = 'the quick brown fox jumps over the lazy';
 
 function setSettings(overrides: Record<string, unknown> = {}): void {
   const values: Record<string, unknown> = {
@@ -112,7 +130,7 @@ beforeEach(() => {
   );
   storeMocks.storeDigestSuccess.mockResolvedValue(1);
   storeMocks.recordDigestFailure.mockResolvedValue(1);
-  storeMocks.readDigestStatus.mockResolvedValue('failed');
+  storeMocks.readDigestStatus.mockResolvedValue({ status: 'failed', attempts: 1 });
 });
 
 afterEach(() => resetSystemSettingsRegistration());
@@ -269,7 +287,7 @@ describe('sweepRecentDaysDigests generation', () => {
   it('a failure write reported dead by readDigestStatus counts toward stats.dead', async () => {
     setSettings();
     selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
-    storeMocks.readDigestStatus.mockResolvedValue('dead');
+    storeMocks.readDigestStatus.mockResolvedValue({ status: 'dead', attempts: 3 });
     const prisma = fakePrisma([sourceRow()]);
     const invoke = vi.fn<SystemModelInvoker>().mockResolvedValue({
       content: 'not json',
@@ -294,6 +312,202 @@ describe('sweepRecentDaysDigests generation', () => {
     const stats = await sweepRecentDaysDigests(prisma, invoke);
     expect(stats.guardMisses).toBe(1);
     expect(stats.generated).toBe(0);
+  });
+
+  it('a first_person final-validation failure logs exactly one warn with the matched token as detail', async () => {
+    setSettings();
+    selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
+    const prisma = fakePrisma([sourceRow()]);
+    const invoke = vi
+      .fn<SystemModelInvoker>()
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: 'I promised to help Jules.' }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: 'We promised to help Jules.' }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      });
+
+    await sweepRecentDaysDigests(prisma, invoke);
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personaId: PERSONA_ID,
+        personalityId: PERSONALITY_ID,
+        cls: 'first_person',
+        detail: 'We',
+        attempts: 1,
+        status: 'failed',
+      }),
+      'Recent-days digest attempt rejected'
+    );
+  });
+
+  it('a quotation failure logs the n-gram length and digest, never the quoted words', async () => {
+    setSettings();
+    selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
+    const prisma = fakePrisma([sourceRow({ role: 'assistant', content: ASSISTANT_LINE })]);
+    const invoke = vi
+      .fn<SystemModelInvoker>()
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: `Nova said ${ASSISTANT_LINE} yesterday.` }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: `Nova repeated ${ASSISTANT_LINE} again.` }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      });
+
+    await sweepRecentDaysDigests(prisma, invoke);
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personaId: PERSONA_ID,
+        personalityId: PERSONALITY_ID,
+        cls: 'quotation',
+        detail: expect.stringMatching(/^quoted 8-word n-gram, digest [0-9a-f]{12}$/),
+        attempts: 1,
+        status: 'failed',
+      }),
+      'Recent-days digest attempt rejected'
+    );
+    const fields = loggerMock.warn.mock.calls[0]?.[0] as { detail: string };
+    expect(fields.detail).toEqual(expect.not.stringContaining(QUOTED_NGRAM));
+  });
+
+  it('the redaction is at the log site only: the regeneration prompt still carries the quoted run', async () => {
+    setSettings();
+    selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
+    const prisma = fakePrisma([sourceRow({ role: 'assistant', content: ASSISTANT_LINE })]);
+    const invoke = vi
+      .fn<SystemModelInvoker>()
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: `Nova said ${ASSISTANT_LINE} yesterday.` }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: `Nova repeated ${ASSISTANT_LINE} again.` }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      });
+
+    await sweepRecentDaysDigests(prisma, invoke);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    // The window lines carry the assistant row verbatim, so a bare
+    // "contains the n-gram" check cannot tell the feedback apart from the
+    // window — assert the regeneration FEEDBACK clause itself.
+    expect(invoke.mock.calls[1]?.[0]).toContain(
+      `quoted the character's own words verbatim ("${QUOTED_NGRAM}")`
+    );
+  });
+
+  it('a parse failure logs the fixed detail string', async () => {
+    setSettings();
+    selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
+    const prisma = fakePrisma([sourceRow()]);
+    const invoke = vi.fn<SystemModelInvoker>().mockResolvedValue({
+      content: 'not json',
+      tokensIn: 10,
+      tokensOut: 5,
+      provider: AIProvider.ZaiCoding,
+      model: 'z-ai/glm-5.2',
+    });
+
+    await sweepRecentDaysDigests(prisma, invoke);
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personaId: PERSONA_ID,
+        personalityId: PERSONALITY_ID,
+        cls: 'parse_failure',
+        detail: 'model response did not parse',
+        attempts: 1,
+        status: 'failed',
+      }),
+      'Recent-days digest attempt rejected'
+    );
+  });
+
+  it('a dead parse failure logs status dead and the attempt count from readDigestStatus', async () => {
+    setSettings();
+    selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
+    storeMocks.readDigestStatus.mockResolvedValue({ status: 'dead', attempts: 3 });
+    const prisma = fakePrisma([sourceRow()]);
+    const invoke = vi.fn<SystemModelInvoker>().mockResolvedValue({
+      content: 'not json',
+      tokensIn: 10,
+      tokensOut: 5,
+      provider: AIProvider.ZaiCoding,
+      model: 'z-ai/glm-5.2',
+    });
+
+    await sweepRecentDaysDigests(prisma, invoke);
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personaId: PERSONA_ID,
+        personalityId: PERSONALITY_ID,
+        cls: 'parse_failure',
+        status: 'dead',
+        attempts: 3,
+      }),
+      'Recent-days digest attempt rejected'
+    );
+  });
+
+  it('an overflow final class logs the token-count detail, unredacted', async () => {
+    setSettings();
+    selectDigestCandidatePairsMock.mockResolvedValue([makePair()]);
+    const prisma = fakePrisma([sourceRow()]);
+    const overflowDigest = 'word '.repeat(RECENT_DAYS_DIGEST.HARD_CAP_TOKENS + 50);
+    const invoke = vi
+      .fn<SystemModelInvoker>()
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: overflowDigest }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ digest: overflowDigest }),
+        tokensIn: 10,
+        tokensOut: 5,
+        provider: AIProvider.ZaiCoding,
+        model: 'z-ai/glm-5.2',
+      });
+
+    await sweepRecentDaysDigests(prisma, invoke);
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personaId: PERSONA_ID,
+        personalityId: PERSONALITY_ID,
+        cls: 'overflow',
+        detail: expect.stringMatching(/^\d+ tokens$/),
+        attempts: 1,
+        status: 'failed',
+      }),
+      'Recent-days digest attempt rejected'
+    );
   });
 
   it('a per-pair exception is caught, counted failedZeroSpend, and the loop continues', async () => {

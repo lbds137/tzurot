@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { stripQuotedSpans, hasFirstPerson, decideLengthState } from './archiveSummaryValidation.js';
+import {
+  stripQuotedSpans,
+  hasFirstPerson,
+  findFirstPersonToken,
+  decideLengthState,
+} from './archiveSummaryValidation.js';
 
 describe('stripQuotedSpans', () => {
   it('removes straight-quoted spans', () => {
@@ -43,6 +48,24 @@ describe('hasFirstPerson', () => {
     expect(hasFirstPerson('Ourselves included, everyone agreed.')).toBe(true);
     expect(hasFirstPerson('They kept the plan to ourselves.')).toBe(true);
     expect(hasFirstPerson('Ourself is an unusual word.')).toBe(true);
+  });
+});
+
+describe('findFirstPersonToken', () => {
+  it('returns the matched token for a bare pronoun after other words', () => {
+    expect(findFirstPersonToken('She said I will')).toBe('I');
+  });
+
+  it('returns the matched contraction token', () => {
+    expect(findFirstPersonToken('I’m going')).toBe('I’m');
+  });
+
+  it('returns null for a quoted span containing the only first-person word', () => {
+    expect(findFirstPersonToken('Nova called Jules "my dear" once.')).toBeNull();
+  });
+
+  it('returns null when no first-person token is present', () => {
+    expect(findFirstPersonToken('Nova lives in Melbourne.')).toBeNull();
   });
 });
 

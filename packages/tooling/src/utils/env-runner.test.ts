@@ -378,6 +378,31 @@ describe('env-runner', () => {
         encoding: 'utf-8',
       });
     });
+
+    it('injects both DATABASE_URL and an extra var into the spawned env', async () => {
+      vi.mocked(execFileSync).mockReturnValue(
+        JSON.stringify({ DATABASE_PUBLIC_URL: 'postgresql://railway-dev/db' })
+      );
+      const proc = mockChild();
+      const { runWithRailway } = await import('./env-runner.js');
+
+      const promise = runWithRailway('dev', 'npx', ['prisma', 'migrate', 'status'], undefined, {
+        ZAI_CODING_API_KEY: 'zai-sentinel-value',
+      });
+      proc.emit('close', 0);
+      await promise;
+
+      expect(spawn).toHaveBeenCalledWith(
+        'npx',
+        ['prisma', 'migrate', 'status'],
+        expect.objectContaining({
+          env: expect.objectContaining({
+            DATABASE_URL: 'postgresql://railway-dev/db',
+            ZAI_CODING_API_KEY: 'zai-sentinel-value',
+          }),
+        })
+      );
+    });
   });
 
   describe('requireProductionConfirmation', () => {

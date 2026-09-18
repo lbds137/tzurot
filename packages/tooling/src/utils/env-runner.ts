@@ -229,6 +229,8 @@ function spawnCollecting(
  * @param args - Arguments to pass to the command (e.g., ['prisma', 'migrate', 'deploy'])
  * @param timeoutMs - Optional bound on BOTH the Railway URL fetch and the spawned
  *   command. Omit it (the default) for long-running operations like `migrate deploy`.
+ * @param extraVars - Optional additional variables (already resolved) to inject
+ *   into the child's environment alongside `DATABASE_URL`. Never printed or logged.
  *
  * SECURITY: Uses shell: false with explicit array arguments to prevent command injection.
  * The command and args are passed directly to the process, not through a shell.
@@ -237,11 +239,17 @@ export async function runWithRailway(
   env: 'dev' | 'prod',
   command: string,
   args: string[] = [],
-  timeoutMs?: number
+  timeoutMs?: number,
+  extraVars?: Record<string, string>
 ): Promise<CommandResult> {
   const databaseUrl = getRailwayDatabaseUrl(env, timeoutMs);
 
-  return spawnCollecting(command, args, cleanEnvForNpx({ DATABASE_URL: databaseUrl }), timeoutMs);
+  return spawnCollecting(
+    command,
+    args,
+    cleanEnvForNpx({ DATABASE_URL: databaseUrl, ...extraVars }),
+    timeoutMs
+  );
 }
 
 /**
