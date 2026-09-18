@@ -1,9 +1,10 @@
 ---
 id: TASK-1006
 title: 'Recent-days digest: a billed validator rejection logs nothing per pair'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 01:40'
+updated_date: '2026-09-18 07:44'
 labels:
   - 'area:ai-worker'
   - 'size:S'
