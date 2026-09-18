@@ -1,9 +1,10 @@
 ---
 id: TASK-969
 title: Query-string values bypass the request-log sanitizer via req.url
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 20:34'
+updated_date: '2026-09-18 23:57'
 labels:
   - 'area:api-gateway'
   - 'size:S'
