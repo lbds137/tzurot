@@ -275,6 +275,10 @@ export const CREDENTIAL_TYPES = {
   SESSION_COOKIE: 'session_cookie',
 } as const;
 
+/** Sent when a stored shapes.inc session cookie exists but cannot be decrypted. */
+export const UNDECRYPTABLE_CREDENTIAL_MESSAGE =
+  'Stored shapes.inc credentials could not be read. Re-authenticate with /shapes auth.';
+
 /** Import source service identifiers for ImportJob table */
 export const IMPORT_SOURCES = {
   SHAPES_INC: 'shapes_inc',

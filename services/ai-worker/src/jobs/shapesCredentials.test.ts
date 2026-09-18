@@ -80,6 +80,104 @@ describe('getDecryptedCookie', () => {
       ShapesAuthError
     );
   });
+
+  it('throws ShapesAuthError when the stored credential cannot be decrypted', async () => {
+    const realEncryption = await vi.importActual<
+      typeof import('@tzurot/common-types/utils/encryption')
+    >('@tzurot/common-types/utils/encryption');
+
+    const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
+    const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
+    delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+
+    try {
+      const encrypted = realEncryption.encryptApiKey(
+        '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef'
+      );
+
+      const corruptedTag = `${encrypted.tag[0] === '0' ? '1' : '0'}${encrypted.tag.slice(1)}`;
+      const corruptedCredential = { ...encrypted, tag: corruptedTag };
+
+      // Pins that the fixture itself fails via the GCM auth-tag mismatch
+      // (not a missing-key config error) BEFORE it reaches
+      // getDecryptedCookie's own catch, which would otherwise mask either
+      // underlying failure behind the same ShapesAuthError message.
+      expect(() => realEncryption.decryptApiKey(corruptedCredential)).toThrow(
+        'Unsupported state or unable to authenticate data'
+      );
+
+      mockPrisma.userCredential.findFirst.mockResolvedValue(corruptedCredential);
+      mockDecryptApiKey.mockImplementation(realEncryption.decryptApiKey);
+
+      const error = await getDecryptedCookie(mockPrisma as never, 'user-1').catch(
+        (e: unknown) => e
+      );
+      expect(error).toBeInstanceOf(ShapesAuthError);
+      expect((error as Error).message).toContain('/shapes auth');
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY = previousKey;
+      }
+      if (previousPreviousKey === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
+      }
+    }
+  });
+
+  it('lets a credential-lookup failure propagate instead of reporting an auth error', async () => {
+    mockPrisma.userCredential.findFirst.mockRejectedValue(new Error('db boom'));
+
+    const error = await getDecryptedCookie(mockPrisma as never, 'user-1').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('db boom');
+    expect(error instanceof ShapesAuthError).toBe(false);
+  });
+
+  it('lets a decrypt failure propagate as its original error instead of reporting an auth error when the service is misconfigured', async () => {
+    const realEncryption = await vi.importActual<
+      typeof import('@tzurot/common-types/utils/encryption')
+    >('@tzurot/common-types/utils/encryption');
+
+    const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
+    const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    delete process.env.API_KEY_ENCRYPTION_KEY;
+    delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+
+    try {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({
+        iv: 'iv',
+        content: 'content',
+        tag: 'tag',
+      });
+      mockDecryptApiKey.mockImplementation(realEncryption.decryptApiKey);
+
+      const error = await getDecryptedCookie(mockPrisma as never, 'user-1').catch(
+        (e: unknown) => e
+      );
+
+      expect(error instanceof ShapesAuthError).toBe(false);
+      expect((error as Error).message).toContain(
+        'API_KEY_ENCRYPTION_KEY environment variable is required'
+      );
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY = previousKey;
+      }
+      if (previousPreviousKey === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
+      }
+    }
+  });
 });
 
 describe('persistUpdatedCookie', () => {
