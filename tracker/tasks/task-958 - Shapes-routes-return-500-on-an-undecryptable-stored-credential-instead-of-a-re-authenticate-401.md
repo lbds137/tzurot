@@ -3,9 +3,10 @@ id: TASK-958
 title: >-
   Shapes routes return 500 on an undecryptable stored credential instead of a
   re-authenticate 401
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:02'
+updated_date: '2026-09-19 00:59'
 labels:
   - 'area:api-gateway'
   - 'size:S'
