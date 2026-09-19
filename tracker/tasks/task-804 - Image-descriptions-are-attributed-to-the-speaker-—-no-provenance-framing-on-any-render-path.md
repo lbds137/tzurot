@@ -3,10 +3,10 @@ id: TASK-804
 title: >-
   Image descriptions are attributed to the speaker — no provenance framing on
   any render path
-status: Done
+status: To Do
 assignee: []
 created_date: '2026-08-28 23:59'
-updated_date: '2026-08-29 14:24'
+updated_date: '2026-09-19 12:45'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -40,4 +40,10 @@ REMAINING (why this task stayed open): (a) runtime smoke - a character receiving
 CLOSED 2026-08-29 — clause (a) WAIVED by owner, verbatim: "if we changed the prompt construction that's good enough for me tbh." The smoke was never going to be a proof (a prompt constraint cannot be shown compliant by three samples), and the owner accepts the constraint landing as sufficient. Recording the waiver rather than silently dropping it: what is being accepted is that model compliance stays UNVERIFIED, not that it was verified.
 
 Clause (b) survives as a WATCH, not as open work: the trigger is a prod sighting of a character still crediting a sharer with description prose. The original report cites request 623bb16a-f235-4dae-907a-81f9b69a954b as the pre-fix specimen; a post-beta.210 recurrence is what would reopen the wrap slice, and the retired-wrap analysis above is the starting point for it.
+
+REOPENED 2026-09-19 — the clause-(b) watch FIRED. Prod recurrence on beta.226, request 0d4f851a-2b6b-496a-9117-ae2d64c3906a: Emily read a vision description as Lila's own prose. The assembled prompt's final user turn was `<from ...>Lila</from>` / "ugh, reddit embeds not working huh" / the raw description, with ZERO bracket headers anywhere in the message (regex `\[(Image|Sticker|Link preview|File|Voice message)[^\]]*\]` over the whole content returned no matches).
+
+Diagnosis of WHY the shipped constraint did not bite: it names two surface forms the model can key on — the `<image_descriptions>` tag and the `"[Image: name]"` bracket header — and the trigger path emits NEITHER. `PromptBuilder.ts` builds the current message with `extractContentDescriptions` (bare `a.description`, joined) instead of `buildAttachmentDescriptions` (the one that emits `[Image: ...]` / `[Sticker: ...]` / `[Link preview: ...]` / `[File: ...]` headers and the `<voice_transcripts>` wrapper). So the constraint shipped keyed on a marker one of its three paths never produces. Introduced 6cdf58fe37 (2026-01-22), eight months pre-dating the constraint.
+
+The fix is NOT the retired wrap — bracket headers carry no angle brackets, so the PROTECTED_TAGS/escapeXmlContent analysis above does not apply to them. It is: point the trigger path at `buildAttachmentDescriptions`, port `extractContentDescriptions`' BARE_PLACEHOLDERS filter into it so a totally-failed attachment does not render as `[Image: foo]\n[image]`, and align `TokenCounters` to count what actually ships. `SearchQueryBuilder` keeps the bare form — memory search wants semantic text, not display headers. The CARE note above returns to live: `contentForStorage` IS the built string, so the stored shape changes; blast radius is LTM and the cross-channel render only, because bot-client no longer reads chat history from Postgres (MessageContextBuilder).
 <!-- SECTION:DESCRIPTION:END -->
