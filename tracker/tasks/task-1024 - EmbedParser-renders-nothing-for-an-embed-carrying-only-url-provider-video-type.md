@@ -1,12 +1,13 @@
 ---
 id: TASK-1024
-title: EmbedParser renders nothing for an embed carrying only url/provider/video/type
+title: EmbedParser renders nothing for a Components-V2 link embed (vxreddit)
 status: To Do
 assignee: []
 created_date: '2026-09-19 17:46'
+updated_date: '2026-09-19 18:20'
 labels:
   - 'area:bot-client'
-  - 'size:S'
+  - 'size:M'
   - 'state:ready'
 dependencies: []
 priority: high
@@ -25,12 +26,26 @@ Evidence gathered (verified, not assumed):
 - `EmbedParser.parseEmbed` (services/bot-client/src/utils/EmbedParser.ts) reads title, author, description, fields, image, thumbnail, footer, timestamp and color. It reads NONE of `embed.url` as a standalone element (only as the `<title>` attribute, so a title-less embed loses its URL entirely), `embed.provider`, `embed.video`, or `embed.type`. An embed carrying only those renders as literally nothing — which is one way to produce exactly the observed output.
 - There is no MessageUpdate handler in bot-client and no embed-wait anywhere. The claim in HistoryLinkResolver.ts that MessageReferenceExtractor has an "embed processing delay" is stale prose — grep for it, there is no such delay.
 
-NOT established: why Discord returned a field-free embed while its own client renders the embed fully. Code-reading cannot answer that, and nothing logs the raw payload. Do not ship a fix on a guessed mechanism.
+ROOT CAUSE — established by probe, not inference. vxreddit has adopted Discord **Components V2** for its link unfurls. Fetching the offending URL with a Discordbot user-agent returns, alongside the legacy og: tags, a `<script id="discord:component-embed" type="application/json">` block whose payload is a Container tree, not an APIEmbed:
+
+    {"component": {"accent_color": 16729344, "components": [
+      {"content": "-# vxReddit", "type": 10},
+      {"content": "** u/Novel_Ice9583 on r/Cult_of_Emily - [up]694 | [msg]14 [(link)](https://www.reddit.com/comments/1wiq2ui) **", "type": 10},
+      {"content": "## Emily-s trying something new for an outfit", "type": 10},
+      {"items": [{"media": {"url": "https://i.redd.it/0jx38j1r32qh1.jpeg"}}], "type": 12}
+    ], "type": 17}}
+
+That tree matches the owner-supplied screenshot one-for-one: the `-#` subtext renders as the small "vxReddit" provider line, the bold TextDisplay as the author line ending in a markdown "(link)", the `##` TextDisplay as the title, the MediaGallery as the image, and accent_color 16729344 = 0xFF4500, the same reddit orange every OLDER vxreddit embed carried in its legacy `<color>` element. Type numbers confirmed against the installed discord.js 14.27: Container=17, TextDisplay=10, MediaGallery=12, Section=9, Thumbnail=11, File=13, Separator=14.
+
+This explains every observation the legacy-race hypothesis could not: the embed is bare on re-fetch 12 and 17 minutes later because nothing is racing — the content simply is not in the fields `parseEmbed` reads; and it is NEW because vxreddit changed format, not because we did. Rollout is partial, so it will get worse, not better: of two older vxreddit URLs probed the same way, one now serves a component-embed block and one does not.
+
+STILL INFERRED, and the reason the diagnostic leads: WHERE discord.js surfaces the Container tree. The observed shape (`message.embeds.length === 1` with every legacy field absent) is consistent with Discord keeping an embed SLOT while carrying the content in `message.components`, but no payload has been captured. Do not build the renderer against a guessed location.
 
 Fix shape, in this order:
-1. Diagnostic first. When `parseEmbed` produces an empty string, log the raw embed shape — `Object.keys(embed)` plus `embed.type` and whether `url`/`provider`/`video` are present. Field NAMES and presence booleans only, never values (00-critical logging rule). This is the one observation that makes the next occurrence diagnosable. Commit type `debug:` if it is pure instrumentation to be removed later, `feat:` if it stays as permanent observability.
-2. Render the fields the parser drops: a standalone `<url>` (or a url attribute on `<embed>`) so a title-less embed keeps its link, plus `<provider>`, `<video>`, and the embed `type`. This is correct on its own merit regardless of the root cause.
-3. Never emit a content-free `<embed></embed>`. Either omit the embed entirely or render a marker naming what was present, so "embed exists" and "embed rendered something" stop being different predicates with nothing checking.
+1. Diagnostic first. When `parseEmbed` produces an empty string, log the shape — `Object.keys(embed)`, `embed.type`, and the component-type tree found on the message (`message.components.map(c => c.type)` and one level of children). Type numbers and key NAMES only, never content values (00-critical logging rule). One prod occurrence then tells us exactly where the tree lives. Commit as `debug:` and retire it with `Retires-debug:` when the renderer lands.
+2. Render the Container tree once its location is known: TextDisplay content, MediaGallery item urls, Section/Thumbnail, accent_color. The MediaGallery urls matter twice over — they are also what the vision pipeline needs in order to describe the image, which is the half that makes the character actually SEE shared art.
+3. Never emit a content-free `<embed></embed>`. Either omit it or render a marker naming what was present, so "embed exists" and "embed rendered something" stop being different predicates with nothing checking.
+4. Independently of all the above, and correct on its own merit: `parseEmbed` drops `embed.url` (it survives only as a `<title>` attribute, so a title-less legacy embed loses its link entirely), `embed.provider`, `embed.video`, and `embed.type`. Render them.
 
-Acceptance: a unit test pins that an embed carrying only `{type, url, provider}` renders its url and provider rather than an empty element; a second pins that a genuinely empty embed object does not emit a bare `<embed></embed>`; the diagnostic log fires on the empty path and carries no field values.
+Acceptance: the diagnostic fires on the empty path carrying no content values; once a prod capture lands, a unit test pins that a Components-V2 container renders its TextDisplay text and MediaGallery urls; a second pins that a genuinely empty embed emits no bare `<embed></embed>`; a third pins the legacy url/provider/video/type gap in (4).
 <!-- SECTION:DESCRIPTION:END -->
