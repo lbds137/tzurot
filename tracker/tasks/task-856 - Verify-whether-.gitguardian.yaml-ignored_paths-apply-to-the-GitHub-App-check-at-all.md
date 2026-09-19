@@ -46,6 +46,8 @@ New information this occurrence adds, beyond a repeat: the trigger is not limite
 
 Unblocked WITHOUT a dashboard ignore this time, which is the difference from PR 2288: the fixtures were rewritten to the repo convention already visible in ten other test files (test-secret, webhook-test-secret, TEST-FIXTURE-...-not-a-real-token) using low-entropy self-describing values. That is a better unblock than an incident dismissal because it leaves the detector strict and needs no per-occurrence owner action, and it cost one worker round. The redaction under test keys off the field NAME, never the value, so the rename weakened no assertion.
 
+The owner cleared the five incidents from the dashboard afterwards (2026-09-18). That was HOUSEKEEPING, not the unblock, and the distinction is this task's whole point: the check went green because the fixtures were rewritten, and the flagged commit was rewritten out of the branch before anything merged, so the incidents were already moot when they were cleared. Do not read this occurrence as evidence that dashboard dismissal is the remedy — the paragraph above still stands.
+
 The practical lesson worth carrying into specs: telling a worker to use a "realistic secret-shaped value" in a fixture is what caused this. The repo convention is the opposite, and the convention is right.
 ---
 <!-- COMMENTS:END -->
