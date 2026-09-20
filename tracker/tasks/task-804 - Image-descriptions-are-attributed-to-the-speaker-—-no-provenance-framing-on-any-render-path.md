@@ -3,10 +3,10 @@ id: TASK-804
 title: >-
   Image descriptions are attributed to the speaker — no provenance framing on
   any render path
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 23:59'
-updated_date: '2026-09-19 12:45'
+updated_date: '2026-09-20 13:00'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -50,4 +50,10 @@ The fix is NOT the retired wrap — bracket headers carry no angle brackets, so 
 Also surfaced by that review round and fixed in the same PR: attachment names reach a bracket-delimited provenance header unsanitized (`attachmentExtractor.ts` passes `name: attachment.name` straight from Discord, and `escapeXmlContent` only rewrites angle brackets for protected tags), so a filename carrying `]` could close the real header and forge a second one. `stripHeaderBrackets` in `RAGUtils.ts` now sanitizes the name at all THREE header sites — Image, File, and `buildAudioAttachmentHeader` — the last of which the reviewer did not name. Left deliberately unchanged: `buildImageDescriptionMap`'s `filename: att.metadata.name`, which renders as an XML attribute through `escapeXml` rather than into a bracket header. The CARE note above returns to live, but NARROWER than first written — correcting a premise this task carried for one commit: `contentForStorage` IS the built string, so its shape changes, but the conversation-history ROW already carried the headers independently. `VisionDescriptionWriter.persistTriggerDescriptions` upgrades the trigger row post-vision to `message + '\n\n' + buildAttachmentDescriptions(...)` (grep `enrichedContent` in `services/ai-worker/src/services/context/visionDescriptionWriter.ts`), so the cross-channel render has been reading bracket headers all along. What actually changes is the LTM/memory copy and the pre-upgrade window before that writer lands. The earlier claim that the cross-channel render was part of the blast radius was wrong.
 
 Acceptance clause 3 (no double-render) therefore holds and is UNCHANGED by the PromptBuilder fix, but is established by code-reading only, not by a test: the row's content carries the header while `messageMetadata.imageDescriptions` is injected per-job in memory by `injectImageDescriptions` and never persisted, so a DB-sourced cross-channel row renders the header once and no `<image_descriptions>` block; the main chat_log takes its content from a live Discord fetch rather than the stored row, so it renders the injected block once and no header. Neither path renders both. Pinning that with a test is what clause 3 still wants.
+
+CLOSED 2026-09-20 — PR #2456 merged (`86768cb47`). The emitter gap is fixed: the trigger path now renders through `buildAttachmentDescriptions`, so the `[Image: ...]` header the shipped constraint keys on actually reaches the model on the path that lacked it. Clause 2 was already met. Clause 1 stays UNVERIFIED by construction and by the owner's 2026-08-29 waiver — no test can show a prompt constraint is obeyed, and that limit is unchanged.
+
+Clause 3 (no double-render) is closed as correct-as-is rather than tested. Review round 2 of that PR confirmed it structurally and independently, from the opposite end of the seam to the argument above: `DependencyStep` hands `VisionDescriptionWriter.persistTriggerDescriptions` the raw `job.data.message` placeholder field, never `budgetResult.contentForStorage`, so the two writers cannot collide because they are fed different inputs. That is a stronger reason than the situational one this task originally recorded. It remains untested; if a regression test is wanted it belongs with the TASK-841 hoist, which reopens the same seam.
+
+The PR also closed two forgery vectors the header's new load-bearing status created — `headerDisplayName` for the attachment NAME, `neutralizeHeaderMarkers` for the description BODY, at all three emitting sites, with `HEADER_LABELS` as the single list both read and a set-equality test against it. The sibling gap that sweep missed is TASK-1025.
 <!-- SECTION:DESCRIPTION:END -->
