@@ -254,14 +254,13 @@ export async function buildMessageContent(
           if (snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
             for (let index = 0; index < snapshot.embeds.length; index++) {
               const embed = snapshot.embeds[index];
-              const numAttr = snapshot.embeds.length > 1 ? ` number="${index + 1}"` : '';
               // Snapshot embeds are already APIEmbed format (or have toJSON method)
               const apiEmbed: APIEmbed =
                 'toJSON' in embed && typeof embed.toJSON === 'function'
                   ? embed.toJSON()
                   : (embed as unknown as APIEmbed);
               embedsXml.push(
-                `<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed, index)}\n</embed>`
+                EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length)
               );
             }
           }
@@ -336,9 +335,8 @@ export async function buildMessageContent(
   if (includeEmbeds && message.embeds !== undefined && message.embeds.length > 0) {
     for (let index = 0; index < message.embeds.length; index++) {
       const embed = message.embeds[index];
-      const numAttr = message.embeds.length > 1 ? ` number="${index + 1}"` : '';
       embedsXml.push(
-        `<embed${numAttr}>\n${EmbedParser.parseEmbed(embed.toJSON(), index)}\n</embed>`
+        EmbedParser.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message)
       );
     }
   }

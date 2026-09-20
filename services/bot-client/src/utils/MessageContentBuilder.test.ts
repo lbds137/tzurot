@@ -641,6 +641,39 @@ describe('MessageContentBuilder', () => {
       expect(result.voiceTranscripts).toContain('Transcript found via forwarding message ID');
     });
 
+    it('produces the rendered="false" marker for an empty MAIN-message embed, not <embed></embed>', async () => {
+      const embeds = [createMockEmbed({ toJSON: () => ({}) })];
+      const message = createMockMessage({ content: '', embeds });
+
+      const result = await buildMessageContent(message, { includeEmbeds: true });
+
+      expect(result.embedsXml).toBeDefined();
+      expect(result.embedsXml![0]).toBe('<embed rendered="false"/>');
+      expect(result.embedsXml![0]).not.toBe('<embed>\n\n</embed>');
+    });
+
+    it('produces the rendered="false" marker for an empty SNAPSHOT embed, not <embed></embed>', async () => {
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: '',
+        embeds: [{}],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.embedsXml).toBeDefined();
+      expect(result.embedsXml![0]).toBe('<embed rendered="false"/>');
+      expect(result.embedsXml![0]).not.toBe('<embed>\n\n</embed>');
+    });
+
     it('should combine text content with attachments and embeds', async () => {
       const attachments = new Collection<string, Attachment>();
       attachments.set('1', createMockAttachment({ name: 'photo.jpg', contentType: 'image/jpeg' }));
