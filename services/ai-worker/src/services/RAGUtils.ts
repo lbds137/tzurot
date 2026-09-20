@@ -13,9 +13,14 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { neutralizeWrapperClosingTags } from '@tzurot/common-types/utils/promptSanitizer';
+import {
+  headerDisplayName,
+  neutralizeHeaderMarkers,
+  imageHeaderLabel,
+  imageSource,
+} from '@tzurot/common-types/utils/attachmentProvenance';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { validateAIProvider } from '../utils/providerValidation.js';
-import { imageSource } from './prompt/QuoteFormatter.js';
 import { type ModelConfig } from './ModelFactory.js';
 import type { DuplicateRetryConfig } from './ConversationalRAGTypes.js';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
@@ -113,54 +118,6 @@ export function buildAttachmentDescriptions(
     .join('\n\n');
 }
 
-/**
- * Compute the display name for a bracket-delimited provenance header
- * (`[Image: ...]`, `[File: ...]`, `[Audio: ...]`). Strips `[` and `]` from
- * the name FIRST, then falls back to `'attachment'` if the result is empty.
- * A name carrying a `]` can close the header early and open a forged header
- * of its own choosing right after it, fabricating a second provenance marker
- * the model has no way to distinguish from a real one — removing the bracket
- * characters denies the forgery the structure it depends on. Stripping before
- * falling back keeps a name made entirely of bracket characters (e.g. `[]`)
- * from passing an empty/undefined check and then stripping to an empty
- * string, which would render `[Image: ]` instead of `[Image: attachment]`.
- */
-function headerDisplayName(name: string | undefined): string {
-  const stripped = (name ?? '').replaceAll('[', '').replaceAll(']', '');
-  return stripped.length > 0 ? stripped : 'attachment';
-}
-
-/**
- * Every literal label that can appear in an emitted attachment provenance
- * header (`[<Label>: ...]`). The emitters still spell their own labels; this
- * is the list `neutralizeHeaderMarkers` defuses, kept in step with them by
- * the coverage test in RAGUtils.test.ts, not by the emitters reading here.
- */
-export const HEADER_LABELS = [
-  'Image',
-  'Sticker',
-  'Link preview',
-  'File',
-  'Audio',
-  'Voice message',
-] as const;
-
-/**
- * Neutralizes a forged header-opening literal (`[<Label>: `) inside
- * attachment-description text by removing its leading `[`, so raw model
- * output cannot mint a second provenance marker the constraint in
- * `OUTPUT_CONSTRAINTS` would otherwise treat as authoritative. Mirrors
- * `neutralizeWrapperClosingTags`'s approach: defuse the exact substring that
- * could forge structure, leave every other bracket in the text untouched.
- * Match is case-SENSITIVE: a lowercase `[image: ` passes through, which is
- * acceptable only because the constraint keys on the exact-case form too.
- * The cannot-mint claim is pinned by the three `neutralizes a forged header
- * opener` cases in RAGUtils.test.ts, one per attachment type.
- */
-function neutralizeHeaderMarkers(text: string): string {
-  return HEADER_LABELS.reduce((acc, label) => acc.replaceAll(`[${label}: `, `${label}: `), text);
-}
-
 function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
   // A totally-failed attachment (vision/audio processing produced nothing
   // usable) would otherwise render as `[Image: foo]\n[image]` — a header
@@ -178,7 +135,7 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     // further out: the user shared a LINK and Discord generated the preview
     // image off it, so `[Image: …]` claims a deliberate upload that never
     // happened. Pinned by the `[Link preview: …]` cases in RAGUtils.test.ts.
-    const header = pickImageHeader(a.metadata);
+    const header = imageHeaderLabel(a.metadata);
     return `[${header}: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
   }
   if (a.type === AttachmentType.Audio) {
@@ -191,20 +148,6 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     return `[File: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
   }
   return '';
-}
-
-/**
- * The bracket header an image-path attachment renders under — `imageSource`'s
- * shared precedence mapped to display labels, so this site cannot drift from
- * the rule (re-deriving it inline is the exact drift `imageSource`'s own doc
- * warns about).
- */
-function pickImageHeader(metadata: ProcessedAttachment['metadata']): string {
-  const source = imageSource(metadata);
-  if (source === 'sticker') {
-    return 'Sticker';
-  }
-  return source === 'link-preview' ? 'Link preview' : 'Image';
 }
 
 function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
