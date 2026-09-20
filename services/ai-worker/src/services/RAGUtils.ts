@@ -44,8 +44,6 @@ const BARE_PLACEHOLDERS = new Set(['[image]', '[audio]', '[unsupported format]']
  *
  * Used for:
  * - Memory search queries (semantic search needs actual content, not placeholders)
- * - Token counting (count only real content)
- * - Building message content (user sees actual descriptions)
  *
  * @param processedAttachments - Array of processed attachments
  * @returns Concatenated descriptions separated by double newlines, or empty string if none
@@ -62,10 +60,18 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
 }
 
 /**
- * Build attachment descriptions for storage and display
+ * Build attachment descriptions for storage and display, and — for the
+ * trigger (current) message — for the prompt itself: this is the function
+ * `PromptBuilder.buildHumanMessage` calls to render the live turn's
+ * attachments, so its headers are what the model actually sees, not just
+ * what gets stored.
  *
  * Formats processed attachments into human-readable descriptions with headers
- * indicating the type (Image, Audio, Voice message).
+ * indicating the type (Image, Audio, Voice message). Bare placeholder
+ * descriptions (`[image]` / `[audio]` / `[unsupported format]` — produced
+ * when processing fails completely) are dropped entirely rather than
+ * rendered under a header; see the early return in
+ * `formatProcessedAttachmentEntry`.
  *
  * Voice/audio transcripts are wrapped in `<voice_transcripts><transcript>...
  * </transcript></voice_transcripts>` so the LLM can unambiguously distinguish
@@ -88,7 +94,11 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
  * voice's unprotected wrapper tags survive that pass; this asymmetry is
  * pinned by the escaping test in `promptSanitizer.test.ts`. Provenance is
  * instead carried by the media-description constraint in
- * `OUTPUT_CONSTRAINTS`, pinned by the tests in `HardcodedConstraints.test.ts`.
+ * `OUTPUT_CONSTRAINTS`, pinned by the tests in `HardcodedConstraints.test.ts`
+ * — and on the trigger-message path, the `[Image: filename]` /
+ * `[Audio: ...]` / `[File: filename]` bracket header this function emits IS
+ * the surface form that constraint names: the constraint tells the model how
+ * to read a header it will actually see in its own turn.
  */
 export function buildAttachmentDescriptions(
   processedAttachments: ProcessedAttachment[]
@@ -103,10 +113,64 @@ export function buildAttachmentDescriptions(
     .join('\n\n');
 }
 
+/**
+ * Compute the display name for a bracket-delimited provenance header
+ * (`[Image: ...]`, `[File: ...]`, `[Audio: ...]`). Strips `[` and `]` from
+ * the name FIRST, then falls back to `'attachment'` if the result is empty.
+ * A name carrying a `]` can close the header early and open a forged header
+ * of its own choosing right after it, fabricating a second provenance marker
+ * the model has no way to distinguish from a real one — removing the bracket
+ * characters denies the forgery the structure it depends on. Stripping before
+ * falling back keeps a name made entirely of bracket characters (e.g. `[]`)
+ * from passing an empty/undefined check and then stripping to an empty
+ * string, which would render `[Image: ]` instead of `[Image: attachment]`.
+ */
+function headerDisplayName(name: string | undefined): string {
+  const stripped = (name ?? '').replaceAll('[', '').replaceAll(']', '');
+  return stripped.length > 0 ? stripped : 'attachment';
+}
+
+/**
+ * Every literal label that can appear in an emitted attachment provenance
+ * header (`[<Label>: ...]`). The emitters still spell their own labels; this
+ * is the list `neutralizeHeaderMarkers` defuses, kept in step with them by
+ * the coverage test in RAGUtils.test.ts, not by the emitters reading here.
+ */
+export const HEADER_LABELS = [
+  'Image',
+  'Sticker',
+  'Link preview',
+  'File',
+  'Audio',
+  'Voice message',
+] as const;
+
+/**
+ * Neutralizes a forged header-opening literal (`[<Label>: `) inside
+ * attachment-description text by removing its leading `[`, so raw model
+ * output cannot mint a second provenance marker the constraint in
+ * `OUTPUT_CONSTRAINTS` would otherwise treat as authoritative. Mirrors
+ * `neutralizeWrapperClosingTags`'s approach: defuse the exact substring that
+ * could forge structure, leave every other bracket in the text untouched.
+ * Match is case-SENSITIVE: a lowercase `[image: ` passes through, which is
+ * acceptable only because the constraint keys on the exact-case form too.
+ * The cannot-mint claim is pinned by the three `neutralizes a forged header
+ * opener` cases in RAGUtils.test.ts, one per attachment type.
+ */
+function neutralizeHeaderMarkers(text: string): string {
+  return HEADER_LABELS.reduce((acc, label) => acc.replaceAll(`[${label}: `, `${label}: `), text);
+}
+
 function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
+  // A totally-failed attachment (vision/audio processing produced nothing
+  // usable) would otherwise render as `[Image: foo]\n[image]` — a header
+  // asserting content that is not there. Drop it entirely rather than emit
+  // a header over an empty/placeholder body.
+  if (BARE_PLACEHOLDERS.has(a.description)) {
+    return '';
+  }
   if (a.type === AttachmentType.Image) {
-    const name =
-      a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
+    const name = headerDisplayName(a.metadata.name);
     // A sticker travels the image path but is not an image the user attached —
     // labelling it `[Image: …]` would tell the character someone uploaded a
     // file when they picked a sticker, which changes how it reads the gesture.
@@ -115,17 +179,16 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     // image off it, so `[Image: …]` claims a deliberate upload that never
     // happened. Pinned by the `[Link preview: …]` cases in RAGUtils.test.ts.
     const header = pickImageHeader(a.metadata);
-    return `[${header}: ${name}]\n${a.description}`;
+    return `[${header}: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
   }
   if (a.type === AttachmentType.Audio) {
     const header = buildAudioAttachmentHeader(a);
-    const safeTranscript = neutralizeWrapperClosingTags(a.description);
+    const safeTranscript = neutralizeWrapperClosingTags(neutralizeHeaderMarkers(a.description));
     return `${header}\n<voice_transcripts><transcript>${safeTranscript}</transcript></voice_transcripts>`;
   }
   if (a.type === AttachmentType.File) {
-    const name =
-      a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
-    return `[File: ${name}]\n${a.description}`;
+    const name = headerDisplayName(a.metadata.name);
+    return `[File: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
   }
   return '';
 }
@@ -153,8 +216,7 @@ function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
   ) {
     return `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
   }
-  const name =
-    a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
+  const name = headerDisplayName(a.metadata.name);
   return `[Audio: ${name}]`;
 }
 

@@ -35,9 +35,7 @@ vi.mock('@tzurot/common-types/utils/tokenCounter', async () => {
   };
 });
 
-import { countTokens, countMemoryTokens, countAttachmentTokens } from './TokenCounters.js';
-import { AttachmentType } from '@tzurot/common-types/constants/media';
-import type { ProcessedAttachment } from '../MultimodalProcessor.js';
+import { countTokens, countMemoryTokens } from './TokenCounters.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 describe('TokenCounters', () => {
@@ -76,25 +74,6 @@ describe('TokenCounters', () => {
       ];
 
       expect(countMemoryTokens(memories)).toBeGreaterThan(0);
-    });
-  });
-
-  describe('countAttachmentTokens', () => {
-    it('should return 0 for no attachments', () => {
-      expect(countAttachmentTokens([])).toBe(0);
-    });
-
-    it('should count tokens from attachment descriptions', () => {
-      const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: 'A beautiful sunset over the ocean',
-          originalUrl: 'https://example.com/sunset.jpg',
-          metadata: { url: 'https://example.com/sunset.jpg', contentType: 'image/jpeg' },
-        },
-      ];
-
-      expect(countAttachmentTokens(attachments)).toBeGreaterThan(0);
     });
   });
 });

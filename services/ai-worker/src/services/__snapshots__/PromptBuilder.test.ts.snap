@@ -15,12 +15,14 @@ I tried implementing this but got stuck on the async handling
 
 Here is my updated implementation based on your feedback
 
+[Image: attachment]
 A flowchart showing the message processing pipeline"
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 2`] = `
 "Here is my updated implementation based on your feedback
 
+[Image: attachment]
 A flowchart showing the message processing pipeline"
 `;
 
@@ -42,26 +44,34 @@ exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should
 
 Can you explain what went wrong here?
 
+[Image: attachment]
 A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.
 
+[Image: attachment]
 A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker"."
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with image attachments 2`] = `
 "Can you explain what went wrong here?
 
+[Image: attachment]
 A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.
 
+[Image: attachment]
 A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker"."
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 1`] = `
 "<from>VoiceUser</from>
 
-Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."
+[Audio: attachment]
+<voice_transcripts><transcript>Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.</transcript></voice_transcripts>"
 `;
 
-exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 2`] = `"Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."`;
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 2`] = `
+"[Audio: attachment]
+<voice_transcripts><transcript>Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.</transcript></voice_transcripts>"
+`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildSearchQuery snapshots > should match snapshot for pronoun resolution with history 1`] = `
 "User: I've been working on a React project with TypeScript

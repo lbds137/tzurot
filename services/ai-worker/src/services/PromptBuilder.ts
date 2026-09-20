@@ -30,7 +30,7 @@ import {
   formatEnvironmentContext,
   formatCurrentLocationLine,
 } from './prompt/EnvironmentFormatter.js';
-import { extractContentDescriptions } from './RAGUtils.js';
+import { buildAttachmentDescriptions } from './RAGUtils.js';
 import {
   PLATFORM_CONSTRAINTS,
   buildIdentityConstraints,
@@ -185,7 +185,9 @@ export class PromptBuilder {
     // Build message content with attachments
     let messageContent = userMessage;
     if (processedAttachments.length > 0) {
-      const descriptions = extractContentDescriptions(processedAttachments);
+      // Coalesce is type-required, not defensive: buildAttachmentDescriptions returns
+      // `string | undefined` but buildMessageWithAttachments takes `string`.
+      const descriptions = buildAttachmentDescriptions(processedAttachments) ?? '';
       messageContent = buildMessageWithAttachments(userMessage, descriptions);
       logger.info(
         {
@@ -533,12 +535,5 @@ ${formatCurrentLocationLine(context.environment)}
    */
   countMemoryTokens(memories: MemoryDocument[]): number {
     return tokenCounters.countMemoryTokens(memories);
-  }
-
-  /**
-   * Count tokens for processed attachments (from descriptions)
-   */
-  countAttachmentTokens(processedAttachments: ProcessedAttachment[]): number {
-    return tokenCounters.countAttachmentTokens(processedAttachments);
   }
 }
