@@ -1,15 +1,13 @@
 /**
  * Token Counters - Token counting utilities for prompt budget management.
  *
- * Provides token counting for text, memories, and attachments.
+ * Provides token counting for text and memories.
  * Extracted from PromptBuilder to reduce file size.
  */
 
 import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
-import type { ProcessedAttachment } from '../MultimodalProcessor.js';
-import { extractContentDescriptions } from '../RAGUtils.js';
 
 /**
  * Count tokens for a text string
@@ -32,12 +30,4 @@ export function countMemoryTokens(memories: MemoryDocument[]): number {
     totalTokens += countTextTokens(memoryText);
   }
   return totalTokens;
-}
-
-/**
- * Count tokens for processed attachments (from descriptions)
- */
-export function countAttachmentTokens(processedAttachments: ProcessedAttachment[]): number {
-  const descriptions = extractContentDescriptions(processedAttachments);
-  return countTextTokens(descriptions);
 }
