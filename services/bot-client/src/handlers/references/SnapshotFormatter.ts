@@ -126,13 +126,12 @@ export class SnapshotFormatter {
       snapshot.embeds !== undefined && snapshot.embeds !== null && snapshot.embeds.length > 0
         ? snapshot.embeds
             .map((embed: APIEmbed | { toJSON(): APIEmbed }, index: number) => {
-              const numAttr = snapshot.embeds.length > 1 ? ` number="${index + 1}"` : '';
               // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
               const apiEmbed: APIEmbed =
                 'toJSON' in embed && typeof embed.toJSON === 'function'
                   ? embed.toJSON()
                   : (embed as APIEmbed);
-              return `<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed, index)}\n</embed>`;
+              return EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length);
             })
             .join('\n')
         : '';

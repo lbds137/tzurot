@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
+import { EmbedParser } from '../../utils/EmbedParser.js';
 import { createMockMessage } from '../../test/mocks/Discord.mock.js';
 import {
   ChannelType,
@@ -44,13 +45,21 @@ vi.mock('../../utils/embedImageExtractor.js', () => ({
   extractEmbedImages: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock('../../utils/EmbedParser.js', () => ({
-  EmbedParser: {
-    parseEmbed: vi.fn().mockImplementation((embed: APIEmbed) => {
-      return embed.title ? `${embed.title}\n${embed.description || ''}` : embed.description || '';
-    }),
-  },
-}));
+vi.mock('../../utils/EmbedParser.js', () => {
+  const parseEmbedImpl = (embed: APIEmbed): string =>
+    embed.title ? `${embed.title}\n${embed.description || ''}` : embed.description || '';
+  return {
+    EmbedParser: {
+      parseEmbed: vi.fn().mockImplementation(parseEmbedImpl),
+      formatEmbedElement: vi
+        .fn()
+        .mockImplementation((embed: APIEmbed, embedIndex: number, embedCount: number) => {
+          const numAttr = embedCount > 1 ? ` number="${embedIndex + 1}"` : '';
+          return `<embed${numAttr}>\n${parseEmbedImpl(embed)}\n</embed>`;
+        }),
+    },
+  };
+});
 
 describe('SnapshotFormatter', () => {
   // Most tests here exercise snapshot FORMATTING, for which the marker is an
@@ -446,6 +455,35 @@ describe('SnapshotFormatter', () => {
       const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
       expect(result.embeds).toBe('');
+    });
+
+    // This file mocks EmbedParser wholesale, so the empty-embed marker's
+    // output shape is pinned against real code in EmbedParser.test.ts (its
+    // formatEmbedElement describe block) and, unmocked, in
+    // MessageContentBuilder.test.ts. What this test owns is that
+    // SnapshotFormatter delegates its <embed> wrapping to
+    // EmbedParser.formatEmbedElement at all, with the right arguments —
+    // asserting the mock's own reimplementation of the marker would not
+    // catch a wiring bug at this seam.
+    it('routes embed wrapping through EmbedParser.formatEmbedElement', async () => {
+      const snapshot = createMockSnapshot({ embeds: [{} as APIEmbed] });
+      const forwardedFrom = createMockMessage();
+
+      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+
+      expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith({}, 0, 1);
+    });
+
+    it('forwards embedCount from the snapshot array length, not a hardcoded value', async () => {
+      const firstEmbed = { title: 'First' } as APIEmbed;
+      const secondEmbed = { title: 'Second' } as APIEmbed;
+      const snapshot = createMockSnapshot({ embeds: [firstEmbed, secondEmbed] });
+      const forwardedFrom = createMockMessage();
+
+      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+
+      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(1, firstEmbed, 0, 2);
+      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(2, secondEmbed, 1, 2);
     });
   });
 
