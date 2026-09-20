@@ -7,6 +7,7 @@ import { AttachmentType } from '@tzurot/common-types/constants/media';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { HEADER_LABELS } from '@tzurot/common-types/utils/attachmentProvenance';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import {
   buildAttachmentDescriptions,
@@ -17,7 +18,6 @@ import {
   countMediaAttachments,
   enrichConversationHistory,
   extractRecentHistoryWindow,
-  HEADER_LABELS,
 } from './RAGUtils.js';
 import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
@@ -464,7 +464,7 @@ describe('RAGUtils', () => {
         type: AttachmentType;
         metadata: Partial<ProcessedAttachment['metadata']>;
       }[] = [
-        { type: AttachmentType.Image, metadata: {} }, // pickImageHeader default branch: Image
+        { type: AttachmentType.Image, metadata: {} }, // imageHeaderLabel default branch: Image
         { type: AttachmentType.Image, metadata: { isSticker: true } }, // Sticker branch
         { type: AttachmentType.Image, metadata: { isEmbedPreview: true } }, // Link preview branch
         { type: AttachmentType.File, metadata: { contentType: 'application/pdf' } }, // File branch

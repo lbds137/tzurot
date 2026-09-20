@@ -3,7 +3,6 @@ import {
   buildRenderableAttachments,
   formatForwardedQuote,
   formatQuoteElement,
-  imageSource,
   renderAttachment,
   type ForwardedMessageContent,
   type QuoteElementOptions,
@@ -750,24 +749,6 @@ describe('QuoteFormatter', () => {
       expect(renderAttachment(built.attachment)).toBe(
         '<image filename="photo.png" type="image/png" source="sticker">a cartoon blob</image>'
       );
-    });
-  });
-
-  describe('imageSource', () => {
-    it('returns undefined for an ordinary attachment', () => {
-      expect(imageSource({})).toBeUndefined();
-    });
-
-    it('returns "sticker" when isSticker is true', () => {
-      expect(imageSource({ isSticker: true })).toBe('sticker');
-    });
-
-    it('returns "link-preview" when isEmbedPreview is true', () => {
-      expect(imageSource({ isEmbedPreview: true })).toBe('link-preview');
-    });
-
-    it('sticker wins over embed preview when both flags are set', () => {
-      expect(imageSource({ isSticker: true, isEmbedPreview: true })).toBe('sticker');
     });
   });
 });

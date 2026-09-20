@@ -16,6 +16,7 @@ import { type RenderedQuoteRole } from './referenceRole.js';
 import { extractMessagePrefixName, stripDmPrefix } from '@tzurot/common-types/utils/discord';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
+import { imageSource, type ImageSource } from '@tzurot/common-types/utils/attachmentProvenance';
 
 /**
  * Fields every attachment carries regardless of modality.
@@ -47,21 +48,13 @@ interface AttachmentIdentity {
 type Enrichment<TStatus extends string> =
   { description: string; status?: never } | { description?: never; status?: TStatus };
 
-/**
- * Where an image on the image path actually came from, when it was not a file
- * someone chose to upload. Absent is the ordinary case: a real upload.
- *
- * On `RenderableImage` alone rather than on `AttachmentIdentity`, because
- * neither producer can mint a sticker or a link preview as anything but an
- * image — a `source` on a voice or file element would be unwriteable nonsense
- * the renderer silently dropped.
- */
-export type ImageSource = 'sticker' | 'link-preview';
-
 /** An image, with its vision description when one arrived. */
 export type RenderableImage = AttachmentIdentity & {
   kind: 'image';
-  /** Provenance, when the image was not an ordinary upload. */
+  /**
+   * Provenance, when the image was not an ordinary upload. Here rather than on
+   * `AttachmentIdentity`: no producer can mint one for a voice or file element.
+   */
   source?: ImageSource;
 } & Enrichment<'undescribed' | 'expired' | 'unprocessed'>;
 
@@ -130,32 +123,6 @@ export function classifyAttachment(attachment: {
     return 'image';
   }
   return 'file';
-}
-
-/**
- * An image's provenance, from the producer flags on its source attachment.
- *
- * Exported and lives here for the same reason `classifyAttachment` does: three
- * producers need the same answer — the deduped-live and stored paths through
- * `buildRenderableAttachments`, and the full-live path in
- * `AttachmentProcessor` — and a three-line rule copied three times is how
- * `classifyAttachment` drifted before it was pulled here.
- *
- * Sticker wins over embed preview. The two producers are disjoint
- * (`stickerAttachments.ts` vs. `embedImageExtractor.ts`), so the ordering
- * states a precedence rather than resolving a case that arises.
- *
- * Structurally typed rather than taking `AttachmentMetadata`, so this module
- * stays free of the Discord schema.
- */
-export function imageSource(attachment: {
-  isSticker?: boolean;
-  isEmbedPreview?: boolean;
-}): ImageSource | undefined {
-  if (attachment.isSticker === true) {
-    return 'sticker';
-  }
-  return attachment.isEmbedPreview === true ? 'link-preview' : undefined;
 }
 
 /**

@@ -16,11 +16,11 @@ import {
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { imageSource } from '@tzurot/common-types/utils/attachmentProvenance';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import {
   classifyAttachment,
-  imageSource,
   type BuiltAttachment,
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
