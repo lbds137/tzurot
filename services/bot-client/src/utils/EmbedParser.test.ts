@@ -2,12 +2,27 @@
  * Tests for EmbedParser
  */
 
-import { describe, it, expect } from 'vitest';
-import { type APIEmbed, type Embed, type Message } from 'discord.js';
-import { EmbedParser } from './EmbedParser.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EmbedType, type APIEmbed, type Embed, type Message } from 'discord.js';
+import { EmbedParser, embedHasRenderableContent } from './EmbedParser.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
+import { logEmptyEmbedShape } from './embedShapeDiagnostics.js';
+
+vi.mock('./embedShapeDiagnostics.js', async () => {
+  const actual = await vi.importActual<typeof import('./embedShapeDiagnostics.js')>(
+    './embedShapeDiagnostics.js'
+  );
+  return {
+    logEmptyEmbedShape: vi.fn(),
+    sortedEmbedKeys: actual.sortedEmbedKeys,
+  };
+});
 
 describe('EmbedParser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe('parseEmbed', () => {
     it('should parse embed with title only', () => {
       const embed: APIEmbed = {
@@ -197,6 +212,99 @@ describe('EmbedParser', () => {
       expect(result).toContain('<color>#000001</color>');
     });
 
+    it('should render a standalone url element for a title-less embed carrying a url', () => {
+      const embed: APIEmbed = {
+        url: 'https://example.com/vxtwitter-unfurl',
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('<url>https://example.com/vxtwitter-unfurl</url>');
+    });
+
+    it('should NOT render a standalone url element when a title is present', () => {
+      const embed: APIEmbed = {
+        title: 'Has A Title',
+        url: 'https://example.com',
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toContain('<title url="https://example.com">Has A Title</title>');
+      expect(result).not.toContain('<url>');
+    });
+
+    it('should render provider with name and url', () => {
+      const embed: APIEmbed = {
+        provider: { name: 'Twitter', url: 'https://twitter.com' },
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('<provider url="https://twitter.com">Twitter</provider>');
+    });
+
+    it('should render provider with url only as self-closing', () => {
+      const embed: APIEmbed = {
+        provider: { url: 'https://twitter.com' },
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('<provider url="https://twitter.com"/>');
+    });
+
+    it('should render nothing for provider with neither name nor url', () => {
+      const embed: APIEmbed = {
+        provider: {},
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('');
+    });
+
+    it('should render video with url only', () => {
+      const embed: APIEmbed = {
+        video: { url: 'https://example.com/video.mp4' },
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('<video url="https://example.com/video.mp4"/>');
+    });
+
+    it('should render video with url, width, and height', () => {
+      const embed: APIEmbed = {
+        video: { url: 'https://example.com/video.mp4', width: 1280, height: 720 },
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('<video url="https://example.com/video.mp4" width="1280" height="720"/>');
+    });
+
+    it('should NOT render the type element when embed.type is rich', () => {
+      const embed: APIEmbed = {
+        type: EmbedType.Rich,
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('');
+      expect(result).not.toContain('<type>');
+    });
+
+    it('should render the type element when embed.type is a non-rich value', () => {
+      const embed: APIEmbed = {
+        type: EmbedType.Link,
+      };
+
+      const result = EmbedParser.parseEmbed(embed, 0);
+
+      expect(result).toBe('<type>link</type>');
+    });
+
     it('should parse complete embed with all fields', () => {
       const embed: APIEmbed = {
         title: 'Complete Embed',
@@ -372,6 +480,216 @@ describe('EmbedParser', () => {
       expect(result).not.toContain('"><injected>');
       expect(result).toContain('&quot;&gt;&lt;injected&gt;');
     });
+
+    it('escapes the standalone url element', () => {
+      // Title-less so the url renders as its own element rather than a title attribute.
+      const result = EmbedParser.parseEmbed({ url: BREAKOUT } as APIEmbed, 0);
+      expect(result).toContain(ESCAPED);
+      expect(result).not.toContain('</embeds><injected>');
+    });
+
+    it('escapes the provider name and url attribute', () => {
+      const result = EmbedParser.parseEmbed(
+        { provider: { name: BREAKOUT, url: BREAKOUT } } as APIEmbed,
+        0
+      );
+      expect(result).not.toContain('</embeds><injected>');
+      expect((result.match(/&lt;\/embeds&gt;/g) ?? []).length).toBe(2);
+    });
+
+    it('escapes the video url attribute', () => {
+      const evil = 'https://x/"><injected>';
+      const result = EmbedParser.parseEmbed({ video: { url: evil } } as APIEmbed, 0);
+      expect(result).not.toContain('"><injected>');
+      expect(result).toContain('&quot;&gt;&lt;injected&gt;');
+    });
+
+    it('escapes the type element', () => {
+      const result = EmbedParser.parseEmbed({ type: BREAKOUT } as unknown as APIEmbed, 0);
+      expect(result).toContain(ESCAPED);
+      expect(result).not.toContain('</embeds><injected>');
+    });
+  });
+
+  describe('formatEmbedElement', () => {
+    it('returns the wrapped <embed> form for a content-bearing embed', () => {
+      const embed: APIEmbed = { title: 'Hello' };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe('<embed>\n<title>Hello</title>\n</embed>');
+    });
+
+    it('includes number="N" when the embed is one of several', () => {
+      const embed: APIEmbed = { title: 'Hello' };
+
+      const result = EmbedParser.formatEmbedElement(embed, 1, 3);
+
+      expect(result).toBe('<embed number="2">\n<title>Hello</title>\n</embed>');
+    });
+
+    it('returns the self-closing rendered="false" marker with keys for an empty embed', () => {
+      const embed: APIEmbed = {
+        author: { name: '', icon_url: 'https://cdn.example/avatar.png' },
+        footer: { text: '', icon_url: 'https://cdn.example/footer.png' },
+        image: { url: '' },
+        fields: [],
+      };
+      // Confirm the fixture really renders an empty body before relying on it.
+      expect(EmbedParser.parseEmbed(embed, 0)).toBe('');
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe('<embed rendered="false" keys="author,fields,footer,image"/>');
+      expect(result).not.toContain('<embed></embed>');
+      expect(result).not.toContain('<embed>\n\n</embed>');
+    });
+
+    it('returns the marker with no keys attribute for a completely empty embed', () => {
+      const result = EmbedParser.formatEmbedElement({}, 0, 1);
+
+      expect(result).toBe('<embed rendered="false"/>');
+    });
+
+    it('returns the self-closing marker for a rich-type-only embed, whose body is now empty', () => {
+      const embed: APIEmbed = { type: EmbedType.Rich };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe('<embed rendered="false" keys="type"/>');
+    });
+
+    it('returns the metadata-body marker form for the vxreddit shape (url+type, no content)', () => {
+      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe(
+        '<embed rendered="false" keys="type,url">\n' +
+          '<url>https://vxreddit.example/x</url>\n' +
+          '<type>link</type>\n' +
+          '</embed>'
+      );
+    });
+
+    it('keeps number="N" on the marker when a no-content embed is one of several', () => {
+      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
+
+      const result = EmbedParser.formatEmbedElement(embed, 1, 2);
+
+      expect(result).toBe(
+        '<embed number="2" rendered="false" keys="type,url">\n' +
+          '<url>https://vxreddit.example/x</url>\n' +
+          '<type>link</type>\n' +
+          '</embed>'
+      );
+    });
+
+    it('keeps number="N" on the self-closing marker form too', () => {
+      const result = EmbedParser.formatEmbedElement({}, 1, 2);
+
+      expect(result).toBe('<embed number="2" rendered="false"/>');
+    });
+
+    it('lists a suppressed key in keys="..." that has no matching body element', () => {
+      const embed: APIEmbed = { type: EmbedType.Rich, color: 0xff4500 };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe(
+        '<embed rendered="false" keys="color,type">\n' + '<color>#ff4500</color>\n' + '</embed>'
+      );
+      expect(result).not.toContain('<type>');
+    });
+
+    it('calls the diagnostic for the vxreddit no-content shape', () => {
+      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
+
+      EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embed, undefined);
+    });
+
+    it('threads the live message through to the diagnostic', () => {
+      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
+      const message = {
+        id: 'msg-live-1',
+        components: [{ type: 17, components: [] }],
+      } as unknown as Message;
+
+      EmbedParser.formatEmbedElement(embed, 0, 1, message);
+
+      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embed, message);
+    });
+
+    it('does NOT call the diagnostic for a content-bearing embed', () => {
+      const embed: APIEmbed = { title: 'Hello' };
+
+      EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(logEmptyEmbedShape).not.toHaveBeenCalled();
+    });
+
+    it('returns the metadata-body marker form for color+timestamp only', () => {
+      const embed: APIEmbed = { color: 0xff4500, timestamp: '2025-11-02T12:00:00.000Z' };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe(
+        '<embed rendered="false" keys="color,timestamp">\n' +
+          '<timestamp>2025-11-02T12:00:00.000Z</timestamp>\n' +
+          '<color>#ff4500</color>\n' +
+          '</embed>'
+      );
+    });
+
+    it('returns the ordinary wrapped form for footer text alone, not a marker', () => {
+      const embed: APIEmbed = { footer: { text: 'Some footer' } };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).toBe('<embed>\n<footer>Some footer</footer>\n</embed>');
+      expect(result).not.toContain('rendered="false"');
+    });
+  });
+
+  describe('embedHasRenderableContent', () => {
+    it.each<[string, APIEmbed]>([
+      ['title', { title: 'Hello' }],
+      ['author.name', { author: { name: 'Someone' } }],
+      ['description', { description: 'Some text' }],
+      ['fields', { fields: [{ name: 'N', value: 'V', inline: false }] }],
+      ['image.url', { image: { url: 'https://example.com/i.png' } }],
+      ['thumbnail.url', { thumbnail: { url: 'https://example.com/t.png' } }],
+      ['footer.text', { footer: { text: 'Some footer' } }],
+      ['video.url', { video: { url: 'https://example.com/v.mp4' } }],
+    ])('returns true when %s alone is present', (_label, embed) => {
+      expect(embedHasRenderableContent(embed)).toBe(true);
+    });
+
+    it.each<[string, APIEmbed]>([
+      ['url', { url: 'https://example.com' }],
+      ['type', { type: EmbedType.Link }],
+      ['provider.name', { provider: { name: 'vxReddit' } }],
+      ['provider.url', { provider: { url: 'https://vxreddit.com' } }],
+      ['color', { color: 0xff0000 }],
+      ['timestamp', { timestamp: '2025-11-02T12:00:00.000Z' }],
+    ])('returns false when metadata field %s is the only thing present', (_label, embed) => {
+      expect(embedHasRenderableContent(embed)).toBe(false);
+    });
+
+    it('returns false for a completely empty embed', () => {
+      expect(embedHasRenderableContent({})).toBe(false);
+    });
+
+    it.each<[string, APIEmbed]>([
+      ['title: empty string', { title: '' }],
+      ['author.name: empty string', { author: { name: '' } }],
+      ['fields: empty array', { fields: [] }],
+      ['image.url: empty string', { image: { url: '' } }],
+    ])('returns false when %s', (_label, embed) => {
+      expect(embedHasRenderableContent(embed)).toBe(false);
+    });
   });
 
   describe('parseMessageEmbeds', () => {
@@ -473,6 +791,19 @@ describe('EmbedParser', () => {
 
       expect(result).toContain('<embed>');
       expect(result).not.toContain('number=');
+    });
+
+    it('threads the live message to the diagnostic through the whole chain', () => {
+      const embedJson = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
+      const mockMessage = {
+        id: 'msg-live-2',
+        embeds: [{ toJSON: () => embedJson }],
+        components: [{ type: 17, components: [] }],
+      } as unknown as Message;
+
+      EmbedParser.parseMessageEmbeds(mockMessage);
+
+      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embedJson, mockMessage);
     });
   });
 
