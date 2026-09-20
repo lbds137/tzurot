@@ -11,7 +11,7 @@ import type {
   MessageReaction,
   ForwardedOrigin,
 } from '@tzurot/common-types/types/schemas/message';
-import type { ImageSource } from '../../services/prompt/QuoteFormatter.js';
+import type { ImageSource } from '@tzurot/common-types/utils/attachmentProvenance';
 
 /**
  * Image description for inline display in chat_log

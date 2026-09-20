@@ -18,13 +18,13 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { imageSource } from '@tzurot/common-types/utils/attachmentProvenance';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
 import type { ResolvedPersona } from './reference/UserReferencePatterns.js';
 import {
   attachmentEnrichment,
   buildRenderableAttachments,
-  imageSource,
   type BuiltAttachment,
 } from './prompt/QuoteFormatter.js';
 import {
