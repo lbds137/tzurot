@@ -50,4 +50,15 @@ Fix shape, in this order:
 4. Independently of all the above, and correct on its own merit: `parseEmbed` drops `embed.url` (it survives only as a `<title>` attribute, so a title-less legacy embed loses its link entirely), `embed.provider`, `embed.video`, and `embed.type`. Render them.
 
 Acceptance: the diagnostic fires on the empty path carrying no content values; once a prod capture lands, a unit test pins that a Components-V2 container renders its TextDisplay text and MediaGallery urls; a second pins that a genuinely empty embed emits no bare `<embed></embed>`; a third pins the legacy url/provider/video/type gap in (4).
+
+GROUNDING 2026-09-20 (pre-staged while PR #2458 ran; nothing implemented). Three facts the fix shape above did not carry, each verified rather than assumed:
+
+1. The discord.js half of the grounding HOLDS at the installed version. `node -e` on the installed package reports 14.27.0, and `grep -n 'components: TopLevelComponent' services/bot-client/node_modules/discord.js/typings/index.d.ts` finds the `Message` declaration, with `grep -n 'export type TopLevelComponent' -A3` confirming `ContainerComponent` in the union. No library upgrade is needed and the tree will be typed when reached.
+
+2. Nothing in bot-client reads an INBOUND message.components. `git grep -rn '\.components' -- services/bot-client/src` excluding tests returns 18 non-test hits, and every one is an OUTBOUND reply payload (`components: result.components` in browse/view/purge/inspect/persona/preset/chimeInTag and the settings dashboard) rather than a read of a received message. So the Components-V2 tree on an incoming message is not merely unrendered, it is never touched. That is consistent with the observed blank embed and rules out a partial read somewhere upstream.
+
+3. The empty-embed wrapper has FOUR sites, and they split on whether a live Message is in hand. This matters because step 1 of the fix shape wants to log `message.components` alongside the empty `parseEmbed` result, and two of the four cannot:
+   - LIVE Message, can log the component tree: `EmbedParser.parseMessageEmbeds` (grep `parseMessageEmbeds` in `services/bot-client/src/utils/EmbedParser.ts`), reached from `MessageFormatter.ts` (grep `embeds: EmbedParser.parseMessageEmbeds`); and the main-message loop in `MessageContentBuilder.ts` (grep `Process main message embeds`).
+   - SNAPSHOT/stored embeds, NO Message object, so only the empty-shape half is available: `SnapshotFormatter.ts` and the snapshot branch of `MessageContentBuilder.ts` (both grep `Snapshot embeds are already APIEmbed format` or the `toJSON` in `embed` ternary).
+   Consequence for step 3 (never emit a content-free `<embed></embed>`): that guard belongs at all FOUR wrapper sites, not inside `parseEmbed`, because `parseEmbed` returns the body and the wrapper supplies the `<embed>` tags. Doing it in `parseEmbed` cannot suppress the wrapper.
 <!-- SECTION:DESCRIPTION:END -->
