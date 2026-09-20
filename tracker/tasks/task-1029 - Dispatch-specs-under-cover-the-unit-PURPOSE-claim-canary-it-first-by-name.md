@@ -33,4 +33,19 @@ Why a skill edit rather than a rule: this is procedural, fires only when a spec 
 Worth considering while there, but do NOT let it block the one-line fix: whether `dispatch-spec-ledger-gate.sh` can check for the presence of a purpose heading the way it already checks for the premise ledger. Presence is checkable; whether the named canary actually falsifies the purpose is not, same limit the ledger gate already has.
 
 Acceptance: the spec template names a purpose sentence plus a purpose canary as a required section; the instruction to orchestrators to reject a spec missing it is explicit; the next dispatched unit after the change carries both and its report shows the purpose canary reddening.
+
+FIRST TRIAL, run before the skill edit exists — PR #2459 review round 2, same day this was filed. The prescription was written into that round's dispatch spec by hand: a PURPOSE section naming the one sentence the unit exists to make false-able, and its canary named first, ahead of the canaries derived from the claim set. It worked, and it did one thing more than intended, which changes what this task should ask for.
+
+The unit: `formatEmbedElement`'s doc comment claimed the no-content marker keeps the `number="N"` sequence coherent when one embed among several has no content. Purpose canary: strip `${numAttr}` from both marker return paths; the new test must redden.
+
+It reddened — and the result line was `1 failed | 80 passed`. Two things fall out of that count, and only the first was expected:
+
+1. The whole pre-existing suite was blind to the mutation, which is the premise proven empirically rather than by grep.
+2. ONE test reddened, not two. The spec had asked for a single test, and the marker has TWO return paths — self-closing and open/close — each interpolating `numAttr` separately. So half the purpose was still unpinned after the test the spec ordered. The orchestrator saw the count, added a third test on that evidence, and announced it as a deviation rather than quietly widening scope.
+
+The unintended property is the valuable one, and it should go in the skill text: a purpose canary is the only canary whose FAILURE COUNT carries information. A canary derived from a claim reddens its own test by construction, so its count says nothing. A purpose canary reddens however much of the suite genuinely depends on the purpose — so the number is a free coverage measurement, and a count lower than expected means the purpose is under-pinned rather than that the canary failed to work.
+
+Amend the fix shape accordingly: the skill should tell the orchestrator to READ the purpose canary's failure count, not merely confirm it is non-zero, and to treat a count that seems low against the number of code paths the purpose spans as a coverage gap to close before proceeding. That instruction costs one sentence and is what turned this trial from a confirmation into a finding.
+
+Acceptance gains a clause: the skill text names the failure-count read, not just the presence of a purpose canary.
 <!-- SECTION:DESCRIPTION:END -->
