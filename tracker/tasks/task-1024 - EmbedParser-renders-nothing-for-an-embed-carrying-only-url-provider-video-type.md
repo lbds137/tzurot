@@ -61,4 +61,18 @@ GROUNDING 2026-09-20 (pre-staged while PR #2458 ran; nothing implemented). Three
    - LIVE Message, can log the component tree: `EmbedParser.parseMessageEmbeds` (grep `parseMessageEmbeds` in `services/bot-client/src/utils/EmbedParser.ts`), reached from `MessageFormatter.ts` (grep `embeds: EmbedParser.parseMessageEmbeds`); and the main-message loop in `MessageContentBuilder.ts` (grep `Process main message embeds`).
    - SNAPSHOT/stored embeds, NO Message object, so only the empty-shape half is available: `SnapshotFormatter.ts` and the snapshot branch of `MessageContentBuilder.ts` (both grep `Snapshot embeds are already APIEmbed format` or the `toJSON` in `embed` ternary).
    Consequence for step 3 (never emit a content-free `<embed></embed>`): that guard belongs at all FOUR wrapper sites, not inside `parseEmbed`, because `parseEmbed` returns the body and the wrapper supplies the `<embed>` tags. Doing it in `parseEmbed` cannot suppress the wrapper.
+
+PARTIAL 2026-09-20 — PR #2459 merged (`a82e82b4b`). Steps 1, 3 and 4 of the fix shape shipped. Step 2, the Components-V2 renderer, is the ONLY remaining work and this task stays open carrying it alone.
+
+Acceptance, per clause:
+- the diagnostic fires on the empty path carrying no content values — MET, and on a WIDER path than the clause describes. "The empty path" needed redefining: step 4 made `type` and `url` renderable, and Discord sets `type` on essentially every embed, so an empty-body predicate would have stopped firing on exactly the vxreddit shape. `embedHasRenderableContent` keys on the embeds own fields instead. The no-values half is pinned by a test that plants four adversarial values (author.icon_url, footer.icon_url, a component content string, a media url), serializes the log payload and asserts every one absent.
+- once a prod capture lands, a unit test pins that a Components-V2 container renders its TextDisplay text and MediaGallery urls — NOT MET and not meetable yet, by its own wording. This is step 2 and the reason the task stays open.
+- a genuinely empty embed emits no bare `<embed></embed>` — MET at all four wrapper sites, canaried per-site.
+- the legacy url/provider/video/type gap — MET, with `type` scoped: it renders only when NOT `rich`, since discord-api-types documents `rich` as the generic type for an embed rendered from its own attributes, so it names the rendering mode rather than what an unfurl wrapped.
+
+What the next session needs, which the fix shape above did not carry: the guard belongs at the four WRAPPER sites, not inside `parseEmbed`, which returns only the body — they now share one `EmbedParser.formatEmbedElement`, so step 2 has a single place to hook. `MessageFormatter.ts` is a CALLER of `parseMessageEmbeds`, not a fifth wrapper site; a guard there could not suppress a wrapper it does not emit. Only two of the four hold a live `Message`, so only those two can log a component tree.
+
+The watch that unblocks step 2: a prod log line from EmbedShapeDiagnostics carrying a NON-EMPTY `components` array. That settles the one question this task records as inferred — whether Discord populates `message.components` for an AUTO-GENERATED unfurl. An occurrence with `componentCount: 0` is equally informative and means the tree is somewhere else; do not read it as the diagnostic failing.
+
+Residue filed rather than absorbed: TASK-1028 (trim the component-tree half once the capture lands; carries the `message?` typecheck coupling, the warn-level watch, and per-message batching).
 <!-- SECTION:DESCRIPTION:END -->
