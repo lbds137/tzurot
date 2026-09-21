@@ -1,9 +1,10 @@
 ---
 id: TASK-962
 title: Show the per-message cost in /inspect from the usage row
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:24'
+updated_date: '2026-09-21 21:21'
 labels:
   - 'area:bot-client'
   - 'size:S'
