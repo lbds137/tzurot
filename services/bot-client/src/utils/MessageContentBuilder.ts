@@ -25,7 +25,7 @@
  *      If adding features here, consider if SnapshotFormatter needs the same updates.
  */
 
-import type { Message, APIEmbed } from 'discord.js';
+import type { Message } from 'discord.js';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractAttachments } from './attachmentExtractor.js';
@@ -254,11 +254,10 @@ export async function buildMessageContent(
           if (snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
             for (let index = 0; index < snapshot.embeds.length; index++) {
               const embed = snapshot.embeds[index];
-              // Snapshot embeds are already APIEmbed format (or have toJSON method)
-              const apiEmbed: APIEmbed =
-                'toJSON' in embed && typeof embed.toJSON === 'function'
-                  ? embed.toJSON()
-                  : (embed as unknown as APIEmbed);
+              // A message snapshot is constructed as a full Message (discord.js Message.js,
+              // message_snapshots → channel.messages._add), so its embeds are Embed instances
+              // and toJSON() is always present — the same assumption extractEmbedImages makes.
+              const apiEmbed = embed.toJSON();
               embedsXml.push(
                 EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length)
               );
@@ -336,7 +335,7 @@ export async function buildMessageContent(
     for (let index = 0; index < message.embeds.length; index++) {
       const embed = message.embeds[index];
       embedsXml.push(
-        EmbedParser.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message)
+        EmbedParser.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message.id)
       );
     }
   }
