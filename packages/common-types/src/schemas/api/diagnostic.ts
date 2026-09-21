@@ -52,11 +52,37 @@ export const DiagnosticLogSchema = z.object({
 export type DiagnosticLog = z.infer<typeof DiagnosticLogSchema>;
 
 /**
+ * Estimated USD cost of a diagnostic log's LLM call, priced off the
+ * OpenRouter model catalog's list price at read time. See
+ * `services/api-gateway/src/services/diagnosticCost.ts` for the full
+ * computation and its caveats.
+ */
+export const EstimatedCostSchema = z.object({
+  model: z.string(),
+  promptUsd: z.number(),
+  completionUsd: z.number(),
+  totalUsd: z.number(),
+  promptPricePerMillion: z.number(),
+  completionPricePerMillion: z.number(),
+  source: z.literal('openrouter-list'),
+});
+
+export type EstimatedCost = z.infer<typeof EstimatedCostSchema>;
+
+/**
  * Response shape for GET /diagnostic/:requestId and
  * GET /diagnostic/by-response/:messageId — a single log.
+ *
+ * `estimatedCost` is nullable rather than optional: every response computes
+ * it and reports `null` for any of the reasons it cannot be produced (a
+ * non-OpenRouter provider, the model missing from the catalog, an unpriced
+ * entry, no cache wired at the route, or a `data` payload carrying no
+ * pricable `llmResponse`). It is always an estimate at list
+ * price, never a billed amount.
  */
 export const DiagnosticLogResponseSchema = z.object({
   log: DiagnosticLogSchema,
+  estimatedCost: EstimatedCostSchema.nullable(),
 });
 
 export type DiagnosticLogResponse = z.infer<typeof DiagnosticLogResponseSchema>;

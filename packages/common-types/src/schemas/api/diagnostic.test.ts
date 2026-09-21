@@ -6,6 +6,7 @@ import {
   RecentDiagnosticLogSchema,
   RecentDiagnosticLogsResponseSchema,
   DiagnosticUpdateResponseSchema,
+  EstimatedCostSchema,
 } from './diagnostic.js';
 import type { DiagnosticPayload } from '../../types/diagnostic.js';
 
@@ -98,12 +99,87 @@ describe('DiagnosticLogSchema', () => {
 });
 
 describe('DiagnosticLogResponseSchema', () => {
-  it('accepts a wrapped single log', () => {
-    expect(DiagnosticLogResponseSchema.safeParse({ log: validLogShape() }).success).toBe(true);
+  it('accepts a wrapped single log with a null estimatedCost', () => {
+    expect(
+      DiagnosticLogResponseSchema.safeParse({ log: validLogShape(), estimatedCost: null }).success
+    ).toBe(true);
+  });
+
+  it('accepts a wrapped single log with a populated estimatedCost', () => {
+    const estimatedCost = {
+      model: 'anthropic/claude-3.5-sonnet',
+      promptUsd: 0.001,
+      completionUsd: 0.002,
+      totalUsd: 0.003,
+      promptPricePerMillion: 3,
+      completionPricePerMillion: 15,
+      source: 'openrouter-list',
+    };
+    expect(
+      DiagnosticLogResponseSchema.safeParse({ log: validLogShape(), estimatedCost }).success
+    ).toBe(true);
+  });
+
+  it('rejects a missing estimatedCost key (required, not optional)', () => {
+    expect(DiagnosticLogResponseSchema.safeParse({ log: validLogShape() }).success).toBe(false);
   });
 
   it('rejects an array under log (must be single)', () => {
-    expect(DiagnosticLogResponseSchema.safeParse({ log: [validLogShape()] }).success).toBe(false);
+    expect(
+      DiagnosticLogResponseSchema.safeParse({
+        log: [validLogShape()],
+        estimatedCost: null,
+      }).success
+    ).toBe(false);
+  });
+
+  it('survives the RESPONSE direction: a sentinel estimatedCost is not stripped by the parse', () => {
+    const sentinelModel = 'qwen/qwen3.5-397b-a17b-sentinel';
+    const estimatedCost = {
+      model: sentinelModel,
+      promptUsd: 0.1234,
+      completionUsd: 0.5678,
+      totalUsd: 0.6912,
+      promptPricePerMillion: 1,
+      completionPricePerMillion: 2,
+      source: 'openrouter-list',
+    };
+    const result = DiagnosticLogResponseSchema.safeParse({
+      log: validLogShape(),
+      estimatedCost,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.estimatedCost?.model).toBe(sentinelModel);
+    }
+  });
+});
+
+describe('EstimatedCostSchema', () => {
+  it('accepts a zero-cost (free model) entry', () => {
+    const free = {
+      model: 'meta-llama/free-model:free',
+      promptUsd: 0,
+      completionUsd: 0,
+      totalUsd: 0,
+      promptPricePerMillion: 0,
+      completionPricePerMillion: 0,
+      source: 'openrouter-list',
+    };
+    expect(EstimatedCostSchema.safeParse(free).success).toBe(true);
+  });
+
+  it('rejects a source other than the literal openrouter-list', () => {
+    const bad = {
+      model: 'anthropic/claude-3.5-sonnet',
+      promptUsd: 0.1,
+      completionUsd: 0.1,
+      totalUsd: 0.2,
+      promptPricePerMillion: 1,
+      completionPricePerMillion: 1,
+      source: 'manual',
+    };
+    expect(EstimatedCostSchema.safeParse(bad).success).toBe(false);
   });
 });
 

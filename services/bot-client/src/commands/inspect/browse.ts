@@ -278,7 +278,10 @@ export async function handleBrowseLogSelection(
       return;
     }
 
-    const embed = buildDiagnosticEmbed(payloadForUser(result.log.data, interaction.user.id));
+    const embed = buildDiagnosticEmbed(
+      payloadForUser(result.log.data, interaction.user.id),
+      result.estimatedCost
+    );
     const inspectComponents = buildInspectComponents(
       result.log.requestId,
       result.log.data.postProcessing.thinkingContent?.length ?? 0

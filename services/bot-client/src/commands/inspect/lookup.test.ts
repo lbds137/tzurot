@@ -197,12 +197,15 @@ describe('lookupByMessageId', () => {
     expect(stub.getDiagnosticByMessage).toHaveBeenCalledWith('1234567890123456789');
     expect(stub.getDiagnosticByResponse).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.estimatedCost).toBeNull();
+    }
   });
 
   it('should fall back to /by-response on 404', async () => {
     stub.getDiagnosticByMessage.mockResolvedValue(makeErr(404));
     stub.getDiagnosticByResponse.mockResolvedValue(
-      ok<DiagnosticLogResponse>({ log: makeLog() as never })
+      ok<DiagnosticLogResponse>({ log: makeLog() as never, estimatedCost: null })
     );
 
     const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
@@ -262,6 +265,7 @@ describe('lookupByMessageId', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.log.requestId).toBe('newer-req');
+      expect(result.estimatedCost).toBeNull();
     }
   });
 
@@ -287,7 +291,10 @@ describe('lookupByRequestId', () => {
 
   it('should call userClient.getDiagnosticByRequestId', async () => {
     stub.getDiagnosticByRequestId.mockResolvedValue(
-      ok<DiagnosticLogResponse>({ log: makeLog({ requestId: 'test-req' }) as never })
+      ok<DiagnosticLogResponse>({
+        log: makeLog({ requestId: 'test-req' }) as never,
+        estimatedCost: null,
+      })
     );
 
     const result = await lookupByRequestId('test-req', asUserClient(stub));

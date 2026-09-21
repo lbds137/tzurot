@@ -30,10 +30,16 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import { estimateDiagnosticCost } from '../../services/diagnosticCost.js';
 import type { RouteDeps } from '../routeDeps.js';
 
-/** These handlers touch only the DB — callers mount them with a bare `{ prisma }`. */
-type DiagnosticDeps = Pick<RouteDeps, 'prisma'>;
+/**
+ * These handlers touch the DB and, for the two single-log GETs, the
+ * OpenRouter model cache (to price the response) — callers mount them with
+ * `{ prisma, modelCache }`. `modelCache` is optional: an undefined cache
+ * degrades the priced response to `estimatedCost: null` rather than failing.
+ */
+type DiagnosticDeps = Pick<RouteDeps, 'prisma' | 'modelCache'>;
 
 const logger = createLogger('admin-diagnostic');
 
@@ -292,7 +298,7 @@ export const handleGetDiagnosticByMessage = (deps: DiagnosticDeps): RequestHandl
  * Get full diagnostic log by request ID
  */
 export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, modelCache } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
     if (callerUserId === null) {
@@ -332,7 +338,14 @@ export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHan
       'Retrieved diagnostic log'
     );
 
-    sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
+    const estimatedCost = await estimateDiagnosticCost(
+      modelCache,
+      log.provider,
+      log.data,
+      log.requestId
+    );
+
+    sendCustomSuccess(res, { log: formatLogResponse(log), estimatedCost }, StatusCodes.OK);
   });
 };
 
@@ -341,7 +354,7 @@ export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHan
  * Get diagnostic log by AI response message ID (array containment query)
  */
 export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, modelCache } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
     if (callerUserId === null) {
@@ -384,7 +397,14 @@ export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHand
       'Retrieved diagnostic log by response message ID'
     );
 
-    sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
+    const estimatedCost = await estimateDiagnosticCost(
+      modelCache,
+      log.provider,
+      log.data,
+      log.requestId
+    );
+
+    sendCustomSuccess(res, { log: formatLogResponse(log), estimatedCost }, StatusCodes.OK);
   });
 };
 
