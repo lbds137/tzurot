@@ -53,7 +53,10 @@ export default defineContextMenuCommand({
       }
 
       const { log } = result;
-      const embed = buildDiagnosticEmbed(payloadForUser(log.data, interaction.user.id));
+      const embed = buildDiagnosticEmbed(
+        payloadForUser(log.data, interaction.user.id),
+        result.estimatedCost
+      );
       const components = buildInspectComponents(
         log.requestId,
         log.data.postProcessing.thinkingContent?.length ?? 0

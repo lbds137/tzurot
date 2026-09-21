@@ -70,6 +70,7 @@ describe('Inspect Message context-menu command', () => {
         personalityId: 'pers-1',
         data: { postProcessing: { thinkingContent: 'thoughts' } },
       },
+      estimatedCost: null,
     });
     const interaction = makeInteraction();
 
@@ -128,6 +129,7 @@ describe('Inspect Message context-menu command', () => {
           },
         },
       },
+      estimatedCost: null,
     });
     const interaction = makeInteraction('regular-user-456');
 

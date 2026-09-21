@@ -630,6 +630,161 @@ describe('Admin Diagnostic Routes', () => {
     });
   });
 
+  describe('estimatedCost enrichment', () => {
+    /** A minimal stand-in for OpenRouterModelCache — only getModels() is used. */
+    function makeModelCacheApp(getModels: ReturnType<typeof vi.fn>): express.Express {
+      const costApp = express();
+      costApp.use(express.json());
+      const deps = {
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache: {
+          getModels,
+        } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+      };
+      costApp.get(
+        '/admin/diagnostic/by-response/:messageId',
+        requireUserAuth(),
+        handleGetDiagnosticByResponse(deps)
+      );
+      costApp.get(
+        '/admin/diagnostic/:requestId',
+        requireUserAuth(),
+        handleGetDiagnosticByRequestId(deps)
+      );
+      return costApp;
+    }
+
+    const openRouterPayload: DiagnosticPayload = {
+      ...mockDiagnosticPayload,
+      llmResponse: {
+        ...mockDiagnosticPayload.llmResponse,
+        modelUsed: 'anthropic/claude-3.5-sonnet',
+        promptTokens: 100,
+        completionTokens: 1000,
+      },
+    };
+
+    it('is present and shaped on the by-requestId route when the model cache prices the model', async () => {
+      const getModels = vi.fn().mockResolvedValue([
+        {
+          id: 'anthropic/claude-3.5-sonnet',
+          pricing: {
+            prompt: '0.000003',
+            completion: '0.000015',
+            request: '0',
+            image: '0',
+            web_search: '0',
+            internal_reasoning: '0',
+          },
+        },
+      ]);
+      const costApp = makeModelCacheApp(getModels);
+      mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
+        id: 'log-uuid',
+        requestId: 'priced-req',
+        triggerMessageId: null,
+        personalityId: null,
+        userId: '123456789',
+        guildId: null,
+        channelId: null,
+        model: 'anthropic/claude-3.5-sonnet',
+        provider: 'openrouter',
+        durationMs: 100,
+        createdAt: new Date(),
+        data: openRouterPayload,
+      });
+
+      const response = await request(costApp).get('/admin/diagnostic/priced-req');
+
+      expect(response.status).toBe(200);
+      const cost = response.body.estimatedCost;
+      expect(cost.model).toBe('anthropic/claude-3.5-sonnet');
+      expect(cost.source).toBe('openrouter-list');
+      expect(cost.promptUsd).toBeCloseTo(0.0003, 10);
+      expect(cost.completionUsd).toBeCloseTo(0.015, 10);
+      expect(cost.totalUsd).toBeCloseTo(0.0153, 10);
+      expect(cost.promptPricePerMillion).toBeCloseTo(3, 10);
+      expect(cost.completionPricePerMillion).toBeCloseTo(15, 10);
+      // The rest of the response body is unchanged.
+      expect(response.body.log.requestId).toBe('priced-req');
+    });
+
+    it('is null on the by-response route when the model is not in the catalog', async () => {
+      const getModels = vi.fn().mockResolvedValue([]);
+      const costApp = makeModelCacheApp(getModels);
+      mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue({
+        id: 'log-uuid',
+        requestId: 'unpriced-req',
+        triggerMessageId: null,
+        responseMessageIds: ['9999999999999999999'],
+        personalityId: null,
+        userId: '123456789',
+        guildId: null,
+        channelId: null,
+        model: 'anthropic/claude-3.5-sonnet',
+        provider: 'openrouter',
+        durationMs: 100,
+        createdAt: new Date(),
+        data: openRouterPayload,
+      });
+
+      const response = await request(costApp).get(
+        '/admin/diagnostic/by-response/9999999999999999999'
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.estimatedCost).toBeNull();
+    });
+
+    it('returns 200 with a null estimatedCost when the model cache throws', async () => {
+      const getModels = vi.fn().mockRejectedValue(new Error('catalog fetch failed'));
+      const costApp = makeModelCacheApp(getModels);
+      mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
+        id: 'log-uuid',
+        requestId: 'throwing-req',
+        triggerMessageId: null,
+        personalityId: null,
+        userId: '123456789',
+        guildId: null,
+        channelId: null,
+        model: 'anthropic/claude-3.5-sonnet',
+        provider: 'openrouter',
+        durationMs: 100,
+        createdAt: new Date(),
+        data: openRouterPayload,
+      });
+
+      const response = await request(costApp).get('/admin/diagnostic/throwing-req');
+
+      expect(response.status).toBe(200);
+      expect(response.body.estimatedCost).toBeNull();
+    });
+
+    it('returns 200 with estimatedCost null for a legacy row whose data carries no llmResponse', async () => {
+      const getModels = vi.fn().mockResolvedValue([]);
+      const costApp = makeModelCacheApp(getModels);
+      mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
+        id: 'log-uuid',
+        requestId: 'legacy-req',
+        triggerMessageId: null,
+        personalityId: null,
+        userId: '123456789',
+        guildId: null,
+        channelId: null,
+        model: 'anthropic/claude-3.5-sonnet',
+        provider: 'openrouter',
+        durationMs: 100,
+        createdAt: new Date(),
+        data: { meta: {} },
+      });
+
+      const response = await request(costApp).get('/admin/diagnostic/legacy-req');
+
+      expect(response.status).toBe(200);
+      expect(response.body.estimatedCost).toBeNull();
+    });
+  });
+
   describe('PATCH /api/internal/diagnostic/:requestId/response-ids', () => {
     it('should update response message IDs', async () => {
       mockPrisma.llmDiagnosticLog.update.mockResolvedValue({

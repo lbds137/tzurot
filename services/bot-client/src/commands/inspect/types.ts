@@ -3,6 +3,7 @@
  */
 
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import type { EstimatedCost } from '@tzurot/common-types/schemas/api/diagnostic';
 
 /** Database row for a diagnostic log */
 export interface DiagnosticLog {
@@ -22,7 +23,8 @@ export interface DiagnosticLog {
 
 /** Result of a diagnostic log lookup */
 export type LookupResult =
-  { success: true; log: DiagnosticLog } | { success: false; errorMessage: string };
+  | { success: true; log: DiagnosticLog; estimatedCost: EstimatedCost | null }
+  | { success: false; errorMessage: string };
 
 /** Metadata-only log entry for browse lists (from /recent endpoint) */
 export interface DiagnosticLogSummary {

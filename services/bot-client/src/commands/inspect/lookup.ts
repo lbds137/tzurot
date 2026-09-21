@@ -109,7 +109,11 @@ export async function lookupByMessageId(
     const fallbackResult = await userClient.getDiagnosticByResponse(messageId);
 
     if (fallbackResult.ok) {
-      return { success: true, log: adaptLog(fallbackResult.data.log) };
+      return {
+        success: true,
+        log: adaptLog(fallbackResult.data.log),
+        estimatedCost: fallbackResult.data.estimatedCost,
+      };
     }
 
     if (fallbackResult.status === 404) {
@@ -167,7 +171,9 @@ export async function lookupByMessageId(
     );
   }
 
-  return { success: true, log: adaptLog(logs[0]) };
+  // The plural by-message route (`DiagnosticLogsResponseSchema`) doesn't
+  // compute an estimated cost — only the two single-log routes do.
+  return { success: true, log: adaptLog(logs[0]), estimatedCost: null };
 }
 
 /**
@@ -198,7 +204,11 @@ export async function lookupByRequestId(
     };
   }
 
-  return { success: true, log: adaptLog(result.data.log) };
+  return {
+    success: true,
+    log: adaptLog(result.data.log),
+    estimatedCost: result.data.estimatedCost,
+  };
 }
 
 /**
