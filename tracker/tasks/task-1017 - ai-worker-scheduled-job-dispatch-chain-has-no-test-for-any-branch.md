@@ -1,9 +1,10 @@
 ---
 id: TASK-1017
 title: ai-worker scheduled-job dispatch chain has no test for any branch
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 16:24'
+updated_date: '2026-09-21 16:26'
 labels:
   - 'area:ai-worker'
   - 'size:S'
