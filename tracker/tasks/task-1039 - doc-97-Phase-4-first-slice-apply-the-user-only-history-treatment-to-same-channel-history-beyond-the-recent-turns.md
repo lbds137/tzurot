@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-21 19:49'
+updated_date: '2026-09-21 22:20'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 1033000
@@ -20,6 +21,9 @@ ordinal: 1033000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Why: owner report 2026-09-21 - with the cross-channel user-only render on Emily in prod, voice drift is mostly resolved across channels but still sets in when a single channel holds many messages. Same-channel history is verbatim up to the cap (services/ai-worker/src/services/context/channelHistoryHydration.ts ~53-56, MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES 50 and MAX_EXTENDED_CONTEXT 100 in packages/common-types/src/constants/message.ts), so every one of the character own turns in the current channel still reaches the generation point, which is the drift vector doc-97 Phase 4 names (design pass done 2026-09-16, opened by the fresh-thread probe; this report is the discriminating observation it was waiting for). The voice anchor (services/ai-worker/src/services/prompt/VoiceAnchorFormatter.ts) is one block against dozens of her own turns in a long channel.
 Fix shape: a same-channel render mode, same vocabulary as crossChannelRenderMode: keep the last N turns verbatim (N a config override with a measured default) and render older assistant turns either omitted or as the archive split-render already does for the memory archive (user turn verbatim, assistant prose replaced by linked facts or a summary). Measure first: take one long Emily channel the owner names, compute the exclamation-per-1k and reply-length curve the theme already uses over that channel, then build behind a config override so the same channel can be read with and without it. Depends on the doc-97 Phase 4 pre-pass gate (coverage of assistant turns with current summaries, measured on prod).
+
+GATE MEASURED 2026-09-21 (prod, read-only, after the beta.228 cut; script docs/local/handoffs/doc97p4-coverage.ts, run from scripts/analysis/; aggregates only): the same-channel window of the diary thread (channel 1551206427014602762, cap 100 rows = 50 user + 50 assistant, 2026-09-20 14:20Z to 09-21 03:54Z) - all 50 assistant turns map to exactly one memory through the preceding user row (matched 50, off-channel 0, exchanges with several user rows 0, and the channel-scoped memory count since the window start is also 50), so the join premise the theme doc left unverified HOLDS on this channel: an assistant turn resolves to its memory through the user message id before it, no producer change needed for the read. Coverage: 46 of 50 assistant turns carry a usable summary (summary_status done, non-empty assistant_summary, not a chunk - the memoryUtils.ts render predicate) = 0.92; the other 4 are summary_status failed (retryable), none pending, none dead. So the split-render of older same-channel assistant turns has summaries for 92 percent of them on the channel that shows the drift, and a verbatim fallback covers the rest. Relabelled state:ready (was state:dependent on this read); size stays M.
+Predicate note for the build: the render-time predicate ignores summary_prompt_version (a stored done summary renders regardless; memoryUtils.ts), while the flip gate in tooling counts done_current only - use the render predicate here, since this mode renders what is stored.
 Acceptance: the same long channel rendered with the mode on shows the card register measures moving toward the fresh-thread baseline recorded on doc-97, with no loss of user-side continuity; the override cascades like the cross-channel knobs; the prompt payload for a turn shows the reduced assistant-side history.
 
 MEASURED 2026-09-21 (prod, read-only, emily-tzudad-seraph-ditza, 2708 memories grouped by channel; script docs/local/handoffs/voice-drift-by-channel.ts, the per-channel sibling of voice-drift-curve.ts; aggregates only, first half vs second half of each channel in time order; excl = exclamation marks per 1k assistant chars, chars = mean assistant reply length):
