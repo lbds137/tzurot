@@ -39,6 +39,10 @@ import {
 import { AdminSettingsSchema } from '@tzurot/common-types/schemas/api/adminSettings';
 import { ConfigOverridesSchema } from '@tzurot/common-types/schemas/api/configOverrides';
 import {
+  MemoryArchivePromoteRequestSchema,
+  MemoryArchivePromoteResponseSchema,
+} from '@tzurot/common-types/schemas/api/memoryArchive';
+import {
   GetSystemSettingsResponseSchema,
   UpdateSystemSettingsRequestSchema,
   UpdateSystemSettingsResponseSchema,
@@ -151,6 +155,16 @@ export const adminRoutes = {
       daysToKeep: z.number().int().positive().optional(),
     }),
     output: AdminCleanupResponseSchema,
+  },
+
+  /** POST /api/admin/memory-archive/promote — Promote characters at the summary-coverage gate into the archive render lists. */
+  memoryArchivePromote: {
+    audience: 'admin',
+    method: 'post',
+    path: '/memory-archive/promote',
+    id: 'memoryArchivePromote',
+    input: MemoryArchivePromoteRequestSchema,
+    output: MemoryArchivePromoteResponseSchema,
   },
 
   /** POST /api/admin/invalidate-cache — Single-personality or bot-wide cache flush. */

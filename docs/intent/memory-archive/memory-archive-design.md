@@ -1,6 +1,6 @@
-# Memory Archive: LLD — Slices A, B1, B2, C1 and C2
+# Memory Archive: LLD — Slices A, B1, B2, C1, C2 and C3
 
-Status: LIVE — slices A, B1, B2, C1 and C2
+Status: LIVE — slices A, B1, B2, C1 and C2; C3 (auto-promotion) in review
 
 HLD: [`docs/proposals/backlog/memory-architecture.md`](../../proposals/backlog/memory-architecture.md).
 Accepted artifact (decisions D0–D10, pilot results): [`docs/proposals/backlog/memory-archive-format.md`](../../proposals/backlog/memory-archive-format.md).
@@ -427,8 +427,54 @@ reading of an unavailable settings bag.
 future prompt version this sweep must not re-bill, per the eligibility
 predicate's own `<` divergence above).
 
-**The flip stays owner-side.** This command reads system settings through
-`SystemSettingsService` (read-only) and reports whether the gate is READY, but
-it cannot write settings — the operator flips
-`archiveSplitRenderPersonalities` by hand via `/admin settings set` once the
-gate and their own judgment agree the personality is ready.
+**The command itself never writes settings.** It reads them through
+`SystemSettingsService` (read-only) and reports whether the gate is READY.
+The flip is performed by slice C3's promotion sweep (below); the operator's
+manual override is the opt-out list, not a hand-written entry.
+
+## Slice C3 — auto-promotion at the gate
+
+**Why**: the operator does not want to hand-list every character they talk to.
+The gate is already computed per personality, so the flip can follow it. Two
+owner rulings shape the write: the cross-channel user-only render must never
+apply to a character without a recent-days digest (the digest replaces the
+character-side prose that render drops), so promotion is ONE atomic step across
+three writes; and the digest list promotes on the same signal (spend accepted:
+at most 12 digest generations a day per newly listed active pair).
+
+**Where it lives.** ai-worker cannot write system settings and has no Discord
+client, so the sweep is a gateway admin route,
+`POST /api/admin/memory-archive/promote` (`services/api-gateway/src/routes/admin/memoryArchivePromote.ts`
+→ `runArchivePromotion` in `services/api-gateway/src/services/archivePromotion.ts`),
+and a bot-client interval scheduler
+(`services/bot-client/src/services/ArchivePromotionScheduler.ts`, six-hourly,
+60 s after boot) that calls it through the generated `OwnerClient` and posts an
+owner-channel embed only when something was promoted — silent on a no-op, a
+failure embed on an error.
+
+**The gate, shared.** `FLIP_GATE_TARGET`, `summarizedShare` and
+`SUMMARY_COVERAGE_WINDOW_DAYS` moved to
+`packages/common-types/src/utils/summaryCoverage.ts`; the tooling report imports
+them back, so the threshold and the formula exist once. The gateway's grouped
+SQL (`archivePromotionSql.ts`) mirrors `WINDOW_COUNTS_SQL`'s
+`retrieved_in_window` / `done_current` arms over every personality at once,
+bounded at 1000 rows.
+
+**The write.** A candidate is READY (share ≥ the gate over the 30-day window;
+a zero denominator is never ready), its slug is on neither
+`archivePromotionOptOutPersonalities` (new registry list, group
+`memory-archive`) nor `archiveSplitRenderPersonalities`. Per candidate, one
+transaction: re-read the settings singleton, append the slug to
+`archiveSplitRenderPersonalities` and `recentDaysDigestPersonalities` (each only
+if absent) under the optimistic `updatedAt` guard the admin-settings handler
+uses, then merge `crossChannelRenderMode: 'user-only'` into the personality's
+`configDefaults` — from the row re-read inside the transaction, under its own
+`updatedAt` guard — only when the personality carries no explicit
+`crossChannelRenderMode`; an explicit value of any kind is left untouched. The
+settings write runs first on purpose: a personality write that throws rolls the
+list appends back with it (MEM-ARCH-035). After the batch
+the two invalidations publish (`invalidateKeys` for the lists,
+`invalidatePersonality` per promotion) — in a `finally`, so candidates that
+committed before a later one threw still reach every reader. Kill switch:
+`archivePromotionEnabled` (registry boolean, fallback ON by owner ruling). A
+`dryRun` body flag reports candidates without writing. Demotion stays manual.

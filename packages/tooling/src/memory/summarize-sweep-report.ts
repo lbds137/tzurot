@@ -5,6 +5,11 @@
  * hands rows/counts in here.
  */
 
+import {
+  FLIP_GATE_TARGET,
+  type SummaryCoverageCounts,
+} from '@tzurot/common-types/utils/summaryCoverage';
+
 /**
  * Measured from `buildSummarizerPrompt` with an entirely empty exchange
  * (`displayName`, `subjectName`, `userText`, `assistantText` all `''`,
@@ -23,19 +28,13 @@ export const CONTENT_TOKEN_INFLATION = 1.3;
  *  pre-sweep estimate. */
 export const CHARS_PER_TOKEN = 4;
 
-/** The flip gate: summarized-share threshold before the operator switches
- *  a personality onto split-render summaries. */
-export const FLIP_GATE_TARGET = 0.95;
-
 export interface SelectedRow {
   id: string;
   content_chars: number;
 }
 
-export interface WindowCounts {
+export interface WindowCounts extends SummaryCoverageCounts {
   total_non_chunk: number;
-  retrieved_in_window: number;
-  done_current: number;
   done_older: number;
   done_newer: number;
   pending: number;
@@ -54,15 +53,6 @@ export function estimateInputTokens(rows: SelectedRow[]): number {
       Math.ceil((row.content_chars / CHARS_PER_TOKEN) * CONTENT_TOKEN_INFLATION);
   }
   return total;
-}
-
-/** Share of in-window rows already summarized under the current prompt
- *  version. `null` when nothing was retrieved in the window (no denominator). */
-export function summarizedShare(counts: WindowCounts): number | null {
-  if (counts.retrieved_in_window === 0) {
-    return null;
-  }
-  return counts.done_current / counts.retrieved_in_window;
 }
 
 /** Share of in-window rows covered by a live fact. `null` on a zero
@@ -85,7 +75,7 @@ export function formatGateLine(share: number | null): string {
   }
   const pct = (share * 100).toFixed(1);
   const verdict = share >= FLIP_GATE_TARGET ? 'READY' : 'NOT READY';
-  return `GATE ${pct}% of 95% — ${verdict}`;
+  return `GATE ${pct}% of ${Math.round(FLIP_GATE_TARGET * 100)}% — ${verdict}`;
 }
 
 /** The fact-coverage report line. */

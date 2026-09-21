@@ -75,6 +75,30 @@ export const SYSTEM_SETTINGS_REGISTRY_OPERATIONS: {
     min: 1,
     max: 100000,
   },
+  archivePromotionEnabled: {
+    key: 'archivePromotionEnabled',
+    label: 'Archive Promotion',
+    description:
+      'Automatically add a character to the archive split-render and recent-days digest lists once its summary coverage reaches the flip gate. Off parks promotion without clearing either list.',
+    group: GROUP_MEMORY_ARCHIVE,
+    control: 'boolean',
+    liveness: 'live',
+    // Defaults ON: promotion is the designed steady state for the archive
+    // rollout, and the opt-out list is the per-character escape hatch.
+    fallback: true,
+    seedSource: SEED_SOURCE_NEW,
+  },
+  archivePromotionOptOutPersonalities: {
+    key: 'archivePromotionOptOutPersonalities',
+    label: 'Archive Promotion Opt-Out',
+    description:
+      'Personality slugs never auto-promoted into the archive render lists. Empty = every character at the flip gate is promoted.',
+    group: GROUP_MEMORY_ARCHIVE,
+    control: 'list',
+    liveness: 'live',
+    fallback: [] as SystemSettings['archivePromotionOptOutPersonalities'],
+    seedSource: SEED_SOURCE_NEW,
+  },
   nightlySyncEnabled: {
     key: 'nightlySyncEnabled',
     label: 'Nightly Sync Enabled',

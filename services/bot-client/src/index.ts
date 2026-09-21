@@ -59,6 +59,10 @@ import {
   stopExportSmokeScheduler,
 } from './services/ExportSmokeScheduler.js';
 import {
+  startArchivePromotionScheduler,
+  stopArchivePromotionScheduler,
+} from './services/ArchivePromotionScheduler.js';
+import {
   startNightlyDbSyncScheduler,
   stopNightlyDbSyncScheduler,
 } from './services/NightlyDbSyncScheduler.js';
@@ -229,6 +233,10 @@ client.once(Events.ClientReady, () => {
   // failure only (silent on a clean pass; see ExportSmokeScheduler).
   startExportSmokeScheduler(client, services.cacheRedis);
 
+  // Six-hourly check that promotes characters whose archive summary
+  // coverage reached the flip gate; silent unless something was promoted.
+  startArchivePromotionScheduler(client);
+
   // Daily REAL dev↔prod sync — silent when already in agreement, owner-channel
   // summary when rows moved. Its Redis cooldown gates the sync itself (not just
   // the post); see NightlyDbSyncScheduler for that inversion.
@@ -333,6 +341,7 @@ async function disposeBotClient(): Promise<void> {
     stopReleaseFlagNagScheduler();
     stopRetentionRunScheduler();
     stopExportSmokeScheduler();
+    stopArchivePromotionScheduler();
     stopNightlyDbSyncScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.

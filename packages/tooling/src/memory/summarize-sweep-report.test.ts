@@ -2,14 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   SUMMARIZER_PROMPT_OVERHEAD_TOKENS,
   CONTENT_TOKEN_INFLATION,
-  FLIP_GATE_TARGET,
   estimateInputTokens,
-  summarizedShare,
   factCoverageShare,
   formatGateLine,
   formatFactCoverageLine,
   type WindowCounts,
 } from './summarize-sweep-report.js';
+import { FLIP_GATE_TARGET, summarizedShare } from '@tzurot/common-types/utils/summaryCoverage';
 
 describe('estimateInputTokens', () => {
   it('sums the fixed overhead plus the inflated content-token estimate per row', () => {

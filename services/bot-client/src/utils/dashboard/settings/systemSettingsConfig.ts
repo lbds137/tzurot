@@ -69,6 +69,8 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   archiveSummaryEnqueueEnabled: '📥',
   archiveSummaryModelEnabled: '✍️',
   archiveSummaryDailyCap: '🧾',
+  archivePromotionEnabled: '🎚️',
+  archivePromotionOptOutPersonalities: '🚫',
   recentDaysDigestEnabled: '📆',
   recentDaysDigestPersonalities: '🗂️',
 };

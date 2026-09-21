@@ -47,13 +47,13 @@ import {
 } from './summarize-sweep-sql.js';
 import {
   estimateInputTokens,
-  summarizedShare,
   factCoverageShare,
   formatGateLine,
   formatFactCoverageLine,
   type SelectedRow,
   type WindowCounts,
 } from './summarize-sweep-report.js';
+import { summarizedShare } from '@tzurot/common-types/utils/summaryCoverage';
 
 const DEFAULT_WINDOW_DAYS = 30;
 const DEFAULT_LIMIT = 5000;

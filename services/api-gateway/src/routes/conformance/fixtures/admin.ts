@@ -46,6 +46,13 @@ export const adminFixtures: Record<string, ConformanceEntry> = {
     body: {},
   },
 
+  memoryArchivePromote: {
+    // Dry run: the harness shares one system-settings bag across every fixture in
+    // the run, so a real promotion here would mutate state a later fixture reads.
+    // The response shape — what this harness asserts — is identical either way.
+    body: { dryRun: true },
+  },
+
   invalidateCache: {
     seed: async ctx => {
       const personality = await createPersonality(ctx, 'conf-admin-invalidate');

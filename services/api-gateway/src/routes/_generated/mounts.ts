@@ -66,6 +66,7 @@ import { handleRetentionNotify, handleRetentionNotifyFilter, handleRetentionNoti
 import { handleDbSync } from '../admin/dbSync.js';
 import { handleBroadcast } from '../admin/broadcast.js';
 import { handleCleanup } from '../admin/cleanup.js';
+import { handleMemoryArchivePromote } from '../admin/memoryArchivePromote.js';
 import { handleInvalidateCache } from '../admin/invalidateCache.js';
 import { handleCreateGlobalPersonality } from '../admin/createPersonality.js';
 import { handleUpdateGlobalPersonality } from '../admin/updatePersonality.js';
@@ -168,6 +169,7 @@ export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/admin/db-sync', requireUserAuth(), requireOwnerAuth(), handleDbSync(deps));
   app.post('/api/admin/broadcast', requireUserAuth(), requireOwnerAuth(), handleBroadcast(deps));
   app.post('/api/admin/cleanup', requireUserAuth(), requireOwnerAuth(), handleCleanup(deps));
+  app.post('/api/admin/memory-archive/promote', requireUserAuth(), requireOwnerAuth(), handleMemoryArchivePromote(deps));
   app.post('/api/admin/invalidate-cache', requireUserAuth(), requireOwnerAuth(), handleInvalidateCache(deps));
   app.post('/api/admin/personality', requireUserAuth(), requireOwnerAuth(), handleCreateGlobalPersonality(deps));
   app.post('/api/admin/denylist', requireUserAuth(), requireOwnerAuth(), handleAddDenylistEntry(deps));

@@ -1752,6 +1752,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:memoryArchivePromote",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /memory-archive/promote",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:patchForwardedOrigin",
       "kind": "http-route",
       "producer": "client",

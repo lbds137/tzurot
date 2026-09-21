@@ -85,6 +85,21 @@ export class OwnerClient {
     });
   }
 
+  async memoryArchivePromote(input: z.input<typeof ROUTE_MANIFEST.memoryArchivePromote.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.memoryArchivePromote.output>>> {
+    const fullPath = '/api/admin/memory-archive/promote';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.memoryArchivePromote.output,
+    });
+  }
+
   async invalidateCache(input: z.input<typeof ROUTE_MANIFEST.invalidateCache.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.invalidateCache.output>>> {
     const fullPath = '/api/admin/invalidate-cache';
     return callGateway({
