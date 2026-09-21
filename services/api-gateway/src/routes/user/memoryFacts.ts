@@ -25,6 +25,7 @@ import {
   CorrectFactRequestSchema,
   SetFactLockRequestSchema,
 } from '@tzurot/common-types/schemas/api/fact';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { generateMemoryFactUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
@@ -126,14 +127,32 @@ async function findOwnedActiveFact(context: OwnershipContext): Promise<FactRow |
   return fact;
 }
 
-/** GET /user/fact/list?personalityId&limit&offset — paginated active facts. */
+/** GET /user/fact/list?personalityId&limit&offset&tag — paginated active facts. */
 export const handleListFacts = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const query = req.query as { personalityId?: string; limit?: string; offset?: string };
+    const query = req.query as {
+      personalityId?: string;
+      limit?: string;
+      offset?: string;
+      tag?: string;
+    };
     const personalityId = query.personalityId;
     if (personalityId === undefined || personalityId.length === 0) {
       sendError(res, ErrorResponses.validationError('personalityId is required'));
+      return;
+    }
+
+    // The req.query cast declares `tag` as a string, but a repeated `?tag=` arrives
+    // as an array — narrowed here so it reads as absent (pinned by the array test).
+    const tag = typeof query.tag === 'string' ? query.tag.trim() : '';
+    if (tag.length > DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH) {
+      sendError(
+        res,
+        ErrorResponses.validationError(
+          `tag exceeds ${DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH} characters`
+        )
+      );
       return;
     }
 
@@ -150,7 +169,8 @@ export const handleListFacts = (deps: RouteDeps): RequestHandler => {
 
     const limit = clampLimit(query.limit);
     const offset = Math.max(0, Number.parseInt(query.offset ?? '0', 10) || 0);
-    const where = { personalityId, personaId, ...ACTIVE_FACT_WHERE };
+    const tagFilter = tag.length > 0 ? { entityTags: { has: tag } } : {};
+    const where = { personalityId, personaId, ...ACTIVE_FACT_WHERE, ...tagFilter };
 
     const [facts, total] = await Promise.all([
       prisma.memoryFact.findMany({

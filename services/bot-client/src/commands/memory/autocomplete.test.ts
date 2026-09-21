@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   handlePersonalityAutocomplete,
+  handleFactTagAutocomplete,
   resolvePersonalityId,
   getPersonalityName,
 } from './autocomplete.js';
@@ -46,6 +47,74 @@ describe('Memory Autocomplete', () => {
         ownedOnly: false,
         valueField: 'slug',
       });
+    });
+  });
+
+  describe('handleFactTagAutocomplete', () => {
+    function mkAutocompleteInteraction(focused: string): AutocompleteInteraction {
+      return {
+        options: { getFocused: vi.fn().mockReturnValue(focused) },
+        respond: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AutocompleteInteraction;
+    }
+
+    it('offers the four commitment kinds for a broad prefix', async () => {
+      const interaction = mkAutocompleteInteraction('comm');
+
+      await handleFactTagAutocomplete(interaction);
+
+      expect(interaction.respond).toHaveBeenCalledWith([
+        { name: 'commitment:promise', value: 'commitment:promise' },
+        { name: 'commitment:decision', value: 'commitment:decision' },
+        { name: 'commitment:address', value: 'commitment:address' },
+        { name: 'commitment:advice', value: 'commitment:advice' },
+      ]);
+    });
+
+    it('narrows to a single kind for a specific prefix', async () => {
+      const interaction = mkAutocompleteInteraction('commitment:d');
+
+      await handleFactTagAutocomplete(interaction);
+
+      expect(interaction.respond).toHaveBeenCalledWith([
+        { name: 'commitment:decision', value: 'commitment:decision' },
+      ]);
+    });
+
+    it('offers the raw value as a single pass-through choice when nothing matches', async () => {
+      const interaction = mkAutocompleteInteraction('user:al');
+
+      await handleFactTagAutocomplete(interaction);
+
+      expect(interaction.respond).toHaveBeenCalledWith([{ name: 'user:al', value: 'user:al' }]);
+    });
+
+    it("truncates an over-length pass-through choice to Discord's 100-char limit", async () => {
+      const longValue = 'z'.repeat(150);
+      const interaction = mkAutocompleteInteraction(longValue);
+
+      await handleFactTagAutocomplete(interaction);
+
+      const responded = vi.mocked(interaction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(responded).toHaveLength(1);
+      expect(responded[0].name).toHaveLength(100);
+      expect(responded[0].value).toHaveLength(100);
+    });
+
+    it('offers all four kinds for an empty prefix', async () => {
+      const interaction = mkAutocompleteInteraction('');
+
+      await handleFactTagAutocomplete(interaction);
+
+      expect(interaction.respond).toHaveBeenCalledWith([
+        { name: 'commitment:promise', value: 'commitment:promise' },
+        { name: 'commitment:decision', value: 'commitment:decision' },
+        { name: 'commitment:address', value: 'commitment:address' },
+        { name: 'commitment:advice', value: 'commitment:advice' },
+      ]);
     });
   });
 

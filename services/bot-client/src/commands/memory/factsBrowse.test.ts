@@ -70,6 +70,11 @@ function listResponse(facts: FactItem[], total = facts.length) {
   return makeOk({ facts, total, limit: 10, offset: 0, hasMore: false });
 }
 
+/** `getString` behaves like discord.js: distinct values per option name. */
+function makeGetString(values: Record<string, string | null>) {
+  return vi.fn((name: string) => values[name] ?? null);
+}
+
 describe('fact browse custom IDs', () => {
   it('matches its own pagination ids and nothing else', () => {
     expect(isFactBrowsePagination(factBrowseHelpers.build(1, 'all', 'date', null))).toBe(true);
@@ -94,7 +99,7 @@ describe('handleFacts', () => {
     context = {
       user: { id: 'user-1' },
       interaction: {
-        options: { getString: vi.fn().mockReturnValue('lilith') },
+        options: { getString: makeGetString({ character: 'lilith' }) },
       },
       editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
     } as unknown as DeferredCommandContext;
@@ -120,12 +125,43 @@ describe('handleFacts', () => {
     expect(embedData.title).toBe('🧠 Known Facts');
     expect(embedData.description).toContain('**1.** The user has a cat named Miso');
     expect(embedData.description).toContain('└ <t:1781524800:D>');
-    expect(embedData.footer.text).toContain('Locked 🔐 · Corrected 📝');
+    // No tag filter active — footer is byte-identical to the untagged shape.
+    expect(embedData.footer.text).toBe('1 fact • Locked 🔐 · Corrected 📝');
     expect(sessionManagerMock.set).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'memory-fact-browse',
         entityId: 'message-1',
         data: { personalityId: 'personality-456', currentPage: 0 },
+      })
+    );
+  });
+
+  it('renders the tag in the footer and persists it in the session when a tag filter is active', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()]));
+    const taggedContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: { getString: makeGetString({ character: 'lilith', tag: 'commitment:promise' }) },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(taggedContext);
+
+    expect(stub.listFacts).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'commitment:promise' })
+    );
+
+    const embedData = (
+      vi.mocked(taggedContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.footer.text).toContain('tag: commitment:promise');
+
+    expect(sessionManagerMock.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { personalityId: 'personality-456', currentPage: 0, tag: 'commitment:promise' },
       })
     );
   });
@@ -153,6 +189,43 @@ describe('handleFacts', () => {
 
     expect(stub.listFacts).not.toHaveBeenCalled();
     expect(context.editReply).not.toHaveBeenCalled();
+  });
+
+  it('shows the tag-specific empty message when a tag filter returns zero facts', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([], 0));
+    const taggedContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: { getString: makeGetString({ character: 'lilith', tag: 'commitment:advice' }) },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(taggedContext);
+
+    const embedData = (
+      vi.mocked(taggedContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string; footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.description).toBe('No facts carry that tag — try browsing without a filter.');
+    expect(embedData.footer.text).toContain('0 facts');
+    expect(embedData.footer.text).toContain('tag: commitment:advice');
+  });
+
+  it('shows the generic empty message when browsing without a tag returns zero facts', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([], 0));
+
+    await handleFacts(context);
+
+    const embedData = (
+      vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.description).toBe(
+      "This character hasn't learned any facts about you yet — facts are distilled automatically from your conversations."
+    );
   });
 
   it('degrades to a transient error message when the list fetch fails', async () => {
@@ -210,6 +283,25 @@ describe('handleFactsPagination', () => {
     expect(interaction.editReply).toHaveBeenCalled();
   });
 
+  it('forwards the session tag to the page fetch', async () => {
+    sessionManagerMock.findByMessageId.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 0, tag: 'commitment:promise' },
+    });
+    sessionManagerMock.get.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 0, tag: 'commitment:promise' },
+    });
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()], 25));
+    const interaction = createPaginationInteraction(
+      factBrowseHelpers.build(1, 'all', 'date', null)
+    );
+
+    await handleFactsPagination(interaction);
+
+    expect(stub.listFacts).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'commitment:promise' })
+    );
+  });
+
   it('reports expiry when the session is gone', async () => {
     sessionManagerMock.findByMessageId.mockResolvedValue(null);
     const interaction = createPaginationInteraction(
@@ -260,6 +352,28 @@ describe('refreshFactsList', () => {
       expect.objectContaining({ currentPage: 0 })
     );
     expect(interaction.editReply).toHaveBeenCalled();
+  });
+
+  it('keeps the session tag across the re-fetch', async () => {
+    vi.clearAllMocks();
+    const stub: FactClientStub = { listFacts: vi.fn() };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+    sessionManagerMock.findByMessageId.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 0, tag: 'commitment:promise' },
+    });
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()], 1));
+
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await refreshFactsList(interaction);
+
+    expect(stub.listFacts).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'commitment:promise' })
+    );
   });
 });
 
@@ -312,7 +426,7 @@ describe('error branches', () => {
     resolveRequiredPersonalityMock.mockRejectedValue(new Error('gateway exploded'));
     const context = {
       user: { id: 'user-1' },
-      interaction: { options: { getString: vi.fn().mockReturnValue('lilith') } },
+      interaction: { options: { getString: makeGetString({ character: 'lilith' }) } },
       editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
     } as unknown as DeferredCommandContext;
 
