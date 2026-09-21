@@ -37,7 +37,7 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "sharp": "^0.35.4",
-    "zod": "^4.6.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -46,7 +46,7 @@
     "@types/supertest": "^7.2.1",
     "@tzurot/clients": "workspace:*",
     "@tzurot/test-utils": "workspace:*",
-    "fast-check": "^4.10.0",
+    "fast-check": "^4.10.1",
     "supertest": "^7.2.2"
   }
 }
