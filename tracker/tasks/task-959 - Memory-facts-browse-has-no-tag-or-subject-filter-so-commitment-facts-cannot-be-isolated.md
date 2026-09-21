@@ -3,9 +3,10 @@ id: TASK-959
 title: >-
   Memory facts browse has no tag or subject filter, so commitment facts cannot
   be isolated
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:02'
+updated_date: '2026-09-21 19:14'
 labels:
   - 'area:bot-client'
   - 'size:S'
