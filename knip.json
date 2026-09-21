@@ -10,8 +10,7 @@
       "entry": ["src/**/*.test.ts", "src/commands/*.ts", "src/commands/*/index.ts"]
     },
     "services/api-gateway": {
-      "entry": ["src/**/*.test.ts"],
-      "ignoreDependencies": ["pino"]
+      "entry": ["src/**/*.test.ts"]
     },
     "services/ai-worker": {
       "entry": ["src/**/*.test.ts", "src/scripts/*.ts"],

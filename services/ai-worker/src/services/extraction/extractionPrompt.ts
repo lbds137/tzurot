@@ -53,6 +53,9 @@ export function buildExtractionPrompt(
   const episodesBlock = episodes.map(e => `---\n${e}`).join('\n');
 
   // @spec MEM-ARCH-027 — assistant commitments are the one exception to the assistant-fact exclusion
+  // The "commitment:*" tag kinds named below mirror COMMITMENT_TAG_KINDS in
+  // packages/common-types/src/constants/factTags.ts (the UI-facing copy) —
+  // adding a kind means editing both.
   return `You extract durable facts from roleplay conversation excerpts.
 
 Existing known facts (may be outdated; numbered for reference):

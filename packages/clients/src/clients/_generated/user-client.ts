@@ -2075,8 +2075,8 @@ export class UserClient {
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    * @softDeleteAware Resource has a soft-delete column; soft-deleted rows may be returned or filtered depending on handler semantics.
    */
-  async listFacts(options: { personalityId: string; limit?: string; offset?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listFacts.output>>> {
-    const fullPath = '/api/user/fact/list' + buildQueryString([['personalityId', options.personalityId], ['limit', options.limit], ['offset', options.offset]]);
+  async listFacts(options: { personalityId: string; limit?: string; offset?: string; tag?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listFacts.output>>> {
+    const fullPath = '/api/user/fact/list' + buildQueryString([['personalityId', options.personalityId], ['limit', options.limit], ['offset', options.offset], ['tag', options.tag]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

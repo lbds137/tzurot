@@ -72,6 +72,10 @@ export const DISCORD_LIMITS = {
   WEBHOOK_CACHE_SIZE: 100,
   /** Maximum number of autocomplete choices Discord allows */
   AUTOCOMPLETE_MAX_CHOICES: 25,
+  /** Discord's per-choice character limit for an autocomplete choice name/value;
+   *  an autocompleted string option reuses it as its max length so typed values
+   *  can always be offered back as a choice. */
+  AUTOCOMPLETE_CHOICE_MAX_LENGTH: 100,
   /** Maximum length for modal text input (paragraph style) */
   MODAL_INPUT_MAX_LENGTH: 4000,
   /** Max `message` option length on the `/chat`-family commands — Nitro's max

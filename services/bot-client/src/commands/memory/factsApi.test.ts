@@ -92,6 +92,33 @@ describe('Memory Facts API', () => {
 
       expect(await fetchFacts(asUserClient(stub), 'personality-456', 0, 10)).toBeNull();
     });
+
+    it('forwards a non-empty tag to the client', async () => {
+      const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
+      stub.listFacts.mockResolvedValue(makeOk(response));
+
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, 'commitment:promise');
+
+      expect(stub.listFacts).toHaveBeenCalledWith({
+        personalityId: 'personality-456',
+        limit: '10',
+        offset: '20',
+        tag: 'commitment:promise',
+      });
+    });
+
+    it('omits the tag key when tag is empty', async () => {
+      const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
+      stub.listFacts.mockResolvedValue(makeOk(response));
+
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, '');
+
+      expect(stub.listFacts).toHaveBeenCalledWith({
+        personalityId: 'personality-456',
+        limit: '10',
+        offset: '20',
+      });
+    });
   });
 
   describe('fetchFact', () => {

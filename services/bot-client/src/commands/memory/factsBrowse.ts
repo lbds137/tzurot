@@ -57,6 +57,8 @@ export const FACT_BROWSE_PREFIX = 'memory-fact-browse';
 export interface FactBrowseSession {
   personalityId: string;
   currentPage: number;
+  /** Active entity-tag filter (e.g. `commitment:promise`); absent = unfiltered. */
+  tag?: string;
 }
 
 /** Browse customId helpers — filter slot unused (personality lives in session). */
@@ -81,8 +83,10 @@ function buildFactsEmbed(options: {
   facts: FactItem[];
   total: number;
   page: number;
+  tag?: string;
 }): EmbedBuilder {
-  const { facts, total, page } = options;
+  const { facts, total, page, tag } = options;
+  const tagActive = tag !== undefined && tag.length > 0;
 
   // Server-paginated: `facts` is the fetched page; `total` drives the math.
   const { embed } = buildBrowseListEmbed<FactItem>({
@@ -110,9 +114,15 @@ function buildFactsEmbed(options: {
       noItems:
         "This character hasn't learned any facts about you yet — facts are " +
         'distilled automatically from your conversations.',
+      noMatch: 'No facts carry that tag — try browsing without a filter.',
     },
-    footerSegments: [pluralize(total, { singular: 'fact', plural: 'facts' })],
+    filterActive: tagActive,
+    footerSegments: [
+      pluralize(total, { singular: 'fact', plural: 'facts' }),
+      tagActive ? `tag: ${tag}` : false,
+    ],
     badgeLegend: buildBadgeLegend(['LOCKED', 'CORRECTED']),
+    footerOnEmpty: tagActive ? true : undefined,
   });
 
   return embed;
@@ -159,6 +169,8 @@ export async function handleFacts(context: DeferredCommandContext): Promise<void
   const { userClient } = clientsFor(context.interaction);
   const options = memoryFactsOptions(context.interaction);
   const personalityInput = options.character();
+  const rawTag = options.tag();
+  const tag = rawTag !== null && rawTag.trim().length > 0 ? rawTag.trim() : undefined;
 
   try {
     // Contract: null means the helper already sent the error reply.
@@ -167,7 +179,7 @@ export async function handleFacts(context: DeferredCommandContext): Promise<void
       return;
     }
 
-    const data = await fetchFacts(userClient, personalityId, 0, FACTS_PER_PAGE);
+    const data = await fetchFacts(userClient, personalityId, 0, FACTS_PER_PAGE, tag);
     if (data === null) {
       logger.warn({ userId }, 'Facts browse failed');
       await context.editReply({
@@ -177,7 +189,7 @@ export async function handleFacts(context: DeferredCommandContext): Promise<void
     }
 
     const { totalPages } = calculatePaginationState(data.total, FACTS_PER_PAGE, 0);
-    const embed = buildFactsEmbed({ facts: data.facts, total: data.total, page: 0 });
+    const embed = buildFactsEmbed({ facts: data.facts, total: data.total, page: 0, tag });
     const components = buildFactsComponents(data.facts, 0, totalPages);
 
     const response = await context.editReply({ embeds: [embed], components });
@@ -186,7 +198,7 @@ export async function handleFacts(context: DeferredCommandContext): Promise<void
       userId,
       entityType: FACT_BROWSE_PREFIX,
       entityId: response.id,
-      data: { personalityId, currentPage: 0 },
+      data: { personalityId, currentPage: 0, tag },
       messageId: response.id,
       channelId: response.channelId,
     });
@@ -221,13 +233,14 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
     return;
   }
 
-  const { personalityId } = session.data;
+  const { personalityId, tag } = session.data;
   const { userClient } = clientsFor(interaction);
   const data = await fetchFacts(
     userClient,
     personalityId,
     parsed.page * FACTS_PER_PAGE,
-    FACTS_PER_PAGE
+    FACTS_PER_PAGE,
+    tag
   );
   if (data === null) {
     await interaction.followUp({
@@ -246,6 +259,7 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
     facts: data.facts,
     total: data.total,
     page: safePage,
+    tag,
   });
   await interaction.editReply({
     embeds: [embed],
@@ -286,12 +300,13 @@ export async function refreshFactsList(interaction: ButtonInteraction): Promise<
     return;
   }
 
-  const { personalityId } = session.data;
+  const { personalityId, tag } = session.data;
   const { userClient } = clientsFor(interaction);
 
   const result = await fetchPageWithEmptyFallback({
     currentPage: session.data.currentPage,
-    fetchPage: page => fetchFacts(userClient, personalityId, page * FACTS_PER_PAGE, FACTS_PER_PAGE),
+    fetchPage: page =>
+      fetchFacts(userClient, personalityId, page * FACTS_PER_PAGE, FACTS_PER_PAGE, tag),
     isEmpty: d => d.facts.length === 0,
   });
   if (result === null) {
@@ -307,6 +322,7 @@ export async function refreshFactsList(interaction: ButtonInteraction): Promise<
     facts: result.data.facts,
     total: result.data.total,
     page: result.page,
+    tag,
   });
   await interaction.editReply({
     embeds: [embed],
