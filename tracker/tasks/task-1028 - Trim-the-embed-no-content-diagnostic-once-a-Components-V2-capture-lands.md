@@ -1,9 +1,10 @@
 ---
 id: TASK-1028
 title: Trim the embed no-content diagnostic once a Components-V2 capture lands
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-20 21:41'
+updated_date: '2026-09-21 10:13'
 labels:
   - 'area:bot-client'
   - 'size:S'
