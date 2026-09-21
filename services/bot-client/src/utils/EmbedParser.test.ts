@@ -3,10 +3,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedType, type APIEmbed, type Embed, type Message } from 'discord.js';
+import { EmbedType, Embed, type APIEmbed, type Message } from 'discord.js';
 import { EmbedParser, embedHasRenderableContent } from './EmbedParser.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { logEmptyEmbedShape } from './embedShapeDiagnostics.js';
+import { readEmbedComponents } from './embedComponents.js';
+import { VXREDDIT_COMPONENTS_V2_EMBED } from './fixtures/vxredditComponentsV2Embed.js';
 
 vi.mock('./embedShapeDiagnostics.js', async () => {
   const actual = await vi.importActual<typeof import('./embedShapeDiagnostics.js')>(
@@ -412,7 +414,10 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embedWithImages, embedIndex);
 
-      const extracted = extractEmbedImages([precedingEmbed, embedWithImages] as unknown as Embed[]);
+      const extracted = extractEmbedImages([
+        { ...precedingEmbed, toJSON: () => precedingEmbed },
+        { ...embedWithImages, toJSON: () => embedWithImages },
+      ] as unknown as Embed[]);
 
       expect(extracted).toHaveLength(2);
       expect(extracted?.[0]?.name).toBe('embed-2-image.png');
@@ -602,24 +607,20 @@ describe('EmbedParser', () => {
       expect(result).not.toContain('<type>');
     });
 
-    it('calls the diagnostic for the vxreddit no-content shape', () => {
-      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
+    it('calls the diagnostic for a generic metadata-only link unfurl', () => {
+      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://example.com/unfurl' };
 
       EmbedParser.formatEmbedElement(embed, 0, 1);
 
       expect(logEmptyEmbedShape).toHaveBeenCalledWith(embed, undefined);
     });
 
-    it('threads the live message through to the diagnostic', () => {
-      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://vxreddit.example/x' };
-      const message = {
-        id: 'msg-live-1',
-        components: [{ type: 17, components: [] }],
-      } as unknown as Message;
+    it('threads the live message id through to the diagnostic', () => {
+      const embed: APIEmbed = { type: EmbedType.Link, url: 'https://example.com/unfurl' };
 
-      EmbedParser.formatEmbedElement(embed, 0, 1, message);
+      EmbedParser.formatEmbedElement(embed, 0, 1, 'msg-live-1');
 
-      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embed, message);
+      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embed, 'msg-live-1');
     });
 
     it('does NOT call the diagnostic for a content-bearing embed', () => {
@@ -650,6 +651,40 @@ describe('EmbedParser', () => {
 
       expect(result).toBe('<embed>\n<footer>Some footer</footer>\n</embed>');
       expect(result).not.toContain('rendered="false"');
+    });
+
+    it('renders the Components-V2 fixture as a real <embed> wrapper, not the no-content marker', () => {
+      const embed = VXREDDIT_COMPONENTS_V2_EMBED as unknown as APIEmbed;
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      expect(result).not.toContain('rendered="false"');
+      expect(result.startsWith('<embed>\n')).toBe(true);
+      expect(result.endsWith('\n</embed>')).toBe(true);
+
+      const textLines = result.split('\n').filter(line => line.startsWith('<text>'));
+      expect(textLines).toEqual([
+        '<text>-# vxReddit</text>',
+        '<text>** u/example_user on r/Cult_of_Emily - ⬆️ 691 | 💬 14 [(link)](https://www.reddit.com/comments/abc1234) **</text>',
+        '<text>## Emily&apos;s trying something new for an outfit</text>',
+      ]);
+      expect(result).toContain(
+        '<image filename="embed-1-media-1.png" url="https://i.redd.it/exampleimg01.jpeg"/>'
+      );
+      const colorLines = result.split('\n').filter(line => line.startsWith('<color>'));
+      expect(colorLines).toEqual(['<color>#ff4500</color>']);
+    });
+
+    it('renders exactly one <color> line, the legacy value, when both a legacy and accent color are present', () => {
+      const embed = {
+        ...VXREDDIT_COMPONENTS_V2_EMBED,
+        color: 0x123456,
+      } as unknown as APIEmbed;
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1);
+
+      const colorLines = result.split('\n').filter(line => line.startsWith('<color>'));
+      expect(colorLines).toEqual(['<color>#123456</color>']);
     });
   });
 
@@ -688,6 +723,24 @@ describe('EmbedParser', () => {
       ['fields: empty array', { fields: [] }],
       ['image.url: empty string', { image: { url: '' } }],
     ])('returns false when %s', (_label, embed) => {
+      expect(embedHasRenderableContent(embed)).toBe(false);
+    });
+
+    it('returns true for the Components-V2 fixture', () => {
+      expect(embedHasRenderableContent(VXREDDIT_COMPONENTS_V2_EMBED as unknown as APIEmbed)).toBe(
+        true
+      );
+    });
+
+    it('returns false for an embed whose components is an empty array', () => {
+      expect(embedHasRenderableContent({ components: [] } as unknown as APIEmbed)).toBe(false);
+    });
+
+    it('returns false for a Container holding only a Separator', () => {
+      const embed = {
+        components: [{ type: 17, components: [{ type: 14 }] }],
+      } as unknown as APIEmbed;
+
       expect(embedHasRenderableContent(embed)).toBe(false);
     });
   });
@@ -803,7 +856,7 @@ describe('EmbedParser', () => {
 
       EmbedParser.parseMessageEmbeds(mockMessage);
 
-      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embedJson, mockMessage);
+      expect(logEmptyEmbedShape).toHaveBeenCalledWith(embedJson, 'msg-live-2');
     });
   });
 
@@ -834,6 +887,37 @@ describe('EmbedParser', () => {
       const result = EmbedParser.hasEmbeds(mockMessage);
 
       expect(result).toBe(false);
+    });
+  });
+
+  // Every other test in this suite hands a plain object to parseEmbed/extractEmbedImages,
+  // so nothing else proves discord.js's own `Embed` class preserves the undocumented
+  // `components` key through `toJSON()`. This test constructs a REAL `Embed` and must
+  // never be weakened to a mocked/stubbed `toJSON`.
+  describe('real discord.js Embed seam', () => {
+    it('preserves Components-V2 components through toJSON() and the extraction chain', () => {
+      // Embed's constructor is typed `private` in discord.js's declarations (it's meant
+      // to be constructed only by the library itself), but it is an ordinary public JS
+      // constructor at runtime. Reflect.construct sidesteps the type-checked `new Embed(...)`
+      // call the private-constructor typing would otherwise block.
+      const realEmbed = Reflect.construct(Embed, [VXREDDIT_COMPONENTS_V2_EMBED]) as Embed;
+
+      const json = realEmbed.toJSON();
+
+      expect(json).toHaveProperty('components');
+      expect(readEmbedComponents(json)).toHaveLength(1);
+
+      const extracted = extractEmbedImages([realEmbed]);
+
+      expect(extracted).toEqual([
+        {
+          url: 'https://images-ext-1.discordapp.net/external/examplehash0000000000000000000000000000000/https/i.redd.it/exampleimg01.jpeg',
+          name: 'embed-1-media-1.png',
+          isEmbedPreview: true,
+          contentType: 'image/jpeg',
+          size: undefined,
+        },
+      ]);
     });
   });
 });

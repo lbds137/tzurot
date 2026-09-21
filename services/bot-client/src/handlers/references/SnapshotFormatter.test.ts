@@ -6,9 +6,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 import { createMockMessage } from '../../test/mocks/Discord.mock.js';
+import { VXREDDIT_COMPONENTS_V2_EMBED } from '../../utils/fixtures/vxredditComponentsV2Embed.js';
 import {
   ChannelType,
   Collection,
+  Embed,
   PermissionFlagsBits,
   type Channel,
   type MessageSnapshot,
@@ -359,7 +361,7 @@ describe('SnapshotFormatter', () => {
 
       const snapshot = createMockSnapshot({
         attachments: {} as any,
-        embeds: [{} as any],
+        embeds: [{ toJSON: () => ({}) } as any],
       });
 
       const forwardedFrom = createMockMessage();
@@ -377,9 +379,12 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot({
         embeds: [
           {
-            title: 'Embed Title',
-            description: 'Embed Description',
-          } as APIEmbed,
+            toJSON: () =>
+              ({
+                title: 'Embed Title',
+                description: 'Embed Description',
+              }) as APIEmbed,
+          } as any,
         ],
       });
 
@@ -394,13 +399,19 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot({
         embeds: [
           {
-            title: 'First Embed',
-            description: 'First Description',
-          } as APIEmbed,
+            toJSON: () =>
+              ({
+                title: 'First Embed',
+                description: 'First Description',
+              }) as APIEmbed,
+          } as any,
           {
-            title: 'Second Embed',
-            description: 'Second Description',
-          } as APIEmbed,
+            toJSON: () =>
+              ({
+                title: 'Second Embed',
+                description: 'Second Description',
+              }) as APIEmbed,
+          } as any,
         ],
       });
 
@@ -466,24 +477,48 @@ describe('SnapshotFormatter', () => {
     // asserting the mock's own reimplementation of the marker would not
     // catch a wiring bug at this seam.
     it('routes embed wrapping through EmbedParser.formatEmbedElement', async () => {
-      const snapshot = createMockSnapshot({ embeds: [{} as APIEmbed] });
+      const embedData = {} as APIEmbed;
+      const snapshot = createMockSnapshot({ embeds: [{ toJSON: () => embedData } as any] });
       const forwardedFrom = createMockMessage();
 
       formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
-      expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith({}, 0, 1);
+      expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith(embedData, 0, 1);
     });
 
     it('forwards embedCount from the snapshot array length, not a hardcoded value', async () => {
-      const firstEmbed = { title: 'First' } as APIEmbed;
-      const secondEmbed = { title: 'Second' } as APIEmbed;
+      const firstEmbedData = { title: 'First' } as APIEmbed;
+      const secondEmbedData = { title: 'Second' } as APIEmbed;
+      const firstEmbed = { toJSON: () => firstEmbedData } as any;
+      const secondEmbed = { toJSON: () => secondEmbedData } as any;
       const snapshot = createMockSnapshot({ embeds: [firstEmbed, secondEmbed] });
       const forwardedFrom = createMockMessage();
 
       formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
 
-      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(1, firstEmbed, 0, 2);
-      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(2, secondEmbed, 1, 2);
+      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(1, firstEmbedData, 0, 2);
+      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(2, secondEmbedData, 1, 2);
+    });
+
+    it('hands EmbedParser the toJSON() payload of a real discord.js Embed, not the instance', async () => {
+      // EmbedParser is mocked file-wide here, so the rendered string proves
+      // nothing about the call site — the ARGUMENT is the evidence. The
+      // fixture is a Components-V2 embed because `components` is undocumented:
+      // discord.js's `Embed` gives it no getter, so only the `toJSON()` payload
+      // carries it. A `{ title, description }` fixture could not discriminate —
+      // both of those ARE getters, so the raw instance would look identical.
+      const realEmbed = Reflect.construct(Embed, [VXREDDIT_COMPONENTS_V2_EMBED]) as Embed;
+
+      const snapshot = createMockSnapshot({ embeds: [realEmbed] });
+      const forwardedFrom = createMockMessage();
+
+      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+
+      expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith(
+        expect.objectContaining({ components: expect.any(Array) }),
+        0,
+        1
+      );
     });
   });
 

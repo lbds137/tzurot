@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { APIEmbed, Message } from 'discord.js';
+import type { APIEmbed } from 'discord.js';
 import { logEmptyEmbedShape } from './embedShapeDiagnostics.js';
 
 const { warnMock } = vi.hoisted(() => ({ warnMock: vi.fn() }));
@@ -28,7 +28,7 @@ describe('embedShapeDiagnostics', () => {
     vi.clearAllMocks();
   });
 
-  it('logs the embed key names and type when no message is available', () => {
+  it('logs the embed key names and type when no messageId is available', () => {
     const embed: APIEmbed = { title: 'Some Title', description: 'Some Description' };
 
     logEmptyEmbedShape(embed);
@@ -40,54 +40,12 @@ describe('embedShapeDiagnostics', () => {
     expect(payload.embedType).toBeNull();
   });
 
-  it('logs the component-type tree when a message is available', () => {
-    const embed: APIEmbed = {};
-    const message = {
-      id: 'msg-1',
-      components: [
-        {
-          type: 17,
-          components: [
-            { type: 10, content: 'SECRET_TEXT' },
-            { type: 12, items: [{ media: { url: 'https://cdn.example/SECRET_IMAGE.png' } }] },
-          ],
-        },
-      ],
-    } as unknown as Message;
-
-    logEmptyEmbedShape(embed, message);
-
-    const [payload] = warnMock.mock.calls[0] as [Record<string, unknown>, string];
-    expect(payload.components).toEqual([{ type: 17, childCount: 2, childTypes: [10, 12] }]);
-  });
-
-  it('summarizes a top-level MediaGallery component with no typed children', () => {
-    const embed: APIEmbed = {};
-    const message = {
-      id: 'msg-2',
-      components: [
-        {
-          type: 12,
-          items: [{ media: { url: 'https://cdn.example/SECRET_IMAGE.png' } }],
-        },
-      ],
-    } as unknown as Message;
-
-    logEmptyEmbedShape(embed, message);
-
-    const [payload] = warnMock.mock.calls[0] as [Record<string, unknown>, string];
-    expect(payload.components).toEqual([{ type: 12, childCount: 1, childTypes: [] }]);
-  });
-
   it('logs no value drawn from the message', () => {
-    const embed: APIEmbed = {
+    const embed = {
       author: { name: '', icon_url: 'https://cdn.example/SECRET_AVATAR.png' },
       footer: { text: '', icon_url: 'https://cdn.example/SECRET_FOOTER.png' },
       image: { url: '' },
       fields: [],
-    };
-    const message = {
-      id: 'msg-3',
       components: [
         {
           type: 17,
@@ -97,23 +55,26 @@ describe('embedShapeDiagnostics', () => {
           ],
         },
       ],
-    } as unknown as Message;
+    } as unknown as APIEmbed;
 
-    logEmptyEmbedShape(embed, message);
+    logEmptyEmbedShape(embed, 'msg-3');
 
     const [payload] = warnMock.mock.calls[0] as [Record<string, unknown>, string];
-    expect(Object.keys(payload).sort()).toEqual([
-      'componentCount',
-      'components',
-      'embedKeys',
-      'embedType',
-      'messageId',
-    ]);
+    expect(Object.keys(payload).sort()).toEqual(['embedKeys', 'embedType', 'messageId']);
 
     const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain('SECRET_AVATAR');
     expect(serialized).not.toContain('SECRET_FOOTER');
     expect(serialized).not.toContain('SECRET_TEXT');
     expect(serialized).not.toContain('SECRET_IMAGE');
+  });
+
+  it('omits messageId from the key set when the argument is omitted', () => {
+    const embed: APIEmbed = {};
+
+    logEmptyEmbedShape(embed);
+
+    const [payload] = warnMock.mock.calls[0] as [Record<string, unknown>, string];
+    expect(Object.keys(payload).sort()).toEqual(['embedKeys', 'embedType']);
   });
 });

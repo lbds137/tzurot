@@ -130,6 +130,8 @@ export const EMBED_NAMING = {
   IMAGE_SLOT: 'image',
   /** Slot suffix for an embed's thumbnail */
   THUMBNAIL_SLOT: 'thumbnail',
+  /** Slot suffix for one item of an embed's Components-V2 media gallery */
+  MEDIA_SLOT: 'media',
   /** Default file extension for embed images */
   DEFAULT_EXTENSION: '.png',
 } as const;

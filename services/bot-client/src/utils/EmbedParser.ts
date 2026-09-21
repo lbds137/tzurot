@@ -10,6 +10,7 @@ import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { EMBED_NAMING } from '@tzurot/common-types/constants/media';
 import { embedImageAttachmentName } from './embedAttachmentName.js';
 import { logEmptyEmbedShape, sortedEmbedKeys } from './embedShapeDiagnostics.js';
+import { embedComponentsHaveContent, formatEmbedComponentsXml } from './embedComponents.js';
 
 /**
  * Check if a string value is present and non-empty
@@ -121,7 +122,8 @@ function formatEmbedKeysAttr(embed: APIEmbed): string {
  * `provider` sits on the metadata side deliberately: a provider name alone
  * ("vxReddit") tells the character where a link came from, not what it
  * shows — the same gap this predicate exists to close for the embed as a
- * whole. `video.url` is content, not metadata: it's the media itself.
+ * whole. `video.url` is content, not metadata: it's the media itself. A
+ * Components-V2 tree carrying text or media is content too.
  */
 export function embedHasRenderableContent(embed: APIEmbed): boolean {
   return (
@@ -132,7 +134,8 @@ export function embedHasRenderableContent(embed: APIEmbed): boolean {
     hasValue(embed.image?.url) ||
     hasValue(embed.thumbnail?.url) ||
     hasValue(embed.footer?.text) ||
-    hasValue(embed.video?.url)
+    hasValue(embed.video?.url) ||
+    embedComponentsHaveContent(embed)
   );
 }
 
@@ -165,8 +168,10 @@ export class EmbedParser {
    * @param embed - Discord embed object
    * @param embedIndex - Zero-based index of this embed within its message's embed
    * array; used to derive the same synthetic attachment filename the extractor
-   * mints for this embed's image/thumbnail, so a vision description in the
-   * attachments block can be bound back to this embed
+   * mints for this embed's image/thumbnail slots and for each item of its
+   * Components-V2 media gallery (`embed-N-media-M.png`, minted by
+   * `embedMediaAttachmentName` and echoed by `formatEmbedComponentsXml`), so a
+   * vision description in the attachments block can be bound back to this embed
    * @returns Formatted embed XML string
    */
   static parseEmbed(embed: APIEmbed, embedIndex: number): string {
@@ -228,6 +233,9 @@ export class EmbedParser {
       parts.push(video);
     }
 
+    // Add Components-V2 content (text/media/accent color), when present
+    parts.push(...formatEmbedComponentsXml(embed, embedIndex));
+
     // Add footer
     if (hasValue(embed.footer?.text)) {
       parts.push(`<footer>${escapeXml(embed.footer.text)}</footer>`);
@@ -266,10 +274,10 @@ export class EmbedParser {
    * When the embed carries no renderable CONTENT — per
    * {@link embedHasRenderableContent} — this renders a `rendered="false"`
    * marker instead of the ordinary wrapped form, whether or not `parseEmbed`
-   * produced any metadata body. A link-unfurl carrying only `url`/`type`
-   * (the vxreddit shape) still renders a non-empty `parseEmbed` body, but
-   * that body is wrapper metadata, not something the character can describe
-   * — so it trips the marker the same as a genuinely empty embed. Omitting
+   * produced any metadata body. A generic link unfurl carrying only
+   * `url`/`type` still renders a non-empty `parseEmbed` body, but that body
+   * is wrapper metadata, not something the character can describe — so it
+   * trips the marker the same as a genuinely empty embed. Omitting
    * the element outright would make the embed's existence invisible
    * downstream, re-creating in a different form exactly the divergence this
    * guard exists to close: "an embed was present" and "an embed rendered
@@ -288,9 +296,9 @@ export class EmbedParser {
    * @param embed - Discord embed object
    * @param embedIndex - Zero-based index of this embed within its source array
    * @param embedCount - Total number of embeds in the source array
-   * @param message - The live Discord message, when available, for the
-   *   diagnostic component-shape log on a no-content render (absent for
-   *   stored/snapshot embeds, which have no live message to inspect)
+   * @param messageId - The live Discord message's id, when available, for the
+   *   diagnostic log on a no-content render (absent for stored/snapshot
+   *   embeds, which have no live message to identify)
    * @returns The wrapped `<embed>...</embed>` element for a content-bearing
    *   embed, or one of the two `rendered="false"` marker forms otherwise
    */
@@ -298,13 +306,13 @@ export class EmbedParser {
     embed: APIEmbed,
     embedIndex: number,
     embedCount: number,
-    message?: Message
+    messageId?: string
   ): string {
     const numAttr = embedCount > 1 ? ` number="${embedIndex + 1}"` : '';
     const body = this.parseEmbed(embed, embedIndex);
 
     if (!embedHasRenderableContent(embed)) {
-      logEmptyEmbedShape(embed, message);
+      logEmptyEmbedShape(embed, messageId);
       const keysAttr = formatEmbedKeysAttr(embed);
       if (body.length === 0) {
         return `<embed${numAttr} rendered="false"${keysAttr}/>`;
@@ -326,7 +334,7 @@ export class EmbedParser {
     }
 
     const embedStrings = message.embeds.map((embed, index) =>
-      this.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message)
+      this.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message.id)
     );
 
     return embedStrings.join('\n');
