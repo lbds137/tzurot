@@ -35,6 +35,10 @@ export const SystemSettingsSchema = z.object({
   archiveSummaryModelEnabled: z.boolean(),
   /** Rows the memory-archive summarizer may process per UTC day, all characters combined. */
   archiveSummaryDailyCap: z.number().int().min(1).max(100000),
+  /** Automatically promote a character into the archive render lists once its summary coverage reaches the flip gate. */
+  archivePromotionEnabled: z.boolean(),
+  /** Personality slugs never auto-promoted into the archive render lists. */
+  archivePromotionOptOutPersonalities: z.array(z.string().regex(/^[a-z0-9-]+$/)),
   /** Runtime switch for character roster blurbs: the summarizer sweep AND rendering them in the prompt. */
   rosterBlurbEnabled: z.boolean(),
   /** Render conversation history as real user/assistant provider messages instead of `<chat_log>` XML in the system prompt (prompt-assembly Phase 2 rollout switch). */

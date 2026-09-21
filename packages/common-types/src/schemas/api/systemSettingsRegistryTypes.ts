@@ -106,6 +106,8 @@ export type OperationsRegistryKey =
   | 'archiveSummaryEnqueueEnabled'
   | 'archiveSummaryModelEnabled'
   | 'archiveSummaryDailyCap'
+  | 'archivePromotionEnabled'
+  | 'archivePromotionOptOutPersonalities'
   | 'nightlySyncEnabled'
   | 'nightlySyncHourUtc'
   | 'realMessagesEnabled'
