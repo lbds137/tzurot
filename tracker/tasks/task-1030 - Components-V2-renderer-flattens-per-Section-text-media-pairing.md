@@ -20,4 +20,6 @@ Why: formatEmbedComponentsXml (services/bot-client/src/utils/embedComponents.ts)
 Fix shape: walk the tree once in document order emitting text and image lines as encountered (a Section renders its text then its accessory image), keeping the embed-N-media-M naming in document order so the vision join key is unchanged; pin with a two-Section fixture asserting the interleaved order.
 Promote when: a production unfurl (EmbedShapeDiagnostics or an /inspect payload) shows a Components-V2 tree with more than one Section, or any Section plus a MediaGallery in one Container.
 Acceptance: the two-Section fixture renders text1, image1, text2, image2; the single-container fixture output is unchanged.
+
+Second member (same multi-node class, from the PR #2461 round-3 review): readContainerAccentColor returns on the FIRST top-level Container whether or not it carries a numeric accent_color, so a payload with two top-level Containers where only the second is colored renders no color line. Same trigger as above (a multi-Container tree observed in prod); the one-pass walk should take the first NUMERIC accent color it meets. Acceptance: a two-Container fixture with the color on the second renders that color.
 <!-- SECTION:DESCRIPTION:END -->
