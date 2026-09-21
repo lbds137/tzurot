@@ -6,13 +6,20 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Collection, MessageType, MessageReferenceType, StickerFormatType } from 'discord.js';
-import type { Message, Attachment, Embed, MessageSnapshot, Sticker } from 'discord.js';
+import {
+  Collection,
+  Embed,
+  MessageType,
+  MessageReferenceType,
+  StickerFormatType,
+} from 'discord.js';
+import type { Message, Attachment, MessageSnapshot, Sticker } from 'discord.js';
 import {
   buildMessageContent,
   formatAttachmentDescription,
   hasMessageContent,
 } from './MessageContentBuilder.js';
+import { VXREDDIT_COMPONENTS_V2_EMBED } from './fixtures/vxredditComponentsV2Embed.js';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 
 // Mock dependencies
@@ -395,14 +402,16 @@ describe('MessageContentBuilder', () => {
       // pins that the call site hands BOTH collaborators the same embeds
       // array in the same order — the property a future reorder/filter of
       // one side would silently break.
+      const snapshotEmbedOne = {
+        image: { url: 'https://cdn.discord.com/embeds/one.png' },
+        thumbnail: { url: 'https://cdn.discord.com/embeds/one-thumb.png' },
+      };
+      const snapshotEmbedTwo = {
+        image: { url: 'https://cdn.discord.com/embeds/two.png' },
+      };
       const snapshotEmbeds = [
-        {
-          image: { url: 'https://cdn.discord.com/embeds/one.png' },
-          thumbnail: { url: 'https://cdn.discord.com/embeds/one-thumb.png' },
-        },
-        {
-          image: { url: 'https://cdn.discord.com/embeds/two.png' },
-        },
+        { ...snapshotEmbedOne, toJSON: () => snapshotEmbedOne },
+        { ...snapshotEmbedTwo, toJSON: () => snapshotEmbedTwo },
       ];
 
       const messageSnapshots = new Collection<string, MessageSnapshot>();
@@ -432,6 +441,37 @@ describe('MessageContentBuilder', () => {
       for (const name of mintedNames) {
         expect(embedsXml).toContain(`filename="${name}"`);
       }
+    });
+
+    it('renders a real discord.js Embed snapshot entry as Components-V2 XML, proving toJSON() ran at the call site', async () => {
+      // Unlike SnapshotFormatter.test.ts, this file does not mock EmbedParser,
+      // so this pins the real rendered XML. The fixture is a Components-V2
+      // embed on purpose: `components` is undocumented, so discord.js's `Embed`
+      // gives it no getter and only the `toJSON()` payload carries it. A
+      // `{ title, description }` fixture could not discriminate — both of those
+      // ARE getters, so the raw instance would render identically.
+      const realEmbed = Reflect.construct(Embed, [VXREDDIT_COMPONENTS_V2_EMBED]) as Embed;
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Forwarded with a real embed',
+        embeds: [realEmbed],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = await buildMessageContent(message);
+
+      const embedsXml = (result.embedsXml ?? []).join('\n');
+      expect(embedsXml).toContain('<text>-# vxReddit</text>');
+      expect(embedsXml).toContain('<image filename="embed-1-media-1.png"');
+      expect(embedsXml).not.toContain('rendered="false"');
     });
 
     it('should combine forwarded snapshot attachments with main message attachments', async () => {
@@ -656,7 +696,7 @@ describe('MessageContentBuilder', () => {
       const messageSnapshots = new Collection<string, MessageSnapshot>();
       messageSnapshots.set('1', {
         content: '',
-        embeds: [{}],
+        embeds: [{ toJSON: () => ({}) }],
         attachments: new Collection(),
         createdTimestamp: Date.now(),
       } as unknown as MessageSnapshot);

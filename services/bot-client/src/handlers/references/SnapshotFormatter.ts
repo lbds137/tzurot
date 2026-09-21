@@ -4,7 +4,7 @@
  * Formats Discord message snapshots (from forwarded messages) into referenced messages
  */
 
-import { type Message, type APIEmbed, type MessageSnapshot } from 'discord.js';
+import { type Message, type Embed, type MessageSnapshot } from 'discord.js';
 import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
@@ -125,12 +125,11 @@ export class SnapshotFormatter {
     const embedString =
       snapshot.embeds !== undefined && snapshot.embeds !== null && snapshot.embeds.length > 0
         ? snapshot.embeds
-            .map((embed: APIEmbed | { toJSON(): APIEmbed }, index: number) => {
-              // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
-              const apiEmbed: APIEmbed =
-                'toJSON' in embed && typeof embed.toJSON === 'function'
-                  ? embed.toJSON()
-                  : (embed as APIEmbed);
+            .map((embed: Embed, index: number) => {
+              // A message snapshot is constructed as a full Message (discord.js Message.js,
+              // message_snapshots → channel.messages._add), so its embeds are Embed instances
+              // and toJSON() is always present — the same assumption extractEmbedImages makes.
+              const apiEmbed = embed.toJSON();
               return EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length);
             })
             .join('\n')
