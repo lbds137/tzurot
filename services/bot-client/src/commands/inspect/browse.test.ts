@@ -358,6 +358,7 @@ describe('handleBrowseLogSelection', () => {
         createdAt: '2026-02-09T12:00:00Z',
         data: payload,
       },
+      estimatedCost: null,
     };
     stub.getDiagnosticByRequestId.mockResolvedValue(ok(log));
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
@@ -432,6 +433,7 @@ describe('handleBrowseLogSelection', () => {
         createdAt: '2026-02-09T12:00:00Z',
         data: payload,
       },
+      estimatedCost: null,
     };
     stub.getDiagnosticByRequestId.mockResolvedValue(ok(log));
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });

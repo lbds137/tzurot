@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import type { EstimatedCost } from '@tzurot/common-types/schemas/api/diagnostic';
 import {
   getEmbedColor,
   buildReasoningField,
@@ -352,6 +353,49 @@ describe('buildDiagnosticEmbed', () => {
     });
     const embed = buildDiagnosticEmbed(payload);
     expect(embed.toJSON().title).toContain('FAILED');
+  });
+
+  describe('estimated cost line', () => {
+    const cost: EstimatedCost = {
+      model: 'anthropic/claude-3.5-sonnet',
+      promptUsd: 0.001,
+      completionUsd: 0.002,
+      totalUsd: 0.003,
+      promptPricePerMillion: 3,
+      completionPricePerMillion: 15,
+      source: 'openrouter-list',
+    };
+
+    it('adds an Est. cost line to the Response field when a cost is provided', () => {
+      const payload = createMockPayload();
+      const embed = buildDiagnosticEmbed(payload, cost);
+      const fields = embed.toJSON().fields ?? [];
+      const responseField = fields.find(f => f.name.includes('Response'));
+      expect(responseField?.value).toContain('**Est. cost:** $0.0030');
+    });
+
+    it('renders the Response field byte-identical to the no-cost case when estimatedCost is undefined', () => {
+      const payload = createMockPayload();
+      const withoutArg = buildDiagnosticEmbed(payload);
+      const withUndefined = buildDiagnosticEmbed(payload, undefined);
+      const fieldsWithoutArg = withoutArg.toJSON().fields ?? [];
+      const fieldsWithUndefined = withUndefined.toJSON().fields ?? [];
+      const responseWithoutArg = fieldsWithoutArg.find(f => f.name.includes('Response'));
+      const responseWithUndefined = fieldsWithUndefined.find(f => f.name.includes('Response'));
+      expect(responseWithUndefined?.value).toBe(responseWithoutArg?.value);
+      expect(responseWithoutArg?.value).not.toContain('Est. cost');
+    });
+
+    it('renders the Response field byte-identical to the no-cost case when estimatedCost is null', () => {
+      const payload = createMockPayload();
+      const withoutArg = buildDiagnosticEmbed(payload);
+      const withNull = buildDiagnosticEmbed(payload, null);
+      const fieldsWithoutArg = withoutArg.toJSON().fields ?? [];
+      const fieldsWithNull = withNull.toJSON().fields ?? [];
+      const responseWithoutArg = fieldsWithoutArg.find(f => f.name.includes('Response'));
+      const responseWithNull = fieldsWithNull.find(f => f.name.includes('Response'));
+      expect(responseWithNull?.value).toBe(responseWithoutArg?.value);
+    });
   });
 
   describe('error message rendering', () => {

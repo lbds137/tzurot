@@ -91,6 +91,7 @@ function logWithThinking(thinkingContent: string | null): LookupResult {
         postProcessing: { thinkingContent },
       } as unknown as DiagnosticPayload,
     } as DiagnosticLog,
+    estimatedCost: null,
   };
 }
 

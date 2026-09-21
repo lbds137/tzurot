@@ -11,6 +11,8 @@ import {
 import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
 import { isRouterAliasModel } from '@tzurot/common-types/constants/ai';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import type { EstimatedCost } from '@tzurot/common-types/schemas/api/diagnostic';
+import { formatEstimatedCost } from './costLine.js';
 
 /**
  * Determine embed color based on diagnostic state
@@ -273,7 +275,10 @@ function buildModelField(
  * Build the Response field with finish-reason emoji decoration and a LOW
  * completion-tokens warning.
  */
-function buildResponseField(llmResponse: DiagnosticPayload['llmResponse']): {
+function buildResponseField(
+  llmResponse: DiagnosticPayload['llmResponse'],
+  estimatedCost?: EstimatedCost | null
+): {
   name: string;
   value: string;
   inline: boolean;
@@ -294,6 +299,9 @@ function buildResponseField(llmResponse: DiagnosticPayload['llmResponse']): {
         : '';
     lines.push(`**Cached Tokens:** ${llmResponse.cachedPromptTokens}${hitPercent}`);
   }
+  if (estimatedCost !== null && estimatedCost !== undefined) {
+    lines.push(`**Est. cost:** ${formatEstimatedCost(estimatedCost)}`);
+  }
   return {
     name: '📤 Response',
     value: lines.join('\n'),
@@ -304,7 +312,10 @@ function buildResponseField(llmResponse: DiagnosticPayload['llmResponse']): {
 /**
  * Build a summary embed with key diagnostic stats
  */
-export function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
+export function buildDiagnosticEmbed(
+  payload: DiagnosticPayload,
+  estimatedCost?: EstimatedCost | null
+): EmbedBuilder {
   const { meta, memoryRetrieval, tokenBudget, llmConfig, llmResponse, timing, error } = payload;
 
   const totalTokens = tokenBudget.contextWindowSize || 1;
@@ -375,7 +386,7 @@ export function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
       value: `\`${tokenBar}\`${dangerWarning}`,
       inline: false,
     },
-    buildResponseField(llmResponse),
+    buildResponseField(llmResponse, estimatedCost),
     {
       name: '⏱️ Timing',
       value: [
