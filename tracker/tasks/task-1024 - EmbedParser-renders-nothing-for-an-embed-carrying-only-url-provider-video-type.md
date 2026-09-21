@@ -1,10 +1,10 @@
 ---
 id: TASK-1024
 title: EmbedParser renders nothing for a Components-V2 link embed (vxreddit)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-19 17:46'
-updated_date: '2026-09-19 18:20'
+updated_date: '2026-09-21 10:13'
 labels:
   - 'area:bot-client'
   - 'size:M'
