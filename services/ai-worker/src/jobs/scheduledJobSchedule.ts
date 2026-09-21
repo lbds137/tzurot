@@ -3,9 +3,9 @@
  * scheduled worker.
  *
  * Split out of `index.ts` purely to stay under the `max-lines` limit — no
- * behavior change. `index.ts` imports all three exports and keeps the
- * dispatch if-chain itself, since that chain also references the job
- * handler functions `index.ts` already wires up.
+ * behavior change. `index.ts` imports `REPEATABLE_JOB_SCHEDULE` and
+ * `registerRepeatableJobs` from this module; `SCHEDULED_JOBS` is imported by
+ * `scheduledJobDispatch.ts`, which owns the name-to-handler map.
  */
 
 import type { Queue } from 'bullmq';
