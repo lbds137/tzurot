@@ -6,6 +6,8 @@
 
 import type { AutocompleteInteraction } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { COMMITMENT_TAG_KINDS } from '@tzurot/common-types/constants/factTags';
 import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
 
@@ -22,6 +24,43 @@ export async function handlePersonalityAutocomplete(
     ownedOnly: false, // Show all accessible personalities
     valueField: 'slug', // Return slug as value (user-friendly)
   });
+}
+
+/**
+ * Handle tag autocomplete for `/memory facts`.
+ *
+ * Pure string filter — no network, no cache. Suggestions are the fixed
+ * {@link COMMITMENT_TAG_KINDS} vocabulary whose values start with the typed
+ * prefix (case-insensitive), so an empty prefix offers all four kinds. When
+ * the typed value is non-empty and matches NONE of those four kinds, it's
+ * appended LAST as a single pass-through choice — this is what lets a
+ * caller type an out-of-vocabulary tag like `user:alice` and still have it
+ * offered back as a selectable option, without also cluttering a real
+ * vocabulary-prefix match (e.g. `commitment:d`) with a redundant raw entry.
+ */
+export async function handleFactTagAutocomplete(
+  interaction: AutocompleteInteraction
+): Promise<void> {
+  const raw = interaction.options.getFocused().trim();
+  const lowerRaw = raw.toLowerCase();
+
+  const matches = COMMITMENT_TAG_KINDS.filter(kind => kind.startsWith(lowerRaw));
+
+  const choices: { name: string; value: string }[] = matches.map(kind => ({
+    name: kind,
+    value: kind,
+  }));
+
+  if (raw.length > 0 && matches.length === 0) {
+    // Discord caps a choice name/value at 100 chars and rejects the whole
+    // autocomplete response above it (discord.js adds no client-side check) —
+    // truncate before building the choice, keeping name and value equal so
+    // the selected value round-trips.
+    const passthrough = raw.slice(0, DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH);
+    choices.push({ name: passthrough, value: passthrough });
+  }
+
+  await interaction.respond(choices.slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES));
 }
 
 /**

@@ -383,10 +383,11 @@ export const memoryBrowseOptions = defineTypedOptions({
 });
 
 /**
- * /memory facts <character>
+ * /memory facts <character, tag>
  */
 export const memoryFactsOptions = defineTypedOptions({
   character: { type: 'string', required: true },
+  tag: { type: 'string', required: false },
 });
 
 /**

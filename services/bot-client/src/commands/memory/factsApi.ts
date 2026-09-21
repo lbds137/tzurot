@@ -34,20 +34,23 @@ function warnNonMiss(
 }
 
 /**
- * Fetch a page of active facts for a personality. `null` = fetch failed
- * (list is a read; the browse view degrades to a transient-error message
- * rather than classifying, matching the episode browse contract).
+ * Fetch a page of active facts for a personality, optionally filtered to
+ * facts carrying `tag`. `null` = fetch failed (list is a read; the browse
+ * view degrades to a transient-error message rather than classifying,
+ * matching the episode browse contract).
  */
 export async function fetchFacts(
   userClient: UserClient,
   personalityId: string,
   offset: number,
-  limit: number
+  limit: number,
+  tag?: string
 ): Promise<FactListResponse | null> {
   const result = await userClient.listFacts({
     personalityId,
     limit: limit.toString(),
     offset: offset.toString(),
+    ...(tag !== undefined && tag.length > 0 ? { tag } : {}),
   });
   if (!result.ok) {
     return null;

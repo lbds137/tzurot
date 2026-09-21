@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { userFactRoutes } from './facts.js';
 import type { AnyRouteDef } from '../types.js';
 
@@ -46,5 +47,33 @@ describe('user fact routes', () => {
       const route = userFactRoutes[key as keyof typeof userFactRoutes] as AnyRouteDef;
       expect(route.meta?.safeRead, `${key} safeRead`).toBeFalsy();
     }
+  });
+
+  it('listFacts query schema accepts a tag and survives parsing', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', tag: 'commitment:promise' });
+    expect(result.success).toBe(true);
+    expect(result.data?.tag).toBe('commitment:promise');
+  });
+
+  it('listFacts query schema trims a tag with surrounding whitespace', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', tag: '  commitment:promise  ' });
+    expect(result.success).toBe(true);
+    expect(result.data?.tag).toBe('commitment:promise');
+  });
+
+  it('listFacts query schema rejects a tag over the max length', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', tag: 'a'.repeat(101) });
+    expect(result.success).toBe(false);
+  });
+
+  it('listFacts query schema accepts a tag at exactly the max length', () => {
+    const maxTag = 'a'.repeat(100);
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', tag: maxTag });
+    expect(result.success).toBe(true);
+    expect(result.data?.tag).toBe(maxTag);
   });
 });

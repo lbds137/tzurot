@@ -18,6 +18,7 @@
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
@@ -38,7 +39,7 @@ import {
 } from './incognito.js';
 import { handleBatchDelete } from './batchDelete.js';
 import { handlePurge } from './purge.js';
-import { handlePersonalityAutocomplete } from './autocomplete.js';
+import { handlePersonalityAutocomplete, handleFactTagAutocomplete } from './autocomplete.js';
 import { MEMORY_DETAIL_PREFIX } from './detail.js';
 import { handleFacts, FACT_BROWSE_PREFIX } from './factsBrowse.js';
 import { FACT_DETAIL_PREFIX } from './factsDetail.js';
@@ -112,6 +113,8 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 
   if (focusedOption.name === 'character') {
     await handlePersonalityAutocomplete(interaction);
+  } else if (focusedOption.name === 'tag') {
+    await handleFactTagAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
@@ -177,6 +180,14 @@ export default defineCommand({
             .setName('character')
             .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('tag')
+            .setDescription('Only facts carrying this entity tag (e.g. commitment:promise)')
+            .setRequired(false)
+            .setMaxLength(DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH)
             .setAutocomplete(true)
         )
     )
