@@ -21,8 +21,8 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.2.10",
-    "@langchain/openai": "^1.5.12",
+    "@langchain/core": "^1.2.11",
+    "@langchain/openai": "^1.5.13",
     "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
@@ -34,10 +34,10 @@
     "fflate": "^0.8.3",
     "ioredis": "^5.11.1",
     "langchain": "^1.5.11",
-    "onnxruntime-node": "^1.29.0",
+    "onnxruntime-node": "^1.30.0",
     "pino": "^10.3.1",
     "sharp": "^0.35.4",
-    "zod": "^4.6.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
