@@ -17,23 +17,9 @@ import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { NullVectorReembedder } from './jobs/NullVectorReembedder.js';
 import { setupBackgroundQueues, disposeBackgroundQueues } from './jobs/backgroundQueues.js';
 import type { ArchiveSummaryTrigger } from './services/archiveSummary/ArchiveSummaryTrigger.js';
-import { sweepRosterBlurbs } from './jobs/rosterBlurbSweep.js';
-import { sweepRecentDaysDigests } from './services/recentDaysDigest/recentDaysDigestSweep.js';
-import { sweepStaleRecentDaysDigests } from './services/recentDaysDigest/recentDaysDigestRetention.js';
-import {
-  SCHEDULED_JOBS,
-  REPEATABLE_JOB_SCHEDULE,
-  registerRepeatableJobs,
-} from './jobs/scheduledJobSchedule.js';
+import { REPEATABLE_JOB_SCHEDULE, registerRepeatableJobs } from './jobs/scheduledJobSchedule.js';
+import { buildScheduledJobHandlers, dispatchScheduledJob } from './jobs/scheduledJobDispatch.js';
 import { logZaiFreeTierBootCoherence } from './services/ZaiFreeTierAdmission.js';
-import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
-import { cleanupCommandEvents } from './jobs/CleanupCommandEvents.js';
-import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
-import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
-import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
-import { cleanupNotificationsRetention } from './jobs/cleanupNotificationsRetention.js';
-import { triggerReleaseReconcile } from './jobs/releaseReconcile.js';
-import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { QUEUE_CONFIG, SCHEDULED_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
@@ -234,87 +220,15 @@ async function setupScheduledJobs(
 ): Promise<ScheduledJobsResult> {
   const scheduledQueue = new Queue(SCHEDULED_QUEUE_NAME, { connection: config.redis });
 
+  const handlers = buildScheduledJobHandlers({
+    pendingMemoryProcessor,
+    prisma,
+    nullVectorReembedder,
+  });
+
   const scheduledWorker = new Worker(
     SCHEDULED_QUEUE_NAME,
-    async (job: Job) => {
-      if (job.name === SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES) {
-        logger.debug('Running pending memory processor');
-        const stats = await pendingMemoryProcessor.processPendingMemories();
-        // Backlog snapshot rides every run's completed log — the dead-letter
-        // rows (attempts >= cap / the 999 invalid-metadata sentinel) are
-        // otherwise invisible after their single "Gave up" line.
-        const backlog = await pendingMemoryProcessor.getStats();
-        return { ...stats, backlog };
-      }
-      if (job.name === SCHEDULED_JOBS.REEMBED_NULL_VECTORS) {
-        logger.debug('Running NULL-vector re-embed sweep');
-        return nullVectorReembedder.sweep();
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS) {
-        logger.debug('Running diagnostic log cleanup');
-        return cleanupDiagnosticLogs(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS) {
-        logger.info('Running stuck import job cleanup');
-        return cleanupStuckImportJobs(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS) {
-        logger.info('Running stuck export job cleanup');
-        return cleanupStuckExportJobs(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS) {
-        logger.info('Running expired export cleanup');
-        return cleanupExpiredExports(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION) {
-        // Retention was manual-only (/admin cleanup, run "when I remember") — this
-        // makes the 30-day window deterministic. The manual route stays as the
-        // on-demand trigger; both paths share ConversationRetentionService.
-        logger.info('Running conversation retention cleanup');
-        const retention = new ConversationRetentionService(prisma);
-        const oldHistory = await retention.cleanupOldHistory();
-        const softDeleted = await retention.cleanupSoftDeletedMessages();
-        // Returned object lands in the worker's `completed` log line — the
-        // per-table counts are what make a daily run verifiable in Railway logs.
-        return { oldHistory, softDeleted };
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION) {
-        // 90d handled-only purge (feedback read/archived, settled delivery
-        // rows); the returned counts are the daily run's verification trail.
-        logger.info('Running notifications/feedback retention cleanup');
-        return cleanupNotificationsRetention(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.CLEANUP_COMMAND_EVENTS) {
-        logger.info('Running command-event telemetry cleanup');
-        return cleanupCommandEvents(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.RELEASE_RECONCILE) {
-        // Thin authed trigger — the sweep itself runs in api-gateway, where
-        // prisma + the broadcast queue live. The summary in the completed
-        // log is the hourly run's verification trail.
-        logger.debug('Triggering release reconcile sweep');
-        return triggerReleaseReconcile();
-      }
-      if (job.name === SCHEDULED_JOBS.ROSTER_BLURB_SWEEP) {
-        // No-ops unless the rosterBlurbEnabled system setting is on; the
-        // returned stats are the tick's verification trail (and its spend).
-        logger.debug('Running roster blurb sweep');
-        return sweepRosterBlurbs(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.RECENT_DAYS_DIGEST_SWEEP) {
-        // No-ops unless the recentDaysDigestEnabled system setting is on;
-        // the returned stats are the tick's verification trail (and its spend).
-        logger.debug('Running recent-days digest sweep');
-        return sweepRecentDaysDigests(prisma);
-      }
-      if (job.name === SCHEDULED_JOBS.RECENT_DAYS_DIGEST_RETENTION) {
-        // Runs whether or not recentDaysDigestEnabled is on — retention is not
-        // gated on generation. The returned count is the daily run's trail.
-        logger.debug('Running recent-days digest retention sweep');
-        return sweepStaleRecentDaysDigests(prisma);
-      }
-      return null;
-    },
+    async (job: Job) => dispatchScheduledJob(handlers, job.name),
     {
       connection: config.redis,
       removeOnComplete: { count: QUEUE_CONFIG.SCHEDULED_COMPLETED_LIMIT },
